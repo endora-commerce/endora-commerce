@@ -104,6 +104,12 @@ export const manifest = defineModuleManifest({
   // that were already here. Both are ordinary declarations: neither reaches
   // back to this module, so the edges close no cycle. `carts` and `orders` do
   // reach back and are acknowledged below.
+  //
+  // `sales_channels` owns `salesChannelAttributionRegistry`, the registry this
+  // module pushes its own "how many of my rows are attributed to this channel?"
+  // counter into (feature 075, D-87). The registry is ungated and its owner is
+  // non-deactivatable, so the declaration buys install and migration order
+  // rather than a flip-time refusal.
   dependencies: [
     'admin_roles',
     'admin_users',
@@ -112,6 +118,7 @@ export const manifest = defineModuleManifest({
     'custom_fields',
     'customer_accounts',
     'organizations',
+    'sales_channels',
     'settings',
     'taxes',
   ],

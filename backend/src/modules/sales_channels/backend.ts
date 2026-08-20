@@ -1,6 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { DictionaryValidator } from '@b2b/contracts';
+import type {
+  DictionaryValidator,
+  SalesChannelAttributionRegistryPort,
+} from '@b2b/contracts';
 import type { CommandBus } from '../../commands/command-bus.js';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
@@ -12,6 +15,7 @@ import type {
   SalesChannelsCacheInvalidation,
 } from '../../kernel/sales-channels/sales-channels-cache.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import { SalesChannelAttributionRegistry } from './services/sales-channel-attribution-registry.js';
 import { SalesChannelsService } from './services/sales-channels.service.js';
 import type { AdminAuditContext } from './services/sales-channels.service.js';
 import { registerSalesChannelsAdminRoutes } from './routes.admin.js';
@@ -51,26 +55,62 @@ export interface SalesChannelsCradle {
   readonly salesChannelsCache: SalesChannelsCache;
   readonly salesChannelMembershipPort: SalesChannelMembershipService;
   readonly dictionaryValidator: DictionaryValidator;
+  /**
+   * Owned here, contributed to from `orders` and `quote_requests` (feature 075,
+   * D-87). A plain registration, not a port: a contributor pushes into it from
+   * a boot hook, and a gate there would stop the backend from starting.
+   */
+  readonly salesChannelAttributionRegistry: SalesChannelAttributionRegistryPort;
   readonly salesChannelsService: SalesChannelsService;
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  ctx.di.register({
+    /**
+     * "Who is still attributed to this channel?" — the contribution seam the
+     * FR-006 delete guard reads (feature 075, D-87). `SalesChannelsService`
+     * used to answer it here, with one statement naming `orders` and
+     * `quote_requests`; each owner counts its own rows now.
+     *
+     * `di.register`, not `di.providePort`: `orders` and `quote_requests` push
+     * into this from their own boot hooks, and a gate resolved there would
+     * refuse at a point in the boot that has nothing to answer. This module is
+     * `nonDeactivatable`, so there is no flip for a gate to protect either.
+     */
+    salesChannelAttributionRegistry: ctx
+      .asFunction(
+        (): SalesChannelAttributionRegistryPort => new SalesChannelAttributionRegistry(),
+      )
+      .singleton(),
+  });
+
   ctx.di.providePort(
     'salesChannelsService',
     ctx
       .asFunction(
-        ({ emFactory, eventBus, auditLogService, commandBus }: SalesChannelsCradle) =>
+        ({
+          emFactory,
+          eventBus,
+          auditLogService,
+          commandBus,
+          salesChannelAttributionRegistry,
+        }: SalesChannelsCradle) =>
           new SalesChannelsService(
             emFactory,
             eventBus,
-            auditLogService,
-            // Both are resolved per call rather than captured: the cache is
-            // composed by a root, and the validator is another module's port.
-            // Narrowed to the invalidating half (D-93): this service drops the
-            // cache at its write seam and must not be able to seed it, which is
-            // the resolver's job.
-            lazyPort<SalesChannelsCacheInvalidation>(ctx, 'salesChannelsCache'),
+            // Another module's port, so it is resolved per call rather than
+            // captured. Required since feature 075 — the branch its absence
+            // used to take was a raw `select` over `languages` and
+            // `currencies`, and it is gone.
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
+            // This module's own registration, so it is captured like `emFactory`.
+            salesChannelAttributionRegistry,
+            auditLogService,
+            // Resolved per call rather than captured: the cache is composed by a
+            // root. Narrowed to the invalidating half (D-93): this service drops
+            // the cache at its write seam and must not be able to seed it, which
+            // is the resolver's job.
+            lazyPort<SalesChannelsCacheInvalidation>(ctx, 'salesChannelsCache'),
             // A deployment input, like `emFactory` and `eventBus` — not a port,
             // so it is captured with them.
             commandBus,

@@ -1939,6 +1939,41 @@ export interface CatalogCategoryReadPort {
    * A caller that wants the live set narrows the rows it gets back.
    */
   listProductIdsInSubtree(categoryId: string): Promise<string[]>;
+
+  /**
+   * Ids of the products assigned to `categoryId` itself — not to anything below
+   * it (feature 075 / D-87).
+   *
+   * The narrow sibling of {@link listProductIdsInSubtree}, and the two are not
+   * interchangeable: a caller detaching products because one category left the
+   * source tree must touch that category's own assignments and no descendant's,
+   * because a descendant that is still mapped keeps its products.
+   *
+   * **Structural**, like the subtree walk: it filters neither `isActive` nor
+   * `deletedAt`. The assignment is the fact being asked about, and a caller
+   * removing one wants it gone whatever state the product is in.
+   */
+  listProductIdsInCategory(categoryId: string): Promise<string[]>;
+
+  /**
+   * How many **live** products sit in each of `categoryIds` — one grouped read,
+   * not a count per id (feature 075 / D-87).
+   *
+   * Live means not soft-deleted: a deleted product is not in the category any
+   * more in any sense an operator means, which is the filter the caller this
+   * replaced had written into its own join. Categories with no live product are
+   * omitted rather than returned as zero, so the caller decides what an absent
+   * count renders as.
+   */
+  countLiveProductsByCategory(
+    categoryIds: readonly string[],
+  ): Promise<CatalogCategoryProductCount[]>;
+}
+
+/** One category's live product count — see `countLiveProductsByCategory`. */
+export interface CatalogCategoryProductCount {
+  categoryId: string;
+  productCount: number;
 }
 
 // --- the bulk import surface -------------------------------------------------

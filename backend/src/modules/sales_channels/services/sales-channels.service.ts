@@ -6,6 +6,7 @@ import {
   SALES_CHANNEL_AUDIT_ACTIONS,
   dispatchValidatorMode,
   type DictionaryValidator,
+  type SalesChannelAttributionRegistryPort,
   type SalesChannelCreateBody,
   type SalesChannelUpdateBody,
 } from '@b2b/contracts';
@@ -73,6 +74,23 @@ export class SalesChannelsService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly eventBus: EventBus,
+    /**
+     * Required, and it was not (issue #251's shape, feature 075's occasion).
+     * Both roots have supplied it since feature 072 wave 2, so the absent
+     * branch was only ever run by tests — and what ran there was a hand-written
+     * `select "code" from "languages" / "currencies"`, two other modules' tables
+     * named in raw SQL, checking existence and not the active flag, and raising
+     * the 422 codes feature 017 superseded with the validator's uniform 409.
+     * Deleting that branch is the D-87 drain; making the argument required is
+     * what stops it coming back as an omission.
+     */
+    private readonly dictionaryValidator: DictionaryValidator,
+    /**
+     * "Who is still attributed to this channel?", asked of the modules that
+     * record it (feature 075, D-87). Required for the same reason: the absent
+     * form of a delete guard is an open one.
+     */
+    private readonly attributionRegistry: SalesChannelAttributionRegistryPort,
     private readonly auditLogService?: AuditLogService,
     /**
      * The invalidating half of the channel cache, narrowed to what a writer
@@ -80,13 +98,11 @@ export class SalesChannelsService {
      * from the write path, which is the reader's job.
      */
     private readonly cache?: SalesChannelsCacheInvalidation,
-    private readonly dictionaryValidator?: DictionaryValidator,
     /**
      * Used by `setDefault` only, which is a Command (Principle XIII) rather than
-     * a hand-audited write like the rest of this class. Optional in the same
-     * sense the two above are — the direct-service tests construct this class
-     * with three arguments — and `setDefault` refuses outright when it is
-     * missing, so the absence can never become an unaudited flag move.
+     * a hand-audited write like the rest of this class. Still optional — and
+     * `setDefault` refuses outright when it is missing, so the absence can never
+     * become an unaudited flag move.
      */
     private readonly commandBus?: CommandBus,
   ) {}
@@ -135,9 +151,9 @@ export class SalesChannelsService {
   ): Promise<SalesChannel> {
     const em = this.emFactory();
 
-    await this.assertLanguagesValid(em, body.languages);
+    await this.assertLanguagesValid(body.languages);
     await this.validateLanguage(body.defaultLanguage, 'create-or-change', 'defaultLanguage');
-    await this.assertCurrenciesValid(em, body.currencies);
+    await this.assertCurrenciesValid(body.currencies);
     await this.validateCurrency(body.defaultCurrency, 'create-or-change', 'defaultCurrency');
 
     const channel = em.create(SalesChannel, {
@@ -229,7 +245,7 @@ export class SalesChannelsService {
     }
 
     if (body.languages !== undefined) {
-      await this.assertLanguagesValid(em, body.languages, channel.languages);
+      await this.assertLanguagesValid(body.languages, channel.languages);
     }
     if (body.defaultLanguage !== undefined) {
       await this.validateLanguage(
@@ -239,7 +255,7 @@ export class SalesChannelsService {
       );
     }
     if (body.currencies !== undefined) {
-      await this.assertCurrenciesValid(em, body.currencies, channel.currencies);
+      await this.assertCurrenciesValid(body.currencies, channel.currencies);
     }
     if (body.defaultCurrency !== undefined) {
       await this.validateCurrency(
@@ -421,25 +437,26 @@ export class SalesChannelsService {
       );
     }
 
-    // FR-006: refuse hard-delete when historical Order or Quote attributions exist.
-    const attributions = await em
-      .getConnection()
-      .execute<Array<{ source: string; n: string }>>(
-        `select 'orders' as source, count(*)::text as n from "orders" where "sales_channel_id" = ? ` +
-          `union all ` +
-          `select 'quote_requests' as source, count(*)::text as n from "quote_requests" where "sales_channel_id" = ?`,
-        [channel.id, channel.id],
-        'all',
-        em.getTransactionContext(),
-      );
-    const orderCount = Number(attributions.find((r) => r.source === 'orders')?.n ?? '0');
-    const quoteCount = Number(attributions.find((r) => r.source === 'quote_requests')?.n ?? '0');
-    if (orderCount > 0 || quoteCount > 0) {
+    // FR-006: refuse hard-delete when historical attributions exist.
+    //
+    // Asked of the modules that record them rather than answered here (feature
+    // 075, D-87). This used to be one statement naming `orders` and
+    // `quote_requests` — two other modules' tables and two other modules'
+    // column names, invisible to the import-level boundary check because raw
+    // SQL names no specifier, and wrong the moment either owner changed how it
+    // stores the attribution. Each owner counts its own rows now and says what
+    // to call them; an owner that is switched off is still counted, which is
+    // this registry's stated policy and the only one the `on delete restrict`
+    // foreign key underneath agrees with.
+    const attributions = await this.attributionRegistry.countForChannel(channel.id);
+    if (attributions.length > 0) {
       throw new HttpError(
         422,
         ERROR_CODES.SALES_CHANNEL_HAS_ATTRIBUTIONS,
-        `Sales channel "${channel.code}" cannot be deleted while ${orderCount} order(s) and ` +
-          `${quoteCount} quote(s) reference it. Deactivate the channel instead.`,
+        `Sales channel "${channel.code}" cannot be deleted while ` +
+          `${attributions.map((a) => `${a.count} ${a.consumer}`).join(' and ')} reference it. ` +
+          `Deactivate the channel instead.`,
+        attributions.map((a) => ({ path: a.consumer, issue: String(a.count) })),
       );
     }
 
@@ -488,7 +505,6 @@ export class SalesChannelsService {
   }
 
   private async assertLanguagesValid(
-    em: EntityManager,
     codes: string[],
     currentCodes: string[] = [],
   ): Promise<void> {
@@ -500,40 +516,17 @@ export class SalesChannelsService {
         [{ path: 'languages', issue: 'empty' }],
       );
     }
-    if (this.dictionaryValidator) {
-      const current = new Set(currentCodes);
-      for (const code of codes) {
-        await this.validateLanguage(
-          code,
-          current.has(code) ? 'unchanged' : 'create-or-change',
-          'languages',
-        );
-      }
-      return;
-    }
-    const placeholders = codes.map(() => '?').join(', ');
-    const rows = await em
-      .getConnection()
-      .execute<Array<{ code: string }>>(
-        `select "code" from "languages" where "code" in (${placeholders})`,
-        codes,
-        'all',
-        em.getTransactionContext(),
-      );
-    const known = new Set(rows.map((r) => r.code));
-    const missing = codes.filter((c) => !known.has(c));
-    if (missing.length > 0) {
-      throw new HttpError(
-        422,
-        ERROR_CODES.UNKNOWN_LANGUAGE_CODE,
-        `Unknown language code(s): ${missing.join(', ')}.`,
-        missing.map((m) => ({ path: 'languages', issue: m })),
+    const current = new Set(currentCodes);
+    for (const code of codes) {
+      await this.validateLanguage(
+        code,
+        current.has(code) ? 'unchanged' : 'create-or-change',
+        'languages',
       );
     }
   }
 
   private async assertCurrenciesValid(
-    em: EntityManager,
     codes: string[],
     currentCodes: string[] = [],
   ): Promise<void> {
@@ -545,34 +538,12 @@ export class SalesChannelsService {
         [{ path: 'currencies', issue: 'empty' }],
       );
     }
-    if (this.dictionaryValidator) {
-      const current = new Set(currentCodes);
-      for (const code of codes) {
-        await this.validateCurrency(
-          code,
-          current.has(code) ? 'unchanged' : 'create-or-change',
-          'currencies',
-        );
-      }
-      return;
-    }
-    const placeholders = codes.map(() => '?').join(', ');
-    const rows = await em
-      .getConnection()
-      .execute<Array<{ code: string }>>(
-        `select "code" from "currencies" where "code" in (${placeholders})`,
-        codes,
-        'all',
-        em.getTransactionContext(),
-      );
-    const known = new Set(rows.map((r) => r.code));
-    const missing = codes.filter((c) => !known.has(c));
-    if (missing.length > 0) {
-      throw new HttpError(
-        422,
-        ERROR_CODES.UNKNOWN_CURRENCY_CODE,
-        `Unknown currency code(s): ${missing.join(', ')}.`,
-        missing.map((m) => ({ path: 'currencies', issue: m })),
+    const current = new Set(currentCodes);
+    for (const code of codes) {
+      await this.validateCurrency(
+        code,
+        current.has(code) ? 'unchanged' : 'create-or-change',
+        'currencies',
       );
     }
   }
@@ -582,7 +553,6 @@ export class SalesChannelsService {
     mode: 'create-or-change' | 'unchanged',
     field: string,
   ): Promise<void> {
-    if (!this.dictionaryValidator) return;
     try {
       await this.dictionaryValidator.validateLanguageCode(code, mode);
     } catch (err) {
@@ -598,7 +568,6 @@ export class SalesChannelsService {
     mode: 'create-or-change' | 'unchanged',
     field: string,
   ): Promise<void> {
-    if (!this.dictionaryValidator) return;
     try {
       await this.dictionaryValidator.validateCurrencyCode(code, mode);
     } catch (err) {
@@ -609,24 +578,25 @@ export class SalesChannelsService {
     }
   }
 
+  /**
+   * Read through the kernel's own entity rather than the raw statement this
+   * replaces (feature 075, D-87). `sales_channels` is the kernel's table since
+   * feature 072 moved the resolution machinery there, and a module relating
+   * into the kernel by ORM is the sanctioned access — it was the SQL, not the
+   * read, that crossed a boundary nothing could see. It reads through the
+   * caller's `em` on purpose: this runs inside the delete path, so the
+   * resolver's own fork would not see that path's uncommitted state.
+   */
   private async requireSystemDefaultId(em: EntityManager): Promise<string> {
-    const rows = await em
-      .getConnection()
-      .execute<Array<{ id: string }>>(
-        `select "id" from "sales_channels" where "system_default" = true limit 1`,
-        [],
-        'all',
-        em.getTransactionContext(),
-      );
-    const id = rows[0]?.id;
-    if (!id) {
+    const channel = await em.findOne(SalesChannel, { systemDefault: true });
+    if (channel === null) {
       throw new HttpError(
         500,
         ERROR_CODES.INTERNAL,
         'No system-default sales channel found; cannot apply fallback.',
       );
     }
-    return id;
+    return channel.id;
   }
 
   /**

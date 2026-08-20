@@ -11,9 +11,11 @@ import type {
   OrganizationDetailsPort,
   QuoteRequestReadPort,
   RfqCustomerPort,
+  SalesChannelAttributionRegistryPort,
 } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { QuoteRequestReadService } from './services/quote-request-read-port.js';
+import { registerQuoteRequestSalesChannelAttributions } from './services/sales-channel-attributions.js';
 import {
   lazyPort,
   SettingNotRegistered,
@@ -282,6 +284,33 @@ export function registerModule(ctx: ModuleContext): void {
       .cradle<QuoteRequestsCradle>()
       .quoteRequests.handle()
       .orderCompletionReactor.onOrderCreated(payload);
+  });
+
+  /**
+   * How many quote requests are attributed to a sales channel (feature 075,
+   * D-87).
+   *
+   * `sales_channels` used to count them itself, naming this module's table and
+   * this module's column in raw SQL. A read port would have been the wrong
+   * repair and this module is the reason: `sales_channels` is
+   * `nonDeactivatable`, and the lifecycle refuses to disable a module a
+   * non-deactivatable one depends on, so a `dependencies` entry pointing this
+   * way would have made this module permanently undeactivatable in order to
+   * count rows before a channel delete.
+   *
+   * A **contribution** hook: it pushes an inert counter into
+   * `salesChannelAttributionRegistry`, an ungated registry, and carries no
+   * presence probe (D-67/D-68). It must not carry one for a second reason here
+   * — the registry's policy is to honour an absent contributor, because the
+   * rows survive a deactivation and `quote_requests_sales_channel_fk` is
+   * `on delete restrict`, so a probe would turn a 422 naming this module into a
+   * raw constraint violation.
+   */
+  ctx.onBoot(() => {
+    registerQuoteRequestSalesChannelAttributions(
+      lazyPort<SalesChannelAttributionRegistryPort>(ctx, 'salesChannelAttributionRegistry'),
+      ctx.cradle<QuoteRequestsCradle>().emFactory,
+    );
   });
 
   ctx.routes(async (app) => {

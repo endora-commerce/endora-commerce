@@ -1,6 +1,7 @@
 import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
 import type {
   CatalogCategoryAssignmentRecord,
+  CatalogCategoryProductCount,
   CatalogCategoryReadPort,
   CatalogCategoryRecord,
 } from '@b2b/contracts';
@@ -145,6 +146,45 @@ export class CatalogCategoryReadService implements CatalogCategoryReadPort {
       [categoryId],
     );
     return rows.map((row) => row.product_id);
+  }
+
+  /**
+   * The one category, not its subtree — see the port's contract for why the two
+   * are separate methods. `pim_ergonode` wrote this statement itself before the
+   * port had it, to detach the products of a category the source tree dropped.
+   */
+  async listProductIdsInCategory(categoryId: string): Promise<string[]> {
+    const rows = await this.emFactory().execute<Array<{ product_id: string }>>(
+      'select distinct pc.product_id from product_categories pc where pc.category_id = ?',
+      [categoryId],
+    );
+    return rows.map((row) => row.product_id);
+  }
+
+  /**
+   * One grouped query rather than a count per id: the caller renders a source
+   * hierarchy of a few hundred bound categories on one screen, so a count per
+   * row would be a few hundred round trips every time it loads.
+   */
+  async countLiveProductsByCategory(
+    categoryIds: readonly string[],
+  ): Promise<CatalogCategoryProductCount[]> {
+    if (categoryIds.length === 0) return [];
+    const placeholders = categoryIds.map(() => '?').join(',');
+    const rows = await this.emFactory().execute<
+      Array<{ category_id: string; product_count: number }>
+    >(
+      `select pc.category_id, count(*)::int as product_count
+         from product_categories pc
+         join products p on p.id = pc.product_id and p.deleted_at is null
+        where pc.category_id in (${placeholders})
+        group by pc.category_id`,
+      [...categoryIds],
+    );
+    return rows.map((row) => ({
+      categoryId: row.category_id,
+      productCount: Number(row.product_count),
+    }));
   }
 }
 

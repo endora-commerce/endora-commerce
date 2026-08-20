@@ -25,6 +25,7 @@ import type {
   PaymentMethodReadPort,
   PromptActionToolRegistryPort,
   ResolvedTax,
+  SalesChannelAttributionRegistryPort,
   ShippingEmailRendererPort,
   TransactionalEmailSender,
 } from '@b2b/contracts';
@@ -42,6 +43,7 @@ import { commerceModule, type OrdersModuleOptions } from './plugin.js';
 import { emitOrderStatusAfter } from './events/order-status-events.js';
 import { OrderReadService, toOrderRecord } from './services/order-read-port.js';
 import { OrderReturnContextProvider } from './services/order-return-context.js';
+import { registerOrderSalesChannelAttributions } from './services/sales-channel-attributions.js';
 import type { OrderService } from './services/order-service.js';
 import type { OrderListService } from './services/order-list-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
@@ -625,6 +627,29 @@ export function registerModule(ctx: ModuleContext): void {
    * because `siteAt` is lexical, and this module's own gate is one that can
    * close.
    */
+  /**
+   * How many orders are attributed to a sales channel (feature 075, D-87).
+   *
+   * `sales_channels` used to count them itself, naming this module's table and
+   * this module's column in raw SQL. A read port would have been the wrong
+   * repair for the whole seam: `sales_channels` is `nonDeactivatable`, and the
+   * lifecycle refuses to disable a module a non-deactivatable one depends on,
+   * so the same edge onto `quote_requests` — switchable, and the other half of
+   * that one statement — would have taken the operator's RFQ switch away in
+   * order to count rows before a channel delete.
+   *
+   * A **contribution** hook: it pushes an inert counter into
+   * `salesChannelAttributionRegistry`, an ungated registry, and carries no
+   * presence probe (D-67/D-68). It contributes nothing else and does no work of
+   * its own, so it stays separate from every hook that does.
+   */
+  ctx.onBoot(() => {
+    registerOrderSalesChannelAttributions(
+      lazyPort<SalesChannelAttributionRegistryPort>(ctx, 'salesChannelAttributionRegistry'),
+      cradle().emFactory,
+    );
+  });
+
   ctx.onBoot(() => {
     const registry = cradle().promptActionToolRegistry;
     for (const tool of ordersPromptTools({

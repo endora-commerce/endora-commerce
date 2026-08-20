@@ -7,6 +7,7 @@ import type { DictionaryValidator } from '../../../src/modules/dictionaries/serv
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Currency } from '../../../src/modules/currencies/entities/currency.entity.js';
 import { Language } from '../../../src/modules/languages/entities/language.entity.js';
+import { SalesChannelAttributionRegistry } from '../../../src/modules/sales_channels/services/sales-channel-attribution-registry.js';
 import { SalesChannelsService } from '../../../src/modules/sales_channels/services/sales-channels.service.js';
 
 describe('Sales channels dictionary boundary', () => {
@@ -27,7 +28,14 @@ describe('Sales channels dictionary boundary', () => {
   beforeEach(async () => {
     em = await db.beginTx();
     validator = dictionaryValidatorFor(() => em);
-    service = new SalesChannelsService(() => em, new EventBus(), undefined, undefined, validator);
+    // An empty attribution registry: this suite is about the dictionary seam
+    // and composes neither contributor, so nothing points at any channel here.
+    service = new SalesChannelsService(
+      () => em,
+      new EventBus(),
+      validator,
+      new SalesChannelAttributionRegistry(),
+    );
   });
 
   afterEach(async () => {
