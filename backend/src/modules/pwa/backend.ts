@@ -103,6 +103,10 @@ export function registerModule(ctx: ModuleContext): void {
             ctx.cradle<PwaCradle>().requireAdmin(permission)(req, reply),
           vapidSubject:
             process.env['PWA_VAPID_SUBJECT'] ?? 'mailto:admin@b2b-platform.local',
+          // Pre-route fallback for the FR-024 handlers' log — see
+          // `PwaModuleOptions.log`. The module swaps to `app.log` when its
+          // routes register.
+          log: ctx.log,
           // Forwarded through the bridge so a root supplies them once, together.
           assetUpload: b.assetUpload,
           resolveAssetUrl: (assetId) => bridge().resolveAssetUrl(assetId),
