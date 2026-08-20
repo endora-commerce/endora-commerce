@@ -9,7 +9,7 @@ import { subscribeForModule } from '../../../src/kernel/lifecycle/plugin-helpers
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { SalesChannelsCache } from '../../../src/kernel/sales-channels/sales-channels-cache.js';
 import { SalesChannelResolverService } from '../../../src/kernel/sales-channels/sales-channel-resolver.service.js';
-import { SalesChannelsService } from '../../../src/modules/sales_channels/services/sales-channels.service.js';
+import { salesChannelsServiceFor } from '../../helpers/sales-channels-service.js';
 
 /**
  * D-93 (issue #160) — the sales-channel cache is dropped by the **write**, not
@@ -85,7 +85,7 @@ describe('sales-channel cache invalidation happens at the write seam (D-93)', ()
     const bus = new EventBus();
     const cache = new SalesChannelsCache(h.redis);
     const resolver = new SalesChannelResolverService(h.em, cache);
-    const service = new SalesChannelsService(h.em, bus, undefined, cache);
+    const service = salesChannelsServiceFor(h, h.em, { eventBus: bus, cache });
 
     // A module's own `ctx.subscribe` handler, first on this bus — the position
     // `dictionaries` occupies whenever the composition order happens to put it
@@ -107,7 +107,7 @@ describe('sales-channel cache invalidation happens at the write seam (D-93)', ()
     const bus = new EventBus();
     const cache = new SalesChannelsCache(h.redis);
     const resolver = new SalesChannelResolverService(h.em, cache);
-    const service = new SalesChannelsService(h.em, bus, undefined, cache);
+    const service = salesChannelsServiceFor(h, h.em, { eventBus: bus, cache });
 
     // The property stated on its own: freshness after a write owes nothing to
     // the bus. A composition that wires no listener — a worker, a CLI, a future
@@ -123,7 +123,7 @@ describe('sales-channel cache invalidation happens at the write seam (D-93)', ()
     const bus = new EventBus();
     const cache = new SalesChannelsCache(h.redis);
     const resolver = new SalesChannelResolverService(h.em, cache);
-    const service = new SalesChannelsService(h.em, bus, undefined, cache);
+    const service = salesChannelsServiceFor(h, h.em, { eventBus: bus, cache });
 
     // What the composition order used to buy `dictionaries`' registry rebuild:
     // it re-reads the channel it was told about. It gets the new state because

@@ -107,6 +107,12 @@ export const manifest = defineModuleManifest({
   // — `carts` dropping `price_lists` would have made two unrelated port edges
   // undeclared in a module nobody was editing. Neither declares `orders`, so
   // neither is mutual and neither needs acknowledging.
+  //
+  // `sales_channels` owns `salesChannelAttributionRegistry`, the registry this
+  // module pushes its own "how many of my rows are attributed to this channel?"
+  // counter into (feature 075, D-87). The registry is ungated and its owner is
+  // non-deactivatable, so the declaration buys install and migration order
+  // rather than a flip-time refusal.
   dependencies: [
     'addresses',
     'api_keys',
@@ -115,6 +121,7 @@ export const manifest = defineModuleManifest({
     'customer_accounts',
     'organizations',
     'price_lists',
+    'sales_channels',
     'settings',
     'taxes',
     'transactional_emails',
