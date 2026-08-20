@@ -84,6 +84,12 @@ export type MessageKey =
   | 'checkout.failure.cartKept'
   | 'checkout.failure.tryAgain'
   | 'checkout.failure.backToCart'
+  // Issue #264 — paying an order again after the first attempt did not go
+  // through. Shown on the order page, which is where a buyer looks for it.
+  | 'order.payment.retry.cta'
+  | 'order.payment.retry.hint'
+  | 'order.payment.retry.inProgress'
+  | 'order.payment.retry.failed'
   | 'checkout.coupon.label'
   | 'checkout.coupon.apply'
   | 'checkout.coupon.appliedPrefix'
@@ -297,6 +303,12 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Your cart is unchanged — nothing was charged and no order was created.',
     'checkout.failure.tryAgain': 'Try again',
     'checkout.failure.backToCart': 'Back to cart',
+    'order.payment.retry.cta': 'Pay again',
+    'order.payment.retry.hint':
+      'Your payment did not go through. Nothing has been charged — you can pay for this order again.',
+    'order.payment.retry.inProgress':
+      'A payment is already in progress for this order. Finish it on the payment page or wait for it to time out before starting a new one.',
+    'order.payment.retry.failed': 'We could not start the payment. Please try again in a moment.',
     'checkout.coupon.label': 'Coupon code (optional)',
     'checkout.coupon.apply': 'Apply',
     'checkout.coupon.appliedPrefix': 'Coupon ',
@@ -525,6 +537,12 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Twoj koszyk pozostal bez zmian — nic nie zostalo obciazone, zamowienie nie zostalo utworzone.',
     'checkout.failure.tryAgain': 'Sprobuj ponownie',
     'checkout.failure.backToCart': 'Wroc do koszyka',
+    'order.payment.retry.cta': 'Zaplac ponownie',
+    'order.payment.retry.hint':
+      'Platnosc nie doszla do skutku. Nic nie zostalo obciazone — mozesz oplacic to zamowienie ponownie.',
+    'order.payment.retry.inProgress':
+      'Dla tego zamowienia trwa juz platnosc. Dokoncz ja na stronie platnosci albo poczekaj, az wygasnie, zanim rozpoczniesz nowa.',
+    'order.payment.retry.failed': 'Nie udalo sie rozpoczac platnosci. Sprobuj ponownie za chwile.',
     'checkout.coupon.label': 'Kod kuponu (opcjonalnie)',
     'checkout.coupon.apply': 'Zastosuj',
     'checkout.coupon.appliedPrefix': 'Kupon ',

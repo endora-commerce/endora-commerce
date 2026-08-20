@@ -14,13 +14,16 @@ import type {
   PaymentRefundPort,
   ReceivePaymentPort,
 } from '@b2b/contracts';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { builtInPaymentAdapters } from './adapters/built-in-adapters.js';
 import { ReceivePaymentHandler, type PaymentEventBus } from './services/receive-payment-handler.js';
 import { PaymentService } from './services/payment-service.js';
+import { PaymentRetryService } from './services/payment-retry-service.js';
 import { PaymentReadService } from './services/payment-read-port.js';
 import { PaymentReferenceService } from './services/payment-reference-port.js';
 import { PaymentRefundProvider } from './services/payment-refund.js';
@@ -29,6 +32,7 @@ import { PaymentEmailNotifier } from './services/payment-email-notifier.js';
 import { resolvePaymentEmailRenderer } from './services/payment-email-renderer.js';
 import type { PaymentEmailNotifierDeps } from './services/payment-email-notifier.js';
 import { registerPaymentsRoutes } from './routes.js';
+import { registerPaymentsCustomerRoutes } from './routes.customer.js';
 import { PAYMENT_STATUS_CHANGED_DEFAULT } from './email-templates/transactional-defaults.js';
 
 /**
@@ -68,6 +72,11 @@ export interface PaymentsCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
   readonly requireAdmin: RequireAdminFactory;
+  /** How this composition authenticates and names the buyer on the retry route. */
+  readonly requireCustomer: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  readonly customerAccountIdResolver: (req: FastifyRequest) => string;
+  /** The tenancy read: a suspended Organization may not pay, as it may not place. */
+  readonly organizationReadPort: OrganizationReadPort;
   readonly paymentOrderStatusRegistry: OrderStatusRegistry;
   /** Owned by `payment_methods`: the table this module's adapters are listed in. */
   readonly paymentAdapterRegistry: PaymentAdapterRegistryPort;
@@ -81,6 +90,7 @@ export interface PaymentsCradle {
    */
   readonly gatewayRefundRegistry: GatewayRefundRegistryPort;
   readonly paymentService: PaymentService;
+  readonly paymentRetryService: PaymentRetryService;
   readonly receivePaymentHandler: ReceivePaymentHandler;
 }
 
@@ -137,6 +147,45 @@ export function registerModule(ctx: ModuleContext): void {
     'paymentService',
     ctx.asFunction(({ emFactory }: PaymentsCradle) => new PaymentService(emFactory)).singleton(),
   );
+
+  /**
+   * The buyer's own retry (issue #264), as this module's own service rather
+   * than a route body.
+   *
+   * It is not a published port: nothing outside this module calls it, and the
+   * one surface it has is the HTTP route below. The adapter registry is read
+   * per call — an operator can switch a gateway off between two requests, and
+   * the registry filters its enumeration on the contributor's effective state.
+   */
+  ctx.di.register({
+    paymentRetryService: ctx
+      .asFunction(
+        () =>
+          new PaymentRetryService({
+            orderRead: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            customerAccountRead: lazyPort<CustomerAccountReadPort>(
+              ctx,
+              'customerAccountReadPort',
+            ),
+            // Lazily, even though this module owns it: capturing a gate into a
+            // singleton is a gate that keeps answering after an operator
+            // switches the owner off.
+            paymentService: lazyPort<PaymentService>(ctx, 'paymentService'),
+            paymentAdapterRegistry: () =>
+              ctx.cradle<PaymentsCradle>().paymentAdapterRegistry,
+            // No `catch` around the port call, for the reason `orders` and
+            // `carts` give at the same seam: a disabled-module throw read as
+            // "no restriction" would be fail-open on a path whose job is to
+            // restrict.
+            assertOrganizationCanTransact: async (organizationId: string): Promise<void> => {
+              await ctx.cradle<PaymentsCradle>().organizationReadPort.assertCanTransact(
+                organizationId,
+              );
+            },
+          }),
+      )
+      .singleton(),
+  });
 
   /**
    * How a return settlement refunds a payment (feature 046 R5), as this
@@ -279,6 +328,14 @@ export function registerModule(ctx: ModuleContext): void {
       // stopping the routes (D-40).
       receiveHandler: lazyPort<ReceivePaymentHandler>(ctx, 'receivePaymentHandler'),
       paymentService: lazyPort<PaymentService>(ctx, 'paymentService'),
+    });
+    await registerPaymentsCustomerRoutes(app, {
+      requireCustomer: (req, reply) => ctx.cradle<PaymentsCradle>().requireCustomer(req, reply),
+      resolveCustomerAccountId: (req: FastifyRequest) =>
+        ctx.cradle<PaymentsCradle>().customerAccountIdResolver(req),
+      // Resolvable here, unlike the two above: this is a plain registration
+      // rather than a gate, and every port it holds is lazy.
+      retryService: ctx.cradle<PaymentsCradle>().paymentRetryService,
     });
   });
 

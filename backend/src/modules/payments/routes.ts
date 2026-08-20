@@ -11,6 +11,10 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
  *   POST /api/v1/admin/orders/:id/payments/retry — open a retry Payment (FR-024)
  *   GET  /api/v1/admin/orders/:id/payments   — full payment history (FR-026)
  *
+ * The buyer's own retry is a separate file (`routes.customer.ts`, issue #264):
+ * it authorises differently, guards the Organization's ability to transact, and
+ * starts the gateway session this one deliberately does not.
+ *
  * The ingress is admin-guarded for the MVP; a signed PSP-webhook auth path is a
  * follow-up (the offline reference adapters are settled by an admin anyway).
  */
@@ -41,7 +45,11 @@ export async function registerPaymentsRoutes(
     '/api/v1/admin/orders/:id/payments/retry',
     { preHandler: deps.requireAdmin('catalog:write') },
     async (request, reply) => {
-      const payment = await deps.paymentService.openRetry(request.params.id);
+      // `opened` is discarded here on purpose: the operator asked for the next
+      // attempt and gets it, whether it had to be created or was already open.
+      // The buyer-facing twin routes on that difference — see
+      // `routes.customer.ts` — because only it starts a provider session.
+      const { payment } = await deps.paymentService.openRetry(request.params.id);
       reply.status(201);
       return { data: serializePayment(payment) };
     },

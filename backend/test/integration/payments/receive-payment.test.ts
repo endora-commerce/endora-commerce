@@ -154,11 +154,75 @@ describe('ReceivePaymentHandler', () => {
     await handler.receive({ paymentId: payment.id, outcome: 'failure', failureReason: 'x' });
     const retry = await service.openRetry(order.id);
 
-    expect(retry.attemptNo).toBe(2);
-    expect(retry.status).toBe('awaiting_payment');
+    expect(retry.opened).toBe(true);
+    expect(retry.payment.attemptNo).toBe(2);
+    expect(retry.payment.status).toBe('awaiting_payment');
     const all = await service.listForOrder(order.id);
     expect(all).toHaveLength(2);
     expect(all.map((p) => p.attemptNo)).toEqual([1, 2]);
+  });
+
+  /**
+   * Issue #264 — a second ask while an attempt is open resumes it.
+   *
+   * The buyer's retry route starts a provider session for every attempt this
+   * *opens*, so a second row here is a second live object at the PSP for one
+   * order. Two clicks on one button is the ordinary way to produce it, and PayU
+   * makes the consequence concrete: it keys its order on `extOrderId`, which is
+   * this platform's payment id.
+   */
+  it('resumes the open attempt instead of opening a second one (#264)', async () => {
+    const { order } = await seedOrderWithPayment(h.em());
+    const service = new PaymentService(h.em);
+
+    const first = await service.openRetry(order.id);
+    expect(first.opened).toBe(false);
+    expect(first.payment.attemptNo).toBe(1);
+
+    const second = await service.openRetry(order.id);
+    expect(second.opened).toBe(false);
+    expect(await service.listForOrder(order.id)).toHaveLength(1);
+  });
+
+  /**
+   * Issue #264 — the refusals `openRetry` owes a settled order.
+   *
+   * `paid` was already refused; `refunded` and `deferred` were not, so a
+   * refunded order and a credit-limit order each opened an attempt no gateway
+   * would ever settle — and, once the buyer's route existed, one that would
+   * have taken the buyer to a payment page for money they do not owe.
+   */
+  it('refuses to open an attempt against a settled payment (#264)', async () => {
+    const service = new PaymentService(h.em);
+
+    for (const status of ['paid', 'refunded', 'partially_refunded', 'deferred'] as const) {
+      const { order, payment } = await seedOrderWithPayment(h.em());
+      payment.status = status;
+      await h.em().persistAndFlush(payment);
+      await expect(service.openRetry(order.id)).rejects.toMatchObject({ statusCode: 409 });
+      expect(await service.listForOrder(order.id)).toHaveLength(1);
+    }
+  });
+
+  /**
+   * Issue #264 — `failAttempt` closes an attempt whose provider session never
+   * started, and touches nothing else.
+   */
+  it('fails only an open attempt, so a settled one is never downgraded (#264)', async () => {
+    const { order, payment } = await seedOrderWithPayment(h.em());
+    const service = new PaymentService(h.em);
+
+    await service.failAttempt(payment.id, 'gateway refused');
+    const [afterFail] = await service.listForOrder(order.id);
+    expect(afterFail?.status).toBe('failed');
+    expect(afterFail?.failureReason).toBe('gateway refused');
+
+    const settled = await seedOrderWithPayment(h.em());
+    settled.payment.status = 'paid';
+    await h.em().persistAndFlush(settled.payment);
+    await service.failAttempt(settled.payment.id, 'late');
+    const [untouched] = await service.listForOrder(settled.order.id);
+    expect(untouched?.status).toBe('paid');
   });
 
   /**

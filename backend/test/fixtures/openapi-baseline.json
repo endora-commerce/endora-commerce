@@ -6945,6 +6945,15 @@
         }
       }
     },
+    "/api/v1/orders/{orderId}/payments/retry": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/orders/{orderId}/returnable": {
       "get": {
         "responses": {

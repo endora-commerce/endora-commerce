@@ -8,7 +8,7 @@ export const paymentsSettingsManifest = defineModuleSettingsManifest({
       code: 'payments.enabled',
       name: 'Payments enabled',
       description:
-        'Switches the payment lifecycle on or off: the receive_payment ingress, the retry path, the per-order payment history and the payment-status e-mail. Nothing is dropped — every payment, its status transitions and its provider references stay in the database, and an order mid-settlement keeps its record.',
+        'Switches the payment lifecycle on or off: the receive_payment ingress, both retry paths (the operator\'s and the buyer\'s), the per-order payment history and the payment-status e-mail. Nothing is dropped — every payment, its status transitions and its provider references stay in the database, and an order mid-settlement keeps its record.',
       groupCode: 'payments',
       valueType: 'boolean',
       defaultValue: true,
@@ -36,11 +36,17 @@ export const manifest = defineModuleManifest({
   // `orders` was already declared, which D-78 point 2 requires of the one
   // co-transactional seam kept in `receive-payment-handler.ts` — the FK
   // `payments_order_fk` had required it anyway.
+  // `organizations` joins for the buyer's retry route (issue #264): a suspended
+  // or blocked Organization may not pay an order any more than it may place
+  // one, and the guard is `organizationReadPort.assertCanTransact`. It is
+  // already transitively before this module through `orders`, so the entry
+  // changes no install or migration order — it states the edge.
   dependencies: [
     'auth',
     'customer_accounts',
     'delivery_methods',
     'orders',
+    'organizations',
     'payment_methods',
     'transactional_emails',
   ],
