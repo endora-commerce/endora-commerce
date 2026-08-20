@@ -222,7 +222,14 @@ export type MessageKey =
   // rather than leaving the reader to discover it.
   | 'compare.shared.pricesYours'
   | 'compare.shared.pricesChannel'
-  | 'compare.shared.hiddenProducts';
+  | 'compare.shared.hiddenProducts'
+  // Issue #274 — every payment gateway returns the buyer to the order page.
+  // The page says why they are back; the order's own payment status decides
+  // whether it says anything at all.
+  | 'orders.paymentReturn.returned'
+  | 'orders.paymentReturn.cancelled'
+  | 'orders.paymentReturn.failed'
+  | 'orders.actionFailed';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -458,6 +465,13 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Prices shown are this store’s standard prices. Sign in to see the prices agreed for your organisation.',
     'compare.shared.hiddenProducts':
       'Some products in this comparison are not available to your account and are not shown here.',
+    'orders.paymentReturn.returned':
+      'You are back from the payment provider. Your order is placed; we are still waiting for the payment to be confirmed, and this page shows the result as soon as it arrives.',
+    'orders.paymentReturn.cancelled':
+      'You have not paid yet. Your order is placed and is waiting for payment — nothing has been charged.',
+    'orders.paymentReturn.failed':
+      'Your payment did not go through. Your order is placed and is still waiting for payment, so you can try again.',
+    'orders.actionFailed': 'We could not complete that action.',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -692,6 +706,13 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Pokazane ceny to ceny standardowe tego sklepu. Zaloguj się, aby zobaczyć ceny uzgodnione dla Twojej organizacji.',
     'compare.shared.hiddenProducts':
       'Część produktów z tego zestawienia nie jest dostępna dla Twojego konta i nie jest tutaj pokazana.',
+    'orders.paymentReturn.returned':
+      'Wracasz od operatora płatności. Twoje zamówienie zostało złożone; czekamy jeszcze na potwierdzenie płatności — wynik pojawi się na tej stronie, gdy tylko dotrze.',
+    'orders.paymentReturn.cancelled':
+      'Płatność nie została jeszcze wykonana. Twoje zamówienie zostało złożone i czeka na opłacenie — nic nie zostało obciążone.',
+    'orders.paymentReturn.failed':
+      'Płatność nie doszła do skutku. Twoje zamówienie zostało złożone i nadal czeka na opłacenie, więc możesz spróbować ponownie.',
+    'orders.actionFailed': 'Nie udało się wykonać tej operacji.',
   },
 };
 

@@ -26,6 +26,7 @@ export * from './inventory.js';
 export * from './invoices.js';
 export * from './payments.js';
 export * from './payment-methods.js';
+export * from './payment-return-url.js';
 export * from './stripe.js';
 export * from './tpay.js';
 export * from './payu.js';

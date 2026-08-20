@@ -19,6 +19,7 @@ import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { formatMoney } from '../../../../lib/i18n/money';
 import { tForLocale } from '../../../../lib/i18n/messages';
+import { resolvePaymentReturnNotice } from '../../../../lib/orders/payment-return-notice';
 
 /**
  * Order confirmation page (T158). Renders the order the buyer just placed
@@ -36,14 +37,19 @@ export default async function OrderConfirmationPage({
    * `error` is written by every server action on this page. It had been
    * written and never read — the page took no `searchParams` at all — so a
    * reorder or a comment that failed redirected the buyer back to a page that
-   * said nothing. Issue #264 needed the same channel for a refused payment, so
-   * it is read here.
+   * said nothing. Issue #264 needed the same channel for a refused payment.
+   *
+   * Issue #274 then made this page where every payment gateway returns the
+   * buyer, so it also reads why they are back (`payment`).
+   *
+   * Kept optional: Next.js always passes it to a page, but the fallback costs
+   * nothing and the destructure cannot throw on a caller that does not.
    */
-  searchParams?: Promise<{ error?: string }>;
+  searchParams?: Promise<{ payment?: string; error?: string }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
   const { id } = await params;
-  const { error: actionError } = (await searchParams) ?? {};
+  const { payment: paymentReturn, error: actionError } = (await searchParams) ?? {};
   if (!session) redirect(`/login?next=/orders/${id}`);
 
   let order;
@@ -70,6 +76,7 @@ export default async function OrderConfirmationPage({
 
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
+  const paymentNotice = resolvePaymentReturnNotice(paymentReturn, order.paymentStatus);
   // Terminal orders close commenting; a pending payment surfaces a Pay CTA.
   const isTerminal = order.status === 'completed' || order.status === 'cancelled';
   const awaitingPayment = !isTerminal && order.paymentStatus === 'awaiting_payment';
@@ -105,16 +112,18 @@ export default async function OrderConfirmationPage({
         Order <strong>{order.businessId}</strong> has been received.
       </p>
 
+      {actionError && actionError.trim().length > 0 ? (
+        <p role="alert" className="b2b-auth__error">
+          {actionError}
+        </p>
+      ) : null}
+
+      {paymentNotice ? <p className="b2b-auth__hint">{t(paymentNotice)}</p> : null}
+
       {order.nextAction?.kind === 'awaiting_transfer' ? (
         <p>
           Pay by bank transfer using the reference printed on the proforma invoice we&apos;ll
           email shortly. We&apos;ll update the order once the payment clears.
-        </p>
-      ) : null}
-
-      {actionError ? (
-        <p className="b2b-auth__error" role="alert">
-          {actionError}
         </p>
       ) : null}
 
