@@ -6,6 +6,7 @@ import type {
   CatalogCategoryReadPort,
   CatalogProductReadPort,
   ListingPricePort,
+  OrganizationDetailsPort,
   SettingsAdminAuditContext,
   SettingsAdminPort,
 } from '@b2b/contracts';
@@ -135,6 +136,13 @@ export interface SearchModuleOptions {
    */
   listingPrices: ListingPricePort;
   /**
+   * `organizations`' read model — the customer group the pricing engine keys a
+   * group-targeted list on. The enricher above already resolves it for the
+   * popup; the result list needs the same row, so a buyer who stops at the
+   * suggestions and one who presses Enter are quoted the same figure.
+   */
+  organizations: OrganizationDetailsPort;
+  /**
    * When `true`, the module starts the periodic full-reindex sweep. The
    * composition passes its deployment-role gate (`runWorkers`) here so the
    * sweep only runs in worker/all processes, never in a dedicated
@@ -188,6 +196,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
     options.catalogAttributeRead,
     {},
     options.listingPrices,
+    options.organizations,
   );
 
   // Settings-aware suggest config, with fallback to manifest defaults

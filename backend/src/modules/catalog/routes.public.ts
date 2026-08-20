@@ -11,7 +11,7 @@ import {
 } from '@b2b/contracts';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
-import { productAudienceOf } from '../../http/product-audience.js';
+import { markPersonalisedPricing, productAudienceOf } from '../../http/product-audience.js';
 
 /**
  * Public catalog routes (US1 read surface).
@@ -92,6 +92,9 @@ export async function registerCatalogPublicRoutes(
     const { q, limit, cursor, sort, categorySlug, attributeFilters, changedSince } =
       parseListQuery(request);
     const ctx = readContext(request);
+    // The page's prices are resolved for this caller, so a page resolved for a
+    // buying organisation must not enter a shared cache.
+    markPersonalisedPricing(reply, ctx.audience);
 
     // Issue #144 — the presence answer is *decided* here, before the query, and
     // never caught after it. Constitution XVII: a module that is off behaves as
@@ -157,8 +160,9 @@ export async function registerCatalogPublicRoutes(
   // GET /api/v1/catalog/products/:idOrSlug
   app.get<{ Params: { idOrSlug: string } }>(
     '/api/v1/catalog/products/:idOrSlug',
-    async (request) => {
+    async (request, reply) => {
       const ctx = readContext(request);
+      markPersonalisedPricing(reply, ctx.audience);
       const product = await queryService.getProductByIdOrSlug(request.params.idOrSlug, ctx);
       // Imageless product → fall back to the configured placeholder so the PDP
       // hero/card renders something instead of an empty box.
@@ -179,8 +183,9 @@ export async function registerCatalogPublicRoutes(
     const links = deps.productLinkService;
     app.get<{ Params: { idOrSlug: string }; Querystring: { kind?: string } }>(
       '/api/v1/catalog/products/:idOrSlug/links',
-      async (request) => {
+      async (request, reply) => {
         const ctx = readContext(request);
+        markPersonalisedPricing(reply, ctx.audience);
         const product = await queryService.getProductByIdOrSlug(
           request.params.idOrSlug,
           ctx,

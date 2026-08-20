@@ -4,6 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { ANONYMOUS_PRODUCT_AUDIENCE } from '@b2b/contracts';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { ProductLinkService } from '../../../src/modules/catalog/services/product-link.service.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
@@ -102,6 +103,10 @@ describe('product link tile price source (#132)', () => {
         isPublic: true,
         defaultCurrency: 'PLN',
       },
+      // The price *source* is what this suite asks about; the viewer is the
+      // public one, and which figure each viewer gets is asserted next door in
+      // `viewer-priced-listing.test.ts`.
+      audience: ANONYMOUS_PRODUCT_AUDIENCE,
     });
     return rows.find((r) => r.product.id === target.id)?.product.price ?? null;
   }

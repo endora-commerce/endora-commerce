@@ -4,6 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { ANONYMOUS_PRODUCT_AUDIENCE } from '@b2b/contracts';
 import { ProductLinkService } from '../../../src/modules/catalog/services/product-link.service.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
@@ -33,8 +34,12 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
 
   // Feature 053: the route hands the service the request's resolved channel.
   // Issue #132 added `defaultCurrency` — the tiles used to quote a literal PLN.
+  // This suite asks about channel membership, not about the viewer, so every
+  // case reads as the public: the channel filter has to hold for the caller who
+  // has the least, and the priced answer has its own suite.
   const rc = (id: string, code: string, isPublic: boolean) => ({
     resolvedChannel: { id, code, isPublic, defaultCurrency: 'PLN' },
+    audience: ANONYMOUS_PRODUCT_AUDIENCE,
   });
 
   beforeAll(async () => {

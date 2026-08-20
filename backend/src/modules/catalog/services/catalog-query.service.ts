@@ -18,6 +18,7 @@ import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.
 import { BundleSlot } from '../entities/bundle-slot.entity.js';
 import { BundleSlotOption } from '../entities/bundle-slot-option.entity.js';
 import { resolvePrimaryAssetUrls } from './primary-asset-url.js';
+import { viewerOrganizationFor } from './viewer-organization.js';
 import {
   ERROR_CODES,
   isProductVisibleTo,
@@ -29,6 +30,7 @@ import {
   type FilterDefinition,
   type ListingPrice,
   type ListingPricePort,
+  type OrganizationDetailsPort,
   type ProductAudience,
   type ProductDetail,
   type ProductSummary,
@@ -180,6 +182,20 @@ export class CatalogQueryService {
      * cross-channel set, which is the one degrade Principle XII rules out.
      */
     private readonly channelMembership?: SalesChannelMembershipPort,
+    /**
+     * `organizations`' read model, for the one field the pricing engine needs
+     * beyond the viewer's organisation id: the customer group a group-targeted
+     * price list is selected by. Without it a buyer's catalogue card and their
+     * own cart line would resolve against different lists and quote different
+     * figures for one product.
+     *
+     * Optional only in the signature, and unwiring it is not a fallback: a
+     * listing asked to price a signed-in buyer without it fails loudly, the
+     * same way the two ports above do. An **anonymous** listing never reaches
+     * it, which is what keeps the fixtures that construct this service with no
+     * organisation wiring working unchanged.
+     */
+    private readonly organizationDetails?: OrganizationDetailsPort,
   ) {}
 
   #requireChannelMembership(): SalesChannelMembershipPort {
@@ -219,19 +235,41 @@ export class CatalogQueryService {
     return this.listingPrices;
   }
 
+  #requireOrganizationDetails(): OrganizationDetailsPort {
+    if (!this.organizationDetails) {
+      throw new Error(
+        'CatalogQueryService: the organization read port is not wired — a signed-in buyer cannot be priced.',
+      );
+    }
+    return this.organizationDetails;
+  }
+
   /**
-   * The chain's answer for a batch of products, keyed by product id.
+   * The chain's answer for a batch of products, keyed by product id, **for the
+   * viewer in front of the page**.
    *
    * A non-public sales channel withholds prices (R-18), and it withholds them
    * *before* the resolution rather than after: the catalogue has nothing to ask
    * about on a channel whose prices it may not show.
+   *
+   * The organisation is the whole of this method's share of the owner's ruling
+   * — an anonymous visitor sees the channel price, a signed-in buyer sees their
+   * organisation's. It is resolved once per page rather than per card, and it
+   * is `null` for every caller {@link viewerOrganizationFor} answers `null`
+   * for, so the anonymous request issues exactly the resolution it issued
+   * before and lands on exactly the cache entry it landed on before.
    */
   async #listingPricesFor(
     products: readonly Product[],
     channel: CatalogResolvedChannel | undefined,
+    audience: ProductAudience,
   ): Promise<Map<string, ListingPrice>> {
     if (products.length === 0) return new Map();
     if (!(channel?.isPublic ?? true)) return new Map();
+    const organization =
+      audience.organizationId === null
+        ? null
+        : await viewerOrganizationFor(this.#requireOrganizationDetails(), audience);
     return this.#requireListingPrices().resolveListingPrices({
       products,
       context: {
@@ -239,6 +277,7 @@ export class CatalogQueryService {
           id: channel?.id ?? '',
           defaultCurrency: channel?.defaultCurrency ?? 'PLN',
         },
+        organization,
       },
     });
   }
@@ -391,7 +430,7 @@ export class CatalogQueryService {
     const priceable = filtered.filter((p) =>
       categoryFilteredIds ? categoryFilteredIds.has(p.id) : true,
     );
-    const resolvedPrices = await this.#listingPricesFor(priceable, channel);
+    const resolvedPrices = await this.#listingPricesFor(priceable, channel, ctx.audience);
     const summaries = await Promise.all(
       priceable.map((p) => this.toSummary(em, p, channel, ctx.preferredLanguage, resolvedPrices)),
     );
@@ -437,7 +476,7 @@ export class CatalogQueryService {
       product,
       channel,
       ctx.preferredLanguage,
-      await this.#listingPricesFor([product], channel),
+      await this.#listingPricesFor([product], channel, ctx.audience),
     );
 
     // Categories
@@ -656,6 +695,7 @@ export class CatalogQueryService {
         product.id,
         {
           resolvedChannel: ctx.resolvedChannel,
+          audience: ctx.audience,
           ...(ctx.preferredLanguage ? { preferredLanguage: ctx.preferredLanguage } : {}),
         },
       );
@@ -806,7 +846,7 @@ export class CatalogQueryService {
     // and `ProductLinkService`, so the chain and the port call have one home.
     const assetUrlByProduct = await resolvePrimaryAssetUrls(em, this.#requireAssets(), ids);
 
-    const resolvedPrices = await this.#listingPricesFor(products, channel);
+    const resolvedPrices = await this.#listingPricesFor(products, channel, ctx.audience);
     for (const p of products) {
       const price = this.#summaryPrice(resolvedPrices, p.id);
       result.set(p.id, {
