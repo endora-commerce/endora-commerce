@@ -49,6 +49,7 @@ export class QuoteRequest {
     | 'expiredAt'
     | 'expiresAt'
     | 'convertedOrderId'
+    | 'salesChannelId'
     | 'version';
 
   @PrimaryKey({ type: 'uuid' })
@@ -118,6 +119,33 @@ export class QuoteRequest {
 
   @Property({ type: 'uuid', nullable: true })
   convertedOrderId?: string | null;
+
+  /**
+   * The sales channel this request was raised on — feature 005 / FR-012,
+   * recorded since issue #266.
+   *
+   * The column, its index and its `on delete restrict` foreign key have existed
+   * since `20260430T170044_core_sales_channels_promote`; the property that was
+   * supposed to follow never landed, so nothing on the request path wrote it
+   * and the FR-006 channel-delete guard has never seen an RFQ attribution.
+   * Written from the **resolved request channel** (`currentSalesChannel()`),
+   * never from a second lookup or a default of this module's choosing
+   * (Principle XII).
+   *
+   * Held as a plain uuid FK target, exactly as `Order.salesChannelId` is,
+   * rather than as an ORM relation: the schema's own foreign key is what keeps
+   * the value honest.
+   *
+   * **Nullable, and it stays nullable.** Two shapes answer `null`: every row
+   * raised before this property existed — the owner ruled those are developer
+   * data not worth backfilling, and projecting them onto the system default
+   * would invent an attribution the guard would then refuse on — and a request
+   * created with no channel on the scope at all (a CLI, a worker, a fixture
+   * that calls the service directly). "No channel" is spelled `null`, never an
+   * empty string, a nil uuid or a fresh one (D-47…D-51).
+   */
+  @Property({ type: 'uuid', nullable: true })
+  salesChannelId?: string | null;
 
   @Property({ type: 'integer' })
   version: number = 0;

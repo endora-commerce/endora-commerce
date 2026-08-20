@@ -11,20 +11,29 @@ import type { EntityManager } from '@mikro-orm/postgresql';
  * service and invisible to the import-level boundary check because raw SQL
  * names no specifier. It is answered here now.
  *
- * **The count is a raw statement rather than an entity read because this
- * module's entity does not map the column, and that is a defect this drain
- * moved rather than fixed.** Feature 005 / FR-012 added
- * `quote_requests.sales_channel_id` nullable in
+ * **The column this counts is populated since issue #266.** Feature 005 /
+ * FR-012 added `quote_requests.sales_channel_id` nullable in
  * `20260430T170044_core_sales_channels_promote`, with an `on delete restrict`
  * foreign key, and neither half of what was supposed to follow ever landed: no
- * property on `QuoteRequest`, so nothing on the request path has ever
- * written the column, and no migration flipping it `not null`. Every request
- * created since carries `null`, so this counter answers `0` for all of them and
- * the FR-006 delete guard has never seen an RFQ attribution. Recording the
- * channel an RFQ was raised on is this module's work and needs its own change;
- * the counter is written against the column that exists so that the day the
- * column is populated — including by rows a legacy backfill already filled —
- * the guard is already asking the right module.
+ * property on `QuoteRequest`, so nothing on the request path wrote the column,
+ * and no migration flipping it `not null`. This counter therefore answered `0`
+ * for every request ever raised and the FR-006 delete guard had never seen an
+ * RFQ attribution. `QuoteRequest.salesChannelId` now carries the resolved
+ * request channel, so the guard reads real evidence.
+ *
+ * **The count stays a raw statement, and not because the property is missing.**
+ * `QuoteRequest` is `@OrgScoped`, so an `em.count` would take the always-on
+ * tenant filter and answer "how many of *this tenant's* requests point at the
+ * channel". The delete guard is platform-wide — a channel is deleted for
+ * everyone — so the question it asks has to be too, and a filtered count would
+ * silently under-report and let an operator delete a channel other tenants'
+ * requests still point at. The statement names this module's own table, so the
+ * boundary check has nothing to object to.
+ *
+ * **Rows raised before #266 stay `null` on the owner's ruling** and are counted
+ * by nobody; they are developer data, and projecting them onto the system
+ * default would have this guard refuse a delete on an attribution the platform
+ * invented rather than observed.
  */
 export function registerQuoteRequestSalesChannelAttributions(
   registry: SalesChannelAttributionRegistryPort,
