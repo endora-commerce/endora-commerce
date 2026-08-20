@@ -10,12 +10,15 @@ import {
   resolveOrderStatusLabel,
   type OrderComment,
 } from '../../../../lib/api/orders';
+import { retryOrderPayment } from '../../../../lib/api/payments';
+import { offersPaymentRetry, paymentRetryDestination } from '../../../../lib/payment-retry';
 import { getReturnable } from '../../../../lib/api/returns';
 import { listMyOrderInvoices, invoiceDownloadUrl } from '../../../../lib/api/invoices';
 import { getSessionCookie } from '../../../../lib/session';
 import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { formatMoney } from '../../../../lib/i18n/money';
+import { tForLocale } from '../../../../lib/i18n/messages';
 
 /**
  * Order confirmation page (T158). Renders the order the buyer just placed
@@ -26,11 +29,21 @@ import { formatMoney } from '../../../../lib/i18n/money';
 
 export default async function OrderConfirmationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  /**
+   * `error` is written by every server action on this page. It had been
+   * written and never read — the page took no `searchParams` at all — so a
+   * reorder or a comment that failed redirected the buyer back to a page that
+   * said nothing. Issue #264 needed the same channel for a refused payment, so
+   * it is read here.
+   */
+  searchParams?: Promise<{ error?: string }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
   const { id } = await params;
+  const { error: actionError } = (await searchParams) ?? {};
   if (!session) redirect(`/login?next=/orders/${id}`);
 
   let order;
@@ -56,9 +69,15 @@ export default async function OrderConfirmationPage({
   }
 
   const { locale } = await getServerContext();
+  const t = tForLocale(locale);
   // Terminal orders close commenting; a pending payment surfaces a Pay CTA.
   const isTerminal = order.status === 'completed' || order.status === 'cancelled';
   const awaitingPayment = !isTerminal && order.paymentStatus === 'awaiting_payment';
+  // Issue #264 — deliberately not gated on `isTerminal`: the settlement ingress
+  // applies the method's `status_on_failure`, seeded `cancelled` everywhere, so
+  // a declined card leaves a terminal-looking order the buyer still owes money
+  // on. See `lib/payment-retry.ts`.
+  const canRetryPayment = offersPaymentRetry(order);
 
   // Surface a return/complaint entry point directly on the order — only when the
   // order is actually eligible (entered a completing status, items still
@@ -91,6 +110,25 @@ export default async function OrderConfirmationPage({
           Pay by bank transfer using the reference printed on the proforma invoice we&apos;ll
           email shortly. We&apos;ll update the order once the payment clears.
         </p>
+      ) : null}
+
+      {actionError ? (
+        <p className="b2b-auth__error" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+
+      {canRetryPayment ? (
+        <div className="mb-6">
+          <p className="b2b-auth__hint">{t('order.payment.retry.hint')}</p>
+          <form action={retryPaymentAction} className="mt-2 inline">
+            <input type="hidden" name="id" value={order.id} />
+            <input type="hidden" name="code" value={order.paymentMethod.code} />
+            <button type="submit" className="btn btn--primary btn--sm">
+              {t('order.payment.retry.cta')}
+            </button>
+          </form>
+        </div>
       ) : null}
 
       <div className="mb-6 flex flex-wrap gap-2">
@@ -298,6 +336,38 @@ async function reorderAction(formData: FormData): Promise<void> {
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Could not reorder.';
     redirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
+  }
+  redirect(target);
+}
+
+/**
+ * Pay this order again (issue #264).
+ *
+ * The redirect target is computed inside the `try` and taken outside it:
+ * `redirect()` works by throwing, so calling it in the `try` would be caught by
+ * the very handler meant for API failures.
+ */
+async function retryPaymentAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  const id = (formData.get('id') as string) ?? '';
+  const code = (formData.get('code') as string) ?? '';
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
+
+  let target: string;
+  try {
+    const result = await retryOrderPayment(session, id);
+    target =
+      paymentRetryDestination(id, result, code) ??
+      `/orders/${id}?error=${encodeURIComponent(
+        result.opened ? t('order.payment.retry.failed') : t('order.payment.retry.inProgress'),
+      )}`;
+  } catch (err) {
+    const message =
+      err instanceof StorefrontApiError ? err.message : t('order.payment.retry.failed');
+    target = `/orders/${id}?error=${encodeURIComponent(message)}`;
   }
   redirect(target);
 }
