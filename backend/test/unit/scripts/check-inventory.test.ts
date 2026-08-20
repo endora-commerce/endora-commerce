@@ -1133,6 +1133,16 @@ function crossModuleTargets(source: string, file: string, target: string): numbe
 const ORDERS_READS_A_PRODUCT =
   "import { Product } from '../../catalog/entities/product.entity.js';";
 const ORDERS_READS_NOTHING = 'export class OrderService {}';
+/**
+ * The same target, twice in one file — the shape the ledger key merges, and
+ * therefore the shape only a count can speak about (issue #267).
+ */
+const ORDERS_READS_A_PRODUCT_TWICE = [
+  "import type { Product } from '../../catalog/entities/product.entity.js';",
+  'export class OrderService {',
+  "  async load() { return import('../../catalog/entities/product.entity.js'); }",
+  '}',
+].join('\n');
 const CROSS_MODULE_KEY = `${ORDER_SERVICE_FILE}:catalog/entities/product.entity`;
 
 function moduleBoundaryTree(source: string): Map<string, string> {
@@ -2361,6 +2371,44 @@ const CHECKS: readonly CheckEntry[] = [
               },
             },
           ]).permanentIssues.length,
+      ),
+      // Issue #267's three. The key is `(file, target)`, so it answers "is this
+      // file already known to reach that target" and not "how much": MR !793
+      // added two `product_categories` statements to two files that each
+      // already had an entry, `sql` rose 52 -> 54, and `violations` and `stale`
+      // stayed 0. The fixture is a file that reaches one target **twice**, in
+      // source text, because the walk that produces the number is the part
+      // under test — handing the comparison a ready-made count would prove the
+      // arithmetic and nothing above it.
+      'entry-count-below-the-reaches-fails': top(
+        () =>
+          checkModuleBoundary({ sources: moduleBoundaryTree(ORDERS_READS_A_PRODUCT_TWICE) }, [
+            { moduleId: 'orders', entries: { [CROSS_MODULE_KEY]: 'not yet cut, and it is one reach' } },
+          ]).countIssues.length,
+      ),
+      // The stale direction one granularity down: a number left standing after
+      // the reaches under it went. A count that could only ever rise would be
+      // the one ledger in this tree that ratchets one way.
+      'entry-count-above-the-reaches-fails': top(
+        () =>
+          checkModuleBoundary({ sources: moduleBoundaryTree(ORDERS_READS_A_PRODUCT_TWICE) }, [
+            {
+              moduleId: 'orders',
+              entries: { [CROSS_MODULE_KEY]: { sites: 3, reason: 'not yet cut' } },
+            },
+          ]).countIssues.length,
+      ),
+      // The shard is imported at runtime, so `tsc` never sees the count either:
+      // a `sites` that is not a positive integer reads as a recorded number and
+      // can be compared with nothing.
+      'non-positive-entry-count-fails': top(
+        () =>
+          checkModuleBoundary({ sources: moduleBoundaryTree(ORDERS_READS_A_PRODUCT_TWICE) }, [
+            {
+              moduleId: 'orders',
+              entries: { [CROSS_MODULE_KEY]: { sites: 0, reason: 'not yet cut' } },
+            },
+          ]).countIssues.length,
       ),
       // A shard is loaded through a dynamic import, so `tsc` never sees it: a
       // mistyped flag would otherwise read as an object with no reason and be
@@ -4221,8 +4269,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // only named the table would go green off the statement path it is not
       // testing. Plus issue #217's one: a shard that declares its own entry
       // type, which is what kept the three permanence shapes above from ever
-      // running over 29 of the 33 shards.
-      'backend/scripts/check-module-boundary.ts': 32,
+      // running over 29 of the 33 shards. Plus issue #267's three: the key
+      // answers "is this file already known to reach that target" and not "how
+      // much", so a count too low, a count too high and a count that is no
+      // number are the three ways an entry can stop describing its own file.
+      'backend/scripts/check-module-boundary.ts': 35,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue

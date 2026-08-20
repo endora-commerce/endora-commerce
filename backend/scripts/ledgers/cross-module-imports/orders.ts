@@ -9,6 +9,10 @@
  * describes one fails it too. Delete this file when the last entry goes; an
  * empty shard is refused, because a done signal that says nothing is not one.
  *
+ * Where a file reaches one target more than once, the entry carries `sites` and the number
+ * is checked both ways (issue #267); an omitted `sites` means one. The key does not change
+ * with the count — that is what keeps it stable across a move inside the file.
+ *
  * "Retired by the cut merge request" is a reason only while the sweep runs.
  * After 2026-12-31 it stops being an acceptable one: an entry still carrying it
  * is a boundary the repository has decided to keep, and it needs a reason that
@@ -61,6 +65,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
   },
   'modules/orders/services/order-service.ts:inventory/entities/stock-allocation.entity': {
     permanent: true,
+    sites: 2,
     reason:
       'D-78 point 2, settled by D-94.1 — a co-transactional write the database holds together. `inventory/migrations/20260818T081243_inventory_stock_allocation_order_item_fk.ts` adds `stock_allocations_order_item_fk` (`stock_allocations.order_item_id` -> `order_items.id`, `on delete restrict`), so an allocation row cannot exist before its order item does and the order items are not committed until placement returns. Until D-94 the column was `uuid not null` with no constraint at all — the same statement that created it constrains `warehouse_id` and left this one bare, so the omission tracked the module boundary rather than a decision, and this entry was escalated for exactly that. D-78 point 1 still does not apply: `reserve` cannot move inside `inventory` and keep its guarantee, because the `PESSIMISTIC_WRITE` on `stock_levels` has to be held until the order commits (test/contract/orders/place-stock-race.test.ts is the race it stops). `inventory` declares `orders` for the constraint — the one edge of the family that closes no cycle; this module declares `inventory` `degrades-without` and skips the reservation whole when it is switched off.',
     retiredBy:
@@ -68,6 +73,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
   },
   'modules/orders/services/order-service.ts:inventory/entities/stock-level.entity': {
     permanent: true,
+    sites: 2,
     reason:
       'D-78 point 2, settled by D-94.1, on the module-level reading of it — and the entry has to say so, because the constraint is on `stock_allocations` rather than on this table. The `PESSIMISTIC_WRITE` lock this class is loaded under, and the `reserved` increment it carries, are one operation with the allocation insert beside them: it is the allocation`s foreign key (`stock_allocations_order_item_fk`, `on delete restrict`) that pins the whole operation to the placement transaction, and splitting the lock off from the insert it protects would lose the race test/contract/orders/place-stock-race.test.ts asserts. Everything else the reservation used to reach into `inventory` for is gone (D-94.4): the channel -> warehouse binding and the default-warehouse fallback are `inventoryStockReadPort.listChannelWarehouses`, and both strategy resolvers are `inventoryFulfilmentPlanningPort`.',
     retiredBy:

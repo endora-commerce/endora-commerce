@@ -128,16 +128,17 @@
  * because a single table makes all 45 cut merge requests edit one file, and that
  * is the serialisation point this design exists to remove.
  *
- * It fails **seven** ways, not two: an unledgered import fails, a stale entry
+ * It fails **eight** ways, not two: an unledgered import fails, a stale entry
  * fails, an empty shard fails (delete the file instead), an orphan shard fails,
  * a **misfiled** entry fails — without that one, an engineer blocked on
  * `catalog` could park an `orders` finding in `catalog.ts` and both merge
  * requests would read green — a **permanent entry with no retiring condition**
- * fails, and a shard that **declares an entry type of its own** fails
- * (issue #217). The last one is what makes the sixth reachable: `payments` was
- * typed `Readonly<Record<string, string>>` for as long as it existed, so its
- * co-transactional seam could claim permanence in prose only — it counted
- * toward `ledger-size` as debt nothing was going to drain, and
+ * fails, an entry whose **recorded count** is not what the walk found fails in
+ * either direction (issue #267, below), and a shard that **declares an entry
+ * type of its own** fails (issue #217). The last one is what makes the sixth
+ * reachable: `payments` was typed `Readonly<Record<string, string>>` for as long
+ * as it existed, so its co-transactional seam could claim permanence in prose
+ * only — it counted toward `ledger-size` as debt nothing was going to drain, and
  * {@link permanentEntryIssue} had no field to run on. It was not one file
  * departing from a convention: **29 of the 33 shards** were typed that way, the
  * four exceptions being the shards that had already had to hold a permanent
@@ -170,6 +171,49 @@
  * is the property that lets code move inside a file without invalidating the
  * ledger; the entry retires when the *last* of the sites under it goes.
  *
+ * ## The count on an entry (issue #267)
+ *
+ * That last property has a cost, and it was paid: because the key answers "is
+ * this file already known to reach this table" rather than "how much", the
+ * **Nth** reach of a shape a file already carries lands against an unchanged
+ * ledger. MR !793 added two `select … from product_categories` statements, in
+ * `price-list-service.ts` and in `pricing-service.ts`; both files already had an
+ * entry for that table, so `sql` rose 52 -> 54, the ledger did not move, `stale`
+ * and `violations` stayed 0, and nothing asked anybody to justify them. The
+ * entries were honest and the merge request was good work — which is the point:
+ * a correct change added cross-module coupling that the mechanism built to make
+ * coupling visible did not surface.
+ *
+ * So an entry carries a **count**, two-way like every other ledger in this tree.
+ * The key stays exactly as it was: an entry is `{ sites, reason }` where the
+ * file reaches its target more than once, and stays a plain string — meaning one
+ * — where it does not. The field is **omittable** because 60 of the 68 keys
+ * standing when it landed cover exactly one reach (7 cover two, 1 covers three,
+ * and 6 of the 8 are `sql`), so a required field would have written `sites: 1`
+ * fifty-odd times to say nothing. The default is safe because it fails
+ * **closed**: a new entry over a file that already reaches three times records 1
+ * by omission and the run says the walk found three.
+ *
+ * Both directions fail. A count **below** the walk is the gap this closes — a
+ * reach nobody was asked about. A count **above** it is the stale entry the key
+ * already refuses, one granularity down: a number left standing after the
+ * statements under it went. {@link countIssueFor} is the whole rule, and it says
+ * nothing when the walk found **none** — that is staleness, reported once by the
+ * name it already had.
+ *
+ * A permanent entry carries the count on the same terms
+ * ({@link PermanentLedgerEntry.sites}). Permanence answers "why does this edge
+ * stand", never "why does it stand twice", and a co-transactional seam that
+ * grows a second statement deserves the question a draining one's growth gets.
+ *
+ * **`ledger-size` still means keys.** An entry is the unit of review and of
+ * retirement — the cut that removes it removes every reach under it — and a file
+ * with three reaches under one entry contributes 1, as it always did. Counting
+ * sites instead would have moved the published number 57 -> 64 with no code
+ * changed, reading as a regression in a drain that is nearly finished. The site
+ * total is printed beside it as `(sites=…)`, derived from the counts and never
+ * written down, so growth inside an entry is visible in the summary line too.
+ *
  * **"Not yet cut" is a reason only during the sweep.** Every entry generated in
  * MR-0 says so and names the merge request that retires it; after
  * **2026-12-31** that sentence stops being an acceptable reason, and an entry
@@ -178,7 +222,7 @@
  *
  * Usage: `tsx scripts/check-module-boundary.ts [--list] [--tests] [--module <id>]`
  * Exit 0 = every cross-module reach is ledgered in its own shard;
- * exit 1 = at least one is not, or the ledger lies in one of the other six ways;
+ * exit 1 = at least one is not, or the ledger lies in one of the other seven ways;
  * exit 2 = the check read nothing — no module sources, no ledger directory, or a
  * table→owner map in which **either** pass resolved zero tables. Each pass
  * proves it looked, and a silently empty migration pass is precisely the
@@ -331,10 +375,107 @@ export interface PermanentLedgerEntry {
   readonly reason: string;
   /** What would retire it. A merge request is not a retiring condition. */
   readonly retiredBy: string;
+  /**
+   * How many reaches stand under this key. Omitted means one — see
+   * {@link CountedLedgerEntry}, and the header's "the count on an entry".
+   *
+   * A permanent entry carries it on the same terms as a draining one:
+   * permanence answers "why does this edge stand", never "why does it stand
+   * three times", and a co-transactional seam that grows a second statement is
+   * worth exactly the question a draining one's growth is worth.
+   */
+  readonly sites?: number;
 }
 
-/** What a shard maps a key to: a draining reason, or a permanent entry. */
-export type LedgerEntry = string | PermanentLedgerEntry;
+/**
+ * A draining entry whose file reaches its target more than once (issue #267).
+ *
+ * The plain string form *is* this entry with `sites: 1`, which is what 60 of
+ * the 68 keys standing when the count landed are. The field is written only
+ * where the key covers more than one reach, so the common entry stays a
+ * sentence and the exceptional one says how many.
+ */
+export interface CountedLedgerEntry {
+  /** How many reaches stand under this key. At least 1, and an integer. */
+  readonly sites: number;
+  /** The same sentence a string entry carries. */
+  readonly reason: string;
+}
+
+/** What a shard maps a key to: a reason, a counted reason, or a permanent entry. */
+export type LedgerEntry = string | CountedLedgerEntry | PermanentLedgerEntry;
+
+/**
+ * How many reaches the entry claims stand under its key, or `null` when it
+ * declares a `sites` that is not a positive integer.
+ *
+ * Omitting the field means one. That default is safe because it fails
+ * **closed**: an author who ledgers a file that already reaches its target
+ * three times writes a sentence, records 1 by omission, and the run tells them
+ * the walk found three.
+ */
+export function recordedSites(entry: LedgerEntry): number | null {
+  if (typeof entry === 'string') return 1;
+  const sites: unknown = (entry as { sites?: unknown }).sites;
+  if (sites === undefined) return 1;
+  if (typeof sites !== 'number' || !Number.isInteger(sites) || sites < 1) return null;
+  return sites;
+}
+
+/** The reason text an entry carries, whichever of the three forms it takes. */
+export function reasonOf(entry: LedgerEntry): string {
+  return typeof entry === 'string' ? entry : entry.reason;
+}
+
+/**
+ * Whether a shard value is a counted draining entry: a reason with a `sites`
+ * field beside it.
+ *
+ * Structural, and deliberately tolerant of a malformed `sites` — a
+ * `sites: 'two'` is a *count* defect, reported as one, rather than a value the
+ * malformed-entry message calls "neither a reason nor a permanent entry" while
+ * saying nothing about the number.
+ */
+function isCounted(entry: unknown): entry is CountedLedgerEntry {
+  return (
+    typeof entry === 'object' &&
+    entry !== null &&
+    'sites' in entry &&
+    typeof (entry as { reason?: unknown }).reason === 'string'
+  );
+}
+
+/**
+ * Why an entry's recorded count does not describe what the walk found, or
+ * `null` when it does.
+ *
+ * `found === 0` is not this rule's business: the entry describes no reach at
+ * all, which is the stale direction the key has always refused, and reporting
+ * it twice would name one defect two ways.
+ */
+export function countIssueFor(key: string, entry: LedgerEntry, found: number): string | null {
+  const recorded = recordedSites(entry);
+  if (recorded === null) {
+    const written = JSON.stringify((entry as { sites?: unknown }).sites);
+    return (
+      `${key} records \`sites: ${written}\` — a site count is a positive integer, and an ` +
+      'entry that cannot say how many reaches it covers cannot be compared with the walk'
+    );
+  }
+  if (found === 0 || recorded === found) return null;
+  if (recorded < found) {
+    return (
+      `${key} records ${recorded}, the walk found ${found} (+${found - recorded}) — the file ` +
+      'grew a reach into that target and no reviewer was asked why. Record ' +
+      `${found} and say in the reason what the new one is for, or remove it.`
+    );
+  }
+  return (
+    `${key} records ${recorded}, the walk found ${found} (-${recorded - found}) — a count left ` +
+    `standing after a reach went is the stale entry the key already refuses. Record ${found}` +
+    (found === 1 ? ', or drop the `sites` field and leave the reason.' : '.')
+  );
+}
 
 /** One ledger shard: the module it belongs to, and its entries. */
 export interface LedgerShard {
@@ -475,6 +616,12 @@ export interface CheckResult {
   readonly permanentKeys: readonly string[];
   /** A permanent entry that states no reason or no retiring condition. */
   readonly permanentIssues: readonly string[];
+  /**
+   * An entry whose recorded site count is not what the walk found, in either
+   * direction, or which records a count that is not a positive integer
+   * (issue #267).
+   */
+  readonly countIssues: readonly string[];
   /** A shard whose file declares an entry type of its own (issue #217). */
   readonly shardShapeIssues: readonly string[];
   /** What each pass of the table→owner map resolved, and what is left over. */
@@ -780,6 +927,13 @@ export function checkModuleBoundary(
   const all: ModuleBoundaryFinding[] = [...findCrossModuleImports(input), ...sql.found];
   all.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   const present = new Set(all.map(keyOf));
+  // How many reaches each key actually covers, so an entry can be compared with
+  // a number rather than with a boolean (issue #267).
+  const found = new Map<string, number>();
+  for (const finding of all) {
+    const key = keyOf(finding);
+    found.set(key, (found.get(key) ?? 0) + 1);
+  }
 
   const modules = new Set<string>();
   for (const file of input.sources.keys()) {
@@ -793,6 +947,7 @@ export function checkModuleBoundary(
   const orphanShards: string[] = [];
   const permanentKeys: string[] = [];
   const permanentIssues: string[] = [];
+  const countIssues: string[] = [];
   const shardShapeIssues: string[] = [];
 
   for (const shard of shards) {
@@ -816,12 +971,17 @@ export function checkModuleBoundary(
         permanentKeys.push(key);
         const issue = permanentEntryIssue(key, entry);
         if (issue !== null) permanentIssues.push(issue);
-      } else if (typeof entry !== 'string') {
+      } else if (typeof entry !== 'string' && !isCounted(entry)) {
         permanentIssues.push(
-          `${key} is neither a reason nor a permanent entry — a shard value is a string or ` +
-            '`{ permanent: true, reason, retiredBy }`',
+          `${key} is neither a reason nor a permanent entry — a shard value is a string, ` +
+            '`{ sites, reason }` or `{ permanent: true, reason, retiredBy }`',
         );
+        continue;
       }
+      // The count is checked on every form, permanent included: the question a
+      // second reach raises is the same one either way (issue #267).
+      const countIssue = countIssueFor(key, entry, found.get(key) ?? 0);
+      if (countIssue !== null) countIssues.push(countIssue);
     }
   }
 
@@ -837,6 +997,7 @@ export function checkModuleBoundary(
     misfiledEntries: misfiledEntries.sort(),
     permanentKeys: permanentKeys.sort(),
     permanentIssues: permanentIssues.sort(),
+    countIssues: countIssues.sort(),
     shardShapeIssues: shardShapeIssues.sort(),
     tableOwners: sql.report,
   };
@@ -1205,6 +1366,21 @@ async function main(): Promise<void> {
   const ledgerSize =
     shards.reduce((sum, shard) => sum + Object.keys(shard.entries).length, 0) -
     result.permanentKeys.length;
+  // `ledger-size` stays **keys** (issue #267): an entry is the unit of review
+  // and of retirement — the cut that removes it removes every reach under it —
+  // and redefining the number would move it 57 -> 64 with no code changed,
+  // making the drain read as a regression. The sites the draining entries cover
+  // are printed beside it, derived from their counts and never written down, so
+  // a file that grew a reach is visible in the summary line as well as in the
+  // diff of the entry it made a reviewer edit.
+  const ledgerSites = shards.reduce(
+    (sum, shard) =>
+      sum +
+      Object.entries(shard.entries)
+        .filter(([key]) => !result.permanentKeys.includes(key))
+        .reduce((inner, [, entry]) => inner + (recordedSites(entry) ?? 1), 0),
+    0,
+  );
   const sqlFindings = result.violations
     .concat(result.ledgered)
     .filter((finding) => finding.predicate === 'sql').length;
@@ -1226,8 +1402,8 @@ async function main(): Promise<void> {
     `[module-boundary] module files=${files.length} cross-module reaches=${result.total} ` +
       `(imports=${result.total - sqlFindings} sql=${sqlFindings}) ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
-      `ledger-size=${ledgerSize} shards=${shards.length} stale=${result.stale.length} ` +
-      `permanent=${result.permanentKeys.length}`,
+      `ledger-size=${ledgerSize} (sites=${ledgerSites}) shards=${shards.length} ` +
+      `stale=${result.stale.length} permanent=${result.permanentKeys.length}`,
   );
   console.log(
     `[module-boundary] table→owner map: entity pass=${result.tableOwners.entityTables} ` +
@@ -1308,6 +1484,16 @@ async function main(): Promise<void> {
     for (const issue of result.permanentIssues) console.error(`  - ${issue}`);
   }
 
+  if (result.countIssues.length > 0) {
+    console.error(
+      '\nA ledger entry says how many reaches stand under its key, and the walk disagrees.\n' +
+        'The key is `<file>:<target>`, so without the count the *next* reach of a shape this\n' +
+        'file already has passes unreviewed — which is how two `product_categories` statements\n' +
+        'landed against an unchanged ledger (issue #267). Omitting `sites` means one:',
+    );
+    for (const issue of result.countIssues) console.error(`  - ${issue}`);
+  }
+
   if (result.shardShapeIssues.length > 0) {
     console.error(
       '\nA ledger shard declares one entry type. A shard of its own typing decides what an\n' +
@@ -1324,6 +1510,7 @@ async function main(): Promise<void> {
     result.orphanShards.length > 0 ||
     result.misfiledEntries.length > 0 ||
     result.permanentIssues.length > 0 ||
+    result.countIssues.length > 0 ||
     result.shardShapeIssues.length > 0 ||
     exemptionIssues.length > 0;
   process.exit(failed ? 1 : 0);
