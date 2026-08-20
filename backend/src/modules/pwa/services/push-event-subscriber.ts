@@ -1,4 +1,17 @@
+import {
+  ModuleDisabledError,
+  type WorkerLogger,
+} from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { PushMessageService } from './push-message-service.js';
+
+/**
+ * Where a skipped or failed auto-trigger push is written down.
+ *
+ * The structured-logger surface the kernel already defines for a queue
+ * consumer, for the same reason: these two handlers run outside any request,
+ * so `request.log` does not exist and the line has to carry its own context.
+ */
+export type PushEventLogger = WorkerLogger;
 
 /**
  * Target resolved for an auto-triggered push. Returning null (or no customer)
@@ -28,6 +41,15 @@ export interface PushEventSubscriberDeps {
   }) => Promise<PushEventTarget | null>;
   /** Gate: is push enabled for this channel? */
   isPushEnabled: (salesChannelId: string) => Promise<boolean>;
+  /**
+   * Read per line rather than captured, because the logger these handlers
+   * should be writing to does not exist yet when they are built: composition
+   * runs before `buildServer`, so `ctx.log` is whatever the root could offer
+   * that early, and the application's own logger only arrives when the module's
+   * routes are registered. `plugin.ts` moves the holder along; the handlers ask
+   * for it at the moment they have something to say.
+   */
+  log: () => PushEventLogger;
 }
 
 /**
@@ -41,6 +63,27 @@ export interface PushEventSubscriberDeps {
  * a switched-off `pwa` still wrote a `push_messages` row and still delivered a
  * notification to a customer's device — the most visible of the writes that
  * survived their module.
+ *
+ * ## Why the `catch` stays, and what it is no longer allowed to hide
+ *
+ * `PushMessageService` reaches `customer_accounts` and `organizations` through
+ * gated ports (feature 075, Phase C), so a rule-targeted send can raise
+ * `ModuleDisabledError` here. `rethrowIfModuleDisabled` — the usual remedy —
+ * is the wrong one at this seam: an EventBus subscriber has no caller to answer.
+ * `EventBus.dispatch` isolates each handler in its own `try` and turns a throw
+ * into one `console.warn` line naming neither the module nor the trigger, so
+ * re-throwing would hand the presence answer to a place that discards it, and a
+ * probe before the work would make `pwa` name the two owners the port exists to
+ * hide.
+ *
+ * So the presence answer is **decided here, by name** — the third of the four
+ * shapes `check-port-catches` accepts — and it is decided into a different
+ * sentence from a failure. The outcome is the same for both (no push, the
+ * announcing transaction untouched, per FR-024); the record is not, because an
+ * operator's own switch doing what it says and a broken enqueue are not one
+ * event. That is the rule under Principle XVII item 3: where nothing can catch
+ * the throw, a genuine failure and a switched-off module must not share one
+ * silent no-op.
  */
 export function createPushEventHandlers(deps: PushEventSubscriberDeps): {
   onOrderStatusChanged: (payload: unknown) => Promise<void>;
@@ -73,7 +116,22 @@ export function createPushEventHandlers(deps: PushEventSubscriberDeps): {
           sourceEventId: payload.eventId,
         });
       } catch (err) {
-        console.warn('[pwa] order-status push enqueue failed', err);
+        // Decided at the site, not delegated: the identifier below is the whole
+        // of what tells an operator's switch from an incident, and a helper
+        // holding it would let a later edit lose the distinction silently.
+        if (err instanceof ModuleDisabledError) {
+          deps.log().warn(
+            { module: err.moduleId, trigger: 'order_status', eventId: payload.eventId },
+            'pwa.push_skipped_module_disabled',
+          );
+          return;
+        }
+        deps
+          .log()
+          .error(
+            { err, trigger: 'order_status', eventId: payload.eventId },
+            'pwa.push_enqueue_failed',
+          );
       }
     },
 
@@ -102,7 +160,20 @@ export function createPushEventHandlers(deps: PushEventSubscriberDeps): {
           sourceEventId: payload.eventId,
         });
       } catch (err) {
-        console.warn('[pwa] quote-request push enqueue failed', err);
+        // See the order-status twin above — same decision, same two sentences.
+        if (err instanceof ModuleDisabledError) {
+          deps.log().warn(
+            { module: err.moduleId, trigger: 'quote_request', eventId: payload.eventId },
+            'pwa.push_skipped_module_disabled',
+          );
+          return;
+        }
+        deps
+          .log()
+          .error(
+            { err, trigger: 'quote_request', eventId: payload.eventId },
+            'pwa.push_enqueue_failed',
+          );
       }
     },
   };

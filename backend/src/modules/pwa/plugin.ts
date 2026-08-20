@@ -14,7 +14,11 @@ import { PushSubscriptionService } from './services/push-subscription-service.js
 import { PushMessageService } from './services/push-message-service.js';
 import { PushProviderRegistry } from './services/push-provider-registry.js';
 import { WebPushProvider } from './services/providers/web-push-provider.js';
-import { createPushEventHandlers, type PushEventTarget } from './services/push-event-subscriber.js';
+import {
+  createPushEventHandlers,
+  type PushEventLogger,
+  type PushEventTarget,
+} from './services/push-event-subscriber.js';
 import {
   createPushDeliveryQueue,
   createPushDeliveryWorker,
@@ -64,6 +68,14 @@ export interface PwaModuleOptions {
   resolveAuditContext: (request: FastifyRequest) => AdminAuditContext;
   /** mailto: subject for VAPID. */
   vapidSubject: string;
+  /**
+   * The module's logger, as the composition can supply it — `ctx.log`. It is
+   * the fallback rather than the destination: the FR-024 handlers upgrade to
+   * the application's own logger as soon as this module's routes register, and
+   * only the window before that (where no event can reach them anyway) lands
+   * here.
+   */
+  log: PushEventLogger;
   resolveCustomerAccountId?: (request: FastifyRequest) => Promise<string | null>;
   resolveOrderTarget?: (payload: {
     orderId: string;
@@ -109,11 +121,20 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
     options.organizationDetails,
   );
 
+  // Where the two auto-triggers write a skipped or failed push. Composition
+  // runs before `buildServer`, so `options.log` is the best a root can offer at
+  // construction time; `app.log` is the log the platform actually collects, and
+  // the plugin below moves the holder onto it. Nothing can emit an in-process
+  // event before that plugin has run, so the fallback is a type obligation
+  // rather than a path.
+  let eventLogger: PushEventLogger = options.log;
+
   // Auto-triggered push (FR-024) — producer only; enqueues, never sends inline.
   // `backend.ts` registers these two through `ctx.subscribe`, so they stop with
   // the module (issue #107).
   const pushEventHandlers = createPushEventHandlers({
     messageService,
+    log: () => eventLogger,
     ...(options.resolveOrderTarget ? { resolveOrderTarget: options.resolveOrderTarget } : {}),
     ...(options.resolveQuoteTarget ? { resolveQuoteTarget: options.resolveQuoteTarget } : {}),
     isPushEnabled: async (salesChannelId) => {
@@ -146,6 +167,7 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
   };
 
   const plugin = async (app: FastifyInstance): Promise<void> => {
+    eventLogger = app.log;
     await registerPwaStorefrontRoutes(app, {
       configResolver,
       iconService,
