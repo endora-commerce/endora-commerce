@@ -107,6 +107,23 @@ export interface CatalogQueryContext {
   preferredLanguage?: string | undefined;
 }
 
+/**
+ * The two reads a listing card needs beyond the product row and its price:
+ * which image represents the product, and which category slugs it carries.
+ *
+ * Both are resolved for the whole page and keyed by product id, because both
+ * used to run once per card — and neither varies by viewer or by sales channel,
+ * so there is no dimension the page-wide key drops. (The channel decides
+ * whether the product is on the page at all, and the audience decides whether
+ * the caller may see it; both are settled before either read.)
+ */
+export interface ListingCardReads {
+  /** Product id -> the T096 chain's answer, `null` when nothing represents it. */
+  assetUrlByProduct: Map<string, string | null>;
+  /** Product id -> its category slugs, in `product_categories` primary-key order. */
+  categorySlugsByProduct: Map<string, string[]>;
+}
+
 export interface ListProductsParams {
   q?: string | undefined;
   limit: number;
@@ -295,6 +312,53 @@ export class CatalogQueryService {
     return price === undefined ? null : listingPriceMoney(price);
   }
 
+  /**
+   * {@link ListingCardReads} for a page, in a fixed number of statements
+   * regardless of how many cards it holds (issue #263).
+   *
+   * `resolvePrimaryAssetUrls` has taken an id list since feature 075 and needs
+   * no change — it was simply never handed more than one id from here, which is
+   * MR !793's finding repeating itself: a helper that batches in signature
+   * batches in practice only where the *page* is what calls it.
+   *
+   * The slug read carries an explicit `order by pc.product_id, pc.category_id`.
+   * That is not a new ordering: `product_categories` is keyed on exactly that
+   * pair, so the per-card `where pc.product_id = ?` was already answered from
+   * that index in that order. Writing it down is what keeps the array the same
+   * array now that a page-wide `in (…)` may reach the rows by another plan.
+   */
+  async #listingCardReadsFor(
+    em: EntityManager,
+    productIds: readonly string[],
+  ): Promise<ListingCardReads> {
+    const categorySlugsByProduct = new Map<string, string[]>();
+    if (productIds.length === 0) {
+      return { assetUrlByProduct: new Map(), categorySlugsByProduct };
+    }
+
+    // Primary asset — for listings prefer the gallery's Thumbnail (US3),
+    // then Base Image, then any first gallery item, finally the legacy
+    // product_assets row. Resolution chain pinned by T096.
+    const assetUrlByProduct = await resolvePrimaryAssetUrls(em, this.#requireAssets(), productIds);
+
+    const ids = [...productIds];
+    const catRows = await em.execute<{ product_id: string; slug: string }[]>(
+      `select pc.product_id::text as product_id, c.slug
+         from product_categories pc
+         join categories c on c.id = pc.category_id
+        where pc.product_id in (${ids.map(() => '?').join(',')})
+        order by pc.product_id, pc.category_id`,
+      ids,
+    );
+    for (const row of catRows) {
+      const slugs = categorySlugsByProduct.get(row.product_id) ?? [];
+      slugs.push(row.slug);
+      categorySlugsByProduct.set(row.product_id, slugs);
+    }
+
+    return { assetUrlByProduct, categorySlugsByProduct };
+  }
+
   // ------------------------------------------------------------------
   // Products
   // ------------------------------------------------------------------
@@ -421,18 +485,23 @@ export class CatalogQueryService {
       categoryFilteredIds = await this.productIdsInCategoryTree(em, params.categorySlug);
     }
 
-    // Build the summaries. The page is priced **once** — `toSummary` used to
+    // Build the summaries. The page is resolved **once** — `toSummary` used to
     // ask `price_lists` for a batch of one, so a 50-card page made 50 calls and
     // paid the resolution's fixed cost (the active lists, the settings pair, the
     // organisation's chain) 50 times over. Resolving the page here and handing
     // the map down is what makes `resolveListingPrices` a batch in practice
     // rather than only in signature.
+    //
+    // Its asset and its category slugs are resolved the same way and for the
+    // same reason (issue #263): both helpers took an id list already, and both
+    // were being handed one id at a time from inside the loop.
     const priceable = filtered.filter((p) =>
       categoryFilteredIds ? categoryFilteredIds.has(p.id) : true,
     );
     const resolvedPrices = await this.#listingPricesFor(priceable, channel, ctx.audience);
-    const summaries = await Promise.all(
-      priceable.map((p) => this.toSummary(em, p, channel, ctx.preferredLanguage, resolvedPrices)),
+    const cardReads = await this.#listingCardReadsFor(em, priceable.map((p) => p.id));
+    const summaries = priceable.map((p) =>
+      this.toSummary(p, channel, ctx.preferredLanguage, resolvedPrices, cardReads),
     );
 
     return {
@@ -471,12 +540,12 @@ export class CatalogQueryService {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
 
-    const summary = await this.toSummary(
-      em,
+    const summary = this.toSummary(
       product,
       channel,
       ctx.preferredLanguage,
       await this.#listingPricesFor([product], channel, ctx.audience),
+      await this.#listingCardReadsFor(em, [product.id]),
     );
 
     // Categories
@@ -1459,32 +1528,25 @@ export class CatalogQueryService {
   /**
    * One product's listing summary.
    *
-   * `resolvedPrices` is the **page's** chain answer, resolved by the caller and
-   * required rather than optional: this method used to resolve its own price,
-   * which meant every listing path that mapped over a page called
-   * `resolveListingPrices` once per card. Making the parameter mandatory is
-   * what stops the next caller from quietly re-opening that.
+   * Every input is the **page's**, resolved by the caller, and all of them are
+   * required rather than optional. This method used to resolve its own price,
+   * its own primary asset and its own category slugs, which meant every listing
+   * path that mapped over a page paid all three once per card — 150 of the ~158
+   * statements a 50-item page cost after the price was hoisted (issue #263).
+   * Making the parameters mandatory is what stops the next caller from quietly
+   * re-opening that.
+   *
+   * It takes no `EntityManager` and is synchronous for the same reason: with
+   * nothing to query through and nothing to await, a per-card read cannot be
+   * added back here without the change being the point of the diff.
    */
-  private async toSummary(
-    em: EntityManager,
+  private toSummary(
     product: Product,
     channel: CatalogResolvedChannel,
     preferredLanguage: string | undefined,
     resolvedPrices: Map<string, ListingPrice>,
-  ): Promise<ProductSummary> {
-    // Primary asset — for listings prefer the gallery's Thumbnail (US3),
-    // then Base Image, then any first gallery item, finally the legacy
-    // product_assets row. Resolution chain pinned by T096.
-    const primaryAssetUrl =
-      (await resolvePrimaryAssetUrls(em, this.#requireAssets(), [product.id])).get(product.id) ??
-      null;
-
-    // Category slugs
-    const catRows = await em.execute<{ slug: string }[]>(
-      `select c.slug from product_categories pc join categories c on c.id = pc.category_id where pc.product_id = ?`,
-      [product.id],
-    );
-
+    cardReads: ListingCardReads,
+  ): ProductSummary {
     // Price — the pricing engine's answer for this product on this channel
     // (issue #132), read out of the page's resolution. Sales Channel visibility
     // still strips it on a non-public channel; what changed is that the figure
@@ -1500,8 +1562,8 @@ export class CatalogQueryService {
       type: product.type,
       name: nameText,
       slug: product.slug,
-      categorySlugs: catRows.map((r) => r.slug),
-      primaryAssetUrl,
+      categorySlugs: cardReads.categorySlugsByProduct.get(product.id) ?? [],
+      primaryAssetUrl: cardReads.assetUrlByProduct.get(product.id) ?? null,
       price,
       stockIndicator: null,
       stockLevel: null,

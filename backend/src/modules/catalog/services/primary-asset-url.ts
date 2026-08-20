@@ -28,6 +28,21 @@ import type { AssetReadPort } from '@b2b/contracts';
  * whose whole gallery falls through takes the legacy fallback — which is what
  * the inner join did. (The foreign key is `RESTRICT`, so it cannot happen
  * today; reproducing the behaviour is cheaper than arguing it away.)
+ *
+ * **Is the legacy fallback dead?** Asked and answered while hoisting these
+ * reads to the page (issue #263): no. Nothing in the application writes
+ * `product_assets` — the only `insert` in the tree is `dev-catalog-seed.ts`,
+ * which mirrors every row it writes into `gallery_items` — but the table is
+ * still *read* on the PDP (`ProductDetail.assets`), still rendered by the
+ * storefront gallery and by the admin product editor, and the seeded rows
+ * outlive their gallery twins: deleting a gallery item through the admin
+ * touches no `product_assets` row, so a seeded product whose gallery an
+ * operator emptied resolves its card through this fallback. So the read is
+ * batched here rather than deleted, and it costs one statement per page for
+ * whatever the gallery did not answer instead of one per card.
+ *
+ * Both statements order by `product_id` first, which is what lets a page-wide
+ * call take the same first row per product that a one-id call took.
  */
 
 interface CandidateRow {

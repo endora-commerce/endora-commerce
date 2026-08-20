@@ -55,6 +55,19 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
  * page no longer depends on the LRU absorbing a per-card loop, so a cache the
  * personalisation empties is a cache the page can afford to miss.
  *
+ * Re-measured the same day on the same box, after issue #263 hoisted the last
+ * three per-card reads — the gallery, the legacy `product_assets` fallback and
+ * the category-slug join — to the page:
+ *
+ * | viewer    | cold          | warm | p50    | p95    |
+ * | --------- | ------------- | ---- | ------ | ------ |
+ * | anonymous | 14 / 61.9 ms  | 11   | 19.4ms | 22.0ms |
+ * | signed-in | 15 / 32.1 ms  | 15   | 21.0ms | 22.4ms |
+ *
+ * Those three were 150 of the 158 statements the warm anonymous page cost, and
+ * the personalisation's four became three — the organisation row and the extra
+ * list, with nothing per-card left for the third to be spent on.
+ *
  * Skipped unless `PERF_RUN=true`, like every other bench here.
  */
 
@@ -65,10 +78,16 @@ const iterations = Number(process.env['PERF_ITERATIONS'] ?? '20');
  * The ceiling for a **cold signed-in** page, in statements. The anonymous cold
  * page is the reference; a personalised one may not cost a different order of
  * magnitude, which is precisely the claim "the loop was the expensive part"
- * makes. Generous on purpose — this is a regression tripwire for a re-introduced
- * per-card resolution, not a budget to tune.
+ * makes. A regression tripwire for a re-introduced per-card resolution, not a
+ * budget to tune.
+ *
+ * It was 400 while the page cost 162, which left it unable to trip for the very
+ * thing it names: re-opening one of the three per-card reads issue #263 hoisted
+ * would have cost 50 statements on this page and passed. 60 keeps generous
+ * headroom over the measured 15 and still fails on a single re-opened loop —
+ * and the count is a constant, so a larger `PERF_PAGE_SIZE` does not raise it.
  */
-const coldStatementCeiling = Number(process.env['PERF_SIGNED_IN_COLD_STATEMENTS'] ?? '400');
+const coldStatementCeiling = Number(process.env['PERF_SIGNED_IN_COLD_STATEMENTS'] ?? '60');
 const shouldRun = process.env['PERF_RUN'] === 'true';
 
 const ORG_LIST_ID = '00000000-0000-4000-8000-00000000e001';
