@@ -22,10 +22,12 @@ import { toCatalogProductRecord } from './catalog-product-read.service.js';
  * is why the port is worth more than the import it replaces:
  *
  *  1. **The floor is applied here.** Feature 067's FR-026 says an operator's
- *     rule may only ever narrow "active, publicly visible, not archived, not
- *     soft-deleted, in the feed's channel". On the caller's side that was a
- *     conjunction a future edit could spread into one object and lose; here it
- *     is one `$and` clause the caller cannot reach.
+ *     rule may only ever narrow "active, visible to the feed's reader, not
+ *     archived, not soft-deleted, in the feed's channel". On the caller's side
+ *     that was a conjunction a future edit could spread into one object and
+ *     lose; here it is one `$and` clause the caller cannot reach. Who "the
+ *     feed's reader" is has one answer and it is not this file's to invent —
+ *     see {@link ANONYMOUS_AUDIENCE_CLAUSE}.
  *  2. **The cursor is applied here.** A keyset walk and the floor both
  *     constrain `id`, and so does a category criterion. Composing all three
  *     was the caller's problem and is now nobody's.
@@ -135,14 +137,74 @@ export class CatalogProductFilterService implements CatalogProductFilterPort {
 }
 
 /**
+ * `isProductVisibleTo(row, ANONYMOUS_PRODUCT_AUDIENCE)`, written as SQL.
+ *
+ * The only consumer of this port is a **product feed**, and a feed is read by
+ * Google: an anonymous, unauthenticated consumer with no organisation and no
+ * session. That is the same audience the sitemap answers for, and it is now
+ * answered with the same words — the platform has one predicate for "may this
+ * caller see this product" and this clause is its SQL half, not a second
+ * opinion (issue #259).
+ *
+ * The floor used to say `visibility: 'public'` and stop, which is not the whole
+ * answer: an operator can save `public` **with** a non-empty
+ * `allowed_organization_ids`, and the allow-list restricts whatever the
+ * visibility column says. A feed carrying such a row advertises a URL an
+ * anonymous visitor gets a 404 from, and advertises the existence of an
+ * assortment reserved for one distributor to everybody else's crawler.
+ *
+ * ## Why it collapses to two equalities
+ *
+ * The general SQL form of the predicate is the containment `catalog`'s
+ * quick-search applies — `allowed_organization_ids @> '[<buyer org>]'`, so the
+ * buyer's id is an *element* of the array rather than a substring of the
+ * serialised bag. For the **anonymous** audience there is no organisation to
+ * contain, so that branch can never match, and what is left is the predicate's
+ * second branch: an empty allow-list, decided by `visibility` alone, which for
+ * an unauthenticated caller means `public`.
+ *
+ * ## Why the empty test is spelled `{ $eq: [] }`
+ *
+ * It renders `allowed_organization_ids = '[]'`, and `jsonb` equality is
+ * structural, so it matches the empty array and nothing else. Do **not**
+ * "simplify" it to a bare `allowedOrganizationIds: []`: MikroORM reads a bare
+ * array as an `$in` list, and an empty one matches no row at all — every
+ * product would silently leave every feed.
+ *
+ * A raw `jsonb_array_length(...) = 0` fragment was the other candidate and is
+ * refused for a sharper reason: as a `raw()` key it survives `em.find` and
+ * breaks in `em.count`, which re-quotes the fragment as an identifier. That is
+ * precisely the half this port must never differ on — `countSellable` is the
+ * number an operator is shown before saving and `listSellable` is what the run
+ * emits.
+ *
+ * ## How this stays in step with the TypeScript predicate
+ *
+ * `backend/test/integration/catalog/product-filter-port.test.ts` seeds every
+ * `productVisibilitySchema.options` × (empty, non-empty) state and derives its
+ * expectation from `isProductVisibleTo` itself, for `listSellable` and
+ * `countSellable` both. Neither side can drift without that file going red, and
+ * a fourth visibility value enters the sweep as soon as the enum grows.
+ */
+const ANONYMOUS_AUDIENCE_CLAUSE: Record<string, unknown> = {
+  visibility: 'public',
+  allowedOrganizationIds: { $eq: [] },
+};
+
+/**
  * The non-overridable floor. One function so there is exactly one place a
  * reviewer has to read to know what this port can return.
+ *
+ * The audience half of it — the two clauses over `visibility` and
+ * `allowed_organization_ids` — is {@link ANONYMOUS_AUDIENCE_CLAUSE}.
  */
 function sellableFloor(productIds: readonly string[]): Record<string, unknown> {
   return {
     id: { $in: [...productIds] },
     status: 'active',
-    visibility: 'public',
+    // Two keys nothing else in this object names, so the spread cannot lose a
+    // clause the way `where()`'s comment warns an `id` spread would.
+    ...ANONYMOUS_AUDIENCE_CLAUSE,
     archivedAt: null,
     deletedAt: null,
   };

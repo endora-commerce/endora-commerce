@@ -19,8 +19,10 @@ import {
  * Three rules govern this file and none is negotiable.
  *
  * **1. The eligibility floor is server-side and cannot be widened.** Active,
- * publicly visible, not archived, not soft-deleted, and a member of the feed's
- * channel. An operator's `selectionRule` can only ever narrow that set.
+ * not archived, not soft-deleted, a member of the feed's channel, and visible
+ * to the feed's reader — which is `ANONYMOUS_PRODUCT_AUDIENCE`, because a feed
+ * is fetched by Google with no session and no organisation (issue #259). An
+ * operator's `selectionRule` can only ever narrow that set.
  *
  * Since feature 075's cut the first four of those five live **inside**
  * `catalogProductFilterPort`, where no caller can reach them, and the fifth —

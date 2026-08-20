@@ -2680,9 +2680,20 @@ export interface CatalogSellableProductQuery {
  * Container name: `catalogProductFilterPort`. Owner: `catalog`.
  *
  * **Sellable** is this module's floor and this module applies it: `status`
- * `active`, `visibility` `public`, not archived, not soft-deleted. It is
- * conjoined *with* the caller's filter here, so no filter a caller can
- * construct widens past it.
+ * `active`, not archived, not soft-deleted, and **visible to
+ * {@link ANONYMOUS_PRODUCT_AUDIENCE}** — `isProductVisibleTo`'s answer for a
+ * caller with no session and no organisation, which is what a product feed's
+ * reader is (issue #259). It is conjoined *with* the caller's filter here, so
+ * no filter a caller can construct widens past it.
+ *
+ * The audience is fixed rather than a parameter because this port has one
+ * consumer and that consumer is a feed: an operator ruled that a feed shows the
+ * prices of the sales channel it is generated for and takes no organisation
+ * into account, so there is no per-buyer reading of it to ask for. A caller
+ * that needs another audience needs a different port, not a wider floor —
+ * `visibility` said `public` alone until issue #259, and a `public` product
+ * carrying a non-empty `allowed_organization_ids` went into a Google Shopping
+ * feed for as long as that was the whole test.
  *
  * Rows come back as {@link CatalogProductRecord} in ascending id order, which
  * is what makes the cursor a keyset rather than an offset: a catalogue that
