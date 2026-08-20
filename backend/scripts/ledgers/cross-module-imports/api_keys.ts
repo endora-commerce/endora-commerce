@@ -22,11 +22,6 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'SQL. The statement names no import specifier, so the boundary it crosses compiles ' +
     'and returns rows. Retired by: `customerAccountReadPort`, resolved through `lazyPort` ' +
     'with `customer_accounts` declared in this module\'s manifest dependencies.',
-  'modules/api_keys/services/api-key-service.ts:sql:kernel/sales_channels':
-    'D-87 seed — `api_keys` reads the kernel\'s `sales_channels` table in raw SQL, so the ' +
-    'read is invisible to the import predicate and to the request-channel resolver alike. ' +
-    'Retired by: the resolved request channel plus `salesChannelsCache` / ' +
-    '`salesChannelsService`, whichever the statement is actually asking for.',
   'modules/api_keys/services/api-key-service.ts:sql:organizations/organizations':
     'D-87 seed — `api_keys` reads `organizations`\'s `organizations` table in raw SQL. The ' +
     'statement names no import specifier, so the boundary it crosses compiles and returns ' +

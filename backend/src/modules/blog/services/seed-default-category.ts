@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -16,8 +17,8 @@ import { randomUUID } from 'crypto';
  * matches the spec's R11 decision and avoids re-attaching a channel an
  * admin has intentionally detached.
  *
- * The reconciler runs all reads + writes through a single connection
- * (raw SQL) so its behaviour is consistent across MikroORM transaction
+ * The reconciler runs all reads + writes through the caller's single
+ * EntityManager so its behaviour is consistent across MikroORM transaction
  * boundaries (tests + production share the same path).
  */
 export async function seedDefaultCategory(
@@ -41,16 +42,21 @@ export async function seedDefaultCategory(
     [categoryId],
   );
 
-  const channelRows = (await em.execute(
-    'select id::text as id from sales_channels',
-  )) as Array<{ id: string }>;
+  /**
+   * The kernel's own entity, not `select id from sales_channels` (feature 075,
+   * D-87). `sales_channels` is the kernel's table since feature 072 moved the
+   * resolution machinery there, and a module relating into the kernel by ORM is
+   * the sanctioned access. It reads through the same `em` as the inserts below,
+   * so the enumeration and the bindings still share one connection.
+   */
+  const channels = await em.find(SalesChannel, {}, { fields: ['id'] });
 
-  for (const row of channelRows) {
+  for (const channel of channels) {
     await em.execute(
       `insert into blog_category_sales_channels
          (blog_category_id, sales_channel_id, slug)
          values (?, ?, 'default')`,
-      [categoryId, row.id],
+      [categoryId, channel.id],
     );
   }
 

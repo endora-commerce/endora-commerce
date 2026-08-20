@@ -25,6 +25,27 @@
  *     Scoped to surfaces so admin CRUD / membership / seeds that legitimately
  *     query channels are not false-positived.
  *
+ *     **Issue #256 — measured, and the SQL shape was drained rather than made
+ *     visible.** MR !775 found four public storefront endpoints re-resolving
+ *     the request channel with `select id from sales_channels where code = ?`
+ *     while this check reported clean, and the filed diagnosis was that the
+ *     signal cannot see SQL. It can: 2b above is exactly that shape. What it
+ *     could not see was the *population* — all four sat in
+ *     `settings/services/*-resolver.ts`, which is no storefront surface by the
+ *     predicate above. Widening the population was rejected on measurement,
+ *     not on taste: at the time the question was asked, module code held eight
+ *     raw reads of `sales_channels`, and every one of them was the
+ *     administration this signal deliberately spares — enumerating every
+ *     channel in a boot seed, or fetching one by an admin-supplied id. None
+ *     was keyed by a request-supplied code, so a widened signal would have
+ *     reported eight false positives and nothing else. Feature 075's D-87
+ *     drain then took all eight through the kernel's `SalesChannel` entity, so
+ *     `src/modules` now holds **no** raw `sales_channels` statement at all; the
+ *     only live one left in `src/` is the kernel's own, in
+ *     `sales-channel-membership.service.ts`. A second predicate over that
+ *     shape would report a vacuous green from its first run, which is why this
+ *     paragraph exists and the predicate does not.
+ *
  *  3. SETTINGS-CHANNEL LITERAL (feature 072, D-42) — a `.get` / `.getMany`
  *     call on a `settings`-ish receiver whose channel argument can be a string
  *     that is not a channel uuid, or is the nil uuid. Both are spellings of "I

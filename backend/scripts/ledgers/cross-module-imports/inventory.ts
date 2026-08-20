@@ -44,11 +44,4 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'form is why the D-94 grep missed it. Retired by: `catalog` publishing the paged ' +
     'product-id read this list needs (search term plus id filter, ordered), leaving the ' +
     'stock join to run over ids `catalog` returned.',
-  'modules/inventory/services/warehouse-channel-reconciler.ts:sql:kernel/sales_channels':
-    'Issue #187 seed — the boot reconciler lists every channel with ' +
-    '`knex<ChannelRow>(\'sales_channels\').select(\'id\')` before backfilling the default ' +
-    'warehouse assignment each one is missing. The kernel owns `sales_channels`, and this ' +
-    'is the only place in the module that reads it without the resolver. Retired by: the ' +
-    'kernel\'s sales-channel service listing the channels, which is the same accessor ' +
-    'Principle XII names for every other channel read.',
 };
