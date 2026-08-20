@@ -36,9 +36,10 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * `Migration20260819T074816CustomerAccountsPasswordSetAt`,
  * `Migration20260819T142837CustomerAccountsFoldEmailCase`,
  * `Migration20260819T155150AdminUsersFoldEmailCase`,
- * `Migration20260819T171006ShipmentsStatusPendingManual` and
- * `Migration20260819T193653PimErgonodeFoldDerivedKeys`, all open-block
- * entries — so the numbers here are 146/112/34. The frozen prefix, which is the
+ * `Migration20260819T171006ShipmentsStatusPendingManual`,
+ * `Migration20260819T193653PimErgonodeFoldDerivedKeys` and
+ * `Migration20260820T100201OrdersNewToPaidTransition`, all open-block
+ * entries — so the numbers here are 147/112/35. The frozen prefix, which is the
  * claim the feature rests on, is the spec's 112 unchanged.
  *
  * A new migration is added to `PRE_081_ORDER` in the position feature 065's
@@ -51,6 +52,19 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * positions earlier. The 143 positions the literal already held are untouched,
  * and `EXPECTED_MOVED_POSITIONS` stayed at 26, which is the evidence that the
  * insertion did not move anybody.
+ *
+ * **A literal entry that moved another entry**, which no previous insertion
+ * did, so the sentence above needs its exception said out loud. Feature 085's
+ * `Migration20260820T100201OrdersNewToPaidTransition` is inside 065's 45-day
+ * correction horizon, and correcting it drags
+ * `Migration20260819T193653PimErgonodeFoldDerivedKeys` from 145 to 122 — 065
+ * emits the two `pim_ergonode` migrations contiguously once the correction
+ * fires. So this literal is not "the old literal plus one line": it is the 065
+ * emission over today's registry, recomputed the prescribed way and diffed, and
+ * the two entries that moved are named here. That is still not a regeneration
+ * by the guarded code — `master@a139e1b7^`'s `orderMigrations` is a different
+ * function from the one under test, which is the whole point of computing it
+ * from history.
  */
 
 const FROZEN_PREFIX_LENGTH = 112;
@@ -107,6 +121,16 @@ const FROZEN_PREFIX_LENGTH = 112;
  * way: 065's `orderMigrations` from `master@a139e1b7^`, run over today's
  * registry, reproduces the literal below entry for entry and puts the new name
  * at 145.
+ *
+ * **30 stays 30**, and this is that saying. Feature 085's
+ * `Migration20260820T100201OrdersNewToPaidTransition` lands at 123 under 065
+ * and at 121 under 081, so its own position differs — but the two entries it
+ * displaces in the 065 baseline, `PimErgonodeFoldDerivedKeys` and
+ * `InvoicesGenericTemplateReseed`, were already counted as moved, and the
+ * shuffle hands two of those positions back. Measured, not reasoned to: the
+ * two orders were emitted side by side over the same registry and the
+ * differing positions counted, exactly as this file's own assertion counts
+ * them.
  */
 const EXPECTED_MOVED_POSITIONS = 30;
 
@@ -249,8 +273,10 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260819T074816CustomerAccountsPasswordSetAt',
   'Migration20260819T142837CustomerAccountsFoldEmailCase',
   'Migration20260817T055457PriceListsSingleSystemPriceList',
-  'Migration20260801T111000InvoicesGenericTemplateReseed',
   'Migration20260804T190439PimErgonodeInit',
+  'Migration20260819T193653PimErgonodeFoldDerivedKeys',
+  'Migration20260820T100201OrdersNewToPaidTransition',
+  'Migration20260801T111000InvoicesGenericTemplateReseed',
   'Migration20260817T194652ShipmentsOrderFk',
   'Migration20260817T201110InvoicesCorrectionIdempotencyKey',
   'Migration20260817T201111CreditLimitsReturnTopups',
@@ -273,7 +299,6 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk',
   'Migration20260818T081253CartsCartCompletedOrderFk',
   'Migration20260819T171006ShipmentsStatusPendingManual',
-  'Migration20260819T193653PimErgonodeFoldDerivedKeys',
 ];
 
 describe('migration order — the pre-081 baseline (T001)', () => {
