@@ -13,7 +13,7 @@ import {
   type SearchSuggestResponse,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { productAudienceOf } from '../../http/product-audience.js';
+import { markPersonalisedPricing, productAudienceOf } from '../../http/product-audience.js';
 import {
   currentSalesChannel,
   getResolvedChannel,
@@ -130,9 +130,14 @@ export async function registerSearchPublicRoutes(
   }
 
   // GET /api/v1/search/suggest
-  app.get('/api/v1/search/suggest', async (request) => {
+  app.get('/api/v1/search/suggest', async (request, reply) => {
     const parsed = parseSuggestQuery(request);
     const ctx = readContext(request);
+    // The popup has carried the buyer's own resolved price since feature 075
+    // and said nothing about it to a cache. It is the same private response the
+    // result feed below it now returns, so it gets the same header; the
+    // storefront's own typeahead fetch already asks for `no-store`.
+    markPersonalisedPricing(reply, ctx.audience);
 
     try {
       const result = await suggestService.suggest(

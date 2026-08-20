@@ -565,6 +565,7 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<ListingPricePort>(ctx, 'pricingService'),
             lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
             lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+            lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
           ),
       )
       .singleton(),
@@ -667,6 +668,7 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<ListingPricePort>(ctx, 'pricingService'),
             lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
             lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+            lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
           ),
       )
       .singleton(),

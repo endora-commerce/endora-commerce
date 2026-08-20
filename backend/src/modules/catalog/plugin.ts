@@ -121,6 +121,11 @@ export interface CatalogModuleOptions {
    * Feature 075 — `organizations`' read port. The external namespace's price
    * decoration resolves the calling organisation through it, where it used to
    * run `em.findOne(Organization, …)` against another module's table.
+   *
+   * The storefront listing, the PDP and the cross-sell strip resolve it too:
+   * the caller's own price is the caller's organisation's, and the one field
+   * the pricing engine needs beyond the id — the customer group a
+   * group-targeted list is selected by — lives on that row.
    */
   organizations?: OrganizationDetailsPort;
   /**
@@ -256,6 +261,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.pricingService,
       options.assets,
       options.salesChannelMembership,
+      options.organizations,
     );
     // Feature 061 — the composed attribute read model (definitions from the
     // custom_fields cache + catalog extension rows). Constructed once and
@@ -273,6 +279,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.pricingService,
       options.assets,
       options.salesChannelMembership,
+      options.organizations,
     );
     const adminService = new CatalogAdminService(
       options.emFactory,
@@ -380,6 +387,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.pricingService,
       options.assets,
       options.salesChannelMembership,
+      options.organizations,
     );
     const groupedService = new GroupedService(options.emFactory, options.commandBus);
     const bundleService = new BundleService(options.emFactory, options.commandBus);

@@ -8,6 +8,8 @@ import {
   type CatalogProductRecord,
   type ListingPrice,
   type ListingPricePort,
+  type OrganizationDetailsPort,
+  type PriceOrganization,
   type ProductAudience,
   type ProductSummary,
 } from '@b2b/contracts';
@@ -113,6 +115,17 @@ export class SearchQueryService {
      * reason.
      */
     private readonly listingPrices?: ListingPricePort,
+    /**
+     * `organizations`' read model, for the customer group a group-targeted
+     * price list is selected by. The module already resolves this port for the
+     * typeahead popup, which has priced per buyer since feature 075 — the
+     * result feed under the popup did not, so one search box quoted two
+     * different figures for one product depending on whether the buyer stopped
+     * at the suggestions or pressed Enter.
+     *
+     * Optional only in the signature, and never reached by an anonymous query.
+     */
+    private readonly organizations?: OrganizationDetailsPort,
   ) {
     const host =
       options.meilisearchHost ??
@@ -221,12 +234,25 @@ export class SearchQueryService {
     const productById = new Map(products.map((p) => [p.id, p]));
     // A channel that withholds prices is not asked for them (R-18), so the
     // resolution never runs and every hit reports `null`.
+    // The price is the *viewer's*, while the document stays everybody's. A
+    // Meilisearch document has never carried a price and does not start now:
+    // one index per sales channel, one document per product, and per-buyer
+    // pricing would otherwise multiply the corpus by the customer base. This
+    // pass already re-reads every hit from Postgres so a stale index cannot
+    // decide what a buyer sees; resolving the price for the caller here costs
+    // the page four statements (measured, `listing-price-viewer-cost.bench.ts`)
+    // and leaves the index shared.
+    const priceable = channel.isPublic && products.length > 0;
+    const viewerOrganization = priceable
+      ? await this.#viewerOrganization(ctx.audience)
+      : null;
     const resolvedPrices =
-      channel.isPublic && products.length > 0
+      priceable
         ? await this.#requireListingPrices().resolveListingPrices({
             products,
             context: {
               salesChannel: { id: channel.id, defaultCurrency: channel.defaultCurrency },
+              organization: viewerOrganization,
             },
           })
         : new Map<string, ListingPrice>();
@@ -259,6 +285,28 @@ export class SearchQueryService {
       );
     }
     return this.listingPrices;
+  }
+
+  #requireOrganizations(): OrganizationDetailsPort {
+    if (!this.organizations) {
+      throw new Error(
+        'SearchQueryService: the organization read port is not wired — a signed-in buyer cannot be priced.',
+      );
+    }
+    return this.organizations;
+  }
+
+  /**
+   * The buying organisation a hit should be priced against — `null` for the
+   * anonymous visitor, for a signed-in buyer with no Organization, and for one
+   * whose Organization row is gone. The same three-way answer `catalog`'s
+   * listing gives, deliberately: the two backends serve the same route.
+   */
+  async #viewerOrganization(audience: ProductAudience): Promise<PriceOrganization | null> {
+    if (audience.organizationId === null) return null;
+    const record = await this.#requireOrganizations().findById(audience.organizationId);
+    if (!record) return null;
+    return { id: record.id, customerGroupId: record.customerGroupId };
   }
 }
 

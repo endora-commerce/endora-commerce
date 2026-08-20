@@ -1,4 +1,4 @@
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ANONYMOUS_PRODUCT_AUDIENCE, type ProductAudience } from '@b2b/contracts';
 
 /**
@@ -45,4 +45,39 @@ export function productAudienceOf(request: FastifyRequest): ProductAudience {
     return { organizationId: actor.organizationId ?? null, authenticated: true };
   }
   return ANONYMOUS_PRODUCT_AUDIENCE;
+}
+
+/**
+ * Marks a response whose prices were resolved for a specific buying
+ * organisation as private and unstorable.
+ *
+ * The catalogue's public reads are the platform's most cacheable responses:
+ * before this existed, `GET /api/v1/catalog/products` and the product detail
+ * carried **no** `Cache-Control` at all, and their representation was a pure
+ * function of `(channel, currency, locale)`. Making the price depend on the
+ * caller makes the priced part of that response *private*, and a shared cache
+ * holding one would hand one buyer's negotiated figure to the next caller of
+ * the same URL — a worse defect than quoting everybody the channel price.
+ *
+ * So the header is set on **exactly** the responses that changed, and the
+ * anonymous one is left byte-for-byte and header-for-header as it was: it is
+ * still the canonical answer a crawler indexes and the one the storefront's ISR
+ * window caches (Principle VII). `no-store` rather than `private, max-age=0`
+ * because there is no revalidation story here worth the ambiguity — a
+ * personalised price is re-resolved per request, and `price_lists`' own
+ * in-process LRU is what keeps that cheap.
+ *
+ * `Vary` is deliberately not set. The credential here is a cookie, and `Vary:
+ * Cookie` is not a usable cache key (every unrelated cookie changes it); the
+ * leak direction — a personalised representation entering a shared cache — is
+ * closed by `no-store` alone, and the remaining direction, a shared cache
+ * answering a signed-in buyer with the stored *public* price, discloses nothing
+ * and is exactly the behaviour that shipped before this change.
+ */
+export function markPersonalisedPricing(
+  reply: FastifyReply,
+  audience: ProductAudience,
+): void {
+  if (audience.organizationId === null) return;
+  reply.header('cache-control', 'private, no-store');
 }

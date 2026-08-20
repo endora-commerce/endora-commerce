@@ -5,6 +5,8 @@ import {
   listingPriceMoney,
   type AssetReadPort,
   type ListingPricePort,
+  type OrganizationDetailsPort,
+  type ProductAudience,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
@@ -12,6 +14,7 @@ import type { CommandBus } from '../../../commands/index.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink, type ProductLinkKind } from '../entities/product-link.entity.js';
 import { resolvePrimaryAssetUrls } from './primary-asset-url.js';
+import { viewerOrganizationFor } from './viewer-organization.js';
 interface StorefrontContext {
   /**
    * The request's resolved sales channel (feature 053 / FR-002). Always
@@ -27,6 +30,25 @@ interface StorefrontContext {
     isPublic: boolean;
     defaultCurrency: string;
   };
+  /**
+   * Who is asking. A cross-sell tile is a card with an Add-to-cart on it, and
+   * the cart line it leads to is priced for the buyer's organisation — so a
+   * strip quoting the channel price beside a listing quoting the buyer's would
+   * put two prices for two products on one page, arrived at two different ways.
+   *
+   * **Required, not defaulted**, for the reason `CatalogQueryContext` states:
+   * the safe default is the anonymous audience, and a caller that forgot to
+   * resolve its viewer would then quietly quote every buyer the channel price
+   * — a defect that reads as "the negotiated list does not work" and is found
+   * by nobody. Both call sites pass it; `tsc` names a third.
+   *
+   * It is read for the **price** and not, today, for the tile's visibility:
+   * `listForStorefront` filters by status and channel membership and has never
+   * applied `isProductVisibleTo`, which is issue #227 residue this change does
+   * not close. Do not read the presence of this field as the entitlement
+   * question having been answered here.
+   */
+  audience: ProductAudience;
   preferredLanguage?: string | undefined;
 }
 
@@ -113,7 +135,22 @@ export class ProductLinkService {
      * cross-channel set.
      */
     private readonly channelMembership?: SalesChannelMembershipPort,
+    /**
+     * `organizations`' read model — the customer group a group-targeted price
+     * list is selected by, which lives on the organisation row. Optional only
+     * in the signature, and never reached by an anonymous strip.
+     */
+    private readonly organizationDetails?: OrganizationDetailsPort,
   ) {}
+
+  #requireOrganizationDetails(): OrganizationDetailsPort {
+    if (!this.organizationDetails) {
+      throw new Error(
+        'ProductLinkService: the organization read port is not wired — a signed-in buyer cannot be priced.',
+      );
+    }
+    return this.organizationDetails;
+  }
 
   #requireChannelMembership(): SalesChannelMembershipPort {
     if (!this.channelMembership) {
@@ -354,6 +391,10 @@ export class ProductLinkService {
       .filter((link) => visibleIds.has(link.targetProductId))
       .map((link) => byId.get(link.targetProductId))
       .filter((target): target is Product => target !== undefined);
+    const viewerOrganization =
+      ctx.audience.organizationId === null
+        ? null
+        : await viewerOrganizationFor(this.#requireOrganizationDetails(), ctx.audience);
     const resolvedPrices =
       ctx.resolvedChannel.isPublic && visibleTargets.length > 0
         ? await this.#requireListingPrices().resolveListingPrices({
@@ -363,6 +404,7 @@ export class ProductLinkService {
                 id: ctx.resolvedChannel.id,
                 defaultCurrency: ctx.resolvedChannel.defaultCurrency,
               },
+              organization: viewerOrganization,
             },
           })
         : new Map();

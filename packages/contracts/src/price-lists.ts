@@ -294,14 +294,28 @@ export interface ListingPriceProduct {
  * `PricingServiceContract` is a superset and satisfies it structurally.
  *
  * **`organization` is the viewer, and it is optional because the viewer may
- * have none.** The catalogue, the search results and the product links quote
- * the channel's anonymous price and omit it — those surfaces are shared by
- * every reader, and a figure that varies per reader is one a page cannot be
- * cached or indexed on. The comparison supplies it, and supplies it
- * *conditionally*: a signed-in buyer's own organisation for a buyer, nothing at
- * all for an anonymous reader of the same shared link. So the field is absent
- * in the case it describes rather than absent because a caller forgot it, which
- * is the distinction an always-supplied optional parameter fails.
+ * have none.** Every caller supplies it *conditionally* — the asking buyer's
+ * own organisation for a signed-in reader, nothing at all for an anonymous one
+ * — so the field is absent in the case it describes rather than absent because
+ * a caller forgot it, which is the distinction an always-supplied optional
+ * parameter fails.
+ *
+ * The catalogue listing, the product detail, the search results and the
+ * product-link strip omitted it until the owner ruled otherwise: an anonymous
+ * visitor sees the channel price, a signed-in buyer sees their organisation's.
+ * The ruling waited on MR !793, which batched this resolution — a 50-item page
+ * went from 502 statements to 158 — because the argument against
+ * personalisation had been the pricing cache, whose hit rate per-organisation
+ * pricing largely destroys (99.0% anonymous, 5.3% at 50 organisations,
+ * measured). Once the page no longer needs that cache to absorb a per-card
+ * loop, the cost of missing it is four statements.
+ *
+ * **What that costs the *page* cache is the caller's problem, not this port's,
+ * and it is not nothing.** A priced response that names an organisation is
+ * private: it must not enter a shared cache, and
+ * `markPersonalisedPricing` in `backend/src/http/product-audience.ts` is where
+ * the storefront routes say so. The anonymous answer is unchanged, uncached-by-
+ * this-change and still the one a crawler indexes (Principle VII).
  *
  * Widening this slice rather than publishing a second one is deliberate: the
  * engine's own `ListingPricesInput` has carried an organisation all along, and

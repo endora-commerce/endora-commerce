@@ -130,6 +130,9 @@ export function registerModule(ctx: ModuleContext): void {
           // Issue #132 — the result list prices through the same port the
           // popup already used.
           listingPrices: lazyPort<ListingPricePort>(ctx, 'pricingService'),
+          // ...and, now, the same organisation read the popup already used, so
+          // both halves of the search box quote one figure to one buyer.
+          organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
         }),
       )
       .singleton(),
