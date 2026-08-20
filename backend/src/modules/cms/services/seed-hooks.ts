@@ -9,6 +9,7 @@
 
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { CmsHook } from '../entities/cms-hook.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 
 export interface SeededHook {
   code: string;
@@ -83,17 +84,30 @@ export async function reconcileSeededHooks(
   }
   if (inserted > 0) await em.flush();
 
-  await em.execute(
-    `insert into "cms_hook_sales_channels" ("hook_id", "sales_channel_id")
-     select h."id", c."id"
-     from "cms_hooks" h
-     cross join "sales_channels" c
-     where h."is_system" = true
-       and not exists (
-         select 1 from "cms_hook_sales_channels" x
-         where x."hook_id" = h."id" and x."sales_channel_id" = c."id"
-       )`,
-  );
+  /**
+   * The channel ids come from the kernel's own entity, not from a
+   * `cross join "sales_channels"` (feature 075, D-87). `sales_channels` is the
+   * kernel's table since feature 072 moved the resolution machinery there, and
+   * a module relating into the kernel by ORM is the sanctioned access. The
+   * binding insert stays one set-based statement over this module's own two
+   * tables, with one ordinary binding per channel id.
+   */
+  const channelIds = (await em.find(SalesChannel, {}, { fields: ['id'] })).map((c) => c.id);
+  if (channelIds.length > 0) {
+    const channelValues = channelIds.map(() => '(?::uuid)').join(', ');
+    await em.execute(
+      `insert into "cms_hook_sales_channels" ("hook_id", "sales_channel_id")
+       select h."id", c."id"
+       from "cms_hooks" h
+       cross join (values ${channelValues}) as c("id")
+       where h."is_system" = true
+         and not exists (
+           select 1 from "cms_hook_sales_channels" x
+           where x."hook_id" = h."id" and x."sales_channel_id" = c."id"
+         )`,
+      channelIds,
+    );
+  }
 
   return { inserted, preservedExisting: existing.length };
 }

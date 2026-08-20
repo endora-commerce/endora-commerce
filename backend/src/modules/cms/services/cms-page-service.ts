@@ -8,6 +8,7 @@ import {
   type PatchCmsPageRequest,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { walkBlockEmbeds, walkUnknownComponents } from './content-tree-walker.js';
 import type { CmsCache } from './cms-cache.js';
 import type { CmsReferenceRegistry } from './cms-reference-registry.js';
@@ -351,16 +352,18 @@ export class CmsPageService {
   ): Promise<void> {
     if (languages.length === 0 || salesChannelIds.length === 0) return;
 
-    const placeholders = salesChannelIds.map(() => '?').join(', ');
-    const rows = (await em.execute(
-      `select languages, default_language
-       from sales_channels
-       where id in (${placeholders})`,
-      salesChannelIds,
-    )) as Array<{ languages: unknown; default_language: unknown }>;
+    /**
+     * The kernel's own entity, not `select languages, default_language from
+     * sales_channels` (feature 075, D-87). `sales_channels` is the kernel's
+     * table since feature 072 moved the resolution machinery there, and a
+     * module relating into the kernel by ORM is the sanctioned access. The read
+     * stays on the caller's `em` so it still sees the transaction the write is
+     * being validated inside.
+     */
+    const channels = await em.find(SalesChannel, { id: { $in: salesChannelIds } });
     const allowed = new Set(
-      rows.flatMap((row) =>
-        this.resolvedChannelLanguageCodes(row.languages, row.default_language),
+      channels.flatMap((channel) =>
+        this.resolvedChannelLanguageCodes(channel.languages, channel.defaultLanguage),
       ),
     );
     const unsupported = languages.find((language) => !allowed.has(language));

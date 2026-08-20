@@ -17,11 +17,6 @@
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/blog/services/seed-default-category.ts:sql:kernel/sales_channels':
-    'D-87 seed — `blog` reads the kernel\'s `sales_channels` table in raw SQL, so the read ' +
-    'is invisible to the import predicate and to the request-channel resolver alike. ' +
-    'Retired by: the resolved request channel plus `salesChannelsCache` / ' +
-    '`salesChannelsService`, whichever the statement is actually asking for.',
   'modules/blog/services/seed-roles.ts:sql:admin_roles/admin_roles':
     'D-87 seed — `blog` writes `admin_roles`\'s `admin_roles` table in raw SQL. The ' +
     'statement names no import specifier, so the boundary it crosses compiles and returns ' +

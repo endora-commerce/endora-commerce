@@ -13,6 +13,7 @@ import {
   type ResolvedMenuItem,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { MegamenuCache } from './megamenu-cache.js';
 
 type MegamenuRow = {
@@ -43,13 +44,6 @@ type BindingRow = {
   version: number;
   created_at: Date | string;
   updated_at: Date | string;
-};
-
-type ChannelRow = {
-  id: string;
-  code: string;
-  languages: string[];
-  default_language: string;
 };
 
 /**
@@ -362,12 +356,20 @@ export class MegamenuService {
     }
   }
 
-  private async fetchChannel(em: EntityManager, id: string): Promise<ChannelRow | null> {
-    const rows = (await em.execute(
-      `select id::text, code, languages, default_language from sales_channels where id = ? limit 1`,
-      [id],
-    )) as ChannelRow[];
-    return rows[0] ?? null;
+  /**
+   * The kernel's own entity, not `select … from sales_channels` (feature 075,
+   * D-87). `sales_channels` is the kernel's table since feature 072 moved the
+   * resolution machinery there, and a module relating into the kernel by ORM is
+   * the sanctioned access.
+   *
+   * Read through the caller's `em`, not through
+   * `salesChannelResolutionPort.getById`: every caller here is inside
+   * `em.transactional`, and that accessor forks its own EntityManager, so the
+   * binding checks below would validate against rows outside the transaction
+   * they are about to write into.
+   */
+  private async fetchChannel(em: EntityManager, id: string): Promise<SalesChannel | null> {
+    return em.findOne(SalesChannel, { id });
   }
 
   private async fetchItems(menuId: string): Promise<ItemRow[]> {

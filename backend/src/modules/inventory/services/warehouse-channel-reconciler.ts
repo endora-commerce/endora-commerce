@@ -1,10 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { WarehouseChannelAssignment } from '../entities/warehouse-channel-assignment.entity.js';
 import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../entities/warehouse.entity.js';
-
-interface ChannelRow {
-  id: string;
-}
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * WarehouseChannelReconciler — idempotent boot-time check that every
@@ -23,11 +20,17 @@ export class WarehouseChannelReconciler {
     // command-coverage-ignore: startup reconciler — backfills the default
     // warehouse↔channel assignment for channels missing one, an idempotent
     // system-invariant repair, not an operator-initiated audited write.
-    // `this.em.execute`, not `this.em.getKnex()`: a knex handle takes its own
-    // pooled connection, so the channel list would be read from outside any
-    // transaction the caller holds open while the assignments below are written
-    // through `this.em` from inside it (issue #207).
-    const channels = (await this.em.execute(`select id from sales_channels`)) as ChannelRow[];
+    // The kernel's own entity, not `select id from sales_channels` (feature 075,
+    // D-87). `sales_channels` is the kernel's table since feature 072 moved the
+    // resolution machinery there, and a module relating into the kernel by ORM
+    // is the sanctioned access.
+    //
+    // Read through `this.em`, not through a knex handle and not through
+    // `salesChannelResolutionPort` — both take their own pooled connection, so
+    // the channel list would be read from outside any transaction the caller
+    // holds open while the assignments below are written through `this.em` from
+    // inside it (issue #207).
+    const channels = await this.em.find(SalesChannel, {}, { fields: ['id'] });
     if (channels.length === 0) return { assignmentsCreated: 0 };
 
     const defaultWarehouse = await this.em.findOne(Warehouse, { id: DEFAULT_WAREHOUSE_ID });

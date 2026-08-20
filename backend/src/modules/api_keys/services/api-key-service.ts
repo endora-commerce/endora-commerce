@@ -4,6 +4,7 @@ import { ERROR_CODES, type ApiKeyBinding } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ApiKey } from '../entities/api-key.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
@@ -138,11 +139,20 @@ export class ApiKeyService {
           issue: 'Organization does not exist.',
         });
       }
-      const channelRes = (await knex.raw(
-        `select 1 from "sales_channels" where "id" = ?`,
-        [input.binding.salesChannelId],
-      )) as { rows: unknown[] };
-      if (channelRes.rows.length === 0) {
+      /**
+       * The kernel's own entity, not `select 1 from "sales_channels"` (feature
+       * 075, D-87). `sales_channels` is the kernel's table since feature 072
+       * moved the resolution machinery there, and a module relating into the
+       * kernel by ORM is the sanctioned access.
+       *
+       * Read through the caller's `em`, not through
+       * `salesChannelResolutionPort.getById`: that accessor forks its own
+       * EntityManager, so a channel created earlier in this Command's
+       * transaction would not be visible to it and B4 would refuse a binding
+       * that is about to be valid.
+       */
+      const channel = await em.findOne(SalesChannel, { id: input.binding.salesChannelId });
+      if (channel === null) {
         // B4 (active not required at creation — the key fails closed while inactive)
         issues.push({
           path: 'binding.salesChannelId',

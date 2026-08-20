@@ -27,9 +27,4 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'statement names no import specifier, so the boundary it crosses compiles and returns ' +
     'rows. Retired by: `cms` publishing a port for it, resolved through `lazyPort` with ' +
     '`cms` declared in this module\'s manifest dependencies.',
-  'modules/google_analytics/services/cookie-consent-block-seeder.ts:sql:kernel/sales_channels':
-    'D-87 seed — `google_analytics` reads the kernel\'s `sales_channels` table in raw SQL, ' +
-    'so the read is invisible to the import predicate and to the request-channel resolver ' +
-    'alike. Retired by: the resolved request channel plus `salesChannelsCache` / ' +
-    '`salesChannelsService`, whichever the statement is actually asking for.',
 };
