@@ -43,9 +43,9 @@ interface Summary {
 }
 
 /**
- * The anonymous listing entry, recorded from `origin/master` (252cf7dd) before
- * this change, by injecting `GET /api/v1/catalog/products?q=VIEWER-PRICED-0001`
- * over the fixture in `viewer-priced-fixture.ts`.
+ * The anonymous listing entries, recorded from `origin/master` before the change
+ * under test, by injecting `GET /api/v1/catalog/products?q=VIEWER-PRICED` over
+ * the fixture in `viewer-priced-fixture.ts`.
  *
  * Asserted whole, and deliberately not rebuilt from the constants above: the
  * claim is that the crawler's answer is the same bytes it was, and a shape
@@ -53,6 +53,16 @@ interface Summary {
  * construction. `price` is `CHANNEL_AMOUNT`, and every other field is here so
  * that a change to the listing projection made in passing shows up as a
  * failure rather than as a field nobody was looking at.
+ *
+ * Recorded twice, and the second time is issue #263. The entry began life with
+ * `categorySlugs: []` and `primaryAssetUrl: null` — a shape that says nothing
+ * about the two reads that MR !796 left running once per card, so the fixture
+ * now gives the priced product two categories and a labelled gallery and the
+ * source product one category and a legacy `product_assets` row, and both
+ * entries are recorded from `origin/master` (17891285) before those reads were
+ * hoisted to the page. The pair is what makes the guarantee bite across cards:
+ * the two products' right answers differ in every field a page-wide read could
+ * mis-key.
  */
 const RECORDED_ANONYMOUS_LISTING_ENTRY = {
   id: '00000000-0000-4000-8000-00000000f001',
@@ -60,9 +70,28 @@ const RECORDED_ANONYMOUS_LISTING_ENTRY = {
   type: 'simple',
   name: 'Viewer priced probe',
   slug: 'viewer-priced-0001',
-  categorySlugs: [],
-  primaryAssetUrl: null,
+  categorySlugs: ['viewer-priced-category-a', 'viewer-priced-category-b'],
+  primaryAssetUrl: 'https://assets.test/viewer-priced-thumbnail.svg',
   price: { amount: 88, currency: 'PLN' },
+  stockIndicator: null,
+  stockLevel: null,
+};
+
+/**
+ * The same recording for the card **next to** it on the page. It resolves its
+ * asset through the legacy fallback rather than the gallery, and its one
+ * category is a third one, so a page-wide read that served one card's rows to
+ * the other fails here and passes on the entry above.
+ */
+const RECORDED_ANONYMOUS_SOURCE_ENTRY = {
+  id: '00000000-0000-4000-8000-00000000f002',
+  sku: 'VIEWER-PRICED-SOURCE-0001',
+  type: 'simple',
+  name: 'Viewer priced probe source',
+  slug: 'viewer-priced-source-0001',
+  categorySlugs: ['viewer-priced-category-source'],
+  primaryAssetUrl: 'https://assets.test/viewer-priced-source-legacy.svg',
+  price: null,
   stockIndicator: null,
   stockLevel: null,
 };
@@ -95,6 +124,21 @@ describe('a catalogue listing is priced for the viewer', () => {
       entry: body.data.find((p) => p.sku === VIEWER_PRICED_SKU),
       cacheControl: res.headers['cache-control'] as string | undefined,
     };
+  }
+
+  /**
+   * Both fixture products on one page — the request the recorded shapes were
+   * taken from. `listed()` narrows to one SKU and so cannot see a page-wide
+   * read that mixed two cards up; this one can.
+   */
+  async function listedPage(): Promise<Summary[]> {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/products?q=VIEWER-PRICED',
+      headers: RETAIL_CHANNEL,
+    });
+    expect(res.statusCode).toBe(200);
+    return (res.json() as { data: Summary[] }).data;
   }
 
   async function detailed(cookies?: Record<string, string>): Promise<{
@@ -206,6 +250,17 @@ describe('a catalogue listing is priced for the viewer', () => {
     it('leaves the anonymous answer exactly as it was — body and caching alike', async () => {
       const { entry, cacheControl } = await listed();
       expect(entry).toEqual(RECORDED_ANONYMOUS_LISTING_ENTRY);
+
+      // And the same, whole, for a page carrying both cards — the shape a
+      // page-wide asset and category read can get wrong in a way a
+      // single-entry page cannot show.
+      const page = await listedPage();
+      expect(page.find((p) => p.sku === 'VIEWER-PRICED-0001')).toEqual(
+        RECORDED_ANONYMOUS_LISTING_ENTRY,
+      );
+      expect(page.find((p) => p.sku === 'VIEWER-PRICED-SOURCE-0001')).toEqual(
+        RECORDED_ANONYMOUS_SOURCE_ENTRY,
+      );
       // No `Cache-Control` before this change and none after it: the crawler's
       // representation, its cacheability and the storefront's ISR window are
       // untouched (Principle VII).

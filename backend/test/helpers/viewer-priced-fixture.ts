@@ -1,5 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
+import { Asset } from '../../src/modules/assets_library/entities/asset.entity.js';
+import { Category } from '../../src/modules/catalog/entities/category.entity.js';
+import { GalleryItem } from '../../src/modules/catalog/entities/gallery-item.entity.js';
+import { GalleryItemLabel } from '../../src/modules/catalog/entities/gallery-item-label.entity.js';
 import { Product } from '../../src/modules/catalog/entities/product.entity.js';
 import { ProductLink } from '../../src/modules/catalog/entities/product-link.entity.js';
 import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
@@ -39,6 +43,43 @@ export const VIEWER_PRICED_PRODUCT_ID = '00000000-0000-4000-8000-00000000f001';
 export const VIEWER_PRICED_SOURCE_SKU = 'VIEWER-PRICED-SOURCE-0001';
 export const VIEWER_PRICED_SOURCE_SLUG = 'viewer-priced-source-0001';
 export const VIEWER_PRICED_SOURCE_ID = '00000000-0000-4000-8000-00000000f002';
+
+/**
+ * The two categories the priced product sits in, and the one the source product
+ * sits in — fixed ids, because `ProductSummary.categorySlugs` comes back in the
+ * `(product_id, category_id)` primary-key order of `product_categories` and a
+ * random id would make the recorded shape a different array on every run.
+ *
+ * The source product's category is a *third* one for a reason: a page-wide slug
+ * read that lost its key would hand the priced product's two slugs to both
+ * cards, and only a card whose right answer is a different slug can tell.
+ */
+export const PRICED_CATEGORY_A = {
+  id: '00000000-0000-4000-8000-00000000c001',
+  slug: 'viewer-priced-category-a',
+};
+export const PRICED_CATEGORY_B = {
+  id: '00000000-0000-4000-8000-00000000c002',
+  slug: 'viewer-priced-category-b',
+};
+export const SOURCE_CATEGORY = {
+  id: '00000000-0000-4000-8000-00000000c003',
+  slug: 'viewer-priced-category-source',
+};
+
+/**
+ * Four assets, so that both arms of the primary-asset chain are on one page.
+ *
+ * The priced product carries a gallery — a first-by-position item and a
+ * `thumbnail`-labelled one — *and* a legacy `product_assets` row, so its card
+ * proves the label wins over both the position and the legacy table. The source
+ * product carries **only** a legacy row, so its card is the one that falls all
+ * the way through, and it does so on the same request as a card that does not.
+ */
+export const PRICED_THUMBNAIL_URL = 'https://assets.test/viewer-priced-thumbnail.svg';
+export const PRICED_FIRST_URL = 'https://assets.test/viewer-priced-first.svg';
+export const PRICED_LEGACY_URL = 'https://assets.test/viewer-priced-legacy.svg';
+export const SOURCE_LEGACY_URL = 'https://assets.test/viewer-priced-source-legacy.svg';
 
 /** What every caller with no Organization is quoted. */
 export const CHANNEL_AMOUNT = 88;
@@ -175,6 +216,8 @@ export async function seedViewerPricedFixture(em: EntityManager): Promise<void> 
   });
   await em.flush();
 
+  await seedCardReads(em);
+
   // Ascending `modifiedAt` so the tie-break inside a level is fixed; the two
   // organisation lists never compete with each other (each names one org).
   await seedList(em, {
@@ -206,4 +249,84 @@ export async function seedViewerPricedFixture(em: EntityManager): Promise<void> 
     amount: `${ORG_B_AMOUNT}.00`,
     modifiedAt: new Date('2026-01-03T00:00:00.000Z'),
   });
+}
+
+/**
+ * The two reads a listing card needs beyond the product row and its price: the
+ * category slugs and the primary asset url.
+ *
+ * Both are page-wide reads keyed by product id, and both used to run once per
+ * card, so the fixture is built for the failure a batched read has and a loop
+ * does not — one card's answer served for another's. Hence three categories
+ * across two products, and a gallery on one product only.
+ */
+async function seedCardReads(em: EntityManager): Promise<void> {
+  for (const category of [PRICED_CATEGORY_A, PRICED_CATEGORY_B, SOURCE_CATEGORY]) {
+    em.create(Category, {
+      id: category.id,
+      name: { 'en-US': category.slug },
+      slug: category.slug,
+    });
+  }
+  await em.flush();
+
+  const conn = em.getConnection();
+  await conn.execute(
+    `insert into product_categories (product_id, category_id) values (?, ?), (?, ?), (?, ?)`,
+    [
+      VIEWER_PRICED_PRODUCT_ID,
+      PRICED_CATEGORY_A.id,
+      VIEWER_PRICED_PRODUCT_ID,
+      PRICED_CATEGORY_B.id,
+      VIEWER_PRICED_SOURCE_ID,
+      SOURCE_CATEGORY.id,
+    ],
+  );
+
+  const assets = [
+    { id: '00000000-0000-4000-8000-00000000a001', url: PRICED_FIRST_URL },
+    { id: '00000000-0000-4000-8000-00000000a002', url: PRICED_THUMBNAIL_URL },
+    { id: '00000000-0000-4000-8000-00000000a003', url: PRICED_LEGACY_URL },
+    { id: '00000000-0000-4000-8000-00000000a004', url: SOURCE_LEGACY_URL },
+  ];
+  for (const asset of assets) {
+    em.create(Asset, {
+      id: asset.id,
+      kind: 'image',
+      filename: `${asset.id}.svg`,
+      mimeType: 'image/svg+xml',
+      sizeBytes: '128',
+      storageUrl: asset.url,
+    });
+  }
+  await em.flush();
+
+  // Position 0 is the *first* item and position 1 carries the `thumbnail`
+  // label, so a card that returned the first gallery row would quote
+  // PRICED_FIRST_URL and a card that applied the label chain quotes
+  // PRICED_THUMBNAIL_URL. The two are distinguishable on purpose.
+  const galleryItems = [
+    { id: '00000000-0000-4000-8000-00000000b001', assetId: assets[0]!.id, position: 0 },
+    { id: '00000000-0000-4000-8000-00000000b002', assetId: assets[1]!.id, position: 1 },
+  ];
+  for (const item of galleryItems) {
+    em.create(GalleryItem, {
+      id: item.id,
+      productId: VIEWER_PRICED_PRODUCT_ID,
+      assetId: item.assetId,
+      position: item.position,
+    });
+  }
+  await em.flush();
+  em.create(GalleryItemLabel, {
+    galleryItemId: galleryItems[1]!.id,
+    productId: VIEWER_PRICED_PRODUCT_ID,
+    label: 'thumbnail',
+  });
+  await em.flush();
+
+  await conn.execute(
+    `insert into product_assets (product_id, asset_id, position) values (?, ?, 0), (?, ?, 0)`,
+    [VIEWER_PRICED_PRODUCT_ID, assets[2]!.id, VIEWER_PRICED_SOURCE_ID, assets[3]!.id],
+  );
 }

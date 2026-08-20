@@ -19,7 +19,8 @@ import {
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
- * A catalogue listing prices its page **once** (issue #132 follow-up).
+ * A catalogue listing resolves its page **once** — its prices (issue #132
+ * follow-up) and, since issue #263, its cards' assets and category slugs too.
  *
  * `resolveListingPrices` takes a set and always has, but `toSummary` called it
  * with a batch of one, so a 50-card page made 50 calls: 502 statements and
@@ -33,6 +34,13 @@ import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js'
  * display-mode overrides once per scope it consults — small constants. The
  * claim is that they are constants: the counts below do not move when the page
  * grows from three cards to thirty-three.
+ *
+ * The second test makes the same claim about the three reads that survived
+ * !793 and !796 — `gallery_items`, the legacy `product_assets` fallback and the
+ * category-slug join — which between them were 150 of the ~158 statements a
+ * 50-item page still cost. They are counted the same way and for the same
+ * reason: each takes an id list already, so batching the helper proves nothing
+ * about the page unless the page is what calls it.
  */
 
 const EXTRA_PRODUCTS = 30;
@@ -127,4 +135,52 @@ describe('catalogue listing prices its page in one resolution', () => {
     // the seeded products belong to one. Both are set reads.
     expect(reads('price_display_mode_overrides')).toBe(2);
   });
+
+  it('reads each card\'s asset and category slugs once for the page, not once per card', async () => {
+    const url = '/api/v1/catalog/products?limit=50';
+    const headers = { 'x-sales-channel': 'pl_retail' };
+    await h.app.inject({ method: 'GET', url, headers });
+
+    const { statements, body } = await countStatements(url, headers);
+    expect(body.data.length).toBeGreaterThan(EXTRA_PRODUCTS);
+
+    // Raw SQL, so these are matched on the text the helper writes rather than
+    // on a quoted identifier the ORM would emit.
+    const raw = (fragment: string): number =>
+      statements.filter((sql) => sql.includes(fragment)).length;
+    expect(raw('from gallery_items gi')).toBe(1);
+    // The legacy fallback runs at most once, for whatever the gallery read did
+    // not answer — the whole page here, since the fixture seeds no gallery.
+    expect(raw('from product_assets pa')).toBe(1);
+    expect(raw('from product_categories pc')).toBe(1);
+  });
+
+  async function countStatements(
+    url: string,
+    headers: Record<string, string>,
+  ): Promise<{ statements: string[]; body: { data: Array<{ id: string }> } }> {
+    const connection = h.em().getConnection() as unknown as {
+      execute: (...args: unknown[]) => Promise<unknown>;
+    };
+    const original = connection.execute.bind(connection);
+    const statements: string[] = [];
+    connection.execute = (...args: unknown[]) => {
+      const query = args[0];
+      statements.push(
+        typeof query === 'string'
+          ? query
+          : String((query as { toString(): string } | undefined)?.toString?.() ?? ''),
+      );
+      return original(...args);
+    };
+
+    let response;
+    try {
+      response = await h.app.inject({ method: 'GET', url, headers });
+    } finally {
+      connection.execute = original;
+    }
+    expect(response.statusCode).toBe(200);
+    return { statements, body: response.json() as { data: Array<{ id: string }> } };
+  }
 });
