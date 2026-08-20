@@ -163,6 +163,16 @@ export class CatalogProductFilterService implements CatalogProductFilterPort {
  * second branch: an empty allow-list, decided by `visibility` alone, which for
  * an unauthenticated caller means `public`.
  *
+ * That difference is the point, not an omission (issue #262). The other SQL
+ * statement of this rule is in `catalog-quick-search.service.ts`, it answers
+ * for a **signed-in buyer** — `{ organizationId, authenticated: true }`, an
+ * audience that surface's port requires — and it therefore keeps the
+ * containment branch and admits `logged_in_only`. Neither clause may be
+ * aligned with the other: the containment branch would be dead weight here,
+ * and these two equalities over there would hide from a buyer every row his own
+ * organisation is named on. Each site has its own parity test instead, and both
+ * derive their expectations from `isProductVisibleTo`.
+ *
  * ## Why the empty test is spelled `{ $eq: [] }`
  *
  * It renders `allowed_organization_ids = '[]'`, and `jsonb` equality is
@@ -185,6 +195,11 @@ export class CatalogProductFilterService implements CatalogProductFilterPort {
  * expectation from `isProductVisibleTo` itself, for `listSellable` and
  * `countSellable` both. Neither side can drift without that file going red, and
  * a fourth visibility value enters the sweep as soon as the enum grows.
+ *
+ * `backend/test/integration/catalog/quick-search-audience-parity.test.ts` is
+ * the same mechanism for the buyer-facing statement — the states this sweep
+ * cannot reach, an allow-list naming the viewer's own organisation among
+ * others, being exactly what an anonymous audience has no way to express.
  */
 const ANONYMOUS_AUDIENCE_CLAUSE: Record<string, unknown> = {
   visibility: 'public',

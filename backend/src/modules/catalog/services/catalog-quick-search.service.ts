@@ -47,6 +47,34 @@ import type {
  * `deleted_at is null` is applied for a plainer reason: every other
  * customer-facing read in this module applies it, and the knex query not doing
  * so returned soft-deleted products whose `status` was still `active`.
+ *
+ * ## The other SQL statement of the same rule, and why it looks different
+ *
+ * `isProductVisibleTo` in `@b2b/contracts` is the platform's one answer, and
+ * this module restates it in SQL **twice** because a predicate over a record
+ * cannot be pushed into a query. The other restatement is
+ * `ANONYMOUS_AUDIENCE_CLAUSE` in `catalog-product-filter.service.ts`, and it is
+ * deliberately not this clause (issue #262):
+ *
+ *  - **this one answers for a signed-in buyer.** `organizationId` is required
+ *    on {@link CatalogQuickSearchParams} and has no anonymous spelling, so the
+ *    audience is `{ organizationId, authenticated: true }` and `logged_in_only`
+ *    is always satisfied here. That is why the `@>` containment branch exists
+ *    at all;
+ *  - **the filter floor answers for `ANONYMOUS_PRODUCT_AUDIENCE`**, because its
+ *    only consumer is a product feed read by Google. With no organisation to
+ *    contain, containment can never match, and the predicate collapses to
+ *    `visibility = 'public'` with an empty allow-list.
+ *
+ * So the two are meant to differ, and neither may be "aligned" with the other:
+ * copying the two equalities here would hide from a buyer every row his own
+ * organisation is named on. What stops either from drifting away from the
+ * predicate is a parity test per site that derives its expectation from
+ * `isProductVisibleTo` — this one's is
+ * `backend/test/integration/catalog/quick-search-audience-parity.test.ts`,
+ * which sweeps `productVisibilitySchema.options` × five allow-list states ×
+ * three viewers, so a fourth visibility value or a substring reading of the
+ * allow-list turns it red.
  */
 export class CatalogQuickSearchService implements CatalogQuickSearchPort {
   constructor(

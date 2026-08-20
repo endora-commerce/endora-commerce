@@ -1692,12 +1692,55 @@ export const ANONYMOUS_PRODUCT_AUDIENCE: ProductAudience = {
  *     so the permissive reading of it would disclose the row to the whole
  *     world.
  *
- * The SQL half of the same rule — the one `catalog`'s quick-search applies
- * inside its statement, where a post-filter would break the `limit` — asks with
- * `@>` containment over the JSONB array, so the buyer's id has to be an element
- * of the list rather than a substring of the serialised bag. Keep the two in
- * step; `backend/test/unit/catalog/product-visibility-predicate.test.ts` is the
- * truth table both are read against.
+ * ## The two SQL restatements of this rule, and how they differ
+ *
+ * A predicate over a record cannot be pushed into a query, and two read paths
+ * must filter in SQL rather than after it. So `catalog` states this rule twice
+ * more, in SQL, and the two statements are **not** copies of each other — they
+ * answer for different audiences and are meant to differ (issue #262):
+ *
+ *  - **`catalog-quick-search.service.ts`** answers for a **signed-in buyer**.
+ *    `CatalogQuickSearchParams.organizationId` is required and there is no
+ *    anonymous spelling, so the audience is
+ *    `{ organizationId, authenticated: true }` by construction. It is the
+ *    restatement where `@>` containment over the JSONB array does real work:
+ *    the buyer's id has to be an *element* of the allow-list rather than a
+ *    substring of the serialised bag. It is SQL because the statement carries
+ *    a `limit`, and a post-filter would hand a buyer a short page — or an
+ *    empty one — while visible rows waited behind the restricted ones.
+ *  - **`catalog-product-filter.service.ts`'s `sellableFloor`** answers for
+ *    {@link ANONYMOUS_PRODUCT_AUDIENCE}, because the port's only consumer is a
+ *    product feed and a feed is read by Google. With no organisation to
+ *    contain, the containment branch can never match, so that restatement
+ *    collapses to two equalities — `visibility = 'public'` and an empty
+ *    allow-list. It is SQL because `countSellable` is the number an operator
+ *    is shown before saving and `listSellable` is what the next run emits, and
+ *    the two must be one query's answer.
+ *
+ * Neither is licensed to drift toward the other: the containment clause would
+ * be dead weight in the feed floor, and the two equalities would hide from a
+ * buyer every row his own organisation is named on. What keeps both honest is
+ * that each has a parity test which **derives** its expectation from this
+ * function over `productVisibilitySchema.options`, so a fourth visibility value
+ * forces every side to be decided rather than letting one keep an accidental
+ * default — this predicate falls through to `return true`, both SQL sites fail
+ * closed:
+ *
+ *  - `backend/test/integration/catalog/quick-search-audience-parity.test.ts`
+ *    — visibility × (empty, own org, another org, several including own,
+ *    a near-miss string) × three viewers;
+ *  - `backend/test/integration/catalog/product-filter-port.test.ts`
+ *    — visibility × (empty, non-empty) for the anonymous audience, on
+ *    `listSellable` and `countSellable` alike.
+ *
+ * `backend/test/unit/catalog/product-visibility-predicate.test.ts` is the truth
+ * table all three are read against.
+ *
+ * Unifying the three into one shared SQL fragment was considered and refused:
+ * the builder would have to live here, and a fragment knows table and column
+ * names — the persistence shape. This package knows API shapes and depends on
+ * `zod` alone (FR-034). Keeping that line is worth more than removing the
+ * duplication, so the duplication is kept and pinned instead.
  *
  * What this predicate is **not** is the channel answer. Channel scoping is
  * Principle XII's, travels through `sales_channel_products` and the sanctioned
