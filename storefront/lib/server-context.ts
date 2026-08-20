@@ -3,6 +3,7 @@ import type { I18nConfigResponse } from '@b2b/contracts';
 import { getI18nConfig } from './api/i18n';
 import { getModulePresence, type ModulePresenceSet } from './api/module-presence';
 import { resolveLocale } from './i18n/locale';
+import { getSessionCookie } from './session';
 import type { RequestContext } from './api/client';
 
 /**
@@ -46,6 +47,11 @@ export async function getServerContext(input?: { langOverride?: string | null })
   // override and the Accept-Language header.
   const langCookie = jar.get('lang')?.value ?? null;
   const currency = jar.get('currency')?.value || undefined;
+  // Issue #265 — who is in front of the page, for the readers that carry a
+  // price. Resolved once here rather than per call site so a page cannot ask
+  // one surface as the buyer and the next as the public; `apiGetForViewer` is
+  // the only reader that acts on it.
+  const viewerSession = (await getSessionCookie()) ?? undefined;
 
   const locale = resolveLocale({
     acceptLanguage,
@@ -62,6 +68,7 @@ export async function getServerContext(input?: { langOverride?: string | null })
       ...(salesChannelCode !== undefined ? { salesChannelCode } : {}),
       locale,
       ...(currency !== undefined ? { currency } : {}),
+      ...(viewerSession !== undefined ? { viewerSession } : {}),
     },
   };
 }

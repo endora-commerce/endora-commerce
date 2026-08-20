@@ -1,5 +1,5 @@
 import type { DisplayMode } from '@b2b/contracts';
-import { apiGet, type RequestContext } from './client';
+import { apiGet, apiGetForViewer, type RequestContext } from './client';
 import { isModuleDisabled } from './module-absence';
 
 /**
@@ -14,7 +14,8 @@ import { isModuleDisabled } from './module-absence';
  *
  * Backend caches the per-tuple result for 60 s; the singular endpoint also
  * uses Next's revalidate window so warm cache hits stay cheap on repeat
- * visits.
+ * visits — for an anonymous visitor. A signed-in buyer's price is resolved for
+ * their organisation and is never stored in a shared cache (issue #265).
  */
 
 /**
@@ -81,7 +82,13 @@ export async function getResolvedPrice(
   if (currency) params.set('currency', currency.toUpperCase());
   if (query.variantId) params.set('variantId', query.variantId);
   try {
-    const res = await apiGet<ResolvedPriceResponse>(
+    // Issue #265 — the endpoint's whole purpose is "what does THIS buyer pay",
+    // and this call forwarded no credential and cached the answer for 60 s in a
+    // cache shared by every visitor, so it could only ever ask the anonymous
+    // question. `apiGetForViewer` keeps that request byte-identical for a
+    // visitor with no session and sends the buyer's cookie, uncached, for one
+    // with a session.
+    const res = await apiGetForViewer<ResolvedPriceResponse>(
       `/api/v1/storefront/products/${encodeURIComponent(productId)}/resolved-price?${params.toString()}`,
       ctx,
       { revalidate: 60, tags: ['pricing:resolved', `pricing:product:${productId}`] },
