@@ -65,7 +65,7 @@ async function seedOrder(
   return { method, order };
 }
 
-describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => {
+describe('Shipment lifecycle: createShipment (generate and retry) + receive_shipment', () => {
   let h: BackendServerHandle;
   const statusRegistry = new EnumOrderStatusRegistry();
   const registry = new ShippingAdapterRegistry();
@@ -181,20 +181,42 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
-  it('retry opens a new Shipment after a failure, preserving prior attempts', async () => {
+  /**
+   * FR-024 through the only path that still opens an attempt (issue #257).
+   *
+   * This case used to call `openRetry`, and it asserted the two things that
+   * were true of it — a second row, prior attempts intact — while asserting
+   * nothing at all about the carrier, which is how a retry that contacted
+   * nobody stayed green. The carrier assertion is the point of the case now.
+   */
+  it('generating again after a failure opens the next attempt and asks the carrier', async () => {
     const { order } = await seedOrder(h.em());
     const service = shipmentService();
     const handler = receiveHandler();
     const first = await service.createShipment(order.id);
 
     await handler.receive({ shipmentId: first.id, outcome: 'failure', failureReason: 'x' });
-    const retry = await service.openRetry(order.id);
 
-    expect(retry.attemptNo).toBe(2);
-    expect(retry.status).toBe('pending');
-    const all = await service.listForOrder(order.id);
-    expect(all).toHaveLength(2);
-    expect(all.map((s) => s.attemptNo)).toEqual([1, 2]);
+    const adapter = registry.entry('manual_courier')!.adapter;
+    const asked = vi.spyOn(adapter, 'onShipmentCreated');
+    try {
+      const retry = await service.createShipment(order.id);
+
+      expect(retry.attemptNo).toBe(2);
+      expect(retry.status).toBe('pending');
+      expect(asked).toHaveBeenCalledTimes(1);
+      expect(asked.mock.calls[0]![0]).toMatchObject({
+        orderId: order.id,
+        shipmentId: retry.id,
+        attemptNo: 2,
+      });
+
+      const all = await service.listForOrder(order.id);
+      expect(all).toHaveLength(2);
+      expect(all.map((s) => s.attemptNo)).toEqual([1, 2]);
+    } finally {
+      asked.mockRestore();
+    }
   });
 
   /**

@@ -3619,15 +3619,6 @@
         }
       }
     },
-    "/api/v1/admin/orders/{id}/shipments/retry": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/admin/orders/{id}/status": {
       "post": {
         "responses": {

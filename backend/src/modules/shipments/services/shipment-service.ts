@@ -34,8 +34,19 @@ export function carrierNotContactedReason(moduleId: string): string {
  *
  * `createShipment` raises `shipment_created`: it opens a pending Shipment
  * against the Order, invokes the method adapter's `onShipmentCreated`, and
- * emits `shipment.created.v1`. `openRetry` opens an additional attempt after a
- * failure (leaving prior rows intact). `listForOrder` powers the admin view.
+ * emits `shipment.created.v1`. It is also the retry path (FR-024): called again
+ * after a failure it appends attempt n+1 and leaves the prior rows intact,
+ * refusing only once an attempt has succeeded. `listForOrder` powers the admin
+ * view.
+ *
+ * Issue #257 — there used to be a second attempt-opening path, `openRetry`, and
+ * it asked no adapter in any state, not only while a carrier module was off. It
+ * is gone rather than repaired: no admin surface reached it, its own contract
+ * described it as "equivalent to calling the generate route again", and the
+ * equivalence was false in the one way that mattered — the row appeared, the
+ * status read `pending`, and no carrier had heard of the parcel. Repairing it
+ * would have left a second copy of `createShipment` to keep honest forever;
+ * deleting it leaves one path, which is the one every caller already used.
  *
  * Feature 075 Phase C — the order and the delivery method are read over their
  * owners' ports. Only the `Shipment` rows are this module's to write, and only
@@ -158,37 +169,6 @@ export class ShipmentService {
 
     const result = this.events ? await this.events.run(run) : await run();
     return result.shipment;
-  }
-
-  async openRetry(orderId: string): Promise<Shipment> {
-    // command-coverage-ignore: opens a new shipment attempt after a failure —
-    // fulfilment retry mechanics; the order transition is audited in the orders flow.
-    const em = this.emFactory();
-    return em.transactional(async (tx) => {
-      const latest = await tx.findOne(Shipment, { orderId }, { orderBy: { attemptNo: 'desc' } });
-      if (!latest) {
-        throw new HttpError(
-          404,
-          ERROR_CODES.NOT_FOUND,
-          'No shipment exists for this order to retry.',
-        );
-      }
-      if (latest.status === 'success') {
-        throw new HttpError(
-          409,
-          ERROR_CODES.VALIDATION_FAILED,
-          'Order already has a successful shipment; nothing to retry.',
-        );
-      }
-      const next = tx.create(Shipment, {
-        orderId,
-        deliveryMethodId: latest.deliveryMethodId,
-        status: 'pending',
-        attemptNo: latest.attemptNo + 1,
-      });
-      await tx.persistAndFlush(next);
-      return next;
-    });
   }
 
   async listForOrder(orderId: string): Promise<Shipment[]> {
