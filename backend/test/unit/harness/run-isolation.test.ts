@@ -11,6 +11,7 @@ import {
   sharedDatabaseReason,
   strandedRunDatabases,
   templateDatabaseName,
+  templateDrift,
   withDatabase,
 } from '../../run-isolation.js';
 import { TEST_DATABASE_NAME_PATTERN as SEED_GUARD_PATTERN } from '../../../src/seeds/dev-seed-guard.js';
@@ -204,5 +205,50 @@ describe('the test-database convention', () => {
     );
     expect(globalSetup).toMatch(/from '\.\/run-isolation\.js'/);
     expect(globalSetup).not.toMatch(/\/\(\^\|_\)test\(_\|\$\)\//);
+  });
+});
+
+describe('run-isolation — the migration template a run is cloned from', () => {
+  const EXPECTED = ['MigrationA', 'MigrationB', 'MigrationC'] as const;
+
+  it('accepts a template `migrator.up()` can bring forward on its own', () => {
+    // Applied-in-order is the only shape an append can complete: `up()` puts
+    // the pending ones after what is there, so the result is EXPECTED exactly.
+    expect(templateDrift([], EXPECTED)).toBeUndefined();
+    expect(templateDrift(['MigrationA'], EXPECTED)).toBeUndefined();
+    expect(templateDrift(['MigrationA', 'MigrationB'], EXPECTED)).toBeUndefined();
+    expect(templateDrift([...EXPECTED], EXPECTED)).toBeUndefined();
+  });
+
+  it('reports a migration this run has never heard of', () => {
+    // A template is shared by every branch on the machine. Another branch's
+    // migration is applied here, and `up()` can neither revert it nor place it.
+    const drift = templateDrift(['MigrationA', 'MigrationFromAnotherBranch'], EXPECTED);
+    expect(drift?.kind).toBe('unknown-migration');
+    expect(drift?.name).toBe('MigrationFromAnotherBranch');
+    expect(drift?.message).toContain('MigrationFromAnotherBranch');
+  });
+
+  it('reports one of this run\'s own migrations applied out of order', () => {
+    // The shape that broke `attributes-migration-parity.test.ts`: a migration
+    // added in the middle of the module graph's order lands at the end of an
+    // incrementally-migrated template, so the applied order is one this
+    // repository's migrations never produce from scratch.
+    const drift = templateDrift(['MigrationA', 'MigrationC', 'MigrationB'], EXPECTED);
+    expect(drift?.kind).toBe('out-of-order');
+    expect(drift?.name).toBe('MigrationC');
+    expect(drift?.expected).toBe('MigrationB');
+  });
+
+  it('reports a hole, which an append can never fill', () => {
+    const drift = templateDrift(['MigrationA', 'MigrationC'], EXPECTED);
+    expect(drift?.kind).toBe('out-of-order');
+    expect(drift?.name).toBe('MigrationC');
+    expect(drift?.expected).toBe('MigrationB');
+  });
+
+  it('says which template it is judging, so the log line stands alone', () => {
+    const drift = templateDrift(['MigrationZ'], EXPECTED, 'b2b_test_tpl');
+    expect(drift?.message).toContain('b2b_test_tpl');
   });
 });

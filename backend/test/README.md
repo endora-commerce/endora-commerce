@@ -112,6 +112,52 @@ invocation recreates and re-migrates it:
 psql -h localhost -U b2b -d postgres -c 'drop database if exists b2b_test_tpl with (force)'
 ```
 
+**The template is checked for currency before it is cloned, and rebuilt when it is not.** It
+outlives every run and is shared by every branch on the machine, while `migrator.up()` only
+ever *appends* — which is enough exactly when what it already holds is a **prefix** of the
+order this run configures. Anything else is a database no append can repair: another branch's
+migration applied into it, or one of ours applied where `src/db/migration-order.ts` does not
+put it, which is what a migration added anywhere but the last module does to a template that
+is brought forward rather than built. Both are ordinary with several branches on one cluster,
+so provisioning compares the applied names against the configured order and, on a mismatch,
+drops the template and migrates it from empty — one migration pass, paid once per change of
+the migration set.
+
+That is not tidiness. `test/integration/catalog/attributes-migration-parity.test.ts` drives
+the real migrator: umzug reverts the last migration in **configured** order while the test
+reads the last one in **applied** (`id`) order, and the two stop agreeing the moment the
+template stops being a prefix. It then walked `down()` straight past its own target, never
+reached its termination condition, timed out twice, and left the run database with most of its
+schema reverted — taking all 21 files of `test/integration/catalog` down with it, 20 of them
+on a truncate against tables that were no longer there.
+
+Under `BACKEND_TEST_ISOLATION=shared` the same drift accumulates in the base database, and the
+run says so and does nothing else: that database is one you named or kept, so it is not the
+harness's to drop. Drop it yourself and re-run, or drop the escape hatch.
+
+### A test that drives the migrator takes a database of its own
+
+Every other integration test mutates *rows*, inside a transaction the fixture rolls back or a
+truncate the next file repeats. A test that calls `orm.getMigrator().up()` or `.down()` mutates
+the **schema**, outside either — and the run database is this invocation's only copy, so a
+migration sequence that dies half-way does not fail alone. Measured on the failure above:
+`test/integration/catalog` was **21 files red**, and 20 of 20 green with the one migrator-driving
+file excluded. Twenty messages about `relation "sales_channels" does not exist` and a failed
+harness truncate, each pointing at itself, for a cause in the file nobody reads last.
+
+So such a file calls `setupMigratorTestDb()` instead of `setupTestDb()`. It clones the same
+migrated template this invocation was cloned from — a file copy — and drops it in teardown, so
+however badly the migration sequence goes, it goes there. It also owes its neighbours nothing:
+no `migrator.up()` in `afterAll` to leave the schema behind for them, which is the hook that was
+doing the damage. Re-measured with that file deliberately broken mid-migration: **1 red, 20
+green**.
+
+Who may call it is declared in `test/migrator-driving-tests.ts`, one entry per file with its
+reason, and `test/unit/harness/migrator-driving-ledger.test.ts` keeps it honest in both
+directions and checks that every entry is actually using the seam. Under
+`BACKEND_TEST_ISOLATION=shared` there is no template to clone, so the seam falls back to the
+shared database and prints why — that is part of what the escape hatch costs.
+
 Two escape hatches, both explicit:
 
 - `BACKEND_TEST_ISOLATION=shared` — the pre-#189 behaviour, every invocation on the base

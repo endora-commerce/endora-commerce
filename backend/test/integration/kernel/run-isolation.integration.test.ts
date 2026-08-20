@@ -77,6 +77,7 @@ describe('a test invocation gets its own database', () => {
   it('clones the migrated template, and the clone carries what the template holds', async () => {
     const run = await provisionRunDatabase({
       baseUrl: BASE,
+      configuredMigrations: async () => [],
       migrateTemplate: markTemplate,
       log: () => {},
     });
@@ -98,8 +99,18 @@ describe('a test invocation gets its own database', () => {
 
   it('gives two invocations two databases, even started in the same second', async () => {
     const [first, second] = await Promise.all([
-      provisionRunDatabase({ baseUrl: BASE, migrateTemplate: markTemplate, log: () => {} }),
-      provisionRunDatabase({ baseUrl: BASE, migrateTemplate: markTemplate, log: () => {} }),
+      provisionRunDatabase({
+        baseUrl: BASE,
+        configuredMigrations: async () => [],
+        migrateTemplate: markTemplate,
+        log: () => {},
+      }),
+      provisionRunDatabase({
+        baseUrl: BASE,
+        configuredMigrations: async () => [],
+        migrateTemplate: markTemplate,
+        log: () => {},
+      }),
     ]);
     provisioned.push(first.name, second.name);
 
@@ -111,12 +122,134 @@ describe('a test invocation gets its own database', () => {
   it('drops the database the run owned', async () => {
     const run = await provisionRunDatabase({
       baseUrl: BASE,
+      configuredMigrations: async () => [],
       migrateTemplate: markTemplate,
       log: () => {},
     });
     expect(await exists(run.name)).toBe(true);
     await dropRunDatabase(BASE, run.name, () => {});
     expect(await exists(run.name)).toBe(false);
+  }, 60_000);
+});
+
+describe('the template a run is cloned from is this run\'s migration set', () => {
+  /** Stands in for `applyMigrations`: logs the names it is given as applied. */
+  function applyNames(names: readonly string[]): (templateUrl: string) => Promise<void> {
+    return async (templateUrl) => {
+      const client = new Client({ connectionString: templateUrl });
+      await client.connect();
+      try {
+        await client.query(
+          'create table if not exists mikro_orm_migrations ' +
+            '(id serial primary key, name varchar(255), executed_at timestamptz default now())',
+        );
+        const { rows } = await client.query<{ name: string }>(
+          'select name from mikro_orm_migrations order by id asc',
+        );
+        const applied = new Set(rows.map((row) => row.name));
+        for (const name of names) {
+          if (applied.has(name)) continue;
+          await client.query('insert into mikro_orm_migrations (name) values ($1)', [name]);
+        }
+      } finally {
+        await client.end();
+      }
+    };
+  }
+
+  async function templateQuery<T extends Record<string, unknown>>(sql: string): Promise<T[]> {
+    const client = new Client({ connectionString: withDatabase(BASE, TEMPLATE) });
+    await client.connect();
+    try {
+      const { rows } = await client.query<T>(sql);
+      return rows;
+    } finally {
+      await client.end();
+    }
+  }
+
+  it('rebuilds a template another branch migrated into, rather than cloning it', async () => {
+    // The template outlives every run and is shared by every branch on the
+    // machine. This is the shape that broke
+    // `test/integration/catalog/attributes-migration-parity.test.ts`: a name
+    // this run's registry does not contain, applied ahead of one it does, so
+    // the applied order is not one an append could ever produce.
+    const first = await provisionRunDatabase({
+      baseUrl: BASE,
+      configuredMigrations: async () => ['MigrationOne'],
+      migrateTemplate: applyNames(['MigrationOne']),
+      log: () => {},
+    });
+    provisioned.push(first.name);
+
+    const polluter = new Client({ connectionString: withDatabase(BASE, TEMPLATE) });
+    await polluter.connect();
+    try {
+      await polluter.query(
+        `insert into mikro_orm_migrations (name) values ('MigrationFromAnotherBranch')`,
+      );
+      await polluter.query('create table another_branch_table (id int)');
+    } finally {
+      await polluter.end();
+    }
+
+    const second = await provisionRunDatabase({
+      baseUrl: BASE,
+      configuredMigrations: async () => ['MigrationOne'],
+      migrateTemplate: applyNames(['MigrationOne']),
+      log: () => {},
+    });
+    provisioned.push(second.name);
+
+    // Rebuilt from empty and migrated again: the foreign row is gone, and so is
+    // the schema it stood for.
+    const applied = await templateQuery<{ name: string }>(
+      'select name from mikro_orm_migrations order by id asc',
+    );
+    expect(applied.map((row) => row.name)).toEqual(['MigrationOne']);
+    const leftovers = await templateQuery<{ table_name: string }>(
+      `select table_name from information_schema.tables
+       where table_schema = 'public' and table_name = 'another_branch_table'`,
+    );
+    expect(leftovers).toHaveLength(0);
+  }, 60_000);
+
+  it('leaves a template that is only behind alone, so an append still pays for itself', async () => {
+    const before = await provisionRunDatabase({
+      baseUrl: BASE,
+      configuredMigrations: async () => ['MigrationOne'],
+      migrateTemplate: applyNames(['MigrationOne']),
+      log: () => {},
+    });
+    provisioned.push(before.name);
+
+    const marker = new Client({ connectionString: withDatabase(BASE, TEMPLATE) });
+    await marker.connect();
+    try {
+      await marker.query('create table survives_an_append (id int)');
+    } finally {
+      await marker.end();
+    }
+
+    const after = await provisionRunDatabase({
+      baseUrl: BASE,
+      configuredMigrations: async () => ['MigrationOne', 'MigrationTwo'],
+      migrateTemplate: applyNames(['MigrationOne', 'MigrationTwo']),
+      log: () => {},
+    });
+    provisioned.push(after.name);
+
+    const applied = await templateQuery<{ name: string }>(
+      'select name from mikro_orm_migrations order by id asc',
+    );
+    expect(applied.map((row) => row.name)).toEqual(['MigrationOne', 'MigrationTwo']);
+    // Untouched: a rebuild here would throw away every migration the template
+    // already holds on every run that adds one.
+    const survivor = await templateQuery<{ table_name: string }>(
+      `select table_name from information_schema.tables
+       where table_schema = 'public' and table_name = 'survives_an_append'`,
+    );
+    expect(survivor).toHaveLength(1);
   }, 60_000);
 });
 

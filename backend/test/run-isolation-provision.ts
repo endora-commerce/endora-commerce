@@ -23,6 +23,7 @@ import {
   runDatabaseName,
   strandedRunDatabases,
   templateDatabaseName,
+  templateDrift,
   withDatabase,
 } from './run-isolation.js';
 
@@ -85,6 +86,32 @@ async function cloneFromTemplate(admin: Client, name: string, template: string):
   }
 }
 
+/**
+ * The migration names applied to a database, in the order they were applied.
+ *
+ * `mikro_orm_migrations` is missing on a template that has just been created
+ * and on one that has never been migrated; both mean "nothing applied", which
+ * is a prefix of every order and so needs no rebuild.
+ */
+export async function appliedMigrations(databaseUrl: string): Promise<string[]> {
+  const { Client: PgClient } = await import('pg');
+  const client = new PgClient({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{ name: string }>(
+      'select name from mikro_orm_migrations order by id asc',
+    );
+    return rows.map((row) => row.name);
+  } catch (error) {
+    if ((error as { code?: string }).code === '42P01') return [];
+    throw error;
+  } finally {
+    // Before the clone, not after: `create database … template …` refuses a
+    // source anything is connected to.
+    await client.end();
+  }
+}
+
 export interface RunDatabase {
   /** The DSN every worker of this invocation will use. */
   readonly url: string;
@@ -97,6 +124,23 @@ export interface ProvisionInput {
   readonly baseUrl: string;
   /** Applies pending migrations to the template and establishes the platform invariants. */
   readonly migrateTemplate: (templateUrl: string) => Promise<void>;
+  /**
+   * The migration class names this run applies, in the order it applies them.
+   * The template is rebuilt when what it holds is not a prefix of them — see
+   * `templateDrift`.
+   *
+   * A callback taking the template's DSN, and not a value, for the same reason
+   * `migrateTemplate` is one: **the ORM config captures `DATABASE_URL` at
+   * import**, once per process, so whatever names that variable when the config
+   * is first imported is the database this process migrates for the rest of its
+   * life. Reading the configured order means importing the config, so it is
+   * read here — after the template's DSN exists and can be pointed at — rather
+   * than by a caller that has not got one yet. Taking a plain array made the
+   * parent import the config while `DATABASE_URL` was unset, and its fallback
+   * is the **dev** database; the migration ran there and only its
+   * `allOrNothing` transaction kept that from mattering.
+   */
+  readonly configuredMigrations: (templateUrl: string) => Promise<readonly string[]>;
   readonly log?: Log;
 }
 
@@ -129,7 +173,40 @@ export async function provisionRunDatabase(input: ProvisionInput): Promise<RunDa
         await admin.query(`create database "${template}"`);
         log(`[test-setup] created the migration template ${template}`);
       }
-      await input.migrateTemplate(withDatabase(input.baseUrl, template));
+      const templateUrl = withDatabase(input.baseUrl, template);
+      const expected = await input.configuredMigrations(templateUrl);
+
+      // The template outlives every run and is shared by every branch on the
+      // machine, and `migrator.up()` only ever appends. So before it is
+      // brought forward, check that what it holds is an order this run's
+      // migrations could have produced — and rebuild it from empty when it is
+      // not. Dropping is ours to do: the name is one this module generates,
+      // nothing runs tests against it, and rebuilding costs one migration pass.
+      const drift = templateDrift(await appliedMigrations(templateUrl), expected, template);
+      if (drift) {
+        log(`[test-setup] ${drift.message}`);
+        await admin.query(`drop database if exists "${template}" with (force)`);
+        await admin.query(`create database "${template}"`);
+      }
+
+      await input.migrateTemplate(templateUrl);
+
+      // A clone is only worth anything if the template is now exactly this
+      // run's platform. After a rebuild-and-migrate it is, by construction —
+      // so a finding here is a real defect and gets said out loud rather than
+      // handed to every test file in the run as a database that is quietly not
+      // what the code says it is. It is also what catches a `migrateTemplate`
+      // that migrated *something else*, which is a live hazard while the ORM
+      // config resolves its DSN from an ambient variable.
+      const residual = templateDrift(await appliedMigrations(templateUrl), expected, template);
+      if (residual) {
+        throw new Error(
+          `the migration template is still not this run's migration set after migrating it: ` +
+            `${residual.message} Drop "${template}" by hand and report this — a run cloned ` +
+            `from it would not be the platform this branch's code describes.`,
+        );
+      }
+
       await cloneFromTemplate(admin, name, template);
     } finally {
       await admin.query('select pg_advisory_unlock($1)', [lockKey]);
@@ -140,6 +217,32 @@ export async function provisionRunDatabase(input: ProvisionInput): Promise<RunDa
 
   log(`[test-setup] this invocation owns database ${name} (cloned from ${template})`);
   return { url: withDatabase(input.baseUrl, name), name, template };
+}
+
+/**
+ * A database of this template's, for a caller that is not the invocation.
+ *
+ * The advisory lock is the same one provisioning takes, and for the same
+ * reason: it is what keeps the template idle at the moment a clone starts.
+ * `setupMigratorTestDb` is the only caller — a test file that drives the real
+ * migrator and must not do it to the database its neighbours share.
+ */
+export async function cloneTemplateForCaller(baseUrl: string): Promise<RunDatabase> {
+  const base = databaseNameOf(baseUrl);
+  const template = templateDatabaseName(base);
+  const name = runDatabaseName(base);
+  const admin = await connectAdmin(baseUrl);
+  try {
+    await admin.query('select pg_advisory_lock($1)', [advisoryLockKey(template)]);
+    try {
+      await cloneFromTemplate(admin, name, template);
+    } finally {
+      await admin.query('select pg_advisory_unlock($1)', [advisoryLockKey(template)]);
+    }
+  } finally {
+    await admin.end();
+  }
+  return { url: withDatabase(baseUrl, name), name, template };
 }
 
 export async function dropRunDatabase(
