@@ -1,10 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { TransactionalEmailSendInput, TransactionalEmailSender } from '@b2b/contracts';
+import type {
+  TransactionalEmailSendInput,
+  TransactionalEmailSender,
+  TransactionalSendOutcome,
+} from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+// Feature 075, Phase C — `invoices` reads orders over `orders`' published port,
+// so a hand-built service in a test takes the same implementation the container
+// registers under `orderReadPort`.
+import { OrderReadService } from '../../../src/modules/orders/services/order-read-port.js';
 import { InvoiceEmailDispatcher } from '../../../src/modules/invoices/services/invoice-email-dispatch.js';
 import { InvoiceService } from '../../../src/modules/invoices/services/invoice-service.js';
 import { InvoicePdfRenderer } from '../../../src/modules/invoices/services/invoice-pdf-renderer.js';
@@ -16,13 +24,23 @@ import { SellerSettingsResolver } from '../../../src/modules/invoices/services/s
 import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 
-const CH = 'eeeeeeee-0000-4000-8000-000000000001';
+// Feature 078, D-95: `{channel}` is rendered from the `sales_channels`
+
+// row, so this file's channel has to be one. The per-file code keeps this
+
+// file's numbers distinct in the shared test database, which is what the
+
+// fabricated id used to be for.
+
+let CH: string;
 
 class CapturingSender implements TransactionalEmailSender {
   readonly sent: TransactionalEmailSendInput[] = [];
-  async send(input: TransactionalEmailSendInput): Promise<void> {
+  async send(input: TransactionalEmailSendInput): Promise<TransactionalSendOutcome> {
     this.sent.push(input);
+    return { status: 'sent' };
   }
 }
 
@@ -33,19 +51,27 @@ describe('invoices — invoice email dispatch (US5)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    CH = await ensureSalesChannelId(h.em(), 'inv-email');
     await setSellerSettings(h);
     const audit = { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
-    await h.settings.adminService.setValueForAllChannels('invoices.numbering.invoice.pattern', 'FVEM {seq}/{YYYY}', null, audit);
+    await h.settings.adminService.setValueForSubset(
+      'invoices.numbering.invoice.pattern',
+      ['inv-email'],
+      'FVEM {seq}/{YYYY}',
+      null,
+audit);
     await h.settings.adminService.setValueForAllChannels('invoices.storefront_base_url', 'https://shop.example.com', null, audit);
 
     sender = new CapturingSender();
+    const orderReadPort = new OrderReadService(h.em);
     const invoiceService = new InvoiceService(
       h.em,
+      orderReadPort,
       new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),
       new SellerSettingsResolver(h.settings.settingsService),
     );
     dispatcher = new InvoiceEmailDispatcher({
-      emFactory: h.em,
+      orderReadPort,
       invoiceService,
       pdfRenderer: new InvoicePdfRenderer(),
       settingsService: h.settings.settingsService,
@@ -71,8 +97,10 @@ describe('invoices — invoice email dispatch (US5)', () => {
 
   it('attachment mode sends one email with a PDF attachment', async () => {
     const id = await issue();
-    const ok = await withSystemScope('test', () => dispatcher.dispatch(id, { mode: 'attachment' }));
-    expect(ok).toBe(true);
+    const result = await withSystemScope('test', () =>
+      dispatcher.dispatch(id, { mode: 'attachment' }),
+    );
+    expect(result).toEqual({ sent: true });
     const last = sender.sent.at(-1)!;
     expect(last.code).toBe('invoice_issued');
     expect(last.to).toBe('buyer@example.com');
@@ -82,8 +110,8 @@ describe('invoices — invoice email dispatch (US5)', () => {
 
   it('link mode sends no attachment but supplies a download URL variable', async () => {
     const id = await issue();
-    const ok = await withSystemScope('test', () => dispatcher.dispatch(id, { mode: 'link' }));
-    expect(ok).toBe(true);
+    const result = await withSystemScope('test', () => dispatcher.dispatch(id, { mode: 'link' }));
+    expect(result).toEqual({ sent: true });
     const last = sender.sent.at(-1)!;
     expect(last.attachments).toBeUndefined();
     const vars = last.variables as { invoice: { downloadUrl: string } };
@@ -97,12 +125,14 @@ describe('invoices — invoice email dispatch (US5)', () => {
     expect(last.messageId).toBe(`invoice_issued:${id}`);
   });
 
-  it('a failed email does not invalidate the issued invoice', async () => {
+  it('a failed email does not invalidate the issued invoice, and says so', async () => {
     const id = await issue();
+    const logged: Array<{ message: string; context: Record<string, unknown> }> = [];
     const throwingDispatcher = new InvoiceEmailDispatcher({
-      emFactory: h.em,
+      orderReadPort: new OrderReadService(h.em),
       invoiceService: new InvoiceService(
         h.em,
+        new OrderReadService(h.em),
         new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),
         new SellerSettingsResolver(h.settings.settingsService),
       ),
@@ -115,9 +145,14 @@ describe('invoices — invoice email dispatch (US5)', () => {
       }),
       resolveRecipientEmail: async () => 'buyer@example.com',
       resolveLanguage: async () => 'en-US',
+      log: (message, context) => logged.push({ message, context }),
     });
-    const ok = await withSystemScope('test', () => throwingDispatcher.dispatch(id));
-    expect(ok).toBe(false); // swallowed
+    const result = await withSystemScope('test', () => throwingDispatcher.dispatch(id));
+    // Contained (FR-029) — but named, and written to the log. Issue #103: this
+    // used to be a bare `false` with nothing anywhere recording it.
+    expect(result).toEqual({ sent: false, reason: 'failed' });
+    expect(logged).toHaveLength(1);
+    expect(logged[0]!.context).toMatchObject({ invoiceId: id, reason: 'failed' });
     const inv = await h.em().findOneOrFail(Invoice, { id });
     expect(inv.status).toBe('ready'); // still valid
   });

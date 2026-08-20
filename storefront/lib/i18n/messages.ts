@@ -196,7 +196,27 @@ export type MessageKey =
   | 'quoteRequest.success.nextStepsHint'
   | 'quoteRequest.success.viewRequest'
   | 'quoteRequest.success.allRequests'
-  | 'quoteRequest.success.continueShopping';
+  | 'quoteRequest.success.continueShopping'
+  // Issue #193 — federated sign-in. Rendered only when `mfa` is present and the
+  // provider is configured + enabled, so these never label a dead control.
+  | 'auth.federated.groupLabel'
+  | 'auth.federated.divider'
+  | 'auth.federated.google'
+  | 'auth.federated.microsoft'
+  // Issue #194 — the linked-identities panel on the account security page.
+  | 'account.socialLinks.heading'
+  | 'account.socialLinks.intro'
+  | 'account.socialLinks.linkedOn'
+  | 'account.socialLinks.remove'
+  | 'account.socialLinks.lastCredential'
+  | 'account.socialLinks.setPassword'
+  // The shared comparison. Sender and recipient legitimately see different
+  // numbers and, where the sender restricted a product, different rows — so
+  // the view says whose prices these are and that something is missing,
+  // rather than leaving the reader to discover it.
+  | 'compare.shared.pricesYours'
+  | 'compare.shared.pricesChannel'
+  | 'compare.shared.hiddenProducts';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -407,6 +427,25 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'quoteRequest.success.viewRequest': 'View quote request',
     'quoteRequest.success.allRequests': 'All quote requests',
     'quoteRequest.success.continueShopping': 'Continue shopping',
+    // Issue #193 — federated sign-in.
+    'auth.federated.groupLabel': 'Other sign-in options',
+    'auth.federated.divider': 'or',
+    'auth.federated.google': 'Continue with Google',
+    'auth.federated.microsoft': 'Continue with Microsoft',
+    // Issue #194 — linked identities.
+    'account.socialLinks.heading': 'Linked accounts',
+    'account.socialLinks.intro':
+      'These external accounts can sign you in. Removing one does not delete your account.',
+    'account.socialLinks.linkedOn': 'Linked on',
+    'account.socialLinks.remove': 'Remove',
+    'account.socialLinks.lastCredential':
+      'This is the last sign-in identity linked to your account, and your account has no password on record — removing it now could lock you out for good. Set a password first, then you can remove it.',
+    'account.socialLinks.setPassword': 'Set a password',
+    'compare.shared.pricesYours': 'Prices shown are your organisation’s.',
+    'compare.shared.pricesChannel':
+      'Prices shown are this store’s standard prices. Sign in to see the prices agreed for your organisation.',
+    'compare.shared.hiddenProducts':
+      'Some products in this comparison are not available to your account and are not shown here.',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -616,6 +655,25 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'quoteRequest.success.viewRequest': 'Zobacz zapytanie ofertowe',
     'quoteRequest.success.allRequests': 'Wszystkie zapytania ofertowe',
     'quoteRequest.success.continueShopping': 'Kontynuuj zakupy',
+    // Issue #193 — federated sign-in.
+    'auth.federated.groupLabel': 'Inne sposoby logowania',
+    'auth.federated.divider': 'lub',
+    'auth.federated.google': 'Kontynuuj przez Google',
+    'auth.federated.microsoft': 'Kontynuuj przez Microsoft',
+    // Issue #194 — linked identities.
+    'account.socialLinks.heading': 'Powiązane konta',
+    'account.socialLinks.intro':
+      'Za pomocą tych zewnętrznych kont możesz się logować. Usunięcie powiązania nie usuwa Twojego konta.',
+    'account.socialLinks.linkedOn': 'Powiązano',
+    'account.socialLinks.remove': 'Usuń',
+    'account.socialLinks.lastCredential':
+      'To ostatnia tożsamość logowania powiązana z Twoim kontem, a konto nie ma zapisanego hasła — usunięcie jej teraz mogłoby trwale odciąć Ci dostęp. Najpierw ustaw hasło, a potem będziesz móc usunąć to powiązanie.',
+    'account.socialLinks.setPassword': 'Ustaw hasło',
+    'compare.shared.pricesYours': 'Pokazane ceny dotyczą Twojej organizacji.',
+    'compare.shared.pricesChannel':
+      'Pokazane ceny to ceny standardowe tego sklepu. Zaloguj się, aby zobaczyć ceny uzgodnione dla Twojej organizacji.',
+    'compare.shared.hiddenProducts':
+      'Część produktów z tego zestawienia nie jest dostępna dla Twojego konta i nie jest tutaj pokazana.',
   },
 };
 

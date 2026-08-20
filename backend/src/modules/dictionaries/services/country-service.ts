@@ -5,14 +5,19 @@
 // default-cannot-be-deactivated, immutable code on update) plus FK
 // protection on hard-delete that scans every consumer table named in
 // data-model.md (addresses, taxes, warehouses, organizations registered
-// address JSONB).
+// address JSONB) — through `countryReferenceRegistry` since feature 077's D-87
+// drain, where the scan used to be raw SQL naming those four tables directly.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type DictionaryReference,
+  type DictionaryReferenceRegistryPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Country } from '../entities/country.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 export interface CreateCountryInput {
   code: string;
@@ -41,18 +46,17 @@ export interface UpdateCountryInput {
   sortOrder?: number;
 }
 
-export interface CountryDependents {
-  addresses: number;
-  taxes: number;
-  warehouses: number;
-  organizations: number;
-}
-
 export class CountryService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
     private readonly auditLog?: AuditLogService,
+    /**
+     * Resolved per call rather than captured: the registry is a singleton this
+     * module owns, but the accessor keeps the constructor honest for the tests
+     * that build the service without one.
+     */
+    private readonly referenceRegistry?: () => DictionaryReferenceRegistryPort,
   ) {}
 
   #audit(
@@ -203,28 +207,20 @@ export class CountryService {
     return target;
   }
 
-  async countDependents(code: string): Promise<CountryDependents> {
-    const conn = this.emFactory().getConnection();
-    // Note: warehouses store country inside the `address` JSONB column;
-    // covering that path requires a separate scan that v1 of the
-    // Dictionary feature defers — operators can disable a Country to
-    // retire it instead. The address/tax/organization checks are the
-    // load-bearing ones for FR-021's "refuse with consumer counts" rule.
-    const [addresses, taxes, orgs] = await Promise.all([
-      conn.execute(`select count(*)::int as n from "addresses" where "country" = ?`, [code]) as Promise<Array<{ n: number }>>,
-      conn.execute(`select count(*)::int as n from "taxes" where "country" = ?`, [code]) as Promise<Array<{ n: number }>>,
-      conn.execute(
-        `select count(*)::int as n from "organizations"
-         where "registered_address"->>'country' = ?`,
-        [code],
-      ) as Promise<Array<{ n: number }>>,
-    ]);
-    return {
-      addresses: addresses[0]?.n ?? 0,
-      taxes: taxes[0]?.n ?? 0,
-      warehouses: 0,
-      organizations: orgs[0]?.n ?? 0,
-    };
+  /**
+   * Every consumer reference to `code` (feature 077, D-87).
+   *
+   * Three hand-written `count(*)` statements over `addresses`, `taxes` and
+   * `organizations` used to live here, and a comment explaining that
+   * `warehouses` was skipped because its country sits inside a JSONB column and
+   * "covering that path requires a separate scan that v1 defers". The scan is
+   * `inventory`'s to write and it writes it: the descriptor it contributes
+   * answers the same question about its own table, so the gap closed as a side
+   * effect of moving the question to the module that can answer it.
+   */
+  async countDependents(code: string): Promise<DictionaryReference[]> {
+    const registry = this.referenceRegistry?.();
+    return registry ? registry.countReferences(code) : [];
   }
 
   async remove(code: string): Promise<void> {
@@ -245,8 +241,11 @@ export class CountryService {
       );
     }
     const dependents = await this.countDependents(code);
-    const total =
-      dependents.addresses + dependents.taxes + dependents.warehouses + dependents.organizations;
+    // Which references refuse the delete is the contributing module's call,
+    // carried on the descriptor.
+    const total = dependents
+      .filter((reference) => reference.blocking)
+      .reduce((sum, reference) => sum + reference.count, 0);
     if (total > 0) {
       throw new HttpError(
         409,

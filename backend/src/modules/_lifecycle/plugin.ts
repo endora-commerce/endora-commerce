@@ -1,25 +1,18 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { ModulePlugin } from '../../http/server.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import {
   ModuleLifecycleOrchestrator,
   type OrchestratorDeps,
 } from './services/orchestrator.js';
 import type {
-  ModuleRegistryCache} from './services/registry-cache.js';
+  ModuleRegistryCache} from '../../kernel/lifecycle/registry-cache.js';
 import {
   registryCache
-} from './services/registry-cache.js';
+} from '../../kernel/lifecycle/registry-cache.js';
 import { buildStaticRegistry } from './services/static-registry.js';
 import type { LoadedManifestRegistry } from './services/manifest-loader.js';
-import {
-  registerLifecycleAdminRoutes,
-  type RequireAdminFactory,
-} from './routes.admin.js';
-import { ModuleRegistration } from './entities/module-registration.entity.js';
-import { resumeWorkersFor } from './plugin-helpers.js';
-import { findInactiveModules } from './registered-manifests.js';
 
 export interface LifecycleModuleDeps {
   orm: MikroORM;
@@ -28,7 +21,6 @@ export interface LifecycleModuleDeps {
   redisSubscriber: Redis;
   emFactory: () => EntityManager;
   auditLog: AuditLogService;
-  requireAdmin: RequireAdminFactory;
   /**
    * Either a pre-built registry (production composition root supplies the
    * static one), or a manifest list the module composes itself.
@@ -76,93 +68,41 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
       : {}),
   } satisfies OrchestratorDeps);
 
-  // Plugin warms the registry cache on first registration and registers
-  // the read-only admin endpoint (US4 / contracts/admin-http.md E-1).
-  const plugin: ModulePlugin = async (app) => {
-    // Surface modules whose code is on disk but that have no manifest
-    // (or no registry entry). They participate in no lifecycle feature
-    // — no i18n bundles, no admin actions, no settings registration —
-    // and are effectively inactive until a manifest is added.
-    for (const inactive of findInactiveModules()) {
-      app.log.warn(
-        { module: inactive.id, reason: inactive.reason },
-        '[lifecycle] module is inactive — add a manifest.ts and register it in registered-manifests.ts',
-      );
-    }
-
-    // First-boot reconciler: existing modules that don't yet have a row
-    // in `module_registrations` get one with state='installed' so the
-    // request-time enabled-check returns true. Without this every
-    // pre-feature-018 deployment would 503 the moment defineModuleRoutes
-    // was wired into a module's routes file.
-    await reconcileExistingModules(deps.emFactory, deps.registry);
-
-    await registryCache.start({
-      redis: deps.redis,
+  // Feature 072 (D-38) — what is left of the boot half: arming the pub/sub
+  // subscriber that keeps the loaded presence fresh.
+  //
+  // The load itself is gone from here, and that is the point. Loading at plugin
+  // attach means loading inside `buildServer`, i.e. after `composeApp()` has
+  // registered every module and run every boot hook — while eleven of those
+  // hooks resolve a gated port. `loadModulePresence()` now runs as a
+  // composition step before the first module registers; see
+  // `services/presence-load.ts`.
+  //
+  // Three things went with it:
+  //   - the first-boot reconciler, which is the load's first half;
+  //   - `registryCache.start`, split into `load()` (fatal, PostgreSQL) and
+  //     `watch()` (non-fatal, Redis);
+  //   - the resume-everything worker loop. It existed to undo the pauses a cold
+  //     cache caused at registration, and it iterated `enabledIds()` — the
+  //     platform axis alone — so it resumed the workers of a module the
+  //     operator had deactivated (a live Constitution XVII hole). With presence
+  //     loaded before composition, `defineModuleWorker` sees the true effective
+  //     state at registration and there is nothing to undo.
+  const plugin: ModulePlugin = async () => {
+    await registryCache.watch({
       redisSubscriber: deps.redisSubscriber,
       em: deps.emFactory,
     });
 
-    // Resume any BullMQ workers that registered *before* this plugin warmed
-    // the cache. `defineModuleWorker` starts a worker paused when its module
-    // reads as disabled at registration time; modules wired earlier in the
-    // composition (e.g. `catalog`, which owns the bulk-operation /
-    // search-reindex worker) hit that branch because the enabled-set was
-    // still empty. The orchestrator only resumes workers on an explicit
-    // enable transition, so without this an already-installed module's
-    // worker would stay paused for the whole process lifetime and its queue
-    // (e.g. `catalog.bulk-operation`) would never drain. Resuming is a no-op
-    // for workers that were already running.
-    for (const moduleId of registryCache.enabledIds()) {
-      await resumeWorkersFor(moduleId);
-    }
-
-    await registerLifecycleAdminRoutes(app, {
-      orchestrator,
-      requireAdmin: deps.requireAdmin,
-    });
+    // Feature 072 (T125) — the four route registrations moved to
+    // `backend.ts`, where they are declared through `ctx.ungatedRoutes` with
+    // the reason attached.
   };
 
   return {
     handle: { orchestrator, registryCache, registry: deps.registry },
     plugin,
   };
-}
-
-/**
- * First-boot reconciler — idempotent.
- *
- * For every manifest in the registry that has NO row in
- * `module_registrations`, inserts one with `state='installed'`. This
- * lets feature 018 land on a running platform without breaking the
- * gating wrappers (defineModuleRoutes, defineModuleWorker,
- * subscribeForModule) — pre-existing modules continue serving traffic
- * because their auto-created row marks them installed-and-enabled.
- *
- * Modules added AFTER feature 018 ships go through the explicit
- * `module:install <id>` flow.
- */
-async function reconcileExistingModules(
-  emFactory: () => EntityManager,
-  registry: LoadedManifestRegistry,
-): Promise<void> {
-  const em = emFactory();
-  const existing = await em.find(ModuleRegistration, {});
-  const existingIds = new Set(existing.map((r) => r.moduleId));
-  const now = new Date();
-  for (const entry of registry.modules.values()) {
-    if (existingIds.has(entry.manifest.id)) continue;
-    em.create(ModuleRegistration, {
-      moduleId: entry.manifest.id,
-      state: 'installed',
-      version: entry.manifest.version,
-      installedAt: now,
-      lastStateChangeAt: now,
-      lastInstallFailedAt: null,
-      lastInstallError: null,
-    });
-  }
-  await em.flush();
 }
 
 /**

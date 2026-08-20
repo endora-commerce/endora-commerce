@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { gaCollectRequestSchema } from '@b2b/contracts';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { GaConfigService } from './services/ga-config.service.js';
 import type { GaCollectEnqueuer } from './services/ss-delivery-queue.js';
 

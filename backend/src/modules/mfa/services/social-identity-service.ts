@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { MfaSocialIdentity } from '../entities/mfa-social-identity.entity.js';
 import type { OAuthIdentity } from './oauth-provider-service.js';
 

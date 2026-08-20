@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
@@ -11,8 +11,6 @@ import {
   SEED_PRODUCT_103_ID,
 } from '../../helpers/seed-catalog.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
-import { Comparison } from '../../../src/modules/comparisons/entities/comparison.entity.js';
-import { ComparisonProduct } from '../../../src/modules/comparisons/entities/comparison-product.entity.js';
 
 /**
  * T018 — Contract test for the customer-facing comparisons CRUD bundle
@@ -45,13 +43,11 @@ describe('Compare module — public CRUD contract (US1)', () => {
     await teardownBackendServer(h);
   });
 
-  beforeEach(async () => {
-    // Each test starts from an empty comparisons table so cookies and
-    // owner identity don't leak between cases.
-    const em = h.em();
-    await em.nativeDelete(ComparisonProduct, {});
-    await em.nativeDelete(Comparison, {});
-  });
+  // No `beforeEach` cleanup, and none is needed (issue #166): every test below
+  // either sends no `compare_token` — an identity with no comparison, whatever
+  // else is in the table — or mints its own through `mintAnonymousComparison`,
+  // which returns a cookie no other caller holds. Emptying `comparisons` here
+  // would delete rows this file did not create.
 
   // ---------------------------------------------------------------------
   // GET /me — empty state

@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { Queue } from 'bullmq';
-import type { EventBus, EventBase } from '../../../events/bus.js';
+import type { EventBase } from '../../../events/bus.js';
 import type { WebhookJobData } from './webhook-queue.js';
 
 /**
@@ -50,11 +50,8 @@ function extractOrganizationId(payload: unknown): string | null {
 }
 
 export interface EventBridgeOptions {
-  eventBus: EventBus;
   queue: Pick<Queue<WebhookJobData>, 'add'>;
   subscriptionLookup: SubscriptionLookup;
-  /** Events to bridge. Example: `['order.created.v1', 'order.updated.v1']`. */
-  bridgedEventTypes: string[];
 }
 
 export interface BridgedEventPayload extends EventBase {
@@ -63,27 +60,36 @@ export interface BridgedEventPayload extends EventBase {
   [key: string]: unknown;
 }
 
-export function wireEventBridge(opts: EventBridgeOptions): () => void {
-  const unsubs: Array<() => void> = [];
-  for (const eventType of opts.bridgedEventTypes) {
-    const unsub = opts.eventBus.on(eventType, async (payload) => {
-      const subs = await opts.subscriptionLookup.findActiveByEventType(
+/**
+ * The per-event-type half of the bridge, extracted so a converted module can
+ * hand it to `ctx.subscribe` (feature 072, T098).
+ *
+ * That is the whole gating story for this module. A webhook subscription is a
+ * database row created at runtime, so there is no registration seam per
+ * subscription to gate — but there are exactly **two** EventBus subscriptions,
+ * and gating those stops every delivery at once. Gate the bridge, not the
+ * subscriptions.
+ */
+export function bridgeEventHandler(
+  eventType: string,
+  deps: EventBridgeOptions,
+): (payload: unknown) => Promise<void> {
+  return async (payload) => {
+    const subs = await deps.subscriptionLookup.findActiveByEventType(
+      eventType,
+      extractOrganizationId(payload),
+    );
+    for (const sub of subs) {
+      const jobData: WebhookJobData = {
+        webhookId: sub.webhookId,
+        eventId: (payload as BridgedEventPayload).eventId ?? randomUUID(),
         eventType,
-        extractOrganizationId(payload),
-      );
-      for (const sub of subs) {
-        const jobData: WebhookJobData = {
-          webhookId: sub.webhookId,
-          eventId: (payload as BridgedEventPayload).eventId ?? randomUUID(),
-          eventType,
-          payload,
-          url: sub.url,
-          secret: sub.secret,
-        };
-        await opts.queue.add(`${eventType}.${jobData.eventId}`, jobData);
-      }
-    });
-    unsubs.push(unsub);
-  }
-  return () => unsubs.forEach((u) => u());
+        payload,
+        url: sub.url,
+        secret: sub.secret,
+      };
+      await deps.queue.add(`${eventType}.${jobData.eventId}`, jobData);
+    }
+  };
 }
+

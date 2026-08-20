@@ -1,6 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ProductLink } from '../../catalog/entities/product-link.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
+import {
+  isProductVisibleTo,
+  type CatalogProductReadPort,
+  type CatalogProductRecord,
+  type ProductAudience,
+} from '@b2b/contracts';
 import { CartItem } from '../entities/cart-item.entity.js';
 
 /**
@@ -25,9 +29,28 @@ export interface CartUpsellCandidate {
 }
 
 export class CartUpsellService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /**
+     * `catalog`'s product read model (feature 075, Phase C). Both reads this
+     * replaced — the `up_sell` links and the target rows — were `em.find`
+     * against `catalog`'s tables, so a switched-off `catalog` still filled the
+     * cart's up-sell strip with products the platform had stopped serving.
+     */
+    private readonly catalogProducts: CatalogProductReadPort,
+  ) {}
 
-  async forCart(cartId: string, limit: number): Promise<CartUpsellCandidate[]> {
+  async forCart(
+    cartId: string,
+    limit: number,
+    /**
+     * Who is looking at the strip (issue #227). Required: this method returns
+     * a product's name, slug and thumbnail for rows the buyer never asked for
+     * by id, which makes it a listing rather than a lookup, and a listing that
+     * defaulted its audience would silently show the wrong one.
+     */
+    audience: ProductAudience,
+  ): Promise<CartUpsellCandidate[]> {
     if (limit <= 0) return [];
     const em = this.emFactory();
 
@@ -39,10 +62,7 @@ export class CartUpsellService {
     // One query: every up_sell link emanating from any of the source
     // products. The target set is deduplicated in app code so we can
     // attach match-counts cheaply.
-    const links = await em.find(ProductLink, {
-      sourceProductId: { $in: sourceProductIds },
-      kind: 'up_sell',
-    });
+    const links = await this.catalogProducts.listLinksBySourceIds(sourceProductIds, 'up_sell');
     if (links.length === 0) return [];
 
     const matchCountByTarget = new Map<string, number>();
@@ -57,12 +77,17 @@ export class CartUpsellService {
     if (matchCountByTarget.size === 0) return [];
 
     const targetIds = Array.from(matchCountByTarget.keys());
-    const products = await em.find(Product, { id: { $in: targetIds } });
+    // Issue #227 — an up-sell target is a product the buyer never named, so
+    // the strip is a listing. A link from a product they may see to one they
+    // may not does not make the second one theirs to see.
+    const products = (await this.catalogProducts.findByIds(targetIds)).filter((p) =>
+      isProductVisibleTo(p, audience),
+    );
     const byId = new Map(products.map((p) => [p.id, p]));
 
     const candidates: CartUpsellCandidate[] = targetIds
       .map((id) => byId.get(id))
-      .filter((p): p is Product => Boolean(p))
+      .filter((p): p is CatalogProductRecord => Boolean(p))
       .map((p) => ({
         productId: p.id,
         productName: this.localizedName(p),
@@ -85,8 +110,8 @@ export class CartUpsellService {
     return candidates.slice(0, limit);
   }
 
-  private thumbnailFor(product: Product): string | null {
-    // The Product entity carries an `attributeValues` JSONB blob that
+  private thumbnailFor(product: CatalogProductRecord): string | null {
+    // The product record carries the `attributeValues` JSONB blob that
     // foundation code reads for `primaryAssetUrl`. We mirror that read
     // path; if missing, the caller's UI hides the thumbnail.
     const url = (product.attributeValues as Record<string, unknown> | null | undefined)?.[
@@ -102,7 +127,7 @@ export class CartUpsellService {
    * through to the first available locale, matching the foundation's
    * "best-effort" rendering pattern.
    */
-  private localizedName(product: Product): string {
+  private localizedName(product: CatalogProductRecord): string {
     if (!product.name || typeof product.name !== 'object') return product.id;
     const en = product.name['en-US'] ?? product.name['en'];
     if (typeof en === 'string' && en.length > 0) return en;

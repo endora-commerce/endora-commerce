@@ -19,9 +19,9 @@ function resolveAdminUserId(request: FastifyRequest): string {
   }
   return actor.adminUserId;
 }
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { AdminNotificationService } from './services/admin-notification-service.js';
 import { NotificationNotFoundError } from './services/admin-notification-service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 const listQuerySchema = z.object({
   unread: z.coerce.boolean().default(false),

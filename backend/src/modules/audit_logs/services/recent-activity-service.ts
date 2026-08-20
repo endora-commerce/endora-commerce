@@ -1,5 +1,7 @@
+import type { AuditReferenceLabel, AuditReferenceRegistryPort } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { AuditLogEntry } from '../entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../kernel/audit/audit-log-entry.entity.js';
+import type { AuditActorIdentity } from '../routes.admin.js';
 import {
   RECENT_ACTIVITY_ACTIONS,
   moduleForAction,
@@ -13,8 +15,17 @@ import {
  * Curated read view over `audit_log_entries` that powers the admin home
  * dashboard's Recent Activity card. Server-enforced allowlist of action
  * tokens; bulk-resolves actor + target display labels in at most a small
- * fixed number of round-trips (one per object-type bucket); composes
- * deep-link URLs from a single in-file template map.
+ * fixed number of round-trips (one per object-type bucket).
+ *
+ * **Where the labels come from — feature 075, D-87.** They used to come from
+ * five hand-written SQL statements naming `admin_users`, `products`,
+ * `warehouses`, `price_lists`, `customer_accounts` and `organizations`, and the
+ * deep-link URLs from a template map spelling three other modules' admin routes.
+ * Both are inverted now: the actor name is `auditActorResolver`, the
+ * contribution point this module has owned since feature 072, and everything
+ * else is `auditReferenceRegistry`, where each owner pushes a resolver for its
+ * own object type and supplies its own route. This service knows the audit row
+ * and nothing else about anybody's schema.
  */
 
 export interface RecentActivityItem {
@@ -45,7 +56,16 @@ const DEFAULT_LIMIT = 8;
 const MAX_LIMIT = 12;
 
 export class RecentActivityService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /**
+     * The contribution point this module owns and defaults absent. Called per
+     * request, never captured: a resolver held once would go on naming actors
+     * after the directory behind it went away.
+     */
+    private readonly resolveActors: (ids: string[]) => Promise<AuditActorIdentity[]>,
+    private readonly references: AuditReferenceRegistryPort,
+  ) {}
 
   async list(input: ListRecentActivityInput = {}): Promise<RecentActivityResponse> {
     const limit = clampLimit(input.limit);
@@ -65,7 +85,7 @@ export class RecentActivityService {
       },
     );
 
-    const enriched = await this.enrich(em, rows);
+    const enriched = await this.enrich(rows);
 
     return {
       data: enriched,
@@ -77,42 +97,60 @@ export class RecentActivityService {
    * Bulk-resolve actor + target labels for the given rows in at most one
    * SQL round-trip per object-type bucket. Never N+1.
    */
-  private async enrich(
-    em: EntityManager,
-    rows: AuditLogEntry[],
-  ): Promise<RecentActivityItem[]> {
+  private async enrich(rows: AuditLogEntry[]): Promise<RecentActivityItem[]> {
     if (rows.length === 0) return [];
 
-    // --- Actor labels (admin_users) ---
+    // --- Actor labels: this module's own contribution point. ---
     const adminIds = uniqueNonNull(rows.map((r) => r.actorAdminUserId ?? null));
-    const adminNames = adminIds.length > 0 ? await loadAdminNames(em, adminIds) : new Map();
+    const adminNames =
+      adminIds.length > 0 ? abbreviate(await this.resolveActors(adminIds)) : new Map();
 
-    // --- Impersonated customer labels (customer_accounts -> email or name) ---
-    const customerIds = uniqueNonNull(
-      rows.map((r) => r.impersonatedCustomerAccountId ?? null),
-    );
-    const customerNames =
-      customerIds.length > 0 ? await loadCustomerNames(em, customerIds) : new Map();
+    // --- Every other label: one bucket per reference type, one round trip each. ---
+    const [customerNames, ...targetBuckets] = await Promise.all([
+      this.references.resolve(
+        'customer_account',
+        uniqueNonNull(rows.map((r) => r.impersonatedCustomerAccountId ?? null)),
+      ),
+      ...TARGET_REFERENCE_TYPES.map((type) =>
+        this.references.resolve(type, uniqueByType(rows, type)),
+      ),
+    ]);
 
-    // --- Target labels: bucket by objectType to do one SQL per bucket. ---
-    const productIds = uniqueByType(rows, 'product');
-    const warehouseIds = uniqueByType(rows, 'warehouse');
-    const priceListIds = uniqueByType(rows, 'price_list');
+    // Ids are UUIDs, so one map across the target types collides with nothing
+    // and keeps `resolveTarget` reading the row it was handed.
+    const targets = new Map<string, AuditReferenceLabel>();
+    for (const bucket of targetBuckets) {
+      for (const [id, label] of bucket) targets.set(id, label);
+    }
 
-    const productNames = productIds.length > 0 ? await loadProductNames(em, productIds) : new Map();
-    const warehouseNames =
-      warehouseIds.length > 0 ? await loadWarehouseNames(em, warehouseIds) : new Map();
-    const priceListNames =
-      priceListIds.length > 0 ? await loadPriceListNames(em, priceListIds) : new Map();
-
-    return rows.map((r) => buildItem(r, {
-      adminNames,
-      customerNames,
-      productNames,
-      warehouseNames,
-      priceListNames,
-    }));
+    return rows.map((r) => buildItem(r, { adminNames, customerNames, targets }));
   }
+}
+
+/**
+ * The audit `objectType` values an owner module can put a name and a link on.
+ *
+ * A type nobody claims resolves to an empty bucket, which is the same answer as
+ * a deleted row: the snapshot label, and no link.
+ */
+const TARGET_REFERENCE_TYPES = ['product', 'warehouse', 'price_list'] as const;
+
+/**
+ * "Jan Kowalski" → "Jan K.". The abbreviation is the dashboard card's, which is
+ * why it lives here and not in the module that owns the directory: `admin_users`
+ * answers who somebody is, and how much of that fits on one line of a widget is
+ * this surface's question.
+ */
+function abbreviate(identities: AuditActorIdentity[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const identity of identities) {
+    const first = (identity.firstName ?? '').trim();
+    const last = (identity.lastName ?? '').trim();
+    const initial = last.length > 0 ? `${last.slice(0, 1)}.` : '';
+    const display = [first, initial].filter((s) => s.length > 0).join(' ').trim() || identity.id;
+    map.set(identity.id, display);
+  }
+  return map;
 }
 
 function clampLimit(value: number | undefined): number {
@@ -137,10 +175,8 @@ function uniqueByType(rows: AuditLogEntry[], objectType: string): string[] {
 
 interface Lookups {
   adminNames: Map<string, string>;
-  customerNames: Map<string, string>;
-  productNames: Map<string, { name: string; sku: string }>;
-  warehouseNames: Map<string, { name: string; code: string }>;
-  priceListNames: Map<string, { name: string; code: string }>;
+  customerNames: ReadonlyMap<string, AuditReferenceLabel>;
+  targets: ReadonlyMap<string, AuditReferenceLabel>;
 }
 
 function buildItem(r: AuditLogEntry, lookups: Lookups): RecentActivityItem {
@@ -157,7 +193,8 @@ function buildItem(r: AuditLogEntry, lookups: Lookups): RecentActivityItem {
   }
   if (r.impersonatedCustomerAccountId) {
     const customerLabel =
-      lookups.customerNames.get(r.impersonatedCustomerAccountId) ?? r.impersonatedCustomerAccountId;
+      lookups.customerNames.get(r.impersonatedCustomerAccountId)?.label ??
+      r.impersonatedCustomerAccountId;
     actorDisplayName = `${actorDisplayName} (as ${customerLabel})`;
   }
 
@@ -188,31 +225,24 @@ function resolveTarget(
 
   switch (r.objectType) {
     case 'product': {
+      // The snapshot wins over the live row, and always has: the card reports
+      // what the action did, so a rename shows the name the actor typed.
       const fromSnapshot = pickProductLabel(after) ?? pickProductLabel(before);
-      const live = lookups.productNames.get(r.objectId);
-      const name = fromSnapshot ?? (live ? live.name || live.sku : null);
-      const sku = live?.sku ?? null;
-      const display = name ?? sku ?? r.objectId;
-      const url = live ? `/catalog/products/${r.objectId}` : null;
-      return { targetDisplayName: display, targetUrl: url };
+      const live = lookups.targets.get(r.objectId);
+      return {
+        targetDisplayName: fromSnapshot ?? live?.label ?? r.objectId,
+        targetUrl: live?.url ?? null,
+      };
     }
-    case 'warehouse': {
-      const live = lookups.warehouseNames.get(r.objectId);
-      const fromSnapshot = pickStr(after, 'name') ?? pickStr(before, 'name');
-      const fromSnapshotCode = pickStr(after, 'code') ?? pickStr(before, 'code');
-      const name = fromSnapshot ?? live?.name ?? null;
-      const code = fromSnapshotCode ?? live?.code ?? null;
-      const display = name ?? code ?? r.objectId;
-      const url = live ? `/warehouses/${r.objectId}` : null;
-      return { targetDisplayName: display, targetUrl: url };
-    }
+    case 'warehouse':
     case 'price_list': {
-      const live = lookups.priceListNames.get(r.objectId);
+      const live = lookups.targets.get(r.objectId);
       const fromSnapshot = pickStr(after, 'name') ?? pickStr(before, 'name');
       const fromSnapshotCode = pickStr(after, 'code') ?? pickStr(before, 'code');
-      const display = fromSnapshot ?? live?.name ?? fromSnapshotCode ?? live?.code ?? r.objectId;
-      const url = live ? `/price-lists/${r.objectId}` : null;
-      return { targetDisplayName: display, targetUrl: url };
+      return {
+        targetDisplayName: fromSnapshot ?? live?.label ?? fromSnapshotCode ?? r.objectId,
+        targetUrl: live?.url ?? null,
+      };
     }
     case 'stock_level': {
       // Composite id "<productId>:<warehouseId>"; snapshot carries the
@@ -312,93 +342,4 @@ function extractSummary(r: AuditLogEntry): Record<string, unknown> | null {
     if (k in after) out[k] = (after as Record<string, unknown>)[k];
   }
   return Object.keys(out).length > 0 ? out : null;
-}
-
-// ---------- Bulk loaders (plain SQL — keeps audit_logs out of other modules' internals) ----------
-
-async function loadAdminNames(em: EntityManager, ids: string[]): Promise<Map<string, string>> {
-  const rows = (await em.getConnection().execute(
-    'select id::text as id, first_name, last_name from admin_users where id in (?)',
-    [ids],
-  )) as Array<{ id: string; first_name: string | null; last_name: string | null }>;
-  const map = new Map<string, string>();
-  for (const r of rows) {
-    const first = (r.first_name ?? '').trim();
-    const last = (r.last_name ?? '').trim();
-    const initial = last.length > 0 ? `${last.slice(0, 1)}.` : '';
-    const display = [first, initial].filter((s) => s.length > 0).join(' ').trim() || r.id;
-    map.set(r.id, display);
-  }
-  return map;
-}
-
-async function loadCustomerNames(em: EntityManager, ids: string[]): Promise<Map<string, string>> {
-  // Customer accounts: prefer organization name (joined) over the account email.
-  // Keep the query minimal — one LEFT JOIN, no per-row work.
-  const rows = (await em.getConnection().execute(
-    `select ca.id::text as id, ca.email, o.name as organization_name
-     from customer_accounts ca
-     left join organizations o on o.id = ca.organization_id
-     where ca.id in (?)`,
-    [ids],
-  )) as Array<{ id: string; email: string | null; organization_name: string | null }>;
-  const map = new Map<string, string>();
-  for (const r of rows) {
-    map.set(r.id, r.organization_name ?? r.email ?? r.id);
-  }
-  return map;
-}
-
-async function loadProductNames(
-  em: EntityManager,
-  ids: string[],
-): Promise<Map<string, { name: string; sku: string }>> {
-  const rows = (await em.getConnection().execute(
-    'select id::text as id, sku, name from products where id in (?)',
-    [ids],
-  )) as Array<{ id: string; sku: string; name: Record<string, string> | string | null }>;
-  const map = new Map<string, { name: string; sku: string }>();
-  for (const r of rows) {
-    map.set(r.id, { name: pickFromMultilingual(r.name) ?? r.sku, sku: r.sku });
-  }
-  return map;
-}
-
-async function loadWarehouseNames(
-  em: EntityManager,
-  ids: string[],
-): Promise<Map<string, { name: string; code: string }>> {
-  const rows = (await em.getConnection().execute(
-    'select id::text as id, name, code from warehouses where id in (?)',
-    [ids],
-  )) as Array<{ id: string; name: string; code: string }>;
-  const map = new Map<string, { name: string; code: string }>();
-  for (const r of rows) map.set(r.id, { name: r.name, code: r.code });
-  return map;
-}
-
-async function loadPriceListNames(
-  em: EntityManager,
-  ids: string[],
-): Promise<Map<string, { name: string; code: string }>> {
-  const rows = (await em.getConnection().execute(
-    'select id::text as id, name, code from price_lists where id in (?)',
-    [ids],
-  )) as Array<{ id: string; name: string; code: string }>;
-  const map = new Map<string, { name: string; code: string }>();
-  for (const r of rows) map.set(r.id, { name: r.name, code: r.code });
-  return map;
-}
-
-function pickFromMultilingual(value: Record<string, string> | string | null): string | null {
-  if (!value) return null;
-  if (typeof value === 'string') return value.length > 0 ? value : null;
-  for (const key of ['en', 'en-US', 'pl', 'pl-PL']) {
-    const v = value[key];
-    if (typeof v === 'string' && v.length > 0) return v;
-  }
-  for (const v of Object.values(value)) {
-    if (typeof v === 'string' && v.length > 0) return v;
-  }
-  return null;
 }

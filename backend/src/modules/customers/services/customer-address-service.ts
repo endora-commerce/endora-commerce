@@ -1,10 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type AddressReadPort, type AddressRecord } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
-import { Address } from '../../addresses/entities/address.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * CustomerAddressService — the personal address book (feature 040, US2).
@@ -39,6 +38,13 @@ export interface CustomerAddressPatch {
 export class CustomerAddressService {
   constructor(
     private readonly emFactory: () => EntityManager,
+    /**
+     * Feature 075 — `addresses`' published read port, where this service used
+     * to run `em.find(Address, …)` over that module's table. The org-shared
+     * list is the only thing it ever asked for, and the port already scopes
+     * every read by organisation.
+     */
+    private readonly organizationAddresses: AddressReadPort,
     private readonly auditLog?: AuditLogService,
   ) {}
 
@@ -64,13 +70,8 @@ export class CustomerAddressService {
   async listOrganizationAddresses(
     organizationId: string,
     kind?: 'delivery' | 'billing',
-  ): Promise<Address[]> {
-    const em = this.emFactory();
-    const where: Record<string, unknown> = { organizationId, deletedAt: null };
-    if (kind) where.kind = kind;
-    return em.find(Address, where, {
-      orderBy: { isDefault: 'desc', createdAt: 'asc' },
-    });
+  ): Promise<AddressRecord[]> {
+    return this.organizationAddresses.listForOrganization(organizationId, kind);
   }
 
   async create(

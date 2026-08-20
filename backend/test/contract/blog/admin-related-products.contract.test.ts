@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'crypto';
-import { setupBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 describe('admin Blog Related Products contract (T075)', () => {
   let h: BackendServerHandle;
@@ -35,8 +39,8 @@ describe('admin Blog Related Products contract (T075)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
+    // Clean up the seeded rows *before* teardown: `teardownBackendServer`
+    // closes the harness ORM, so a connection taken after it has no pool.
     const conn = h.orm.em.getConnection();
     await conn.execute(
       `delete from blog_post_related_products where product_id = any (?::uuid[])`,
@@ -45,7 +49,7 @@ describe('admin Blog Related Products contract (T075)', () => {
     await conn.execute(`delete from products where id = any (?::uuid[])`, [
       `{${productIds.join(',')}}`,
     ]);
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   async function createPost(slug: string): Promise<{ id: string; version: number }> {

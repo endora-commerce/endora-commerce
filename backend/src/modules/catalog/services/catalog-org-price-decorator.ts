@@ -1,14 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CatalogBulkPriceLine,
+  OrgLinePricePort,
+  OrganizationDetailsPort,
+  OrganizationRecord,
   ProductAvailability,
   ProductDetail,
   ProductPriceTier,
   ProductSummary,
 } from '@b2b/contracts';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { Product } from '../entities/product.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import type { PricingServiceContract } from '../../price_lists/services/pricing-service.interface.js';
+
 
 /**
  * Feature 062 (research §R7) — pricing/availability decoration for the
@@ -42,9 +45,31 @@ export type ResolveAvailabilityPort = (
 
 export interface CatalogOrgPriceDecoratorDeps {
   emFactory: () => EntityManager;
-  pricingService: PricingServiceContract;
+  /**
+   * Feature 075 — the published line-pricing port, where
+   * `price_lists`' `PricingServiceContract` used to be. This decorator calls
+   * two of its methods. `OrgLinePricePort` — `LinePricePort` plus the bracket
+   * ladder — was published in this cut, because `PricingServiceContract` is
+   * deliberately not in `@b2b/contracts` (it is the overlay decoration's
+   * contract gate) and was `listBracketMinQuantities`' only declaration.
+   */
+  pricingService: OrgLinePricePort;
+  /**
+   * Feature 075 — the buying organisation, read through `organizations`' port
+   * instead of `em.findOne(Organization, …)` against its table. The engine
+   * reads two fields off it (the id, and the customer group a rule keys on),
+   * and `OrganizationRecord` carries both.
+   */
+  organizations: OrganizationDetailsPort;
   /** Optional inventory port — when absent, `availability` is omitted. */
   resolveAvailability?: ResolveAvailabilityPort;
+  /**
+   * Issue #185 — the kernel's channel-membership accessor. The published
+   * assortment check below asked `sales_channel_products` directly, which is
+   * the bridge Constitution XII reserves to this service and a cross-module
+   * read no import specifier could reveal.
+   */
+  channelMembership: SalesChannelMembershipPort;
 }
 
 export class CatalogOrgPriceDecorator {
@@ -69,7 +94,7 @@ export class CatalogOrgPriceDecorator {
     }
 
     const em = this.deps.emFactory();
-    const organization = await em.findOne(Organization, { id: context.organizationId });
+    const organization = await this.deps.organizations.findById(context.organizationId);
     const products = await em.find(Product, { id: { $in: summaries.map((s) => s.id) } });
     const productById = new Map(products.map((p) => [p.id, p]));
 
@@ -114,7 +139,7 @@ export class CatalogOrgPriceDecorator {
     if (context.organizationId === null) return merged;
 
     const em = this.deps.emFactory();
-    const organization = await em.findOne(Organization, { id: context.organizationId });
+    const organization = await this.deps.organizations.findById(context.organizationId);
     const product = await em.findOne(Product, { id: detail.id });
     if (!product) return merged;
     const priceTiers = await this.#resolvePriceTiers(product, organization, context.salesChannel);
@@ -132,7 +157,7 @@ export class CatalogOrgPriceDecorator {
     context: { organizationId: string; salesChannel: ExternalPricingChannel },
   ): Promise<CatalogBulkPriceLine[]> {
     const em = this.deps.emFactory();
-    const organization = await em.findOne(Organization, { id: context.organizationId });
+    const organization = await this.deps.organizations.findById(context.organizationId);
 
     const skus = Array.from(new Set(lines.map((l) => l.sku)));
     const products = await em.find(Product, {
@@ -142,7 +167,6 @@ export class CatalogOrgPriceDecorator {
     });
     const productBySku = new Map(products.map((p) => [p.sku, p]));
     const assortment = await this.#filterByChannel(
-      em,
       products.map((p) => p.id),
       context.salesChannel.id,
     );
@@ -199,7 +223,7 @@ export class CatalogOrgPriceDecorator {
    */
   async #resolvePriceTiers(
     product: Product,
-    organization: Organization | null,
+    organization: OrganizationRecord | null,
     salesChannel: ExternalPricingChannel,
   ): Promise<ProductPriceTier[]> {
     const currencyCode = salesChannel.defaultCurrency.toUpperCase();
@@ -235,13 +259,13 @@ export class CatalogOrgPriceDecorator {
     productIds: string[],
     salesChannelId: string,
   ): Promise<Map<string, ProductAvailability>> {
+    // D-61 — no `catch` here. `inventory` being absent is *decided* by the
+    // contribution, in front of the gate, and arrives as the empty map this
+    // method already returns when nothing is wired; the manifest declares that
+    // degrade as `degrades-without`. What a `catch` would add is the ability to
+    // turn a genuine inventory failure into a silently unpriced band.
     if (!this.deps.resolveAvailability) return new Map();
-    try {
-      return await this.deps.resolveAvailability(productIds, salesChannelId);
-    } catch {
-      // Availability is an indication, never a reason to fail a catalog read.
-      return new Map();
-    }
+    return this.deps.resolveAvailability(productIds, salesChannelId);
   }
 
   #withAvailability(
@@ -253,22 +277,24 @@ export class CatalogOrgPriceDecorator {
   }
 
   /**
-   * Published-assortment check — the same `sales_channel_products` bridge
-   * read `CatalogQueryService.filterByChannel` performs (catalog owns this
-   * bridge's read side; Principle XII fail-closed to the empty set).
+   * Published-assortment check — the same question
+   * `CatalogQueryService.filterByChannel` asks, through the same accessor since
+   * issue #185. This was a hand-written `select product_id from
+   * sales_channel_products`, which is precisely the read Principle XII reserves
+   * to the channel-membership service; it fails closed to the empty set either
+   * way.
    */
   async #filterByChannel(
-    em: EntityManager,
     productIds: string[],
     salesChannelId: string,
   ): Promise<Set<string>> {
     if (productIds.length === 0) return new Set();
-    const rows = await em
-      .getConnection()
-      .execute<Array<{ product_id: string }>>(
-        `select product_id from sales_channel_products where sales_channel_id = ? and product_id in (${productIds.map(() => '?').join(',')})`,
-        [salesChannelId, ...productIds],
-      );
-    return new Set(rows.map((r) => r.product_id));
+    return new Set(
+      await this.deps.channelMembership.filterEntityIdsInChannel(
+        salesChannelId,
+        'product',
+        productIds,
+      ),
+    );
   }
 }

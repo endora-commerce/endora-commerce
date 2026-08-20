@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import {
   registerTestExtension,
   TEST_EXTENSION_COMPONENT_NAME,
@@ -36,9 +37,7 @@ describe('CMS Page Builder extension SPI (T086)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   it('does not list TestCallout before the fixture is registered', async () => {

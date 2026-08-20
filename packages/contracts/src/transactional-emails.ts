@@ -42,6 +42,20 @@ export type TransactionalEmailManifestEntry = z.infer<typeof transactionalEmailM
 // Definitions — list + detail
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether an operator may switch this one email off, and why not (issue #89).
+ *
+ * Deliberately the same pair of field names `ModulePresenceSchema` uses for the
+ * module axis: the two refusals are the same statement at two granularities,
+ * and an admin that renders one can render the other without learning a second
+ * vocabulary. The reason is the owning module's own sentence, carried from the
+ * `EmailDefaultsRegistry` — no frontend holds a list of protected codes.
+ */
+export const transactionalEmailProtectionSchema = z.object({
+  deactivatable: z.boolean(),
+  nonDeactivatableReason: z.string().nullable(),
+});
+
 export const transactionalEmailSummarySchema = z.object({
   code: z.string(),
   name: z.string(),
@@ -51,7 +65,7 @@ export const transactionalEmailSummarySchema = z.object({
   languages: z.array(z.string()),
   hasGlobalOverride: z.boolean(),
   hasChannelOverride: z.boolean(),
-});
+}).extend(transactionalEmailProtectionSchema.shape);
 export type TransactionalEmailSummary = z.infer<typeof transactionalEmailSummarySchema>;
 
 export const transactionalEmailListResponseSchema = z.object({
@@ -81,7 +95,7 @@ export const transactionalEmailDetailSchema = z.object({
   default: z.object({ subject: z.string(), content: puckDataTreeSchema }),
   hasGlobalOverride: z.boolean(),
   hasChannelOverride: z.boolean(),
-});
+}).extend(transactionalEmailProtectionSchema.shape);
 export type TransactionalEmailDetail = z.infer<typeof transactionalEmailDetailSchema>;
 
 export const transactionalEmailDetailQuerySchema = z.object({
@@ -106,6 +120,33 @@ export const putEmailContentRequestSchema = z.object({
   expectedVersion: z.number().int().optional(),
 });
 export type PutEmailContentRequest = z.infer<typeof putEmailContentRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// Per-email activation (issue #89)
+// ---------------------------------------------------------------------------
+
+/**
+ * The operator's per-email on/off switch.
+ *
+ * The module that owns this surface is non-deactivatable (issue #88), because
+ * the granularity the business wants is this one: an operator silences the
+ * back-in-stock notice without silencing account verification. The read side
+ * has honoured `active` since feature 047; this is the write side.
+ *
+ * Shaped like `ModuleActivationRequestSchema` — one boolean, stated rather than
+ * toggled, so a retry lands on the state the operator asked for instead of the
+ * opposite one.
+ */
+export const setTransactionalEmailActiveRequestSchema = z.object({ active: z.boolean() });
+export type SetTransactionalEmailActiveRequest = z.infer<
+  typeof setTransactionalEmailActiveRequestSchema
+>;
+
+/** The recomputed summary, so the list re-reads what the server resolved. */
+export const setTransactionalEmailActiveResponseSchema = transactionalEmailSummarySchema;
+export type SetTransactionalEmailActiveResponse = z.infer<
+  typeof setTransactionalEmailActiveResponseSchema
+>;
 
 // ---------------------------------------------------------------------------
 // Preview
@@ -248,7 +289,17 @@ export type EmailPageBuilderDescriptor = z.infer<typeof emailPageBuilderDescript
 
 export interface TransactionalEmailSendInput {
   code: string;
-  salesChannelId: string;
+  /**
+   * The channel whose content, branding and embeds apply, or `null` for the
+   * platform-wide ones.
+   *
+   * Widened from `string` (issue #103). The sender's own resolution chain has
+   * always been channel → global → default and has always spelled "global" as
+   * `null`; only this input type could not say it, so `invoices` passed `''`,
+   * which the settings seam guard rejects — the branding read threw, the
+   * dispatcher's `catch` absorbed it, and the invoice e-mail vanished.
+   */
+  salesChannelId: string | null;
   language: string;
   to: string;
   variables: Record<string, unknown>;
@@ -260,9 +311,128 @@ export interface TransactionalEmailSendInput {
    * browser-safe for the api-client; a backend `Buffer` satisfies it.
    */
   attachments?: Array<{ filename: string; content: Uint8Array; contentType?: string }>;
+  /**
+   * The business document this message delivers, when it delivers one (D-59).
+   * Forwarded to the transport so the delivery record is findable by the
+   * document an operator is asked about — an invoice, in the case the ruling
+   * was written for — rather than only by a recipient and a message id.
+   */
+  document?: { type: string; id: string };
   meta?: Record<string, unknown>;
 }
 
+/**
+ * Why a send did — or did not — reach the transport.
+ *
+ * `send` used to answer `Promise<void>` for four unrelated situations, so a
+ * caller could not tell "the operator switched this email off" from "no
+ * template exists for this code yet". Only the latter justifies falling back to
+ * a caller's legacy in-code builder; the others mean the platform deliberately
+ * sent nothing and a fallback would send mail the operator did not ask for.
+ */
+export type TransactionalSendOutcome =
+  /** Handed to the transport. */
+  | { status: 'sent' }
+  /** The definition exists and an operator set `active = false`. */
+  | { status: 'deactivated' }
+  /** No mailer is wired in this composition — nothing can be delivered. */
+  | { status: 'no_transport' }
+  /** No definition for this code: the caller may use its own builder. */
+  | { status: 'no_definition' };
+
 export interface TransactionalEmailSender {
-  send(input: TransactionalEmailSendInput): Promise<void>;
+  /**
+   * An implementor must say which of the four happened — reporting nothing
+   * while delivering nothing is the defect this type exists to close. A
+   * deployment decoration that still answers `void` stops compiling against
+   * this interface, and that compile break is the intended signal.
+   */
+  send(input: TransactionalEmailSendInput): Promise<TransactionalSendOutcome>;
+}
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The rest of the in-process surface `transactional_emails` publishes
+// (feature 075, Phase P). `TransactionalEmailSender` above is the first of
+// them and pre-dates this section.
+// ---------------------------------------------------------------------------
+
+/** The subject and body a module ships for one of its own e-mails. */
+export interface EmailDefaults {
+  /** Per-language subject: `{ lang: string }`. */
+  defaultSubject: Record<string, string>;
+  /** Content envelope: `{ schema_version, languages: { lang: tree } }`. */
+  defaultContent: Record<string, unknown>;
+  /**
+   * Declared exactly when this individual e-mail may never be switched off
+   * (issue #89) — the per-e-mail twin of a manifest's
+   * `activation.nonDeactivatable`, and named after it on purpose.
+   *
+   * It lives **here**, on the contribution the owning module already pushes,
+   * rather than as a list in `transactional_emails` or in the admin app: only
+   * the module that sends the e-mail knows whether its flow survives silence,
+   * and a list anywhere else is a second source of truth that drifts the first
+   * time a module adds one.
+   *
+   * Presence carries the "true": a shape with a separate boolean and a reason
+   * has a state where the two contradict each other, and this one does not.
+   */
+  nonDeactivatable?: { reason: string };
+}
+
+/**
+ * Container name: `emailDefaultsPort`. Owner: `transactional_emails`.
+ *
+ * A **contribution seam**, and the most-contributed-to one in the tree: seven
+ * modules push the defaults for their own e-mails from `ctx.onBoot`, and this
+ * module's boot reconciler reads the table once.
+ *
+ * The ordering is by construction rather than by luck — boot hooks run during
+ * composition and plugin bodies only when the Fastify app is built, so every
+ * contribution lands before the read. Publishing the shape must not change
+ * that, and must not gate it: a gate would throw during composition, exactly
+ * as `assetReferenceRegistry`'s did before it was un-gated.
+ *
+ * **Owner off:** nothing throws here. This is a **contribution seam**, a plain
+ * `di.register` rather than a `providePort`, so a push still lands and
+ * `transactional_emails` filters by contributor when it enumerates. Converting it to
+ * `providePort` would move every edge into it from `contributes` to
+ * `fails-closed` in the deactivation-consequence ledger, and change the
+ * sentence the operator's confirmation dialog renders.
+ */
+export interface EmailDefaultsRegistryPort {
+  register(code: string, defaults: EmailDefaults, ownerModuleId: string): void;
+  get(code: string): EmailDefaults | undefined;
+  has(code: string): boolean;
+  /** Which module contributed the code, or `undefined` when nobody did. */
+  ownerOf(code: string): string | undefined;
+  /** Every code and its contributor. */
+  owners(): ReadonlyMap<string, string>;
+  /**
+   * The reason this e-mail may never be switched off, or `null` when it may.
+   * The write path and the admin projection both read it, so the two never
+   * disagree.
+   */
+  nonDeactivatableReasonOf(code: string): string | null;
+}
+
+/**
+ * Container name: `templateEmailPort`. Owner: `transactional_emails`.
+ *
+ * `organizations` is the only cross-module consumer. `true` means "handled —
+ * do not use your legacy in-code builder", and it covers three outcomes: a
+ * delivered e-mail, one an operator deactivated, and a composition with no
+ * transport. In all three the platform decided what to send, and a fallback
+ * would either send mail the operator switched off or fail the same way. Only
+ * a code with no definition at all answers `false`.
+ */
+export interface TemplateEmailPort {
+  trySend(input: {
+    code: string;
+    to: string;
+    messageId: string;
+    variables: Record<string, unknown>;
+    meta?: Record<string, unknown> | undefined;
+  }): Promise<boolean>;
 }

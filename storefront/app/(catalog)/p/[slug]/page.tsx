@@ -37,7 +37,7 @@ import { ViewItemTracker } from '../../../../components/analytics/EcommerceTrack
 import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';
 import { getProductBySlug } from '../../../../lib/api/catalog';
 import { getStorefrontProductStock } from '../../../../lib/api/inventory';
-import { getResolvedPrice } from '../../../../lib/api/pricing';
+import { getResolvedPrice, PRICING_UNAVAILABLE } from '../../../../lib/api/pricing';
 import { getMe } from '../../../../lib/api/account';
 import { addCartItem, type CartCookieJar } from '../../../../lib/api/cart';
 import {
@@ -127,7 +127,19 @@ export default async function ProductPage({
     getResolvedPrice(product.id, { quantity: 1 }, ctx),
   ]);
   const customerEmail = await readCustomerEmail();
-  const isQuoteOnly = resolvedPrice?.displayMode === 'none';
+  /**
+   * `price_lists` is not present (issue #124). Nothing on this page may quote a
+   * figure: the catalogue's legacy `defaultPrice` projection is not a price the
+   * platform stands behind, and an Add-to-cart posted against it can only come
+   * back 503. The page still renders — the product, its media, its attributes —
+   * with no price and no cart action; the quote path stays open where the
+   * deployment offers one, because a quote is a request for a price rather than
+   * a claim about one.
+   */
+  const pricingAbsent = resolvedPrice === PRICING_UNAVAILABLE;
+  const resolved = pricingAbsent ? null : resolvedPrice;
+  const price = pricingAbsent ? null : product.price;
+  const isQuoteOnly = resolved?.displayMode === 'none';
   // Feature 039 (US5) — one-click buy is offered only to a logged-in buyer who
   // is eligible (setting enabled for the channel + all four valid defaults).
   const oneClickSession = await getSessionCookie();
@@ -145,12 +157,12 @@ export default async function ProductPage({
 
   // The "Add to compare" toggle rides in the ProductBuyActions second row when
   // that row renders; otherwise it's shown on its own below the action zone.
-  const buyShowCart = !!product.price && !stock?.showNotifyButton;
+  const buyShowCart = !!price && !stock?.showNotifyButton;
   const buyShowQuote = rfqSettings.showAddToQuoteOnPdp;
   const buyActionsRendered =
     (product.type === 'simple' || product.type === 'configurable') &&
     !isQuoteOnly &&
-    (!!product.price || buyShowQuote) &&
+    (!!price || buyShowQuote) &&
     (buyShowCart || buyShowQuote);
 
   // Industria PDP detail tabs (below the gallery). "Opis" (description) is the
@@ -231,9 +243,9 @@ export default async function ProductPage({
         item={{
           sku: product.sku,
           name: product.name,
-          price: product.price?.amount ?? 0,
+          price: price?.amount ?? 0,
           quantity: 1,
-          ...(product.price?.currency ? { currency: product.price.currency } : {}),
+          ...(price?.currency ? { currency: price.currency } : {}),
         }}
       />
       <Breadcrumbs
@@ -279,11 +291,11 @@ export default async function ProductPage({
               eye on the PDP. In both-mode the net/gross switch pins to the price
               block's top-right and the stock badge drops below; otherwise the
               badge sits directly beside the price. */}
-          {resolvedPrice && resolvedPrice.displayMode === 'both' ? (
+          {resolved && resolved.displayMode === 'both' ? (
             <div className="my-7">
               <PdpPriceToggle
-                basePrice={resolvedPrice.basePrice}
-                salePrice={resolvedPrice.salePrice}
+                basePrice={resolved.basePrice}
+                salePrice={resolved.salePrice}
                 locale={locale}
                 labels={{ net: 'NETTO', gross: 'BRUTTO' }}
               />
@@ -294,8 +306,8 @@ export default async function ProductPage({
           ) : (
             <div className="my-7 flex flex-wrap items-center gap-3">
               <PriceTag
-                price={product.price}
-                resolved={resolvedPrice}
+                price={price}
+                resolved={resolved}
                 locale={locale}
                 variant="pdp"
               />
@@ -320,7 +332,7 @@ export default async function ProductPage({
                   productId={product.id}
                   productSlug={product.slug}
                   productName={product.name}
-                  unitPrice={product.price ?? null}
+                  unitPrice={price ?? null}
                   variant="pdp"
                 />
               ) : (
@@ -341,14 +353,14 @@ export default async function ProductPage({
                       }}
                     />
                   ) : null}
-                  {product.price || rfqSettings.showAddToQuoteOnPdp ? (
+                  {price || rfqSettings.showAddToQuoteOnPdp ? (
                     <ProductBuyActions
                       productId={product.id}
                       productSlug={product.slug}
                       productName={product.name}
-                      unitPrice={product.price ?? null}
+                      unitPrice={price ?? null}
                       {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
-                      showCart={!!product.price && !stock?.showNotifyButton}
+                      showCart={!!price && !stock?.showNotifyButton}
                       showQuote={rfqSettings.showAddToQuoteOnPdp}
                       packagingUnits={product.packagingUnits}
                       singlePieceLabel={t('product.packaging.singlePiece')}
@@ -381,7 +393,7 @@ export default async function ProductPage({
                       removeLabel="Usuń z listy zakupowej"
                     />
                   )}
-                  {oneClickEnabled && product.price ? (
+                  {oneClickEnabled && price ? (
                     <form action={oneClickAction} style={{ display: 'inline-flex', gap: 8 }}>
                       <input type="hidden" name="productId" value={product.id} />
                       {selectedVariantId ? (

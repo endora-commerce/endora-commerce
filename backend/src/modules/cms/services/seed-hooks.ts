@@ -83,7 +83,7 @@ export async function reconcileSeededHooks(
   }
   if (inserted > 0) await em.flush();
 
-  await em.getConnection().execute(
+  await em.execute(
     `insert into "cms_hook_sales_channels" ("hook_id", "sales_channel_id")
      select h."id", c."id"
      from "cms_hooks" h

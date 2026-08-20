@@ -1,10 +1,18 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
-import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+
+import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Currency } from '../../../src/modules/currencies/entities/currency.entity.js';
 import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import {
+  unreachableCatalogPorts,
+  unreachableOrganizationStatus,
+} from '../../helpers/promotion-service.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
+import { EventBus } from '../../../src/events/bus.js';
 
 describe('Promotions dictionary boundary', () => {
   let db: TestDb;
@@ -18,13 +26,32 @@ describe('Promotions dictionary boundary', () => {
     await conn.execute(`delete from "dictionary_translations"`);
     await conn.execute(`delete from "language_countries"`);
     await conn.execute(`delete from "countries"`);
-    await runDictionarySeedReconciler(() => db.orm.em);
+    await runDictionarySeedReconcilerFor(() => db.orm.em);
   });
 
   beforeEach(async () => {
     em = await db.beginTx();
-    validator = new DictionaryValidator(() => em);
-    service = new PromotionService(() => em, undefined, undefined, validator);
+    validator = dictionaryValidatorFor(() => em);
+    // Issue #164 — the catalog ports are required. This suite composes no
+    // container and its promotions carry no attribute criteria, so it passes
+    // ports that refuse rather than ones that answer emptily: the second is the
+    // shape the optional parameters used to produce.
+    const catalog = unreachableCatalogPorts('the dictionary boundary suite composes no container');
+    // Issue #251 — the remaining four arguments are required too. The two the
+    // upsert path actually exercises are the real kernel services over this
+    // suite's transactional `em` (the channel bind and the audit row); the
+    // org-status resolver refuses, because this suite creates no Organization
+    // and never calls `applyToCart`.
+    const auditLog = new AuditLogService(() => em);
+    service = new PromotionService(
+      () => em,
+      catalog.attributes,
+      catalog.products,
+      new SalesChannelMembershipService(() => em, new EventBus(), auditLog),
+      validator,
+      unreachableOrganizationStatus('the dictionary boundary suite creates no Organization'),
+      auditLog,
+    );
   });
 
   afterEach(async () => {

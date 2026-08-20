@@ -10,11 +10,7 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { assertNoConflicts } from './conflict-policy.js';
-import {
-  MissingCoreContractError,
-  SchemaOverrideNotSupportedError,
-  UnknownOverrideTargetError,
-} from './errors.js';
+import { SchemaOverrideNotSupportedError, UnknownOverrideTargetError } from './errors.js';
 import {
   type OverlayContribution,
   type OverlayResolution,
@@ -76,16 +72,21 @@ export function indexCore(coreRoot: string): CoreIndex {
 }
 
 /**
- * Classify a module-relative path into an override kind. Only `service`,
- * `route`, `config` are overridable in v1. `schema` (entities/migrations) and
- * `other` (anything else, incl. `*.interface.ts`) are rejected.
+ * Classify a module-relative path into an override kind. Only `route` and
+ * `config` are overridable. `schema` (entities/migrations) and `other`
+ * (anything else) are rejected.
+ *
+ * **`services/` is no longer overridable by shadowing** (feature 072, T067). A
+ * service override is a decoration of a container registration, declared in the
+ * overriding module rather than inferred from a file's path, so a `services/`
+ * file under an overlay is now an unknown target — which is what it is: a file
+ * the platform would silently never load.
  */
 export function classifyKind(relPath: string): UnitKind {
   if (relPath.endsWith('.interface.ts')) return 'other';
   if (relPath.startsWith('entities/') || relPath.startsWith('migrations/')) {
     return 'schema' satisfies RejectedKind;
   }
-  if (relPath.startsWith('services/')) return 'service';
   if (relPath.startsWith('routes/') || /^routes\.[^/]+\.ts$/.test(relPath)) return 'route';
   if (relPath === 'plugin.ts') return 'route';
   if (relPath === 'config.ts' || relPath.startsWith('config/')) return 'config';
@@ -94,19 +95,13 @@ export function classifyKind(relPath: string): UnitKind {
 }
 
 function isOverridable(kind: UnitKind): kind is OverridableKind {
-  return kind === 'service' || kind === 'route' || kind === 'config';
-}
-
-/** Sibling interface path for a service file, e.g. `services/x.ts` → `services/x.interface.ts`. */
-function interfaceSibling(relPath: string): string {
-  return relPath.replace(/\.ts$/, '.interface.ts');
+  return kind === 'route' || kind === 'config';
 }
 
 /**
  * Scan a deployment overlay root against the core index. Returns the overlay
  * contributions (units it overrides) and the ids of brand-new overlay modules.
- * Throws (fails the build) on any schema override, unknown target, or
- * un-contracted service override.
+ * Throws (fails the build) on any schema override or unknown target.
  */
 export function scanOverlay(
   overlayRoot: string,
@@ -117,7 +112,21 @@ export function scanOverlay(
 
   for (const moduleId of listModuleDirs(overlayRoot)) {
     // A module id absent from core is a brand-new client-only overlay module —
-    // it owns all its files (including its own entities/migrations). Additive.
+    // it owns all its files, so nothing here shadows anything and there is no
+    // override to classify. Additive.
+    //
+    // It does **not** own schema: out-of-core code contributes no persisted
+    // entity class and no migration (D-105). The decorator is deliberately not
+    // spelled out in this comment — the entity registry's walk looks for that
+    // token in source text and would collect this sentence as an entity, which
+    // is precisely what it did when this note was first written.
+    //
+    // The rule is not enforced here, deliberately —
+    // this function answers "what does this deployment override?", and an
+    // overlay module overrides nothing. The refusal lives in
+    // `scripts/generate-composer.ts`, which is where the entity and migration
+    // registries are built and therefore the only place that can say the table
+    // would never be created.
     if (!core.moduleIds.has(moduleId)) {
       newModules.push(moduleId);
       continue;
@@ -131,19 +140,12 @@ export function scanOverlay(
       // The shadowed unit must exist in core (else it is a stale/typo target).
       if (!coreFiles.has(relPath)) throw new UnknownOverrideTargetError(moduleId, relPath);
 
-      let interfaceRelPath: string | null = null;
-      if (kind === 'service') {
-        const iface = interfaceSibling(relPath);
-        if (!coreFiles.has(iface)) throw new MissingCoreContractError(moduleId, relPath);
-        interfaceRelPath = iface;
-      }
       contributions.push({
         moduleId,
         kind,
         relPath,
         overlayPath: join(moduleDir, relPath),
         corePath: join(overlayRoot, '..'), // placeholder; recomputed by caller with coreRoot
-        interfaceRelPath,
       });
     }
   }

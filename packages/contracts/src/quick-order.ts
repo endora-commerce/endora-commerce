@@ -65,11 +65,11 @@ export type QuickOrderImportRequest = z.infer<typeof quickOrderImportRequestSche
 
 export const recognizedQuickOrderItemSchema = z.object({
   line: z.number().int().positive(),
-  sku: z.string().min(1).max(64),
+  sku: z.string().min(1).max(255),
   productId: uuidSchema,
   variantId: uuidSchema.nullable(),
   /** Resolved variant SKU when a variant was matched from attribute columns. */
-  resolvedVariantSku: z.string().max(64).nullable().optional(),
+  resolvedVariantSku: z.string().max(255).nullable().optional(),
   quantity: z.number().int().positive(),
   /** Other source lines merged into this one (duplicate SKU, summed qty). */
   mergedFromLines: z.array(z.number().int().positive()).optional(),
@@ -226,3 +226,62 @@ export const quickOrderOneClickResponseSchema = z.object({
   nextAction: nextActionSchema.nullable(),
 });
 export type QuickOrderOneClickResponse = z.infer<typeof quickOrderOneClickResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `quick_order` publishes (feature 075, Phase P). One
+// cross-module consumer: `customers` renders and edits a buyer's one-click
+// defaults from its own customer-detail screen, so the surface and the table
+// sit in different modules by design.
+// ---------------------------------------------------------------------------
+
+/** Who is writing a preference, for the audit entry. */
+export interface PreferenceAuditContext {
+  actorAdminUserId?: string | null;
+  customerAccountId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  requestId?: string | null;
+}
+
+/**
+ * Who is writing the preference.
+ *
+ * A discriminated union, not a bag of optional ids, and that is the point: a
+ * buyer editing their own defaults, an org admin editing a member's, a
+ * salesperson editing an assigned organisation's and a platform admin editing
+ * anybody's are four different authorisations, and each carries exactly the
+ * one identifier its rule needs. A shape with four optional fields has twelve
+ * states the rules cannot answer for.
+ *
+ * The authorisation itself stays on this module's side of the port.
+ */
+export type PreferenceActor =
+  | { kind: 'customer'; customerAccountId: string }
+  | { kind: 'org_admin'; organizationId: string }
+  | { kind: 'salesperson'; assignedOrganizationIds: string[] }
+  | { kind: 'platform_admin' };
+
+/**
+ * Container name: `defaultPreferencePort`. Owner: `quick_order`.
+ *
+ * `resolveForCustomer` answers with the defaults **already resolved** —
+ * falling back through the buyer's saved addresses and the platform's methods
+ * — rather than the stored row, because the fallback chain is this module's
+ * and a caller reproducing it would reproduce it differently.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `quick_order` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface DefaultPreferencePort {
+  resolveForCustomer(customerAccountId: string): Promise<QuickOrderResolvedDefaults>;
+  upsert(
+    actor: PreferenceActor,
+    input: QuickOrderPreferenceUpsert,
+    audit: PreferenceAuditContext,
+  ): Promise<QuickOrderPreference>;
+}

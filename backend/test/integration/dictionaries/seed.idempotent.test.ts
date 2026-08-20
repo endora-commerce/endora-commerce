@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { dictionariesModule } from '../../../src/modules/dictionaries/plugin.js';
+import { runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
+
 
 /**
  * T010 — Seed reconciler idempotency for the Dictionary module
@@ -31,8 +32,7 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('first run inserts the seed catalogue; second run is a no-op', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
-
+    
     // Wipe any seed state from prior tests so the first call is "fresh".
     const conn = db.orm.em.getConnection();
     await conn.execute(`delete from "dictionary_translations"`);
@@ -41,13 +41,13 @@ describe('dictionary SeedReconciler idempotency', () => {
     // Currencies created by migration 012 (PLN, EUR) are kept; the
     // reconciler should NOT delete them — it only inserts missing ones.
 
-    const first = await mod.handle.reconcile();
+    const first = await runDictionarySeedReconcilerFor(emFactory as never);
     expect(first.countriesInserted).toBeGreaterThan(0);
     expect(first.currenciesInserted).toBeGreaterThanOrEqual(0); // PLN/EUR already exist
     expect(first.translationsInserted).toBeGreaterThan(0);
     expect(first.languageCountriesInserted).toBeGreaterThan(0);
 
-    const second = await mod.handle.reconcile();
+    const second = await runDictionarySeedReconcilerFor(emFactory as never);
     expect(second.countriesInserted).toBe(0);
     expect(second.currenciesInserted).toBe(0);
     expect(second.translationsInserted).toBe(0);
@@ -56,10 +56,9 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('preserves operator edits to seeded country labels', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
-
+    
     // First boot — seeds the catalogue.
-    await mod.handle.reconcile();
+    await runDictionarySeedReconcilerFor(emFactory as never);
 
     // Operator edits the label of `PL` and the dial code of `DE`.
     const conn = db.orm.em.getConnection();
@@ -69,7 +68,7 @@ describe('dictionary SeedReconciler idempotency', () => {
     await conn.execute(`update "countries" set "dial_code" = '+9999' where "code" = 'DE'`);
 
     // Re-run the reconciler — operator edits must remain intact.
-    await mod.handle.reconcile();
+    await runDictionarySeedReconcilerFor(emFactory as never);
 
     const rows = await conn.execute<Array<{ code: string; label: string; dial_code: string }>>(
       `select "code","label","dial_code" from "countries" where "code" in ('PL','DE')`,
@@ -82,10 +81,9 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('never updates an existing currency row (operator edits sticky by construction)', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
-
+    
     // Seed once, then operator edits JPY arbitrarily.
-    await mod.handle.reconcile();
+    await runDictionarySeedReconcilerFor(emFactory as never);
     const conn = db.orm.em.getConnection();
     await conn.execute(
       `update "currencies"
@@ -95,7 +93,7 @@ describe('dictionary SeedReconciler idempotency', () => {
 
     // Re-running the reconciler must NOT touch existing rows. The
     // contract is: only insert missing rows; never update existing ones.
-    await mod.handle.reconcile();
+    await runDictionarySeedReconcilerFor(emFactory as never);
     const rows = await conn.execute<
       Array<{ decimal_places: number; symbol_position: string; label: string }>
     >(
@@ -108,8 +106,7 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('skips translation rows whose parent entry is missing (polymorphic FK at the service layer)', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
-
+    
     // Insert a country without translation, then add a translation row
     // for a non-seeded code — the reconciler must NOT create translations
     // for codes it doesn't own.
@@ -123,7 +120,7 @@ describe('dictionary SeedReconciler idempotency', () => {
     const before = await conn.execute<Array<{ count: string }>>(
       `select count(*)::text as count from "dictionary_translations" where "entry_code" = 'AA'`,
     );
-    await mod.handle.reconcile();
+    await runDictionarySeedReconcilerFor(emFactory as never);
     const after = await conn.execute<Array<{ count: string }>>(
       `select count(*)::text as count from "dictionary_translations" where "entry_code" = 'AA'`,
     );
@@ -132,9 +129,8 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('honours the partial-unique-default invariant by leaving PL as the only default', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
-
-    await mod.handle.reconcile();
+    
+    await runDictionarySeedReconcilerFor(emFactory as never);
 
     const conn = db.orm.em.getConnection();
     const rows = await conn.execute<Array<{ code: string }>>(
@@ -145,9 +141,8 @@ describe('dictionary SeedReconciler idempotency', () => {
 
   it('seeds en-US primary associations for the English-speaking subset', async () => {
     const emFactory = (): typeof db.orm.em => db.orm.em;
-    const mod = dictionariesModule({ emFactory: emFactory as never });
-
-    await mod.handle.reconcile();
+    
+    await runDictionarySeedReconcilerFor(emFactory as never);
     const conn = db.orm.em.getConnection();
     const rows = await conn.execute<Array<{ country_code: string }>>(
       `select "country_code" from "language_countries"

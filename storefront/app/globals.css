@@ -642,6 +642,21 @@
   .b2b-auth__actions { @apply mt-2 flex gap-2; }
   .b2b-auth__actions button { @apply rounded-sm border-0 bg-[color:var(--ink-900)] px-[16px] py-[10px] font-medium text-white; }
   .b2b-auth__actions button:hover { @apply bg-[color:var(--ink-800)]; }
+  /* Issue #193 — federated sign-in block. Rendered only when at least one
+     provider can actually complete a sign-in, so the rule below never
+     introduces an empty region. The block's top margin is larger than the
+     form's own 14px row gap, so it reads as a sibling of the form rather than
+     a last field (Law of Proximity). */
+  .b2b-auth__social { @apply mt-6 grid gap-[10px]; }
+  .b2b-auth__social-divider { @apply flex items-center gap-3 text-[12px] uppercase tracking-[0.06em] text-subtle; }
+  .b2b-auth__social-btn {
+    /* 44px minimum target, full width — the thumb arc on mobile (Fitts's Law).
+       Bordered, never filled: the password submit is the one primary CTA on
+       this screen (Von Restorff). */
+    @apply inline-flex min-h-11 w-full items-center justify-center rounded-sm border border-line bg-surface px-[16px] py-[10px] text-[14px] font-medium text-fg no-underline transition-[background-color,border-color] duration-150;
+  }
+  .b2b-auth__social-btn:hover { @apply border-line-strong bg-surface-alt; }
+  .b2b-auth__social-btn:focus-visible { @apply outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
   .b2b-auth__error { @apply rounded-sm border border-bad-soft bg-bad-soft px-[12px] py-[10px] text-[13px] text-bad; }
   .b2b-auth__success { @apply rounded-sm border border-ok-soft bg-ok-soft px-[12px] py-[10px] text-[13px] text-ok; }
   .b2b-auth__hint { @apply mt-4 text-[12px] text-muted; }
@@ -663,6 +678,16 @@
   .b2b-account__comments li small { @apply block text-[11px] text-subtle; }
   .b2b-account__comments li p { @apply mb-0 mt-[4px] text-[13px] leading-[1.5] text-fg; }
 }
+/* Issue #193 — the federated divider's flanking rules (::before/::after
+   residual, same convention as the floating-label rules below). */
+.b2b-auth__social-divider::before,
+.b2b-auth__social-divider::after {
+  content: '';
+  flex: 1 1 0%;
+  height: 1px;
+  background: var(--line);
+}
+
 /* Floating-label state selectors (R5 residual — :has()/:placeholder-shown). */
 .b2b-auth__field:has(textarea) label { top: 18px; transform: translateY(0); }
 .b2b-auth__field:has(input:focus) label,

@@ -2,8 +2,10 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   DictionaryReferenceError,
   ERROR_CODES,
+  dispatchValidatorMode,
   type AttributeValueType,
   type CartSnapshot,
+  type CatalogProductReadPort,
   type DictionaryValidator,
   type PromotionAction,
   type PromotionApplication,
@@ -12,13 +14,11 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
-import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
-import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
 import {
   lineMatchesAllCriteria,
   type PromotionRuleAttributeLookup,
@@ -40,9 +40,11 @@ import {
 import type { CartApplyContext } from '../actions/types.js';
 
 /**
- * Cross-module port for fetching promotion-rule attribute metadata. The
- * `CatalogQueryService` from feature 012 / US8 satisfies this shape;
- * tests + the composition root pass it in through the constructor.
+ * The one question this service asks about promotion-rule attribute metadata.
+ * `catalog`'s `CatalogPromoAttributePort` (feature 075, Phase P) satisfies it,
+ * and `backend.ts` resolves that port by its published contract type; the
+ * narrower shape stays here because a rule evaluation never needs the port's
+ * other method.
  */
 export interface PromotionRuleCatalogPort {
   getAttributeWithOptions(key: string): Promise<{
@@ -74,29 +76,109 @@ export interface PromotionAuditLogger {
 export class PromotionService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    /** Feature 005 / T027b — auto-bind newly-created Promotions to the system default. */
-    private readonly salesChannelMembership?: SalesChannelMembershipService,
     /**
-     * Feature 012 / US8 — cross-module read port (CatalogQueryService).
-     * When omitted, attribute-criteria short-circuit to `false` so legacy
-     * tests / composition setups that don't wire this stay green.
+     * Feature 012 / US8 — `catalogPromoAttributePort`, owned by `catalog`: the
+     * attribute metadata a rule criterion is validated and evaluated against.
+     *
+     * **Required** (issue #164). It used to be optional "so legacy tests /
+     * composition setups that don't wire this stay green", and production
+     * always passed it — an optional dependency nobody omits is a lie in the
+     * type: it tells every reader that absence is supported, and it makes the
+     * absent branch untested by construction. Both consequences were real.
+     * `validateCriteria` opened by returning early, so a composition without
+     * the port **accepted a promotion naming an attribute that does not
+     * exist**; and no test covered that, because the ten call sites that
+     * omitted the port were the ones that never exercised attributes.
+     *
+     * There is no degrade left to express. Absence is not a state the platform
+     * can be in: the container resolves this port for every composition, and
+     * `catalog` being switched off makes the call **throw**
+     * `ModuleDisabledError` at the resolution seam — which is the explicit
+     * answer, and it is the owner's to give. What remains is
+     * `getAttributeWithOptions` answering `null`, already explicit in its
+     * return type and meaning what it says: no such attribute.
      */
-    private readonly catalogPort?: PromotionRuleCatalogPort,
-    private readonly dictionaryValidator?: DictionaryValidator,
+    private readonly catalogPort: PromotionRuleCatalogPort,
+    /**
+     * Feature 075 Phase C — `catalogProductReadPort`, owned by `catalog`. It
+     * replaced an `em.find(Product, …)` this module wrote against `catalog`'s
+     * table to hydrate a cart line's attribute values, and it is required for
+     * the reason above: a composition that could not read products evaluated
+     * every attribute criterion against a line with no attribute values, which
+     * is not a degrade an operator would recognise as one.
+     */
+    private readonly productReadPort: CatalogProductReadPort,
+    /**
+     * Feature 005 / T027b — the sanctioned bridge accessor for
+     * `sales_channel_promotions`: it auto-binds a newly-created Promotion to
+     * the system-default channel, and it answers which promotions a channel
+     * holds when a cart is evaluated.
+     *
+     * **Required** (issue #251), and of the four this is the one whose absent
+     * form was a Principle XII hole rather than a quiet one. Omitting it did
+     * two things at once: a new promotion bound to **no** channel, and
+     * `applyToCart` skipped channel filtering altogether — so a promotion an
+     * operator scoped to one channel applied in every one of them. Both roots
+     * passed the service, so nothing was live; every service built by
+     * `test/helpers/promotion-service.ts` was not, which is ten suites
+     * asserting against a promotion engine with no channel scope.
+     *
+     * There is no degrade to express in a return type. `sales_channels` is
+     * `nonDeactivatable` and `salesChannelMembershipPort` is a
+     * platform-owned container name besides, so absence is not a state a
+     * composition can reach.
+     */
+    private readonly salesChannelMembership: SalesChannelMembershipService,
+    /**
+     * Feature 037 — the dictionary reference validator, owned by
+     * `dictionaries`: it is what makes a promotion's `currency` a code the
+     * platform actually knows.
+     *
+     * **Required** (issue #251). `validateCurrency` opened with "no validator,
+     * no validation" and returned, so a composition without it stored a
+     * promotion denominated in a currency that does not exist — and the
+     * failure surfaced far downstream, at the cart, as a discount in a
+     * currency nothing could price. `dictionaries` is a declared dependency
+     * and is `nonDeactivatable`, so absence is not a state a composition can
+     * reach; an unknown or withdrawn code is already explicit, as the 409 this
+     * method raises.
+     */
+    private readonly dictionaryValidator: DictionaryValidator,
+    /**
+     * Feature 026 US5 — the Organization status gate: an org-targeted
+     * promotion only applies while its Organization is `active`.
+     *
+     * **Required** (issue #251), and the one `backend.ts` already named in its
+     * own comment as *"a gate whose absent form is open"*. Omitted, the check
+     * was skipped entirely, so a `blocked` (formerly `suspended`) or
+     * `pending_verification` customer kept collecting its negotiated
+     * discounts — the exact thing US5 exists to stop.
+     *
+     * The degrade that **is** real stays in the return type, the way
+     * `allowedIdsFor(): Promise<string[] | null>` does: `null` means the
+     * Organization could not be read (missing or soft-deleted), and a status
+     * that is not `active` — `null` included — skips the org-targeted
+     * promotion. That is a closed answer, and it is the only absence this
+     * argument has.
+     */
+    private readonly resolveOrganizationStatus: (orgId: string) => Promise<string | null>,
+    /**
+     * Feature 054 — co-transactional audit sink (`audit_log_entries`),
+     * Principle XIII.
+     *
+     * **Required** (issue #251). Without it every promotion create, update and
+     * delete committed with no audit row, which is not a degrade — it is the
+     * write happening unrecorded. `auditLogService` is a platform-owned
+     * container name that every composition supplies, so there was never a
+     * composition the absent branch described.
+     */
+    private readonly auditLog: AuditLogService,
     /** Feature 012 / US8 — audit sink for FR-039 skip-on-toggle events. */
     private readonly auditLogger: PromotionAuditLogger = {
       info: (message, fields) => console.warn(`[audit] ${message}`, fields ?? {}),
     },
-    /**
-     * Feature 026 US5 — when provided, org-targeted promotions are only
-     * applied if the caller's Organization is currently `active`.
-     * `null` means "org missing" → skip the org-targeted promotion.
-     */
-    private readonly resolveOrganizationStatus?: (orgId: string) => Promise<string | null>,
     /** Feature 045 — pluggable action catalogue. Defaults to the built-ins. */
     private readonly actionRegistry: PromotionActionRegistry = createPromotionActionRegistry(),
-    /** Feature 054 — co-transactional audit sink (audit_log_entries). */
-    private readonly auditLog?: AuditLogService,
   ) {
     this.usageService = new PromotionUsageService(emFactory);
   }
@@ -109,15 +191,13 @@ export class PromotionService {
     stateBefore: Record<string, unknown> | null,
     stateAfter: Record<string, unknown> | null,
   ): void {
-    if (this.auditLog) {
-      recordAuditFromContext(this.auditLog, em, {
-        action,
-        objectType: 'promotion',
-        objectId,
-        stateBefore,
-        stateAfter,
-      });
-    }
+    recordAuditFromContext(this.auditLog, em, {
+      action,
+      objectType: 'promotion',
+      objectId,
+      stateBefore,
+      stateAfter,
+    });
   }
 
   private readonly usageService: PromotionUsageService;
@@ -168,9 +248,7 @@ export class PromotionService {
     em.persist(row);
     this.#audit(em, 'promotion.create', row.id, null, { name: row.name, code: row.code });
     await em.flush();
-    if (this.salesChannelMembership) {
-      await this.salesChannelMembership.bindToDefaultIfEmpty('promotion', row.id);
-    }
+    await this.salesChannelMembership.bindToDefaultIfEmpty('promotion', row.id);
     return row;
   }
 
@@ -227,7 +305,6 @@ export class PromotionService {
     currency: string,
     mode: 'create-or-change' | 'unchanged',
   ): Promise<void> {
-    if (!this.dictionaryValidator) return;
     try {
       await this.dictionaryValidator.validateCurrencyCode(currency, mode);
     } catch (err) {
@@ -276,10 +353,12 @@ export class PromotionService {
 
     // Feature 026 US5 — when org-targeted promotions are present and the
     // snapshot carries an organizationId, resolve that org's status once.
-    // Org-targeted promotions only apply if the org is `active`. Without a
-    // resolver wired (e.g., legacy test composition), the gate is skipped.
+    // Org-targeted promotions only apply if the org is `active`; `null` (org
+    // missing or soft-deleted) skips them too. The resolver is required since
+    // issue #251 — "no resolver wired, no gate" used to be a branch, and it
+    // was the branch every helper-built service took.
     let orgStatusCheckResult: 'allow' | 'skip-org-targeted' = 'allow';
-    if (this.resolveOrganizationStatus && snapshot.organizationId) {
+    if (snapshot.organizationId) {
       const hasOrgTargeted = all.some((p) => p.organizationId === snapshot.organizationId);
       if (hasOrgTargeted) {
         const status = await this.resolveOrganizationStatus(snapshot.organizationId);
@@ -298,12 +377,14 @@ export class PromotionService {
     //   - `null`  → the cart resolved to no channel → nothing matches (fail closed);
     //   - absent  → a legacy caller that does not participate in channel scoping →
     //               the gate is skipped (neutrality; every real caller sends the field).
-    // The bridge is read only through SalesChannelMembershipService (the
-    // `no-unscoped-channel-query` rule); when it is not wired (legacy test
-    // composition) the gate degrades to no channel filtering. This is an interim
-    // predicate subsumed by the future unified channel resolver (spec 03).
+    // The bridge is read only through SalesChannelMembershipService (Principle
+    // XII's accessor clause, enforced by `check:module-boundary`'s `sql`
+    // predicate since D-87). The accessor is required since issue #251: it used
+    // to be optional, and "not wired ⇒ no channel filtering" is the shape
+    // Principle XII exists to forbid. This is an interim predicate subsumed by
+    // the future unified channel resolver (spec 03).
     let channelPromotionIds: Set<string> | null = null;
-    if (this.salesChannelMembership && all.length > 0 && snapshot.salesChannelId !== undefined) {
+    if (all.length > 0 && snapshot.salesChannelId !== undefined) {
       if (snapshot.salesChannelId) {
         const ids = new Set<string>();
         const pageSize = 500;
@@ -494,11 +575,6 @@ export class PromotionService {
    * `invalid_option_value`).
    */
   private async validateCriteria(criteria: PromotionCriterion[]): Promise<void> {
-    if (!this.catalogPort) {
-      // Without the port we can only structurally validate (already done
-      // by the Zod schema); skip the semantic per-valueType checks.
-      return;
-    }
     for (const c of criteria) {
       if (c.type !== 'attribute') continue;
       const meta = await this.catalogPort.getAttributeWithOptions(c.attributeKey);
@@ -552,7 +628,7 @@ export class PromotionService {
         options: Array<{ value: string }>;
       }
     >();
-    if (!this.catalogPort || keys.length === 0) {
+    if (keys.length === 0) {
       return { get: (k) => map.get(k) ?? null };
     }
     for (const key of keys) {
@@ -583,11 +659,10 @@ export class PromotionService {
     ];
     if (productIds.length === 0) return snapshot;
 
-    const em = this.emFactory();
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.productReadPort.findByIds(productIds);
     const valuesByProductId = new Map<string, Record<string, unknown>>();
     for (const p of products) {
-      const values = (p.attributeValues ?? {}) as Record<string, unknown>;
+      const values = p.attributeValues ?? {};
       const subset: Record<string, unknown> = {};
       for (const k of referencedKeys) {
         if (k in values) subset[k] = values[k];

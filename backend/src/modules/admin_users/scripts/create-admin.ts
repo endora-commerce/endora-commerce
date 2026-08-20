@@ -21,10 +21,12 @@
  * can use the admin panel's Users + Roles module to define narrower roles.
  */
 
+import { normalizeEmailAddress } from '@b2b/contracts';
 import { initOrm, closeOrm } from '../../../db/index.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { AdminRole } from '../../admin_roles/entities/admin-role.entity.js';
-import { hashPassword } from '../../auth/services/password-hasher.js';
+import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 interface ParsedArgs {
   email: string;
@@ -59,7 +61,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     return v;
   };
   return {
-    email: required('email').toLowerCase(),
+    email: normalizeEmailAddress(required('email')),
     password: required('password'),
     firstName: required('first-name'),
     lastName: required('last-name'),
@@ -69,6 +71,12 @@ function parseArgs(argv: string[]): ParsedArgs {
 }
 
 async function main(): Promise<void> {
+  // command-coverage-ignore: the bootstrap CLI that mints the first
+  // administrator. It runs with shell access to the deployment and, by
+  // construction, before any Admin User exists — so there is no acting
+  // principal for the Command Bus to attribute the write to. Every subsequent
+  // admin-user write goes through the audited admin_users surface; this one
+  // exists so that surface has somebody to sign in to it.
   const args = parseArgs(process.argv.slice(2));
 
   if (args.password.length < 12) {
@@ -134,7 +142,7 @@ async function main(): Promise<void> {
   }
 }
 
-void main().catch((err: unknown) => {
+void enterSystemScope('cli: create an admin user', main, { entryPoint: 'cli' }).catch((err: unknown) => {
   console.error('admin:create failed', err);
   process.exit(1);
 });

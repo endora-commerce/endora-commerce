@@ -8,6 +8,7 @@ import {
   computeDefaultTransitions,
 } from '../../../src/modules/returns/domain/return-status-graph.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 
 export const CUSTOMER_COOKIE = { b2b_session: 'stub-customer-session' };
 export const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };
@@ -61,12 +62,18 @@ export interface SeededOrder {
  */
 export async function seedReturnableOrder(
   em: EntityManager,
-  opts: { status?: string } = {},
+  opts: { status?: string; salesChannelId?: string } = {},
 ): Promise<SeededOrder> {
   const order = em.create(Order, {
     organizationId: TEST_ORGANIZATION_ID,
     placedByCustomerAccountId: TEST_CUSTOMER_ID,
-    salesChannelId: randomUUID(),
+    // Feature 078, D-95: `{channel}` renders the `sales_channels` row, so an
+    // order has to be seeded on a channel that exists. This used to be
+    // `randomUUID()` with a note telling every caller to pin one channel per
+    // file, because two orders on two fresh channels both drew sequence 1 and
+    // the second issuance died on `invoices_number_unique`. The pattern carries
+    // the channel now, so the constraint that produced that note is gone.
+    salesChannelId: opts.salesChannelId ?? (await systemDefaultSalesChannelId(em)),
     status: opts.status ?? 'completed',
     deliveryAddress: { recipientName: 'A', street: 'S', city: 'C', postalCode: '00-000', country: 'PL' },
     billingAddress: { recipientName: 'A', street: 'S', city: 'C', postalCode: '00-000', country: 'PL' },

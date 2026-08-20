@@ -17,6 +17,19 @@ export const googleAnalyticsSettingsManifest = defineModuleSettingsManifest({
   groups: [{ code: 'google_analytics', name: 'Google Analytics' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide, and
+      // deliberately not `google_analytics.enabled`: that code already exists
+      // and is per-sales-channel, answering "does GA4 load on this storefront".
+      // This one answers "does this client have Google Analytics at all".
+      code: 'google_analytics.module_enabled',
+      name: 'Google Analytics module enabled',
+      description:
+        'Switches GA4 injection, the custom-event mappings, the server-side delivery queue and the admin screen on or off for the whole platform. Separate from the per-channel switch, which decides where the tag actually loads. Nothing is dropped: mappings stay in the database and every setting keeps its value.',
+      groupCode: 'google_analytics',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: GOOGLE_ANALYTICS_SETTING_CODES.ENABLED,
       name: 'Enable Google Analytics',
       description: 'Master switch for the module. Per-channel overridable.',
@@ -82,7 +95,9 @@ export const manifest = defineModuleManifest({
   description:
     'Google Analytics 4 integration: per-sales-channel activation and Measurement ID, Enhanced Ecommerce, configurable custom events, and optional server-side tagging.',
   version: '1.0.0',
-  dependencies: ['audit_logs', 'sales_channels', 'settings'],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by; feature
+  // 072 made it a container resolution rather than a constructor argument.
+  dependencies: ['audit_logs', 'sales_channels', 'settings', 'auth'],
   settings: googleAnalyticsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [
@@ -111,4 +126,5 @@ export const manifest = defineModuleManifest({
       weight: 241,
     },
   ],
+  activation: { settingCode: 'google_analytics.module_enabled', default: true },
 });

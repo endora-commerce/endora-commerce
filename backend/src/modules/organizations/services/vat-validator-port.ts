@@ -11,26 +11,9 @@
  * `{ outcome: 'failed', errorKind: 'not_found' }`. Only `validated`
  * carries the optional `legalName` + `address` payloads that the
  * applyAutoFill flow consumes.
+ *
+ * The two declarations moved to `@b2b/contracts` in feature 075's Phase P so
+ * `customers` can name the shape without naming this directory. They are
+ * re-exported here for the length of Phase P, which cuts no consumer.
  */
-
-import type { ReturnedAddress } from '../entities/organization-tax-id-validation.entity.js';
-import type {
-  VatValidationOutcome,
-  VatValidationProvider,
-} from '../entities/organization.entity.js';
-
-export interface VatValidationResult {
-  outcome: VatValidationOutcome;
-  legalName: string | null;
-  address: ReturnedAddress | null;
-  errorKind: string | null;
-}
-
-export interface VatValidator {
-  readonly provider: VatValidationProvider;
-  validate(input: {
-    taxId: string;
-    /** Optional country hint extracted upstream (VIES needs the country split). */
-    countryCode?: string | undefined;
-  }): Promise<VatValidationResult>;
-}
+export type { VatValidationResult, VatValidator } from '@b2b/contracts';

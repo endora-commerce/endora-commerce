@@ -8,7 +8,7 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterCustomField } from '../entities/newsletter-custom-field.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /** Newsletter custom-field definition CRUD (feature 048, US3). */
 export class NewsletterCustomFieldService {

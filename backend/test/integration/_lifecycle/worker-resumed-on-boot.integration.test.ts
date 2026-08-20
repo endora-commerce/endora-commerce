@@ -2,21 +2,30 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   defineModuleWorker,
   resumeWorkersFor,
-} from '../../../src/modules/_lifecycle/plugin-helpers.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+} from '../../../src/kernel/lifecycle/plugin-helpers.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**
- * Regression: a module wired into the composition *before* the lifecycle
- * plugin warms the enabled-set cache (e.g. `catalog`, which owns the
- * `catalog.bulk-operation` / `search_reindex` worker) reads as disabled at
- * `defineModuleWorker` time, so the worker starts paused. The orchestrator
- * only resumes workers on an explicit enable transition — so without an
- * explicit boot-time resume the worker stays paused for the whole process
- * lifetime and its queue never drains (operations stuck on `pending`).
+ * Historical: a module wired into the composition *before* the lifecycle plugin
+ * warmed the enabled-set cache (e.g. `catalog`, which owns the
+ * `catalog.bulk-operation` / `search_reindex` worker) read as disabled at
+ * `defineModuleWorker` time, so its worker started paused. The orchestrator only
+ * resumes workers on an explicit enable transition — so without a boot-time
+ * resume the worker stayed paused for the whole process lifetime and its queue
+ * never drained (operations stuck on `pending`).
  *
- * The fix resumes every enabled module's workers right after the cache is
- * warmed. This test reproduces the order-of-registration hazard with an
- * in-memory worker stub.
+ * **The resume loop this file was written for no longer exists** (feature 072,
+ * D-38; feature 073, Amendment A2-Q2). It iterated `enabledIds()`, the platform
+ * axis alone, and therefore also resumed the workers of a module the operator
+ * had *deactivated*. It was deleted rather than corrected, because presence is
+ * now loaded before the first module registers and each pause decision is right
+ * when it is taken. The `it` below drives the loop inline; nothing in production
+ * does. The fresh-boot property that replaced it is asserted in
+ * `worker-presence-at-boot.integration.test.ts`.
+ *
+ * What still holds here, and why the file stays: the registration-order hazard
+ * with an in-memory worker stub, and that `resumeWorkersFor` un-pauses a worker
+ * paused at registration.
  */
 
 describe('defineModuleWorker — resumed at boot when registered before cache warm (integration)', () => {
@@ -46,10 +55,11 @@ describe('defineModuleWorker — resumed at boot when registered before cache wa
     expect(paused).toBe(true);
   });
 
-  it('boot-time resume of enabled modules un-pauses the worker', async () => {
+  it('resuming an enabled module un-pauses the worker (the deleted boot loop, driven by hand)', async () => {
     // Lifecycle plugin warms the cache (module is in fact installed/enabled)…
     registryCache.__setEnabledForTesting(['fixture_boot_resume']);
-    // …then resumes workers for every enabled module (the fix).
+    // …then resumes workers for every enabled module. This is the loop D-38
+    // deleted; it runs here, not in `_lifecycle`'s plugin.
     for (const moduleId of registryCache.enabledIds()) {
       await resumeWorkersFor(moduleId);
     }

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveOverlay } from '../../src/overlay/resolve-overlay.js';
 import {
-  MissingCoreContractError,
   SchemaOverrideNotSupportedError,
   UnknownOverrideTargetError,
 } from '../../src/overlay/errors.js';
@@ -20,7 +19,11 @@ describe('resolve-overlay — fail-closed guards (T007)', () => {
     expect(() => resolve('overlay-unknown')).toThrow(UnknownOverrideTargetError);
   });
 
-  it('rejects overriding a service with no declared core interface — R4/FR-003', () => {
-    expect(() => resolve('overlay-nocontract')).toThrow(MissingCoreContractError);
+  it('rejects a service shadowed by file path — feature 072, T067', () => {
+    // A `services/` file under an overlay used to override the core class it
+    // shadowed. It no longer does anything, so it is an unknown target rather
+    // than a file the platform silently never loads. Service overrides are
+    // decorations now, named by registration.
+    expect(() => resolve('overlay-service-shadow')).toThrow(UnknownOverrideTargetError);
   });
 });

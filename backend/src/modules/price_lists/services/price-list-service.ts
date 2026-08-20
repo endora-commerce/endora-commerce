@@ -1,19 +1,26 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type ApplicationRule } from '@b2b/contracts';
+import type {
+  CatalogCategoryReadPort,
+  CatalogProductReadPort,
+  CustomerGroupReadPort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListProduct } from '../entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
 import { PriceDisplayModeOverride } from '../entities/price-display-mode-override.entity.js';
-import { CustomerGroup } from '../entities/customer-group.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
-import { Category } from '../../catalog/entities/category.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { Setting } from '../../settings/entities/setting.entity.js';
-import { SettingValue } from '../../settings/entities/setting-value.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { Setting } from '../../../kernel/settings/setting.entity.js';
+import { SettingValue } from '../../../kernel/settings/setting-value.entity.js';
+import {
+  decideDisplayMode,
+  settingsDisplayModeKey,
+  type DisplayModeCategoryCandidate,
+} from './display-mode-resolver.js';
 import { randomUUID } from 'crypto';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
 import type { PriceListsAuditContext } from '../plugin.js';
 
@@ -57,6 +64,33 @@ export interface CopyCurrencyResult {
 }
 
 /**
+ * The neighbours this service has to **ask** rather than query (feature 075
+ * Phase C).
+ *
+ * A price-list rule and a display-mode override both point at rows two other
+ * modules own — an organisation, a category, a product — and this service used
+ * to validate them with `em.count(Organization, …)` and friends, which is
+ * another module's table on this module's connection. It answers rows whatever
+ * state that module is in, so an operator with `catalog` switched off could
+ * still pin a price list to a category the platform will not serve.
+ *
+ * Grouped into one object because it is one decision: a composition either
+ * knows how to reach its neighbours or it does not, and there is no coherent
+ * state where it can resolve categories but not organisations.
+ */
+export interface PriceListTargetReads {
+  organizationDetails: OrganizationDetailsPort;
+  catalogCategoryRead: CatalogCategoryReadPort;
+  catalogProductRead: CatalogProductReadPort;
+  /**
+   * Feature 076 (D-79) — customer groups moved to `customer_accounts`, so the
+   * rule-target validation reads them the same way it already read
+   * organisations and categories.
+   */
+  customerGroupRead: CustomerGroupReadPort;
+}
+
+/**
  * PriceListService — admin CRUD over PriceList + the two child collections
  * (items + assignments). Keeping all three operations on the same service
  * keeps the "edit a price list and its rules" admin flow on one transaction
@@ -81,7 +115,33 @@ export class PriceListService {
      * construction keeps the legacy audit path, byte-identical.
      */
     private readonly commandBus?: CommandBus,
+    /**
+     * Feature 075 Phase C — the ports behind every rule-target and
+     * override-target existence check. Optional in the signature because a
+     * price list with no organisation, category or product target never reaches
+     * them; **never optional in effect**, because the paths that need them
+     * refuse rather than skip when they are absent (see {@link targets}).
+     */
+    private readonly targetReads?: PriceListTargetReads,
   ) {}
+
+  /**
+   * The neighbour ports, or a refusal. Skipping the validation when nothing was
+   * wired would turn "this composition cannot reach `catalog`" into "every
+   * category id is valid", which is the fail-open shape feature 075 exists to
+   * remove.
+   */
+  private targets(): PriceListTargetReads {
+    if (!this.targetReads) {
+      throw new HttpError(
+        500,
+        ERROR_CODES.INTERNAL,
+        'This price-list operation validates a target owned by `catalog` or `organizations`, ' +
+          'and this composition constructed PriceListService without their read ports.',
+      );
+    }
+    return this.targetReads;
+  }
 
   private invalidatePricingCache(): void {
     this.pricingCache?.invalidateAll();
@@ -636,13 +696,13 @@ export class PriceListService {
         found = await em.count(SalesChannel, { id: { $in: ids } });
         break;
       case 'customerGroup':
-        found = await em.count(CustomerGroup, { id: { $in: ids } });
+        found = (await this.targets().customerGroupRead.findByIds(ids)).length;
         break;
       case 'organization':
-        found = await em.count(Organization, { id: { $in: ids } });
+        found = await this.targets().organizationDetails.countByIds(ids);
         break;
       case 'category':
-        found = await em.count(Category, { id: { $in: ids } });
+        found = await this.targets().catalogCategoryRead.countByIds(ids);
         break;
     }
     if (found !== ids.length) {
@@ -789,7 +849,7 @@ export class PriceListService {
     // (PriceDisplayModeOverride) — a presentation setting for how prices render,
     // not a price/catalog value mutation, so it is not an admin-audit target.
     const em = this.emFactory();
-    await this.assertOverrideTargetExists(em, scope, targetId);
+    await this.assertOverrideTargetExists(scope, targetId);
     const existing = await em.findOne(PriceDisplayModeOverride, { scope, targetId });
     if (mode === 'inherit') {
       if (existing) {
@@ -922,63 +982,195 @@ export class PriceListService {
       scope: 'product',
       targetId: input.productId,
     });
-    if (productOverride) return productOverride.mode as DisplayMode;
 
-    // 2. Category-level override — pick the deepest matching category.
-    const categoryRows = await em.getConnection().execute<
-      Array<{ category_id: string }>
-    >(`select category_id from product_categories where product_id = ?`, [input.productId]);
-    if (categoryRows.length > 0) {
-      const categoryIds = categoryRows.map((r) => r.category_id);
-      const overrides = await em.find(PriceDisplayModeOverride, {
-        scope: 'category',
-        targetId: { $in: categoryIds },
-      });
-      if (overrides.length > 0) {
-        // Pick the deepest category (longest parent chain), with
-        // (sort_order ASC, id ASC) as the deterministic tie-break.
-        const candidates: Array<{ override: PriceDisplayModeOverride; depth: number; sortOrder: number; id: string }> = [];
-        for (const ov of overrides) {
-          const cat = await em.findOne(Category, { id: ov.targetId });
-          if (!cat) continue;
-          const depth = await this.categoryDepth(em, cat.id);
-          candidates.push({ override: ov, depth, sortOrder: cat.sortOrder, id: cat.id });
-        }
-        candidates.sort((a, b) => {
-          if (b.depth !== a.depth) return b.depth - a.depth;
-          if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-          return a.id.localeCompare(b.id);
+    // 2. Category-level override — the candidates the chain ranks.
+    let categoryCandidates: DisplayModeCategoryCandidate[] = [];
+    if (!productOverride) {
+      const categoryRows = await em.execute<
+        Array<{ category_id: string }>
+      >(`select category_id from product_categories where product_id = ?`, [input.productId]);
+      if (categoryRows.length > 0) {
+        const categoryIds = categoryRows.map((r) => r.category_id);
+        const overrides = await em.find(PriceDisplayModeOverride, {
+          scope: 'category',
+          targetId: { $in: categoryIds },
         });
-        if (candidates.length > 0) return candidates[0]!.override.mode as DisplayMode;
+        categoryCandidates = await this.rankCategoryOverrides(overrides);
       }
     }
 
     // 3. Organization-level override (only signed-in customers).
+    const needsOrganization =
+      !productOverride &&
+      categoryCandidates.length === 0 &&
+      input.customerKind === 'signed_in' &&
+      input.organizationId !== null;
+    const organizationOverride = needsOrganization
+      ? await em.findOne(PriceDisplayModeOverride, {
+          scope: 'organization',
+          targetId: input.organizationId!,
+        })
+      : null;
+
+    const decision = decideDisplayMode({
+      productOverride: (productOverride?.mode as DisplayMode | undefined) ?? null,
+      categoryCandidates,
+      organizationOverride: (organizationOverride?.mode as DisplayMode | undefined) ?? null,
+    });
+    if (decision.source !== 'settings') return decision.mode;
+
+    // 4. Settings fallback.
+    return this.readSettingsDisplayMode(
+      settingsDisplayModeKey(input.customerKind),
+      input.salesChannelId,
+    );
+  }
+
+  /**
+   * The same chain for a **set** of products (issue #132 follow-up).
+   *
+   * A catalogue listing asked this question once per product, which cost four
+   * to six queries per card on the page's hottest read. Every step is a set
+   * lookup — the product-scope overrides, the category memberships, the
+   * category-scope overrides, the one organization row and the one settings
+   * pair — so the whole page costs what a single product used to.
+   *
+   * The *decision* is not duplicated: both this method and `resolveDisplayMode`
+   * hand their four inputs to `decideDisplayMode`, so a batched page cannot
+   * rank an override differently from a product page. Only the loading differs.
+   *
+   * `categoryIdsByProduct` is an optional prefetch for a caller that has
+   * already read the memberships — `PricingService.resolveListingPrices` needs
+   * them for the application rules and would otherwise read the same table
+   * twice per page.
+   */
+  async resolveDisplayModes(input: {
+    productIds: readonly string[];
+    organizationId: string | null;
+    salesChannelId: string;
+    customerKind: 'guest' | 'signed_in';
+    categoryIdsByProduct?: ReadonlyMap<string, ReadonlySet<string>>;
+  }): Promise<Map<string, DisplayMode>> {
+    const out = new Map<string, DisplayMode>();
+    const productIds = [...new Set(input.productIds)];
+    if (productIds.length === 0) return out;
+    const em = this.emFactory();
+
+    // 1. Product-scope overrides for the whole set.
+    const productOverrides = new Map<string, DisplayMode>();
+    for (const row of await em.find(PriceDisplayModeOverride, {
+      scope: 'product',
+      targetId: { $in: productIds },
+    })) {
+      productOverrides.set(row.targetId, row.mode as DisplayMode);
+    }
+
+    // 2. Category memberships, then the category-scope overrides over their
+    //    union — one lookup for the page rather than one per card.
+    const undecided = productIds.filter((id) => !productOverrides.has(id));
+    const categoryIdsByProduct =
+      input.categoryIdsByProduct ?? (await this.loadCategoryMemberships(em, undecided));
+    const categoryUnion = new Set<string>();
+    for (const productId of undecided) {
+      for (const categoryId of categoryIdsByProduct.get(productId) ?? []) {
+        categoryUnion.add(categoryId);
+      }
+    }
+    const rankedByCategory = new Map<string, DisplayModeCategoryCandidate>();
+    if (categoryUnion.size > 0) {
+      const overrides = await em.find(PriceDisplayModeOverride, {
+        scope: 'category',
+        targetId: { $in: [...categoryUnion] },
+      });
+      for (const candidate of await this.rankCategoryOverrides(overrides)) {
+        rankedByCategory.set(candidate.categoryId, candidate);
+      }
+    }
+
+    // 3. The organization row is one row for the whole set.
+    let organizationOverride: DisplayMode | null = null;
     if (input.customerKind === 'signed_in' && input.organizationId) {
-      const orgOverride = await em.findOne(PriceDisplayModeOverride, {
+      const row = await em.findOne(PriceDisplayModeOverride, {
         scope: 'organization',
         targetId: input.organizationId,
       });
-      if (orgOverride) return orgOverride.mode as DisplayMode;
+      organizationOverride = (row?.mode as DisplayMode | undefined) ?? null;
     }
 
-    // 4. Settings fallback.
-    const key =
-      input.customerKind === 'guest'
-        ? 'unauthenticated_display_mode'
-        : 'default_display_mode';
-    return this.readSettingsDisplayMode(key, input.salesChannelId);
+    // 4. Decide, and read the settings pair once if anything still needs it.
+    const needingSettings: string[] = [];
+    for (const productId of productIds) {
+      const candidates: DisplayModeCategoryCandidate[] = [];
+      for (const categoryId of categoryIdsByProduct.get(productId) ?? []) {
+        const ranked = rankedByCategory.get(categoryId);
+        if (ranked) candidates.push(ranked);
+      }
+      const decision = decideDisplayMode({
+        productOverride: productOverrides.get(productId) ?? null,
+        categoryCandidates: candidates,
+        organizationOverride,
+      });
+      if (decision.source === 'settings') needingSettings.push(productId);
+      else out.set(productId, decision.mode);
+    }
+    if (needingSettings.length > 0) {
+      const fallback = await this.readSettingsDisplayMode(
+        settingsDisplayModeKey(input.customerKind),
+        input.salesChannelId,
+      );
+      for (const productId of needingSettings) out.set(productId, fallback);
+    }
+    return out;
   }
 
-  /** Walk the parent chain to compute a category's depth (root = 0). */
-  private async categoryDepth(em: EntityManager, categoryId: string): Promise<number> {
-    let depth = 0;
-    let cursor = await em.findOne(Category, { id: categoryId });
-    while (cursor && cursor.parentCategoryId) {
-      depth += 1;
-      cursor = await em.findOne(Category, { id: cursor.parentCategoryId });
+  /**
+   * `(product_id, category_id)` memberships for a set of products.
+   *
+   * The single-product path reads the same table one product at a time; this
+   * is the `in (…)` form, and every product asked about gets an entry so an
+   * uncategorised product is an empty set rather than a missing key.
+   */
+  private async loadCategoryMemberships(
+    em: EntityManager,
+    productIds: readonly string[],
+  ): Promise<Map<string, Set<string>>> {
+    const out = new Map<string, Set<string>>();
+    for (const id of productIds) out.set(id, new Set());
+    if (productIds.length === 0) return out;
+    const placeholders = productIds.map(() => '?').join(',');
+    const rows = await em.execute<Array<{ product_id: string; category_id: string }>>(
+      `select product_id, category_id from product_categories where product_id in (${placeholders})`,
+      [...productIds],
+    );
+    for (const row of rows) out.get(row.product_id)?.add(row.category_id);
+    return out;
+  }
+
+  /**
+   * Turn category-scope override rows into the chain's ranking inputs.
+   *
+   * `ancestorsOf` answers the category **and** its ancestors, nearest-first, so
+   * one port call replaces the `findOne` plus the parent-pointer loop that
+   * walked `catalog`'s table a level at a time. Depth is the chain length minus
+   * the category itself; an unknown id answers an empty chain and is dropped,
+   * which is what the old `continue` did.
+   */
+  private async rankCategoryOverrides(
+    overrides: readonly PriceDisplayModeOverride[],
+  ): Promise<DisplayModeCategoryCandidate[]> {
+    const out: DisplayModeCategoryCandidate[] = [];
+    for (const override of overrides) {
+      const chain = await this.targets().catalogCategoryRead.ancestorsOf(override.targetId);
+      const category = chain[0];
+      if (!category) continue;
+      out.push({
+        mode: override.mode as DisplayMode,
+        depth: chain.length - 1,
+        sortOrder: category.sortOrder,
+        categoryId: category.id,
+      });
     }
-    return depth;
+    return out;
   }
 
   /**
@@ -986,20 +1178,19 @@ export class PriceListService {
    * table. Throws 400 VALIDATION_FAILED on orphan target IDs (FR-038).
    */
   private async assertOverrideTargetExists(
-    em: EntityManager,
     scope: DisplayModeOverrideScope,
     targetId: string,
   ): Promise<void> {
     let exists: number;
     switch (scope) {
       case 'organization':
-        exists = await em.count(Organization, { id: targetId });
+        exists = await this.targets().organizationDetails.countByIds([targetId]);
         break;
       case 'category':
-        exists = await em.count(Category, { id: targetId });
+        exists = await this.targets().catalogCategoryRead.countByIds([targetId]);
         break;
       case 'product':
-        exists = await em.count(Product, { id: targetId });
+        exists = await this.targets().catalogProductRead.countByIds([targetId]);
         break;
     }
     if (exists === 0) {

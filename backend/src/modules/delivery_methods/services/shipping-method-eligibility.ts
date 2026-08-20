@@ -44,7 +44,10 @@ export class ShippingMethodEligibilityService {
           salesChannelIds: [] as string[],
           rendererKey: adapter.renderers?.storefront ?? null,
         },
-        salesChannelId: ctx.salesChannelId ?? '',
+        // Issue #103 — passed through, `null` included. See the payment twin:
+        // `?? ''` is not a spelling of "platform-wide", it is a value the
+        // settings seam guard rejects.
+        salesChannelId: ctx.salesChannelId,
         organizationId: ctx.organizationId,
         customerAccountId: ctx.customerAccountId,
         surface: ctx.surface,

@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { Mailer } from '../../email/services/mailer.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { EmailMailerPort } from '@b2b/contracts';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
 import { NewsletterSubscriberTag } from '../entities/newsletter-subscriber-tag.entity.js';
@@ -25,10 +25,11 @@ export interface SubscribeInput {
 export interface SubscriberServiceDeps {
   emFactory: () => EntityManager;
   optIn: NewsletterOptInService;
-  /** Channel id used for Settings reads when a subscriber has no origin channel. */
-  platformChannelId: string;
+  /** Channel used for opt-in reads when a subscriber has no origin channel. */
+  defaultChannelId: string | null;
   links: NewsletterLinkBuilder;
-  mailer?: Mailer;
+  /** `emailMailer`, owned by `email`, as its published contract (feature 075). */
+  mailer?: EmailMailerPort;
   auditLog?: AuditLogService;
   /** Optional observability emitter (wraps the in-process EventBus). */
   emitEvent?: (name: string, payload: Record<string, unknown>) => void;
@@ -49,7 +50,7 @@ export class NewsletterSubscriberService {
     const email = input.email.trim().toLowerCase();
 
     const channelId = input.salesChannelId;
-    const settingsChannelId = channelId ?? this.deps.platformChannelId;
+    const settingsChannelId = channelId ?? this.deps.defaultChannelId;
     const mode = await this.deps.optIn.resolveMode(settingsChannelId);
 
     // Suppressed (complaint/bounce) addresses are not silently re-subscribed.
@@ -219,16 +220,30 @@ export class NewsletterSubscriberService {
     await em.flush();
   }
 
-  private async sendConfirmation(subscriberId: string, email: string, salesChannelId: string): Promise<void> {
+  private async sendConfirmation(
+    subscriberId: string,
+    email: string,
+    salesChannelId: string | null,
+  ): Promise<void> {
     if (!this.deps.mailer) return;
     const token = await this.deps.optIn.mintConfirmToken(subscriberId, salesChannelId);
     const url = this.deps.links.confirm(token);
-    await this.deps.mailer.send({
+    const outcome = await this.deps.mailer.send({
       messageId: `newsletter-confirm-${token}`,
       to: email,
       subject: 'Confirm your newsletter subscription',
       text: `Please confirm your subscription by opening this link:\n${url}\n`,
       html: `<p>Please confirm your subscription:</p><p><a href="${url}">Confirm subscription</a></p>`,
+      kind: 'newsletter_confirmation',
     });
+    if (outcome.status !== 'sent') {
+      // The subscriber row exists in `pending` either way; without the message
+      // the double opt-in never completes, so it is named — and D-59's record
+      // is what an operator reads when the subscriber says it never arrived.
+      console.warn('[newsletter] the confirmation e-mail was not sent', {
+        subscriberId,
+        reason: outcome.reason,
+      });
+    }
   }
 }

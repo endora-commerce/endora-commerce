@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
+  CART_UNAVAILABLE,
   getCart,
   getCartUpsells,
   removeCartItem,
@@ -33,7 +34,7 @@ import { CartConvertButtons } from '../../../components/CartConvertButtons';
 import { CartDroppedLinesBanner } from '../../../components/CartDroppedLinesBanner';
 import { CartApprovalBanner } from '../../../components/CartApprovalBanner';
 import { getMe } from '../../../lib/api/account';
-import { getProductDisplayMode } from '../../../lib/api/pricing';
+import { getProductDisplayMode, PRICING_UNAVAILABLE } from '../../../lib/api/pricing';
 import type { DisplayMode } from '@b2b/contracts';
 
 /**
@@ -70,6 +71,28 @@ export default async function CartPage({
   await touchCart(jar).catch(() => undefined);
 
   const result = await getCart(jar);
+  if (result === CART_UNAVAILABLE) {
+    // `carts` is not present (issue #132). The page renders the absence rather
+    // than a Next error page: an empty cart is a cart, and this is not one.
+    const { locale: absentLocale } = await getServerContext();
+    const absentStrings = STRINGS(absentLocale);
+    return (
+      <div className="mx-auto max-w-[1360px] px-[24px]">
+        <Breadcrumbs strings={absentStrings.breadcrumbs} />
+        <div className="rounded-md border border-line bg-surface px-[24px] py-[48px] text-center">
+          <h1 className="m-0 mb-2 text-[22px] font-semibold text-fg">
+            {absentStrings.unavailable.heading}
+          </h1>
+          <p className="m-0 mb-[18px] text-[14px] text-muted">
+            {absentStrings.unavailable.body}
+          </p>
+          <Link href="/catalog" className="btn btn--dark">
+            {absentStrings.browseCatalog}
+          </Link>
+        </div>
+      </div>
+    );
+  }
   if (result.newAnonCookie) await setAnonCartCookie(result.newAnonCookie);
   const cart = result.cart;
 
@@ -92,9 +115,20 @@ export default async function CartPage({
   // wrapper does not forward customer auth), so the whole cart shares one mode
   // — exactly the "single version everywhere" the display setting expresses.
   // Resolved from the first line's product; falls back to net when unreachable.
-  const displayMode: DisplayMode =
+  //
+  // Absent `price_lists` resolves to net too, and that is a decision rather than
+  // a fallback (issue #124): a cart line carries the net price that was quoted
+  // when it was added, which is a real figure, while a gross presentation would
+  // have to be derived from a tax authority this deployment is not serving.
+  // Showing what was quoted is honest; deriving a gross total from it would not
+  // be.
+  const resolvedDisplayMode =
     cart.items.length > 0 && cart.items[0]
-      ? (await getProductDisplayMode(cart.items[0].productId, ctx))?.displayMode ?? 'net_only'
+      ? await getProductDisplayMode(cart.items[0].productId, ctx)
+      : null;
+  const displayMode: DisplayMode =
+    resolvedDisplayMode && resolvedDisplayMode !== PRICING_UNAVAILABLE
+      ? resolvedDisplayMode.displayMode
       : 'net_only';
 
   const upsells = cart.items.length > 0 ? await getCartUpsells(jar).catch(() => []) : [];
@@ -539,6 +573,8 @@ function STRINGS(locale: string): {
   heading: string;
   subheading: (n: number) => string;
   empty: string;
+  /** Issue #132 — the `carts` module is absent; distinct from an empty cart. */
+  unavailable: { heading: string; body: string };
   browseCatalog: string;
   cardHeading: string;
   itemCount: (n: number) => string;
@@ -568,6 +604,10 @@ function STRINGS(locale: string): {
       subheading: (n: number) =>
         n === 1 ? '1 pozycja gotowa do kasy.' : `${n} pozycji gotowych do kasy.`,
       empty: 'Twój koszyk jest pusty.',
+      unavailable: {
+        heading: 'Koszyk jest niedostępny',
+        body: 'Zakupy online są w tej chwili wyłączone w tym sklepie. Katalog produktów pozostaje dostępny.',
+      },
       browseCatalog: 'Przejdź do katalogu',
       cardHeading: 'Koszyk',
       itemCount: (n: number) => (n === 1 ? '1 pozycja' : `${n} pozycji`),
@@ -667,6 +707,10 @@ function STRINGS(locale: string): {
     subheading: (n: number) =>
       n === 1 ? '1 item ready for checkout.' : `${n} items ready for checkout.`,
     empty: 'Your cart is empty.',
+    unavailable: {
+      heading: 'The cart is unavailable',
+      body: 'Online ordering is switched off in this shop right now. The product catalogue is still available.',
+    },
     browseCatalog: 'Browse the catalog',
     cardHeading: 'Cart',
     itemCount: (n: number) => (n === 1 ? '1 item' : `${n} items`),

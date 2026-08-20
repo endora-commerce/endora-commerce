@@ -47,11 +47,21 @@ describe('module:uninstall CLI — argv contract', () => {
   }, 30_000);
 
   it('legacy --remove-settings translates to --hard --force', async () => {
-    // Without a real DB the orchestrator path won't get far, but the argv
-    // parser MUST accept this without exit 64.
-    const { exitCode } = await run(['settings', '--remove-settings']);
-    // Either succeeds against a live DB (exit 0/66/70) or fails internal
-    // (exit 70). Critically NOT exit 64 — the legacy flag was accepted.
+    // Issue #69 — the subject is a module id no manifest declares, for the same
+    // reason as in `cli-disable.contract.test.ts`, and with a sharper edge here:
+    // `--remove-settings` means `--hard --force`, so on any ordering that had
+    // left a `settings` row in `module_registrations` this case would have
+    // hard-uninstalled the settings module — reverting its migrations and
+    // dropping its tables — for every file that ran afterwards. It survived only
+    // because `settings` usually still had registered dependents and the
+    // orchestrator refused with `dependents-block`.
+    //
+    // With an unregistered id the orchestrator finds no registry row, answers
+    // `already-uninstalled` and writes nothing, so the exit code is the same on
+    // every ordering. The banner check pins what the case is really about: the
+    // parser accepted the legacy flag instead of rejecting it as misuse.
+    const { exitCode, stderr } = await run(['nonexistent_module', '--remove-settings']);
+    expect(stderr).not.toContain('usage: module:uninstall');
     expect(exitCode).not.toBe(64);
   }, 30_000);
 });

@@ -37,10 +37,20 @@ describe('transactional emails — registration + prune (US5)', () => {
 
   it('upserts a declared email, preserves customizations, and prunes when removed', async () => {
     const defaults = new EmailDefaultsRegistry();
-    defaults.register(CODE, {
-      defaultSubject: { 'en-US': 'Default subj' },
-      defaultContent: { schema_version: 1, languages: { 'en-US': { root: { props: {} }, content: [] } } },
-    });
+    defaults.register(
+      CODE,
+      {
+        defaultSubject: { 'en-US': 'Default subj' },
+        defaultContent: {
+          schema_version: 1,
+          languages: { 'en-US': { root: { props: {} }, content: [] } },
+        },
+      },
+      // The contributing module, required since D-39: a contribution seam
+      // records who contributed, so the registry can state a policy for an
+      // absent owner rather than having no way to express one.
+      'test_mod',
+    );
     const reconciler = new TransactionalEmailReconciler(h.em, defaults);
 
     // Reconcile with a manifest set that includes our test module. Real modules'

@@ -2,17 +2,25 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  isProductVisibleTo,
+  type ProductAudience,
   type QuoteRequest as RfqDto,
   type QuoteRequestSummary,
   type CreateQuoteRequest,
   type PatchQuoteRequest,
   type ResubmitQuoteRequest,
   type RfqComparisonAgainstLastSeen,
+  type AdminUserReadPort,
+  type CartWritePort,
+  type CatalogProductReadPort,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
+  type SalesRepAssignmentPort,
 } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import {
@@ -20,16 +28,10 @@ import {
   type QuoteRequestEventType,
 } from '../entities/quote-request-event.entity.js';
 import type { QuoteRequestRevisionLine } from '../entities/quote-request-revision.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { Cart } from '../../carts/entities/cart.entity.js';
-import { CartItem } from '../../carts/entities/cart-item.entity.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService} from './rfq-notification-service.js';
 import { type NotificationRecipient } from './rfq-notification-service.js';
-import type { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
-import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
 import type { QuoteRequestBusinessIdGenerator } from './quote-request-business-id-generator.js';
 
 /**
@@ -70,7 +72,30 @@ export interface RfqServiceDeps {
   eventService: RfqEventService;
   revisionService: RfqRevisionService;
   notificationService: RfqNotificationService;
-  salesRepAssignment: SalesRepAssignmentService;
+  salesRepAssignment: SalesRepAssignmentPort;
+  /**
+   * Feature 075, Phase C — the four rows this service reads and none of which
+   * it owns, plus the one it writes.
+   *
+   * Every one of them was an `em.find` / `em.create` against another module's
+   * table, which is the shape Principle XVII cannot gate: deactivation drops no
+   * tables, so a quote kept resolving product names, requester identities and
+   * admin recipients — and kept seeding a cart — out of modules an operator had
+   * switched off. All four owners are binding `dependencies` of this manifest
+   * and every read fails closed; a quote priced against a catalogue the
+   * platform is not serving is worse than a refused quote.
+   *
+   * `carts` is the write, and it is the one that mattered most:
+   * `convertToOrder` created a `Cart` and hand-built `CartItem` rows, with the
+   * clear-then-seed rule spelled out here and `lastActivityAt` maintained
+   * nowhere. `replaceItemsForCustomer` is the port `carts` published for
+   * exactly this — its own doc comment names this call site — so the operation
+   * is owned end to end by the module that owns the tables (D-78 rule 1).
+   */
+  catalogProducts: CatalogProductReadPort;
+  customerAccounts: CustomerAccountReadPort;
+  adminUsers: AdminUserReadPort;
+  carts: CartWritePort;
   /**
    * Generates the customer-facing business Quote Request ID. Optional so
    * legacy/test compositions that don't wire it fall back to the entity's
@@ -79,10 +104,11 @@ export interface RfqServiceDeps {
   businessId?: QuoteRequestBusinessIdGenerator;
   /**
    * Resolves the VAT rate (fraction, e.g. `0.23`) applied to the quote's net
-   * prices for the given Organization. Mirrors the Orders flow. Optional —
-   * when omitted (legacy/test compositions), prices stay net (rate `0`).
+   * prices for the given Organization. Mirrors the Orders flow.
+   *
+   * Required since issue #124 — see `QuoteRequestsModuleOptions.resolveTaxRate`.
    */
-  resolveTaxRate?: (organizationId: string) => Promise<number>;
+  resolveTaxRate: (organizationId: string) => Promise<number>;
   /** Feature 054 — audits RFQ writes co-transactionally when provided. */
   auditLog?: AuditLogService;
 }
@@ -119,12 +145,14 @@ export class RfqService {
   }
 
   /**
-   * Resolves the VAT rate applied to a quote's net prices for an
-   * Organization. Returns `0` when no resolver is wired so net-only
-   * compositions keep their current behaviour.
+   * Resolves the VAT rate applied to a quote's net prices for an Organization.
+   *
+   * No unwired branch (issue #124): the resolver is required, and an absent
+   * `taxes` module surfaces through it as `MODULE_DISABLED` rather than as a
+   * quote silently priced at 0% VAT.
    */
   async taxRateForOrganization(organizationId: string): Promise<number> {
-    return this.deps.resolveTaxRate ? this.deps.resolveTaxRate(organizationId) : 0;
+    return this.deps.resolveTaxRate(organizationId);
   }
 
   // -------------------------------------------------------------------------
@@ -147,7 +175,7 @@ export class RfqService {
     const itemsByRfq = groupBy(items, (i) => i.quoteRequestId);
 
     const requesterIds = [...new Set(rfqs.map((r) => r.customerAccountId))];
-    const requesters = await em.find(CustomerAccount, { id: { $in: requesterIds } });
+    const requesters = await this.deps.customerAccounts.findByIds(requesterIds);
     const requesterById = new Map(requesters.map((r) => [r.id, r]));
 
     // Every RFQ in a customer listing belongs to the same Organization
@@ -195,9 +223,14 @@ export class RfqService {
       throw new HttpError(400, ERROR_CODES.RFQ_EMPTY, 'Quote Request must have at least one line item.');
     }
     const em = this.deps.emFactory();
-    const products = await em.find(Product, { id: { $in: input.items.map((it) => it.productId) } });
+    const products = (
+      await this.deps.catalogProducts.findByIds(input.items.map((it) => it.productId))
+    ).filter((p) => isProductVisibleTo(p, rfqAudience(ctx)));
     const productById = new Map(products.map((p) => [p.id, p]));
     if (productById.size !== new Set(input.items.map((it) => it.productId)).size) {
+      // Issue #227 — a line the buyer may not see is refused the same way a
+      // line naming a product that does not exist is. One message for both, so
+      // the response cannot be used to tell "restricted" from "absent".
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
     }
 
@@ -323,9 +356,13 @@ export class RfqService {
     if (body.headerNote !== undefined) rfq.headerNote = body.headerNote ?? null;
 
     if (body.items) {
-      const products = await em.find(Product, { id: { $in: body.items.map((it) => it.productId) } });
+      const products = (
+        await this.deps.catalogProducts.findByIds(body.items.map((it) => it.productId))
+      ).filter((p) => isProductVisibleTo(p, rfqAudience(ctx)));
       const productById = new Map(products.map((p) => [p.id, p]));
       if (productById.size !== new Set(body.items.map((it) => it.productId)).size) {
+        // Issue #227 — see `createForCustomer`. A revision may not add a line
+        // the original submission could not have carried.
         throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
       }
       const existingItems = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
@@ -600,7 +637,7 @@ export class RfqService {
     // case "product archived between approve and convert" maps to a 409
     // here so the customer is forced to contact the rep.
     const productIds = items.map((it) => it.productId);
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.deps.catalogProducts.findByIds(productIds);
     if (products.length !== new Set(productIds).size) {
       throw new HttpError(
         409,
@@ -609,45 +646,39 @@ export class RfqService {
       );
     }
 
-    // Get-or-create the customer's active cart, clear it, and reseed at
-    // the RFQ's agreed unit prices. The orders module copies
-    // CartItem.unitPrice straight onto OrderItem.unitPrice (no
-    // recomputation), so the negotiated price flows through unchanged.
-    let cart = await em.findOne(Cart, {
-      customerAccountId: ctx.customerAccountId,
-      organizationId: ctx.organizationId,
-      status: 'active',
-    });
-    if (!cart) {
-      cart = em.create(Cart, {
+    // Get-or-create the customer's active cart, clear it, and reseed at the
+    // RFQ's agreed unit prices. The orders module copies `CartItem.unitPrice`
+    // straight onto `OrderItem.unitPrice` (no recomputation), so the negotiated
+    // price flows through unchanged.
+    //
+    // Feature 075, Phase C — one port call where this module used to create a
+    // `Cart` and hand-build `CartItem` rows in `carts`' tables. The
+    // clear-then-seed rule and the `lastActivityAt` bookkeeping now live once,
+    // inside the module that owns them; `carts` published
+    // `replaceItemsForCustomer` naming this call site.
+    const seeded = await this.deps.carts.replaceItemsForCustomer(
+      {
         customerAccountId: ctx.customerAccountId,
         organizationId: ctx.organizationId,
-      });
-      await em.persistAndFlush(cart);
-    } else {
-      const existing = await em.find(CartItem, { cartId: cart.id });
-      if (existing.length > 0) await em.removeAndFlush(existing);
-    }
-
-    const newCartItems: CartItem[] = items.map((it) =>
-      em.create(CartItem, {
-        cartId: cart!.id,
+      },
+      items.map((it) => ({
         productId: it.productId,
         ...(it.variantId ? { variantId: it.variantId } : {}),
         quantity: it.quantity,
         unitPrice: (it.agreedUnitPrice ?? '0').toString(),
         currency: it.lineCurrency,
-      }),
+      })),
     );
+    const cartId = seeded.cart.id;
     this.#audit(em, 'quote_request.convert_to_order', rfq.id, null, {
-      cartId: cart.id,
-      itemCount: newCartItems.length,
+      cartId,
+      itemCount: seeded.items.length,
     });
-    await em.persistAndFlush(newCartItems);
+    await em.flush();
 
     return {
-      cartId: cart.id,
-      checkoutUrl: `/checkout?cartId=${cart.id}&fromRfq=${rfq.id}`,
+      cartId,
+      checkoutUrl: `/checkout?cartId=${cartId}&fromRfq=${rfq.id}`,
     };
   }
 
@@ -680,26 +711,25 @@ export class RfqService {
     sourceEventId: string,
     quoteRequestId: string,
   ): Promise<void> {
-    const em = this.deps.emFactory();
     // Find every admin user assigned to the org. If the org is unassigned,
     // fan out to every active admin user holding the sales_representative
     // role plus every platform_admin (research §R4).
-    const orgHasAssignment = await em
-      .count(
-        // Late import via the sibling service is awkward here; use a raw
-        // EntityManager find on the assignment entity.
-        (await import('../../organizations/entities/organization-sales-rep-assignment.entity.js'))
-          .OrganizationSalesRepAssignment,
-        { organizationId },
-      )
-      .catch(() => 0);
+    //
+    // Feature 075, Phase C — this asked the question twice: an `em.count` on
+    // `organizations`' assignment entity, reached through a dynamic `import()`
+    // with a comment apologising for it, and then the port. The count was a
+    // duplicate of `listForOrganization(…).length`, and its `.catch(() => 0)`
+    // silently answered "unassigned" — a fan-out to every admin — for any
+    // failure at all, `MODULE_DISABLED` included. One port call, no catch, and
+    // an absent `organizations` now stops the notification instead of
+    // broadcasting it.
+    const assignments = await this.deps.salesRepAssignment.listForOrganization(organizationId);
 
     const recipients: NotificationRecipient[] = [];
-    if (orgHasAssignment > 0) {
-      const assignments = await this.deps.salesRepAssignment.listForOrganization(organizationId);
+    if (assignments.length > 0) {
       for (const a of assignments) recipients.push({ adminUserId: a.adminUserId });
     } else {
-      const everyAdmin = await em.find(AdminUser, {});
+      const everyAdmin = await this.deps.adminUsers.listAll();
       for (const a of everyAdmin) recipients.push({ adminUserId: a.id });
     }
 
@@ -821,7 +851,7 @@ function anyLocaleValue(blob: Record<string, string>): string {
   return k ? (blob[k] ?? '') : '';
 }
 
-function customerDisplayName(c: CustomerAccount): string {
+function customerDisplayName(c: CustomerAccountRecord): string {
   return [c.firstName, c.lastName].filter(Boolean).join(' ') || c.email;
 }
 
@@ -871,4 +901,15 @@ function groupBy<T, K>(arr: T[], key: (t: T) => K): Map<K, T[]> {
     else out.set(k, [v]);
   }
   return out;
+}
+
+/**
+ * The {@link ProductAudience} an RFQ line speaks for (issue #227).
+ *
+ * A quote request is always a signed-in buyer's, and its `organizationId` is
+ * the one the RFQ is filed under — so it is also the one the product's
+ * allow-list has to name.
+ */
+function rfqAudience(ctx: CustomerContext): ProductAudience {
+  return { organizationId: ctx.organizationId, authenticated: true };
 }

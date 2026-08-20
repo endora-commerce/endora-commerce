@@ -13,8 +13,11 @@
   "actions.invoiceTemplates.label": "Szablony faktur",
   "actions.invoiceTemplates.description": "Dostosuj wygląd PDF faktury (WYSIWYG)",
   "list.title": "Faktury",
-  "errors.SELLER_SETTINGS_MISSING": "Skonfiguruj NIP/VAT oraz dane firmy sprzedawcy przed wystawianiem faktur.",
-  "errors.INVOICE_ALREADY_EXISTS": "Faktura tego typu już istnieje dla tego zamówienia.",
-  "errors.ORDER_NOT_FOUND": "Nie znaleziono zamówienia.",
-  "errors.INVOICE_NOT_FOUND": "Nie znaleziono faktury."
+  "errors.INVOICE_NOT_READY": "Faktura do tego zamówienia nie jest jeszcze gotowa. Będzie dostępna po jej wystawieniu.",
+  "errors.INVOICE_NUMBER_PATTERN_COLLIDES": "Ten wzorzec numeracji może wygenerować taki sam numer dokumentu jak inny kanał sprzedaży. Numery faktur muszą być unikalne w całej platformie.",
+  "errors.INVOICE_NUMBER_PATTERN_COLLIDES.other_channel": "Ten wzorzec numeracji może wygenerować taki sam numer dokumentu jak kanał sprzedaży \"{channel}\". Numery faktur są unikalne w całej platformie, więc nadaj temu kanałowi wzorzec, którego tamten nie może powtórzyć — zwykle wystarczy dodać token kanału.",
+  "errors.INVOICE_NUMBER_PATTERN_COLLIDES.no_sequence_token": "Ten wzorzec numeracji nie zawiera tokenu sekwencji, więc każdy dokument w tym kanale otrzymałby ten sam numer. Dostępne tokeny są wymienione w opisie pola.",
+  "errors.INVOICE_NUMBER_ALREADY_ISSUED": "Ten numer dokumentu jest już zajęty. Numery faktur są unikalne w całej platformie.",
+  "errors.INVOICE_NUMBER_ALREADY_ISSUED.other_channel": "Numer faktury {number} jest już używany przez kanał sprzedaży \"{channel}\". Nadaj temu kanałowi własny wzorzec numeracji przed ponowną próbą — nic nie zostało wystawione.",
+  "errors.INVOICE_NUMBER_ALREADY_ISSUED.same_channel": "Numer faktury {number} został już wystawiony w tym kanale sprzedaży, więc jego wzorzec numeracji generuje powtórzenia — nic nie zostało wystawione."
 }

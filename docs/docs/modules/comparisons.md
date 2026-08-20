@@ -68,6 +68,20 @@ comparison, or use *Add to cart*.
 The link works as long as the comparison exists. If you delete the
 comparison, the link stops working for everyone.
 
+**What the recipient sees is decided by who the recipient is**, not by
+who sent the link. A share link grants access to the comparison, never
+to anything in it:
+
+- **Prices** — a signed-in recipient sees the prices agreed with *their*
+  organization, and a recipient who is not signed in sees the store's
+  standard prices. Your negotiated prices are never disclosed by a link
+  you send, and the page says whose prices it is showing.
+- **Products** — if your comparison holds a product that is restricted
+  to your organization, a recipient outside it does not see that column.
+  The page tells them that something is not available to them rather
+  than quietly showing a shorter table. A recipient whose own
+  organization is allowed to see the product sees it normally.
+
 ### 5. Add a chosen product to the cart
 
 Once you've decided, click **Add to cart** on the chosen product's
@@ -110,6 +124,9 @@ any shared links you sent stop resolving.
 - **Shared link in a different sales channel** — recipients see prices
   in their own channel currency, and any product that isn't sold in
   their channel still appears but is marked unavailable.
+- **Shared link opened by a buyer from another organization** — the
+  columns are re-priced for that buyer's own agreements, and any product
+  they are not entitled to see is left out with a note saying so.
 - **Multi-value attributes** — two products are treated as agreeing on
   a multi-value attribute (e.g. a list of certifications) only when
   their full sets of values match.
@@ -124,12 +141,16 @@ comparison every customer has built, with the customer's email (or
 display mode, the product count, and the creation time. Filter by
 channel, owner kind, or time range; sort is newest-first by default.
 
-Click a row to open the detail view. You'll see the same products and
-attribute rows the customer is currently looking at — projected
-through that customer's sales channel so prices match what they
-reported. There are no edit, delete, or share buttons on the admin
-view by design (it is read-only audit, not a tool to alter customer
-state).
+Click a row to open the detail view. You'll see every product and
+attribute row the customer put in the comparison — including products
+restricted to organizations other than theirs — projected through that
+customer's sales channel. **The prices here are the channel's standard
+prices, not the customer's negotiated ones**: the comparison prices for
+whoever is looking at it, and an administrator has no buying
+organization to price against. The screen says so, so a figure quoted
+back to a customer is never mistaken for the figure they were shown.
+There are no edit, delete, or share buttons on the admin view by design
+(it is read-only audit, not a tool to alter customer state).
 
 If a customer deletes their comparison on the storefront, the row
 disappears from the admin list on the next refresh.
@@ -161,7 +182,7 @@ tickets that quote a shared link.
 | `PATCH /api/v1/comparisons/me` | storefront | Update the persisted display mode (`all` / `common` / `differences`) |
 | `DELETE /api/v1/comparisons/me` | storefront | Hard-delete the Comparison; the share token stops resolving for everyone |
 | `GET /api/v1/comparisons/me/pdf` | storefront (owner only) | Owner PDF export; PDF mirrors the active mode and embeds product base images; `409 COMPARISON_EMPTY` for a zero-product comparison |
-| `GET /api/v1/comparisons/share/:token` | public, no auth | Recipient view; same shape as the owner read minus `maxProducts`, plus `meta.viewerIsOwner`; `404 COMPARISON_NOT_FOUND` for a deleted/never-existed token |
+| `GET /api/v1/comparisons/share/:token` | public, no auth | Recipient view; same shape as the owner read minus `maxProducts`, plus `meta.viewerIsOwner`; priced and filtered for the *recipient* (`data.pricedFor`, `data.hiddenProductCount`); `404 COMPARISON_NOT_FOUND` for a deleted/never-existed token |
 | `GET /api/v1/admin/comparisons` | admin (`comparisons:read`) | List every Comparison with filters (channel, owner kind, time range) and cursor pagination |
 | `GET /api/v1/admin/comparisons/:id` | admin (`comparisons:read`) | Read-only detail; rendered through the comparison's recorded sales channel so the view matches what the customer reported |
 
@@ -249,7 +270,7 @@ through the AssetByteFetcher.
 | --- | --- | --- |
 | Reads | Catalog products and `is_comparable` flag | `CatalogQueryService.comparableAttributeKeys()` + entity reads via the EM |
 | Reads | `compare.max_products` | `SettingsService.get(...)` — same shape Search uses |
-| Reads | Sales channel context (currency, public flag) | `request.salesChannel` from the resolver middleware |
+| Reads | Sales channel context (currency, public flag) | `getResolvedChannel()` — the channel the resolver middleware put on the request scope |
 | Reads | Customer email for the admin list | `CustomerAccount` entity — read-only join |
 | Writes | None outside its own two tables | — |
 

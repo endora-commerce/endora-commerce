@@ -1,8 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { apiPlaceOrderRequestSchema, ERROR_CODES } from '@b2b/contracts';
+import {
+  apiPlaceOrderRequestSchema,
+  ERROR_CODES,
+  OrganizationCannotTransactError,
+} from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
 import type { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { OrderStatus } from './entities/order-status.entity.js';

@@ -44,7 +44,9 @@ export const TABLE_OWNER_OVERRIDES: Readonly<Record<string, string>> = {
   sales_channel_promotions: 'sales_channels',
   sales_channel_taxes: 'sales_channels',
 
-  // Settings scoping bridges.
-  setting_group_sales_channels: 'settings',
-  setting_sales_channels: 'settings',
+  // Settings scoping bridges. Kernel-owned since feature 072 T018: they are the
+  // pivot tables of `Setting.salesChannels` / `SettingGroup.salesChannels`, and
+  // both of those entities live in the kernel now.
+  setting_group_sales_channels: 'kernel',
+  setting_sales_channels: 'kernel',
 };

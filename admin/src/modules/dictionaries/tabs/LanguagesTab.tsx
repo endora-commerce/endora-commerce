@@ -34,6 +34,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { dictionaryClient } from '../client';
 import { EntryStatusBadges } from '../components/EntryStatusBadges';
 import { TranslationsDrawer } from '../components/TranslationsDrawer';
+import { normalize } from '@/lib/text-normalization';
 
 interface LanguageFormState {
   code: string;
@@ -102,12 +103,12 @@ export function LanguagesTab(): ReactNode {
   }, [load]);
 
   const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase();
+    const needle = normalize(search);
     if (!needle) return rows;
     return rows.filter((row) =>
       [row.code, row.label, row.nativeLabel, row.fallbackCode ?? '']
+        .map(normalize)
         .join(' ')
-        .toLowerCase()
         .includes(needle),
     );
   }, [rows, search]);

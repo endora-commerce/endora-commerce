@@ -331,9 +331,24 @@ export type DictionaryByCodeResponse = z.infer<typeof dictionaryByCodeResponseSc
 export type DictionaryWriteMode = 'create-or-change' | 'unchanged';
 
 /**
- * Service port consumed by every module that accepts a country/currency/language
- * reference on a write path. Wired via the composition root — consumer modules
- * accept this port via plugin options, never importing dictionaries internals.
+ * Container name: `dictionaryValidator`. Owner: `dictionaries`.
+ *
+ * Consumed by every module that accepts a country/currency/language reference
+ * on a write path — nine of them today, which is why the shape is declared
+ * here rather than in each of them: a consumer names this type and the
+ * container, never a file under `dictionaries` (Principle I).
+ *
+ * The wording used to say "wired via the composition root — consumer modules
+ * accept this port via plugin options". That stopped being true when the
+ * modules were composed by the kernel container (feature 072): the owner
+ * registers the name with `ctx.di.providePort` and each consumer resolves it
+ * with `lazyPort`.
+ *
+ * **Owner off:** the seam fails closed — resolving the port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so a write
+ * that cannot have its country code checked is refused rather than accepted
+ * unchecked. Whether `dictionaries` has an off state at all is its manifest's
+ * `activation` to say, not this line's.
  */
 export interface DictionaryValidator {
   validateCountryCode(code: string, mode: DictionaryWriteMode): Promise<void>;
@@ -369,4 +384,137 @@ export class DictionaryReferenceError extends Error {
     this.entryType = args.entryType;
     this.entryCode = args.entryCode;
   }
+}
+
+/**
+ * Decide which write mode a dictionary-referencing field is being validated
+ * under: `create-or-change` when the field is new or its value moved,
+ * `unchanged` when it did not.
+ *
+ * Relocated here from `dictionaries/services/dispatch-validator-mode.ts`
+ * (feature 075, Phase P) and published as a **function, not a port** — which
+ * contradicts `contracts/port-publication.md` §1.5, and the code is why. That
+ * section cites this file as the worked example of "yes, it reads state the
+ * module owns, so make it a port"; it reads nothing. It is three comparisons
+ * over its two arguments, and switching `dictionaries` off cannot change the
+ * answer, so a gated port would answer 503 to a question about two strings the
+ * caller already holds (FR-013).
+ *
+ * Five modules call it — `addresses`, `inventory`, `promotions`,
+ * `sales_channels` and `taxes` — immediately before calling the validator
+ * port, which *is* gated and *does* read state. Splitting the pure decision
+ * from the stateful validation is what lets the second fail closed without the
+ * first inventing a mode.
+ */
+export function dispatchValidatorMode(
+  currentValue: string | null | undefined,
+  incomingValue: string | null | undefined,
+): DictionaryWriteMode {
+  if (!currentValue) return 'create-or-change';
+  if (!incomingValue) return 'unchanged';
+  return currentValue === incomingValue ? 'unchanged' : 'create-or-change';
+}
+
+// ---------------------------------------------------------------------------
+// Reference registries — "who still points at this dictionary entry?"
+// (feature 077, D-87 drain).
+// ---------------------------------------------------------------------------
+
+/**
+ * One consumer's answer about one dictionary code.
+ *
+ * The four descriptive fields are what the operator sees in the orphan report,
+ * and `ownerModuleId` is what attributes a refused delete to a module.
+ */
+export interface DictionaryReference {
+  ownerModuleId: string;
+  /** Operator-facing name of the consuming surface, e.g. `blog`. */
+  consumer: string;
+  /** The consumer's own table holding the reference. */
+  tableName: string;
+  /** The column, or the JSON path inside it, e.g. `registered_address.country`. */
+  columnName: string;
+  code: string;
+  count: number;
+  /**
+   * Whether this reference refuses the delete.
+   *
+   * `false` where the consumer's own foreign key clears the value instead
+   * (`on delete set null`) — the reference is still reported, because an
+   * operator about to blank a column wants to know, but it does not block.
+   * The decision belongs to the module that owns the referencing table, which
+   * is why it travels on the descriptor rather than in a caller's exception
+   * list.
+   */
+  blocking: boolean;
+}
+
+/**
+ * One contributed "who points at this dictionary entry" scanner.
+ *
+ * A module that stores a country, language or currency code registers one of
+ * these per column it stores it in, from its own `ctx.onBoot`. It queries its
+ * **own** tables and nothing else — which is the whole point: before this
+ * existed, `dictionaries`, `languages` and `currencies` each hand-wrote SQL
+ * naming twelve other modules' tables, invisible to every import-level
+ * boundary check because raw SQL names no specifier (D-87).
+ *
+ * `ownerModuleId` is required and is the whole mechanism (D-39): without it the
+ * registry could not state a policy for an absent owner at all.
+ */
+export interface DictionaryReferenceDescriptor {
+  ownerModuleId: string;
+  consumer: string;
+  tableName: string;
+  columnName: string;
+  /** See {@link DictionaryReference.blocking}. */
+  blocking: boolean;
+  /**
+   * How many of this consumer's rows reference `code`. Asked before a delete,
+   * so it must be a point query the consumer's own indexes can serve.
+   */
+  countReferences(code: string): Promise<number>;
+  /**
+   * Every code this consumer stores, with its row count. Asked by the orphan
+   * report, which is a full-table audit by nature — the caller subtracts the
+   * dictionary's own codes to find the danglers.
+   */
+  usedCodes(): Promise<ReadonlyArray<{ code: string; count: number }>>;
+}
+
+/**
+ * Container name: `countryReferenceRegistry`. Owner: `dictionaries`.
+ * Container name: `languageReferenceRegistry`. Owner: `languages`.
+ * Container name: `currencyReferenceRegistry`. Owner: `currencies`.
+ *
+ * One shape, three instances — one per dictionary, each owned by the module
+ * that owns the table being pointed at. Three rather than one because the
+ * enumeration policy and the 409 belong to the owner of the entry being
+ * deleted, and because a single registry would have to live in a module that
+ * two of the three readers cannot declare without closing a manifest cycle
+ * (`dictionaries` already depends on `languages` and `currencies`).
+ *
+ * A **contribution seam**: contributors push from a boot hook and read nothing
+ * back, so the registration is a plain `ctx.di.register` rather than a
+ * `providePort` — a boot hook that resolved a gate would stop the backend from
+ * starting whenever the registry's owner was switched off. All three owners are
+ * `nonDeactivatable` today, which is why no reader here degrades.
+ *
+ * **Enumeration policy: honoured while the contributing module is absent.**
+ * D-39's default is to skip, and honouring needs a written reason: this is
+ * referential integrity, not a surface. If `blog` is switched off its posts
+ * still exist and still carry language codes; skipping `blog`'s descriptor
+ * would let an operator delete a language that comes back as a dangling
+ * reference the moment `blog` is switched on again — data loss caused by an
+ * action Constitution XVII promises is non-destructive and reversible. Nobody
+ * sees a descriptor; they exist to refuse a delete and to report a dangler.
+ */
+export interface DictionaryReferenceRegistryPort {
+  register(descriptor: DictionaryReferenceDescriptor): void;
+  /** The contributing module of every registered descriptor, in registration order. */
+  owners(): readonly string[];
+  /** Every reference pointing at one code, across all descriptors. Zero counts dropped. */
+  countReferences(code: string): Promise<DictionaryReference[]>;
+  /** Every code every descriptor stores, with its row count. */
+  usedCodes(): Promise<DictionaryReference[]>;
 }

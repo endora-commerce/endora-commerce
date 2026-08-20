@@ -22,6 +22,7 @@
   "list.loadMore": "Load more",
   "detail.page.title": "Comparison detail",
   "detail.page.description": "Read-only view — what the customer is currently seeing.",
+  "detail.pricesNote": "Prices here are the sales channel’s standard prices, not the customer’s negotiated ones — the customer sees their own. Products restricted to other organizations are listed here in full.",
   "detail.backToList": "Back to list",
   "detail.owner": "Owner",
   "detail.salesChannel": "Sales channel",

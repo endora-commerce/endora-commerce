@@ -2,8 +2,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type { EventBus } from '../../events/bus.js';
-import type { SettingsService } from '../settings/services/settings.service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { RETURNS_SETTING_CODES } from './manifest.js';
 import { ReturnStatusGraphService } from './services/return-status-graph-service.js';
 import { ReturnTransitionService } from './services/return-transition-service.js';
@@ -47,15 +47,9 @@ export interface ReturnsModuleOptions {
   correctiveInvoice: CorrectiveInvoicePort;
   creditTopup: CreditTopupPort;
   /** Audit-log writer (FR-041); status changes + settlement are recorded. */
-  auditLog?: AuditLogService;
+  auditLog: AuditLogService;
   /** Best-effort customer notifications on authorize/reject. */
   notifier?: ReturnNotifier;
-  /** Exposes the transition service back to composition (e.g. for settlement guards). */
-  exposeServices?: (services: {
-    graphService: ReturnStatusGraphService;
-    transitions: ReturnTransitionService;
-    caseService: ReturnCaseService;
-  }) => void;
 }
 
 /**
@@ -155,7 +149,6 @@ export function returnsModule(
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
-  options.exposeServices?.({ graphService, transitions, caseService });
 
   await registerReturnsCustomerRoutes(app, {
     caseService,

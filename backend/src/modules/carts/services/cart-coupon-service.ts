@@ -2,10 +2,14 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CartSnapshot, CouponDropReason, PromotionApplication } from '@b2b/contracts';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
-import { Promotion } from '../../promotions/entities/promotion.entity.js';
-import { PromotionCoupon } from '../../promotions/entities/promotion-coupon.entity.js';
-import type { PromotionService } from '../../promotions/services/promotion-service.js';
+import type {
+  CustomerAccountReadPort,
+  OrganizationDetailsPort,
+  PromotionApplyPort,
+  PromotionCodePort,
+} from '@b2b/contracts';
 import type { CartApprovalService } from './cart-approval-service.js';
+import { resolveCartCustomerGroupId } from './customer-group-resolver.js';
 
 /**
  * Cart-level coupon application (feature 027 US2).
@@ -56,9 +60,36 @@ export class CartCouponService {
    */
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly promotionService: PromotionService,
+    /** `promotions`' apply surface — the discount the engine computes. */
+    private readonly promotionService: PromotionApplyPort,
+    /**
+     * `promotions`' code-resolution port (feature 075, Phase C). The
+     * three-step lookup it replaces — legacy `promotions.code`, then
+     * `promotion_coupons`, then the promotion behind the coupon, each filtered
+     * on `isActive` — is that module's business, and this file reproduced it.
+     */
+    private readonly promotionCodes: PromotionCodePort,
+    /**
+     * Issue #177 — the two reads behind the buyer's effective customer group,
+     * which every snapshot this service builds used to pass as a literal
+     * `null`. A coupon or automatic promotion an operator restricted to a
+     * group therefore matched nobody.
+     */
+    private readonly customerAccounts: CustomerAccountReadPort,
+    private readonly organizations: OrganizationDetailsPort,
     private readonly approvalService?: CartApprovalService,
   ) {}
+
+  /** The buyer's effective group: their own, else their Organization's. */
+  private customerGroupIdFor(cart: Cart): Promise<string | null> {
+    return resolveCartCustomerGroupId(
+      { customerAccounts: this.customerAccounts, organizations: this.organizations },
+      {
+        customerAccountId: cart.customerAccountId ?? null,
+        organizationId: cart.organizationId ?? null,
+      },
+    );
+  }
 
   /**
    * Apply (or replace) the active coupon on the cart. Validates against
@@ -91,7 +122,7 @@ export class CartCouponService {
     // drop response (the snapshot's eligibility filter inside applyToCart
     // is opaque to callers, so we re-implement the precondition checks
     // here for the reason mapping).
-    const promotion = await this.resolvePromotionByCode(em, code);
+    const promotion = await this.promotionCodes.resolveByCode(code);
     if (!promotion) {
       return { outcome: 'dropped', reason: 'invalid_code' };
     }
@@ -130,7 +161,7 @@ export class CartCouponService {
     // feature 012).
     const snapshot: CartSnapshot = {
       organizationId: cart.organizationId ?? null,
-      customerGroupId: null,
+      customerGroupId: await this.customerGroupIdFor(managedCart),
       currency,
       lines: items.map((it) => ({
         productId: it.productId,
@@ -146,7 +177,7 @@ export class CartCouponService {
     };
 
     const application = await this.promotionService.applyToCart(snapshot);
-    const stuck = application.appliedPromotions.some((ap) => ap.promotionId === promotion.id);
+    const stuck = application.appliedPromotions.some((ap) => ap.promotionId === promotion.promotionId);
     if (!stuck) {
       // Eligible by the local pre-checks but rejected by the engine's
       // criteria — bucket as `wrong_customer_group` since that's the
@@ -182,7 +213,7 @@ export class CartCouponService {
     const currency = items[0]?.currency ?? 'PLN';
     const snapshot: CartSnapshot = {
       organizationId: cart.organizationId ?? null,
-      customerGroupId: null,
+      customerGroupId: await this.customerGroupIdFor(cart),
       currency,
       lines: items.map((it) => ({
         productId: it.productId,
@@ -231,7 +262,7 @@ export class CartCouponService {
     const code = cart.appliedPromotionCode;
 
     const em = this.emFactory();
-    const promotion = await this.resolvePromotionByCode(em, code);
+    const promotion = await this.promotionCodes.resolveByCode(code);
     if (!promotion) {
       await this.persistDrop(em, cart);
       return { dropped: { code, reason: 'invalid_code' } };
@@ -268,19 +299,6 @@ export class CartCouponService {
    * also mirror the change onto the caller's in-memory cart so the
    * read-side serializer sees the dropped coupon.
    */
-  /**
-   * Resolve a presented code to its active Promotion — first via the legacy
-   * `promotions.code` column, then via the feature-045 `promotion_coupons`
-   * table.
-   */
-  private async resolvePromotionByCode(em: EntityManager, code: string): Promise<Promotion | null> {
-    const byLegacy = await em.findOne(Promotion, { code, isActive: true });
-    if (byLegacy) return byLegacy;
-    const coupon = await em.findOne(PromotionCoupon, { code, isActive: true });
-    if (!coupon) return null;
-    return em.findOne(Promotion, { id: coupon.promotionId, isActive: true });
-  }
-
   private async persistDrop(em: EntityManager, cart: Cart): Promise<void> {
     // command-coverage-ignore: transient cart coupon state (see apply()).
     const managed = await em.findOne(Cart, { id: cart.id });

@@ -354,3 +354,158 @@ export const storefrontQuoteRequestSettingsSchema = z.object({
   showAddToQuoteOnPdp: z.boolean(),
 });
 export type StorefrontQuoteRequestSettings = z.infer<typeof storefrontQuoteRequestSettingsSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `quote_requests` publishes to the six modules that
+// read it (feature 075, Phase P). Plain TypeScript, not Zod: these describe
+// in-process calls, not an API boundary.
+// ---------------------------------------------------------------------------
+
+/**
+ * The lifecycle statuses of a quote request.
+ *
+ * Published as a **union, not a port** (FR-013): `organizations`' sales-rep
+ * screen counts the three open ones by name, and switching a module off does
+ * not change what `'Pending'` is spelled. Unlike the order lifecycle these are
+ * fixed at compile time — a quote's status set is not admin-configurable.
+ *
+ * The capitalised, space-separated spellings are the persisted column values
+ * (research §R3); do not tidy them.
+ */
+export type QuoteRequestStatus =
+  | 'Created from admin'
+  | 'Pending'
+  | 'Canceled'
+  | 'Approved'
+  | 'Completed'
+  | 'Expired';
+
+/** The statuses that mean "this quote is still live". */
+export const OPEN_QUOTE_REQUEST_STATUSES: readonly QuoteRequestStatus[] = [
+  'Pending',
+  'Created from admin',
+  'Approved',
+];
+
+/**
+ * A quote request as it crosses a module boundary — a plain shape, never the
+ * ORM entity (FR-011). The full customer-facing projection is `RfqDto`
+ * (`QuoteRequest` above), which carries the items, the events and the revision
+ * comparison; this is the row, for the two modules that only need to count or
+ * cross-reference one.
+ */
+export interface QuoteRequestRecord {
+  id: string;
+  businessId: string;
+  organizationId: string;
+  customerAccountId: string;
+  createdByAdminUserId: string | null;
+  assignedAdminUserId: string | null;
+  status: QuoteRequestStatus;
+  headerNote: string | null;
+  cancellationReason: string | null;
+  awaitingCustomerRevisionAcceptance: boolean;
+  lastCustomerSeenRevisionNumber: number;
+  currentRevisionNumber: number;
+  submittedAt: Date | null;
+  approvedAt: Date | null;
+  canceledAt: Date | null;
+  completedAt: Date | null;
+  expiredAt: Date | null;
+  expiresAt: Date | null;
+  convertedOrderId: string | null;
+  customFieldValues: Record<string, unknown>;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * One quote-request line, as the module that converts one back into a cart
+ * reads it (feature 075, `carts`' cut).
+ *
+ * Narrower than the row on purpose: the conversion re-resolves every price
+ * against the buyer's current price list (FR-017), so the money columns are
+ * deliberately absent — a caller that cannot see `desiredUnitPrice` cannot
+ * accidentally carry it over, which is the rule the conversion exists to obey.
+ * `productName` travels because a dropped line is reported by name.
+ */
+export interface QuoteRequestLineRecord {
+  id: string;
+  quoteRequestId: string;
+  productId: string;
+  productName: string;
+  variantId: string | null;
+  quantity: number;
+  packagingUnitName: string | null;
+  packagingUnitBaseQuantity: number | null;
+}
+
+/**
+ * Container name: `quoteRequestReadPort`. Owner: `quote_requests`.
+ *
+ * Two consumers, two questions. `carts` resolves the quote a cart was
+ * converted from, to show the buyer where the prices came from;
+ * `organizations` counts the open quotes per organisation on the sales-rep
+ * screen, which is where `OPEN_QUOTE_REQUEST_STATUSES` had been written out by
+ * hand.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `quote_requests` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface QuoteRequestReadPort {
+  findById(id: string): Promise<QuoteRequestRecord | null>;
+  /**
+   * Open quotes for the given organisations. Empty `organizationIds` answers
+   * the empty array rather than every quote — a rep assigned nothing sees
+   * nothing, which is not the same question as "no filter".
+   */
+  listOpenForOrganizations(
+    organizationIds: readonly string[],
+  ): Promise<QuoteRequestRecord[]>;
+  /**
+   * The quote's lines, in insertion order. Added in `carts`' cut: the
+   * quote-to-cart conversion read `QuoteRequestItem` directly, so it kept
+   * re-stocking a cart from quotes belonging to a module an operator had
+   * switched off.
+   */
+  listItems(quoteRequestId: string): Promise<QuoteRequestLineRecord[]>;
+}
+
+/** Who is asking, on a customer-facing quote path. */
+export interface RfqCustomerContext {
+  customerAccountId: string;
+  organizationId: string;
+  /**
+   * True when the account holds the org-admin role on the current
+   * organisation (FR-011 — broader visibility).
+   */
+  isOrgAdmin: boolean;
+}
+
+/**
+ * Container name: `rfqService`. Owner: `quote_requests`.
+ *
+ * The customer-facing quote surface five modules reach: `carts` converting a
+ * cart, `orders` cloning an order to a quote, `shopping_lists` and
+ * `quick_order` quoting a built list, `customers` listing a buyer's quotes.
+ *
+ * Both methods already answer with contract DTOs, so this port needed no
+ * adapter — only a published name for the shape the five were importing the
+ * class to get.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `quote_requests` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface RfqCustomerPort {
+  createForCustomer(ctx: RfqCustomerContext, input: CreateQuoteRequest): Promise<QuoteRequest>;
+  listForCustomer(ctx: RfqCustomerContext): Promise<QuoteRequestSummary[]>;
+}

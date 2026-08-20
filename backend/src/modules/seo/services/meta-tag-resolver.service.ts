@@ -1,12 +1,18 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
-import type { ResolvedMeta, SeoEntityType } from '@b2b/contracts';
+import type {
+  CatalogCategoryReadPort,
+  CatalogCategoryRecord,
+  CatalogProductReadPort,
+  CatalogProductRecord,
+  CmsPageReadPort,
+  CmsPageRecord,
+  ResolvedMeta,
+  SeoEntityType,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { Category } from '../../catalog/entities/category.entity.js';
-import { CmsPage } from '../../cms/entities/cms-page.entity.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { SeoMetaOverride } from '../entities/seo-meta-override.entity.js';
 
 /**
@@ -20,6 +26,12 @@ import { SeoMetaOverride } from '../entities/seo-meta-override.entity.js';
  *
  * Locale fallback: if no override exists for the requested locale, try
  * `en-US`, then return rule-only.
+ *
+ * The three rule sources arrive over their owners' published read ports
+ * (feature 075, Phase C) rather than out of `catalog`'s and `cms`' tables.
+ * Both edges fail closed, which is the answer a meta tag should get: the tags
+ * describe a page a customer can reach, and a switched-off `catalog` or `cms`
+ * means there is no such page to describe.
  */
 
 const FALLBACK_LOCALE = 'en-US';
@@ -27,15 +39,19 @@ const TITLE_MAX = 60;
 const DESCRIPTION_MAX = 160;
 
 export interface RuleBuilderInput {
-  product?: Product;
-  category?: Category;
-  cmsPage?: CmsPage;
+  product?: CatalogProductRecord;
+  category?: CatalogCategoryRecord;
+  cmsPage?: CmsPageRecord;
 }
 
 export class MetaTagResolverService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog: AuditLogService | undefined,
+    /** The three rows a rule is derived from, asked of the modules that own them. */
+    private readonly catalogProducts: CatalogProductReadPort,
+    private readonly catalogCategories: CatalogCategoryReadPort,
+    private readonly cmsPages: CmsPageReadPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
@@ -50,7 +66,7 @@ export class MetaTagResolverService {
     locale: string;
   }): Promise<ResolvedMeta> {
     const em = this.emFactory();
-    const ruleSource = await this.loadRuleSource(em, input.entityType, input.entityId);
+    const ruleSource = await this.loadRuleSource(input.entityType, input.entityId);
     const rule = buildRuleMeta(input.entityType, ruleSource, input.locale);
 
     const override = await this.findOverride(em, input);
@@ -92,7 +108,7 @@ export class MetaTagResolverService {
     const em = this.emFactory();
     // Validate the entity actually exists so an admin typo doesn't write a
     // dangling row.
-    await this.loadRuleSource(em, input.entityType, input.entityId);
+    await this.loadRuleSource(input.entityType, input.entityId);
 
     const existing = await em.findOne(SeoMetaOverride, {
       entityType: input.entityType,
@@ -146,26 +162,29 @@ export class MetaTagResolverService {
   }
 
   private async loadRuleSource(
-    em: EntityManager,
     entityType: SeoEntityType,
     entityId: string,
   ): Promise<RuleBuilderInput> {
     if (entityType === 'product') {
-      const product = await em.findOne(Product, { id: entityId });
+      const product = await this.catalogProducts.findById(entityId);
       if (!product) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Product ${entityId} not found.`);
       }
       return { product };
     }
     if (entityType === 'category') {
-      const category = await em.findOne(Category, { id: entityId });
-      if (!category) {
+      // Feature 068 — meta tags describe a page a customer can reach: a
+      // deactivated (or deleted, never filtered here before) category has none.
+      // `liveOnly` is the port's name for the `deletedAt: null` half; `isActive`
+      // is a column on the record, so the other half stays a test here.
+      const category = await this.catalogCategories.findById(entityId, { liveOnly: true });
+      if (!category || !category.isActive) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Category ${entityId} not found.`);
       }
       return { category };
     }
     if (entityType === 'cms_page') {
-      const cmsPage = await em.findOne(CmsPage, { id: entityId });
+      const cmsPage = await this.cmsPages.findById(entityId);
       if (!cmsPage) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, `CMS page ${entityId} not found.`);
       }

@@ -2,9 +2,8 @@ import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it } from
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartAuditEntry } from '../../../src/modules/carts/entities/cart-audit-entry.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
-import { AuditLogService } from '../../../src/modules/audit_logs/services/audit-log-service.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { CartAuditService } from '../../../src/modules/carts/services/cart-audit-service.js';
 
 /**
@@ -21,9 +20,7 @@ describe('CartAuditService — dual-landing audit writer', () => {
 
   beforeAll(async () => {
     db = await setupTestDb();
-    const tmpEm = db.orm.em.fork();
-    const ch = await tmpEm.findOne(SalesChannel, { systemDefault: true });
-    systemDefaultChannelId = ch?.id ?? '';
+    systemDefaultChannelId = db.systemDefaultChannelId;
   }, 60_000);
 
   beforeEach(async () => {

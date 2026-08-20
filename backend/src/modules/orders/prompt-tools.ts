@@ -4,7 +4,11 @@ import {
   SetOrderStatusParamsSchema,
   type BulkSetOrderStatusParams,
   type SearchOrdersParams,
+  type CustomerAccountReadPort,
+  type OrganizationDetailsPort,
+  type PromptActionTool,
   type SetOrderStatusParams,
+  type ToolContext,
 } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
@@ -12,7 +16,6 @@ import { Order } from './entities/order.entity.js';
 import { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderListService } from './services/order-list-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
-import type { PromptActionTool, ToolContext } from '../prompt_actions/services/tool-registry.js';
 
 /**
  * Orders' contribution to the prompt-assistant tool catalogue (feature 043).
@@ -28,6 +31,14 @@ import type { PromptActionTool, ToolContext } from '../prompt_actions/services/t
 
 export interface OrdersPromptToolsDeps {
   emFactory: () => EntityManager;
+  /**
+   * The two name searches the assistant's order resolver runs behind its `q`
+   * (feature 075). `OrderListService` resolves the organisation and the
+   * customer a term names through their owners' ports, so this file hands the
+   * same two down rather than letting the list build them.
+   */
+  organizationDetails: OrganizationDetailsPort;
+  customerAccountRead: CustomerAccountReadPort;
   /**
    * Late-bound accessor for the configured OrderTransitionService (exposed by
    * the orders plugin at boot). Status-change tools call it at confirm time —
@@ -45,7 +56,12 @@ function statusLabel(name: Record<string, string>, code: string): string {
 
 export function ordersPromptTools(deps: OrdersPromptToolsDeps): PromptActionTool[] {
   const graphService = new OrderStatusGraphService(deps.emFactory);
-  const listService = new OrderListService(deps.emFactory, graphService);
+  const listService = new OrderListService(
+    deps.emFactory,
+    graphService,
+    deps.organizationDetails,
+    deps.customerAccountRead,
+  );
 
   function requireTransitionService(): OrderTransitionService {
     const svc = deps.getTransitionService?.() ?? null;
@@ -113,8 +129,10 @@ export function ordersPromptTools(deps: OrdersPromptToolsDeps): PromptActionTool
       'Change a single order\'s status to a target status reachable from its current status by the configured transition graph. Resolve the order via orders.search_orders first. Captured into a plan the operator must confirm; not executed immediately.',
     requiredPermission: 'orders:write',
     paramsSchema: SetOrderStatusParamsSchema,
-    preview: async (params, ctx: ToolContext) =>
-      previewOrderTransition(ctx.em, params.orderId, params.toStatusCode),
+    // D-75 — this module's own fork, not the caller's manager: the preview
+    // reads committed order rows and writes nothing.
+    preview: async (params) =>
+      previewOrderTransition(deps.emFactory(), params.orderId, params.toStatusCode),
     execute: async (params, ctx: ToolContext) => {
       const order = await requireTransitionService().apply(
         params.orderId,
@@ -134,8 +152,8 @@ export function ordersPromptTools(deps: OrdersPromptToolsDeps): PromptActionTool
       'Change the status of several orders to the same target status. Each order is transitioned only when the move is valid for its current status; the rest are skipped and reported. Resolve orders via orders.search_orders first. Captured into a plan the operator must confirm; not executed immediately.',
     requiredPermission: 'orders:write',
     paramsSchema: BulkSetOrderStatusParamsSchema,
-    preview: async (params, ctx: ToolContext) => {
-      const em = ctx.em;
+    preview: async (params) => {
+      const em = deps.emFactory();
       const graph = await graphService.loadGraph();
       if (!graph.has(params.toStatusCode)) {
         throw new HttpError(422, 'VALIDATION_FAILED', `Unknown order status "${params.toStatusCode}".`);

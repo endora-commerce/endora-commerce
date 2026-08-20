@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 
 /**
  * Static derivation of the cross-module foreign-key graph from migration SQL.
@@ -31,6 +31,46 @@ export interface FkEdge {
   via: readonly string[];
 }
 
+/**
+ * A migration file, identified the way the ordering algorithm identifies one.
+ *
+ * `timestamp` is read from the **filename**, not from the class name. The two
+ * cannot diverge: `test/unit/db/migrations-registry.test.ts` derives every
+ * registered class name from its filename and fails on a mismatch, so the
+ * filename stamp is the class-name stamp
+ * (specs/065-manifest-aware-migrations/contracts/naming-convention.md §2).
+ * `undefined` means the filename does not parse as a migration — a helper file
+ * sharing the directory, which the consumer must report rather than skip.
+ */
+export interface MigrationSource {
+  /** Path relative to the scanned source root, for readable messages. */
+  file: string;
+  /** `YYYYMMDDTHHmmss` from the filename, or `undefined` if it does not parse. */
+  timestamp: string | undefined;
+  /** Owning module id — `'core'` for `db/migrations/`. */
+  moduleId: string;
+}
+
+/**
+ * One individual cross-module foreign key, before aggregation into an `FkEdge`,
+ * carrying the migration that declares it.
+ *
+ * The aggregate is what the *declaration* half of the drift check reads; this
+ * is what the **position** half reads (feature 081, FR-013), because the answer
+ * there depends on where in the emitted order the constraint is created, and
+ * aggregating over table pairs throws that away.
+ */
+export interface FkReference {
+  /** Module owning the referencing table. */
+  from: string;
+  /** Module owning the referenced table. */
+  to: string;
+  fromTable: string;
+  toTable: string;
+  /** The migration whose SQL declares this constraint. */
+  declaredIn: MigrationSource;
+}
+
 export interface FkGraph {
   /** table → owning module id: entity declarations first, then overrides. */
   owners: ReadonlyMap<string, string>;
@@ -38,8 +78,17 @@ export interface FkGraph {
   entityOwners: ReadonlyMap<string, string>;
   /** Every table named by a `create table` statement in any migration. */
   createdTables: ReadonlySet<string>;
+  /**
+   * table → the migration that creates it. Where several `create table`
+   * statements name one table (`if not exists`, a re-create), the **earliest**
+   * by filename stamp wins: that is when the table comes into existence, which
+   * is the question the position check asks.
+   */
+  tableCreators: ReadonlyMap<string, MigrationSource>;
   /** Cross-module edges, sorted by `from` then `to`. */
   edges: readonly FkEdge[];
+  /** Every individual cross-module foreign key, with its declaring migration. */
+  references: readonly FkReference[];
   /** Created tables that neither an entity nor an override claims. */
   unownedTables: readonly string[];
   /** `"<referencing_table> → <referenced_table>"` where the target has no owner. */
@@ -83,6 +132,14 @@ function listTsFilesRecursive(path: string): string[] {
 }
 
 /** Rule 1 of contract §2.1 — the module whose entities/ declares the tableName. */
+/**
+ * The owner id for a table declared by a kernel entity (feature 072). The
+ * kernel is not a module: it has no manifest and cannot appear in a
+ * `dependencies` array, which is exactly why a foreign key into it needs no
+ * declaration — every deployment has the kernel by definition.
+ */
+export const KERNEL_OWNER = 'kernel';
+
 function collectEntityOwners(sourceRoot: string): Map<string, string> {
   const owners = new Map<string, string>();
   for (const moduleId of listDirectories(join(sourceRoot, 'modules'))) {
@@ -93,16 +150,39 @@ function collectEntityOwners(sourceRoot: string): Map<string, string> {
       }
     }
   }
+  // Feature 072 — entities the kernel absorbed under D-32. Their tables are
+  // still created by core migrations; what changed is who owns the class, and
+  // the ownership map must follow or the table reads as unclaimed.
+  for (const file of listTsFilesRecursive(join(sourceRoot, KERNEL_OWNER))) {
+    if (!file.endsWith('.entity.ts')) continue;
+    const source = readFileSync(file, 'utf8');
+    for (const match of source.matchAll(ENTITY_TABLE_RE)) {
+      owners.set(match[1]!, KERNEL_OWNER);
+    }
+  }
   return owners;
 }
 
+/** contracts/naming-convention.md §1 — the only recognizer any tool may use. */
+const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_[a-z0-9_]+\.ts$/;
+
 /** Every migration source file: module-scoped directories plus src/db/migrations/. */
-function collectMigrationFiles(sourceRoot: string): string[] {
-  const files = listTsFilesRecursive(join(sourceRoot, 'db', 'migrations'));
+function collectMigrationFiles(sourceRoot: string): MigrationSource[] {
+  const found: { path: string; moduleId: string }[] = listTsFilesRecursive(
+    join(sourceRoot, 'db', 'migrations'),
+  ).map((path) => ({ path, moduleId: 'core' }));
   for (const moduleId of listDirectories(join(sourceRoot, 'modules'))) {
-    files.push(...listTsFilesRecursive(join(sourceRoot, 'modules', moduleId, 'migrations')));
+    for (const path of listTsFilesRecursive(join(sourceRoot, 'modules', moduleId, 'migrations'))) {
+      found.push({ path, moduleId });
+    }
   }
-  return files.sort();
+  return found
+    .sort((left, right) => left.path.localeCompare(right.path))
+    .map(({ path, moduleId }) => ({
+      file: relative(sourceRoot, path).split('\\').join('/'),
+      timestamp: MIGRATION_FILE_RE.exec(basename(path))?.[1],
+      moduleId,
+    }));
 }
 
 interface TableStatement {
@@ -143,6 +223,17 @@ export function tableStatements(rawSource: string): TableStatement[] {
   });
 }
 
+/**
+ * Which of two migrations comes first. A file whose name does not parse has no
+ * stamp and never wins: it would put an unclassifiable source in the creators
+ * map in place of one the position check can read.
+ */
+function isEarlier(candidate: MigrationSource, incumbent: MigrationSource): boolean {
+  if (candidate.timestamp === undefined) return false;
+  if (incumbent.timestamp === undefined) return true;
+  return candidate.timestamp < incumbent.timestamp;
+}
+
 export function deriveFkGraph(sourceRoot: string, options: DeriveFkGraphOptions = {}): FkGraph {
   const root = resolve(sourceRoot);
   const overrides = options.overrides ?? {};
@@ -154,26 +245,38 @@ export function deriveFkGraph(sourceRoot: string, options: DeriveFkGraphOptions 
   }
 
   const createdTables = new Set<string>();
-  const references: { fromTable: string; toTable: string }[] = [];
+  const tableCreators = new Map<string, MigrationSource>();
+  const rawReferences: { fromTable: string; toTable: string; declaredIn: MigrationSource }[] = [];
 
-  for (const file of collectMigrationFiles(root)) {
-    const source = readFileSync(file, 'utf8');
+  for (const migration of collectMigrationFiles(root)) {
+    const source = readFileSync(join(root, migration.file), 'utf8');
     for (const statement of tableStatements(source)) {
       for (const match of statement.body.matchAll(REFERENCE_RE)) {
-        references.push({ fromTable: statement.table, toTable: match[1]! });
+        rawReferences.push({
+          fromTable: statement.table,
+          toTable: match[1]!,
+          declaredIn: migration,
+        });
       }
     }
     for (const match of source.matchAll(STATEMENT_START_RE)) {
-      if (match[1]!.toLowerCase() === 'create') createdTables.add(match[2]!);
+      if (match[1]!.toLowerCase() !== 'create') continue;
+      const table = match[2]!;
+      createdTables.add(table);
+      const known = tableCreators.get(table);
+      if (known === undefined || isEarlier(migration, known)) {
+        tableCreators.set(table, migration);
+      }
     }
   }
 
   const unownedTables = [...createdTables].filter((table) => !owners.has(table)).sort();
 
   const unresolvedReferences: string[] = [];
+  const references: FkReference[] = [];
   const aggregated = new Map<string, { from: string; to: string; count: number; via: string[] }>();
 
-  for (const { fromTable, toTable } of references) {
+  for (const { fromTable, toTable, declaredIn } of rawReferences) {
     const from = owners.get(fromTable);
     const to = owners.get(toTable);
     if (to === undefined) {
@@ -184,6 +287,8 @@ export function deriveFkGraph(sourceRoot: string, options: DeriveFkGraphOptions 
     // A referencing table with no resolved owner is already reported as unowned;
     // guessing its module would fabricate an edge.
     if (from === undefined || from === to) continue;
+
+    references.push({ from, to, fromTable, toTable, declaredIn });
 
     const key = `${from}|${to}`;
     const existing = aggregated.get(key);
@@ -208,7 +313,9 @@ export function deriveFkGraph(sourceRoot: string, options: DeriveFkGraphOptions 
     owners,
     entityOwners,
     createdTables,
+    tableCreators,
     edges,
+    references,
     unownedTables,
     unresolvedReferences: unresolvedReferences.sort(),
   };

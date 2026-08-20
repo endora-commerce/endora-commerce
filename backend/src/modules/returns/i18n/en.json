@@ -23,10 +23,5 @@
   "settlement.refund": "Refund money",
   "settlement.credit": "Credit toward future orders",
   "settlement.replacement": "Replacement",
-  "settlement.repair": "Repair",
-  "errors.INVALID_TRANSITION": "This status change is not allowed.",
-  "errors.NOT_ELIGIBLE": "This order is not yet eligible for returns.",
-  "errors.QTY_EXCEEDS_RETURNABLE": "Requested quantity exceeds the returnable quantity.",
-  "errors.REFUND_EXCEEDS_PAID": "Refund amount cannot exceed the amount paid.",
-  "errors.REASON_REQUIRED": "A reason is required to reject this case."
+  "settlement.repair": "Repair"
 }

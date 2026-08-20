@@ -212,6 +212,9 @@ export function FeedCriteriaPanel(props: FeedCriteriaPanelProps): ReactNode {
           builtinGroup: t('feeds.criteria.group.product'),
           attributeGroup: t('feeds.criteria.group.attribute'),
           matchAll: t('feeds.criteria.matchAll'),
+          valuesPlaceholder: t('feeds.criteria.values.placeholder'),
+          valuesLabel: t('feeds.criteria.values.label'),
+          valuesSearchPlaceholder: t('feeds.criteria.values.search'),
         }}
         disabled={disabled}
       />

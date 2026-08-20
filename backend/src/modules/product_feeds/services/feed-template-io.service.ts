@@ -4,6 +4,7 @@ import {
   FEED_TEMPLATE_DOCUMENT_FORMAT_VERSION,
   PRODUCT_FEED_ERROR_CODES,
   importFeedTemplateRequestSchema,
+  slugify,
   type FeedFieldSourceKind,
   type FeedFieldTransform,
   type FeedItemGranularity,
@@ -141,16 +142,28 @@ export function serializeTemplateDocument(document: FeedTemplateDocument): strin
  * `google-merchant-center-pl.feed-template.json`. Named after the template
  * rather than its id, because the file is something a human hands to another
  * human.
+ *
+ * The slug is `slugify` from `@b2b/contracts`, **imported, never
+ * re-implemented** (issue #245). The private chain this carried folded with
+ * `NFKD` and then stripped the combining marks, which leaves `ł` standing —
+ * U+0142 has no canonical decomposition — for the `[^a-z0-9]+` collapse to
+ * delete: `Łatwy szablon` produced `atwy-szablon`, and the leading separator
+ * went with it. Its strip also ran before the 80-character cut, so a cut
+ * landing on a separator left the filename ending in `-`.
+ *
+ * **The shared fold is NFD, so this gives up NFKD's compatibility mappings.**
+ * They reach a filename only through characters that map into `[a-z0-9]` —
+ * `ﬁ`, `²`, the full-width forms — none of which is typed into a template name,
+ * and where one is it now collapses to `-` rather than to a wrong letter, so
+ * the filename stays legal. `ł` was being deleted out of every Polish one.
+ *
+ * Filenames already downloaded are **not** re-derived anywhere: the importer
+ * reads the document body (`importDocument` takes `request.document`), and this
+ * value only ever reaches a `Content-Disposition` header. Nothing matches on it.
  */
 export function templateDocumentFilename(name: string): string {
-  const slug = name
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return `${slug || 'feed-template'}.feed-template.json`;
+  const slug = slugify(name, { maxLength: 80, fallback: 'feed-template' });
+  return `${slug}.feed-template.json`;
 }
 
 /** The two providers that publish a category taxonomy the module installs (FR-077). */

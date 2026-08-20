@@ -50,12 +50,34 @@ export const manifest = defineModuleManifest({
   // The remaining five (assets_library, delivery_methods, organizations,
   // payment_methods, taxes) close no cycle but are dropped by the same rule: a
   // bridge owner declaring what it bridges inverts the ownership direction.
-  // All nine are recorded in test/unit/db/acknowledged-fk-edges.ts.
+  // Eight are recorded in test/unit/db/acknowledged-fk-edges.ts; the ninth,
+  // `sales_channels.logo_asset_id → assets`, is recorded there as
+  // `kernel → assets_library` because feature 072 T019 moved the SalesChannel
+  // entity — and with it the ownership of the `sales_channels` table — into the
+  // kernel. The nine bridge tables stay owned by this module.
   //
   // Forward-looking convention: a new bridge table for module X is owned by X's
   // migration, so X → sales_channels covers it and no new exception is needed.
-  dependencies: ['settings'],
+  dependencies: ['dictionaries', 'settings'],
   settings,
+  // Feature 074 (Constitution XVII), test C2 — functional base, and named by
+  // ruling 1. Channel scoping is structural: Principle XII is non-negotiable,
+  // every scoped read resolves the request's channel through the sanctioned
+  // accessors, and there is no unscoped read path to fall back to. The control
+  // this replaces was one of the nineteen that never accepted a deactivation
+  // — nineteen dependents refused it — so the lock takes away a dead button
+  // and adds a stated reason.
+  //
+  // `sales_channels.enabled` goes with it. Left declared it would fall through
+  // to an ordinary editable boolean that changes nothing; the existing rows are
+  // removed by a core data migration (feature 074, FR-010a), because the
+  // settings reconciler reports orphans and never deletes them.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Channel scoping is structural: every scoped read resolves the request\'s channel and ' +
+      'there is no unscoped path to fall back to.',
+  },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'sales_channels:read', label: 'View sales channels' },

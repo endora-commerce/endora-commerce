@@ -1,12 +1,11 @@
 import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
+import { NEWSLETTER_SETTING_CODES, type EmailMailerPort } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
-import { defineModuleRoutes, defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
-import type { SettingsService } from '../settings/services/settings.service.js';
-import type { Mailer } from '../email/services/mailer.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
+import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { NewsletterTokenHelper } from './services/token.helper.js';
 import { NewsletterOptInService } from './services/opt-in.service.js';
@@ -46,7 +45,16 @@ export interface NewsletterModuleOptions {
   emFactory: () => EntityManager;
   settings: SettingsService;
   tokenSecret: string;
-  platformChannelId: string;
+  /**
+   * The channel a subscriber with no origin channel belongs to — the
+   * deployment's system-default one, or `null` when it has none. Only the
+   * opt-in policy uses it: mode and confirmation TTL are per-storefront
+   * settings, so "the system-default channel's value" is the right answer for a
+   * subscriber with no channel and the platform-wide value is not. The provider
+   * configuration, which *is* platform-wide, reads `null` directly and no
+   * longer takes this at all (feature 072, D-41).
+   */
+  defaultChannelId: string | null;
   resolveChannelIdByCode: (code: string) => Promise<string | null>;
   publicBaseUrl: string;
   storefrontBaseUrl: string;
@@ -61,8 +69,15 @@ export interface NewsletterModuleOptions {
   resolveCustomerAccountId: (req: FastifyRequest) => string;
   /** Resolve a customer account's email (cross-module lookup). */
   loadCustomerEmail: (customerAccountId: string) => Promise<string | null>;
-  mailer?: Mailer;
-  auditLog?: AuditLogService;
+  /**
+   * `emailMailer`, owned by `email` — the container's registration, contributed
+   * here by a root. Typed as the published contract (feature 075, Phase C)
+   * rather than by naming `email`'s own `Mailer` alias: this module described
+   * the transport it needs by reaching into the module that owns it, which is
+   * the compile-time coupling Principle I forbids even when nothing is called.
+   */
+  mailer?: EmailMailerPort;
+  auditLog: AuditLogService;
   /** Optional observability emitter (wraps the in-process EventBus). */
   emitEvent?: (name: string, payload: Record<string, unknown>) => void;
   /** Redis connection — when present, dispatch is queue-backed (Principle X). */
@@ -93,7 +108,6 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
   const audience = new NewsletterAudienceResolver(options.emFactory);
   const providers = new NewsletterProviderRegistry(
     options.settings,
-    options.platformChannelId,
     options.credentials,
   );
 
@@ -106,7 +120,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
   const subscribers = new NewsletterSubscriberService({
     emFactory: options.emFactory,
     optIn,
-    platformChannelId: options.platformChannelId,
+    defaultChannelId: options.defaultChannelId,
     links,
     ...(options.mailer ? { mailer: options.mailer } : {}),
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
@@ -126,7 +140,6 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     options.settings,
     options.settingsWrite,
     providers,
-    options.platformChannelId,
   );
   const self = new NewsletterSelfService(options.emFactory, subscribers);
 
@@ -202,9 +215,11 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     if (options.runWorkers && options.redis && planQueue && sendQueue) {
       let rate = 14;
       try {
+        // Platform-wide: one send-rate cap for the deployment's one SMTP
+        // transport (feature 072, D-41).
         rate = await options.settings.get(
           NEWSLETTER_SETTING_CODES.RATE_LIMIT_PER_SECOND,
-          options.platformChannelId,
+          null,
           z.number(),
         );
       } catch {
@@ -240,14 +255,19 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
       }
     }
 
-    await defineModuleRoutes('newsletter', async (scoped) => {
+    // Encapsulated, not gated. `backend.ts` registers this through `ctx.routes`,
+    // which already applies `defineModuleRoutes('newsletter', …)` — gating here
+    // too would add a second, identical `onRequest` check to every route the
+    // module owns (feature 072). The `register` call stays: it is what keeps
+    // this module's hooks and decorators out of the rest of the app.
+    await app.register(async (scoped) => {
       await registerNewsletterStorefrontRoutes(scoped, {
         subscribers,
         optIn,
         tokens,
         tracking,
         resolveChannelIdByCode: options.resolveChannelIdByCode,
-        platformChannelId: options.platformChannelId,
+        defaultChannelId: options.defaultChannelId,
         storefrontBaseUrl: options.storefrontBaseUrl,
       });
       await registerNewsletterAdminRoutes(scoped, {
@@ -269,6 +289,6 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
         resolveCustomerAccountId: options.resolveCustomerAccountId,
         loadCustomerEmail: options.loadCustomerEmail,
       });
-    })(app);
+    });
   };
 }

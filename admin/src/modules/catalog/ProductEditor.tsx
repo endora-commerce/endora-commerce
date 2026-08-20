@@ -54,6 +54,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
+// Feature 068 / US4 — the Ergonode overwrite-protection affordance. Both render
+// `null` unless an Ergonode connection is enabled (FR-058), so every use below
+// is unconditional: the condition belongs to the module that owns the concept,
+// not to the catalogue's editor.
+import {
+  ErgonodePriceProtectionPanel,
+  FieldProtectionSummary,
+  FieldProtectionToggle,
+} from '../pim_ergonode/components/FieldProtectionToggle';
 import { ProductInventoryTab } from './ProductInventoryTab';
 import { PackagingUnitsEditor } from './components/PackagingUnitsEditor';
 import { ProductAttributesTab } from './ProductAttributesTab';
@@ -531,6 +540,32 @@ export function ProductEditor(): ReactNode {
                     existing products: at Channel = Global it writes the
                     per-language baseline on `products`; at a specific
                     channel it writes a `product_value_overrides` row. */}
+                {/* Feature 068 / US4 — which fields the Ergonode import may not
+                    touch (FR-055), plus the integration-managed and last-synced
+                    indicators (FR-068). The name and description controls sit
+                    here because the panel below is their sole editor. */}
+                <FieldProtectionSummary productId={id} />
+                {id ? (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {LOCALES.map((l) => (
+                      <FieldProtectionToggle
+                        key={`protect-name-${l}`}
+                        productId={id}
+                        fieldPath="name"
+                        languageCode={l}
+                      />
+                    ))}
+                    {LOCALES.map((l) => (
+                      <FieldProtectionToggle
+                        key={`protect-description-${l}`}
+                        productId={id}
+                        fieldPath="description"
+                        languageCode={l}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+
                 {id ? (
                   <ProductScopeEditor
                     ref={scopeEditorRef}
@@ -705,7 +740,10 @@ export function ProductEditor(): ReactNode {
                 <hr className="b2b-hr" />
 
                 <div>
-                  <div className="b2b-label">{t('productEditor.section.categories')}</div>
+                  <div className="b2b-label">
+                    {t('productEditor.section.categories')}
+                    <FieldProtectionToggle productId={id} fieldPath="categories" className="ml-3" />
+                  </div>
                   <CategoryTreePicker
                     categories={categories}
                     selectedIds={categoryIds}
@@ -720,13 +758,22 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'attributes' && id ? (
             <ProductAttributesTab
+              productId={id}
               attributeSetId={attributeSetId}
               values={attrValues}
               onChange={handleAttrChange}
             />
           ) : null}
 
-          {activeTab === 'pricing' && id ? <LinkedPriceListsPanel productId={id} /> : null}
+          {activeTab === 'pricing' && id ? (
+            <div className="b2b-col" style={{ gap: 16 }}>
+              {/* Feature 068 / FR-062 — one control per price the Ergonode
+                  import could write here. Renders `null` when no binding covers
+                  this product, which is every product until one is bound. */}
+              <ErgonodePriceProtectionPanel productId={id} />
+              <LinkedPriceListsPanel productId={id} />
+            </div>
+          ) : null}
 
           {activeTab === 'variants' && id ? <VariantsSection productId={id} /> : null}
 
@@ -739,7 +786,10 @@ export function ProductEditor(): ReactNode {
           ) : null}
 
           {activeTab === 'media' && id ? (
-            <GallerySection ref={galleryRef} productId={id} />
+            <>
+              <FieldProtectionToggle productId={id} fieldPath="gallery" className="mb-2" />
+              <GallerySection ref={galleryRef} productId={id} />
+            </>
           ) : null}
 
           {activeTab === 'inventory' && id ? (
@@ -751,7 +801,12 @@ export function ProductEditor(): ReactNode {
             </div>
           ) : null}
 
-          {activeTab === 'attachments' && id ? <AttachmentsSection productId={id} /> : null}
+          {activeTab === 'attachments' && id ? (
+            <>
+              <FieldProtectionToggle productId={id} fieldPath="attachments" className="mb-2" />
+              <AttachmentsSection productId={id} />
+            </>
+          ) : null}
 
           {activeTab === 'links' && id ? <ProductLinksSection productId={id} /> : null}
 

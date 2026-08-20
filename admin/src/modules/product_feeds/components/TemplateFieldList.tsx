@@ -5,6 +5,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import type { TemplatePreview } from '../api';
 import type { DraftField, FieldProblem } from '../template-draft';
 import { TemplateFieldRow } from './TemplateFieldRow';
+import { normalize } from '@/lib/text-normalization';
 
 /**
  * The ordered field list — ux-design §2.7 / §3.5, FR-067–FR-069.
@@ -92,10 +93,10 @@ export function TemplateFieldList(props: TemplateFieldListProps): ReactNode {
     instructionsId,
   });
 
-  const needle = search.trim().toLowerCase();
+  const needle = normalize(search);
   const visible = needle === ''
     ? fields
-    : fields.filter((field) => field.outputName.toLowerCase().includes(needle));
+    : fields.filter((field) => normalize(field.outputName).includes(needle));
 
   const previewByName = useMemo(() => {
     const map = new Map<string, TemplatePreview['fields'][number]>();

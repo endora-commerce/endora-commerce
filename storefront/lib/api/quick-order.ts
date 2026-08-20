@@ -1,4 +1,5 @@
 import { apiGetAuthed, apiMutate } from './mutations';
+import type { RequestContext } from './client';
 
 /**
  * Quick-order bindings (feature 039). All endpoints require an authenticated
@@ -219,13 +220,24 @@ export async function placeOneClickOrder(
   return res.data!;
 }
 
+/**
+ * Type-ahead over the catalogue (issue #174).
+ *
+ * `ctx` is not optional decoration: the backend scopes this search to the
+ * resolved sales channel now, so without the `X-Sales-Channel` header the
+ * buyer would be answered from the system-default channel rather than the one
+ * they are shopping. It used to make no difference because the endpoint
+ * ignored the channel entirely — which was the defect.
+ */
 export async function searchProducts(
   sessionCookie: string,
   q: string,
+  ctx: RequestContext,
   limit = 20,
 ): Promise<QuickOrderSearchResult[]> {
   return apiGetAuthed<QuickOrderSearchResult[]>({
     path: `/api/v1/quick-order/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     sessionCookie,
+    ctx,
   });
 }

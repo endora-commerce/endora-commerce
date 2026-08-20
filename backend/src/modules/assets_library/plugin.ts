@@ -1,6 +1,6 @@
 // Assets Library — Fastify plugin / composition root for the module.
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import fastifyMultipart from '@fastify/multipart';
 
@@ -9,23 +9,26 @@ import { AssetsLibraryService } from './services/assets-library.service.js';
 import { FoldersService } from './services/folders.service.js';
 import { AssetReferenceRegistry } from './services/reference-registry.js';
 import { HmacSigner } from './services/hmac.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { createSettingsView } from './services/storage/settings-view.js';
-import { Setting } from '../settings/entities/setting.entity.js';
-import { SettingValue } from '../settings/entities/setting-value.entity.js';
+import { Setting } from '../../kernel/settings/setting.entity.js';
+import { SettingValue } from '../../kernel/settings/setting-value.entity.js';
 import { registerAssetsLibraryAdminRoutes } from './routes.admin.js';
 import { registerAssetsLibraryPublicRoutes } from './routes.public.js';
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface AssetsLibraryModuleOptions {
   emFactory: () => EntityManager;
   /** HMAC signer for local-FS private URLs. Uses ASSETS_LIBRARY_HMAC_KEY by default. */
   signer?: HmacSigner;
-  /** Permission gate factory. When omitted, a permissive no-op is used (test default). */
-  requireAdmin?: RequireAdminFactory;
+  /**
+   * Permission gate factory. **Required** since feature 072 (T092): it used to
+   * default to a permissive no-op, so a caller that forgot it got an
+   * unguarded asset admin surface — silently, because the safe path is the one
+   * every test exercises. The container supplies it now; there is no omission
+   * left to be silent about.
+   */
+  requireAdmin: RequireAdminFactory;
   /** Feature 054 — audits asset/folder writes co-transactionally when provided. */
   auditLog?: AuditLogService;
 }
@@ -37,10 +40,6 @@ export interface AssetsLibraryModuleHandle {
   adapters: AdapterRegistry;
 }
 
-const noOpRequireAdmin: RequireAdminFactory =
-  () => async () => {
-    /* permissive default — production wiring overrides */
-  };
 
 async function loadUploadPolicy(emFactory: () => EntityManager): Promise<{
   allowedTypes: string[];
@@ -86,7 +85,7 @@ export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
   });
   const folders = new FoldersService(options.emFactory, referenceRegistry, options.auditLog);
 
-  const requireAdmin = options.requireAdmin ?? noOpRequireAdmin;
+  const requireAdmin = options.requireAdmin;
 
   const plugin = async (app: FastifyInstance) => {
     // Resolve the upload policy ONCE at registration so the multipart

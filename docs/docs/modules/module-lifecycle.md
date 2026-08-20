@@ -4,7 +4,7 @@ title: Module Lifecycle
 
 # Module Lifecycle
 
-Platform-internal subsystem (feature 018) that turns every backend module into a first-class lifecycle citizen: declarative manifest, dependency graph, install / uninstall / enable / disable / status, persisted registry, transactional install with migration rollback, and a Redis-backed enabled-set cache that gates HTTP routes, BullMQ workers, and event subscribers without restarting the process.
+Platform-internal subsystem (feature 018) that turns every backend module into a first-class lifecycle citizen: declarative manifest, dependency graph, install / uninstall / enable / disable / status, persisted registry, transactional install with migration rollback, and a per-process enabled-set cache — refreshed over Redis pub/sub — that gates HTTP routes, BullMQ workers, and event subscribers without restarting the process.
 
 The subsystem itself lives at `backend/src/modules/_lifecycle/`. The leading underscore marks it as platform-internal (alongside `auth` and `example`); every other backend module opts in by exporting a `manifest` constant from its `manifest.ts`.
 
@@ -38,6 +38,20 @@ Exit-code contract (per `contracts/cli-commands.md`):
 | 66 | Conflict: missing dependencies on install / dependents block uninstall / disable. |
 | 70 | Internal error during install (migration / settings / hook failure). |
 | 75 | Lock unavailable, or stale `installing` row. |
+| 77 | Refused: the module declares itself `nonDeactivatable`, on `disable` and on `uninstall` alike. |
+
+### A `nonDeactivatable` module cannot be withdrawn on this axis at all
+
+A manifest that declares `activation: { nonDeactivatable: true, reason }` refuses **both**
+`module:disable` and `module:uninstall` — soft and hard — with exit 77 and no override flag.
+Uninstall is disable plus the settings sweep plus, on `--hard`, the migration revert, so a
+declaration that forbids the smaller operation cannot permit the larger one. The refusal is
+raised after the `already-uninstalled` no-op and before the dependents check, so nothing runs
+and nothing is written. If the declaration is wrong for a module, the fix is the manifest.
+
+An **orphan** registry row — a row whose module has no manifest on disk — is unaffected: the
+guard reads the manifest, and cleaning orphans up is the one job uninstall has that nothing
+else does.
 
 Legacy `pnpm modules:install` / `pnpm modules:uninstall` (plural) print a deprecation notice and forward to the singular form. They will be removed in the next minor release.
 
@@ -117,17 +131,19 @@ Manifest fields:
                 an explicit re-install attempt ─────────┘
 ```
 
-Soft-uninstall preserves data: settings rows are removed, the registry row keeps `state = 'uninstalled'`, schema and data tables are untouched. Re-installing the same module reuses already-applied migrations and finishes in seconds.
+Soft-uninstall preserves data: settings rows are removed, the registry row keeps `state = 'uninstalled'`, schema and data tables are untouched. Re-installing the same module reuses already-applied migrations and finishes in seconds — but it does **not** bring the configuration back: the settings the sweep deleted are recreated from the manifest defaults, the module's activation choice included. Pausing a module without losing its configuration is what `module:disable` is for.
 
-Hard-uninstall (`--hard`) additionally reverts the module's migrations and deletes the registry row. The migrations to revert are resolved from `MIGRATION_REGISTRY` (`backend/src/db/migrations-registry.ts`) by their declared `moduleId`, sorted ascending, and reverted in reverse order — see [Database Migrations](../architecture/migrations.md#module-uninstall-migration-revert). A module that owns no registered migration logs a warning and reverts nothing; hard-uninstall then relies on its `uninstallHook`.
+Hard-uninstall (`--hard`) additionally reverts the module's migrations and deletes the registry row. The migrations to revert are resolved from `MIGRATION_REGISTRY` (`backend/src/db/migrations-registry.generated.ts`) by their declared `moduleId`, sorted ascending, and reverted in reverse order — see [Database Migrations](../architecture/migrations.md#module-uninstall-migration-revert). A module that owns no registered migration logs a warning and reverts nothing; hard-uninstall then relies on its `uninstallHook`.
 
 ## How disable works (feature gating without restart)
 
 When a module is disabled the platform inactivates three layers via wrappers:
 
-1. **HTTP routes** registered through `defineModuleRoutes(moduleId, register)` — the wrapper installs an `onRequest` hook that returns `503 Service Unavailable` with `{error:{code:'MODULE_DISABLED',module:'<id>'}}` and `Retry-After: 60`.
+1. **HTTP routes** registered through `defineModuleRoutes(moduleId, register)` — the wrapper installs an `onRequest` hook that returns `503 Service Unavailable` with `{error:{code:'MODULE_DISABLED',details:{module:'<id>'}}}` and `Retry-After: 60`.
 2. **BullMQ workers** registered through `defineModuleWorker(moduleId, worker)` — paused on disable, resumed on enable.
 3. **Event subscribers** registered through `subscribeForModule(moduleId, bus, event, handler)` — handler is a no-op when the module is disabled.
+
+The refused module is named in `details.module` on **every** `MODULE_DISABLED` response, not only the route gate: the id travels on `ModuleDisabledError` itself, so a port resolution and a `requireModuleEnabled` call answer the same shape. It has to be `details` rather than a field beside `code`, because the error envelope replaces an operator-visible message with the registered sentence for its **code**, and `MODULE_DISABLED` is one code for every gated port in the platform — the module id is what turns "Module Disabled." into a sentence an operator can act on, and `errors.MODULE_DISABLED` interpolates `{module}` out of exactly that detail (issue #161).
 
 The enabled set is cached per process and refreshed via Redis pub/sub on the `b2b:module:state-changed` channel; cache lookups are O(1) in-memory (~50 µs).
 
@@ -199,39 +215,32 @@ pnpm --filter backend run migration:new -- --module coupons --name coupons_init
 backend/src/modules/coupons/migrations/20260805T141530_coupons_init.ts
 ```
 
-The `<YYYYMMDDTHHmmss>` prefix is a UTC timestamp, not a sequence number; the class name is derived mechanically from the filename. The command prints an import line and a `migration('coupons', …)` entry line — paste both into the module's group in `backend/src/db/migrations-registry.ts`. **An unregistered migration does not run**, and the declared `moduleId` in that entry is what the orchestrator's hard-uninstall path matches against when reverting. See [Database Migrations](../architecture/migrations.md) for the naming convention, the ordering rules, and the FK-drift validator that requires a cross-module foreign key to be backed by a manifest `dependencies` entry.
+The `<YYYYMMDDTHHmmss>` prefix is a UTC timestamp, not a sequence number; the class name is derived mechanically from the filename. Register it with `pnpm --filter backend run composer:generate`, which emits `backend/src/db/migrations-registry.generated.ts` from a filesystem walk; commit the artefact with the migration. **An unregistered migration does not run**, and the declared `moduleId` in that entry is what the orchestrator's hard-uninstall path matches against when reverting. See [Database Migrations](../architecture/migrations.md) for the naming convention, the ordering rules, and the FK-drift validator that requires a cross-module foreign key to be backed by a manifest `dependencies` entry.
 
 ### 4. Register the module
 
-Add an entry to `backend/src/modules/_lifecycle/registered-manifests.ts`:
-
-```typescript
-import { manifest as couponsManifest, installHook as couponsInstall, uninstallHook as couponsUninstall } from '../coupons/manifest.js';
-
-export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
-  // …
-  {
-    manifest: couponsManifest,
-    installHook: couponsInstall,
-    uninstallHook: couponsUninstall,
-  },
-];
-```
-
-Run the index generator (also wired into `pnpm build`):
+There is nothing to hand-edit. `backend/src/modules/_lifecycle/manifest-index.generated.ts` is
+**generated** (feature 072): every module directory that exports a lifecycle-shape
+`manifest.ts` is discovered by the tree walk, together with its optional `installHook` /
+`uninstallHook` exports. It is the only file that imports a manifest —
+`registered-manifests.ts` derives `REGISTERED_MANIFESTS` from it, so there is one generated
+registry and one command that refreshes it. Regenerate and commit the result:
 
 ```bash
-pnpm --filter backend run manifest-index:generate
+pnpm --filter backend run composer:generate
 ```
 
-The parity test (`test/unit/_lifecycle/manifest-index-parity.test.ts`) catches drift if you forget this step.
+The generator is also wired into `pnpm --filter backend run build`, and
+`pnpm --filter backend run overlay:check` fails the build when a committed artefact is stale
+with respect to the tree — which is the one drift that is still possible now that the array
+is the walk.
 
 ### 5. Wire the routes through the gating wrapper
 
 Inside `coupons/plugin.ts`:
 
 ```typescript
-import { defineModuleRoutes } from '../_lifecycle/plugin-helpers.js';
+import { defineModuleRoutes } from '../../kernel/lifecycle/plugin-helpers.js';
 
 const adminPlugin = defineModuleRoutes('coupons', async (scoped) => {
   await registerCouponsAdminRoutes(scoped, deps);
@@ -244,7 +253,7 @@ This makes every coupon route return `503 MODULE_DISABLED + Retry-After: 60` whe
 For BullMQ workers and event subscribers, use the matching helpers:
 
 ```typescript
-import { defineModuleWorker, subscribeForModule } from '../_lifecycle/plugin-helpers.js';
+import { defineModuleWorker, subscribeForModule } from '../../kernel/lifecycle/plugin-helpers.js';
 
 const worker = defineModuleWorker('coupons', new Worker(...));
 subscribeForModule('coupons', eventBus, 'orders.placed', handler);

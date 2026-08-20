@@ -128,6 +128,13 @@ export const ERROR_CODES = {
   ORDER_NOT_FOUND: 'ORDER_NOT_FOUND',
   ORDER_NOT_CANCELLABLE: 'ORDER_NOT_CANCELLABLE',
   INVOICE_NOT_READY: 'INVOICE_NOT_READY',
+  // Invoices — number uniqueness (feature 078, D-95). The numbering series is
+  // per (sales channel, kind, year) while `invoices.number` is unique across
+  // the whole platform, so two channels whose patterns can render one string
+  // are a duplicate waiting to happen. The first code refuses the
+  // configuration, the second refuses the document.
+  INVOICE_NUMBER_PATTERN_COLLIDES: 'INVOICE_NUMBER_PATTERN_COLLIDES',
+  INVOICE_NUMBER_ALREADY_ISSUED: 'INVOICE_NUMBER_ALREADY_ISSUED',
   INVALID_TRANSITION: 'INVALID_TRANSITION',
 
   // Credit Limit
@@ -199,6 +206,7 @@ export const ERROR_CODES = {
   ENTITY_WOULD_HAVE_ZERO_CHANNELS: 'ENTITY_WOULD_HAVE_ZERO_CHANNELS',
   STALE_SALES_CHANNEL_WRITE: 'STALE_SALES_CHANNEL_WRITE',
   SALES_CHANNEL_ATTRIBUTION_IMMUTABLE: 'SALES_CHANNEL_ATTRIBUTION_IMMUTABLE',
+  SALES_CHANNEL_CODE_IMMUTABLE: 'SALES_CHANNEL_CODE_IMMUTABLE',
 
   // Compare (feature 007)
   COMPARISON_FULL: 'COMPARISON_FULL',
@@ -300,6 +308,46 @@ export const ERROR_CODES = {
   // Module Lifecycle (feature 018)
   MODULE_DISABLED: 'MODULE_DISABLED',
 
+  // Module Lifecycle (feature 073 — operator activation)
+  /** No manifest and no registry row answer to this module id. */
+  MODULE_NOT_FOUND: 'MODULE_NOT_FOUND',
+  /**
+   * The module declared itself non-deactivatable, or declares no activation
+   * control at all — either way there is nothing an operator may switch.
+   */
+  MODULE_NOT_DEACTIVATABLE: 'MODULE_NOT_DEACTIVATABLE',
+  /**
+   * An ordinary settings write targeted a module's activation control. The
+   * audited `module.activation.set` Command is the only door (FR-007, FR-009).
+   */
+  MODULE_ACTIVATION_PROTECTED: 'MODULE_ACTIVATION_PROTECTED',
+  /**
+   * Deactivating a module other effectively-present modules depend on
+   * (FR-008). Distinct from `MODULE_NOT_DEACTIVATABLE`, which says there is
+   * nothing to switch *ever*: this one is a "not in this order" with a remedy —
+   * `details.blockedBy` names the modules to switch off first.
+   */
+  MODULE_DEPENDENTS_PRESENT: 'MODULE_DEPENDENTS_PRESENT',
+  /**
+   * Activating a module whose own dependencies are not effectively present
+   * (FR-008, the symmetric direction). `details.missing` names them.
+   */
+  MODULE_DEPENDENCIES_ABSENT: 'MODULE_DEPENDENCIES_ABSENT',
+  /**
+   * A configuration write targeted a module that is not effectively present.
+   * Reads still show the stored value; writes are refused (FR-033).
+   */
+  MODULE_SETTING_READ_ONLY: 'MODULE_SETTING_READ_ONLY',
+
+  // Transactional Emails (issue #89 — per-email operator activation)
+  /**
+   * The owning module declared this individual email non-deactivatable —
+   * it is required to create an account or to get back into one. Deliberately
+   * the twin of `MODULE_NOT_DEACTIVATABLE`, one granularity down: same 409,
+   * same "there is nothing here to switch, ever", same carried reason.
+   */
+  TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE: 'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE',
+
   // Catalog (feature 022 — Products Bulk Edit)
   BULK_TOO_LARGE: 'BULK_TOO_LARGE',
   ATTRIBUTE_NOT_MASS_EDITABLE: 'ATTRIBUTE_NOT_MASS_EDITABLE',
@@ -317,6 +365,10 @@ export const ERROR_CODES = {
   MFA_NO_ACTIVE_ENROLMENT: 'MFA_NO_ACTIVE_ENROLMENT',
   MFA_REAUTH_REQUIRED: 'MFA_REAUTH_REQUIRED',
   MFA_NOT_ENABLED: 'MFA_NOT_ENABLED',
+  // Issue #194 — unlinking a federated identity that is the account's only
+  // credential is refused: an account created by a social sign-in holds a
+  // random password nobody knows, so the link is the way back in.
+  MFA_SOCIAL_LAST_CREDENTIAL: 'MFA_SOCIAL_LAST_CREDENTIAL',
   // Feature 055 — Custom Fields Layer.
   CUSTOM_FIELD_NOT_FOUND: 'CUSTOM_FIELD_NOT_FOUND',
   CUSTOM_FIELD_KEY_CONFLICT: 'CUSTOM_FIELD_KEY_CONFLICT',
@@ -372,6 +424,38 @@ export const ERROR_CODES = {
    * from `PRODUCT_FEED_ERROR_CODES` (feature 067, FR-087, FR-095, FR-096).
    */
   PRODUCT_FEED_TAXONOMY_CONFLICT: 'PRODUCT_FEED_TAXONOMY_CONFLICT',
+
+  // Ergonode PIM integration (feature 068). Transport-level codes for the
+  // module's admin surface — see specs/068-ergonode-pim-sync/contracts/admin-api.md.
+  /** No connection row exists yet, so there is nothing to read or import from. */
+  PIM_ERGONODE_NOT_CONFIGURED: 'PIM_ERGONODE_NOT_CONFIGURED',
+  /** A second *enabled* connection was attempted (FR-004). */
+  PIM_ERGONODE_CONNECTION_EXISTS: 'PIM_ERGONODE_CONNECTION_EXISTS',
+  /** Cron supplied without its timezone (or the other way round), or an unknown IANA zone. */
+  PIM_ERGONODE_SCHEDULE_INVALID: 'PIM_ERGONODE_SCHEDULE_INVALID',
+  /** Enabling a connection or triggering an import without a selected category tree (FR-033). */
+  PIM_ERGONODE_TREE_REQUIRED: 'PIM_ERGONODE_TREE_REQUIRED',
+  /** The overlap claim is held by a run already in flight (FR-006). */
+  PIM_ERGONODE_IMPORT_ALREADY_RUNNING: 'PIM_ERGONODE_IMPORT_ALREADY_RUNNING',
+  PIM_ERGONODE_CONNECTION_DISABLED: 'PIM_ERGONODE_CONNECTION_DISABLED',
+  /** The chosen Endora attribute cannot represent that source type; `details[]` lists what can (FR-026). */
+  PIM_ERGONODE_TYPE_INCOMPATIBLE: 'PIM_ERGONODE_TYPE_INCOMPATIBLE',
+  PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND: 'PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND',
+  /** Another source attribute or category already binds that Endora target. */
+  PIM_ERGONODE_TARGET_ALREADY_MAPPED: 'PIM_ERGONODE_TARGET_ALREADY_MAPPED',
+  /** A price binding named a currency that is not active; `details[]` lists the active codes (FR-061). */
+  PIM_ERGONODE_CURRENCY_INACTIVE: 'PIM_ERGONODE_CURRENCY_INACTIVE',
+  PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE: 'PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE',
+  PIM_ERGONODE_BINDING_EXISTS: 'PIM_ERGONODE_BINDING_EXISTS',
+  /**
+   * A price binding named a price list that does not exist. Named after the
+   * resource rather than the module (admin-api.md § Price bindings): the caller
+   * supplied a `priceListId`, and a bare `NOT_FOUND` on a request carrying three
+   * identifiers says nothing about which one was wrong.
+   */
+  PRICE_LIST_NOT_FOUND: 'PRICE_LIST_NOT_FOUND',
+  /** A protected field path does not match the grammar (data-model.md §8). */
+  PIM_ERGONODE_FIELD_PATH_INVALID: 'PIM_ERGONODE_FIELD_PATH_INVALID',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
@@ -395,3 +479,22 @@ export const errorEnvelopeSchema = z.object({
 });
 
 export type ErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
+
+/**
+ * `MODULE_DISABLED` names the module it refused for (issue #161).
+ *
+ * The refusal is raised in one place — the kernel's `ModuleDisabledError` — and
+ * carried the module id on the error object only. The envelope replaces an
+ * operator-visible message with the registered sentence for its **code**, and
+ * `MODULE_DISABLED` is one code for every gated port in the platform, so the
+ * wire carried "Module Disabled." and the one fact the operator needs to act —
+ * which module to look at — never left the process. It is published here rather
+ * than left implicit because it is a wire shape: a client may read it, and the
+ * sentence interpolates `{module}` out of it.
+ */
+export const moduleDisabledDetailsSchema = z.object({
+  /** Manifest id of the module whose effective state refused the call. */
+  module: z.string().min(1),
+});
+
+export type ModuleDisabledDetails = z.infer<typeof moduleDisabledDetailsSchema>;

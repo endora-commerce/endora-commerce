@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Plus, Search } from 'lucide-react';
-import type { FeedFieldSourceCatalogue, FeedFieldSourceKind } from '@b2b/contracts';
+import {
+  feedOutputFormatSchema,
+  isTabularFeedFormat,
+  type FeedFieldSourceCatalogue,
+  type FeedFieldSourceKind,
+  type FeedOutputFormat,
+} from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { PageHeader } from '@/components/ui/page-header';
 import { useViewportTier } from '@/components/hooks/useViewportTier';
 import { useAuth } from '@/lib/auth';
@@ -32,6 +40,7 @@ import { TemplateFieldList } from './components/TemplateFieldList';
 import {
   PreviewCallToAction,
   TemplatePreviewController,
+  TemplatePreviewVerdict,
   type PreviewSelection,
 } from './components/TemplatePreviewController';
 
@@ -57,8 +66,15 @@ import {
 
 const PREVIEW_DEBOUNCE_MS = 400;
 
-/** Sources a delimited file cannot express in one column. */
-const CSV_UNSUPPORTED: FeedFieldSourceKind[] = ['additional_image_link'];
+/**
+ * Sources no one-cell-per-field format can express.
+ *
+ * A repeated element is an XML shape. CSV, TSV, TXT and XLSX all lay one item
+ * across fixed columns, so a field that resolves to a list has nowhere to go —
+ * the constraint is about the row model, not about the delimiter, which is why
+ * the workbook format is subject to it too.
+ */
+const TABULAR_UNSUPPORTED: FeedFieldSourceKind[] = ['additional_image_link'];
 
 export function FeedTemplateEditorPage(): ReactNode {
   const { templateId } = useParams<{ templateId: string }>();
@@ -143,7 +159,7 @@ export function FeedTemplateEditorPage(): ReactNode {
       itemGranularity: draft.itemGranularity,
       taxonomyProviderCode: draft.taxonomyProviderCode,
       unsupportedSourceKinds: new Set(
-        draft.outputFormat === 'xml' ? [] : CSV_UNSUPPORTED,
+        isTabularFeedFormat(draft.outputFormat) ? TABULAR_UNSUPPORTED : [],
       ),
       knownSourceKeys,
       providerLabel: providerLabel(draft.providerCode),
@@ -279,7 +295,9 @@ export function FeedTemplateEditorPage(): ReactNode {
         template.id,
         template.version,
         {
-          name: draft.name,
+          // Trimmed to match how the contract validates it, so a stray space
+          // does not become part of the stored name.
+          name: draft.name.trim(),
           description: draft.description,
           providerCode: draft.providerCode,
           outputFormat: draft.outputFormat,
@@ -386,9 +404,6 @@ export function FeedTemplateEditorPage(): ReactNode {
             <TemplatePreviewController
               selection={previewSelection}
               onSelect={setPreviewSelection}
-              preview={preview}
-              loading={previewLoading}
-              error={previewError}
             />
             {/* FR-012 — the portability document, as a plain download. An
                 anchor rather than a fetch, so the filename comes from the
@@ -469,6 +484,82 @@ export function FeedTemplateEditorPage(): ReactNode {
         onToggleShowOnly={(): void => setShowOnlyProblems((only) => !only)}
         onFocusField={(fieldId): void => setSelectedFieldId(fieldId)}
       />
+
+      {/* The preview verdict belongs to the page body, not to the header's
+          action row — see TemplatePreviewVerdict. */}
+      <div className="mb-4 empty:mb-0">
+        <TemplatePreviewVerdict
+          selection={previewSelection}
+          preview={preview}
+          loading={previewLoading}
+          error={previewError}
+        />
+      </div>
+
+      {/* What the template *is*, as opposed to what it carries: name,
+          description and output format all describe the whole template rather
+          than any one column, so they share one card above the field list.
+          None of the three had a control before — a rename meant duplicating
+          the template, and the format was fixed at creation, which meant an
+          operator who needed a marketplace's flat file rebuilt everything. */}
+      <div className="b2b-card mb-4 p-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="template-name">{t('builder.name')}</Label>
+            <Input
+              id="template-name"
+              value={draft.name}
+              maxLength={200}
+              disabled={readOnly}
+              title={readOnly ? (disabledTitle ?? t('templates.systemTemplate.notice')) : undefined}
+              aria-invalid={draft.name.trim() === ''}
+              onChange={(event): void => patchDraft({ name: event.target.value })}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="template-description">{t('builder.description')}</Label>
+            <Input
+              id="template-description"
+              value={draft.description ?? ''}
+              maxLength={500}
+              disabled={readOnly}
+              title={readOnly ? (disabledTitle ?? t('templates.systemTemplate.notice')) : undefined}
+              aria-describedby="template-description-hint"
+              onChange={(event): void =>
+                patchDraft({
+                  // Empty means "no description", which the contract spells
+                  // `null`; an empty string would persist as one.
+                  description: event.target.value.trim() === '' ? null : event.target.value,
+                })
+              }
+            />
+            <p id="template-description-hint" className="b2b-help">
+              {t('builder.description.hint')}
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="template-output-format">{t('builder.settings.outputFormat')}</Label>
+            <Select
+              id="template-output-format"
+              value={draft.outputFormat}
+              disabled={readOnly}
+              title={readOnly ? (disabledTitle ?? t('templates.systemTemplate.notice')) : undefined}
+              onChange={(event): void =>
+                patchDraft({ outputFormat: event.target.value as FeedOutputFormat })
+              }
+            >
+              {feedOutputFormatSchema.options.map((format) => (
+                <option key={format} value={format}>
+                  {t(`builder.outputFormat.${format}`)}
+                </option>
+              ))}
+            </Select>
+            {/* Changing the format re-runs validation immediately, which is
+                what surfaces a field the new format cannot carry. */}
+            <p className="b2b-help">{t('builder.outputFormat.hint')}</p>
+          </div>
+        </div>
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3">

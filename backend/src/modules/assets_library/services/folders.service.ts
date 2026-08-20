@@ -10,7 +10,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { AssetFolder } from '../entities/asset-folder.entity.js';
 import { Asset } from '../entities/asset.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { AssetReferenceRegistry } from './reference-registry.js';
 
 export class FoldersService {

@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { GetAdminActionsResponseSchema } from '@b2b/contracts';
 import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
-import { ModuleRegistration } from '../../../src/modules/_lifecycle/entities/module-registration.entity.js';
+import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 
 /**
  * HTTP contract test for GET /api/v1/admin/admin-actions

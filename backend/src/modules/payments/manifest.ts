@@ -1,4 +1,20 @@
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
+
+export const paymentsSettingsManifest = defineModuleSettingsManifest({
+  moduleCode: 'payments',
+  groups: [{ code: 'payments', name: 'Payments' }],
+  settings: [
+    {
+      code: 'payments.enabled',
+      name: 'Payments enabled',
+      description:
+        'Switches the payment lifecycle on or off: the receive_payment ingress, the retry path, the per-order payment history and the payment-status e-mail. Nothing is dropped — every payment, its status transitions and its provider references stay in the database, and an order mid-settlement keeps its record.',
+      groupCode: 'payments',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+  ],
+});
 
 /**
  * Payments module — manifest backfill (Module Lifecycle, feature 018).
@@ -14,7 +30,25 @@ export const manifest = defineModuleManifest({
   description:
     'Payment driver abstraction and PSP integrations.',
   version: '1.0.0',
-  dependencies: ['orders', 'payment_methods'],
+  // Feature 075 Phase C — `customer_accounts` joins the five that were already
+  // here: the payment-status e-mail resolves its recipient over
+  // `customerAccountReadPort` instead of reading the `CustomerAccount` entity.
+  // `orders` was already declared, which D-78 point 2 requires of the one
+  // co-transactional seam kept in `receive-payment-handler.ts` — the FK
+  // `payments_order_fk` had required it anyway.
+  dependencies: [
+    'auth',
+    'customer_accounts',
+    'delivery_methods',
+    'orders',
+    'payment_methods',
+    'transactional_emails',
+  ],
+  // Feature 073 (Constitution XVII) — the operator's activation control. It only
+  // became real in T126: until this module registered its own routes there was
+  // no seam for a gate to sit on.
+  activation: { settingCode: 'payments.enabled', default: true },
+  settings: paymentsSettingsManifest,
   // Feature 047 — admin-editable transactional email owned by this module.
   transactionalEmails: [
     {

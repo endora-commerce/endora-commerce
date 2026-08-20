@@ -1,9 +1,19 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
 import { Meilisearch, type SearchResponse } from 'meilisearch';
-import { ERROR_CODES, type ProductSummary } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  isProductVisibleTo,
+  listingPriceMoney,
+  type CatalogAttributeReadPort,
+  type CatalogProductReadPort,
+  type CatalogProductRecord,
+  type ListingPrice,
+  type ListingPricePort,
+  type OrganizationDetailsPort,
+  type PriceOrganization,
+  type ProductAudience,
+  type ProductSummary,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
 import { encodeCursor, decodeCursor } from '../../../http/cursor.js';
 import { indexUidFor, type IndexedDocument } from './search-indexer.js';
 
@@ -28,7 +38,7 @@ import { indexUidFor, type IndexedDocument } from './search-indexer.js';
 
 /**
  * The request's resolved sales channel (feature 053 / FR-002), handed in by the
- * route from `request.salesChannel`. The search service no longer re-resolves
+ * route via `getResolvedChannel()`. The search service no longer re-resolves
  * the channel from the raw header.
  */
 export interface ResolvedSearchChannel {
@@ -41,6 +51,8 @@ export interface ResolvedSearchChannel {
 
 export interface SearchQueryContext {
   resolvedChannel: ResolvedSearchChannel;
+  /** Who is asking (issue #227) — see the published `SearchQueryContext`. */
+  audience: ProductAudience;
   preferredLanguage?: string | undefined;
 }
 
@@ -75,13 +87,45 @@ export class SearchQueryService {
   private readonly client: Meilisearch;
 
   constructor(
-    private readonly emFactory: () => EntityManager,
+    /**
+     * Issue #153 — `catalog`'s product rows, over the port, where an
+     * `EntityManager` and `em.find(Product, …)` used to be.
+     *
+     * The `EntityManager` could not leave while `catalog/plugin.ts` built this
+     * class itself: a second module's composition decided what this
+     * constructor took. It resolves `searchQueryPort` now, so the hydration
+     * below asks `catalog` for its rows and answers 503 `MODULE_DISABLED` when
+     * `catalog` is off — which is right, because `search`'s manifest declares
+     * `catalog` and an index over a catalogue that is gone has nothing to
+     * hydrate against.
+     */
+    private readonly products: CatalogProductReadPort,
     /**
      * Feature 061 — the catalog's composed attribute read model (Principle I:
-     * filterable validation reads the view, not the catalog entity).
+     * filterable validation reads the view, not the catalog entity). Feature
+     * 075, Phase C — typed as the published port; `catalog`'s own service
+     * satisfies it structurally, so its construction of this class is unchanged.
      */
-    private readonly attributeRead?: CatalogAttributeReadService,
+    private readonly attributeRead?: CatalogAttributeReadPort,
     options: SearchQueryOptions = {},
+    /**
+     * Issue #132 — the pricing engine, through the `pricingService` port. The
+     * hydration below exists so that Postgres, not the index, decides what a
+     * hit shows; the price it hydrates now comes from the engine for the same
+     * reason.
+     */
+    private readonly listingPrices?: ListingPricePort,
+    /**
+     * `organizations`' read model, for the customer group a group-targeted
+     * price list is selected by. The module already resolves this port for the
+     * typeahead popup, which has priced per buyer since feature 075 — the
+     * result feed under the popup did not, so one search box quoted two
+     * different figures for one product depending on whether the buyer stopped
+     * at the suggestions or pressed Enter.
+     *
+     * Optional only in the signature, and never reached by an anonymous query.
+     */
+    private readonly organizations?: OrganizationDetailsPort,
   ) {
     const host =
       options.meilisearchHost ??
@@ -98,7 +142,6 @@ export class SearchQueryService {
     params: SearchListProductsParams,
     ctx: SearchQueryContext,
   ): Promise<SearchListResult> {
-    const em = this.emFactory();
     const channel = ctx.resolvedChannel;
 
     // Validate filter keys against the live composed attribute views so that an
@@ -109,7 +152,7 @@ export class SearchQueryService {
       if (keys.length > 0) {
         if (!this.attributeRead) {
           throw new Error(
-            'SearchQueryService: CatalogAttributeReadService is not wired — attribute-filter validation is unavailable.',
+            'SearchQueryService: the catalog attribute read port is not wired — attribute-filter validation is unavailable.',
           );
         }
         const attrs = await this.attributeRead.listAll();
@@ -176,16 +219,56 @@ export class SearchQueryService {
     // Hydrate the channel-aware price + multilingual name override from
     // Postgres. This protects against stale index data and keeps R-18
     // (hide price on non-public channels) authoritative on Postgres.
-    const products = await em.find(Product, {
-      id: { $in: hits.map((h) => h.id) },
-    });
+    //
+    // Issue #227 — and the audience answer, for the same reason and in the
+    // same place. It is **not** pushed into the Meilisearch filter expression:
+    // the index carries `visibility` but has never carried
+    // `allowed_organization_ids`, so a filter there could cover one of the two
+    // columns and would still need this pass to be correct — while reading, to
+    // the next author, as though the question were settled upstream. The cost
+    // is the one this path already pays for a stale index: a page can come
+    // back shorter than `limit`.
+    const products = (await this.products.findByIds(hits.map((h) => h.id))).filter((p) =>
+      isProductVisibleTo(p, ctx.audience),
+    );
     const productById = new Map(products.map((p) => [p.id, p]));
+    // A channel that withholds prices is not asked for them (R-18), so the
+    // resolution never runs and every hit reports `null`.
+    // The price is the *viewer's*, while the document stays everybody's. A
+    // Meilisearch document has never carried a price and does not start now:
+    // one index per sales channel, one document per product, and per-buyer
+    // pricing would otherwise multiply the corpus by the customer base. This
+    // pass already re-reads every hit from Postgres so a stale index cannot
+    // decide what a buyer sees; resolving the price for the caller here costs
+    // the page four statements (measured, `listing-price-viewer-cost.bench.ts`)
+    // and leaves the index shared.
+    const priceable = channel.isPublic && products.length > 0;
+    const viewerOrganization = priceable
+      ? await this.#viewerOrganization(ctx.audience)
+      : null;
+    const resolvedPrices =
+      priceable
+        ? await this.#requireListingPrices().resolveListingPrices({
+            products,
+            context: {
+              salesChannel: { id: channel.id, defaultCurrency: channel.defaultCurrency },
+              organization: viewerOrganization,
+            },
+          })
+        : new Map<string, ListingPrice>();
     const summaries: ProductSummary[] = [];
     for (const hit of hits) {
       const product = productById.get(hit.id);
-      if (!product) continue; // Index pointed at a deleted row.
+      // Index pointed at a deleted row, or at one this audience may not see.
+      if (!product) continue;
       summaries.push(
-        toSummary(product, hit, channel, ctx.preferredLanguage),
+        searchHitSummary(
+          product,
+          hit,
+          channel,
+          ctx.preferredLanguage,
+          resolvedPrices.get(product.id),
+        ),
       );
     }
 
@@ -195,6 +278,36 @@ export class SearchQueryService {
     };
   }
 
+  #requireListingPrices(): ListingPricePort {
+    if (!this.listingPrices) {
+      throw new Error(
+        'SearchQueryService: the pricing port is not wired — a search hit cannot be priced.',
+      );
+    }
+    return this.listingPrices;
+  }
+
+  #requireOrganizations(): OrganizationDetailsPort {
+    if (!this.organizations) {
+      throw new Error(
+        'SearchQueryService: the organization read port is not wired — a signed-in buyer cannot be priced.',
+      );
+    }
+    return this.organizations;
+  }
+
+  /**
+   * The buying organisation a hit should be priced against — `null` for the
+   * anonymous visitor, for a signed-in buyer with no Organization, and for one
+   * whose Organization row is gone. The same three-way answer `catalog`'s
+   * listing gives, deliberately: the two backends serve the same route.
+   */
+  async #viewerOrganization(audience: ProductAudience): Promise<PriceOrganization | null> {
+    if (audience.organizationId === null) return null;
+    const record = await this.#requireOrganizations().findById(audience.organizationId);
+    if (!record) return null;
+    return { id: record.id, customerGroupId: record.customerGroupId };
+  }
 }
 
 export class SearchBackendUnavailable extends Error {
@@ -256,21 +369,22 @@ function decodeOffsetCursor(cursor: string | undefined): number | null {
   }
 }
 
-function toSummary(
-  product: Product,
+/**
+ * Project one hydrated hit into a `ProductSummary` (issue #132).
+ *
+ * `resolvedPrice` is the chain's answer for this product, or `undefined` when
+ * the channel withheld the resolution — both render `null`, which is the one
+ * spelling `ProductSummary.price` has for "no price". Exported so the
+ * projection can be asserted without a Meilisearch round trip.
+ */
+export function searchHitSummary(
+  product: CatalogProductRecord,
   hit: DocumentHit,
   channel: ResolvedSearchChannel,
   preferredLanguage: string | undefined,
+  resolvedPrice: ListingPrice | undefined,
 ): ProductSummary {
-  const rawPrice = Number(
-    product.attributeValues['defaultPrice'] ??
-      product.attributeValues['price'] ??
-      Number.NaN,
-  );
-  const currency = channel?.defaultCurrency ?? 'PLN';
-  const showPrice = channel?.isPublic ?? true;
-  const price =
-    showPrice && Number.isFinite(rawPrice) ? { amount: rawPrice, currency } : null;
+  const price = resolvedPrice === undefined ? null : listingPriceMoney(resolvedPrice);
 
   return {
     id: product.id,

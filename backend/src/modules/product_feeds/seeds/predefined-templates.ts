@@ -247,6 +247,12 @@ export const PREDEFINED_TEMPLATES: readonly PredefinedTemplate[] = [
  * inconvenience, an unbootable API is an outage.
  */
 export async function reconcilePredefinedTemplates(em: EntityManager): Promise<number> {
+  // command-coverage-ignore: boot convergence of the database to the templates
+  // this build ships, in the same shape as `_lifecycle`'s registry reconcile —
+  // a system invariant with no operator behind it. It only ever *installs* a
+  // missing `isSystem` row (see the contract above); the moment it starts
+  // editing or deleting one, it is changing an operator's configuration and the
+  // write belongs in a Command, not under this hatch.
   let installed = 0;
   for (const definition of PREDEFINED_TEMPLATES) {
     const existing = await em.findOne(FeedTemplate, { systemCode: definition.systemCode });

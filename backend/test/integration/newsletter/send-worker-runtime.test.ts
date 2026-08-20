@@ -9,7 +9,7 @@ import { NewsletterContentService } from '../../../src/modules/newsletter/servic
 import { NewsletterCampaignDispatchService } from '../../../src/modules/newsletter/services/campaign-dispatch.service.js';
 import { InMemoryNewsletterProvider } from '../../../src/modules/newsletter/services/provider/console-provider.js';
 import { createSendQueue, createSendWorker } from '../../../src/modules/newsletter/services/queues/newsletter-queues.js';
-import type { SettingsService } from '../../../src/modules/settings/services/settings.service.js';
+import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
 import { NewsletterCampaign } from '../../../src/modules/newsletter/entities/newsletter-campaign.entity.js';
 import { NewsletterSendRecord } from '../../../src/modules/newsletter/entities/newsletter-send-record.entity.js';

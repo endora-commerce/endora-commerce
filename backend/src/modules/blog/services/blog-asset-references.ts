@@ -14,13 +14,13 @@
 
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  AssetReference,
   AssetReferenceDescriptor,
-  AssetReferenceRegistry,
-} from '../../assets_library/services/reference-registry.js';
-import type { AssetReference } from '@b2b/contracts';
+  AssetReferenceRegistryPort,
+} from '@b2b/contracts';
 
 export function registerBlogAssetReferences(
-  registry: AssetReferenceRegistry,
+  registry: AssetReferenceRegistryPort,
   emFactory: () => EntityManager,
 ): void {
   registry.register(blogMainImageReferenceDescriptor(emFactory));
@@ -31,11 +31,12 @@ function blogMainImageReferenceDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'blog',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
-      const conn = emFactory().getConnection();
+      const em = emFactory();
       const placeholders = assetIds.map(() => '?').join(', ');
-      const rows = (await conn.execute(
+      const rows = (await em.execute(
         `select id::text as id, slug
            from blog_categories
           where main_image_asset_id in (${placeholders})
@@ -55,9 +56,10 @@ function blogContentTreeReferenceDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'blog',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
-      const conn = emFactory().getConnection();
+      const em = emFactory();
       const out: AssetReference[] = [];
       for (const aidRaw of assetIds) {
         // The asset id is a UUID; this regex is a defensive pre-filter to
@@ -66,7 +68,7 @@ function blogContentTreeReferenceDescriptor(
         const aid = aidRaw.replace(/[^0-9a-fA-F-]/g, '');
         const path = `'$.** ? (@ == "${aid}")'::jsonpath`;
 
-        const rows = (await conn.execute(
+        const rows = (await em.execute(
           `select id::text as id, slug, 'blog_post' as kind
              from blog_posts
             where deleted_at is null

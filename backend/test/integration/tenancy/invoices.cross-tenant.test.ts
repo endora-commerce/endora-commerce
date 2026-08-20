@@ -11,6 +11,7 @@ import { OrganizationSalesRepAssignment } from '../../../src/modules/organizatio
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { seedInvoiceableOrder, setSellerSettings } from '../../integration/invoices/helpers.js';
+import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 
 /**
  * Feature 050 US1 — invoices are transitively scoped through their Order's org.
@@ -21,7 +22,11 @@ describe('Invoices — cross-tenant scoping (feature 050 US1)', () => {
   let repCookie: string;
   const orgAId = randomUUID();
   const orgBId = randomUUID();
-  const CH = randomUUID();
+  // Feature 078, D-95: `{channel}` is rendered from the `sales_channels` row, so
+  // this file's channel has to be one. Both organizations issue on it — the
+  // point of the file is that the *organization* scopes the invoice, not the
+  // channel.
+  let CH: string;
   let invoiceAId: string;
   let invoiceBId: string;
 
@@ -41,6 +46,7 @@ describe('Invoices — cross-tenant scoping (feature 050 US1)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    CH = await ensureSalesChannelId(h.em(), 'tenancy-invoices');
     await setSellerSettings(h);
 
     await withSystemScope('test seed', async () => {

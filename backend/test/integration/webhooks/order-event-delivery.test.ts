@@ -1,3 +1,4 @@
+import type { WebhookService } from '../../../src/modules/webhooks/services/webhook-service.js';
 import { createHmac, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Queue, Worker } from 'bullmq';
@@ -15,7 +16,8 @@ import {
   type WebhookJobData,
 } from '../../../src/modules/webhooks/services/webhook-queue.js';
 import { createDeliveryProcessor } from '../../../src/modules/webhooks/services/webhook-delivery-worker.js';
-import { wireEventBridge } from '../../../src/modules/webhooks/services/event-bridge.js';
+import { bridgeEventHandler } from '../../../src/modules/webhooks/services/event-bridge.js';
+import { BRIDGED_EVENT_TYPES } from '../../../src/modules/webhooks/backend.js';
 import { emitOrderStatusAfter } from '../../../src/modules/orders/events/order-status-events.js';
 
 /**
@@ -50,6 +52,15 @@ async function waitFor(cond: () => boolean, timeoutMs = 15_000): Promise<void> {
     if (Date.now() > deadline) throw new Error('waitFor: condition not met in time');
     await new Promise((r) => setTimeout(r, 50));
   }
+}
+
+/**
+ * Feature 072 (T098) — `webhooks` owns its service now, so it is resolved from
+ * the container rather than off the `api_keys` handle it used to be built on.
+ */
+function webhookServiceOf(handle: BackendServerHandle): WebhookService {
+  return (handle.container.cradle as unknown as { webhookService: WebhookService })
+    .webhookService;
 }
 
 describe('webhook delivery — org-scoped order events (062/T028)', () => {
@@ -172,17 +183,21 @@ describe('webhook delivery — org-scoped order events (062/T028)', () => {
     const processor = createDeliveryProcessor({
       fetchFn: fakeFetch,
       recordDelivery: async (input) => {
-        await h.integrations.webhookService.recordDelivery(input);
+        await webhookServiceOf(h).recordDelivery(input);
       },
     });
     worker = createWebhookWorker(h.redis, processor, { prefix, concurrency: 2 });
 
-    unwire = wireEventBridge({
-      eventBus: h.eventBus,
-      queue,
-      subscriptionLookup: h.integrations.webhookService,
-      bridgedEventTypes: ['order.created.v1', 'order.status_changed.v1'],
-    });
+    // The module's own registrations live in `webhooks/backend.ts` and go
+    // through `ctx.subscribe`. This file drives the bridge against a queue of
+    // its own, so it attaches the same handler to the composed bus itself.
+    const offs = BRIDGED_EVENT_TYPES.map((eventType) =>
+      h.eventBus.on(
+        eventType,
+        bridgeEventHandler(eventType, { queue, subscriptionLookup: webhookServiceOf(h) }),
+      ),
+    );
+    unwire = () => offs.forEach((off) => off());
   }, 60_000);
 
   afterAll(async () => {

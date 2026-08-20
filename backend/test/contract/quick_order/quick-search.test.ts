@@ -5,14 +5,24 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { createAttributeFixture } from '../../helpers/seed-catalog.js';
+import { createAttributeFixture, SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 /**
  * Feature 039 (US3) — quick search matches SKU, name, and the values of
  * `quick_searchable` attributes only (FR-011 / FR-013).
+ *
+ * Issue #174 changed the fixture, and the change is the point. The subject was
+ * `em.findOne(Product, { status: 'active' })` — whichever active row the
+ * database returned first, bound to a sales channel or not — and the request
+ * carried no `x-sales-channel`, so it fell back to the install-created default
+ * channel, which no test binds a product to. Both worked because the endpoint
+ * ignored the channel entirely. It does not any more: the subject is a product
+ * this harness binds to `pl_retail`, and the request says which channel it is
+ * shopping. See `quick-search-channel-scoping.test.ts` for the property.
  */
 
 const COOKIE = { b2b_session: 'stub-customer-session' };
+const CHANNEL = { 'x-sales-channel': 'pl_retail' };
 const FLAGGED_VALUE = 'qomagenta7';
 const PLAIN_VALUE = 'qohidden7';
 
@@ -20,6 +30,7 @@ async function search(h: BackendServerHandle, q: string): Promise<Array<{ produc
   const res = await h.app.inject({
     method: 'GET',
     url: `/api/v1/quick-order/search?q=${encodeURIComponent(q)}`,
+    headers: CHANNEL,
     cookies: COOKIE,
   });
   return (res.json() as { data: Array<{ productId: string; matchedOn?: string[] }> }).data;
@@ -48,7 +59,9 @@ describe('Quick-order quick search', () => {
       valueType: 'string',
     });
 
-    const product = await em.findOne(Product, { status: 'active' });
+    // A seeded product bound to both `pl_retail` and `pl_b2b_vip`, so the
+    // subject is reachable on the channel the requests below name.
+    const product = await em.findOne(Product, { id: SEED_PRODUCT_101_ID });
     productId = product!.id;
     sku = product!.sku;
     product!.attributeValues = {

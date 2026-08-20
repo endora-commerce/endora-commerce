@@ -43,7 +43,7 @@ const allowlist = [
   'backend/src/modules/catalog/commands/attribute-commands.ts',
   'backend/src/modules/catalog/routes.admin.ts',
   'backend/src/modules/catalog/entities/product-attribute.entity.ts',
-  'backend/src/modules/catalog/seeds/dev-catalog-seed.ts',
+  'backend/src/seeds/dev-catalog-seed.ts',
   // Contracts package — deprecated request field
   'packages/contracts/src/catalog.ts',
   // Admin UI — backward-compatible projection

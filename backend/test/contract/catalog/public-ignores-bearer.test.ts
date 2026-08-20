@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * Feature 062 / T014 — thin "public ignores Bearer" regression test.

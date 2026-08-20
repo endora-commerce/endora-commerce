@@ -4,12 +4,11 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { ProductFeed } from '../../../src/modules/product_feeds/entities/product-feed.entity.js';
 import {
-  attachFeedScheduleSync,
   FeedScheduleReconciler,
-  type FeedScheduleSyncHandle,
+  syncFeedScheduleFromEvent,
 } from '../../../src/modules/product_feeds/services/feed-schedule-reconciler.js';
 import {
   feedSchedulerId,
@@ -97,7 +96,13 @@ describe('product feed schedule lifecycle [integration]', () => {
   let channelId: string;
   let scheduler: InMemoryScheduler;
   let schedules: FeedScheduleReconciler;
-  let sync: FeedScheduleSyncHandle | null = null;
+  /**
+ * The module's own registration lives in `product_feeds/backend.ts` and goes
+ * through `ctx.subscribe` (issue #107). This file drives the handler against a
+ * scheduler double, so it attaches that handler to the composed bus itself and
+ * detaches it again after each test.
+ */
+let sync: (() => void) | null = null;
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -114,12 +119,12 @@ describe('product feed schedule lifecycle [integration]', () => {
   });
 
   afterAll(async () => {
-    sync?.dispose();
+    sync?.();
     await teardownBackendServer(h);
   });
 
   afterEach(async () => {
-    sync?.dispose();
+    sync?.();
     sync = null;
     // Each case owns the whole desired state, so previous feeds must not leak
     // into the next one's reconcile.
@@ -233,7 +238,9 @@ describe('product feed schedule lifecycle [integration]', () => {
   describe('the write path — Postgres first, Redis after (research §R5.4)', () => {
     /** Subscribes the real sync to the real `feed_changed` event. */
     function attach(): void {
-      sync = attachFeedScheduleSync(h.eventBus, freshReconciler());
+      const schedules = freshReconciler();
+      sync = h.eventBus.on('product_feeds.feed_changed' as never, ((payload: unknown) =>
+        syncFeedScheduleFromEvent(schedules, payload)) as never);
     }
 
     it('creates a scheduler when a feed is created with a schedule', async () => {
@@ -341,10 +348,12 @@ describe('product feed schedule lifecycle [integration]', () => {
         },
         reconcile: async () => ({ upserted: 0, removed: 0, failed: 1 }),
       };
-      sync = attachFeedScheduleSync(
-        h.eventBus,
-        new FeedScheduleReconciler({ emFactory: () => h.orm.em.fork(), scheduler: broken }),
-      );
+      const brokenSchedules = new FeedScheduleReconciler({
+        emFactory: () => h.orm.em.fork(),
+        scheduler: broken,
+      });
+      sync = h.eventBus.on('product_feeds.feed_changed' as never, ((payload: unknown) =>
+        syncFeedScheduleFromEvent(brokenSchedules, payload)) as never);
 
       const feedId = await createFeed({ schedule: WARSAW });
 

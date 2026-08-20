@@ -1,14 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { getMigrator } from '../../../src/db/migrator.js';
+import { setupMigratorTestDb, type TestDb } from '../../helpers/test-db.js';
 
 /**
  * T011 (feature 061) — SC-001 parity test for migration
  * `20260723T230401_catalog_attributes_on_custom_fields.ts`.
  *
- * Strategy (the shared test DB is fully migrated by global-setup, so the test
- * drives the migrator itself):
+ * Strategy (the migration is the thing under test, so the test drives the real
+ * migrator against a **database of its own** — `setupMigratorTestDb`, a clone
+ * of the migrated template this invocation was cloned from; see
+ * `test/migrator-driving-tests.ts` for why the run database is not it):
  *   1. Revert migration 102 (guarded: the latest executed migration MUST be
  *      102, otherwise the test aborts before touching anything).
  *   2. Seed legacy-shaped fixtures via raw SQL — every legacy value type
@@ -18,7 +19,6 @@ import { getMigrator } from '../../../src/db/migrator.js';
  *      extension reshape (SC-001, data-model.md §3).
  *   4. Revert again and assert `down()` restores the legacy shape.
  *   5. Assert the loud abort on a reserved-key collision (`name`).
- *   6. Leave the DB fully migrated for the rest of the suite.
  */
 
 const LEGACY_ATTRIBUTES: Array<{
@@ -168,11 +168,18 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
   }
 
   async function revert102(): Promise<void> {
-    // Later features keep appending migrations (103+ as of feature 062), so on
-    // a fully-migrated shared DB the latest executed migration is usually not
-    // 102. Step down through anything newer first, then revert 102 itself —
-    // but refuse to ever down() a migration OLDER than 102.
-    const migrator = await getMigrator(db.orm);
+    // Later features keep appending migrations (103+ as of feature 062), so the
+    // latest executed migration is usually not 102. Step down through anything
+    // newer first, then revert 102 itself — but refuse to ever down() a
+    // migration OLDER than 102.
+    //
+    // `id desc` is the order the migrations were *applied*, and `migrator.down()`
+    // reverts the last one in the order the ORM config *configures*. The two
+    // agree only on a database migrated in one pass, which is what a clone of
+    // the template is and what an incrementally-migrated database is not — see
+    // `templateDrift` in `test/run-isolation.ts` for the run this loop made
+    // when they disagreed.
+    const migrator = db.orm.getMigrator();
     for (;;) {
       const latest = await latestExecutedMigration();
       const stamp = /^Migration(\d{8}T\d{6})/.exec(latest ?? '')?.[1] ?? '';
@@ -249,19 +256,23 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
   }
 
   beforeAll(async () => {
-    db = await setupTestDb();
+    db = await setupMigratorTestDb();
   });
 
   afterAll(async () => {
-    // Whatever happened above, leave the DB fully migrated for other files.
-    await (await getMigrator(db.orm)).up();
+    // Nothing to leave migrated: the database is this file's own and is dropped
+    // here. The `migrator.up()` that used to stand at the top of this hook was
+    // owed to the files sharing the run database, and it is what turned one
+    // failing migration sequence into 21 red files — it ran against a schema
+    // the timed-out `down()` loop had already reverted, failed, and left the
+    // invocation's only copy without one.
     await db.close();
   });
 
   it('re-applies migration 102 over legacy fixtures with full parity (SC-001)', async () => {
     await revert102();
     await seedLegacyFixtures();
-    await (await getMigrator(db.orm)).up();
+    await db.orm.getMigrator().up();
 
     // --- Definitions: one per legacy attribute, content preserved.
     const defs = await conn().execute<
@@ -475,7 +486,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
       [randomUUID()],
     );
 
-    await expect((await getMigrator(db.orm)).up()).rejects.toThrow(/reserved|collid/i);
+    await expect(db.orm.getMigrator().up()).rejects.toThrow(/reserved|collid/i);
 
     // Atomic: still legacy shape, nothing partially migrated.
     const cols = await conn().execute<Array<{ column_name: string }>>(
@@ -491,7 +502,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
     // Clean up the offending row; re-apply so the suite continues migrated.
     // (up() also re-applies any post-102 migrations stepped down by revert102.)
     await conn().execute(`delete from "product_attributes" where "key" = 'name'`);
-    await (await getMigrator(db.orm)).up();
+    await db.orm.getMigrator().up();
     const executed = await conn().execute<Array<{ name: string }>>(
       `select "name" from "mikro_orm_migrations"`,
     );

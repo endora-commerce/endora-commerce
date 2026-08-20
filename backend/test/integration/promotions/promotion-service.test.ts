@@ -4,7 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import type { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { Promotion } from '../../../src/modules/promotions/entities/promotion.entity.js';
 import type { CartSnapshot } from '@b2b/contracts';
 
@@ -44,7 +45,7 @@ describe('PromotionService.applyToCart', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    svc = new PromotionService(h.em);
+    svc = promotionServiceFor(h);
   });
 
   afterAll(async () => {
@@ -156,6 +157,38 @@ describe('PromotionService.applyToCart', () => {
     expect(result.discountTotal).toBe(0);
     const stored = await h.em().findOneOrFail(Promotion, { id: promo.id });
     expect(stored.isActive).toBe(false);
+  });
+
+  /**
+   * Issue #164 — the write validation an optional port used to switch off.
+   *
+   * `catalogPort` was optional, so `validateCriteria` opened with "no port, no
+   * semantic validation" and returned. Every service in this file was built
+   * that way, which is precisely the shape the issue names: an optional
+   * dependency production always supplies leaves its absent branch untested by
+   * construction, and here that branch **accepted a promotion naming an
+   * attribute that does not exist** — saved, then silently matching nothing
+   * forever. The port is required now, so there is one behaviour to test and
+   * this is it.
+   */
+  it('refuses an attribute criterion naming an attribute that does not exist', async () => {
+    await expect(
+      svc.upsert({
+        name: 'Ten percent off nothing at all',
+        kind: 'percentage_off',
+        value: 10,
+        criteria: [
+          {
+            type: 'attribute',
+            attributeKey: 'no_such_attribute',
+            op: 'equals',
+            values: ['whatever'],
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+
+    expect(await h.em().count(Promotion, { name: 'Ten percent off nothing at all' })).toBe(0);
   });
 });
 

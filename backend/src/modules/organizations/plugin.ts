@@ -1,9 +1,18 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CartMergeOutcome } from '@b2b/contracts';
+import type {
+  AddressServicePort,
+  CartMergeOutcome,
+  CustomFieldValuePort,
+  CustomerAccountMemberWritePort,
+  CustomerAccountReadPort,
+  CustomerAuthPort,
+  CustomerPasswordResetPort,
+  CustomerRolePort,
+  CustomerTotpEnrolmentPort,
+  EmailMailerPort,
+} from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
-import type { SessionService } from '../auth/services/session-service.js';
-import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
 import type { OrganizationModerationService } from './services/organization-moderation-service.js';
 import type { OrganizationRestrictionService } from './services/organization-restriction-service.js';
 import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
@@ -13,15 +22,9 @@ import {
   type OrganizationEventBus,
 } from './services/registration-service.js';
 import { EmailVerificationService } from './services/email-verification-service.js';
-import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
-import { AddressService } from '../addresses/services/address-service.js';
 import { InvitationService } from './services/invitation-service.js';
-import { makeOrgTemplateEmail } from './services/org-template-email.js';
-import { RoleService } from '../customer_accounts/services/role-service.js';
-import { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
-import { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
-import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import { noopOrgTemplateEmail, type OrgTemplateEmail } from './services/org-template-email.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
 import { registerOrganizationsStorefrontRoutes } from './routes.storefront.js';
@@ -30,10 +33,9 @@ import { registerMembersRoutes } from './routes.members.js';
 import { registerOrganizationsAdminRoutes } from './routes.admin.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import type { CommandBus } from '../../commands/index.js';
-import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
-import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
+import type { RequireAdminAnyFactory } from '../../kernel/ports/require-admin.js';
 import type { DictionaryValidator } from '@b2b/contracts';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the organizations + customer_accounts + addresses
@@ -42,11 +44,24 @@ import type { DictionaryValidator } from '@b2b/contracts';
  */
 
 export interface OrganizationsModuleOptions {
+  /**
+   * Feature 072 (T094) — `customer_accounts` owns these now. Injected rather
+   * than built here, because this host and `customers` each built their own and the
+   * MFA argument differed between them.
+   */
+  customerAuthService: CustomerAuthPort;
+  passwordResetService: CustomerPasswordResetPort;
+  customerRoleService: CustomerRolePort;
+  totpEnrolmentService: CustomerTotpEnrolmentPort;
+  /**
+   * `customer_accounts`' published read and member write (feature 075, Phase
+   * C). Registration, invitation accept, the member panel, `GET /me` and the
+   * Org-Admin gate all reached this module's entity directly before the cut.
+   */
+  customerAccountRead: CustomerAccountReadPort;
+  customerAccountWrite: CustomerAccountMemberWritePort;
   emFactory: () => EntityManager;
   eventBus: EventBus;
-  sessionService: SessionService;
-  /** Feature 042 — lazily resolved MFA login port (absent ⇒ password-only). */
-  getMfaLoginPort?: () => MfaLoginPort | undefined;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
@@ -76,19 +91,33 @@ export interface OrganizationsModuleOptions {
   requireAdmin?: RequireAdminFactory;
   /** Read-only org routes accept `customers:read` OR `customers:manage`. */
   requireAdminAny?: RequireAdminAnyFactory;
-  /** Mailer used to dispatch invitation + verification emails. Defaults to ConsoleMailer. */
-  mailer?: Mailer;
-  /** Feature 047 — late-bound transactional-email sender (admin-editable templates). */
-  getTransactionalEmailSender?: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
-  /** Feature 047 — resolves the scope channel for org emails (system-default). */
-  resolveScopeSalesChannelId?: () => Promise<string | null>;
-  /** Feature 047 — resolves the email language for a sales channel. */
-  resolveSalesChannelLanguage?: (salesChannelId: string) => Promise<string>;
+  /**
+   * Transport for the invitation and verification e-mails.
+   *
+   * Required since feature 075's Phase C. It defaulted to `new ConsoleMailer()`
+   * — a value import of `email`'s driver — and the default has had no reachable
+   * caller since the container started resolving `emailMailer` for every
+   * composition: an omitted mailer would mean an e-mail nobody receives and a
+   * registration that reports it as sent.
+   */
+  mailer: EmailMailerPort;
+  /**
+   * Feature 047 / 072 (T120) — the template-routed sender, supplied by
+   * `transactional_emails` through `templateEmailPort`. Absent, every
+   * template-routed send falls back to the legacy in-code builder.
+   */
+  templateEmail?: OrgTemplateEmail;
+  // `resolveScopeSalesChannelId` and `resolveSalesChannelLanguage` were here
+  // until T120. They existed only to feed the template adapter this module used
+  // to assemble; `transactional_emails` resolves both inside the one adapter it
+  // now owns.
   /** Storefront base URL for the invitation accept link. */
   storefrontBaseUrl?: string;
   /** Required when `requireAdmin` is set — audit trail for admin org mutations. */
   auditLogService?: AuditLogService;
   dictionaryValidator?: DictionaryValidator;
+  /** Resolved from the container since feature 072 (T090) — one instance, always armed. */
+  addressService: AddressServicePort;
   /**
    * Feature 026 — moderation service that owns approve / reject / block /
    * unblock. When provided alongside `requireAdmin`, the matching admin
@@ -114,7 +143,7 @@ export interface OrganizationsModuleOptions {
    */
   taxIdValidationService?: OrganizationTaxIdValidationService;
   /** Feature 055 — validates + reads organization custom-field values on the admin edit path. */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
   /**
    * Feature 056 — Command Bus for the org-hierarchy tree mutations
    * (`organization.set_parent` / `organization.move`). When present alongside
@@ -125,47 +154,45 @@ export interface OrganizationsModuleOptions {
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
-    const mailer = options.mailer ?? new ConsoleMailer();
-    const orgTemplateEmail = makeOrgTemplateEmail({
-      ...(options.getTransactionalEmailSender ? { getSender: options.getTransactionalEmailSender } : {}),
-      ...(options.resolveScopeSalesChannelId
-        ? { resolveScopeSalesChannelId: options.resolveScopeSalesChannelId }
-        : {}),
-      ...(options.resolveSalesChannelLanguage
-        ? { resolveLanguage: options.resolveSalesChannelLanguage }
-        : {}),
-    });
+    const mailer = options.mailer;
+    // Feature 072 (T120) — supplied rather than assembled. This used to build
+    // its own adapter from three options; `transactional_emails` owns the
+    // implementation now and every module that sends template-routed mail
+    // resolves the same one.
+    const orgTemplateEmail = options.templateEmail ?? noopOrgTemplateEmail;
     const storefrontBaseUrl = options.storefrontBaseUrl ?? 'http://localhost:3000';
     const latestTokenByEmail = new Map<string, string>();
+    const accountPorts = {
+      read: options.customerAccountRead,
+      write: options.customerAccountWrite,
+    };
     const registrationService = new RegistrationService(
       options.emFactory,
       options.eventBus as OrganizationEventBus,
+      accountPorts,
       options.dictionaryValidator,
       options.auditLogService,
     );
     const verificationService = new EmailVerificationService(
       options.emFactory,
       options.eventBus as OrganizationEventBus,
+      accountPorts,
       options.auditLogService,
     );
-    const customerAuthService = new CustomerAuthService(
-      options.emFactory,
-      options.sessionService,
-      options.getMfaLoginPort,
-      options.auditLogService,
-    );
-    const addressService = new AddressService(options.emFactory, options.dictionaryValidator, options.auditLogService);
+    const customerAuthService = options.customerAuthService;
     const invitationService = new InvitationService(
       options.emFactory,
+      accountPorts,
       mailer,
       { acceptBaseUrl: storefrontBaseUrl },
       options.eventBus as OrganizationEventBus,
       orgTemplateEmail,
       options.auditLogService,
     );
-    const roleService = new RoleService(options.emFactory, options.auditLogService);
-    const passwordResetService = new PasswordResetService(options.emFactory, options.auditLogService);
-    const totpEnrolmentService = new TotpEnrolmentService(options.emFactory, options.auditLogService);
+    const roleService = options.customerRoleService;
+    const passwordResetService = options.passwordResetService;
+    const totpEnrolmentService = options.totpEnrolmentService;
+    const addressService = options.addressService;
     const latestInvitationToken: { value: string | null } = { value: null };
 
     await registerOrganizationsPublicRoutes(app, {
@@ -184,6 +211,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       customerAuthService,
       addressService,
       totpEnrolmentService,
+      customerAccountRead: options.customerAccountRead,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
       resolveCustomerActorOptionalOrg: resolveOptionalOrgContext,
@@ -205,11 +233,11 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
     await registerMembersRoutes(app, {
       invitationService,
       roleService,
+      customerAccountRead: options.customerAccountRead,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
       exposeTestProbe: options.exposeTestProbe ?? false,
       latestInvitationToken,
-      emFactory: options.emFactory,
     });
     if (options.requireAdmin) {
       if (!options.auditLogService) {
@@ -224,6 +252,8 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         requireAdminAny: options.requireAdminAny,
         invitationService,
         roleService,
+        customerAccountRead: options.customerAccountRead,
+        customerAccountWrite: options.customerAccountWrite,
         auditLogService: options.auditLogService,
         eventBus: options.eventBus as OrganizationEventBus,
         addressService,

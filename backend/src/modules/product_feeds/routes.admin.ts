@@ -1,5 +1,5 @@
 import { Readable } from 'node:stream';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import {
@@ -12,7 +12,7 @@ import {
   updateProductFeedRequestSchema,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import { PRODUCT_FEEDS_READ_PERMISSION, PRODUCT_FEEDS_WRITE_PERMISSION } from './manifest.js';
 import { FeedArtefact } from './entities/feed-artefact.entity.js';
 import { FeedRun } from './entities/feed-run.entity.js';
@@ -26,6 +26,8 @@ import {
   type ProductSelectionService,
 } from './services/product-selection.service.js';
 import { toFeedDto, toRunDto } from './services/feed-dto.js';
+import { artefactFilename } from './services/artefact-filename.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin HTTP surface for the Product Feed module — feature 067
@@ -58,10 +60,6 @@ import { toFeedDto, toRunDto } from './services/feed-dto.js';
  * Every async handler `return`s its reply. `inject()` masks a missing return;
  * over a real socket the same handler crash-loops with `ERR_HTTP_HEADERS_SENT`.
  */
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 export interface ProductFeedsAdminRoutesDeps {
   requireAdmin: RequireAdminFactory;
@@ -109,11 +107,11 @@ function pickProductName(name: Record<string, string>, sku: string): string {
   return name['en-US']?.trim() || values[0] || sku;
 }
 
-export function extensionFor(contentType: string): string {
-  if (contentType.startsWith('text/tab-separated-values')) return 'tsv';
-  if (contentType.startsWith('text/csv')) return 'csv';
-  return 'xml';
-}
+// Re-exported for `routes.public.ts`, which has imported it from here since
+// feature 067. The mapping itself moved to `services/artefact-filename.ts` when
+// delivery arrived: the name a partner's directory receives and the name a
+// browser downloads have to be the same string.
+export { extensionFor } from './services/artefact-filename.js';
 
 /** Shared by the taxonomy routes so one shape of validation error is produced. */
 export function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown): T {
@@ -440,7 +438,7 @@ export async function registerProductFeedsAdminRoutes(
       .header('Cache-Control', 'private, no-store')
       .header(
         'Content-Disposition',
-        `attachment; filename="${slug}.${extensionFor(artefact.contentType)}"`,
+        `attachment; filename="${artefactFilename(slug, artefact.contentType)}"`,
       );
     return reply.send(stream);
   }

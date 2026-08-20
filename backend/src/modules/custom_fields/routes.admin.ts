@@ -9,7 +9,6 @@ import {
   type SupportedEntityType,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { CachedDefinition } from './services/custom-field-definitions-cache.js';
 import {
   CustomFieldDefinitionError,
@@ -20,6 +19,7 @@ import {
   SUPPORTED_ENTITIES,
   type SupportedEntityMeta,
 } from './services/custom-field-registry.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface CustomFieldsAdminDeps {
   definitionService: CustomFieldDefinitionService;

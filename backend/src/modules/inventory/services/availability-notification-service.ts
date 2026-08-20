@@ -1,11 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CatalogProductReadPort,
+  type CustomerAccountReadPort,
+  type EmailMailerPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { Mailer } from '../../email/services/mailer.js';
 import type { InventoryTemplateEmailPort } from './low-stock-alert-service.js';
 
 export interface SubscribeInput {
@@ -53,7 +55,11 @@ export interface AdminListRow {
 export class AvailabilityNotificationService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly mailer?: Mailer,
+    /** `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C). */
+    private readonly catalogProducts: CatalogProductReadPort,
+    /** `customerAccountReadPort`, owned by `customer_accounts` (feature 075). */
+    private readonly customerAccounts: CustomerAccountReadPort,
+    private readonly mailer?: EmailMailerPort,
     private readonly templateEmail?: InventoryTemplateEmailPort,
   ) {}
 
@@ -68,11 +74,11 @@ export class AvailabilityNotificationService {
     // command-coverage-ignore: customer back-in-stock notification opt-in — a
     // self-service subscription record, not an audited domain-state mutation.
     const em = this.emFactory();
-    const product = await em.findOne(Product, { id: input.productId });
-    if (!product || product.deletedAt) {
+    const product = await this.catalogProducts.findById(input.productId, { liveOnly: true });
+    if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
-    if (!(product.manageStock ?? true)) {
+    if (!product.manageStock) {
       throw new HttpError(
         409,
         'PRODUCT_UNMANAGED_STOCK',
@@ -82,13 +88,15 @@ export class AvailabilityNotificationService {
 
     // Cumulative on-hand across every warehouse — the subscribe is gated
     // platform-wide, not per channel.
-    const knex = em.getKnex();
-    const where = { product_id: input.productId } as Record<string, string>;
-    const sumRow = await knex('stock_levels')
-      .where(where)
-      .sum<{ on_hand: string | null }[]>('on_hand as on_hand')
-      .first();
-    const cumulative = Number(sumRow?.on_hand ?? 0);
+    // `em.execute`, not `em.getKnex()`: a knex handle carries no transaction
+    // context, so this in-stock gate would answer from outside a transaction the
+    // caller holds open while the `em.findOne` below answers from inside it
+    // (issue #207).
+    const sumRows = (await em.execute(
+      `select sum(on_hand) as on_hand from stock_levels where product_id = ?`,
+      [input.productId],
+    )) as Array<{ on_hand: string | null }>;
+    const cumulative = Number(sumRows[0]?.on_hand ?? 0);
     if (cumulative > 0) {
       throw new HttpError(
         422,
@@ -156,14 +164,14 @@ export class AvailabilityNotificationService {
     if (rows.length === 0) return { items: [], page, pageSize, total };
 
     const productIds = Array.from(new Set(rows.map((r) => r.productId)));
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.catalogProducts.findByIds(productIds);
     const productById = new Map(products.map((p) => [p.id, p]));
 
     const customerIds = Array.from(
       new Set(rows.map((r) => r.customerAccountId).filter((id): id is string => typeof id === 'string')),
     );
     const customers = customerIds.length
-      ? await em.find(CustomerAccount, { id: { $in: customerIds } })
+      ? await this.customerAccounts.findByIds(customerIds)
       : [];
     const customerById = new Map(customers.map((c) => [c.id, c]));
 
@@ -220,7 +228,7 @@ export class AvailabilityNotificationService {
     const rows = await em.find(AvailabilityNotification, where);
     if (rows.length === 0) return { notified: 0 };
 
-    const product = await em.findOne(Product, { id: input.productId });
+    const product = await this.catalogProducts.findById(input.productId);
     const productName = product
       ? product.name['en-US'] ?? Object.values(product.name)[0] ?? product.sku
       : 'product';
@@ -228,7 +236,7 @@ export class AvailabilityNotificationService {
       new Set(rows.map((r) => r.customerAccountId).filter((id): id is string => typeof id === 'string')),
     );
     const customers = customerIds.length
-      ? await em.find(CustomerAccount, { id: { $in: customerIds } })
+      ? await this.customerAccounts.findByIds(customerIds)
       : [];
     const emailById = new Map(customers.map((c) => [c.id, c.email]));
 
@@ -258,13 +266,22 @@ export class AvailabilityNotificationService {
         });
       }
       if (!sentViaTemplate && this.mailer) {
-        await this.mailer.send({
+        const outcome = await this.mailer.send({
           messageId,
           to,
           subject: `Back in stock: ${productName}`,
           text: `Good news — "${productName}" is available again.`,
+          kind: 'availability_back_in_stock',
           meta,
         });
+        if (outcome.status !== 'sent') {
+          // Still marked notified below: the transport's one suppression is an
+          // already-accepted `messageId`, so this subscriber has the message.
+          console.warn('[inventory] the back-in-stock e-mail was not sent', {
+            notificationId: row.id,
+            reason: outcome.reason,
+          });
+        }
       }
       row.status = 'notified';
       row.notifiedAt = now;

@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
 import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
@@ -49,6 +49,14 @@ describe('product feed generation [integration]', () => {
   const ARCHIVED_ID = '00000000-0000-4000-8000-0000000f0003';
   const PRIVATE_ID = '00000000-0000-4000-8000-0000000f0004';
   const VIP_ONLY_ID = '00000000-0000-4000-8000-0000000f0005';
+  /**
+   * `public`, in the feed's channel, and reserved to one organisation by a
+   * non-empty `allowed_organization_ids` (issue #259). A feed is read by
+   * Google, so the audience is the anonymous one and this row is not theirs to
+   * see — the allow-list restricts whatever the visibility column says.
+   */
+  const ALLOWLISTED_ID = '00000000-0000-4000-8000-0000000f0006';
+  const ALLOWED_ORG_ID = '00000000-0000-4000-8000-0000000000a1';
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -68,6 +76,12 @@ describe('product feed generation [integration]', () => {
       { id: ARCHIVED_ID, sku: 'FEED-ARCHIVED', slug: 'feed-archived', status: 'active' as const },
       { id: PRIVATE_ID, sku: 'FEED-PRIVATE', slug: 'feed-private', status: 'active' as const },
       { id: VIP_ONLY_ID, sku: 'FEED-VIPONLY', slug: 'feed-viponly', status: 'active' as const },
+      {
+        id: ALLOWLISTED_ID,
+        sku: 'FEED-ALLOWLISTED',
+        slug: 'feed-allowlisted',
+        status: 'active' as const,
+      },
     ];
     for (const row of ineligible) {
       em.create(Product, {
@@ -79,6 +93,7 @@ describe('product feed generation [integration]', () => {
         name: { 'en-US': row.sku },
         description: { 'en-US': row.sku },
         visibility: row.id === PRIVATE_ID ? 'logged_in_only' : 'public',
+        ...(row.id === ALLOWLISTED_ID ? { allowedOrganizationIds: [ALLOWED_ORG_ID] } : {}),
         ...(row.id === ARCHIVED_ID ? { archivedAt: new Date() } : {}),
       });
     }
@@ -87,7 +102,7 @@ describe('product feed generation [integration]', () => {
     const conn = em.getConnection();
     // Everything except the VIP-only product belongs to the retail channel, so
     // "absent" cannot be explained away by missing membership.
-    for (const id of [DRAFT_ID, INACTIVE_ID, ARCHIVED_ID, PRIVATE_ID]) {
+    for (const id of [DRAFT_ID, INACTIVE_ID, ARCHIVED_ID, PRIVATE_ID, ALLOWLISTED_ID]) {
       await conn.execute(
         `insert into sales_channel_products (sales_channel_id, product_id) values (?,?)`,
         [retailChannelId, id],
@@ -101,6 +116,12 @@ describe('product feed generation [integration]', () => {
     // --- Price lists -------------------------------------------------------
     // The anonymous/default list every channel resolves to when a feed names
     // none, and a named list a feed can point at verbatim (FR-020).
+    //
+    // Catch-all, *not* `isSystem` (issue #50): what makes this the list the
+    // anonymous resolution lands on is `{kind:'all'}` plus `status: 'active'`,
+    // and the flag was never read on this path. It marks the platform's one
+    // seeded `Default` row, which is now a database singleton — a fixture
+    // claiming it left a second system row behind for the next file to trip on.
     const defaultList = em.create(PriceList, {
       code: 'feed_default',
       name: 'Feed default list',
@@ -108,7 +129,6 @@ describe('product feed generation [integration]', () => {
       type: 'base',
       status: 'active',
       applicationRule: { kind: 'all' },
-      isSystem: true,
       modifiedAt: new Date(),
     });
     const namedList = em.create(PriceList, {
@@ -130,7 +150,16 @@ describe('product feed generation [integration]', () => {
     await em.persistAndFlush([defaultList, namedList]);
     namedListId = namedList.id;
 
-    const priced = [SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID, VIP_ONLY_ID];
+    // `ALLOWLISTED_ID` is priced deliberately: without a price the row would be
+    // skipped as `missing_required_field` and its absence from the document
+    // would prove nothing about the allow-list (issue #259).
+    const priced = [
+      SEED_PRODUCT_101_ID,
+      SEED_PRODUCT_102_ID,
+      SEED_PRODUCT_103_ID,
+      VIP_ONLY_ID,
+      ALLOWLISTED_ID,
+    ];
     // Assignments first, then brackets: the bracket table cascades off
     // `price_list_products`, and MikroORM batches inserts by entity type.
     for (const productId of priced) {
@@ -219,6 +248,7 @@ describe('product feed generation [integration]', () => {
         'FEED-ARCHIVED',
         'FEED-PRIVATE',
         'FEED-VIPONLY',
+        'FEED-ALLOWLISTED',
       ]) {
         expect(document, `${sku} must not be in the feed`).not.toContain(sku);
       }
@@ -232,6 +262,50 @@ describe('product feed generation [integration]', () => {
       // The VIP channel carries the three seeded products plus FEED-VIPONLY.
       expect(document).toContain('FEED-VIPONLY');
       expect(run.emittedCount).toBe(4);
+    });
+
+    /**
+     * Issue #259 — the audience half of the floor, and the number that has to
+     * survive it.
+     *
+     * A feed is generated for a sales channel and read by Google: an anonymous,
+     * unauthenticated consumer. `FEED-ALLOWLISTED` is `public`, active, and a
+     * member of this feed's channel, so every other clause of the floor lets it
+     * through — and it is reserved to one organisation, which the anonymous
+     * reader is not. Shipping it advertises a 404 and, worse, the existence of
+     * an assortment somebody else was promised exclusively.
+     *
+     * The second assertion is the one that proves the repair was made in the
+     * right place. `countProductIds` takes a `count(*)` fast path whenever the
+     * rule is fully expressible in SQL, and that fast path exists so "the
+     * number the operator sees before saving is the number the next run
+     * considers". A post-filter over the selected page would have satisfied the
+     * absence above while quietly making the preview overstate the feed — an
+     * operator told 1 240 and handed 1 190. So the preview count, the run's
+     * considered count and the emitted row count are asserted to be the same
+     * number.
+     */
+    it('excludes a public product reserved to an organisation, and still counts what it emits', async () => {
+      const feedId = await createFeed();
+      const run = await h.productFeeds.generation.generateNow(feedId, { trigger: 'manual' });
+      expect(PUBLISHING_STATUSES).toContain(run.status);
+
+      const document = await readArtefact(feedId);
+      expect(document, 'an allow-listed product is not the anonymous reader’s to see')
+        .not.toContain('FEED-ALLOWLISTED');
+
+      const preview = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/feed-previews/selection',
+        ...ADMIN,
+        payload: { salesChannelId: retailChannelId, selectionRule: { kind: 'all' } },
+      });
+      expect(preview.statusCode).toBe(200);
+      const { matchedCount } = (preview.json() as { data: { matchedCount: number } }).data;
+
+      expect(matchedCount).toBe(run.consideredCount);
+      expect(matchedCount).toBe(run.emittedCount);
+      expect(matchedCount).toBe(3);
     });
 
     it('fails the run closed when the channel no longer exists (FR-027)', async () => {

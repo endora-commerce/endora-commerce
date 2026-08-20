@@ -1,9 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { LlmToggleRequestSchema } from '@b2b/contracts';
-import type { RequireAdminFactory } from '../settings/plugin.js';
-import type { AdminAuditContext } from '../settings/services/settings-admin.service.js';
+import { LlmToggleRequestSchema, type SettingsAdminAuditContext } from '@b2b/contracts';
 import type { LlmToggleService } from './services/llm-toggle.service.js';
 import type { SearchReindexWorker } from './services/search-reindex-worker.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin HTTP surface — feature 006 / US2 (T025).
@@ -25,7 +24,7 @@ export interface SearchAdminDeps {
   reindexWorker: SearchReindexWorker;
   requireAdmin: RequireAdminFactory;
   /** Resolves the audit actor from the request; mirrors Settings' shape. */
-  resolveAdminAuditContext?: (req: FastifyRequest) => AdminAuditContext;
+  resolveAdminAuditContext?: (req: FastifyRequest) => SettingsAdminAuditContext;
 }
 
 export async function registerSearchAdminRoutes(
@@ -52,7 +51,7 @@ export async function registerSearchAdminRoutes(
     { preHandler: requireAdmin('search:write') },
     async (request) => {
       const body = LlmToggleRequestSchema.parse(request.body);
-      const actor: AdminAuditContext = resolveAdminAuditContext
+      const actor: SettingsAdminAuditContext = resolveAdminAuditContext
         ? resolveAdminAuditContext(request)
         : { actorAdminUserId: null };
       const result = await llmToggleService.toggle({

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useTranslation } from '@/i18n/useTranslation';
 import { blogClient } from '../api/blog-client';
+import { normalize } from '@/lib/text-normalization';
 
 function pickName(name: Record<string, string> | undefined | null, fallback: string): string {
   if (!name) return fallback;
@@ -56,12 +57,13 @@ export function RelatedPostsPicker({
 
   // Candidates: not the parent itself, not already attached, optionally
   // matching the search query.
+  const needle = normalize(q);
   const candidates = allPosts.filter((post) => {
     if (post.id === selfId) return false;
     if (value.includes(post.id)) return false;
-    if (!q) return true;
-    const haystack = `${pickName(post.name, post.slug)} ${post.slug}`.toLowerCase();
-    return haystack.includes(q.toLowerCase());
+    if (needle === '') return true;
+    const haystack = `${normalize(pickName(post.name, post.slug))} ${normalize(post.slug)}`;
+    return haystack.includes(needle);
   });
 
   const attach = useCallback(

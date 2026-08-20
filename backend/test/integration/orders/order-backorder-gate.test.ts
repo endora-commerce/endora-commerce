@@ -12,7 +12,7 @@ import {
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_102_ID } from '../../helpers/seed-catalog.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
 
 /**

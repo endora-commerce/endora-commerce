@@ -1,12 +1,18 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../../http/error-envelope.js';
-import { ERROR_CODES, type InvoiceDetail, type InvoiceKind, type VatSummaryRow } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type InvoiceDetail,
+  type InvoiceKind,
+  type OrderReadPort,
+  type VatSummaryRow,
+} from '@b2b/contracts';
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
-import { Order } from '../../orders/entities/order.entity.js';
 import { isOrgInScope } from '../../../tenancy/derived-scope.js';
-import { OrderItem } from '../../orders/entities/order-item.entity.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { refuseDuplicateInvoiceNumber } from './duplicate-number-refusal.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { SellerSettingsResolver } from './seller-settings.js';
 import { buildInvoiceLines, type RawOrderLine } from './invoice-line-builder.js';
@@ -48,10 +54,21 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * proformas (and is reused by the corrective-invoice provider for credit
  * notes). Numbers are drawn inside the issuing transaction; lines and the
  * seller/buyer snapshot are frozen at issuance. Immutable once `ready`.
+ *
+ * The order and its lines are read over {@link OrderReadPort} (feature 075,
+ * Phase C). They were `em.findOne(Order, …)` and `em.find(OrderItem, …)` here,
+ * which is a query against another module's tables that no gate can see:
+ * deactivation drops no tables, so an invoice went on being drawn from an
+ * `orders` an operator had switched off. Over the port the same read answers
+ * 503 `MODULE_DISABLED`, which is the binding dependency this manifest already
+ * declares — issuing a legal document about an order the platform will not read
+ * is worse than refusing to issue one.
  */
 export class InvoiceService {
   constructor(
     private readonly emFactory: () => EntityManager,
+    /** `orders`' read model. Not optional: an invoice is about an order. */
+    private readonly orders: OrderReadPort,
     private readonly numbers: InvoiceNumberGenerator,
     private readonly sellerSettings: SellerSettingsResolver,
     private readonly audit?: InvoiceAuditRecorder,
@@ -65,7 +82,7 @@ export class InvoiceService {
     opts: IssueInvoiceOptions = {},
   ): Promise<InvoiceDetail> {
     const em = this.emFactory();
-    const order = await em.findOne(Order, { id: orderId });
+    const order = await this.orders.findById(orderId);
     // Feature 050 — Invoice is transitively scoped through its Order's org.
     if (!order || !isOrgInScope(order.organizationId ?? '')) {
       throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
@@ -77,7 +94,7 @@ export class InvoiceService {
     }
 
     const seller = await this.sellerSettings.resolve(order.salesChannelId);
-    const items = await em.find(OrderItem, { orderId });
+    const items = await this.orders.listItems(orderId);
     const raw: RawOrderLine[] = items.map((it) => {
       const netValue = Number(it.lineTotal);
       const qty = it.quantity;
@@ -129,8 +146,13 @@ export class InvoiceService {
       country: order.billingAddress.country,
     };
 
-    const invoice = await em.transactional(async (tx) => {
+    // Captured out of the transaction on purpose: the callback's result is lost
+    // when the transaction aborts, and the duplicate-number refusal exists to
+    // name the number that was drawn.
+    let drawnNumber: string | null = null;
+    const invoice = await this.issueInTransaction(em, async (tx) => {
       const number = await this.numbers.next(tx, kind, order.salesChannelId, issuedAt);
+      drawnNumber = number;
       const inv = tx.create(Invoice, {
         orderId,
         salesChannelId: order.salesChannelId,
@@ -169,7 +191,7 @@ export class InvoiceService {
       }
       await tx.flush();
       return inv;
-    });
+    }, () => drawnNumber, order.salesChannelId);
 
     // Audit (FR-035) — best-effort; never fails issuance.
     if (this.audit) {
@@ -201,6 +223,35 @@ export class InvoiceService {
     });
 
     return this.buildDetail(invoice.id);
+  }
+
+  /**
+   * Run the issuing transaction, translating a duplicated invoice number into
+   * `409 INVOICE_NUMBER_ALREADY_ISSUED` (feature 078, D-95.2).
+   *
+   * `rethrowIfModuleDisabled` is the **first** line of the catch, before any
+   * other test. `ModuleDisabledError` is an `HttpError`, so a status-code or
+   * class test would let it through by accident rather than by decision, and
+   * everything inside the callback can reach a port.
+   */
+  private async issueInTransaction(
+    em: EntityManager,
+    work: (tx: EntityManager) => Promise<Invoice>,
+    drawnNumber: () => string | null,
+    salesChannelId: string | null,
+  ): Promise<Invoice> {
+    try {
+      return await em.transactional(work);
+    } catch (err) {
+      rethrowIfModuleDisabled(err);
+      await refuseDuplicateInvoiceNumber({
+        error: err,
+        drawnNumber: drawnNumber(),
+        salesChannelId,
+        emFactory: this.emFactory,
+      });
+      throw err;
+    }
   }
 
   /**
@@ -237,7 +288,7 @@ export class InvoiceService {
     const em = this.emFactory();
     const inv = await em.findOne(Invoice, { id: invoiceId });
     if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
-    const order = await em.findOne(Order, { id: inv.orderId }, { fields: ['id', 'businessId', 'organizationId'] });
+    const order = await this.orders.findById(inv.orderId);
     // Feature 050 — transitive scope: hide invoices whose order is out of scope.
     if (!order || !isOrgInScope(order.organizationId ?? '')) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');

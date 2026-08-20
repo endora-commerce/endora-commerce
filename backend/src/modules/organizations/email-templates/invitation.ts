@@ -1,10 +1,10 @@
-import type { MailerSendInput } from '../../email/services/mailer.js';
+import type { EmailMailerSendInput } from '@b2b/contracts';
 
 /**
  * Invitation email template (T178 / FR-043).
  *
  * Pure builder — takes the raw token (returned by InvitationService.invite)
- * plus the surrounding context, returns the MailerSendInput an Org Admin
+ * plus the surrounding context, returns the EmailMailerSendInput an Org Admin
  * can dispatch via any Mailer. Kept template-y on purpose: production can
  * swap in an HTML renderer by widening Mailer; today the plain-text body
  * is enough for the SMTP transport and the in-memory test mailer alike.
@@ -22,7 +22,7 @@ export interface BuildInvitationEmailInput {
   acceptBaseUrl: string;
 }
 
-export function buildInvitationEmail(input: BuildInvitationEmailInput): MailerSendInput {
+export function buildInvitationEmail(input: BuildInvitationEmailInput): EmailMailerSendInput {
   const acceptUrl = `${trimSlash(input.acceptBaseUrl)}/invitations/${input.rawToken}/accept`;
   const roleLabel = input.role === 'organization_admin' ? 'Organization Admin' : 'Member';
   const expiresOn = input.expiresAt.toISOString().slice(0, 10);

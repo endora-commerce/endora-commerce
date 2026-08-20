@@ -11,13 +11,14 @@ import {
   TEST_ORGANIZATION_ID,
 } from '../../helpers/test-actors.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 062 / T015 — bulk pricing parity (SC-001).
@@ -214,7 +215,7 @@ describe('External bulk pricing parity with cart pricing (062 / T015, SC-001)', 
     );
 
     // Two org-targeted price lists with DIFFERENT bracket ladders.
-    const priceLists = new PriceListService(() => h.em());
+    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
     const listA = await priceLists.create({
       name: 'Parity list org A',
       type: 'base',

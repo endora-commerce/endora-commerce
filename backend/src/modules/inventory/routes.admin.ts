@@ -9,9 +9,9 @@ import {
   setProductWarehouseLowStockThresholdsRequestSchema,
   setStockLevelRequestSchema,
   updateWarehouseRequestSchema,
+  type CatalogProductReadPort,
 } from '@b2b/contracts';
 import { StockLevel } from './entities/stock-level.entity.js';
-import { Product } from '../catalog/entities/product.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from './entities/warehouse.entity.js';
 import type { WarehouseService } from './services/warehouse-service.js';
 import type { StockLevelService } from './services/stock-level-service.js';
@@ -20,7 +20,7 @@ import type { ThresholdAdminService } from './services/threshold-admin-service.j
 import type { LowStockAlertService } from './services/low-stock-alert-service.js';
 import type { AvailabilityNotificationService } from './services/availability-notification-service.js';
 import type { CsvStockImporter } from './services/csv-stock-importer.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Inventory admin routes — feature 010 (US1 + US2).
@@ -34,6 +34,8 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
  */
 export interface InventoryAdminDeps {
   emFactory: () => EntityManager;
+  /** `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C). */
+  catalogProducts: CatalogProductReadPort;
   warehouseService: WarehouseService;
   stockLevelService: StockLevelService;
   warehouseChannelService: WarehouseChannelService;
@@ -82,6 +84,7 @@ export async function registerInventoryAdminRoutes(
 ): Promise<void> {
   const {
     emFactory,
+    catalogProducts,
     warehouseService,
     stockLevelService,
     warehouseChannelService,
@@ -463,11 +466,56 @@ export async function registerInventoryAdminRoutes(
 
   // ---------------------------------------------------------------------------
   // Foundation 001 backward-compat — single-bucket stock list + write.
-  // Foundation callers (admin import + foundation seed) still hit these
-  // until they migrate to /levels above. Both routes default to the seeded
-  // Default warehouse.
+  // Both routes default to the seeded Default warehouse.
+  //
+  // The two callers this header used to name are gone: the admin import posts to
+  // `/inventory/import` and the catalog seed writes `StockLevel` through the
+  // EntityManager. Nothing in the repository calls either route — no admin
+  // screen, no `@b2b/api-client` method, no seed, no script — and the module's
+  // documentation page lists neither. They are kept for a deployment's own
+  // integration, which is the only caller they can still have (issue #125).
+  //
+  // Issue #139 (D-66) ruled the `GET .../legacy` below deletable on the
+  // condition that `GET .../levels` is a strict superset of it, "and if
+  // `/levels` turns out not to cover a field this returns, that gap is the
+  // finding and the deletion waits". It does not: `/levels` aggregates per
+  // product across variants and warehouses, so it answers with neither
+  // `variantId` nor the row's `updatedAt` (nor the `stock_levels` row id, nor
+  // the pre-computed `available`, both derivable). The deletion therefore
+  // waits on a per-row read that covers those two fields, not on a caller
+  // census — that census is done, and it is zero.
   // ---------------------------------------------------------------------------
 
+  /**
+   * @deprecated Use `PUT /api/v1/admin/inventory/levels`, which takes an
+   * explicit `warehouseId` instead of writing into the seeded Default one.
+   * Kept for a deployment's own integration until the access log or the
+   * deployment owner confirms nothing calls it (issue #139, D-66 part 3).
+   *
+   * Delegates to `StockLevelService.setOnHand`, the single point that emits
+   * `inventory.adjusted.v1` (issue #139). Until then this handler wrote
+   * `StockLevel.onHand` straight through the EntityManager, so a restock
+   * performed here fired no back-in-stock fan-out (US6) and no low-stock
+   * crossing alert (US4), and validated neither the product nor the warehouse
+   * — a typo'd product id created a stock row for a product that does not
+   * exist. The delegation is the whole of that repair; the response shape and
+   * the `catalog:write` gate are unchanged.
+   *
+   * The audited path for a stock change is `StockLevelService`
+   * (`stock_level.adjust`); this endpoint recorded nothing until issue #122,
+   * which the coverage scan could not see until it reached route files. The
+   * delegate records the same action token, so the two paths still land in one
+   * audit history.
+   *
+   * Deliberately **not** a Command (issue #125). A Command is what an undo
+   * attaches to, and an on-hand count is not a value an undo may restore:
+   * between the write and the undo, orders reserve and release stock, so
+   * putting back the number that stood before would overwrite movements
+   * nobody asked to reverse. The other two paths that set stock — the service
+   * behind `/levels` and the CSV importer — take the same view. Nor may this
+   * row's action diverge from theirs: an auditor reading a product's stock
+   * history reads one action, not three.
+   */
   app.put(
     '/api/v1/admin/inventory',
     {
@@ -476,24 +524,25 @@ export async function registerInventoryAdminRoutes(
     },
     async (request) => {
       const body = setLegacyStockLevelSchema.parse(request.body);
-      const em = emFactory();
       const variantId = body.variantId ?? null;
-      let row = await em.findOne(StockLevel, {
+
+      await stockLevelService.setOnHand(
+        {
+          productId: body.productId,
+          warehouseId: DEFAULT_WAREHOUSE_ID,
+          variantId,
+          onHand: body.onHand,
+        },
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
+
+      // Re-read for the foundation-001 response shape: `setOnHand` answers with
+      // the before/after counts, this route has always answered with the row.
+      const row = await emFactory().findOneOrFail(StockLevel, {
         productId: body.productId,
         variantId,
         warehouseId: DEFAULT_WAREHOUSE_ID,
       });
-      if (row) {
-        row.onHand = body.onHand;
-      } else {
-        row = em.create(StockLevel, {
-          productId: body.productId,
-          ...(variantId ? { variantId } : {}),
-          warehouseId: DEFAULT_WAREHOUSE_ID,
-          onHand: body.onHand,
-        });
-      }
-      await em.persistAndFlush(row);
       return {
         data: {
           id: row.id,
@@ -521,9 +570,7 @@ export async function registerInventoryAdminRoutes(
         orderBy: { updatedAt: 'desc' },
       });
       const productIds = Array.from(new Set(rows.map((r) => r.productId)));
-      const products = productIds.length
-        ? await em.find(Product, { id: { $in: productIds } })
-        : [];
+      const products = await catalogProducts.findByIds(productIds);
       const productById = new Map(products.map((p) => [p.id, p]));
       return {
         data: rows.map((r) => {

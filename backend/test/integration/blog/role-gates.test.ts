@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
-import { setupBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 
 /**
  * Integration test for the role-based gates (T096 / FR-025 / SC-008).
@@ -24,9 +28,7 @@ describe('blog role gates + seeded-role protection (T095 + T096)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   it('Blog Manager can hit /api/v1/admin/blog/* but is refused on /api/v1/admin/cms/*', async () => {

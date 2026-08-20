@@ -14,6 +14,7 @@ import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/se
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
 import { createBusinessIdGenerator } from '../../../src/modules/orders/services/business-id-generator.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 /**
  * Feature 051 US1 (T008/T009) — a B2C customer backed by a personal
@@ -43,8 +44,13 @@ describe('B2C (personal-org) customer can transact (feature 051 US1)', () => {
 
   function buildOrderService() {
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     return new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
+      neighbours: orderServiceNeighbours(h.em),
+      // Issue #124 — a rig states its own tax authority. `OrderService` has no
+      // fallback rate, so an order it cannot price is refused rather than taxed
+      // at a figure nobody configured.
+      resolveTaxRate: async () => 0.23,
       paymentAdapters: registry,
       orderStatusRegistry: new EnumOrderStatusRegistry(),
       businessId: createBusinessIdGenerator({

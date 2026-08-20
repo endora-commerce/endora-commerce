@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Download, MoreVertical, Play, Plus, Trash2 } from 'lucide-react';
+import { Download, Play, Plus, Rss, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
+import {
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+} from '@/components/RowActionMenu';
 import { useAuth } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 import { useTranslation } from '@/i18n/useTranslation';
 import { productFeedsClient, type ProductFeedDto } from './api';
+import { FeedSectionTabs } from './components/FeedSectionTabs';
 import { FeedStatusBadge } from './components/FeedStatusBadge';
 
 /**
@@ -38,7 +45,6 @@ export function ProductFeedsListPage(): ReactNode {
   const [feeds, setFeeds] = useState<ProductFeedDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
@@ -88,7 +94,6 @@ export function ProductFeedsListPage(): ReactNode {
       await load();
     } finally {
       setBusyId(null);
-      setOpenMenuId(null);
     }
   };
 
@@ -160,7 +165,9 @@ export function ProductFeedsListPage(): ReactNode {
         <div className="flex flex-col gap-0.5">
           <span>{row.nextRunAt ? formatDateTime(row.nextRunAt) : t('feeds.table.manualOnly')}</span>
           {row.scheduleTooTightWarning && (
-            <span className="text-xs text-amber-700">{t('feeds.table.scheduleTooTight')}</span>
+            <span className="text-xs" style={{ color: 'var(--warn)' }}>
+              {t('feeds.table.scheduleTooTight')}
+            </span>
           )}
         </div>
       ),
@@ -175,21 +182,20 @@ export function ProductFeedsListPage(): ReactNode {
         title={t('page.title')}
         description={t('page.subtitle')}
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate('/product-feeds/templates')}>
-              {t('page.templates')}
-            </Button>
-            <Button
-              onClick={() => navigate('/product-feeds/new')}
-              disabled={!canWrite}
-              title={writeTitle}
-            >
-              <Plus size={16} aria-hidden="true" />
-              {t('page.newFeed')}
-            </Button>
-          </div>
+          // The Templates button is gone: it is a tab now, so the header keeps
+          // only the action that creates something.
+          <Button
+            onClick={() => navigate('/product-feeds/new')}
+            disabled={!canWrite}
+            title={writeTitle}
+          >
+            <Plus size={16} aria-hidden="true" />
+            {t('page.newFeed')}
+          </Button>
         }
       />
+
+      <FeedSectionTabs />
 
       {error && (
         <Alert variant="destructive" className="mb-4">
@@ -204,96 +210,96 @@ export function ProductFeedsListPage(): ReactNode {
 
       {feeds === null && !error ? (
         <div
-          className="rounded-lg border p-8 text-center text-sm text-muted-foreground"
+          className="b2b-card p-8 text-center text-sm text-muted-foreground"
           aria-busy="true"
           aria-live="polite"
         >
           {t('feeds.table.status')}…
         </div>
       ) : (
-        <ResponsiveTable
-          columns={columns}
-          data={feeds ?? []}
-          keyExtractor={(row) => row.id}
-          emptyState={
-            <div className="rounded-lg border border-dashed p-8 text-center">
-              <p className="font-medium">{t('feeds.empty.title')}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{t('feeds.empty.subtitle')}</p>
-              <Button
-                className="mt-4"
-                onClick={() => navigate('/product-feeds/new')}
-                disabled={!canWrite}
-                title={writeTitle}
-              >
-                {t('page.newFeed')}
-              </Button>
-            </div>
-          }
-          renderActions={(row) => (
-            <div className="relative flex items-center justify-end gap-1">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void generate(row)}
-                disabled={!canWrite || row.isRunning || !row.enabled || busyId === row.id}
-                title={writeTitle}
-              >
-                <Play size={14} aria-hidden="true" />
-                {t('feeds.action.generate')}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-haspopup="menu"
-                aria-expanded={openMenuId === row.id}
-                aria-label={t('feeds.action.open')}
-                onClick={() => setOpenMenuId(openMenuId === row.id ? null : row.id)}
-              >
-                <MoreVertical size={16} aria-hidden="true" />
-              </Button>
-              {openMenuId === row.id && (
-                <div
-                  role="menu"
-                  className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border bg-popover p-1 shadow-md"
-                >
-                  <Link
-                    role="menuitem"
-                    to={`/product-feeds/${row.id}`}
-                    className="block rounded px-2 py-1.5 text-sm hover:bg-accent"
-                    onClick={() => setOpenMenuId(null)}
-                  >
-                    {t('feeds.action.open')}
-                  </Link>
-                  <a
-                    role="menuitem"
-                    href={productFeedsClient.artefactUrl(row.id)}
-                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent ${
-                      canWrite && row.publishedArtefactId ? '' : 'pointer-events-none opacity-50'
-                    }`}
+        // Card + CardContent is what every other admin list uses (Orders,
+        // Customers, Returns…). Bare, the table read as a different product —
+        // and a bounded region is what makes the rows one group in the first
+        // place (Law of Common Region).
+        <Card>
+          <CardContent className="pt-6">
+            <ResponsiveTable
+              columns={columns}
+              data={feeds ?? []}
+              keyExtractor={(row) => row.id}
+              emptyState={
+                <div className="b2b-empty">
+                  <div className="b2b-empty__icon">
+                    <Rss size={20} aria-hidden="true" />
+                  </div>
+                  <div className="b2b-empty__title">{t('feeds.empty.title')}</div>
+                  <div className="b2b-empty__sub">{t('feeds.empty.subtitle')}</div>
+                  <Button
+                    className="mt-2"
+                    onClick={() => navigate('/product-feeds/new')}
+                    disabled={!canWrite}
                     title={writeTitle}
                   >
-                    <Download size={14} aria-hidden="true" />
-                    {t('feeds.action.download')}
-                  </a>
-                  {/* Delete last, after a separator — it is the only irreversible
-                      entry in this menu. */}
-                  <div className="my-1 h-px bg-border" role="separator" />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-destructive hover:bg-accent disabled:opacity-50"
-                    onClick={() => void remove(row)}
-                    disabled={!canWrite || busyId === row.id}
+                    <Plus size={16} aria-hidden="true" />
+                    {t('page.newFeed')}
+                  </Button>
+                </div>
+              }
+              renderActions={(row) => (
+                // No `relative` any more: the menu is portalled out of the
+                // table, so there is no absolutely-positioned child to contain.
+                <div className="flex items-center justify-end gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void generate(row)}
+                    disabled={!canWrite || row.isRunning || !row.enabled || busyId === row.id}
                     title={writeTitle}
                   >
-                    <Trash2 size={14} aria-hidden="true" />
-                    {t('feeds.action.delete')}
-                  </button>
+                    <Play size={14} aria-hidden="true" />
+                    {t('feeds.action.generate')}
+                  </Button>
+                  {/* Named per row: "More" repeated down a column tells a
+                      screen-reader user nothing about which feed it acts on. */}
+                  <RowActionMenu label={t('feeds.action.more', { name: row.name })}>
+                    <RowActionMenuItem asChild>
+                      <Link to={`/product-feeds/${row.id}`}>{t('feeds.action.open')}</Link>
+                    </RowActionMenuItem>
+                    <RowActionMenuItem
+                      asChild={canWrite && Boolean(row.publishedArtefactId)}
+                      disabled={!canWrite || !row.publishedArtefactId}
+                      title={writeTitle}
+                    >
+                      {canWrite && row.publishedArtefactId ? (
+                        <a href={productFeedsClient.artefactUrl(row.id)}>
+                          <Download size={14} aria-hidden="true" />
+                          {t('feeds.action.download')}
+                        </a>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <Download size={14} aria-hidden="true" />
+                          {t('feeds.action.download')}
+                        </span>
+                      )}
+                    </RowActionMenuItem>
+                    {/* Delete last, after a separator — it is the only
+                        irreversible entry in this menu. */}
+                    <RowActionMenuSeparator />
+                    <RowActionMenuItem
+                      destructive
+                      onSelect={() => void remove(row)}
+                      disabled={!canWrite || busyId === row.id}
+                      title={writeTitle}
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                      {t('feeds.action.delete')}
+                    </RowActionMenuItem>
+                  </RowActionMenu>
                 </div>
               )}
-            </div>
-          )}
-        />
+            />
+          </CardContent>
+        </Card>
       )}
     </div>
   );

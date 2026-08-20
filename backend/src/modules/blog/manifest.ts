@@ -20,6 +20,21 @@ import {
  * registry only validates primitive shapes).
  */
 export const BLOG_SETTING_CODES = {
+  /**
+   * Feature 074 — the operator-activation control, and a **different switch**
+   * from `ENABLED` below.
+   *
+   * `blog.enabled` is channel-scoped by design ("disable the blog for a
+   * specific audience while leaving it on globally") and governs storefront
+   * URLs only; the admin blog screens keep working under it. Activation is
+   * platform-wide by construction — `resolveActivation` stops at
+   * `global_value` → `default_value` and never joins the per-channel tier
+   * (Constitution XII) — and it governs the whole module. Adopting the
+   * existing code would have collapsed the two, and would have switched the
+   * module off in every deployment that had set the storefront switch to
+   * false globally, which is the state change FR-012 forbids on merge.
+   */
+  ACTIVATION: 'blog.activation',
   ENABLED: 'blog.enabled',
   URL_PREFIX: 'blog.url_prefix',
   LATEST_COUNT: 'blog.latest_count',
@@ -41,8 +56,20 @@ const settings = defineModuleSettingsManifest({
   ],
   settings: [
     {
-      code: BLOG_SETTING_CODES.ENABLED,
+      // Feature 074 — the operator's activation control. Platform-wide, and
+      // never channel-scoped: the reconciler's channel scope is additive-only,
+      // so a channel-scoped first commit would have no way back.
+      code: BLOG_SETTING_CODES.ACTIVATION,
       name: 'Blog enabled',
+      description:
+        'Switches the blog on or off as a whole: the storefront blog, its admin screens and its API. Nothing is dropped — every post, category, tag and media reference stays in the database and comes back exactly as it was when you switch it on again.',
+      groupCode: 'blog',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
+      code: BLOG_SETTING_CODES.ENABLED,
+      name: 'Blog storefront enabled',
       description:
         'When false, every blog URL on the storefront returns 404 in this scope. Set per Sales Channel to disable the blog for a specific audience while leaving it on globally.',
       groupCode: 'blog',
@@ -87,14 +114,38 @@ export const manifest = defineModuleManifest({
     'Multi-channel, multi-language blog with categories, tags, and Page Builder posts.',
   version: '1.0.0',
   dependencies: [
+    // Feature 075, Phase C — the boot seeder registers this module's two role
+    // codes as deletion-protected through `systemRoleCodePort`, where it used
+    // to import `admin_roles`' module-level function. The registry is ungated
+    // and its owner is non-deactivatable, so the declaration buys install and
+    // migration order rather than a flip-time refusal.
+    'admin_roles',
     'assets_library',
+    // Feature 072 (T061) — blog resolves the `requireAdmin` port, which `auth`
+    // owns. Every admin route in this module is gated by it, so `auth` being
+    // absent is not a degraded blog, it is a blog whose admin surface cannot be
+    // guarded. The edge existed before this declaration; it simply existed
+    // nowhere the lifecycle, the migration order or an operator could see it.
+    'auth',
     'catalog',
     'cms',
     'dictionaries',
+    // `languages` owns `languageReferenceRegistry`, the registry this module
+    // contributes its two "which languages do posts and categories carry"
+    // descriptors to (feature 077, D-87). `languages` used to ask the question
+    // itself, with two `count(*)` statements naming this module's tables.
+    'languages',
     'sales_channels',
     'settings',
   ],
   settings,
+  // Feature 074 (Constitution XVII) — a control this module never had. Before
+  // it, an operator could not decline the blog at all: a module with no
+  // activation declaration resolves as activated. Editorial content is an
+  // additional capability in ruling 1's sense — the catalogue stands without it
+  // — so it is operator-controlled, and the default is `true` so that merging
+  // this changes no deployment's state (FR-012).
+  activation: { settingCode: BLOG_SETTING_CODES.ACTIVATION, default: true },
   i18n: { bundlesDir: 'i18n' },
   actions: [
     {

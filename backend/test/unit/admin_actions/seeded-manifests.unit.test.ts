@@ -63,7 +63,10 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     actionId: 'open-inventory',
     targetRoute: '/inventory',
     icon: 'Boxes',
-    requiredPermission: 'catalog:write',
+    // `orders:read` since issue #232: the stock overview's own route is
+    // `requireAdmin('orders:read')`, and the `catalog:write` this row used to
+    // pin hid the screen from operators who can open it.
+    requiredPermission: 'orders:read',
     weight: 230,
     labelKey: 'actions.openInventory.label',
   },
@@ -117,7 +120,9 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     actionId: 'open-settings',
     targetRoute: '/settings',
     icon: 'Settings',
-    requiredPermission: undefined,
+    // Was `undefined` — the only action of the 53 shipped that declared no code
+    // at all, against a `settings:read` route (issue #232).
+    requiredPermission: 'settings:read',
     weight: 250,
     labelKey: 'actions.openSettings.label',
   },

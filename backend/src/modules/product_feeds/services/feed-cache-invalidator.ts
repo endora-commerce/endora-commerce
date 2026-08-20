@@ -108,45 +108,37 @@ export class RedisFeedTokenCache implements FeedTokenCache {
   }
 }
 
-export interface FeedCacheInvalidatorHandle {
-  dispose: () => void;
-}
-
 interface FeedChangedPayload {
   feedId?: string;
   previousTokenHash?: string | null;
 }
 
-export interface CacheEventBus {
-  on(eventName: string, handler: (payload: unknown) => void | Promise<void>): () => void;
-}
+/**
+ * The three events that make a cached feed token stale. `backend.ts` registers
+ * one `ctx.subscribe` per entry, so the list is the whole answer to "when is the
+ * cache dropped" and adding a fourth event is one line in one place.
+ */
+export const FEED_CACHE_INVALIDATION_EVENTS = [
+  'product_feeds.feed_changed',
+  'product_feeds.token_rotated',
+  'product_feeds.artefact_published',
+] as const;
 
 /**
- * Subscribes the cache to the module's own events. Modelled on
- * `sales_channels/services/sales-channels-cache-invalidator.ts`, including the
- * returned `dispose()` so a test can tear down deterministically.
+ * Drops the cached tokens a feed write invalidates.
+ *
+ * The registration lives in this module's `backend.ts` and goes through
+ * `ctx.subscribe`, so the cache stops being maintained when the module is
+ * switched off — as it must, since the public feed routes stop answering at the
+ * same moment (issue #107). These were three bare `eventBus.on` calls here.
  */
-export function attachFeedCacheInvalidator(
-  eventBus: CacheEventBus,
+export async function invalidateFeedTokenCache(
   cache: FeedTokenCache,
-): FeedCacheInvalidatorHandle {
-  const onChange = async (payload: unknown): Promise<void> => {
-    const { feedId, previousTokenHash } = (payload as FeedChangedPayload) ?? {};
-    // The replaced hash first: rotation must stop serving the OLD URL
-    // immediately, which is the whole point of having no grace window.
-    if (previousTokenHash) await cache.drop(previousTokenHash);
-    if (feedId) await cache.dropAllForFeed(feedId);
-  };
-
-  const offs = [
-    eventBus.on('product_feeds.feed_changed', onChange),
-    eventBus.on('product_feeds.token_rotated', onChange),
-    eventBus.on('product_feeds.artefact_published', onChange),
-  ];
-
-  return {
-    dispose() {
-      for (const off of offs) off();
-    },
-  };
+  payload: unknown,
+): Promise<void> {
+  const { feedId, previousTokenHash } = (payload as FeedChangedPayload) ?? {};
+  // The replaced hash first: rotation must stop serving the OLD URL
+  // immediately, which is the whole point of having no grace window.
+  if (previousTokenHash) await cache.drop(previousTokenHash);
+  if (feedId) await cache.dropAllForFeed(feedId);
 }

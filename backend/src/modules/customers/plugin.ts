@@ -1,21 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModulePlugin } from '../../http/server.js';
-import type { SessionService } from '../auth/services/session-service.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
-import type { CommandBus } from '../../commands/index.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
-import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
-import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
-import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
-import { SalesRepAssignmentService } from '../organizations/services/sales-rep-assignment-service.js';
 import { ImpersonationService } from '../admin_users/services/impersonation-service.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
-import { PersonalOrganizationService } from '../organizations/services/personal-organization-service.js';
 import { CustomerAddressService } from './services/customer-address-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
-import { CustomerAuthorityService } from './services/customer-authority-service.js';
+import {
+  CustomerAuthorityService,
+  type SalesRepVisibility,
+} from './services/customer-authority-service.js';
 import { CustomerModerationService } from './services/customer-moderation-service.js';
 import { CustomerAdminQueryService } from './services/customer-admin-query-service.js';
 import { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
@@ -23,9 +19,21 @@ import { CustomerDeletionService } from './services/customer-deletion-service.js
 import { CustomerPresenceService } from './services/customer-presence-service.js';
 import { CartQueryService } from '../carts/services/cart-query-service.js';
 import { AnonymizationSweepWorker } from './workers/anonymization-sweep-worker.js';
-import { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
-import type { VatValidator } from '../organizations/services/vat-validator-port.js';
 import type { Mailer } from '../email/services/mailer.js';
+import type {
+  AddressReadPort,
+  AuthSessionPort,
+  CustomerAccountAdminSearchPort,
+  CustomerAccountLifecycleWritePort,
+  CustomerAccountReadPort,
+  CustomerAuthPort,
+  CustomerGroupReadPort,
+  CustomerPasswordResetPort,
+  DefaultPreferencePort,
+  OrganizationDetailsPort,
+  PersonalOrganizationPort,
+  VatValidator,
+} from '@b2b/contracts';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
 import {
   registerCustomersSelfRoutes,
@@ -46,18 +54,92 @@ import {
  * never imports another module's internals (Constitution Principle I).
  */
 export interface CustomersModuleOptions {
+  /**
+   * Feature 072 (T094) — `customer_accounts` owns these now. Injected rather
+   * than built here, because this host and `organizations` each built their own and the
+   * MFA argument differed between them.
+   */
+  customerAuthService: CustomerAuthPort;
+  passwordResetService: CustomerPasswordResetPort;
   emFactory: () => EntityManager;
-  sessionService: SessionService;
+  /**
+   * `auth`'s published session port, resolved under the name the contract
+   * publishes (D-98.2 / issue #196). It used to be the `SessionService`
+   * class, resolved as `sessionService`: the three calls this host makes —
+   * `createSession`, `destroyAllForCustomer`, `listRecentlyActiveCustomers`
+   * — are all on {@link AuthSessionPort}, so nothing needed the class.
+   *
+   * Still a second option beside `authSessionPort` below, which is the same
+   * port: merging the two is this module's own Phase-C cut, not a rename.
+   */
+  sessionService: AuthSessionPort;
+  /**
+   * `auth`'s and `customer_accounts`' published surfaces, needed only by the
+   * `ImpersonationService` this host still constructs itself. `admin_users`'
+   * Phase-C cut moved that class onto both ports (feature 075), so the two
+   * options are threaded through here until this module's own cut replaces the
+   * second instance with `impersonationPort` — which is what its shard entries
+   * for `plugin.ts` and `routes.admin.ts` retire.
+   */
+  authSessionPort: AuthSessionPort;
+  customerAccountReadPort: CustomerAccountReadPort;
+  /**
+   * Feature 075, Phase C — the rest of `customer_accounts`' published surface
+   * this module's own screens run on: the lifecycle writes it used to perform
+   * by mutating that module's entity, the admin list's query, and the group
+   * names beside it.
+   */
+  customerAccountLifecycleWritePort: CustomerAccountLifecycleWritePort;
+  customerAccountAdminSearchPort: CustomerAccountAdminSearchPort;
+  customerGroupReadPort: CustomerGroupReadPort;
+  /**
+   * `organizations`' published surface: the row-level read the admin list and
+   * the assignment screen ask for names and existence with, and the personal
+   * organisation a B2C registration provisions — which is also what the
+   * retention sweep cascades onto.
+   */
+  organizationDetailsPort: OrganizationDetailsPort;
+  personalOrganizationPort: PersonalOrganizationPort;
+  /** `addresses`' published read: the org-shared book a customer may pick from. */
+  addressReadPort: AddressReadPort;
+  /**
+   * Which organizations the acting staff member may see —
+   * `organizations`' `organizationSalesRepScopePort` (issue #108).
+   *
+   * Injected rather than built here. This module used to construct its own
+   * `SalesRepAssignmentService` from an entity-manager factory and an audit log,
+   * and that class's third argument — the feature-056 subtree deps — is
+   * optional, so omitting it compiled and quietly reverted every
+   * staff-authority decision to the flat pre-056 rule: a rep holding
+   * `organizations:rollup` could not act on a customer belonging to a
+   * descendant of an organization assigned to them.
+   */
+  salesRepVisibility: SalesRepVisibility;
   requireCustomer: RequireCustomerGuard;
   resolveCustomerActor: ResolveCustomerActor;
   /** Reads `customers.allow_registration_without_organization`. */
   resolveAllowRegistrationWithoutOrganization: () => Promise<boolean>;
-  /** Lazy — OrderListService is bound during the orders plugin registration. */
-  getOrderListService: () => OrderListService;
+  /**
+   * Lazy — OrderListService is bound during the orders plugin registration.
+   *
+   * Narrowed to the one method the two history panels call, so the degrade
+   * `orders` being absent produces can be expressed in the type rather than in
+   * a comment (D-44): an empty page is a value this shape can hold, and a whole
+   * `OrderListService` is not.
+   */
+  getOrderListService: () => Pick<OrderListService, 'list'>;
   rfqService: RfqService;
   auditLogService: AuditLogService;
-  /** Org allow-list port for default-preference eligibility (optional). */
-  organizationRestrictionService?: OrganizationRestrictionService;
+  /**
+   * `quick_order`'s ordering defaults, which the customer-detail screen and
+   * self-service profile render and edit (issue #216).
+   *
+   * A **binding** dependency: the port's own contract says the seam fails
+   * closed when `quick_order` is off, and this module used to answer the same
+   * question out of a second instance it constructed itself — which read the
+   * table whether the owner was present or not.
+   */
+  defaultPreferencePort: DefaultPreferencePort;
   requireAdmin: RequireAdminGuard;
   resolveModerationActor: ResolveModerationActor;
   /** VAT/NIP validator port (VIES / Biała lista in production). */
@@ -69,54 +151,52 @@ export interface CustomersModuleOptions {
   resolveDeletionRetentionDays: () => Promise<number>;
   /** Reads `customers.presence_freshness_minutes`. */
   resolvePresenceFreshnessMinutes: () => Promise<number>;
-  /** Feature 055 — validates + persists Customer custom-field values on the admin edit path. */
+  /**
+   * Feature 055 — validates Customer custom-field values on the admin edit
+   * path. The persistence is `customer_accounts`': its lifecycle port runs the
+   * Command and takes this validator as the merge (feature 075).
+   */
   customFieldValues?: CustomFieldValueService;
-  /** Feature 054/055 — audits the custom-field write co-transactionally when provided. */
-  commandBus?: CommandBus;
 }
 
 export interface CustomersModuleHandle {
   registrationService: CustomerRegistrationService;
   anonymizationSweepWorker: AnonymizationSweepWorker;
+  /**
+   * Exposed so the sales-rep scope this module *uses* can be asserted (issue
+   * #108). The defect it closes was invisible to `tsc` and to every route test,
+   * because a flat scope answers plausibly — just not with the roll-up.
+   */
+  authorityService: CustomerAuthorityService;
 }
 
 export function customersModule(options: CustomersModuleOptions): {
   plugin: ModulePlugin;
   handle: () => CustomersModuleHandle;
 } {
-  const customerAuthService = new CustomerAuthService(
-    options.emFactory,
-    options.sessionService,
-    undefined, // getMfaLoginPort — not wired in the customers composition
-    options.auditLogService,
-  );
-  const personalOrganizationService = new PersonalOrganizationService(options.emFactory);
+  const customerAuthService = options.customerAuthService;
   const registrationService = new CustomerRegistrationService({
-    emFactory: options.emFactory,
+    accounts: options.customerAccountLifecycleWritePort,
     sessionService: options.sessionService,
     resolveAllowRegistrationWithoutOrganization:
       options.resolveAllowRegistrationWithoutOrganization,
-    personalOrganizationService,
-    auditLog: options.auditLogService,
+    personalOrganizations: options.personalOrganizationPort,
   });
-  const customerAddressService = new CustomerAddressService(options.emFactory, options.auditLogService);
-  const defaultPreferenceService = new DefaultPreferenceService(
+  const customerAddressService = new CustomerAddressService(
     options.emFactory,
+    options.addressReadPort,
     options.auditLogService,
-    options.organizationRestrictionService,
   );
   const customerDefaultsService = new CustomerDefaultsService(
     options.emFactory,
-    defaultPreferenceService,
+    options.defaultPreferencePort,
     customerAddressService,
   );
-  const authorityService = new CustomerAuthorityService(
-    new SalesRepAssignmentService(options.emFactory, options.auditLogService),
-  );
+  const authorityService = new CustomerAuthorityService(options.salesRepVisibility);
   const moderationService = new CustomerModerationService(
-    options.emFactory,
+    options.customerAccountReadPort,
+    options.customerAccountLifecycleWritePort,
     authorityService,
-    options.auditLogService,
     {
       destroyAllForCustomer: (customerAccountId) =>
         options.sessionService.destroyAllForCustomer(customerAccountId),
@@ -124,23 +204,28 @@ export function customersModule(options: CustomersModuleOptions): {
   );
   const impersonationService = new ImpersonationService(
     options.emFactory,
-    options.sessionService,
+    options.authSessionPort,
+    options.customerAccountReadPort,
     options.auditLogService,
   );
-  const queryService = new CustomerAdminQueryService(
-    options.emFactory,
-    customerDefaultsService,
-  );
+  const queryService = new CustomerAdminQueryService(options.emFactory, customerDefaultsService, {
+    accounts: options.customerAccountReadPort,
+    accountSearch: options.customerAccountAdminSearchPort,
+    organizations: options.organizationDetailsPort,
+    customerGroups: options.customerGroupReadPort,
+  });
   const orgAssignmentService = new CustomerOrgAssignmentService(
-    options.emFactory,
+    options.customerAccountReadPort,
+    options.customerAccountLifecycleWritePort,
+    options.organizationDetailsPort,
     authorityService,
-    options.auditLogService,
   );
   const cartQueryService = new CartQueryService(options.emFactory);
   const deletionService = new CustomerDeletionService(
-    options.emFactory,
+    options.customerAccountReadPort,
+    options.customerAccountLifecycleWritePort,
+    options.personalOrganizationPort,
     authorityService,
-    options.auditLogService,
     {
       destroyAllForCustomer: (customerAccountId) =>
         options.sessionService.destroyAllForCustomer(customerAccountId),
@@ -153,8 +238,9 @@ export function customersModule(options: CustomersModuleOptions): {
         options.sessionService.listRecentlyActiveCustomers(windowMinutes),
     },
     options.resolvePresenceFreshnessMinutes,
+    options.customerAccountReadPort,
   );
-  const passwordResetService = new PasswordResetService(options.emFactory, options.auditLogService);
+  const passwordResetService = options.passwordResetService;
   const anonymizationSweepWorker = new AnonymizationSweepWorker(
     deletionService,
     options.resolveDeletionRetentionDays,
@@ -163,7 +249,7 @@ export function customersModule(options: CustomersModuleOptions): {
   const plugin: ModulePlugin = async (app) => {
     await registerCustomersRegisterRoutes(app, { registrationService });
     await registerCustomersSelfRoutes(app, {
-      emFactory: options.emFactory,
+      accounts: options.customerAccountReadPort,
       requireCustomer: options.requireCustomer,
       resolveCustomerActor: options.resolveCustomerActor,
       customerAuthService,
@@ -173,7 +259,8 @@ export function customersModule(options: CustomersModuleOptions): {
       customerDefaultsService,
     });
     await registerCustomersAdminRoutes(app, {
-      emFactory: options.emFactory,
+      accounts: options.customerAccountReadPort,
+      accountWrites: options.customerAccountLifecycleWritePort,
       requireAdmin: options.requireAdmin,
       resolveModerationActor: options.resolveModerationActor,
       moderationService,
@@ -192,12 +279,11 @@ export function customersModule(options: CustomersModuleOptions): {
       auditLogService: options.auditLogService,
       storefrontBaseUrl: options.storefrontBaseUrl,
       ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
-      ...(options.commandBus ? { commandBus: options.commandBus } : {}),
     });
   };
 
   return {
     plugin,
-    handle: () => ({ registrationService, anonymizationSweepWorker }),
+    handle: () => ({ registrationService, anonymizationSweepWorker, authorityService }),
   };
 }

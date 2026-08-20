@@ -2,9 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * T042 + T044 — CMS-block embed end-to-end. Verifies:
@@ -28,9 +29,7 @@ describe('Megamenu CMS-block embed (T042 + T044)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   it('inlines a referenced CMS Block under a megamenu panel item', async () => {

@@ -7,7 +7,7 @@ import {
   type AnalyticsForwarder,
 } from './services/ga4-forwarder.js';
 import { registerAnalyticsRoutes } from './routes.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface AnalyticsModuleOptions {
   emFactory: () => EntityManager;

@@ -54,7 +54,11 @@ quality:
     # classification decorator (fails the build on any unclassified entity).
     - pnpm --filter backend exec tsx scripts/check-entity-tenant-classification.ts
     # Feature 053 (FR-011) — no storefront module may re-resolve the sales
-    # channel outside the canonical resolver. Allow-list is empty; enforced.
+    # channel outside the canonical resolver. Feature 072 (D-42) added a third
+    # signal to the same script: no settings read may name its channel with a
+    # string literal that is not a channel id — "no channel" is `null`. Scans
+    # all of `src/**`, because half that family lived in `composition.ts` and in
+    # a module's `scripts/`. Allow-list is empty; enforced.
     - pnpm --filter backend exec tsx scripts/check-channel-resolution.ts --enforce
     # Feature 054 (FR-009) — every sensitive write must run through the Command
     # Bus (record audit / run a Command) or carry a documented
@@ -62,6 +66,197 @@ quality:
     # (all 45 modules migrated), so `--strict` build-breaks on ANY finding in ANY
     # module — a new unaudited write anywhere fails CI (no silent regression).
     - pnpm --filter backend run check:command-coverage -- --strict
+    # Feature 072 (D-32) — a module may declare an ORM relation into the kernel,
+    # never into another module; the kernel relates into neither. The allow-list
+    # is an empty ratchet.
+    - pnpm --filter backend run check:kernel-boundary
+    # Feature 075 (FR-020) — the other direction across the same boundary: a
+    # module may not import another module's internals, in any of the eight
+    # shapes a specifier takes. 072 and 073 finished the runtime half (891 port
+    # resolutions, zero violations); this is the compile-time half, and it was
+    # 674 sites the day the check landed — 43% of them `import type`, which the
+    # first attempt to measure it omitted and undercounted by 2.2×. The ledger
+    # is sharded one file per consumer module under
+    # `backend/scripts/ledgers/cross-module-imports/`, so cutting a module
+    # touches only its own shard, and it fails five ways: an unledgered import,
+    # a stale entry, an empty shard, an orphan shard and an entry filed under
+    # another module's shard.
+    - pnpm --filter backend run check:module-boundary
+    # Feature 072 (FR-020) — every non-HTTP entry point (CLI script, BullMQ
+    # consumer, repeating-timer sweep) establishes a scope explicitly. The timer
+    # class was `setInterval(` as a string until issue #128, so `search`'s
+    # reindex loop — a `setTimeout` its callback re-arms — was never in the
+    # population and its unmet FR-020 sat behind a count that could not move. The
+    # shape now comes from `scripts/lib/repeating-timers.ts`, shared with
+    # check:entry-presence below.
+    - pnpm --filter backend run check:entry-scope
+    # Feature 072 (FR-032) — no module imports the container library. Modules see
+    # only `ModuleContext`, so the container stays swappable behind that seam.
+    - pnpm --filter backend run check:container-imports
+    # Feature 072 (FR-040) — a module declares the modules whose ports it
+    # resolves. Hard from the first run: it measures container resolutions, not
+    # imports, so it found one violation while three modules are converted —
+    # each conversion pays for its own declarations instead of leaving a
+    # 261-entry allow-list nobody will drain.
+    - pnpm --filter backend run check:port-dependencies
+    # Issue #84 — a `catch` around a gated-port call may not swallow
+    # `ModuleDisabledError`. `lazyPort` resolves inside the forwarded call, so
+    # the presence answer arrives at the call site, and a bare `catch` turns
+    # fail-closed into fail-open silently. Carries `PORT_CATCHES_TO_DRAIN`, a
+    # two-way ratchet: an unledgered bare catch fails, and so does a ledger
+    # entry that no longer describes one.
+    - pnpm --filter backend run check:port-catches
+    # D-97.3 — a published port may not declare an optional method. Feature
+    # detection through a port is impossible: `lazyPort`'s proxy answers every
+    # property with a function, so `if (port.maybe)` is always true and the
+    # forward throws when the provider has none. `catalog` widened the
+    # custom-field read port with `publishInvalidate?` and turned a benign,
+    # self-healing cache window into a 500 on the attribute screens. No ledger —
+    # the one occurrence is deleted, and an entry would be a licence to re-open
+    # it.
+    - pnpm --filter backend run check:port-shape
+    # Issue #107 — a module subscribes to the EventBus through `ctx.subscribe`,
+    # never a bare `eventBus.on`. Routes and workers each had a seam check;
+    # subscriptions had none, and twenty-two accumulated across nine modules
+    # while every one of those modules' conversion tasks read done — ten of them
+    # writing to the platform's own database (an invoice issued and e-mailed, a
+    # quote request completed, a push message row delivered to a device) and
+    # twenty-one of the twenty-two mutating something, for a module an operator
+    # had switched off.
+    # `BARE_SUBSCRIPTIONS_TO_DRAIN` is an empty two-way ratchet: an unledgered
+    # bare subscription fails, and so does a ledger entry that no longer
+    # describes one.
+    - pnpm --filter backend run check:subscribe-seam
+    # Issue #200 — SQL written inside a transaction runs inside that transaction.
+    # `em.getKnex()` is `getConnection().getKnex()` and a connection is not a
+    # transaction: the statement takes its own pooled connection and commits
+    # immediately, so a rollback cannot reach it. `PromotionUsageService.finalize`
+    # incremented usage counters that way and left a redemption row pointing at an
+    # order the rollback had removed (D-94); the sweep found sixty-five more,
+    # fifty-one of them writes, including a megamenu tree that a refused save
+    # deleted outright. Only the
+    # lexically decidable population is read — a `transactional(` callback and a
+    # Command's `run` — because whether an arbitrary method has a transaction open
+    # is a question about its callers. `CONNECTION_LEVEL_SQL_IN_TRANSACTIONS` is an
+    # empty two-way ratchet.
+    - pnpm --filter backend run check:transaction-context
+    # Issue #126 / #146 — an entry point nothing can catch a throw from decides
+    # presence before it works. Routes, workers and subscribers each have a seam;
+    # a timer a module starts in its own plugin body had none, and `price_lists`
+    # went on activating and expiring price lists five minutes at a time with the
+    # module switched off — it changed what customers were charged. Sees
+    # `setInterval`, a self-rescheduling `setTimeout`, `process.on` and — since
+    # D-68 — a `ctx.onBoot` hook that does work in a switchable module, which is
+    # how a switched-off `product_feeds` kept writing BullMQ scheduler keys at
+    # every deploy. A hook that only contributes a descriptor passes silently,
+    # and one that does both is reported as `mixed-boot-hook` with "split it
+    # first" rather than "probe the top", because probing a mixed hook stops the
+    # contribution too. `TIMERS_WITHOUT_PRESENCE` and `BOOT_HOOKS_WITHOUT_PRESENCE`
+    # are two-way and are not expected to empty: an entry says why a site is right
+    # to keep running while its module is off.
+    - pnpm --filter backend run check:entry-presence
+    # Issue #216 — a reason string may not assert a lock the manifests
+    # contradict. The locked set is derived from `activation.nonDeactivatable`
+    # on every run (`scripts/lib/switchable-modules.ts`), so a sentence
+    # restating it is a copy no run re-derives: a shard withdrew a written port
+    # conversion on the ground that a module with an activation control could
+    # not be switched off, and nothing in the repository could tell. D-100
+    # forbade the shape in acknowledged-edge reasons; this enforces it wherever
+    # a reason is written — ledger shards, the ledgers that live inside a check,
+    # and every module manifest. No ledger: a claim the manifests contradict is
+    # never right to stand.
+    - pnpm --filter backend run check:lock-claims
+    # Issue #232 — a manifest action's `requiredPermission` is the code enforced
+    # on its own `targetRoute`. The permission inventory sweeps two directions,
+    # enforced ⇒ grantable and grantable ⇒ enforced, and both of the defects that
+    # produced this check passed it: `settings`' palette entry declared no code
+    # at all against an `settings:read` route, and `inventory`'s declared
+    # `catalog:write` against an `orders:read` one — real codes, enforced
+    # somewhere, on the wrong route. Agreement is sufficiency, not equality, so a
+    # member of an any-of gate passes it. `ACTION_PERMISSION_DISAGREEMENTS` is a
+    # two-way ratchet holding the three verb-labelled actions whose screen needs
+    # a read code to open and a write code to use — a single field cannot say
+    # both, and the choice is the owner's.
+    - pnpm --filter backend run check:action-route-permissions
+    # Issue #111 — a test releases a harness-owned resource through
+    # `teardownBackendServer`, never by closing it itself. Seventy-seven files had
+    # copied the same three lines (`app.close`, `redis.disconnect`, `orm.close`)
+    # and none of them disposed the awilix container or disconnected the pub/sub
+    # Redis client, because neither existed when the shape was first copied — a
+    # hand-written teardown is a copy of the seam frozen at the moment it was
+    # copied, and nothing can teach it about a resource added later. The suite
+    # runs in a single fork, so one abandoned client per composed server
+    # accumulates for the whole run. `HAND_RELEASED_RESOURCES_TO_DRAIN` is an
+    # empty two-way ratchet.
+    - pnpm --filter backend run check:harness-teardown
+    # Issue #159 — a test does not turn "the row is not there" into a value that
+    # looks like data. Six files carried
+    # `(await em.findOne(SalesChannel, { systemDefault: true }))?.id ?? ''`, and
+    # every one was green only because another file's `setupBackendServer` had
+    # created the channel first; against a fresh database
+    # `cart-abandonment-worker.integration.test.ts` failed all six of its tests
+    # with `invalid input syntax for type uuid: ""`. `null`/`undefined` fallbacks
+    # and `expect(x ?? null)` normalisation are out of the population on purpose:
+    # they keep the absence in the type. `DEFAULTED_FIXTURE_READS` is two-way and
+    # is not expected to empty — an entry says why the fallback is right.
+    - pnpm --filter backend run check:fixture-substitution
+    # Issue #166 — the same defect pointing the other way: a test that *empties*
+    # a shared table instead of reading one another file seeded. Eight comparison
+    # files ran `nativeDelete(Comparison, {})` in a `beforeEach`, which is what
+    # let four of them assert `toHaveLength(1)` over the whole table — a claim
+    # about the platform rather than about the row the test created.
+    # `UNSCOPED_WIPES_BASELINE` is a per-file two-way ratchet over the 197 wipes
+    # that stood when it landed: a new one fails, and so does a number left
+    # standing after the deletes under it were scoped.
+    - pnpm --filter backend run check:shared-table-wipes
+    # Issues #182 / #190 — no source file carries a raw NUL byte. Git classifies
+    # a blob with a NUL in it as binary, so every diff of that file reads
+    # "Binary files differ": the one artefact that would have caught the byte is
+    # the one the byte switches off, which is how six files kept a raw NUL in a
+    # template literal through every review of every commit that touched them.
+    # Reads the whole file rather than git's own first 8000 bytes — one of the
+    # six sat at byte 8032 and git itself still called it text.
+    # `NUL_BYTES_ALLOWED` is an empty two-way ratchet.
+    - pnpm --filter backend run check:nul-bytes
+    # Issue #240 — the admin folds diacritics in one place. The one-liner
+    # `normalize('NFD').replace(/\p{Diacritic}/gu, '')` reads as complete and is
+    # not: `ł` is a standalone code point with no canonical decomposition, so NFD
+    # leaves it where it was and the strip removes nothing. Four private copies
+    # had grown by !745 — typing `naglowek` found no block named `Nagłówek`, and
+    # `platnosci` found no `Metody płatności` in any picker — and the only thing
+    # standing between them and a fifth was a paragraph in a file header. Reads
+    # literal AST nodes, so the four files that quote the wrong one-liner to
+    # explain why they do not use it are out of the population by construction.
+    # `DIACRITIC_FOLDS_ALLOWED` is a per-file two-way ratchet holding the two
+    # slugifiers whose NFKD mappings are baked into persisted slugs (issue #239).
+    - pnpm --filter backend run check:diacritic-folds
+    # Documentation code blocks are quotations, not paraphrases. The quickstarts
+    # are copied by every module conversion, so a stale snippet is a defect
+    # scheduled for mass production — six were found across three batches before
+    # this check existed.
+    - pnpm --filter backend run check:doc-snippets
+    # Principle VIII — an error code the operator can see has a sentence, in both
+    # shipped languages. The envelope replaces the message wholesale with the
+    # bundle string, so a missing key renders the raw code and nothing reports it:
+    # `credentials` shipped eight written, translated sentences under keys the
+    # envelope does not read, while all six of its codes rendered untranslated.
+    # The ledger is the standing debt and may only shrink.
+    - pnpm --filter backend run check:error-translations
+    # Feature 021 / Principle VIII (issue #116) — a user-visible string in the
+    # admin SPA is a translation key, not a literal. `AGENTS.md` has cited this
+    # script as the gate since 021 and it ran in no job at all: first because its
+    # default root resolved against the working directory and read zero files,
+    # then because fixing that surfaced 274 findings across 47 screens. It runs
+    # against HARDCODED_STRINGS_BASELINE, a two-way per-file ratchet — a new
+    # string fails, and so does a number left standing after the strings under it
+    # were translated.
+    - pnpm --filter backend run i18n:hardcoded
+    # Constitution IV — pdfmake's bundled fonts set the single-VPS disk floor.
+    # Also in no job until issue #116, on the stated grounds that it needs an
+    # installed node_modules — which this job has had all along, in
+    # `before_script`. It measures a real directory or exits 2; it never reports
+    # a budget it did not measure.
+    - pnpm run check:pdfmake-footprint
     # Feature 057 (FR-006/SC-003) — the manifest index + override manifest
     # regenerate deterministically for the bare-core build; `overlay:check`
     # regenerates and fails on ANY drift (identical inputs ⇒ identical artifact).
@@ -113,21 +308,131 @@ quality:static:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 # ---------------------------------------------------------------------------
-# Test — split into the DB-backed backend suite (sharded) and the fast,
-# service-less frontend/contract suites, to keep MR wall-clock low while staying
-# a required gate. This is now the only CI that runs the suite: the GitHub
+# Test — split three ways, to keep MR wall-clock low while staying a required
+# gate: the DB-backed backend suite (sharded, `test:backend`), the service-less
+# backend unit run (`test:backend:unit`, issue #211) and the frontend/contract
+# suites. This is now the only CI that runs the suite: the GitHub
 # Actions workflows were removed (the project delivers through GitLab MRs).
 # ---------------------------------------------------------------------------
 
-# Overlay per-deployment matrix (feature 057, FR-010): the bare-core build is
-# the baseline job below (DEPLOYMENT unset). Each client deployment adds a
-# matrix instance that sets `DEPLOYMENT=<name>` so the resolver composes core +
-# that deployment's `backend/src/apps/<name>/` overlay before the suite runs —
-# a red bare-core run blocks everything; a red deployment run blocks only that
-# deployment. No overlay deployments exist yet, so only the bare-core instance
-# runs; add a `parallel: matrix: [{ DEPLOYMENT: [acme, …] }]` entry here when the
-# first `apps/<name>/` overlay lands. The fast `overlay:check` (determinism +
-# resolver guards) already runs for every push in the `quality` stage above.
+# When a change needs the backend suite run against it — shared by both backend
+# test jobs, because two copies of this ladder would drift.
+#
+# The rungs are evaluated in order and the first match decides. The ladder is
+# built so that the ONLY way to skip is a diff that is *provably* documentation.
+# A diff the matcher does not recognise runs the tests; that is rung 3, and it
+# is what stops a future refactor of rung 1 from turning "the matcher broke"
+# into "nothing needed testing".
+.backend-test-rules:
+  rules:
+    # 1 — something that can affect the backend changed. On the default branch
+    #     this is what gets deployed; on an MR it is the merge gate.
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - backend/**/*
+        - packages/**/*
+        - pnpm-lock.yaml
+        - tsconfig.base.json
+        - .gitlab-ci.yml
+    # 2 — nothing on that list changed and the diff IS documentation. Ten of the
+    #     last sixty merges to master touched nothing outside `docs/`, `specs/`
+    #     and `*.md`, and each one ran the whole backend suite. This skips them
+    #     because they were classified, not because no pattern happened to hit.
+    #     A `*.md` under a code path (e.g. `backend/src/modules/*/README.md`)
+    #     never reaches this rung — rung 1 already matched it.
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - docs/**/*
+        - specs/**/*
+        - '**/*.md'
+      when: never
+    # 3 — the default branch with a diff neither list recognises: a new
+    #     top-level directory, or a push GitLab could not diff. Run.
+    #
+    #     There is deliberately no rung 3 for merge requests: an MR that touches
+    #     only `admin/` or `storefront/` has never run the backend suite, and
+    #     making it do so would add ~25 minutes to the commonest kind of
+    #     frontend MR. That case is still "skipped because nothing matched"
+    #     rather than "skipped because classified" — narrowing it is a separate
+    #     change with its own cost, not a side effect of the docs filter.
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Overlay per-deployment coverage (feature 057, FR-010; issue #210).
+#
+# The bare-core build is the sharded `test:backend` job below (DEPLOYMENT unset)
+# and it stays the baseline: a red bare-core run blocks everything. Each client
+# deployment gets its own instance that sets `DEPLOYMENT=<name>`, so a red
+# deployment run blocks only that deployment.
+#
+# **Until issue #210 no CI job had ever set `DEPLOYMENT`**, which is why a
+# `backend.ts`-only overlay module could crash composition, the one reference
+# overlay module could ship an ungated route, and `manifest-index.generated.ts`
+# could be permanently stale under the variable — all with a green pipeline. The
+# comment that stood here said "No overlay deployments exist yet"; feature 057
+# landed `backend/src/apps/example/` and the sentence was false from that day.
+#
+# It is a **separate job rather than a `parallel: matrix:` entry on the sharded
+# one**, and the choice is a cost decision: a matrix entry multiplies all five
+# shards by every deployment (5 → 10 jobs, ten service containers) on a 4 vCPU /
+# 8 GB runner with concurrent=2, to re-run ~2000 tests that are identical between
+# the two compositions. What a deployment build can break that bare core cannot
+# is the composition itself — discovery, gating, decoration, ownership,
+# permissions — so this job runs the suites that exercise it, unsharded, in one
+# instance. Widen the selection when a deployment ships something core does not.
+test:backend:deployment:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  parallel:
+    matrix:
+      - DEPLOYMENT: [example]
+  variables:
+    NODE_OPTIONS: --max-old-space-size=2048
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    # The artefacts must be deterministic with the variable set — that is the
+    # half of issue #120's ruling this family never had.
+    - pnpm --filter backend run overlay:check
+    # The permission inventory is deployment-resolved on both sides, so this
+    # instance sweeps the deployment's codes (feature 057, FR-009).
+    - pnpm --filter backend exec vitest run test/overlay test/integration/overlay test/contract/admin_users/permission-inventory.test.ts
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - backend/**/*
+        - packages/**/*
+        - pnpm-lock.yaml
+        - tsconfig.base.json
+        - .gitlab-ci.yml
+
+# The fast `overlay:check` (determinism + resolver guards) also runs for every
+# push in the `quality` stage above, bare core.
+#
 #
 # Backend: ~2000 DB-backed tests, run SERIALLY per process (vitest singleFork).
 # Sharded across `parallel` job instances — each instance gets its OWN
@@ -178,8 +483,16 @@ test:backend:
     MEILI_MASTER_KEY: devMasterKeyChangeMe
     MEILI_ENV: development
     MEILI_NO_ANALYTICS: 'true'
-    # global-setup.ts creates + migrates this dedicated DB (and exercises every
-    # migration, so a separate migration:up step is redundant). GitLab's docker
+    # The **base** name: global-setup.ts derives the migrated template
+    # (b2b_test_tpl) and this shard's own database (b2b_test_r_…) from it, and
+    # migrates the template (issue #189). The postgres service container starts
+    # empty on every pipeline, so this is still a genuine from-scratch
+    # application of the whole chain in the order `src/db/migration-order.ts`
+    # computes — which is the only thing covering the open block, whose
+    # migrations are ordered by the module dependency graph rather than by
+    # chronology (feature 081, SC-004); the shard then runs against a clone of
+    # what those migrations built, and a separate migration:up step stays
+    # redundant. Do not point this at a pre-migrated database. GitLab's docker
     # executor reaches services by their alias host (postgres), NOT 127.0.0.1 —
     # without this, tests fall back to localhost and ECONNREFUSED.
     TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
@@ -199,17 +512,39 @@ test:backend:
         - pnpm-lock.yaml
     paths:
       - .pnpm-store
-  rules:
-    # On the default branch always run — this is what gets deployed.
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-    # On MRs, only when something that can affect the backend changed.
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      changes:
-        - backend/**/*
-        - packages/**/*
+  rules: !reference [.backend-test-rules, rules]
+
+# The fast half of the backend suite (issue #211). `test/unit` is 315 files and
+# only 16 of them talk to a live service, yet the whole directory used to be
+# gated behind a globalSetup that creates and migrates a database — so the other
+# 299 could not run without three service containers.
+#
+# `vitest.unit.config.ts` excludes those 16 (named with a reason each in
+# `backend/test/service-dependent-unit-tests.ts`) and declares
+# BACKEND_TEST_SERVICES=none, which is why this job has NO `services:` block.
+# That absence is the point: if a service-dependent test ever lands in this run,
+# the harness refuses at its seam with a sentence naming the ledger, rather than
+# quietly passing against nothing.
+#
+# The 16 excluded files still run in `test:backend` above, so this is a split of
+# jobs, not of coverage. `needs: []` starts the job at pipeline creation instead
+# of after the `quality` stage — the whole value here is an answer in minutes.
+test:backend:unit:
+  stage: test
+  image: node:22.17-slim
+  needs: []
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm --filter backend run test:unit:fast
+  cache:
+    key:
+      files:
         - pnpm-lock.yaml
-        - tsconfig.base.json
-        - .gitlab-ci.yml
+    paths:
+      - .pnpm-store
+  rules: !reference [.backend-test-rules, rules]
 
 # Frontend + contracts: jsdom / pure-node, no external services. Cheap enough to
 # run on every pipeline without sharding or scoping.
@@ -230,6 +565,91 @@ test:frontend:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# ---------------------------------------------------------------------------
+# Performance benchmarks (issue #143, ruling D-64). Deliberately NOT on a
+# merge request.
+#
+# These assert p95 wall-clock. The shared runner is a 4 vCPU / 8 GB box with
+# concurrent=2, and `test:backend` already fills it with 5 sharded jobs and
+# their service containers (see the notes above that job). A p95 measured
+# beside two live shards measures contention, so a per-MR gate here would be a
+# coin toss that blocks merges — worse than not measuring at all.
+#
+# So: a scheduled pipeline, alone on the runner, blocking THAT pipeline. A red
+# nightly is visible and costs nobody a merge. `when: manual` on an MR is for
+# someone deliberately measuring a change they suspect.
+#
+# CI_SCHEDULE_KIND is set on the schedule itself (nightly / weekly-heavy).
+# Two schedules are needed for this job to mean anything:
+#   nightly       CI_SCHEDULE_KIND=nightly       — the nine fast benchmarks
+#   weekly-heavy  CI_SCHEDULE_KIND=weekly-heavy  — plus the two multi-minute
+#                                                  files
+#
+# The first three runs are RECORDING runs (D-65): every benchmark prints
+# `p95=… (budget …)`, and each budget in `test/perf/**` is re-based from what
+# those three runs measure on this runner. The defaults committed today come
+# from four local runs × 3 and carry that derivation in a comment beside them;
+# they are a starting point, not the enforced number.
+perf:backend:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    NODE_OPTIONS: --max-old-space-size=2048
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    PERF_RUN: 'true'
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    # `test/perf/carts/abandonment-sweep.bench.ts` runs on both schedules again
+    # (issue #152). It was excluded because it could not finish: the sweep did
+    # one `em.find(CartItem)` and one flushing `CartAuditService.record()` per
+    # eligible cart over an identity map that kept everything it had touched, so
+    # 4× the carts cost 16× the time and the default corpus hit the 10-minute
+    # vitest timeout before it could report a number. That is fixed; the sweep
+    # batches, and 10 000 carts take ~5.3 s against a re-based 17 s budget. The
+    # file's own header carries the before/after readings and the derivation.
+    #
+    # The two multi-minute files (100k feed generation, Ergonode import) run on
+    # the weekly schedule only — a 10-minute budget has no place in a nightly.
+    #
+    # Written as shell variables rather than the folded `- >` block the ruling
+    # sketched: inside a folded scalar YAML keeps the newline before a MORE
+    # indented line, so a `--exclude` wrapped under its `pnpm` would have
+    # reached bash as its own command. GitLab concatenates these lines into one
+    # script, so the assignments carry.
+    - SKIP_HEAVY="--exclude test/perf/product_feeds/generation-100k.test.ts --exclude test/perf/pim_ergonode/import-throughput.test.ts"
+    - if [ "$CI_SCHEDULE_KIND" = "weekly-heavy" ]; then SKIP_HEAVY=""; fi
+    - pnpm --filter backend exec vitest run test/perf $SKIP_HEAVY
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      allow_failure: false
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
 
 # ---------------------------------------------------------------------------
 # Build — Docker images → GitLab Container Registry

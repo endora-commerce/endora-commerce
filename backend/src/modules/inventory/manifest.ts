@@ -26,6 +26,16 @@ const settings = defineModuleSettingsManifest({
   groups: [{ code: 'inventory', name: 'Inventory' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'inventory.enabled',
+      name: 'Inventory enabled',
+      description:
+        'Switches stock management on or off: warehouses, stock levels and their adjustments, low-stock alerts, the back-in-stock notification flow and the storefront stock figure. Nothing is dropped — every warehouse, stock row and pending notification stays in the database and resumes where it was.',
+      groupCode: 'inventory',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: INVENTORY_SETTING_CODES.DISPLAY_MODE,
       name: 'Storefront stock display mode',
       description:
@@ -103,8 +113,58 @@ export const manifest = defineModuleManifest({
   description:
     'Multi-warehouse stock levels, fulfilment strategy, and storefront display modes.',
   version: '1.0.0',
-  dependencies: ['catalog', 'dictionaries', 'sales_channels', 'settings'],
+  // Feature 075, Phase C adds `customer_accounts` and `email`. Both were
+  // reached by importing a file rather than resolving a port, so neither
+  // appeared here: the availability queue turns a subscription into an e-mail
+  // address by reading `CustomerAccount`, and every message this module sends
+  // leaves through `email`'s transport. `customer_accounts` belongs in
+  // `dependencies` rather than `nonBindingDependencies` for the reason
+  // `quick_order` gives — a back-in-stock notice addressed to an account the
+  // platform will not identify is worse than a refused subscription.
+  //
+  // D-94.1 adds `orders`, for the foreign key
+  // `stock_allocations_order_item_fk` (`stock_allocations.order_item_id` ->
+  // `order_items.id`, `on delete restrict`). AGENTS.md § Migrations item 4: a
+  // cross-module foreign key is declared here or the build fails. It is the
+  // one edge of the four-site family that closes no cycle — `orders` resolves
+  // no port this module owns in `dependencies`, only the two
+  // `degrades-without` reads placement makes.
+  // `audit_logs` owns `auditReferenceRegistry`, the registry this module pushes
+  // its own "what is this audit row called, and where does the admin app show
+  // it?" resolver into (feature 075, D-87). The registry is ungated and its
+  // owner is non-deactivatable, so the declaration buys install and migration
+  // order rather than a flip-time refusal.
+  dependencies: [
+    'audit_logs',
+    'auth',
+    'catalog',
+    'customer_accounts',
+    'dictionaries',
+    'email',
+    'orders',
+    'organizations',
+    'sales_channels',
+    'settings',
+    'transactional_emails',
+  ],
+  // D-44 — real to the container, binding on no operator.
+  nonBindingDependencies: [
+    {
+      moduleId: 'prompt_actions',
+      name: 'promptActionToolRegistry',
+      kind: 'contributes-to',
+      reason:
+        'A push, from this module’s boot hook, of the warehouse resolver and the ' +
+        '`set_stock_level` mutation built over its own services. Nothing is read back: ' +
+        'the registry is a plain registration that drops every tool whose owner is not ' +
+        'effectively present, so an absent contributor costs the host nothing and an ' +
+        'absent host holds a table nobody walks. Declaring the edge would make an ' +
+        'optional assistant undeactivatable for as long as stock is tracked.',
+    },
+  ],
   settings,
+  // Feature 073 (Constitution XVII) — the operator's activation control.
+  activation: { settingCode: 'inventory.enabled', default: true },
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — admin-editable transactional emails owned by this module.
   transactionalEmails: [
@@ -133,7 +193,12 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.openInventory.description',
       icon: 'Boxes',
       targetRoute: '/inventory',
-      requiredPermission: 'catalog:write',
+      // `orders:read`, not anything named after inventory or the catalogue: the
+      // stock overview is gated by `requireAdmin('orders:read')`
+      // (`routes.admin.ts`). The `catalog:write` this used to declare was wrong
+      // in both directions at once — it hid the screen from operators who can
+      // open it and offered it to some who cannot (issue #232).
+      requiredPermission: 'orders:read',
       keywords: ['stock', 'inventory', 'warehouse', 'magazyn', 'zapasy'],
       weight: 230,
     },

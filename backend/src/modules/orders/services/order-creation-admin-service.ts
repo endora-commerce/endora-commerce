@@ -1,16 +1,21 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type AddressServicePort,
+  type CartWritePort,
+  type CustomerAccountReadPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { CartService } from '../../carts/services/cart-service.js';
-import type { AddressService } from '../../addresses/services/address-service.js';
-import type { Mailer } from '../../email/services/mailer.js';
 import type { Order } from '../entities/order.entity.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
 import type { OrderService } from './order-service.js';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type { EmailMailerPort, TransactionalEmailSender } from '@b2b/contracts';
 import { buildAdminCreatedOrderEmail } from '../email-templates/admin-created-order.js';
-import { sendOrderTransactionalEmail } from './transactional-email-helper.js';
+import {
+  orderEmailNotSent,
+  sendOrderTransactionalEmail,
+} from './transactional-email-helper.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /** A new address typed on the create form (vs. an existing org address id). */
 export interface AdminCreateOrderInlineAddress {
@@ -50,10 +55,11 @@ export interface AdminCreateOrderInput {
 export class OrderCreationAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly cartService: CartService,
+    private readonly cartService: CartWritePort,
     private readonly orderService: OrderService,
-    private readonly addressService: AddressService,
-    private readonly mailer?: Mailer,
+    private readonly addressService: AddressServicePort,
+    private readonly customerAccountRead: CustomerAccountReadPort,
+    private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
 
@@ -62,7 +68,7 @@ export class OrderCreationAdminService {
     // OrderService.placeOrder (audited there); the only local mutation here is
     // the optional append-only OrderComment, not audited domain-state.
     const em = this.emFactory();
-    const customer = await em.findOne(CustomerAccount, { id: input.customerAccountId });
+    const customer = await this.customerAccountRead.findById(input.customerAccountId);
     if (!customer) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
     if (!customer.organizationId) {
       throw new HttpError(
@@ -107,7 +113,10 @@ export class OrderCreationAdminService {
       for (const addressId of transientAddressIds) {
         try {
           await this.addressService.deleteAddress(organizationId, addressId);
-        } catch {
+        } catch (error) {
+          // `addresses` being absent is not a cleanup failure — it is the port's
+          // fail-closed answer, and it travels on (issue #197).
+          rethrowIfModuleDisabled(error);
           // best-effort cleanup; a leftover soft-deletable row is harmless.
         }
       }
@@ -172,24 +181,37 @@ export class OrderCreationAdminService {
     }
 
     // Notify the customer that an order was created for them (FR-011).
-    if (customer.email) {
+    // Best-effort, and reported: the order is committed, so a message that does
+    // not go out is named in the log rather than silently absorbed (issue #78).
+    const emailContext = { orderId: order.id, code: 'admin_created_order' };
+    if (!customer.email) {
+      orderEmailNotSent(undefined, emailContext, 'no_recipient');
+    } else {
       const sender = this.getTransactionalEmailSender?.();
-      try {
-        if (sender) {
-          await sendOrderTransactionalEmail(em, sender, order, {
-            code: 'admin_created_order',
-            to: customer.email,
-            messageId: `order_created_for_you:${order.id}`,
-            variables: { order: { businessId: order.businessId, id: order.id } },
-            meta: { orderId: order.id, kind: 'order_created_for_you' },
-          });
-        } else if (this.mailer) {
-          await this.mailer.send(
+      if (sender) {
+        await sendOrderTransactionalEmail(em, sender, order, {
+          orderId: order.id,
+          code: 'admin_created_order',
+          to: customer.email,
+          messageId: `order_created_for_you:${order.id}`,
+          variables: { order: { businessId: order.businessId, id: order.id } },
+          meta: { orderId: order.id, kind: 'order_created_for_you' },
+        });
+      } else if (!this.mailer) {
+        orderEmailNotSent(undefined, emailContext, 'no_transport');
+      } else {
+        try {
+          const outcome = await this.mailer.send(
             buildAdminCreatedOrderEmail({ to: customer.email, businessId: order.businessId, orderId: order.id }),
           );
+          if (outcome.status !== 'sent') {
+            orderEmailNotSent(undefined, emailContext, 'suppressed');
+          }
+        } catch (error) {
+          // A switched-off module is not a delivery failure, so it travels on.
+          rethrowIfModuleDisabled(error);
+          orderEmailNotSent(undefined, emailContext, 'failed', error);
         }
-      } catch {
-        // best-effort
       }
     }
 

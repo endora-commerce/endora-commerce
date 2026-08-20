@@ -1,14 +1,23 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type {
-  ComparisonOwnerView,
-  ComparisonDisplayMode,
+import {
+  listingPriceMoney,
+  type CatalogAttributeReadPort,
+  type CatalogProductReadPort,
+  ANONYMOUS_PRODUCT_AUDIENCE,
+  isProductVisibleTo,
+  type ComparisonOwnerView,
+  type ComparisonDisplayMode,
+  type ComparisonPricedFor,
+  type ListingPrice,
+  type ListingPricePort,
+  type OrganizationDetailsPort,
+  type PriceOrganization,
+  type ProductAudience,
 } from '@b2b/contracts';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
-import type { CatalogQueryService } from '../../catalog/services/catalog-query.service.js';
-import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import { withSystemScope } from '../../../tenancy/index.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { Comparison } from '../entities/comparison.entity.js';
 import { ComparisonProduct } from '../entities/comparison-product.entity.js';
 import type { ShareTokenGenerator } from './share-token-generator.js';
@@ -21,10 +30,13 @@ import {
 /**
  * ComparisonService — feature 007 / T023 + T024.
  *
- * Stateful service owning the Comparison resource. Cross-module reads go
- * through the documented service ports {@link CatalogQueryService} and
- * {@link SettingsService}; no entity imports from another module's
- * internals (Constitution I).
+ * Stateful service owning the Comparison resource. Every cross-module read
+ * goes through a published port — {@link CatalogProductReadPort},
+ * {@link CatalogAttributeReadPort}, {@link ListingPricePort} and
+ * {@link SettingsService}. The products a comparison holds are `catalog`'s
+ * rows, not this module's: reading them with `em.find(Product, …)` was a query
+ * nothing could gate, so a comparison kept resolving names and availability
+ * out of a module an operator had switched off (feature 075, Phase C).
  *
  * Behaviour summary (per `data-model.md`, `research.md`, and
  * `contracts/public-comparisons-crud.md`):
@@ -48,13 +60,44 @@ import {
  *     (and is reused for the share-token recipient view in US2 and the
  *     admin detail view in US5).
  */
+/**
+ * Who is reading a comparison.
+ *
+ * Two kinds rather than one `ProductAudience`, because an administrator is not
+ * a buyer and there is no audience that means "may see everything": the
+ * predicate in {@link isProductVisibleTo} answers for a *shopper*, and every
+ * audience an administrator could be given would drop the organisation-
+ * restricted rows the audit screen exists to show. Making that an explicit
+ * kind is what keeps it from being expressed as a permissive audience
+ * somebody later reuses on a storefront path.
+ */
+export type ComparisonViewer =
+  | { readonly kind: 'buyer'; readonly audience: ProductAudience }
+  | { readonly kind: 'administrator' };
+
+/**
+ * The most restrictive viewer there is — the public. The right default for a
+ * caller that has not been taught to resolve its reader, for the same reason
+ * {@link ANONYMOUS_PRODUCT_AUDIENCE} is: everything it may see, every other
+ * viewer may see too.
+ */
+export const ANONYMOUS_COMPARISON_VIEWER: ComparisonViewer = {
+  kind: 'buyer',
+  audience: ANONYMOUS_PRODUCT_AUDIENCE,
+};
+
 export class ComparisonService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    /** Catalog read port (constructor contract kept; attribute reads moved to `catalogAttributes`). */
-    _catalogQuery: CatalogQueryService,
     private readonly projection: ComparableAttributeProjection,
     private readonly tokens: ShareTokenGenerator,
+    /**
+     * `catalog`'s product read model. Not optional: a comparison is a list of
+     * products, so a service that cannot read one has nothing to answer with —
+     * where the settings and pricing arguments below have a defined fallback,
+     * this has none.
+     */
+    private readonly catalogProducts: CatalogProductReadPort,
     /**
      * Optional settings service. When undefined, `compare.max_products`
      * defaults to {@link DEFAULT_COMPARE_MAX_PRODUCTS} on every call —
@@ -65,8 +108,57 @@ export class ComparisonService {
      * Feature 061 — the catalog's composed attribute read model (Principle I:
      * replaces the former direct `ProductAttribute` entity find).
      */
-    private readonly catalogAttributes?: CatalogAttributeReadService,
+    private readonly catalogAttributes?: CatalogAttributeReadPort,
+    /**
+     * Issue #132 — the pricing engine, through the `pricingService` port. A
+     * comparison exists so a buyer can put prices side by side, so the figures
+     * in its columns have to be the ones a price list stands behind.
+     */
+    private readonly listingPrices?: ListingPricePort,
+    /**
+     * `organizations`' read model, for the one field the pricing engine needs
+     * beyond the viewer's organisation id: the customer group it belongs to,
+     * which a group-targeted price list is selected by. Without it a buyer's
+     * comparison column and their own cart line would resolve against
+     * different lists and quote different figures for one product.
+     */
+    private readonly organizationDetails?: OrganizationDetailsPort,
   ) {}
+
+  #requireListingPrices(): ListingPricePort {
+    if (!this.listingPrices) {
+      throw new Error(
+        'ComparisonService: the pricing port is not wired — a comparison cannot be priced.',
+      );
+    }
+    return this.listingPrices;
+  }
+
+  #requireOrganizationDetails(): OrganizationDetailsPort {
+    if (!this.organizationDetails) {
+      throw new Error(
+        'ComparisonService: the organization read port is not wired — a signed-in buyer cannot be priced.',
+      );
+    }
+    return this.organizationDetails;
+  }
+
+  /**
+   * The buying organisation the pricing engine should resolve against, for the
+   * viewer in front of this comparison — or `null` when there is none, which is
+   * the anonymous reader, the signed-in buyer whose account carries no
+   * Organization, and the buyer whose organisation has since been removed.
+   *
+   * The last of those three deserves saying: it answers with the channel price
+   * rather than throwing, and the view says `pricedFor: 'channel'`, so a figure
+   * is never labelled as the reader's own when it is not.
+   */
+  async #viewerOrganization(viewer: ProductAudience): Promise<PriceOrganization | null> {
+    if (viewer.organizationId === null) return null;
+    const record = await this.#requireOrganizationDetails().findById(viewer.organizationId);
+    if (!record) return null;
+    return { id: record.id, customerGroupId: record.customerGroupId };
+  }
 
   // ------------------------------------------------------------------
   // Reads
@@ -77,9 +169,31 @@ export class ComparisonService {
     return em.findOne(Comparison, ownerWhere(owner));
   }
 
+  /**
+   * Resolve a share token to its comparison, across customers.
+   *
+   * `Comparison` is `@CustomerScoped`, so the ambient filter confines this read
+   * to the caller's own rows — which is right for every other method here and
+   * is the one thing a share link has to cross. An **anonymous** recipient
+   * already crossed it by accident: the composition roots run anonymous
+   * requests under `systemTenantContext('actor:anonymous')`, so the filter is a
+   * no-op for them, while a *signed-in* recipient got a 404 on a link that
+   * worked when they were logged out. That is the shape a guard takes when a
+   * deliberate cross-tenant grant is left implicit.
+   *
+   * So it is explicit, through the one sanctioned crossing (feature 050,
+   * FR-005): the token is the authorization, exactly as it is on the public
+   * product-feed endpoint, and the widening covers this single lookup by a
+   * unique index and nothing after it. **What the recipient then sees is not
+   * widened at all** — `buildOwnerView` filters the products by their own
+   * audience and prices them for their own organisation.
+   */
   async findByShareToken(token: string): Promise<Comparison | null> {
     const em = this.emFactory();
-    return em.findOne(Comparison, { shareToken: token });
+    return withSystemScope(
+      'comparisons: share-token lookup — a share link is a cross-customer grant, and the token is the authorization',
+      async () => em.findOne(Comparison, { shareToken: token }),
+    );
   }
 
   /**
@@ -139,13 +253,26 @@ export class ComparisonService {
     owner: ComparisonOwner,
     salesChannelId: string,
     productId: string,
+    /**
+     * Who is comparing (issue #227). Defaulted to the anonymous audience so a
+     * composition that has not been taught to resolve its caller refuses a
+     * restricted product rather than adding it — the fail-closed end. The
+     * public route passes the real one.
+     */
+    audience: ProductAudience = ANONYMOUS_PRODUCT_AUDIENCE,
   ): Promise<Comparison> {
     // command-coverage-ignore: transient customer working state (like carts) —
     // self-service convenience data, not an audited domain-state mutation.
     const em = this.emFactory();
 
-    const product = await em.findOne(Product, { id: productId });
-    if (!product) throw new ProductNotFoundError(productId);
+    const product = await this.catalogProducts.findById(productId);
+    // Issue #227 — a comparison row discloses the product's name, SKU, price
+    // and every comparable attribute value, so a product this shopper may not
+    // see may not enter their comparison. Same answer as a product that does
+    // not exist: `ProductNotFoundError` is what the route turns into a 404.
+    if (!product || !isProductVisibleTo(product, audience)) {
+      throw new ProductNotFoundError(productId);
+    }
 
     let comparison = await em.findOne(Comparison, ownerWhere(owner));
     if (!comparison) {
@@ -232,10 +359,36 @@ export class ComparisonService {
    * in the viewer's sales-channel context. Reusable across the three
    * consumers (owner / recipient / admin); the recipient + admin views
    * pass `viewerIsOwner=false` and consume only the slice they need.
+   *
+   * **The viewer's identity decides what the viewer sees. Always.** A share
+   * token grants access to the *comparison*, never to anything in it, so it
+   * settles two questions the same way:
+   *
+   *  - **the prices** — the owner sees their organisation's figures, a
+   *    signed-in recipient from another organisation sees **theirs**, and an
+   *    anonymous recipient sees the channel's. That is what makes a shared
+   *    link trustworthy: the numbers are true for whoever is looking, and a
+   *    recipient who acted on the sender's negotiated price would be acting on
+   *    a price nobody will sell them at.
+   *  - **the products** — a row restricted to the sender's organisation is not
+   *    disclosed to a recipient outside it, while a recipient who *is* on the
+   *    allow-list sees it. The owner was entitled to add it (`addProduct`
+   *    enforces that, issue #227); a second reader has an entitlement of their
+   *    own, and a product may be restricted after it was added.
+   *
+   * The two run in that order — filter, then price — because a price resolved
+   * for a row the reader may not see is work done to produce a figure that must
+   * not be sent.
    */
   async buildOwnerView(
     comparison: Comparison,
     viewerSalesChannelId: string,
+    /**
+     * Who is looking. Defaulted to the anonymous buyer so a caller that has not
+     * been taught to resolve its reader shows the public set at the channel
+     * price — the answer every reader may see — rather than one buyer's.
+     */
+    viewer: ComparisonViewer = ANONYMOUS_COMPARISON_VIEWER,
   ): Promise<ComparisonOwnerView> {
     const em = this.emFactory();
 
@@ -246,21 +399,47 @@ export class ComparisonService {
     );
 
     const productIds = bridgeRows.map((r) => r.productId);
+    const stored =
+      productIds.length > 0 ? await this.catalogProducts.findByIds(productIds) : [];
+    // Issue #227's predicate, over this reader. A product the reader may not
+    // see leaves the view entirely — it is not a `(removed product)` column,
+    // which would disclose that the sender holds something.
     const products =
-      productIds.length > 0
-        ? await em.find(Product, { id: { $in: productIds } })
-        : [];
+      viewer.kind === 'administrator'
+        ? stored
+        : stored.filter((product) => isProductVisibleTo(product, viewer.audience));
+    const hiddenProductCount = stored.length - products.length;
     const productById = new Map(products.map((p) => [p.id, p]));
 
     const channel = await em.findOne(SalesChannel, { id: viewerSalesChannelId });
     const currency = channel?.defaultCurrency ?? 'PLN';
     const isPublic = channel?.isPublic ?? true;
 
+    const viewerOrganization =
+      viewer.kind === 'buyer' ? await this.#viewerOrganization(viewer.audience) : null;
+
+    // The pricing engine's answer per product (issue #132), resolved for the
+    // viewer. A channel that withholds prices is not asked for them, so the map
+    // stays empty and every column renders `null`.
+    const resolvedPrices =
+      isPublic && products.length > 0
+        ? await this.#requireListingPrices().resolveListingPrices({
+            products,
+            context: {
+              salesChannel: { id: viewerSalesChannelId, defaultCurrency: currency },
+              organization: viewerOrganization,
+            },
+          })
+        : new Map<string, ListingPrice>();
+    const pricedFor: ComparisonPricedFor =
+      viewerOrganization !== null ? 'organization' : 'channel';
+
     // Base-image lookup per product (label='base_image' only — spec
     // FR-006 names *base image* explicitly; no fallback to other labels).
+    const visibleProductIds = products.map((p) => p.id);
     const baseImageByProduct =
-      productIds.length > 0
-        ? await this.loadBaseImageUrls(em, productIds)
+      visibleProductIds.length > 0
+        ? await this.loadBaseImageUrls(em, visibleProductIds)
         : new Map<string, string | null>();
 
     // Comparable attribute definitions (catalog adapter port — Constitution I).
@@ -269,7 +448,14 @@ export class ComparisonService {
       ? await this.catalogAttributes.listByFlag('isComparable')
       : [];
 
-    const productSummaries = bridgeRows.map((row) => {
+    // A row this reader may not see is dropped; a row whose product is *gone*
+    // still renders as `(removed product)`, which is the owner's own history
+    // and says nothing about anybody's entitlement.
+    const withheldIds = new Set(
+      stored.filter((p) => !productById.has(p.id)).map((p) => p.id),
+    );
+    const visibleRows = bridgeRows.filter((row) => !withheldIds.has(row.productId));
+    const productSummaries = visibleRows.map((row) => {
       const p = productById.get(row.productId);
       if (!p) {
         return {
@@ -284,13 +470,8 @@ export class ComparisonService {
           addedAt: row.addedAt.toISOString(),
         };
       }
-      const rawPrice = Number(
-        p.attributeValues['defaultPrice'] ?? p.attributeValues['price'] ?? Number.NaN,
-      );
-      const price =
-        isPublic && Number.isFinite(rawPrice)
-          ? { amount: rawPrice, currency }
-          : null;
+      const resolved = resolvedPrices.get(p.id);
+      const price = resolved === undefined ? null : listingPriceMoney(resolved);
       return {
         id: p.id,
         sku: p.sku,
@@ -322,6 +503,8 @@ export class ComparisonService {
       maxProducts: max,
       products: productSummaries,
       comparableAttributes,
+      pricedFor,
+      hiddenProductCount,
       createdAt: comparison.createdAt.toISOString(),
       updatedAt: comparison.updatedAt.toISOString(),
     };

@@ -1,9 +1,7 @@
 import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
+import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@b2b/contracts';
 import { Order } from '../entities/order.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
-import { normalizeOrganizationName } from '../../organizations/services/normalize-name.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 
 export interface OrderListQuery {
@@ -75,6 +73,19 @@ export class OrderListService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly graphService: OrderStatusGraphService,
+    /**
+     * The two name searches behind the list's `q`, `orgName` and `customerName`
+     * filters, and the row-level name lookups behind its `organizationName` and
+     * `customerName` columns (feature 075).
+     *
+     * The organisation half used to be `em.find(Organization, { nameSearch:
+     * { $like: normalizeOrganizationName(q) } })` — this module reaching into a
+     * derived column another module maintains and re-implementing its folding
+     * rule. `searchIdsByName` is that question, published by its owner, and the
+     * folding stays where the column is written.
+     */
+    private readonly organizationDetails: OrganizationDetailsPort,
+    private readonly customerAccountRead: CustomerAccountReadPort,
   ) {}
 
   async list(query: OrderListQuery, scope?: OrderListScope): Promise<OrderListResult> {
@@ -108,40 +119,27 @@ export class OrderListService {
     if (query.q && query.q.trim()) {
       const q = query.q.trim();
       const like = `%${q}%`;
-      const [orgs, customers] = await Promise.all([
-        em.find(Organization, { nameSearch: { $like: `%${normalizeOrganizationName(q)}%` } }, { fields: ['id'] }),
-        em.find(
-          CustomerAccount,
-          { $or: [{ email: { $ilike: like } }, { firstName: { $ilike: like } }, { lastName: { $ilike: like } }] },
-          { fields: ['id'] },
-        ),
+      const [orgIds, customerIds] = await Promise.all([
+        this.organizationDetails.searchIdsByName(q),
+        this.customerAccountRead.searchIdsByName(q),
       ]);
       and.push({
         $or: [
           { businessId: { $ilike: like } },
-          { organizationId: { $in: orgs.map((o) => o.id) } },
-          { placedByCustomerAccountId: { $in: customers.map((c) => c.id) } },
+          { organizationId: { $in: orgIds } },
+          { placedByCustomerAccountId: { $in: customerIds } },
         ],
       });
     }
     // Dedicated organization-name filter (AND with everything else).
     if (query.orgName && query.orgName.trim()) {
-      const orgs = await em.find(
-        Organization,
-        { nameSearch: { $like: `%${normalizeOrganizationName(query.orgName.trim())}%` } },
-        { fields: ['id'] },
-      );
-      and.push({ organizationId: { $in: orgs.map((o) => o.id) } });
+      const orgIds = await this.organizationDetails.searchIdsByName(query.orgName.trim());
+      and.push({ organizationId: { $in: orgIds } });
     }
     // Dedicated customer-name filter (matches first / last name or email).
     if (query.customerName && query.customerName.trim()) {
-      const like = `%${query.customerName.trim()}%`;
-      const customers = await em.find(
-        CustomerAccount,
-        { $or: [{ email: { $ilike: like } }, { firstName: { $ilike: like } }, { lastName: { $ilike: like } }] },
-        { fields: ['id'] },
-      );
-      and.push({ placedByCustomerAccountId: { $in: customers.map((c) => c.id) } });
+      const customerIds = await this.customerAccountRead.searchIdsByName(query.customerName.trim());
+      and.push({ placedByCustomerAccountId: { $in: customerIds } });
     }
     if (and.length) base.$and = and;
 
@@ -177,8 +175,8 @@ export class OrderListService {
     const custIds = [...new Set(orders.map((o) => o.placedByCustomerAccountId))];
     const channelIds = [...new Set(orders.map((o) => o.salesChannelId))];
     const [orgs, customers, channels, graph] = await Promise.all([
-      em.find(Organization, { id: { $in: orgIds } }, { fields: ['id', 'name'] }),
-      em.find(CustomerAccount, { id: { $in: custIds } }, { fields: ['id', 'firstName', 'lastName', 'email'] }),
+      this.organizationDetails.findByIds(orgIds),
+      this.customerAccountRead.findByIds(custIds),
       em.find(SalesChannel, { id: { $in: channelIds } }, { fields: ['id', 'name'] }),
       this.graphService.loadGraph(),
     ]);

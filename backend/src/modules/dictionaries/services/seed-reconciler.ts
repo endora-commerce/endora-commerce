@@ -3,14 +3,19 @@
 //
 // Responsibilities (idempotent — safe to run on every backend boot):
 //
-//   1. Insert any currency from CURRENCY_SEED whose `code` is missing.
+//   1. Insert any currency from CURRENCY_SEED whose `code` is missing —
+//      through `currencySeedPort`, because the table belongs to `currencies`
+//      (feature 077, D-87: this step used to be a raw `insert into
+//      "currencies"`, a write into another module's table that named no import
+//      specifier and so crossed the boundary invisibly).
 //      Currencies that already exist are NEVER updated by the reconciler;
 //      the migration's defaults stand and operators may edit any field
 //      via Admin UI without fear of being overwritten on the next boot.
 //   2. Insert any country from COUNTRY_SEED whose `code` is missing.
 //   3. Backfill `languages.native_label` ONLY when it is still the empty
-//      string left by migration 038. Once an operator (or this reconciler)
-//      sets it to a non-empty value, future boots leave it alone.
+//      string left by migration 038 — through `languageSeedPort`, for the same
+//      reason step 1 goes through `currencySeedPort`. Once an operator (or this
+//      reconciler) sets it to a non-empty value, future boots leave it alone.
 //   4. Insert seeded translations for every (entry_type, entry_code,
 //      language_code) row that doesn't already exist. Existing rows are
 //      preserved verbatim (operators may edit; the reconciler will not
@@ -23,6 +28,12 @@
 // expected to run during plugin registration, before HTTP traffic.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type {
+  CurrencyReadPort,
+  CurrencySeedPort,
+  LanguageReadPort,
+  LanguageSeedPort,
+} from '@b2b/contracts';
 import { COUNTRY_SEED } from '../seed/countries.js';
 import { CURRENCY_SEED } from '../seed/currencies.js';
 import { POLISH_TRANSLATION_SEED } from '../seed/translations.pl-PL.js';
@@ -49,8 +60,21 @@ interface PresentTranslations {
   languageCountries: Set<string>;
 }
 
+/**
+ * The two tables this reconciler seeds that it does not own, and the read side
+ * of both. Every one of them is a published port of the owning module — the
+ * seam D-87's drain put where four raw statements used to be.
+ */
+export interface SeedReconcilerPorts {
+  readonly currencySeed: CurrencySeedPort;
+  readonly currencyRead: CurrencyReadPort;
+  readonly languageSeed: LanguageSeedPort;
+  readonly languageRead: LanguageReadPort;
+}
+
 export async function runDictionarySeedReconciler(
   emFactory: () => EntityManager,
+  ports: SeedReconcilerPorts,
 ): Promise<SeedReconcilerSummary> {
   const em = emFactory();
   const conn = em.getConnection();
@@ -62,21 +86,11 @@ export async function runDictionarySeedReconciler(
     languageCountriesInserted: 0,
   };
 
-  const present = await loadPresentCodes(conn);
-
-  // 1) Currencies — insert missing rows.
-  for (const c of CURRENCY_SEED) {
-    if (present.currencies.has(c.code)) continue;
-    await conn.execute(
-      `insert into "currencies"
-         ("code","label","symbol","symbol_position","decimal_places",
-          "is_default","is_active","sort_order","created_at","updated_at")
-       values (?,?,?,?,?,false,true,0,now(),now())`,
-      [c.code, c.label, c.symbol, c.symbolPosition ?? 'suffix', c.decimalPlaces ?? 2],
-    );
-    present.currencies.add(c.code);
-    summary.currenciesInserted += 1;
-  }
+  // 1) Currencies — insert missing rows, then read the table back. The order
+  // matters and is why the two are not one call: step 2 only sets a country's
+  // `default_currency_code` when the currency is really there.
+  summary.currenciesInserted = await ports.currencySeed.ensureSeeded(CURRENCY_SEED);
+  const present = await loadPresentCodes(conn, ports);
 
   // 2) Countries — insert missing rows.
   for (const c of COUNTRY_SEED) {
@@ -114,23 +128,10 @@ export async function runDictionarySeedReconciler(
   // 3) Languages — backfill `native_label` ONLY when still the empty
   // string left by the migration. The seed only knows the two languages
   // already created by migration 012.
-  const languageBackfill: ReadonlyArray<{ code: string; nativeLabel: string }> = [
+  summary.languagesBackfilled = await ports.languageSeed.backfillNativeLabels([
     { code: 'en-US', nativeLabel: 'English (US)' },
     { code: 'pl-PL', nativeLabel: 'Polski' },
-  ];
-  for (const l of languageBackfill) {
-    const before = (await conn.execute(
-      `select "native_label" from "languages" where "code" = ?`,
-      [l.code],
-    )) as Array<{ native_label: string }>;
-    if (before.length === 0) continue;
-    if (before[0]?.native_label !== '') continue;
-    await conn.execute(
-      `update "languages" set "native_label" = ? where "code" = ? and "native_label" = ''`,
-      [l.nativeLabel, l.code],
-    );
-    summary.languagesBackfilled += 1;
-  }
+  ]);
 
   // 4) Translations + 5) language↔country — load the existing keysets,
   // then insert only what's missing.
@@ -177,11 +178,19 @@ export async function runDictionarySeedReconciler(
 
 type ConnectionLike = ReturnType<EntityManager['getConnection']>;
 
-async function loadPresentCodes(conn: ConnectionLike): Promise<PresentCodes> {
+/**
+ * `countries` is this module's own table and is read in SQL; the other two are
+ * read through their owners' published read ports, which is what retires the
+ * `select "code" from "currencies"` / `"languages"` pair D-87 seeded.
+ */
+async function loadPresentCodes(
+  conn: ConnectionLike,
+  ports: SeedReconcilerPorts,
+): Promise<PresentCodes> {
   const [countries, currencies, languages] = await Promise.all([
     conn.execute(`select "code" from "countries"`) as Promise<Array<{ code: string }>>,
-    conn.execute(`select "code" from "currencies"`) as Promise<Array<{ code: string }>>,
-    conn.execute(`select "code" from "languages"`) as Promise<Array<{ code: string }>>,
+    ports.currencyRead.list(),
+    ports.languageRead.list(),
   ]);
   return {
     countries: new Set(countries.map((r) => r.code)),

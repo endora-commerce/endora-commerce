@@ -3,14 +3,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { defineModuleSettingsManifest, ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { SettingsAdminService } from '../../../src/modules/settings/services/settings-admin.service.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
-import { isSecretEnvelope } from '../../../src/modules/settings/services/secret-value-codec.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { isSecretEnvelope } from '../../../src/kernel/settings/secret-value-codec.js';
 import { z } from 'zod';
 
 /**
@@ -63,9 +64,7 @@ describe('settings secret redaction (T005)', () => {
       em.remove(s);
     }
     await em.flush();
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
     delete process.env['SETTINGS_SECRET_ENCRYPTION_KEY'];
   });
 
@@ -194,7 +193,13 @@ describe('settings secret redaction (T005)', () => {
   it('write without the env key fails with SETTING_SECRET_KEY_MISSING (no silent plaintext)', async () => {
     // An admin service composed without the key (the HTTP envelope mapping of
     // HttpError → 500 is shared machinery covered by other settings tests).
-    const keyless = new SettingsAdminService(h.em, h.eventBus, undefined, undefined);
+    const keyless = new SettingsAdminService(
+      h.em,
+      h.eventBus,
+      h.settings.cache,
+      undefined,
+      undefined,
+    );
     let thrown: unknown;
     try {
       await keyless.setValueForAllChannels(

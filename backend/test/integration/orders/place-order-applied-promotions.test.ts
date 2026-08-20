@@ -11,8 +11,10 @@ import { OrderService, type OrderEventBus } from '../../../src/modules/orders/se
 import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
-import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { OrderAppliedPromotion } from '../../../src/modules/orders/entities/order-applied-promotion.entity.js';
+import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
+import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 /**
  * Feature 045 (US2) — an automatic action-based promotion carries from cart to
@@ -25,8 +27,20 @@ describe('placeOrder — automatic promotion carried to order (feature 045)', ()
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    await seedCartForStubCustomer(h.em());
-    const promotionService = new PromotionService(h.em);
+    const em = h.em();
+    await seedCartForStubCustomer(em);
+    // Issue #251 — the promotion engine's channel gate is live in every
+    // composition now (`salesChannelMembership` used to be optional and this
+    // rig omitted it). `upsert` binds the promotion to the system-default
+    // channel, and a cart that resolved to **no** channel matches no
+    // channel-bound promotion — FR-005, fail closed. `seedCartForStubCustomer`
+    // leaves `salesChannelId` unset, which no real cart is (D-47…D-51), so the
+    // cart is placed in the default channel here.
+    const cart = await em.findOne(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' });
+    cart!.salesChannelId = (await h.salesChannels.resolver.getSystemDefault()).id;
+    await em.persistAndFlush(cart!);
+
+    const promotionService = promotionServiceFor(h);
     const promo = await promotionService.upsert({
       name: 'Auto 10% off',
       action: { type: 'percentage_off_cart', percent: 10 },
@@ -41,11 +55,16 @@ describe('placeOrder — automatic promotion carried to order (feature 045)', ()
 
   it('stamps discountTotal and an order_applied_promotions row', async () => {
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     const service = new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
+      neighbours: orderServiceNeighbours(h.em),
+      // Issue #124 — a rig states its own tax authority. `OrderService` has no
+      // fallback rate, so an order it cannot price is refused rather than taxed
+      // at a figure nobody configured.
+      resolveTaxRate: async () => 0.23,
       paymentAdapters: registry,
       orderStatusRegistry: new EnumOrderStatusRegistry(),
-      promotion: new PromotionService(h.em),
+      promotion: promotionServiceFor(h),
     });
 
     const order = await service.placeOrder(

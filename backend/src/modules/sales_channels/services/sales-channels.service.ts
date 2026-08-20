@@ -4,16 +4,22 @@ import {
   DictionaryReferenceError,
   ERROR_CODES,
   SALES_CHANNEL_AUDIT_ACTIONS,
+  dispatchValidatorMode,
   type DictionaryValidator,
+  type SalesChannelAttributionRegistryPort,
   type SalesChannelCreateBody,
   type SalesChannelUpdateBody,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../../commands/command-bus.js';
 import type { EventBus } from '../../../events/bus.js';
-import { SalesChannel } from '../entities/sales-channel.entity.js';
-import type { SalesChannelsCache } from './sales-channels-cache.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import type { SalesChannelsCacheInvalidation } from '../../../kernel/sales-channels/sales-channels-cache.js';
+import {
+  makeSetSystemDefaultChannelCommand,
+  type SetSystemDefaultChannelResult,
+} from '../commands/set-default.command.js';
 
 /**
  * SalesChannelsService — feature 005 / T017 (skeleton) + T035-T037 (US2).
@@ -31,8 +37,22 @@ import type { SalesChannelsCache } from './sales-channels-cache.js';
  *
  * Every successful identity / lifecycle change writes one audit row
  * (`sales_channel.identity.changed` / `sales_channel.lifecycle.changed`)
- * synchronously and emits one EventBus event so the cache invalidator
- * (T012) drops stale entries.
+ * synchronously, **drops the channel cache**, and then emits one EventBus
+ * event.
+ *
+ * That order is the whole of D-93 (issue #160). The drop used to be a
+ * subscriber — `attachSalesChannelsCacheInvalidator` listened for those two
+ * events — which made cache freshness a property of the dispatch order rather
+ * than of the write: `dictionaries` subscribes to the same two names and its
+ * Redis SCAN has already been measured pushing the invalidator past a tick
+ * (#101), and an emission inside an `EventBus.run` scope is buffered until the
+ * scope ends, so a write and a read-back in one Command could not be helped by
+ * any registration order at all. The events stay — other modules want them —
+ * and they stop being how this cache learns about this service's own write.
+ *
+ * `setDefault` is the exception and the newer pattern: it is a Command
+ * (feature 072 / D-51), so the Command Bus writes its audit row and buffers its
+ * event co-transactionally, and this class writes neither by hand.
  */
 
 export interface AdminAuditContext {
@@ -54,9 +74,37 @@ export class SalesChannelsService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly eventBus: EventBus,
+    /**
+     * Required, and it was not (issue #251's shape, feature 075's occasion).
+     * Both roots have supplied it since feature 072 wave 2, so the absent
+     * branch was only ever run by tests — and what ran there was a hand-written
+     * `select "code" from "languages" / "currencies"`, two other modules' tables
+     * named in raw SQL, checking existence and not the active flag, and raising
+     * the 422 codes feature 017 superseded with the validator's uniform 409.
+     * Deleting that branch is the D-87 drain; making the argument required is
+     * what stops it coming back as an omission.
+     */
+    private readonly dictionaryValidator: DictionaryValidator,
+    /**
+     * "Who is still attributed to this channel?", asked of the modules that
+     * record it (feature 075, D-87). Required for the same reason: the absent
+     * form of a delete guard is an open one.
+     */
+    private readonly attributionRegistry: SalesChannelAttributionRegistryPort,
     private readonly auditLogService?: AuditLogService,
-    private readonly cache?: SalesChannelsCache,
-    private readonly dictionaryValidator?: DictionaryValidator,
+    /**
+     * The invalidating half of the channel cache, narrowed to what a writer
+     * needs (D-93). A service that can only invalidate cannot seed the cache
+     * from the write path, which is the reader's job.
+     */
+    private readonly cache?: SalesChannelsCacheInvalidation,
+    /**
+     * Used by `setDefault` only, which is a Command (Principle XIII) rather than
+     * a hand-audited write like the rest of this class. Still optional — and
+     * `setDefault` refuses outright when it is missing, so the absence can never
+     * become an unaudited flag move.
+     */
+    private readonly commandBus?: CommandBus,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -103,9 +151,9 @@ export class SalesChannelsService {
   ): Promise<SalesChannel> {
     const em = this.emFactory();
 
-    await this.assertLanguagesValid(em, body.languages);
+    await this.assertLanguagesValid(body.languages);
     await this.validateLanguage(body.defaultLanguage, 'create-or-change', 'defaultLanguage');
-    await this.assertCurrenciesValid(em, body.currencies);
+    await this.assertCurrenciesValid(body.currencies);
     await this.validateCurrency(body.defaultCurrency, 'create-or-change', 'defaultCurrency');
 
     const channel = em.create(SalesChannel, {
@@ -142,7 +190,7 @@ export class SalesChannelsService {
       action: 'created',
       after: this.snapshot(channel),
     });
-    this.emitIdentityChanged(channel.code);
+    await this.emitIdentityChanged(channel.code);
     return channel;
   }
 
@@ -169,8 +217,35 @@ export class SalesChannelsService {
       );
     }
 
+    // D-50 — a channel's code is written once, at creation, and is immutable
+    // afterwards; on every channel, not only the system default. The code is an
+    // identity other systems hold: `SALES_CHANNEL_HOST_MAP` names it in
+    // deployment configuration, integrations pin it, and the channel cache is
+    // keyed by it — `emitIdentityChanged` carries only the new code, so a rename
+    // would leave the old key resolving until its TTL expired. The refusal here
+    // is what makes that leak unreachable rather than merely unused: the admin
+    // form has always locked the field, but this is the only writer of
+    // `channel.code` in the tree, so the API is where the guarantee has to hold.
+    // A mistyped code is fixed by creating the channel again under the right one
+    // and deleting the old — for the default channel, after `setDefault` has
+    // moved the flag off it.
+    //
+    // Checked before the dictionary validation below, so an attempted rename is
+    // refused for the reason that matters rather than for whatever the rest of
+    // the body happens to trip on.
+    if (body.code !== undefined && body.code !== channel.code) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.SALES_CHANNEL_CODE_IMMUTABLE,
+        `Sales channel "${channel.code}" cannot be renamed to "${body.code}": a channel code is ` +
+          `set when the channel is created and is immutable afterwards. Create a channel with ` +
+          `the right code and delete this one instead. The display name stays editable.`,
+        [{ path: 'code', issue: body.code }],
+      );
+    }
+
     if (body.languages !== undefined) {
-      await this.assertLanguagesValid(em, body.languages, channel.languages);
+      await this.assertLanguagesValid(body.languages, channel.languages);
     }
     if (body.defaultLanguage !== undefined) {
       await this.validateLanguage(
@@ -180,7 +255,7 @@ export class SalesChannelsService {
       );
     }
     if (body.currencies !== undefined) {
-      await this.assertCurrenciesValid(em, body.currencies, channel.currencies);
+      await this.assertCurrenciesValid(body.currencies, channel.currencies);
     }
     if (body.defaultCurrency !== undefined) {
       await this.validateCurrency(
@@ -217,9 +292,6 @@ export class SalesChannelsService {
 
     const before = this.snapshot(channel);
 
-    if (body.code !== undefined && body.code !== channel.code) {
-      channel.code = body.code;
-    }
     if (body.name !== undefined) channel.name = body.name;
     if (body.logoAssetId !== undefined) channel.logoAssetId = body.logoAssetId;
     if (body.themeCode !== undefined) channel.themeCode = body.themeCode;
@@ -258,7 +330,7 @@ export class SalesChannelsService {
       before,
       after: this.snapshot(channel),
     });
-    this.emitIdentityChanged(channel.code);
+    await this.emitIdentityChanged(channel.code);
     return channel;
   }
 
@@ -286,7 +358,7 @@ export class SalesChannelsService {
       action: 'deactivated',
       channelCode: channel.code,
     });
-    this.emitLifecycleChanged(channel.code);
+    await this.emitLifecycleChanged(channel.code);
     return channel;
   }
 
@@ -303,8 +375,51 @@ export class SalesChannelsService {
       action: 'activated',
       channelCode: channel.code,
     });
-    this.emitLifecycleChanged(channel.code);
+    await this.emitLifecycleChanged(channel.code);
     return channel;
+  }
+
+  /**
+   * Move the `system_default` flag to `code` — feature 072 / D-51.
+   *
+   * The write itself is a Command, so the audit row, the demote-then-promote
+   * ordering and the transaction all live in `commands/set-default.command.ts`.
+   * What belongs here is the 404 for a code nobody has, produced before the
+   * transaction so an operator's typo is not an aborted transaction, and the
+   * cache drop below.
+   *
+   * Unlike the rest of this class it writes no audit row of its own: the
+   * Command Bus writes exactly one, and a second would be the double-audit the
+   * coverage check exists to catch.
+   */
+  async setDefault(code: string): Promise<SetSystemDefaultChannelResult> {
+    const channel = await this.requireByCode(code);
+    if (!this.commandBus) {
+      throw new HttpError(
+        500,
+        ERROR_CODES.INTERNAL,
+        'Sales channels are composed without a Command Bus; the system default cannot be moved.',
+      );
+    }
+
+    const result = await this.commandBus.run(makeSetSystemDefaultChannelCommand(channel.id));
+
+    // D-93 — this is the flag move's drop, not a second one: the Command's
+    // `lifecycle_changed{invalidateAll}` event is now an announcement to other
+    // modules and invalidates nothing. Two rows changed and the cached value
+    // carries `systemDefault` inside it, so the demoted channel's entry is
+    // stale too; `invalidateAll` is the cheapest correct answer.
+    //
+    // It sits **here**, after `CommandBus.run` has returned, rather than inside
+    // the Command's `run` where it would precede the buffered event. The
+    // ordering the other writers get — drop, then announce — is worth less than
+    // the one this position buys: the drop happens after the transaction has
+    // committed, so a concurrent read cannot resolve the pre-commit row from
+    // Postgres and re-pin it into a cache that has just been emptied. That is
+    // the same "after the flush" rule `SettingsAdminService` states at its own
+    // write seam, and nothing reads this cache inside the Command.
+    if (result.changed) await this.cache?.invalidateAllAfterWrite();
+    return result;
   }
 
   async delete(
@@ -322,25 +437,26 @@ export class SalesChannelsService {
       );
     }
 
-    // FR-006: refuse hard-delete when historical Order or Quote attributions exist.
-    const attributions = await em
-      .getConnection()
-      .execute<Array<{ source: string; n: string }>>(
-        `select 'orders' as source, count(*)::text as n from "orders" where "sales_channel_id" = ? ` +
-          `union all ` +
-          `select 'quote_requests' as source, count(*)::text as n from "quote_requests" where "sales_channel_id" = ?`,
-        [channel.id, channel.id],
-        'all',
-        em.getTransactionContext(),
-      );
-    const orderCount = Number(attributions.find((r) => r.source === 'orders')?.n ?? '0');
-    const quoteCount = Number(attributions.find((r) => r.source === 'quote_requests')?.n ?? '0');
-    if (orderCount > 0 || quoteCount > 0) {
+    // FR-006: refuse hard-delete when historical attributions exist.
+    //
+    // Asked of the modules that record them rather than answered here (feature
+    // 075, D-87). This used to be one statement naming `orders` and
+    // `quote_requests` — two other modules' tables and two other modules'
+    // column names, invisible to the import-level boundary check because raw
+    // SQL names no specifier, and wrong the moment either owner changed how it
+    // stores the attribution. Each owner counts its own rows now and says what
+    // to call them; an owner that is switched off is still counted, which is
+    // this registry's stated policy and the only one the `on delete restrict`
+    // foreign key underneath agrees with.
+    const attributions = await this.attributionRegistry.countForChannel(channel.id);
+    if (attributions.length > 0) {
       throw new HttpError(
         422,
         ERROR_CODES.SALES_CHANNEL_HAS_ATTRIBUTIONS,
-        `Sales channel "${channel.code}" cannot be deleted while ${orderCount} order(s) and ` +
-          `${quoteCount} quote(s) reference it. Deactivate the channel instead.`,
+        `Sales channel "${channel.code}" cannot be deleted while ` +
+          `${attributions.map((a) => `${a.count} ${a.consumer}`).join(' and ')} reference it. ` +
+          `Deactivate the channel instead.`,
+        attributions.map((a) => ({ path: a.consumer, issue: String(a.count) })),
       );
     }
 
@@ -369,8 +485,7 @@ export class SalesChannelsService {
       channelCode: channel.code,
       rebindCount: orphans.length,
     });
-    this.emitLifecycleChanged(channel.code, /*invalidateAll=*/ true);
-    if (this.cache) await this.cache.invalidateAll();
+    await this.emitLifecycleChanged(channel.code, /*invalidateAll=*/ true);
   }
 
   // -------------------------------------------------------------------------
@@ -390,7 +505,6 @@ export class SalesChannelsService {
   }
 
   private async assertLanguagesValid(
-    em: EntityManager,
     codes: string[],
     currentCodes: string[] = [],
   ): Promise<void> {
@@ -402,40 +516,17 @@ export class SalesChannelsService {
         [{ path: 'languages', issue: 'empty' }],
       );
     }
-    if (this.dictionaryValidator) {
-      const current = new Set(currentCodes);
-      for (const code of codes) {
-        await this.validateLanguage(
-          code,
-          current.has(code) ? 'unchanged' : 'create-or-change',
-          'languages',
-        );
-      }
-      return;
-    }
-    const placeholders = codes.map(() => '?').join(', ');
-    const rows = await em
-      .getConnection()
-      .execute<Array<{ code: string }>>(
-        `select "code" from "languages" where "code" in (${placeholders})`,
-        codes,
-        'all',
-        em.getTransactionContext(),
-      );
-    const known = new Set(rows.map((r) => r.code));
-    const missing = codes.filter((c) => !known.has(c));
-    if (missing.length > 0) {
-      throw new HttpError(
-        422,
-        ERROR_CODES.UNKNOWN_LANGUAGE_CODE,
-        `Unknown language code(s): ${missing.join(', ')}.`,
-        missing.map((m) => ({ path: 'languages', issue: m })),
+    const current = new Set(currentCodes);
+    for (const code of codes) {
+      await this.validateLanguage(
+        code,
+        current.has(code) ? 'unchanged' : 'create-or-change',
+        'languages',
       );
     }
   }
 
   private async assertCurrenciesValid(
-    em: EntityManager,
     codes: string[],
     currentCodes: string[] = [],
   ): Promise<void> {
@@ -447,34 +538,12 @@ export class SalesChannelsService {
         [{ path: 'currencies', issue: 'empty' }],
       );
     }
-    if (this.dictionaryValidator) {
-      const current = new Set(currentCodes);
-      for (const code of codes) {
-        await this.validateCurrency(
-          code,
-          current.has(code) ? 'unchanged' : 'create-or-change',
-          'currencies',
-        );
-      }
-      return;
-    }
-    const placeholders = codes.map(() => '?').join(', ');
-    const rows = await em
-      .getConnection()
-      .execute<Array<{ code: string }>>(
-        `select "code" from "currencies" where "code" in (${placeholders})`,
-        codes,
-        'all',
-        em.getTransactionContext(),
-      );
-    const known = new Set(rows.map((r) => r.code));
-    const missing = codes.filter((c) => !known.has(c));
-    if (missing.length > 0) {
-      throw new HttpError(
-        422,
-        ERROR_CODES.UNKNOWN_CURRENCY_CODE,
-        `Unknown currency code(s): ${missing.join(', ')}.`,
-        missing.map((m) => ({ path: 'currencies', issue: m })),
+    const current = new Set(currentCodes);
+    for (const code of codes) {
+      await this.validateCurrency(
+        code,
+        current.has(code) ? 'unchanged' : 'create-or-change',
+        'currencies',
       );
     }
   }
@@ -484,7 +553,6 @@ export class SalesChannelsService {
     mode: 'create-or-change' | 'unchanged',
     field: string,
   ): Promise<void> {
-    if (!this.dictionaryValidator) return;
     try {
       await this.dictionaryValidator.validateLanguageCode(code, mode);
     } catch (err) {
@@ -500,7 +568,6 @@ export class SalesChannelsService {
     mode: 'create-or-change' | 'unchanged',
     field: string,
   ): Promise<void> {
-    if (!this.dictionaryValidator) return;
     try {
       await this.dictionaryValidator.validateCurrencyCode(code, mode);
     } catch (err) {
@@ -511,24 +578,25 @@ export class SalesChannelsService {
     }
   }
 
+  /**
+   * Read through the kernel's own entity rather than the raw statement this
+   * replaces (feature 075, D-87). `sales_channels` is the kernel's table since
+   * feature 072 moved the resolution machinery there, and a module relating
+   * into the kernel by ORM is the sanctioned access — it was the SQL, not the
+   * read, that crossed a boundary nothing could see. It reads through the
+   * caller's `em` on purpose: this runs inside the delete path, so the
+   * resolver's own fork would not see that path's uncommitted state.
+   */
   private async requireSystemDefaultId(em: EntityManager): Promise<string> {
-    const rows = await em
-      .getConnection()
-      .execute<Array<{ id: string }>>(
-        `select "id" from "sales_channels" where "system_default" = true limit 1`,
-        [],
-        'all',
-        em.getTransactionContext(),
-      );
-    const id = rows[0]?.id;
-    if (!id) {
+    const channel = await em.findOne(SalesChannel, { systemDefault: true });
+    if (channel === null) {
       throw new HttpError(
         500,
         ERROR_CODES.INTERNAL,
         'No system-default sales channel found; cannot apply fallback.',
       );
     }
-    return id;
+    return channel.id;
   }
 
   /**
@@ -630,7 +698,19 @@ export class SalesChannelsService {
     });
   }
 
-  private emitIdentityChanged(channelCode: string): void {
+  /**
+   * Drop the cache, then announce (D-93).
+   *
+   * The drop runs **after the flush**, so a concurrent read cannot re-pin the
+   * pre-commit row, and **before the emit**, so every subscriber re-reads
+   * post-invalidation state. The count is deliberately unread:
+   * `invalidateAfterWrite` answers `null` for an unreachable shared layer, and
+   * the row is written and audited by the time we are here, so there is nothing
+   * this method could truthfully do with it. Reads stay correct meanwhile — the
+   * cache bypasses the marked prefix until a later drop succeeds.
+   */
+  private async emitIdentityChanged(channelCode: string): Promise<void> {
+    await this.cache?.invalidateAfterWrite(channelCode);
     this.eventBus.emit('sales_channels.identity_changed', {
       eventId: `sales_channels.identity_changed:${channelCode}:${Date.now()}`,
       occurredAt: new Date().toISOString(),
@@ -638,7 +718,14 @@ export class SalesChannelsService {
     } as never);
   }
 
-  private emitLifecycleChanged(channelCode: string, invalidateAll = false): void {
+  /** Same seam as {@link emitIdentityChanged}; see its comment for the ordering. */
+  private async emitLifecycleChanged(channelCode: string, invalidateAll = false): Promise<void> {
+    // `invalidateAll` is the caller saying more than one channel's cached state
+    // moved — a delete that rebinds orphans, or a flag move — and the cached
+    // value carries `systemDefault` inside it, so the other channel's entry is
+    // stale too.
+    if (invalidateAll) await this.cache?.invalidateAllAfterWrite();
+    else await this.cache?.invalidateAfterWrite(channelCode);
     this.eventBus.emit('sales_channels.lifecycle_changed', {
       eventId: `sales_channels.lifecycle_changed:${channelCode}:${Date.now()}`,
       occurredAt: new Date().toISOString(),

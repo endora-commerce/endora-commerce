@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { taxonomyProviderCodeSchema } from '@b2b/contracts';
 import { PRODUCT_FEEDS_READ_PERMISSION, PRODUCT_FEEDS_WRITE_PERMISSION } from './manifest.js';
-import type { RequireAdminFactory } from './routes.admin.js';
 import { parseOrThrow } from './routes.admin.js';
 import {
   localized,
@@ -10,6 +9,7 @@ import {
 } from './services/taxonomy-mapping.service.js';
 import { resolveEffectiveMapping } from './services/taxonomy-mapping-resolver.js';
 import type { TaxonomyRevisionService } from './services/taxonomy-revision.service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Provider taxonomies and category mappings — feature 067

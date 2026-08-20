@@ -11,9 +11,11 @@ import { GetBundlesResponseSchema } from '@b2b/contracts';
  * contract test. Validates response shape via the Zod schema and the
  * unsupported-language / unauth error paths.
  *
- * The test harness skips the boot-time bundle reconciler (no lifecycle
- * registry passed), so the response's `bundles` is empty unless a test
- * seeds rows directly. Shape contract is the same either way.
+ * The harness used to skip the boot-time bundle reconciler (it passed no
+ * lifecycle registry), so `bundles` came back empty unless a test seeded rows
+ * itself. Issue #158 gave it the registry every deployment resolves, so the
+ * response now carries every module's on-disk bundle. The shape contract below
+ * is the same either way; what changed is that it is asserted over real content.
  */
 describe('GET /api/v1/admin/i18n/bundles', () => {
   let h: BackendServerHandle;

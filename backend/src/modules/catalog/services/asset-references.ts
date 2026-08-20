@@ -7,14 +7,14 @@
 // "in use by" dialog.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AssetReference } from '@b2b/contracts';
 import type {
+  AssetReference,
   AssetReferenceDescriptor,
-  AssetReferenceRegistry,
-} from '../../assets_library/services/reference-registry.js';
+  AssetReferenceRegistryPort,
+} from '@b2b/contracts';
 
 export function registerCatalogAssetReferences(
-  registry: AssetReferenceRegistry,
+  registry: AssetReferenceRegistryPort,
   emFactory: () => EntityManager,
 ): void {
   const descriptors: AssetReferenceDescriptor[] = [
@@ -30,11 +30,11 @@ function productGalleryDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'catalog',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
       const em = emFactory();
-      const conn = em.getConnection();
-      const rows = (await conn.execute(
+      const rows = (await em.execute(
         `select gi.asset_id::text as asset_id,
                 gi.id::text as item_id,
                 gi.position,
@@ -64,11 +64,11 @@ function productAttachmentDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'catalog',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
       const em = emFactory();
-      const conn = em.getConnection();
-      const rows = (await conn.execute(
+      const rows = (await em.execute(
         `select pa.asset_id::text as asset_id,
                 pa.name as attachment_name,
                 p.id::text as product_id,
@@ -96,11 +96,11 @@ function productVirtualDownloadDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'catalog',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
       const em = emFactory();
-      const conn = em.getConnection();
-      const rows = (await conn.execute(
+      const rows = (await em.execute(
         `select p.id::text as product_id, p.name as product_name
          from products p
          where p.download_asset_id in (${assetIds.map(() => '?').join(',')})`,
@@ -119,11 +119,11 @@ function categoryMainImageDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'catalog',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
       const em = emFactory();
-      const conn = em.getConnection();
-      const rows = (await conn.execute(
+      const rows = (await em.execute(
         `select c.id::text as category_id, c.name as category_name
          from categories c
          where c.main_image_asset_id in (${assetIds.map(() => '?').join(',')})`,

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { RecentActivityService } from './services/recent-activity-service.js';
 import { RECENT_ACTIVITY_ACTIONS } from './action-catalog.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Feature 024 — `GET /api/v1/admin/audit-log/recent-activity`.

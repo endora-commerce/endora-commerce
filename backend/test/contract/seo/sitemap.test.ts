@@ -71,6 +71,37 @@ describe('GET /api/v1/catalog/sitemap.xml', () => {
     await em.flush();
   });
 
+  it('excludes a public product whose allow-list names an organisation (issue #227)', async () => {
+    // The filter here read `visibility === 'public'` and stopped, so this row —
+    // which an operator can save from the product editor today — had its URL
+    // published to every crawler. A sitemap has one audience, the anonymous
+    // one, and a non-empty allow-list restricts whatever the visibility column
+    // says.
+    const em = h.em();
+    const product = await em.findOneOrFail(Product, { sku: 'EXAMPLE-SIMPLE-001' });
+    product.allowedOrganizationIds = ['00000000-0000-4000-8000-0000000000ab'];
+    await em.flush();
+
+    const regenRes = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/seo/sitemap/${RETAIL}/regenerate`,
+      cookies: { b2b_session: 'stub-admin-session' },
+      headers: { 'x-sales-channel': RETAIL },
+    });
+    expect(regenRes.statusCode).toBe(200);
+
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/sitemap.xml',
+      headers: { 'x-sales-channel': RETAIL },
+    });
+    expect(res.body).not.toContain(`/p/${product.slug}`);
+
+    // Restore for downstream tests.
+    product.allowedOrganizationIds = [];
+    await em.flush();
+  });
+
   it('regenerate endpoint returns the new metadata', async () => {
     const res = await h.app.inject({
       method: 'POST',

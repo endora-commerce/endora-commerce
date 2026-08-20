@@ -10,6 +10,8 @@
 //   (5) Storefront / public read-only schemas.
 //   (6) Audit-action constants — free-form action strings written through
 //       the existing AuditLogService.
+//   (7) Attribution registry — the contribution seam that answers "who still
+//       points at this channel?" before a delete (feature 075, D-87).
 // See specs/005-sales-channels/contracts/sales-channels-005.contract.md
 // for the prose contract and the error-code references in `errors.ts`.
 
@@ -123,7 +125,21 @@ export const SalesChannelCreateBodySchema = z
   });
 export type SalesChannelCreateBody = z.infer<typeof SalesChannelCreateBodySchema>;
 
-/** Body shape for PATCH /api/v1/admin/sales-channels/{code}. Every field optional. */
+/**
+ * Body shape for PATCH /api/v1/admin/sales-channels/{code}. Every field optional.
+ *
+ * `code` is accepted only when it repeats the channel's current code: a channel's
+ * code is written once, at creation, and is immutable afterwards — on every
+ * channel, not only the system default. A code is an identity other systems hold
+ * onto (`SALES_CHANNEL_HOST_MAP`, cached storefront responses, integration
+ * configuration), so changing it renames something those systems cannot follow.
+ * A different value is refused with 422 `SALES_CHANNEL_CODE_IMMUTABLE`; the field
+ * stays in the shape so the refusal is explicit rather than a silently stripped
+ * property that answers 200 and changes nothing. A mistyped code is fixed by
+ * creating the channel again under the right code and deleting the old one —
+ * for the default channel, after moving the flag off it with `set-default`.
+ * The `name` stays freely editable.
+ */
 export const SalesChannelUpdateBodySchema = z
   .object({
     code: SalesChannelCodeSchema.optional(),
@@ -153,6 +169,36 @@ export const SalesChannelUpdateBodySchema = z
     }
   });
 export type SalesChannelUpdateBody = z.infer<typeof SalesChannelUpdateBodySchema>;
+
+/**
+ * Body shape for POST /api/v1/admin/sales-channels/{code}/set-default.
+ *
+ * The target is the path parameter, so the body carries nothing today. It is
+ * declared rather than omitted because the endpoint is a state transition, not a
+ * patch: an operator's client sends `{}` and any later option (a reason, a
+ * scheduled cut-over) lands here instead of on the query string.
+ */
+export const SalesChannelSetDefaultBodySchema = z.object({});
+export type SalesChannelSetDefaultBody = z.infer<typeof SalesChannelSetDefaultBodySchema>;
+
+/**
+ * Response shape for POST /api/v1/admin/sales-channels/{code}/set-default.
+ *
+ * `changed` is false when the target already held the flag — promoting the
+ * current default is a no-op success, not an error, so a double-click and a
+ * retried request both answer 200 with the same body. `previousDefaultCode` is
+ * the code that held the flag before the call, which on the no-op path is the
+ * target's own code; it names the channel a subsequent `set-default` would move
+ * the flag back to.
+ */
+export const SalesChannelSetDefaultResponseSchema = z.object({
+  channel: SalesChannelDetailSchema,
+  previousDefaultCode: SalesChannelCodeSchema.nullable(),
+  changed: z.boolean(),
+});
+export type SalesChannelSetDefaultResponse = z.infer<
+  typeof SalesChannelSetDefaultResponseSchema
+>;
 
 /** Response shape for GET /api/v1/admin/sales-channels (paginated list). */
 export const SalesChannelListResponseSchema = z.object({
@@ -255,3 +301,93 @@ export type SalesChannelLifecycleOp = z.infer<typeof SalesChannelLifecycleOpSche
 
 export const SalesChannelMembershipOpSchema = z.enum(['add', 'remove']);
 export type SalesChannelMembershipOp = z.infer<typeof SalesChannelMembershipOpSchema>;
+
+// ---------------------------------------------------------------------------
+// (7) Attribution registry — "who still points at this sales channel?"
+//     (feature 075, D-87 drain).
+// ---------------------------------------------------------------------------
+
+/**
+ * One consumer's answer about one sales channel.
+ *
+ * The four descriptive fields are what the refusal message shows the operator,
+ * and `ownerModuleId` is what attributes a refused delete to a module.
+ */
+export interface SalesChannelAttribution {
+  ownerModuleId: string;
+  /** Operator-facing name of the attributing record set, e.g. `orders`. */
+  consumer: string;
+  /** The consumer's own table holding the attribution. */
+  tableName: string;
+  /** The column holding the channel id. */
+  columnName: string;
+  count: number;
+}
+
+/**
+ * One contributed "who is attributed to this channel" counter.
+ *
+ * A module that records the sales channel a transaction happened on registers
+ * one of these per column it records it in, from its own `ctx.onBoot`. It
+ * queries its **own** tables and nothing else — which is the whole point:
+ * before this existed, `SalesChannelsService.delete` hand-wrote one statement
+ * naming `orders` and `quote_requests`, two other modules' tables, invisible to
+ * the import-level boundary check because raw SQL names no specifier (D-87).
+ *
+ * A read port would have been the wrong repair, and the manifests say why.
+ * `sales_channels` declares `activation.nonDeactivatable`, and the lifecycle
+ * refuses to disable a module a non-deactivatable one depends on — so a
+ * `dependencies` entry onto `quote_requests`, which is switchable, would have
+ * taken the operator's RFQ switch away in order to count rows before a channel
+ * delete. It is also the direction MR !771 found was the defect: an edge from
+ * the thing being pointed at towards the things pointing at it.
+ *
+ * `ownerModuleId` is required and is the whole mechanism (D-39): without it the
+ * registry could not state a policy for an absent owner at all.
+ */
+export interface SalesChannelAttributionDescriptor {
+  ownerModuleId: string;
+  consumer: string;
+  tableName: string;
+  columnName: string;
+  /**
+   * How many of this consumer's rows are attributed to `salesChannelId`. Asked
+   * immediately before a delete, so it must be a point query the consumer's own
+   * indexes can serve.
+   */
+  countForChannel(salesChannelId: string): Promise<number>;
+}
+
+/**
+ * Container name: `salesChannelAttributionRegistry`. Owner: `sales_channels`.
+ *
+ * A **contribution seam**: contributors push from a boot hook and read nothing
+ * back, so the registration is a plain `ctx.di.register` rather than a
+ * `providePort` — a boot hook that resolved a gate would stop the backend from
+ * starting whenever the registry's owner was switched off. The owner is
+ * `nonDeactivatable` today, which is why no reader here degrades.
+ *
+ * **Enumeration policy: honoured while the contributing module is absent.**
+ * D-39's default is to skip, and honouring needs a written reason: this is
+ * referential integrity, not a surface — the same ground
+ * `DictionaryReferenceRegistryPort` states for the same shape. If
+ * `quote_requests` is switched off its requests still exist and are still
+ * attributed to a channel; skipping its descriptor would let an operator delete
+ * the channel underneath them and get the dangling attribution back the moment
+ * the module is switched on again — data loss caused by an action Constitution
+ * XVII promises is non-destructive and reversible. Nobody sees a descriptor;
+ * they exist to refuse a delete.
+ *
+ * Honouring is also the only policy the database agrees with:
+ * `quote_requests_sales_channel_fk` is `on delete restrict`, so a skipped
+ * descriptor does not make the delete succeed — it turns a 422 naming the
+ * module into a raw constraint violation. `orders.sales_channel_id` carries no
+ * foreign key at all, so there a skip would orphan the rows outright.
+ */
+export interface SalesChannelAttributionRegistryPort {
+  register(descriptor: SalesChannelAttributionDescriptor): void;
+  /** The contributing module of every registered descriptor, in registration order. */
+  owners(): readonly string[];
+  /** Every attribution pointing at one channel, across all descriptors. Zero counts dropped. */
+  countForChannel(salesChannelId: string): Promise<SalesChannelAttribution[]>;
+}

@@ -159,4 +159,49 @@ describe('feed template document [unit]', () => {
     // something an operating system will accept.
     expect(templateDocumentFilename('  ///  ')).toBe('feed-template.feed-template.json');
   });
+
+  /**
+   * Issues #240 / #245 — the filename folds diacritics, and the private
+   * one-liner it used to carry did not fold `ł`: U+0142 has no canonical
+   * decomposition, so NFKD left it standing and the `[^a-z0-9]+` collapse
+   * deleted the letter outright. A leading one took its separator with it.
+   *
+   * The fixtures are names this repository actually ships: nodes of the Google
+   * Merchant taxonomy in
+   * `product_feeds/data/taxonomies/google_merchant/2021-09-21/pl.txt`, which is
+   * what an operator names a template after when it targets one branch of it.
+   */
+  it('folds Polish letters instead of deleting them', () => {
+    // `Ładowarki do elektronarzędzi`, pl.txt line 2743. Produced
+    // `adowarki-do-elektronarzedzi` before the repair: the leading `Ł` was
+    // deleted and the separator it had collapsed into was then trimmed off.
+    expect(templateDocumentFilename('Ładowarki do elektronarzędzi')).toBe(
+      'ladowarki-do-elektronarzedzi.feed-template.json',
+    );
+    // `Łańcuchy do pił łańcuchowych`, pl.txt line 1462 — three `ł` in one name, which
+    // produced `a-cuchy-do-pi-a-cuchowych`.
+    expect(templateDocumentFilename('Łańcuchy do pił łańcuchowych')).toBe(
+      'lancuchy-do-pil-lancuchowych.feed-template.json',
+    );
+    // The shipped seed name run through the shipped `templates.copySuffix`
+    // bundle string (`{name} (kopia)`): what a duplicated template is called.
+    expect(templateDocumentFilename('Google Merchant Center (kopia)')).toBe(
+      'google-merchant-center-kopia.feed-template.json',
+    );
+  });
+
+  /**
+   * The NFKD-for-NFD trade, asserted rather than left in a doc block.
+   *
+   * The shared fold is NFD, so a compatibility character no longer maps into
+   * `[a-z0-9]`; it collapses to the `-` separator like every other character a
+   * filename cannot carry, and the name stays legal. See the function's own
+   * doc block for why that is the smaller loss.
+   */
+  it('collapses compatibility characters to the separator rather than mapping them', () => {
+    // NFKD mapped the superscript into the name (`kabel2`); NFD does not.
+    expect(templateDocumentFilename('Kabel²')).toBe('kabel.feed-template.json');
+    // The `fi` ligature: `fiszki` under NFKD, `szki` under NFD.
+    expect(templateDocumentFilename('ﬁszki')).toBe('szki.feed-template.json');
+  });
 });

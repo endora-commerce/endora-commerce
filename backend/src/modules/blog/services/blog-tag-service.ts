@@ -50,7 +50,7 @@ export class BlogTagService {
   }> {
     const page = Math.max(1, filters.page ?? 1);
     const perPage = Math.min(100, Math.max(1, filters.perPage ?? 50));
-    const conn = this.emFactory().getConnection();
+    const em = this.emFactory();
 
     const where: string[] = ['deleted_at is null'];
     const params: unknown[] = [];
@@ -60,14 +60,14 @@ export class BlogTagService {
     }
     const whereSql = `where ${where.join(' and ')}`;
 
-    const totalRows = (await conn.execute(
+    const totalRows = (await em.execute(
       `select count(*)::int as n from blog_tags ${whereSql}`,
       params,
     )) as Array<{ n: number }>;
     const totalItems = totalRows[0]?.n ?? 0;
 
     const offset = (page - 1) * perPage;
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select * from blog_tags ${whereSql}
         order by code asc
         limit ${perPage} offset ${offset}`,
@@ -101,8 +101,7 @@ export class BlogTagService {
     return em.transactional(async (tx) => {
       // Probe for friendly 409 before the partial-unique index fires.
       await this.assertCodeAvailable(tx, input.code);
-      const conn = tx.getConnection();
-      await conn.execute(
+      await tx.execute(
         `insert into blog_tags (id, name, description, code, version, created_at, updated_at)
            values (?, ?::jsonb, ?::jsonb, ?, 1, ?, ?)`,
         [
@@ -149,7 +148,7 @@ export class BlogTagService {
       }
 
       params.push(id);
-      await tx.getConnection().execute(
+      await tx.execute(
         `update blog_tags set ${sets.join(', ')} where id = ?`,
         params,
       );
@@ -170,14 +169,13 @@ export class BlogTagService {
       }
       this.assertVersion(existing.version, version);
 
-      const conn = tx.getConnection();
-      const refRows = (await conn.execute(
+      const refRows = (await tx.execute(
         `select count(*)::int as n from blog_post_tags where blog_tag_id = ?`,
         [id],
       )) as Array<{ n: number }>;
       if ((refRows[0]?.n ?? 0) > 0) {
         // Build a useful details list (first 25 referencing posts).
-        const posts = (await conn.execute(
+        const posts = (await tx.execute(
           `select p.id::text as id, p.name, p.slug
              from blog_post_tags pt
              join blog_posts p on p.id = pt.blog_post_id and p.deleted_at is null
@@ -197,7 +195,7 @@ export class BlogTagService {
         );
       }
 
-      await conn.execute(
+      await tx.execute(
         `update blog_tags set deleted_at = now(), updated_at = now() where id = ?`,
         [id],
       );
@@ -206,14 +204,14 @@ export class BlogTagService {
   }
 
   async getInboundReferences(id: string): Promise<BlogTagInboundReferencesResponse> {
-    const conn = this.emFactory().getConnection();
-    const totalRows = (await conn.execute(
+    const em = this.emFactory();
+    const totalRows = (await em.execute(
       `select count(*)::int as n from blog_post_tags where blog_tag_id = ?`,
       [id],
     )) as Array<{ n: number }>;
     const totalPosts = totalRows[0]?.n ?? 0;
 
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select p.id::text as id, p.name, p.slug
          from blog_post_tags pt
          join blog_posts p on p.id = pt.blog_post_id and p.deleted_at is null
@@ -235,7 +233,7 @@ export class BlogTagService {
   // ────────────────────────────────────────────────────────────────────
 
   private async findRow(em: EntityManager, id: string): Promise<TagRow | null> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select * from blog_tags where id = ? and deleted_at is null limit 1`,
       [id],
     )) as TagRow[];
@@ -247,7 +245,6 @@ export class BlogTagService {
     code: string,
     excludeId?: string,
   ): Promise<void> {
-    const conn = em.getConnection();
     const args: unknown[] = [code];
     let sql = `select 1 from blog_tags where code = ? and deleted_at is null`;
     if (excludeId) {
@@ -255,7 +252,7 @@ export class BlogTagService {
       args.push(excludeId);
     }
     sql += ` limit 1`;
-    const rows = (await conn.execute(sql, args)) as Array<unknown>;
+    const rows = (await em.execute(sql, args)) as Array<unknown>;
     if (rows.length > 0) {
       throw new HttpError(
         409,

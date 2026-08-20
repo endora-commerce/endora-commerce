@@ -15,6 +15,23 @@ export const metaAdsSettingsManifest = defineModuleSettingsManifest({
   groups: [{ code: 'meta_ads', name: 'Meta Ads' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. **Platform-wide, and
+      // deliberately NOT `meta_ads.enabled`.** That code already exists and
+      // means something else: it is per-sales-channel and answers "is the
+      // pixel is live on a given storefront channel". This one answers "does this client have the Meta Ads
+      // capability at all". Adopting the existing code would have collapsed two
+      // orthogonal questions into one switch — and, because an activation
+      // control may only be written through the activation endpoint, would have
+      // made the per-channel setting unwritable through the settings screen.
+      code: 'meta_ads.module_enabled',
+      name: 'Meta Ads module enabled',
+      description:
+        'Switches Meta Pixel injection, the custom-event mappings and the admin screen on or off for the whole platform. Separate from the per-channel switch, which decides where the tag actually loads. Nothing is dropped: mappings stay in the database and every setting keeps its value.',
+      groupCode: 'meta_ads',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: META_ADS_SETTING_CODES.ENABLED,
       name: 'Enable Meta Ads',
       description: 'Master switch for the module. Per-channel overridable.',
@@ -52,7 +69,9 @@ export const manifest = defineModuleManifest({
   description:
     'Meta Ads integration: per-sales-channel Meta Pixel, consent-gated tracking, standard commerce events, and configurable custom events.',
   version: '1.0.0',
-  dependencies: ['audit_logs', 'sales_channels', 'settings'],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by; feature
+  // 072 made it a container resolution rather than a constructor argument.
+  dependencies: ['audit_logs', 'sales_channels', 'settings', 'auth'],
   settings: metaAdsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [
@@ -84,4 +103,5 @@ export const manifest = defineModuleManifest({
       weight: 245,
     },
   ],
+  activation: { settingCode: 'meta_ads.module_enabled', default: true },
 });

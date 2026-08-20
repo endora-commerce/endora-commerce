@@ -32,7 +32,7 @@ describe('cart carries a concrete sales channel at creation (feature 053 / FR-01
     expect(def).not.toBeNull();
 
     const cart = await cartService!.getOrCreateForAnon(h.em(), 'fr010-anon-token');
-    expect(cart.salesChannelId).toBe(def!.id);
+    expect(cart.salesChannelId).toBe(def.id);
     expect(cart.salesChannelId).not.toBeNull();
   });
 });

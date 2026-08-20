@@ -110,8 +110,23 @@ export const manifest = defineModuleManifest({
   description:
     'Storage adapter registry (local / S3 / GCS), asset upload, and reference tracking.',
   version: '1.0.0',
-  dependencies: [],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by; the
+  // edge became real with the conversion (feature 072, T092), which also made
+  // the gate non-optional.
+  dependencies: ['auth'],
   settings,
+  // Feature 074 (Constitution XVII), test C3 — platform primitive. This module
+  // had no activation declaration at all, which resolved as "always activated"
+  // and read as an omission. Media storage carries no independent business
+  // decision: product images, CMS media and e-mail assets all resolve here, and
+  // "we do not want files" is not something a client chooses — it is something
+  // a deployment does by mistake.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Media storage. Product images, CMS media and e-mail assets all resolve here, and "we ' +
+      'do not want files" is not a business decision.',
+  },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'assets.read', label: 'Browse assets library' },

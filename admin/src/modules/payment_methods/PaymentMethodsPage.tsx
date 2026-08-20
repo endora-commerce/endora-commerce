@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Pencil, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
@@ -32,6 +39,13 @@ const KINDS = ['bank_transfer', 'pickup', 'credit_limit', 'gateway'] as const;
 export function PaymentMethodsPage(): ReactNode {
   const t = useTranslation('core');
   const { hasPermission } = useAuth();
+  // Feature 076 (D-83 item 6) — the gateway screens link here with the method
+  // they were configuring. The row is scrolled into view **and focused**, so a
+  // keyboard operator lands where they were sent rather than at the top of a
+  // list they now have to search (WCAG 2.2 AA).
+  const [searchParams] = useSearchParams();
+  const highlight = searchParams.get('highlight');
+  const highlightedRow = useRef<HTMLTableRowElement | null>(null);
   const [rows, setRows] = useState<AdminPaymentMethod[]>([]);
   const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
   const [adapters, setAdapters] = useState<string[]>([]);
@@ -66,6 +80,16 @@ export function PaymentMethodsPage(): ReactNode {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!highlight) return;
+    const row = highlightedRow.current;
+    if (!row) return;
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    row.focus();
+    // `rows` is a dependency because the row does not exist until the list has
+    // loaded — running only on mount would focus nothing on every arrival.
+  }, [highlight, rows]);
 
   const resetForm = useCallback((): void => {
     setEditing(null);
@@ -111,6 +135,26 @@ export function PaymentMethodsPage(): ReactNode {
       }
     },
     [editing, refresh, resetForm, t],
+  );
+
+  /**
+   * The one write that decides whether a method is offered to buyers — feature
+   * 076 (D-82). It is a control here and a state everywhere else: the four
+   * gateway screens render the chip and link to this row.
+   */
+  const handleSetStatus = useCallback(
+    async (row: AdminPaymentMethod, status: 'active' | 'inactive'): Promise<void> => {
+      setError(null);
+      try {
+        await paymentMethodsClient.setStatus(row.id, status);
+        await refresh();
+      } catch (err) {
+        setError(
+          err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.save'),
+        );
+      }
+    },
+    [refresh, t],
   );
 
   const startEdit = useCallback((row: AdminPaymentMethod): void => {
@@ -260,7 +304,16 @@ export function PaymentMethodsPage(): ReactNode {
               </TableHeader>
               <TableBody>
                 {rows.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow
+                    key={r.id}
+                    {...(r.code === highlight
+                      ? {
+                          ref: highlightedRow,
+                          tabIndex: -1,
+                          className: 'outline-2 outline-offset-[-2px] outline-ring',
+                        }
+                      : {})}
+                  >
                     <TableCell>
                       <code className="font-mono text-xs">{r.code}</code>
                     </TableCell>
@@ -272,9 +325,19 @@ export function PaymentMethodsPage(): ReactNode {
                       ) : null}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={r.status === 'active' ? 'success' : 'secondary'}>
-                        {t(`legacyMethods.status.${r.status}`)}
-                      </Badge>
+                      <div className="flex flex-col items-start gap-1">
+                        <Select
+                          value={r.status}
+                          aria-label={t('legacyMethods.fields.status')}
+                          onChange={(e): void =>
+                            void handleSetStatus(r, e.target.value as 'active' | 'inactive')
+                          }
+                        >
+                          <option value="active">{t('legacyMethods.status.active')}</option>
+                          <option value="inactive">{t('legacyMethods.status.inactive')}</option>
+                        </Select>
+                        <AvailabilityNote method={r} />
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
@@ -306,6 +369,36 @@ export function PaymentMethodsPage(): ReactNode {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/**
+ * Why this method is not offered to buyers (issue #96).
+ *
+ * A method whose gateway module is absent disappears from cart and checkout
+ * entirely — the buyer never sees an option that cannot take their money — but
+ * the admin keeps the row, because switching a module off drops nothing. The
+ * reason is read from the server's presence projection (`availability`), never
+ * from a module list held here: the frontend has no business knowing which
+ * modules are gateways.
+ */
+function AvailabilityNote({ method }: { method: AdminPaymentMethod }): ReactNode {
+  const t = useTranslation('core');
+  const { availability } = method;
+  if (availability.available) return null;
+
+  const reason =
+    availability.ownerModule === null
+      ? t('legacyMethods.availability.noAdapter', { adapter: method.adapter })
+      : availability.ownerPresence?.platformState === 'installed'
+        ? t('legacyMethods.availability.moduleOff', { module: availability.ownerModule })
+        : t('legacyMethods.availability.moduleUnavailable', { module: availability.ownerModule });
+
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <Badge variant="warning">{t('legacyMethods.availability.unavailable')}</Badge>
+      <span className="text-xs text-muted-foreground">{reason}</span>
+    </span>
   );
 }
 

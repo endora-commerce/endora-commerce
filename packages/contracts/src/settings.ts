@@ -59,7 +59,12 @@ export function valueSchemaForType(t: SettingValueType): z.ZodType<unknown> {
 // ---------------------------------------------------------------------------
 
 const groupCodeRe = /^[a-z][a-z0-9_]{0,118}[a-z0-9]$/;
-const settingCodeRe = /^[a-z][a-z0-9_][a-z0-9_.]*[a-z0-9]$/;
+/**
+ * Setting code shape. Exported because feature 073's module activation block
+ * (`ModuleActivationSchema` in `modules.ts`) declares the code of an ordinary
+ * Setting row and must validate it identically.
+ */
+export const settingCodeRe = /^[a-z][a-z0-9_][a-z0-9_.]*[a-z0-9]$/;
 const moduleCodeRe = /^[a-z][a-z0-9_]{0,118}[a-z0-9]$/;
 
 export const GroupManifestEntrySchema = z.object({
@@ -87,6 +92,19 @@ export const SettingManifestEntrySchema = z
     groupCode: z.string().optional(),
     valueType: SettingValueTypeSchema,
     defaultValue: z.unknown(),
+    /**
+     * Stored `default_value`s this manifest's current `defaultValue`
+     * supersedes (feature 078, D-95.3).
+     *
+     * `ManifestReconciler` refuses a `defaultValue` change as breaking, because
+     * a silent default change alters behaviour for every deployment that never
+     * overrode it. Declaring the prior value is how a module says which change
+     * is intended and bounded: a stored default equal to one of these is
+     * updated to the new one at boot, and anything else still throws
+     * `BreakingChangeRejected`. Same shape, and the same self-healing argument,
+     * as the sanctioned `string` → `secret` valueType upgrade.
+     */
+    previousDefaultValues: z.array(z.unknown()).optional(),
     salesChannelCodes: z.array(z.string()).optional(),
     /**
      * Closed list of allowed values for a `string` setting. When present the
@@ -218,6 +236,21 @@ export const SettingDtoSchema = z.object({
    * returned by the detail endpoint.
    */
   version: z.iso.datetime(),
+  /**
+   * Feature 073 — `false` when the owning module is not effectively present.
+   * The value is still read (off is not uninstall: the stored configuration
+   * survives), but every write against it is refused (FR-033). Classified per
+   * setting rather than per group because the module's own activation control
+   * stays writable while it is off, so a group-level filter would either hide
+   * the control or render the whole group.
+   */
+  editable: z.boolean().optional(),
+  /**
+   * Feature 073 — this setting **is** its module's activation control: the
+   * single exception that stays writable while the module is off, and the one
+   * setting the ordinary write path refuses (the audited Command owns it).
+   */
+  activationControl: z.boolean().optional(),
 });
 export type SettingDto = z.infer<typeof SettingDtoSchema>;
 
@@ -359,3 +392,129 @@ export type HomepageConfig = z.infer<typeof HomepageConfigSchema>;
 
 export const HomepageConfigResponseSchema = z.object({ data: HomepageConfigSchema });
 export type HomepageConfigResponse = z.infer<typeof HomepageConfigResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process **write** surface `settings` publishes (feature 075, Phase P).
+//
+// The read side is deliberately absent: `settingsReadPort` is a *kernel* port
+// (`src/kernel/settings/settings.service.ts`), because every module reads its
+// own settings and the kernel applies the channel-scope rules. Only the write
+// path crosses a module boundary, and it does so from six modules — the four
+// payment gateways, `search` and `transactional_emails` — each of which hosts
+// an admin screen over settings it owns.
+// ---------------------------------------------------------------------------
+
+/** Who made a settings write, for the audit entry. */
+export interface SettingsAdminAuditContext {
+  actorAdminUserId: string | null;
+  requestId?: string | null;
+}
+
+/**
+ * What a write did. `affectedChannelIds` is what the caller re-reads, and
+ * `newVersion` is the optimistic-lock token for the next write.
+ *
+ * `setting` is deliberately **not** here. The service returns the `Setting`
+ * entity on it, no cross-module caller reads it, and publishing an ORM row
+ * would be exactly the substitution this feature exists to remove.
+ */
+export interface SettingsSetValueResult {
+  affectedChannelIds: string[];
+  newVersion: string;
+}
+
+/**
+ * Container name: `settingsAdminService`. Owner: `settings`.
+ *
+ * Two writes, and the difference between them is the whole channel-scoping
+ * story (Constitution XII): a value set for all channels and a value set for a
+ * named subset are different operations with different audit entries, not one
+ * operation with an optional argument.
+ *
+ * `expectedVersion` is `null` for a first write and the previous
+ * `newVersion` afterwards; a mismatch is a 409, on this side of the port.
+ *
+ * When `settings` is off the write fails closed. There is no degrade to
+ * design: a configuration screen that reported success while storing nothing
+ * is worse than one that refuses.
+ *
+ * Whether `settings` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface SettingsAdminPort {
+  setValueForAllChannels(
+    code: string,
+    rawValue: unknown,
+    expectedVersion: string | null,
+    actor: SettingsAdminAuditContext,
+  ): Promise<SettingsSetValueResult>;
+  setValueForSubset(
+    code: string,
+    channelCodes: string[],
+    rawValue: unknown,
+    expectedVersion: string | null,
+    actor: SettingsAdminAuditContext,
+  ): Promise<SettingsSetValueResult>;
+}
+
+// ---------------------------------------------------------------------------
+// Write validation, contributed by the owning module (feature 078, D-95.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * The division of labour, and it is the whole reason this seam exists:
+ *
+ * > `settings` answers "what would every channel's value be after this write".
+ * > The module that declared the setting answers "is that legal".
+ *
+ * `settings` owns three-tier resolution (per-channel row → `globalValue` →
+ * manifest `defaultValue`) and must keep owning it — a validator that
+ * re-derived it would drift from it. The owning module owns the semantics, and
+ * `settings` must never learn them.
+ */
+export interface SettingWriteChannelProjection {
+  readonly salesChannelId: string;
+  readonly salesChannelCode: string;
+  readonly salesChannelName: string;
+  /** This channel's effective value **after** the proposed write would commit. */
+  readonly value: unknown;
+}
+
+export interface SettingWriteValidationInput {
+  readonly code: string;
+  /** The module that declared the setting. */
+  readonly ownerModuleId: string;
+  /** Every sales channel in the platform, active or not, with its post-write value. */
+  readonly projection: readonly SettingWriteChannelProjection[];
+  /** Channel ids the write targets; empty for a platform-wide (`scope: 'all'`) write. */
+  readonly targetedChannelIds: readonly string[];
+}
+
+export interface SettingWriteValidator {
+  /** The module contributing the validator — used for the presence filter. */
+  readonly contributorModuleId: string;
+  /**
+   * Exact setting codes this validator answers for. No wildcards, deliberately:
+   * a prefix or glob makes it impossible to tell from the registry which module
+   * answers for a given code, which is the question the presence filter and
+   * every future debugging session ask.
+   */
+  readonly codes: readonly string[];
+  /** Throws an `HttpError` to refuse. Resolving is acceptance. */
+  validate(input: SettingWriteValidationInput): Promise<void>;
+}
+
+/**
+ * Container name: `settingWriteValidatorRegistry`. Owner: `settings`.
+ *
+ * An ordinary registration rather than a gated port, because it is a
+ * contribution seam: a module pushes a validator into it once, from a boot
+ * hook, and reads nothing back.
+ */
+export interface SettingWriteValidatorRegistryPort {
+  register(validator: SettingWriteValidator): void;
+  /** Validators for `code`, filtered by contributor presence. */
+  forCode(code: string): readonly SettingWriteValidator[];
+}

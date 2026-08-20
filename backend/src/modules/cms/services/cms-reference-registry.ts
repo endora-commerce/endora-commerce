@@ -1,60 +1,35 @@
+import type { CmsReference, CmsExternalReferenceScanner } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { walkBlockEmbeds, walkTemplateEmbeds } from './content-tree-walker.js';
 
-export interface CmsReference {
-  /**
-   * Type tag of the referencing entity. The closed set covers the
-   * cms-internal references; external scanners (registered via
-   * `register(...)` from other modules) MAY emit additional kinds.
-   */
-  kind: 'cms_page' | 'cms_block' | 'cms_template' | 'cms_hook' | 'megamenu' | string;
-  entityId: string;
-  label: string;
-}
-
 /**
- * Optional scanner contributed by another module so its references can
- * block CMS-page / CMS-block / CMS-template deletion. Each method is
- * optional — a scanner only fills in the edges it cares about.
- *
- * The block + template scanners receive both id and code: the megamenu
- * module references blocks/templates by `id`, the CMS module's own
- * references match on `code`.
+ * Both shapes moved to `@b2b/contracts` in feature 075's Phase P — `megamenu`
+ * contributes a scanner, which makes the descriptor a boundary shape rather
+ * than an internal. Re-exported here for the length of Phase P, which cuts no
+ * consumer.
  */
-export interface CmsExternalReferenceScanner {
-  findPageReferences?: (pageId: string) => Promise<CmsReference[]>;
-  findBlockReferences?: (blockId: string, blockCode: string) => Promise<CmsReference[]>;
-  findTemplateReferences?: (templateId: string, templateCode: string) => Promise<CmsReference[]>;
-}
+export type { CmsReference, CmsExternalReferenceScanner };
 
-/**
- * In-process registry of references between CMS entities. Consulted by
- * Block / Template / Page delete to refuse deletion when an embed,
- * attachment, or external module reference still points at the entity.
- *
- * Edges (per data-model.md):
- *   page → block      (cms_pages.content with InsertBlock)
- *   page → template   (cms_pages.content with InsertTemplate)
- *   block → template  (cms_blocks.content with InsertTemplate)
- *   template → block  (cms_templates.content with InsertBlock)
- *   hook → block      (cms_hook_block_attachments.block_id)
- *   megamenu → page   (registered externally by feature 015)
- *   megamenu → block  (registered externally by feature 015)
- */
 export class CmsReferenceRegistry {
   private readonly externalScanners: CmsExternalReferenceScanner[] = [];
 
   constructor(private readonly emFactory: () => EntityManager) {}
 
   /**
-   * Register an external scanner. Other modules call this from
-   * composition.ts so their references block CMS-entity deletion. Idempotent
-   * across registrations of the same scanner instance.
+   * Register an external scanner. Another module calls this from its own
+   * `ctx.onBoot`, so the contribution passes through the lifecycle seams rather
+   * than a composition root's back door. Idempotent across registrations of the
+   * same scanner instance.
    */
   register(scanner: CmsExternalReferenceScanner): void {
     if (!this.externalScanners.includes(scanner)) {
       this.externalScanners.push(scanner);
     }
+  }
+
+  /** The contributing module of every registered scanner, in registration order. */
+  externalOwners(): readonly string[] {
+    return this.externalScanners.map((scanner) => scanner.ownerModuleId);
   }
 
   /** Pages and modules that point at the Page with this id. */
@@ -77,7 +52,7 @@ export class CmsReferenceRegistry {
     const out: CmsReference[] = [];
     const em = this.emFactory();
 
-    const pages = (await em.getConnection().execute(
+    const pages = (await em.execute(
       `select id::text, name, content from cms_pages`,
     )) as Array<{ id: string; name: string; content: unknown }>;
     for (const row of pages) {
@@ -86,7 +61,7 @@ export class CmsReferenceRegistry {
       }
     }
 
-    const templates = (await em.getConnection().execute(
+    const templates = (await em.execute(
       `select id::text, name, content from cms_templates`,
     )) as Array<{ id: string; name: string; content: unknown }>;
     for (const row of templates) {
@@ -95,7 +70,7 @@ export class CmsReferenceRegistry {
       }
     }
 
-    const hooks = (await em.getConnection().execute(
+    const hooks = (await em.execute(
       `select h.id::text, h.name
        from cms_hook_block_attachments a
        join cms_hooks h on h.id = a.hook_id
@@ -125,7 +100,7 @@ export class CmsReferenceRegistry {
     const out: CmsReference[] = [];
     const em = this.emFactory();
 
-    const pages = (await em.getConnection().execute(
+    const pages = (await em.execute(
       `select id::text, name, content from cms_pages`,
     )) as Array<{ id: string; name: string; content: unknown }>;
     for (const row of pages) {
@@ -134,7 +109,7 @@ export class CmsReferenceRegistry {
       }
     }
 
-    const blocks = (await em.getConnection().execute(
+    const blocks = (await em.execute(
       `select id::text, name, content from cms_blocks`,
     )) as Array<{ id: string; name: string; content: unknown }>;
     for (const row of blocks) {

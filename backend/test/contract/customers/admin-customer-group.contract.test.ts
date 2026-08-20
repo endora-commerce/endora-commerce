@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { manifest as customersManifest } from '../../../src/modules/customers/manifest.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { CustomerGroup } from '../../../src/modules/price_lists/entities/customer-group.entity.js';
+import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
 
 /**
  * Feature 040, US6 — admin assigns/clears a customer's direct customer group.
@@ -32,9 +33,7 @@ describe('Admin customer-group assignment (US6)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   it('sets and clears a customer group', async () => {

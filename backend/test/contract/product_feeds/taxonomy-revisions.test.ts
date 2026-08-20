@@ -15,7 +15,7 @@ import {
   ScriptedTaxonomyFetcher,
 } from '../../helpers/taxonomy-fixtures.js';
 import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { FeedTaxonomy } from '../../../src/modules/product_feeds/entities/feed-taxonomy.entity.js';
 import { FeedTaxonomyCheck } from '../../../src/modules/product_feeds/entities/feed-taxonomy-check.entity.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';

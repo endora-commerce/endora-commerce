@@ -7,13 +7,14 @@ import {
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 062 / T016 — tenant + channel isolation on the external catalog
@@ -152,7 +153,7 @@ describe('External catalog tenant/channel isolation (062 / T016, SC-002)', () =>
     );
 
     // Different org price lists for the shared SKU.
-    const priceLists = new PriceListService(() => h.em());
+    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
     const seedList = async (name: string, orgId: string, amount: string): Promise<void> => {
       const list = await priceLists.create({
         name,

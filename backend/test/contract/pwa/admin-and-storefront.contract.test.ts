@@ -101,7 +101,7 @@ describe('PWA module — admin + storefront', () => {
   });
 
   it('writes a per-channel override and resets it back to global', async () => {
-    const channelId = (await h.salesChannels.resolver.getSystemDefault())!.id;
+    const channelId = (await h.salesChannels.resolver.getSystemDefault()).id;
 
     // Establish a distinct global value first.
     const putGlobal = await h.app.inject({
@@ -217,7 +217,7 @@ describe('PWA module — admin + storefront', () => {
 
   // ---- T034 admin send ----
   it('admin send queues one delivery per active subscriber (202)', async () => {
-    const channelId = (await h.salesChannels.resolver.getSystemDefault())!.id;
+    const channelId = (await h.salesChannels.resolver.getSystemDefault()).id;
     await enablePush();
 
     await h.pwa.subscriptionService.register({
@@ -244,7 +244,7 @@ describe('PWA module — admin + storefront', () => {
 
   // ---- T035 delivery processor (idempotent + prune) ----
   it('delivery processor sends once and prunes a gone subscription', async () => {
-    const channelId = (await h.salesChannels.resolver.getSystemDefault())!.id;
+    const channelId = (await h.salesChannels.resolver.getSystemDefault()).id;
     await enablePush();
 
     // A live sub (provider returns ok) and a dead sub (provider returns gone).

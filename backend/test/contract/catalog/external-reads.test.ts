@@ -6,11 +6,14 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 062 / T013 — external catalog reads (contracts/catalog-api-key-reads.md).
@@ -126,7 +129,7 @@ describe('External catalog reads (062 / T013)', () => {
     );
 
     // Org-targeted price list with a two-step bracket ladder for EXT-PRICED-001.
-    const priceLists = new PriceListService(() => h.em());
+    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
     const list = await priceLists.create({
       name: 'Org A external base',
       type: 'base',
@@ -331,6 +334,60 @@ describe('External catalog reads (062 / T013)', () => {
     const secondBody = second.json() as { data: ExternalSummary[] };
     expect(secondBody.data).toHaveLength(1);
     expect(secondBody.data[0]!.id).not.toBe(firstBody.data[0]!.id);
+  });
+
+  /**
+   * D-61 — the declared degrade, with `inventory` switched off.
+   *
+   * `catalog` declares this edge as `degrades-without` in its manifest
+   * (`inventory:catalogExternalAvailability`, *"product listings and the
+   * external catalog namespace stop carrying an availability band"*), and D-44
+   * §10 names the risk that declaration carries: a degradation nobody
+   * implemented turns an operator's refusal into a crash. So the sentence is
+   * asserted rather than assumed.
+   *
+   * Both halves matter. The band goes away — and it goes away by a *decision*
+   * taken in front of the gate, not by a `catch` after it, which is why a 503
+   * here would be the finding. And the response keeps its prices, because a
+   * catalogue that answered nothing would also satisfy the first half.
+   */
+  it('drops the availability band and keeps pricing when `inventory` is switched off', async () => {
+    registryCache.__setEnabledForTesting(
+      REGISTERED_MANIFESTS.map((entry) => entry.manifest.id),
+      { deactivated: ['inventory'] },
+    );
+    try {
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/external/catalog/products',
+        headers: { authorization: `Bearer ${boundToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const items = (res.json() as { data: ExternalSummary[] }).data;
+      const priced = items.find((p) => p.sku === 'EXT-PRICED-001');
+      expect(priced).toBeDefined();
+      expect(priced!.availability).toBeUndefined();
+      // The namespace keeps working: only the indication is gone.
+      expect(priced!.price).toEqual({ amount: 100, currency: 'PLN' });
+    } finally {
+      registryCache.__setEnabledForTesting(
+        REGISTERED_MANIFESTS.map((entry) => entry.manifest.id),
+      );
+    }
+  });
+
+  it('carries the availability band again once `inventory` is switched back on', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/external/catalog/products',
+      headers: { authorization: `Bearer ${boundToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const priced = (res.json() as { data: ExternalSummary[] }).data.find(
+      (p) => p.sku === 'EXT-PRICED-001',
+    );
+    expect(priced!.availability).toEqual({ band: 'available', inStock: true });
   });
 
   it('categories endpoint returns the channel tree, no-store', async () => {

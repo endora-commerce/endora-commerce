@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import type { CustomFieldType, NewsletterCustomField, NewsletterTag } from '@b2b/contracts';
+import { slugify, type CustomFieldType, type NewsletterCustomField, type NewsletterTag } from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,17 +14,27 @@ const CODE_RE = /^[a-z][a-z0-9_]*$/;
 const CUSTOM_FIELD_TYPES: CustomFieldType[] = ['text', 'number', 'boolean', 'date'];
 
 /**
- * Normalise free-text into a backend-valid code: lowercase, diacritics
- * stripped, non-alphanumerics collapsed to underscores, trimmed. A leading
- * digit still fails `CODE_RE`, so callers validate the result before sending.
+ * Normalise free-text into a backend-valid code: lowercase, diacritics folded,
+ * non-alphanumerics collapsed to underscores, trimmed. A leading digit still
+ * fails `CODE_RE`, so callers validate the result before sending.
+ *
+ * The generator is `slugify` from `@b2b/contracts`, **imported, never
+ * re-implemented** (issues #239, #245). The private NFD one-liner it started as
+ * did not fold `ł` — U+0142 has no canonical decomposition, so the strip had
+ * nothing to remove — it *deleted* it: `Metody płatności` produced
+ * `metody_p_atnosci`, a code with a hole in it that the operator could not
+ * connect to anything typed.
+ *
+ * `_` is this caller's separator, passed explicitly, because the stored tag
+ * code grammar is `^[a-z][a-z0-9_]*$` and every other caller kebab-cases. There
+ * is no length option: the backend caps the column, not this prefill.
+ *
+ * Codes already stored are **not** migrated (owner's ruling, 2026-08-19): only
+ * two developer environments exist, so renaming live tags buys nobody
+ * anything. New codes are correct from here on.
  */
 function slugifyCode(input: string): string {
-  return input
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+  return slugify(input, { separator: '_' });
 }
 
 export function TagsPage(): React.ReactElement {

@@ -6,23 +6,24 @@ import type { BundleService } from './services/bundle.service.js';
 import {
   productLinkKindSchema,
   validateBundleConfigurationRequestSchema,
+  type ProductAudience,
+  type SearchQueryPort,
 } from '@b2b/contracts';
-import {
-  SearchBackendUnavailable,
-  type SearchQueryService,
-} from '../search/services/search-query.service.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { markPersonalisedPricing, productAudienceOf } from '../../http/product-audience.js';
 
 /**
  * Public catalog routes (US1 read surface).
  * Storefront SSR + crawlers + anonymous API consumers. No auth.
  *
  * Read-backend selection (T067/T068):
- *   - When `CATALOG_SEARCH_BACKEND=meilisearch` AND a SearchQueryService was
- *     injected, list-products is served from Meilisearch.
- *   - On any Meilisearch failure (`SearchBackendUnavailable`), the route
- *     transparently degrades to the Postgres path (R-08 reserved-fallback,
- *     so search is never fully broken).
+ *   - When `CATALOG_SEARCH_BACKEND=meilisearch` AND a read backend was wired
+ *     AND `search` is effectively present, list-products is served from
+ *     Meilisearch.
+ *   - When the index is unreachable, `searchQueryPort` answers
+ *     `{ status: 'index-unavailable' }` and the route degrades to the Postgres
+ *     path (R-08 reserved-fallback, so search is never fully broken).
  *   - The `changedSince` query param stays on Postgres because it has no
  *     equivalent in the Meilisearch index today.
  *   - Default backend remains Postgres so existing tests + deployments
@@ -33,8 +34,12 @@ const acceptLanguageHeaderSchema = z.string().optional();
 
 export interface CatalogPublicDeps {
   queryService: CatalogQueryService;
-  /** Optional Meilisearch read backend; routed through when env enables it. */
-  searchQueryService?: SearchQueryService;
+  /**
+   * `search`'s Meilisearch read backend, as the port it publishes; routed
+   * through when the env var enables it and `search` is effectively present.
+   * Absent in a composition that wires no read backend at all.
+   */
+  searchQueryService?: SearchQueryPort;
   /**
    * Feature 002 US4 — public ProductLink reads. Optional so foundation-era
    * tests/composition that don't wire it stay green; when undefined, the
@@ -87,36 +92,61 @@ export async function registerCatalogPublicRoutes(
     const { q, limit, cursor, sort, categorySlug, attributeFilters, changedSince } =
       parseListQuery(request);
     const ctx = readContext(request);
+    // The page's prices are resolved for this caller, so a page resolved for a
+    // buying organisation must not enter a shared cache.
+    markPersonalisedPricing(reply, ctx.audience);
 
+    // Issue #144 — the presence answer is *decided* here, before the query, and
+    // never caught after it. Constitution XVII: a module that is off behaves as
+    // if never installed, and with `search` never installed this listing is the
+    // Postgres query below.
+    //
+    // A degrade rather than a refusal, deliberately: `catalog` is
+    // non-deactivatable, Postgres is this route's default backend, and 503-ing a
+    // public catalogue because an optional search module is off would take the
+    // storefront down for a capability it never required. The manifest declares
+    // it, in `nonBindingDependencies`, so the operator's confirmation dialog
+    // says so before they flip `search` off.
+    //
+    // Issue #153 — `searchQueryService` is `search`'s **port** now, not a
+    // `SearchQueryService` this module constructed out of `search`'s class. The
+    // two facts that follow are why the code below looks different:
+    //
+    //  - the presence probe is load-bearing rather than belt-and-braces. A
+    //    port resolution is gated, so calling it with `search` off throws
+    //    `ModuleDisabledError` — which is exactly what must not reach a public
+    //    catalogue listing;
+    //  - the unreachable-index fallback is read off the return type. It used to
+    //    be `catch (err) { if (err instanceof SearchBackendUnavailable) … else
+    //    throw err }`, which is the conditional re-throw `check:port-catches`
+    //    refuses around a port call, and refuses because a status test lets a
+    //    switched-off module through by accident. `SearchListOutcome` states
+    //    the two answers, and the conversion happens inside `search`.
     const useMeili =
       process.env['CATALOG_SEARCH_BACKEND'] === 'meilisearch' &&
       searchQueryService !== undefined &&
+      effectiveState.isPresent('search') &&
       changedSince === undefined;
     if (useMeili) {
-      try {
-        const result = await searchQueryService.listProducts(
-          {
-            ...(q !== undefined ? { q } : {}),
-            limit,
-            ...(cursor !== undefined ? { cursor } : {}),
-            ...(sort !== undefined ? { sort } : {}),
-            ...(categorySlug !== undefined ? { categorySlug } : {}),
-            ...(attributeFilters !== undefined ? { attributeFilters } : {}),
-          },
-          ctx,
-        );
+      const outcome = await searchQueryService.listProducts(
+        {
+          ...(q !== undefined ? { q } : {}),
+          limit,
+          ...(cursor !== undefined ? { cursor } : {}),
+          ...(sort !== undefined ? { sort } : {}),
+          ...(categorySlug !== undefined ? { categorySlug } : {}),
+          ...(attributeFilters !== undefined ? { attributeFilters } : {}),
+        },
+        ctx,
+      );
+      if (outcome.status === 'ok') {
         reply.header('x-search-backend', 'meilisearch');
-        return await withListPlaceholder(result, ctx.resolvedChannel.code);
-      } catch (err) {
-        if (err instanceof SearchBackendUnavailable) {
-          request.log.warn(
-            { err: err.message },
-            'meilisearch unavailable; falling back to postgres',
-          );
-        } else {
-          throw err;
-        }
+        return await withListPlaceholder(outcome.result, ctx.resolvedChannel.code);
       }
+      request.log.warn(
+        { err: outcome.reason },
+        'meilisearch unavailable; falling back to postgres',
+      );
     }
 
     const result = await queryService.listProducts(
@@ -130,8 +160,9 @@ export async function registerCatalogPublicRoutes(
   // GET /api/v1/catalog/products/:idOrSlug
   app.get<{ Params: { idOrSlug: string } }>(
     '/api/v1/catalog/products/:idOrSlug',
-    async (request) => {
+    async (request, reply) => {
       const ctx = readContext(request);
+      markPersonalisedPricing(reply, ctx.audience);
       const product = await queryService.getProductByIdOrSlug(request.params.idOrSlug, ctx);
       // Imageless product → fall back to the configured placeholder so the PDP
       // hero/card renders something instead of an empty box.
@@ -152,8 +183,9 @@ export async function registerCatalogPublicRoutes(
     const links = deps.productLinkService;
     app.get<{ Params: { idOrSlug: string }; Querystring: { kind?: string } }>(
       '/api/v1/catalog/products/:idOrSlug/links',
-      async (request) => {
+      async (request, reply) => {
         const ctx = readContext(request);
+        markPersonalisedPricing(reply, ctx.audience);
         const product = await queryService.getProductByIdOrSlug(
           request.params.idOrSlug,
           ctx,
@@ -215,6 +247,7 @@ function readContext(request: FastifyRequest): {
     defaultCurrency: string;
     defaultLanguage: string;
   };
+  audience: ProductAudience;
   preferredLanguage?: string | undefined;
 } {
   // Feature 053 / FR-002: the sales channel is resolved once by the canonical
@@ -230,6 +263,7 @@ function readContext(request: FastifyRequest): {
       defaultCurrency: ch.defaultCurrency,
       defaultLanguage: ch.defaultLanguage,
     },
+    audience: productAudienceOf(request),
     preferredLanguage,
   };
 }

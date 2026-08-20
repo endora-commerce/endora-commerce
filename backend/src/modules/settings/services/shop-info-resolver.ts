@@ -1,6 +1,5 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ShopInfo } from '@b2b/contracts';
-import type { SettingsService } from './settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 
 /**
  * Maps the `shop.*` settings to the public {@link ShopInfo} surface consumed
@@ -17,13 +16,16 @@ const FIELD_TO_CODE: Record<keyof ShopInfo, string> = {
 };
 
 export class ShopInfoResolver {
-  constructor(
-    private readonly emFactory: () => EntityManager,
-    private readonly settingsService: SettingsService,
-  ) {}
+  constructor(private readonly settingsService: SettingsService) {}
 
-  async resolve(salesChannelCode: string | undefined): Promise<ShopInfo> {
-    const channelId = await this.resolveChannelId(salesChannelCode);
+  /**
+   * Feature 075 / D-87 — the resolved request channel's id, passed in by the
+   * route. It used to be the channel *code*, looked back up here with a raw
+   * `select id from sales_channels`: a re-resolution of a channel the resolver
+   * middleware had already resolved (feature 053, FR-011), across a boundary
+   * no import specifier named.
+   */
+  async resolve(salesChannelId: string): Promise<ShopInfo> {
     const empty: ShopInfo = {
       name: '',
       address: '',
@@ -31,10 +33,8 @@ export class ShopInfoResolver {
       supportEmail: '',
       phone: '',
     };
-    if (!channelId) return empty;
-
     const codes = Object.values(FIELD_TO_CODE);
-    const resolved = await this.settingsService.getMany(codes, channelId);
+    const resolved = await this.settingsService.getMany(codes, salesChannelId);
 
     const out = { ...empty };
     for (const [field, code] of Object.entries(FIELD_TO_CODE) as Array<
@@ -44,22 +44,5 @@ export class ShopInfoResolver {
       out[field] = r && r.ok && typeof r.value === 'string' ? r.value : '';
     }
     return out;
-  }
-
-  private async resolveChannelId(
-    code: string | undefined,
-  ): Promise<string | null> {
-    const conn = this.emFactory().getConnection();
-    if (code) {
-      const rows = (await conn.execute(
-        `select id::text as id from sales_channels where code = ? limit 1`,
-        [code],
-      )) as Array<{ id: string }>;
-      return rows[0]?.id ?? null;
-    }
-    const rows = (await conn.execute(
-      `select id::text as id from sales_channels where system_default = true limit 1`,
-    )) as Array<{ id: string }>;
-    return rows[0]?.id ?? null;
   }
 }

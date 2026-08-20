@@ -7,8 +7,8 @@ import {
 } from '@b2b/contracts';
 import type { CartAdminService } from './services/cart-admin-service.js';
 import type { CartApprovalService } from './services/cart-approval-service.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import { HttpError } from '../../http/error-envelope.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin Carts routes (feature 027 US6).

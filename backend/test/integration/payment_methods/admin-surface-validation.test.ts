@@ -11,6 +11,7 @@ import { EventBus } from '../../../src/events/bus.js';
 import { OrderService, type OrderEventBus } from '../../../src/modules/orders/services/order-service.js';
 import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
+import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 /**
  * T042 (US4/FR-015) — the selected payment method's adapter validator is
@@ -41,7 +42,7 @@ describe('placeOrder — payment-method submit re-validation', () => {
   it('rejects a method whose storefront validator returns false', async () => {
     const registry = new PaymentAdapterRegistry();
     // The seed method's adapter is 'bank_transfer'; register a blocking one.
-    registry.register(blockingAdapter('bank_transfer'));
+    registry.register(blockingAdapter('bank_transfer'), 'payments');
 
     const service = new OrderService(
       h.em,
@@ -49,7 +50,15 @@ describe('placeOrder — payment-method submit re-validation', () => {
       undefined,
       undefined,
       undefined,
-      { paymentAdapters: registry, orderStatusRegistry: new EnumOrderStatusRegistry() },
+      {
+      neighbours: orderServiceNeighbours(h.em),
+        // Issue #124 — a rig states its own tax authority. `OrderService` has no
+        // fallback rate, so an order it cannot price is refused rather than taxed
+        // at a figure nobody configured.
+        resolveTaxRate: async () => 0.23,
+        paymentAdapters: registry,
+        orderStatusRegistry: new EnumOrderStatusRegistry(),
+      },
     );
 
     await expect(

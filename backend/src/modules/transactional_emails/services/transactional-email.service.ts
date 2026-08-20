@@ -17,6 +17,7 @@ import {
   type TransactionalEmailSender,
   type TransactionalEmailSendInput,
   type TransactionalEmailSummary,
+  type TransactionalSendOutcome,
 } from '@b2b/contracts';
 import type { PuckDataTree } from '@b2b/email-components/schema/envelope';
 import { EMAIL_SAFE_COMPONENT_NAMES } from '@b2b/email-components/schema/component-types';
@@ -25,8 +26,12 @@ import { renderEmailHtml } from '@b2b/email-components/render/render-email-html'
 import { renderEmailText } from '@b2b/email-components/render/render-email-text';
 import { renderDirectives } from '@b2b/email-components/directives/directive-engine';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { Mailer } from '../../email/services/mailer.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type {
+  EmailDeliveryRecorder,
+  EmailDeliveryReason,
+  EmailMailerPort,
+} from '@b2b/contracts';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import { TransactionalEmailContent } from '../entities/transactional-email-content.entity.js';
 import type { ContentResolver} from './content-resolver.js';
@@ -34,8 +39,17 @@ import { type ResolvedContent } from './content-resolver.js';
 import type { BrandingService} from './branding.service.js';
 import { type ResolvedBranding } from './branding.service.js';
 import type { EmbedResolver } from './embed-resolver.js';
+import type { EmailDefaultsRegistry } from './email-defaults-registry.js';
 
 const KNOWN_COMPONENTS: ReadonlySet<string> = new Set(EMAIL_SAFE_COMPONENT_NAMES);
+
+/**
+ * A missing transport is a deployment fact, not a per-message one: it holds for
+ * every send until someone fixes the composition. The guard is deliberately
+ * **per process** (module scope, never reset) so a misconfigured deployment
+ * gets one line instead of one per email.
+ */
+let noTransportWarned = false;
 
 export interface SaveContentInput {
   subject: string;
@@ -54,7 +68,28 @@ export interface TransactionalEmailServiceDeps {
   contentResolver: ContentResolver;
   branding: BrandingService;
   embeds: EmbedResolver;
-  mailer?: Mailer;
+  /**
+   * The owner ledger the admin projection reads for the per-email protection
+   * (issue #89). Required rather than optional: an absent registry would make
+   * every email report itself deactivatable, which is the one wrong answer —
+   * the admin would offer a switch for `email_verification` and the write path
+   * would refuse it.
+   */
+  defaults: EmailDefaultsRegistry;
+  /**
+   * The transport, named by `email`'s published contract since feature 075's
+   * Phase C. `email` registers it ungated and declares itself
+   * non-deactivatable, so this edge has no absent state to fail closed onto —
+   * the `undefined` below is a composition that wired no transport at all,
+   * which `send` reports as `no_transport`.
+   */
+  mailer?: EmailMailerPort;
+  /**
+   * Where the three outcomes decided **before** the transport are recorded
+   * (D-59). Optional: a composition with no recorder loses the row, not the
+   * send, which is the same tolerance the recorder itself states.
+   */
+  deliveryRecorder?: EmailDeliveryRecorder;
   auditLog?: AuditLogService;
 }
 
@@ -63,7 +98,9 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   private readonly contentResolver: ContentResolver;
   private readonly branding: BrandingService;
   private readonly embeds: EmbedResolver;
-  private readonly mailer: Mailer | undefined;
+  private readonly defaults: EmailDefaultsRegistry;
+  private readonly mailer: EmailMailerPort | undefined;
+  private readonly deliveryRecorder: EmailDeliveryRecorder | undefined;
   private readonly auditLog: AuditLogService | undefined;
 
   constructor(deps: TransactionalEmailServiceDeps) {
@@ -71,17 +108,50 @@ export class TransactionalEmailService implements TransactionalEmailSender {
     this.contentResolver = deps.contentResolver;
     this.branding = deps.branding;
     this.embeds = deps.embeds;
+    this.defaults = deps.defaults;
     this.mailer = deps.mailer;
+    this.deliveryRecorder = deps.deliveryRecorder;
     this.auditLog = deps.auditLog;
   }
 
   // --- Sending (port) -----------------------------------------------------
 
-  async send(input: TransactionalEmailSendInput): Promise<void> {
-    if (!this.mailer) return; // best-effort: no transport configured
+  /**
+   * Delivers the email and reports what happened. The three non-`sent` outcomes
+   * used to be one silent `return`, which left every caller unable to tell an
+   * operator's "off" from a code with no template — and suppressing its own
+   * fallback for both.
+   *
+   * Since D-59 each of those three also leaves a **row**. They are the outcomes
+   * decided before the transport is reached, so the record `RecordingMailer`
+   * writes never gets the chance — and one of them, `deactivated`, is the whole
+   * reason the record has to tell a deliberate configuration from an outage.
+   * A delivered message is deliberately *not* recorded here: the transport
+   * records it, so one send stays one row.
+   */
+  async send(input: TransactionalEmailSendInput): Promise<TransactionalSendOutcome> {
+    if (!this.mailer) {
+      if (!noTransportWarned) {
+        noTransportWarned = true;
+        console.warn(
+          '[transactional_emails] no mailer configured — transactional emails are not being delivered (logged once per process).',
+        );
+      }
+      await this.recordNotSent(input, 'failed', 'no_transport');
+      return { status: 'no_transport' };
+    }
     const em = this.emFactory();
     const email = await em.findOne(TransactionalEmail, { code: input.code });
-    if (!email || !email.active) return; // unknown/disabled email: nothing to send
+    // No definition: the caller may still have a legacy in-code builder for
+    // this code. Deactivated: the operator chose silence, so nothing goes out.
+    if (!email) {
+      await this.recordNotSent(input, 'failed', 'no_definition');
+      return { status: 'no_definition' };
+    }
+    if (!email.active) {
+      await this.recordNotSent(input, 'suppressed', 'deactivated');
+      return { status: 'deactivated' };
+    }
 
     const fallbackLanguage = email.languages[0];
     const resolved = await this.contentResolver.resolve(em, email, {
@@ -96,14 +166,57 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       ...(fallbackLanguage ? { fallbackLanguage } : {}),
     });
 
+    // The transport's own answer (`sent` / `suppressed`, D-59) is deliberately
+    // not carried further, and this is the decision rather than an oversight:
+    // its one suppression reason is `duplicate_message_id`, meaning this exact
+    // message id was already accepted, so the message did go out. What
+    // `TransactionalSendOutcome` exists to tell a caller is whether it may fall
+    // back to its own in-code builder, and neither transport answer permits
+    // that. The row is not lost either — `RecordingMailer` writes the
+    // `suppressed` delivery record before returning. Widening the union here
+    // would publish a distinction no caller can act on.
     await this.mailer.send({
       messageId: input.messageId,
       to: input.to,
       subject: rendered.subject,
       text: rendered.text,
       html: rendered.html,
+      // What the delivery record needs and only this layer holds: the code the
+      // message was rendered from, the channel it was rendered for, and the
+      // document it delivers.
+      kind: input.code,
+      salesChannelId: input.salesChannelId,
+      ...(input.document ? { document: input.document } : {}),
       ...(input.attachments ? { attachments: input.attachments } : {}),
       ...(input.meta ? { meta: input.meta } : {}),
+    });
+    return { status: 'sent' };
+  }
+
+  /**
+   * One row for a message this layer decided not to send.
+   *
+   * No `catch`: the recorder answers `null` for a row it could not write and
+   * never throws (its own contract), so there is nothing here to contain — and
+   * a `catch` around a collaborator another module owns is how a presence
+   * answer stops travelling.
+   */
+  private async recordNotSent(
+    input: TransactionalEmailSendInput,
+    status: 'suppressed' | 'failed',
+    reason: EmailDeliveryReason,
+  ): Promise<void> {
+    await this.deliveryRecorder?.record({
+      messageId: input.messageId,
+      recipient: input.to,
+      kind: input.code,
+      status,
+      reason,
+      salesChannelId: input.salesChannelId,
+      ...(input.document
+        ? { documentType: input.document.type, documentId: input.document.id }
+        : {}),
+      ...(input.meta ? { context: input.meta } : {}),
     });
   }
 
@@ -137,25 +250,66 @@ export class TransactionalEmailService implements TransactionalEmailSender {
 
   // --- Admin: list / detail ----------------------------------------------
 
+  /**
+   * Whether an operator may switch this one email off (issue #89).
+   *
+   * Resolved from the registry on every read rather than persisted on the row:
+   * the declaration is shipped code owned by the sending module, so a stored
+   * copy would go stale the moment that module changed its mind, and the
+   * reconciler would have one more column to fight over.
+   */
+  private protectionOf(code: string): {
+    deactivatable: boolean;
+    nonDeactivatableReason: string | null;
+  } {
+    const reason = this.defaults.nonDeactivatableReasonOf(code);
+    return { deactivatable: reason === null, nonDeactivatableReason: reason };
+  }
+
+  private async summarize(
+    em: EntityManager,
+    email: TransactionalEmail,
+  ): Promise<TransactionalEmailSummary> {
+    const globalCount = await em.count(TransactionalEmailContent, { emailId: email.id, salesChannelId: null });
+    const channelCount = await em.count(TransactionalEmailContent, { emailId: email.id, salesChannelId: { $ne: null } });
+    return {
+      code: email.code,
+      name: email.name,
+      ownerModule: email.ownerModule,
+      group: email.groupCode,
+      active: email.active,
+      languages: email.languages,
+      hasGlobalOverride: globalCount > 0,
+      hasChannelOverride: channelCount > 0,
+      ...this.protectionOf(email.code),
+    };
+  }
+
   async list(): Promise<TransactionalEmailSummary[]> {
     const em = this.emFactory();
     const emails = await em.find(TransactionalEmail, {}, { orderBy: { name: 'asc' } });
     const out: TransactionalEmailSummary[] = [];
     for (const e of emails) {
-      const globalCount = await em.count(TransactionalEmailContent, { emailId: e.id, salesChannelId: null });
-      const channelCount = await em.count(TransactionalEmailContent, { emailId: e.id, salesChannelId: { $ne: null } });
-      out.push({
-        code: e.code,
-        name: e.name,
-        ownerModule: e.ownerModule,
-        group: e.groupCode,
-        active: e.active,
-        languages: e.languages,
-        hasGlobalOverride: globalCount > 0,
-        hasChannelOverride: channelCount > 0,
-      });
+      out.push(await this.summarize(em, e));
     }
     return out;
+  }
+
+  /**
+   * One email's summary, re-read from the database.
+   *
+   * The activation route answers with this rather than with what it just
+   * wrote — the flip runs on the Command Bus's own forked EM, so the only
+   * honest report of the committed state is a fresh read. Hence `refresh`
+   * rather than `em.clear()`: the request-scoped identity map may hold entities
+   * the auth guard put there, and discarding those to re-read one row is a
+   * wider blast radius than the question needs.
+   */
+  async summary(code: string): Promise<TransactionalEmailSummary> {
+    const em = this.emFactory();
+    const email = await em.findOne(TransactionalEmail, { code }, { refresh: true });
+    if (!email) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Transactional email "${code}" not found.`);
+    return this.summarize(em, email);
   }
 
   private async loadEmailOrThrow(em: EntityManager, code: string): Promise<TransactionalEmail> {
@@ -200,6 +354,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       default: { subject: email.defaultSubject[lang] ?? '', content: defaultContentTree as PuckDataTree },
       hasGlobalOverride: globalCount > 0,
       hasChannelOverride: channelCount > 0,
+      ...this.protectionOf(email.code),
     };
   }
 

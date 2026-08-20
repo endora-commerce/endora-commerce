@@ -116,6 +116,50 @@ so behavior is unchanged in environments without the module.
 each variable's declared sample value (and any unsaved draft content), returning
 `{ subject, html, text }`. The admin opens the HTML in a new tab.
 
+## Switching an email off
+
+The module itself is **non-deactivatable**: every deployment sends account
+verification, invitations and order mail through it, so `/platform/modules`
+renders it locked with that reason rather than as a toggle. The granularity that
+*is* offered is the individual email — the list at `/transactional-emails`
+carries a per-row switch, backed by
+`POST /api/v1/admin/transactional-emails/{code}/activation` with `{ active }`.
+The flip runs through the Command Bus, so it is audited as
+`transactional_email.activation.set` and reversible; it drops no content, no
+override and no per-channel customization. A deactivated email answers
+`{ status: 'deactivated' }` at send time and **no fallback mail goes out**.
+
+Emails required to create an account or to get back into one may not be switched
+off at all: today `email_verification` and `organization_invitation`. The
+declaration lives on the owning module's registry entry
+(`EmailDefaults.nonDeactivatable`), not in a list held by this module or by the
+Admin UI, and a refused flip answers `409 TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE`
+carrying that module's own reason — the same shape the module-level refusal uses.
+
+## Delivery record
+
+Every send leaves one row in `email_deliveries`, a table owned by the `email`
+module — the transport is where a message's fate is decided, so it is where the
+record of that fate lives. The row carries the recipient, the email code, the
+sales channel, the message id, the business document the message delivered (an
+invoice, typically), the outcome and the moment it was attempted.
+
+The outcome is one of three, and the split is the point of the table:
+
+| Status | Means | Typical reason |
+| --- | --- | --- |
+| `sent` | the transport accepted the message | — |
+| `suppressed` | the platform deliberately did not send | `deactivated` (an operator switched this email off), `duplicate_message_id` |
+| `failed` | the message was meant to go out and did not | `transport_error`, `no_transport`, `no_definition` |
+
+An operator asking "did the customer get the invoice" therefore gets an answer
+that outlives a log rotation, and one that does not confuse a configuration they
+chose with an outage. This is **best-effort delivery with a durable record**, not
+guaranteed delivery: there is no retry queue and no outbox, a resend stays an
+operator action, and a message lost between the business write and the transport
+call is lost. There is no admin screen over the table yet — it is read from the
+database.
+
 ## Permissions
 
 - `transactional_emails:read` — view emails, blocks, templates, branding, preview.

@@ -1,12 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type DictionaryEntryType } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CurrencyReadPort,
+  type DictionaryEntryType,
+  type LanguageReadPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Currency } from '../../currencies/entities/currency.entity.js';
-import { Language } from '../../languages/entities/language.entity.js';
 import { Country } from '../entities/country.entity.js';
 import { DictionaryTranslation } from '../entities/dictionary-translation.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 export interface UpsertTranslationInput {
   entryType: DictionaryEntryType;
@@ -16,8 +19,16 @@ export interface UpsertTranslationInput {
 }
 
 export class TranslationService {
+  /**
+   * Feature 075, Phase C — a translation's parent may be a country (this
+   * module's row), a currency or a language (not). The two that are not are
+   * read through their owners' ports, so a translation cannot be attached to a
+   * parent the platform is no longer serving.
+   */
   constructor(
     private readonly emFactory: () => EntityManager,
+    private readonly currencies: CurrencyReadPort,
+    private readonly languages: LanguageReadPort,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
     private readonly auditLog?: AuditLogService,
   ) {}
@@ -25,7 +36,7 @@ export class TranslationService {
   async upsert(input: UpsertTranslationInput): Promise<DictionaryTranslation> {
     const em = this.emFactory();
     await this.assertParentExists(em, input.entryType, input.entryCode);
-    const language = await em.findOne(Language, { code: input.languageCode });
+    const language = await this.languages.findByCode(input.languageCode);
     if (!language) throw notFound('language', input.languageCode);
     if (!language.isActive) {
       throw new HttpError(
@@ -104,8 +115,8 @@ export class TranslationService {
       entryType === 'country'
         ? await em.findOne(Country, { code: entryCode })
         : entryType === 'currency'
-          ? await em.findOne(Currency, { code: entryCode })
-          : await em.findOne(Language, { code: entryCode });
+          ? await this.currencies.findByCode(entryCode)
+          : await this.languages.findByCode(entryCode);
     if (!exists) throw notFound(entryType, entryCode);
   }
 }

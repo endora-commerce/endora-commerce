@@ -1,19 +1,22 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
+  SESSION_COOKIE_NAME,
   customerLoginRequestSchema,
   emailVerificationRequestSchema,
+  normalizeEmailAddress,
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
   registerOrganizationRequestSchema,
   type CartMergeOutcome,
   type CartMergeOutcomePublic,
+  type CustomerAccountRecord,
+  type CustomerAuthPort,
+  type CustomerPasswordResetPort,
+  type EmailMailerPort,
 } from '@b2b/contracts';
+import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { RegistrationService } from './services/registration-service.js';
 import type { EmailVerificationService } from './services/email-verification-service.js';
-import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
-import type { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
-import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
-import type { Mailer } from '../email/services/mailer.js';
 import { buildVerificationEmail } from './email-templates/verification.js';
 import type { OrgTemplateEmail } from './services/org-template-email.js';
 
@@ -25,8 +28,8 @@ import type { OrgTemplateEmail } from './services/org-template-email.js';
 export interface OrganizationsPublicDeps {
   registrationService: RegistrationService;
   verificationService: EmailVerificationService;
-  customerAuthService: CustomerAuthService;
-  passwordResetService: PasswordResetService;
+  customerAuthService: CustomerAuthPort;
+  passwordResetService: CustomerPasswordResetPort;
   /**
    * Exposes the latest raw verification token for the test-only probe endpoint.
    * Not wired outside of test mode — production keeps this undefined so the
@@ -52,7 +55,7 @@ export interface OrganizationsPublicDeps {
     anonymousCompareToken?: string;
   }) => Promise<{ cartMerge?: CartMergeOutcome }>;
   /** Dispatches verification email after registration. */
-  mailer: Mailer;
+  mailer: EmailMailerPort;
   /** Feature 047 — optional admin-editable template path. */
   templateEmail?: OrgTemplateEmail;
   /** Storefront URL for verify link in the email body. */
@@ -97,8 +100,12 @@ export async function registerOrganizationsPublicRoutes(
               meta: message.meta,
             })
           : false;
-        if (!sentViaTemplate) await deps.mailer.send(message);
-        emailVerificationSent = true;
+        // The flag is in the response body, so it answers what the transport
+        // answered rather than "we reached this line" (D-59).
+        const outcome = sentViaTemplate
+          ? ({ status: 'sent' } as const)
+          : await deps.mailer.send(message);
+        emailVerificationSent = outcome.status === 'sent';
       } catch (err) {
         request.log.error({ err }, 'Failed to send verification email');
       }
@@ -134,8 +141,7 @@ export async function registerOrganizationsPublicRoutes(
     { schema: { body: customerLoginRequestSchema } },
     async (request, reply) => {
       const body = customerLoginRequestSchema.parse(request.body);
-      const channelId =
-        (request as { salesChannel?: { id: string } }).salesChannel?.id ?? null;
+      const channelId = currentSalesChannel()?.id ?? null;
       const result = await customerAuthService.login({
         email: body.email,
         password: body.password,
@@ -204,9 +210,13 @@ export async function registerOrganizationsPublicRoutes(
     { schema: { body: passwordResetRequestSchema } },
     async (request, reply) => {
       const body = passwordResetRequestSchema.parse(request.body);
-      const result = await passwordResetService.requestReset(body.email.toLowerCase());
+      // The address is handed over as typed — the port folds it, as every
+      // other lookup on that table does. The probe key below is the one place
+      // the folded form is needed here, and it uses the same function so the
+      // key cannot drift from what the lookup matched.
+      const result = await passwordResetService.requestReset(body.email);
       if (deps.latestTokenByEmail && result.rawToken) {
-        deps.latestTokenByEmail.set(`reset:${body.email.toLowerCase()}`, result.rawToken);
+        deps.latestTokenByEmail.set(`reset:${normalizeEmailAddress(body.email)}`, result.rawToken);
         deps.latestTokenByEmail.set('__latest_reset__', result.rawToken);
       }
       // Always 202 — defends against account enumeration.
@@ -283,18 +293,7 @@ function serializeOrganization(o: {
   };
 }
 
-function serializeCustomerAccount(c: {
-  id: string;
-  organizationId?: string | null;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-  emailVerifiedAt?: Date | null;
-  twoFactorConfirmedAt?: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
+function serializeCustomerAccount(c: CustomerAccountRecord) {
   return {
     id: c.id,
     organizationId: c.organizationId ?? null,
@@ -303,7 +302,9 @@ function serializeCustomerAccount(c: {
     lastName: c.lastName,
     role: c.role,
     emailVerifiedAt: c.emailVerifiedAt?.toISOString() ?? null,
-    twoFactorEnabled: !!c.twoFactorConfirmedAt,
+    // The record already answers this; the entity carried the secret's
+    // confirmation timestamp and every caller derived the same boolean from it.
+    twoFactorEnabled: c.twoFactorEnabled,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };

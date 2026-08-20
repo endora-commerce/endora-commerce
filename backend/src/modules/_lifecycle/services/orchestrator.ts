@@ -9,11 +9,11 @@ import type {
   ModuleListItem,
   ModuleListItemFlag,
 } from '@b2b/contracts';
-import { ManifestReconciler } from '../../settings/services/manifest-reconciler.js';
-import { Setting } from '../../settings/entities/setting.entity.js';
-import { SettingGroup } from '../../settings/entities/setting-group.entity.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
-import { ModuleRegistration } from '../entities/module-registration.entity.js';
+import { ManifestReconciler } from '../../../kernel/settings/manifest-reconciler.js';
+import { Setting } from '../../../kernel/settings/setting.entity.js';
+import { SettingGroup } from '../../../kernel/settings/setting-group.entity.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import { ModuleRegistration } from '../../../kernel/lifecycle/module-registration.entity.js';
 import {
   acquireLifecycleLock,
   type LifecycleLeaseHandle,
@@ -21,14 +21,14 @@ import {
 import {
   publishStateChanged,
   registryCache,
-} from './registry-cache.js';
+} from '../../../kernel/lifecycle/registry-cache.js';
 import {
   pauseWorkersFor,
   resumeWorkersFor,
-} from '../plugin-helpers.js';
+} from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { LoadedManifestRegistry } from './manifest-loader.js';
-import { getMigrator } from '../../../db/migrator.js';
-import { MIGRATION_REGISTRY } from '../../../db/migrations-registry.js';
+import { MIGRATION_REGISTRY } from '../../../db/migrations-registry.generated.js';
+import { findModuleCycles } from '../../../db/migration-order.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -42,9 +42,8 @@ export interface OrchestratorDeps {
   /** The loaded manifest registry — built once at boot or per CLI run. */
   registry: LoadedManifestRegistry;
   /**
-   * How a migrator is obtained. Defaults to `getMigrator` from
-   * src/db/migrator.ts, which runs the legacy-name pre-flight (feature 065)
-   * before anything computes pending work. Tests inject a stub here.
+   * How a migrator is obtained. Defaults to the ORM's own accessor; tests
+   * inject a stub here so a revert can be observed without touching schema.
    */
   migratorFor?: (orm: MikroORM) => Promise<IMigrator>;
   /** Optional logger (Fastify request-logger compatible). Defaults to console. */
@@ -127,7 +126,8 @@ export class LifecycleError extends Error {
       | 'install-failed'
       | 'uninstall-failed'
       | 'manifest-cycle'
-      | 'lock-busy',
+      | 'lock-busy'
+      | 'non-deactivatable',
     message: string,
     public readonly details: Record<string, unknown> = {},
   ) {
@@ -210,6 +210,8 @@ export class ModuleLifecycleOrchestrator {
           { missing },
         );
       }
+
+      await this.assertInstallClosesNoCycle(moduleId, installedSet);
 
       // Mark 'installing' so a crash leaves a paper trail.
       await this.upsertRegistration(moduleId, {
@@ -406,6 +408,16 @@ export class ModuleLifecycleOrchestrator {
         );
       }
 
+      // D-69 (issue #145) — the declaration that refuses `disable` refuses this
+      // too, soft and hard alike. Uninstall is disable *plus* the settings sweep
+      // below and, on `--hard`, the migration revert, so a lock that forbids the
+      // smaller operation cannot coherently permit the larger one. Raised after
+      // the `already-uninstalled` no-op (nothing left to protect) and before the
+      // dependents check, the uninstall hook and the sweep — the dependents block
+      // covers the locked set only by accident today, since nothing stops an
+      // operator uninstalling the dependents first.
+      this.assertDeactivatable(moduleId);
+
       // Block on dependents (any state except uninstalled).
       const dependents = await this.installedDependentsOf(moduleId);
       if (dependents.length > 0) {
@@ -423,7 +435,9 @@ export class ModuleLifecycleOrchestrator {
         );
       }
 
-      // Run uninstall hook (may fail; log but continue removal of state).
+      // Run the manifest's uninstall hook, before any removal. A throw aborts
+      // the whole uninstall and removes nothing — the settings sweep and the
+      // migration revert below are both downstream of it.
       if (entry?.uninstallHook) {
         try {
           await (entry.uninstallHook as ModuleUninstallHook<EntityManager, Redis>)({
@@ -592,8 +606,10 @@ export class ModuleLifecycleOrchestrator {
         return { moduleId, state: 'already-disabled', cascade: false, cascaded: [] };
       }
 
-      // Find currently-enabled dependents.
-      const directDependents = this.deps.registry.graph.dependentsOf(moduleId);
+      this.assertDeactivatable(moduleId);
+
+      // Find currently-enabled dependents, over both kinds of edge.
+      const directDependents = this.gatingDependentsOf(moduleId);
       const em = this.deps.em();
       const dependentRows = await em.find(ModuleRegistration, {
         moduleId: { $in: directDependents },
@@ -628,6 +644,45 @@ export class ModuleLifecycleOrchestrator {
         const order = this.deps.registry.graph
           .reverseTopologicalOrder()
           .filter((id) => enabledTransitive.has(id));
+        // Every module the cascade would reach is checked before the first
+        // write. A cascade that stops half-way through is worse than the
+        // refusal it was trying to avoid, and the dangerous shape here is a
+        // perfectly ordinary target whose dependent is the module the platform
+        // cannot run without.
+        for (const dep of order) this.assertDeactivatable(dep);
+        // A cascade cannot cross an acknowledged edge, and refusing is the only
+        // honest answer: those edges are mutual by construction — that is why
+        // they are withheld from `dependencies` — so there is no reverse-topo
+        // position for them, and disabling the target anyway would leave the
+        // acknowledging module resolving a port whose owner is gone. Naming it
+        // lets the operator disable it explicitly first (feature 073, FR-008).
+        const cascadeSet = new Set([...order, moduleId]);
+        const stranded = new Set<string>();
+        for (const member of cascadeSet) {
+          for (const dependent of this.acknowledgedDependentsOf(member)) {
+            if (!cascadeSet.has(dependent)) stranded.add(dependent);
+          }
+        }
+        const strandedRows = await em.find(ModuleRegistration, {
+          moduleId: { $in: [...stranded] },
+          state: 'installed',
+        });
+        if (strandedRows.length > 0) {
+          const blocking = strandedRows.map((r) => r.moduleId).sort();
+          await this.deps.auditLog.record({
+            actorAdminUserId: null,
+            action: 'module.dependency_blocked',
+            objectType: 'module',
+            objectId: moduleId,
+            stateAfter: { command: 'disable', conflicting: blocking },
+          });
+          throw new LifecycleError(
+            'dependents-block',
+            `cannot disable "${moduleId}": these modules resolve a port it owns ` +
+              `through an acknowledged edge and cannot be cascaded: ${blocking.join(', ')}`,
+            { dependents: blocking },
+          );
+        }
         for (const dep of order) {
           const depRow = await em.findOne(ModuleRegistration, { moduleId: dep });
           if (!depRow || depRow.state !== 'installed') continue;
@@ -670,6 +725,98 @@ export class ModuleLifecycleOrchestrator {
     } finally {
       await lease.release();
     }
+  }
+
+  /**
+   * The platform axis honours `nonDeactivatable` — D-36a item 3, issue #37.
+   *
+   * Until this existed nothing on this axis read the field for any module, so
+   * `module:disable auth` proceeded and the declaration was a comment that
+   * looked like a guard.
+   *
+   * It guards **every platform-axis withdrawal**: `disable` (the target and
+   * every member of a cascade) and, since D-69 / issue #145, `uninstall` on the
+   * soft and hard path alike. Uninstall is disable plus the settings sweep plus
+   * the schema revert, so the same declaration has to reach it.
+   *
+   * There is deliberately **no `--force`**. `uninstall --hard --force` guards
+   * data loss, a consequence an operator can weigh at the prompt; this guards
+   * a deployment that can no longer authenticate the operator who would undo
+   * it, which they cannot. If the declaration is wrong for a module, the fix is
+   * the manifest, which is reviewed. The operator axis already refuses the same
+   * flip (`activation.commands.ts`), so both axes agree.
+   *
+   * It reads the **manifest**, so a registry row with no manifest — an orphan —
+   * is not covered, deliberately: cleaning those up is the one job `uninstall`
+   * has that nothing else does. `test/unit/_lifecycle/orchestrator.test.ts`
+   * pins that carve-out.
+   */
+  /**
+   * Refuse an install whose arrival closes a dependency cycle, naming every
+   * member (feature 081, FR-012).
+   *
+   * A cycle is not thrown by `orderMigrations`: the manifest graph is the whole
+   * cross-module migration order now, and a manifest can arrive from an
+   * installed package, so refusing there would let one stranger's declaration
+   * stop a shop's own schema from migrating. It comes back as a diagnostic with
+   * three readers instead, and this is the third — the moment the loop would be
+   * *created* is the one moment where refusing costs nothing, because nothing
+   * downstream of it exists yet.
+   *
+   * The graph is the **installed** set plus the arriving module, and only a
+   * component holding the arriving module is refused: a loop between two other
+   * modules is somebody else's problem, and blocking every later install on it
+   * would reproduce the platform-wide stall the no-throw rule exists to
+   * prevent. It reuses `findModuleCycles` rather than `ModuleDepGraph.hasCycle`
+   * — one walk, so the install refusal and the migration order cannot disagree
+   * about what a cycle is, and the operator reads the same member list in both.
+   */
+  private async assertInstallClosesNoCycle(
+    moduleId: string,
+    installed: ReadonlySet<string>,
+  ): Promise<void> {
+    const nodes = new Set<string>([...installed, moduleId]);
+    const graph = new Map<string, readonly string[]>();
+    for (const id of nodes) {
+      // An orphan registration row — installed, no manifest — declares nothing
+      // we can read, so it contributes a node and no edge.
+      const declared = this.deps.registry.modules.get(id)?.manifest.dependencies ?? [];
+      graph.set(
+        id,
+        declared.filter((dependency) => nodes.has(dependency)),
+      );
+    }
+
+    const closed = findModuleCycles(graph).find((diagnostic) =>
+      diagnostic.modules.includes(moduleId),
+    );
+    if (!closed) return;
+
+    await this.deps.auditLog.record({
+      actorAdminUserId: null,
+      action: 'module.dependency_blocked',
+      objectType: 'module',
+      objectId: moduleId,
+      stateAfter: { command: 'install', cycle: closed.modules },
+    });
+    throw new LifecycleError(
+      'manifest-cycle',
+      `module "${moduleId}" cannot be installed: with it, the modules ` +
+        `[${closed.modules.join(', ')}] depend on each other in a loop. Nothing can be ` +
+        `installed, migrated or removed before the modules it depends on, so a loop has ` +
+        `no order at all. Fix the \`dependencies\` array in one of them.`,
+      { moduleId, cycle: closed.modules },
+    );
+  }
+
+  private assertDeactivatable(moduleId: string): void {
+    const activation = this.deps.registry.modules.get(moduleId)?.manifest.activation;
+    if (!activation || !('nonDeactivatable' in activation)) return;
+    throw new LifecycleError(
+      'non-deactivatable',
+      `module "${moduleId}" declares itself non-deactivatable: ${activation.reason}`,
+      { moduleId, reason: activation.reason },
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -813,13 +960,41 @@ export class ModuleLifecycleOrchestrator {
       state: { $in: ['installed', 'disabled'] },
     });
     const installed = new Set(rows.map((r) => r.moduleId));
-    return this.deps.registry.graph
-      .dependentsOf(moduleId)
-      .filter((id) => installed.has(id));
+    return this.gatingDependentsOf(moduleId).filter((id) => installed.has(id));
+  }
+
+  /**
+   * Direct dependents over **both** kinds of edge — feature 073, FR-008.
+   *
+   * `registry.graph` is built from `manifest.dependencies` alone because it has
+   * to be a DAG: it computes the install order. That leaves out the handful of
+   * real port edges the manifests withhold for exactly that reason, and reading
+   * only the DAG here is what let the two presence axes disagree — the operator
+   * axis refuses to switch `price_lists` off under `catalog`, so this one must
+   * too, or the same platform answers the same question two ways depending on
+   * which door the operator used.
+   */
+  private gatingDependentsOf(moduleId: string): string[] {
+    return [
+      ...new Set([
+        ...this.deps.registry.graph.dependentsOf(moduleId),
+        ...this.acknowledgedDependentsOf(moduleId),
+      ]),
+    ].sort();
+  }
+
+  /** The modules that acknowledge a withheld port edge onto `moduleId`. */
+  private acknowledgedDependentsOf(moduleId: string): string[] {
+    const out: string[] = [];
+    for (const [id, entry] of this.deps.registry.modules) {
+      const acknowledged = entry.manifest.acknowledgedDependencies ?? [];
+      if (acknowledged.some((edge) => edge.moduleId === moduleId)) out.push(id);
+    }
+    return out.sort();
   }
 
   private async migrator(): Promise<IMigrator> {
-    const accessor = this.deps.migratorFor ?? getMigrator;
+    const accessor = this.deps.migratorFor ?? (async (orm: MikroORM) => orm.getMigrator());
     return accessor(this.deps.orm);
   }
 
@@ -830,8 +1005,10 @@ export class ModuleLifecycleOrchestrator {
    * orchestrator must never pull in the ORM config) and the migration name is
    * always `cls.name`, which is exactly what `mikro_orm_migrations.name`
    * stores. Ordering is ascending timestamp, which for a single module is the
-   * resolved execution order: `orderMigrations` guarantees intra-module
-   * chronology (contracts/ordering-algorithm.md, invariant I2).
+   * resolved execution order: `orderMigrations` emits a module's migrations
+   * contiguously and in ascending timestamp order
+   * (specs/081-per-module-migration-order/contracts/ordering-algorithm.md,
+   * invariants J2 and J3).
    *
    * Best-effort: a module with no migrations logs a warning and reverts
    * nothing, and a failing revert stops the loop rather than widening the gap.

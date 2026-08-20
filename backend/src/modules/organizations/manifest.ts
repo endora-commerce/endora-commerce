@@ -73,16 +73,137 @@ export const manifest = defineModuleManifest({
   //                        cycles as soon as the sales_channels bridge edge is
   //                        also declared: organizations → inventory →
   //                        sales_channels → organizations
-  //   → admin_users        (organizations.assigned_sales_rep_id,
-  //                         organization_tax_id_validations.validated_by)
   //   → delivery_methods   (organization_delivery_methods.delivery_method_id)
   //   → payment_methods    (organization_payment_methods.payment_method_id)
-  // The last three close no cycle on their own; they are dropped because a
+  // The last two close no cycle on their own; they are dropped because a
   // tenancy root that cannot install before an optional commercial module is
-  // not a root. All five are recorded in
+  // not a root. (A third, `admin_users`, was here until T138 declared
+  // `admin_notifications` — which depends on it — and made the edge
+  // transitively satisfied.) All four are recorded in
   // test/unit/db/acknowledged-fk-edges.ts, which asserts each is still real and
   // still an exception.
-  dependencies: ['settings'],
+  // `dictionaries` since feature 072 (T138): registration validates the
+  // Organization's country code against the dictionary. `RegistrationService`
+  // has always taken the validator and neither root ever passed one, so the
+  // check was dead and the edge undeclared.
+  // `email` and `admin_notifications` since feature 072 (T138): the invitation,
+  // verification and new-registration mails, and the in-app admin notification
+  // that accompanies the last of them. `addresses` is deliberately absent for
+  // the same reason the five FK edges above are — it declares this module, so
+  // the edge is mutual and declaring it back closes the cycle; it is recorded
+  // in `acknowledgedDependencies` below instead.
+  // `transactional_emails` since T120: verification, invitation and
+  // new-registration mail routes through that module's `templateEmailPort`.
+  // `admin_roles` since T143a: the sales-rep visibility scope asks
+  // `permissionService` whether the rep holds `organizations:rollup` before it
+  // expands an assignment to its subtree. Declarable rather than acknowledged —
+  // `admin_roles` depends on nothing, so the edge closes no cycle.
+  dependencies: [
+    'admin_notifications',
+    'admin_roles',
+    'custom_fields',
+    'dictionaries',
+    'email',
+    'settings',
+    'transactional_emails',
+  ],
+  // Feature 073, Amendment A1 — the five port edges this module genuinely has
+  // and cannot declare above, moved here from `ACKNOWLEDGED_PORT_EDGES` in
+  // `backend/scripts/check-port-dependencies.ts` so that one declaration feeds
+  // both the CI check and the flip-time refusal. They are ignored by the
+  // install and migration order, which is the only reason they were withheld.
+  acknowledgedDependencies: [
+    {
+      moduleId: 'addresses',
+      port: 'addressServicePort',
+      reason:
+        'Mutual by nature. `addresses` declares this module because every stored ' +
+        'address is organization-scoped, and it must install after the tenancy root. ' +
+        'This module resolves the published `AddressServicePort` because its customer ' +
+        'routes expose address CRUD — it named the `addressService` class registration ' +
+        'until issue #195, which is how the entity crossed the boundary behind a ' +
+        'record-shaped type. Declaring the second direction closes the cycle and makes ' +
+        'the tenancy root uninstallable first, which Rule 3 forbids — the same trade the ' +
+        "manifest's five acknowledged FK edges record. It goes when the address routes " +
+        'move to the module that owns the table.',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'customerAuthPort',
+      reason:
+        'The same mutual pair, six names over. `customer_accounts` declares this ' +
+        'module — every account belongs to one, and feature 051 made that the tenancy ' +
+        "direction — while this module's public registration, login, password-reset " +
+        'and TOTP routes are served by those services. The manifest already ' +
+        'records the mirror of this as an acknowledged FK edge ' +
+        '(`email_verification_tokens.customer_account_id`). Feature 075 Phase C ' +
+        'renamed two of the six: `customerAuthService` and `customerRoleService` hand ' +
+        "back that module's entity, and this module resolves the record-returning " +
+        '`customerAuthPort` / `customerRolePort` beside them instead.',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'passwordResetService',
+      reason: 'See the `customerAuthPort` edge above — same mutual pair.',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'customerRolePort',
+      reason: 'See the `customerAuthPort` edge above — same mutual pair.',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'totpEnrolmentService',
+      reason: 'See the `customerAuthPort` edge above — same mutual pair.',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'customerAccountReadPort',
+      reason:
+        'Feature 075 Phase C. Every route file and three services in this module read ' +
+        "that module's `CustomerAccount` entity directly — the member panel, the " +
+        'Org-Admin gate, `GET /me`, registration, invitation and the personal-organization ' +
+        'provisioner. Same mutual pair as `customerAuthPort` above, so the same trade.',
+    },
+    {
+      moduleId: 'customer_accounts',
+      port: 'customerAccountMemberWritePort',
+      reason:
+        'Feature 075 Phase C, the write half of the edge above: this module created and ' +
+        "mutated that module's entity in seven places. The writes moved to the owner and " +
+        'the audit rows stayed here. Same mutual pair, same trade.',
+    },
+    {
+      moduleId: 'price_lists',
+      port: 'priceListReadPort',
+      reason:
+        'Feature 075 Phase C. The applicable-price-lists panel ran ' +
+        "`em.find(PriceList, { status: 'active' })` against that module's table and spelled " +
+        "the status filter itself; it asks `price_lists` now. `price_lists` declares this " +
+        'module (every price rule is organization-scoped), so declaring the second direction ' +
+        'closes the cycle and makes the tenancy root uninstallable first, which Rule 3 ' +
+        'forbids — the same trade the four FK edges above record. It goes when the panel ' +
+        'moves to the module that owns the table.',
+    },
+  ],
+  // Feature 072/073 (Constitution XVII). The Organization is the single unit of
+  // tenancy (Principle XI): every transacting customer has one, every
+  // tenant-scoped entity carries its id, and the global-filter guard in
+  // `src/tenancy/` resolves against this module's table. Principle XI states
+  // outright that a design with a "no-organization" path is invalid, so there is
+  // no coherent deployment with this switched off — it is not a smaller platform
+  // but one with no tenant.
+  //
+  // The declaration is also forced from above: `customer_accounts` is itself
+  // non-deactivatable and depends on this module, and dependencies fail closed.
+  // Without it, switching `organizations` off would break a module the operator
+  // was promised could not be broken.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'The single unit of tenancy — every organization-scoped entity, membership and ' +
+      'transacting customer resolves through it; switched off, the platform has no tenant.',
+  },
   settings,
   // Feature 047 — admin-editable transactional emails owned by this module.
   transactionalEmails: [

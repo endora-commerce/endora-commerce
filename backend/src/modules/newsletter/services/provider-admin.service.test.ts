@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { z } from 'zod';
 import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
 import { NewsletterProviderAdminService, type SettingsWriter } from './provider-admin.service.js';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import type { NewsletterProviderRegistry } from './provider/provider-registry.js';
 
 class FakeSettings {
@@ -34,7 +34,6 @@ describe('NewsletterProviderAdminService (US7; feature 058)', () => {
       settings as unknown as SettingsService,
       writer,
       providers,
-      'default',
     );
     return { svc, writer };
   }

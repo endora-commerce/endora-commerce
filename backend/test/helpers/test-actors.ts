@@ -1,11 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { ERROR_CODES } from '@b2b/contracts';
-import { HttpError } from '../../src/http/error-envelope.js';
-import type { RequireAdminFactory } from '../../src/modules/catalog/routes.admin.js';
 import type { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
+import type { RequireAdminFactory } from '../../src/kernel/ports/require-admin.js';
+import { createRequireAdmin } from '../../src/modules/auth/require-admin.js';
 
 /**
  * Test-only auth wiring. The US1 contract and integration tests identify the
@@ -22,6 +21,8 @@ import type { PermissionService } from '../../src/modules/admin_roles/services/p
  */
 
 export const TEST_ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000aa';
+/** A second Organization, so a test can tell "not disclosed" from "disclosed to everyone". */
+export const OTHER_TEST_ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000ab';
 export const TEST_CUSTOMER_ID = '00000000-0000-4000-8000-0000000000a1';
 export const TEST_CUSTOMER_RFQ_ID = '00000000-0000-4000-8000-0000000000a2';
 export const TEST_CUSTOMER_EMPTY_ID = '00000000-0000-4000-8000-0000000000a3';
@@ -91,6 +92,14 @@ export const CUSTOMER_COOKIES: Record<string, { customerAccountId: string; organ
   'stub-customer-session-cl-b': {
     customerAccountId: '00000000-0000-4000-8000-0000000000a6',
     organizationId: TEST_ORGANIZATION_ID,
+  },
+  // A buyer of a *different* Organization (issue #227). Every visibility
+  // enforcement test needs one: "the restricted product is not disclosed" is
+  // only a claim about enforcement when a signed-in buyer who is not on the
+  // allow-list is refused, next to one who is on it and is served.
+  'stub-customer-session-other-org': {
+    customerAccountId: '00000000-0000-4000-8000-0000000000a7',
+    organizationId: OTHER_TEST_ORGANIZATION_ID,
   },
   // Stock-race customers (T100 fixture).
   'stub-customer-session-race-a': {
@@ -260,51 +269,42 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
   });
 }
 
-export function requireTestAdminAny(
-  permissionService: PermissionService,
-): (codes: readonly string[]) => ReturnType<RequireAdminFactory> {
-  return (codes) => async (request) => {
-    if (request.testActor?.kind !== 'admin') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-    }
-    for (const code of codes) {
-      if (await permissionService.hasPermission(request.testActor.adminUserId, code)) {
-        return;
-      }
-    }
-    throw new HttpError(
-      403,
-      ERROR_CODES.FORBIDDEN,
-      `Missing permission: one of ${codes.join(', ')}.`,
-    );
-  };
+/**
+ * Feature 072, T011 — the harness and production now run the SAME admin guard.
+ *
+ * They used to run two. Production read `request.actor`, called
+ * `promoteAdminActor` and checked `permissionService.hasPermission`; this file
+ * read `request.testActor` and took `permissionService` as **optional**, so
+ * omitting it silently disabled every permission check across 205 call sites in
+ * 60 modules. All 28 wiring sites in `test-server.ts` happened to pass one, so
+ * the checks did run — but nothing made them, and the two guards still differed
+ * in what they read and in whether an admin session riding alongside a customer
+ * session was promoted.
+ *
+ * These wrappers stay so `test-server.ts` reads as before; `permissionService`
+ * is now **required**. The actor lookup works because `registerTestAuth` mirrors
+ * every resolved actor onto `request.actor` as well as `request.testActor`.
+ *
+ * `requireTestAdminAny` used to sit beside this one and is gone (feature 072,
+ * T138): it was a second implementation of a guard `auth` already provides as a
+ * port, kept alive by exactly one caller — the `organizationsModule` options in
+ * `test-server.ts`. With that module composed through the container, the
+ * harness resolves `auth`'s `requireAdminAny` like production does, which is
+ * the divergence T011/T012 closed for `requireAdmin` and left open for this
+ * twin.
+ */
+export function requireTestAdmin(permissionService: PermissionService): RequireAdminFactory {
+  return createRequireAdmin({ permissionService });
 }
 
-export function requireTestAdmin(permissionService?: PermissionService): RequireAdminFactory {
-  return (permission?: string) => async (request) => {
-    if (request.testActor?.kind !== 'admin') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-    }
-    if (permission && permissionService) {
-      const ok = await permissionService.hasPermission(
-        request.testActor.adminUserId,
-        permission,
-      );
-      if (!ok) {
-        throw new HttpError(
-          403,
-          ERROR_CODES.FORBIDDEN,
-          `Missing permission: ${permission}.`,
-        );
-      }
-    }
-  };
-}
-
-export function requireTestCustomer() {
-  return async (request: FastifyRequest): Promise<void> => {
-    if (request.testActor?.kind !== 'customer') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-    }
-  };
-}
+/*
+ * `requireTestCustomer` used to sit here and is gone (issue #43) — the third
+ * and last guard this file implemented for itself. It read `request.testActor`
+ * where `composition.ts`'s inline copy read `request.actor`, so the two
+ * disagreed on every request shape that exists: a request carrying only the
+ * production actor was admitted by one and refused by the other, and a request
+ * carrying neither crashed the root's copy with a `TypeError` while this one
+ * answered 401. `auth` provides `requireCustomer` as a port now, both roots
+ * resolve it, and the surviving implementation makes the production read with
+ * this file's tolerance for an unresolved actor.
+ */

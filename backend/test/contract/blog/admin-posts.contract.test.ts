@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
-import { setupBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 describe('admin Blog Posts CRUD contract (T030)', () => {
   let h: BackendServerHandle;
@@ -25,9 +29,7 @@ describe('admin Blog Posts CRUD contract (T030)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   async function createPost(slug: string, overrides?: Record<string, unknown>) {

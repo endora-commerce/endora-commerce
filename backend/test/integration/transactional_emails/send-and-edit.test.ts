@@ -9,15 +9,25 @@ import { TransactionalEmailService } from '../../../src/modules/transactional_em
 import { ContentResolver } from '../../../src/modules/transactional_emails/services/content-resolver.js';
 import { BrandingService } from '../../../src/modules/transactional_emails/services/branding.service.js';
 import { EmbedResolver } from '../../../src/modules/transactional_emails/services/embed-resolver.js';
-import type { SettingsService } from '../../../src/modules/settings/services/settings.service.js';
+import { EmailDefaultsRegistry } from '../../../src/modules/transactional_emails/services/email-defaults-registry.js';
+import {
+  SettingNotRegistered,
+  type SettingsService,
+} from '../../../src/kernel/settings/settings.service.js';
 
 const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };
 const BASE = '/api/v1/admin/transactional-emails';
 
 // Settings stub: always throws so branding falls back to defaults (empty logo).
 const fakeSettings = {
-  get: async () => {
-    throw new Error('no settings in this test');
+  // D-48 — a *real* settings condition, not a bare `Error`. Branding used to
+  // absorb anything a settings read threw, which is how it also absorbed the
+  // `SettingOutOfScopeForChannel` its nil-uuid scope produced; it degrades on
+  // the two conditions with a defined fallback and propagates the rest now
+  // (composition rule 7), so a stub throwing a generic error is asserting a
+  // behaviour the service no longer has.
+  get: async (code: string) => {
+    throw new SettingNotRegistered(code);
   },
 } as unknown as SettingsService;
 
@@ -145,6 +155,7 @@ describe('transactional emails — edit + send (US1)', () => {
       contentResolver: new ContentResolver(),
       branding: new BrandingService(fakeSettings),
       embeds: new EmbedResolver(),
+      defaults: new EmailDefaultsRegistry(),
       mailer,
     });
 
@@ -178,6 +189,7 @@ describe('transactional emails — edit + send (US1)', () => {
       contentResolver: new ContentResolver(),
       branding: new BrandingService(fakeSettings),
       embeds: new EmbedResolver(),
+      defaults: new EmailDefaultsRegistry(),
       mailer,
     });
     await service.send({

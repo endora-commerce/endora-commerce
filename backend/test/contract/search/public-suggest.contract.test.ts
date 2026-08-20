@@ -6,8 +6,9 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
+import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';
 
 /**
  * T010 — Contract test for `GET /api/v1/search/suggest` (US1, feature 006).
@@ -56,6 +57,7 @@ describe('GET /api/v1/search/suggest — feature 006 / US1', () => {
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
       attributeRead: h.catalogAttributeRead,
+      ...searchIndexerNeighbourPorts(h),
     });
     const channels = await h.em().find(SalesChannel, {});
     for (const channel of channels) {

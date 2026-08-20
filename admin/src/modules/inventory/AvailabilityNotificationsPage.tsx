@@ -4,6 +4,7 @@ import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
+import { normalize } from '@/lib/text-normalization';
 
 interface NotificationRow {
   id: string;
@@ -63,13 +64,13 @@ export function AvailabilityNotificationsPage(): ReactNode {
   }, [refresh]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalize(query);
     if (!q) return rows;
     return rows.filter(
       (r) =>
-        r.productSku.toLowerCase().includes(q) ||
-        r.productName.toLowerCase().includes(q) ||
-        r.email.toLowerCase().includes(q),
+        normalize(r.productSku).includes(q) ||
+        normalize(r.productName).includes(q) ||
+        normalize(r.email).includes(q),
     );
   }, [rows, query]);
 

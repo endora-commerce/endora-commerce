@@ -17,6 +17,19 @@ export const googleTagManagerSettingsManifest = defineModuleSettingsManifest({
   groups: [{ code: 'google_tag_manager', name: 'Google Tag Manager' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide, and
+      // deliberately not `google_tag_manager.enabled`: that code already exists
+      // and is per-sales-channel, answering "does the container load on this
+      // storefront". This one answers "does this client have GTM at all".
+      code: 'google_tag_manager.module_enabled',
+      name: 'Google Tag Manager module enabled',
+      description:
+        'Switches the Google Tag Manager container injection and the server-side relay on or off for the whole platform. Separate from the per-channel switch, which decides where the container actually loads. Nothing is dropped: every setting keeps its value.',
+      groupCode: 'google_tag_manager',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: GOOGLE_TAG_MANAGER_SETTING_CODES.ENABLED,
       name: 'Enable Google Tag Manager',
       description:
@@ -108,4 +121,5 @@ export const manifest = defineModuleManifest({
       weight: 246,
     },
   ],
+  activation: { settingCode: 'google_tag_manager.module_enabled', default: true },
 });

@@ -52,6 +52,13 @@ interface Props {
   channelContext: string | null;
   isCopied: boolean;
   resetting: boolean;
+  /**
+   * Feature 073 / FR-033 — the module that owns this setting is not effectively
+   * present. The stored value is still shown (off is not uninstall), but every
+   * input is disabled and the server refuses the write anyway, so a stale tab
+   * cannot save through this row either.
+   */
+  readOnly?: boolean;
   onChange: (patch: Partial<SettingDraft>) => void;
   onCopyCode: () => void;
   onReset: () => void;
@@ -68,6 +75,7 @@ export function SettingRowEditor({
   channelContext,
   isCopied,
   resetting,
+  readOnly = false,
   onChange,
   onCopyCode,
   onReset,
@@ -84,8 +92,11 @@ export function SettingRowEditor({
     : setting.globalValue !== null && setting.globalValue !== undefined;
 
   const setText = useCallback(
-    (next: string) => onChange({ text: next }),
-    [onChange],
+    (next: string) => {
+      if (readOnly) return;
+      onChange({ text: next });
+    },
+    [onChange, readOnly],
   );
 
   return (
@@ -93,6 +104,7 @@ export function SettingRowEditor({
       className={cn(
         'space-y-2 rounded-md border px-4 py-3 transition-colors',
         isDirty && 'border-amber-300 bg-amber-50/40',
+        readOnly && 'bg-muted/40 opacity-70',
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -155,9 +167,19 @@ export function SettingRowEditor({
                 {t('editor.dirty')}
               </Badge>
             )}
+            {readOnly && (
+              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                {t('editor.readOnly')}
+              </Badge>
+            )}
           </div>
           {setting.description ? (
             <p className="mt-1 text-xs text-muted-foreground">{setting.description}</p>
+          ) : null}
+          {readOnly ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t('editor.readOnlyReason')}
+            </p>
           ) : null}
         </div>
         <Button
@@ -166,6 +188,7 @@ export function SettingRowEditor({
           size="sm"
           onClick={onReset}
           disabled={
+            readOnly ||
             resetting ||
             (channelContext === null && !hasGlobalOverride) ||
             (channelContext !== null && source !== 'channel-override')
@@ -178,12 +201,13 @@ export function SettingRowEditor({
         </Button>
       </div>
 
-      <div>
+      <fieldset disabled={readOnly} className="contents">
         {setting.enumOptions && setting.enumOptions.length > 0 ? (
           <select
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             value={draft.text}
             onChange={(e) => setText(e.target.value)}
+            disabled={readOnly}
           >
             {setting.enumOptions.map((opt) => (
               <option key={opt} value={opt}>
@@ -209,6 +233,7 @@ export function SettingRowEditor({
             autoComplete="new-password"
             value={draft.text}
             onChange={(e) => setText(e.target.value)}
+            disabled={readOnly}
             placeholder={
               hasGlobalOverride || setting.valuesByChannel.some((v) => v.isSet)
                 ? t('editor.placeholder.secretSet')
@@ -216,9 +241,9 @@ export function SettingRowEditor({
             }
           />
         ) : (
-          renderInput(setting.valueType, draft.text, setText, t)
+          renderInput(setting.valueType, draft.text, setText, t, readOnly)
         )}
-      </div>
+      </fieldset>
 
       <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
         {isSecret ? (
@@ -263,6 +288,7 @@ function renderInput(
   value: string,
   setValue: (v: string) => void,
   t: (key: string, params?: Record<string, string | number>) => string,
+  readOnly: boolean,
 ): ReactNode {
   if (valueType === 'boolean') {
     return (
@@ -270,6 +296,7 @@ function renderInput(
         className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         value={value}
         onChange={(e: ChangeEvent<HTMLSelectElement>) => setValue(e.target.value)}
+        disabled={readOnly}
       >
         <option value="true">true</option>
         <option value="false">false</option>
@@ -282,6 +309,7 @@ function renderInput(
         className="min-h-[96px] w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
         value={value}
         onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setValue(e.target.value)}
+        disabled={readOnly}
         placeholder={t('editor.placeholder.json')}
       />
     );
@@ -291,6 +319,7 @@ function renderInput(
       <Input
         value={value}
         onChange={(e) => setValue(e.target.value)}
+        disabled={readOnly}
         placeholder={t('editor.placeholder.stringList')}
       />
     );
@@ -300,6 +329,7 @@ function renderInput(
       type={valueType === 'number' ? 'number' : 'text'}
       value={value}
       onChange={(e) => setValue(e.target.value)}
+      disabled={readOnly}
     />
   );
 }

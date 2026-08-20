@@ -2,13 +2,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { defineModuleSettingsManifest, ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * T030 — Contract test: PUT /api/v1/admin/settings/:code/value with
@@ -48,9 +49,7 @@ describe('admin set value (T030)', () => {
     const em = h.em();
     for (const s of await em.find(Setting, { ownerModule: 'us2_test_setval' })) em.remove(s);
     await em.flush();
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   beforeEach(async () => {

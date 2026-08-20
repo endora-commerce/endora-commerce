@@ -2,9 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 describe('admin Megamenu CRUD contract (T021)', () => {
   let h: BackendServerHandle;
@@ -18,9 +19,7 @@ describe('admin Megamenu CRUD contract (T021)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   async function createMenu(name = `Menu ${Date.now()}`): Promise<{ id: string; version: number }> {

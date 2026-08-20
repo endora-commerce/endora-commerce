@@ -1,12 +1,10 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID } from '../../helpers/seed-catalog.js';
-import { Comparison } from '../../../src/modules/comparisons/entities/comparison.entity.js';
-import { ComparisonProduct } from '../../../src/modules/comparisons/entities/comparison-product.entity.js';
 
 /**
  * T020 — Integration test: anonymous-cookie ownership flow (US1, R-2).
@@ -33,11 +31,10 @@ describe('Compare module — anonymous-cookie ownership (US1)', () => {
     await teardownBackendServer(h);
   });
 
-  beforeEach(async () => {
-    const em = h.em();
-    await em.nativeDelete(ComparisonProduct, {});
-    await em.nativeDelete(Comparison, {});
-  });
+  // No `beforeEach` cleanup (issue #166): the cookie *is* the identity this
+  // file is about, and every case mints its own by posting without one. A test
+  // that emptied the table would be deleting rows other files created to prove
+  // a point about its own.
 
   it('mints compare_token on the first write with HttpOnly + SameSite=Lax + Path=/', async () => {
     const res = await h.app.inject({
@@ -93,7 +90,8 @@ describe('Compare module — anonymous-cookie ownership (US1)', () => {
     });
     expect(first.statusCode).toBe(200);
 
-    // A second caller, no cookie — must see "no comparison yet".
+    // A second caller, no cookie — must see "no comparison yet", whatever
+    // comparisons other callers hold.
     const otherCaller = await h.app.inject({
       method: 'GET',
       url: '/api/v1/comparisons/me',

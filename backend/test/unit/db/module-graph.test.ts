@@ -1,19 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MigrationOrderError,
   orderMigrations,
   type MigrationClass,
+  type MigrationOrderDiagnostic,
   type MigrationRegistryEntry,
 } from '../../../src/db/migration-order.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 
 /**
- * The module dependency graph the migration order is corrected by (FR-029,
- * FR-030, SC-007).
+ * The module dependency graph the migration order is computed from (081
+ * FR-011).
  *
  * Pure: no database, no ORM bootstrap. The graph is assembled exactly as
  * src/db/mikro-orm.config.ts assembles it
- * (specs/065-manifest-aware-migrations/contracts/ordering-algorithm.md §5).
+ * (specs/081-per-module-migration-order/contracts/ordering-algorithm.md §3).
+ *
+ * A cycle is no longer thrown — under the new rule the graph is the primary
+ * ordering, so a throw would let one mis-declared manifest stop a whole
+ * platform's schema from migrating. It comes back as a diagnostic instead, and
+ * this file is the reader that turns a diagnostic over *this* repository's
+ * manifests into a red build.
  */
 
 const DECLARED: ReadonlyMap<string, readonly string[]> = new Map(
@@ -34,13 +40,14 @@ const PROBE: readonly MigrationRegistryEntry[] = [
   { moduleId: 'core', cls: migrationClass('Migration20260901T090000CoreProbe') },
 ];
 
-function order(moduleDependencies: ReadonlyMap<string, readonly string[]>): string[] {
+function diagnose(
+  moduleDependencies: ReadonlyMap<string, readonly string[]>,
+): readonly MigrationOrderDiagnostic[] {
   return orderMigrations({
     entries: PROBE,
     moduleDependencies,
-    frozenThrough: '20260801T000000',
-    correctionHorizonDays: 45,
-  }).map((migration) => migration.name);
+    baselineThrough: '20260801T000000',
+  }).diagnostics;
 }
 
 /** Iterative three-colour DFS, independent of the implementation under test. */
@@ -97,8 +104,12 @@ describe('module dependency graph — the real manifests', () => {
     expect(cycle, cycle ? `cycle: ${cycle.join(' → ')}` : undefined).toBeNull();
   });
 
-  it('is acyclic (orderMigrations accepts it)', () => {
-    expect(() => order(MODULE_DEPENDENCIES)).not.toThrow();
+  it('is acyclic (orderMigrations produces zero diagnostics)', () => {
+    const cycles = diagnose(MODULE_DEPENDENCIES);
+    expect(
+      cycles.map((diagnostic) => diagnostic.modules.join(' + ')),
+      'a dependency cycle was introduced into the committed manifests',
+    ).toEqual([]);
   });
 
   it('never declares a module as its own dependency', () => {
@@ -109,49 +120,51 @@ describe('module dependency graph — the real manifests', () => {
   });
 });
 
-describe('module dependency graph — a cycle fails loudly (SC-007)', () => {
-  it('throws module-cycle naming every hop when an edge is injected', () => {
+describe('module dependency graph — an injected cycle is reported (FR-010)', () => {
+  // The red proof for the assertion above: without it, a `diagnose` that
+  // reported nothing for every graph would look exactly as green.
+  it('names every member when an edge closes a cycle in the real graph', () => {
     // `catalog` already reaches `sales_channels`; the reverse edge closes a
     // cycle through whatever path the real graph uses.
     const cyclic = new Map(MODULE_DEPENDENCIES);
     cyclic.set('sales_channels', [...(cyclic.get('sales_channels') ?? []), 'catalog']);
 
-    let thrown: unknown;
-    try {
-      order(cyclic);
-    } catch (error) {
-      thrown = error;
-    }
+    const cycles = diagnose(cyclic);
 
-    expect(thrown).toBeInstanceOf(MigrationOrderError);
-    const error = thrown as MigrationOrderError;
-    expect(error.code).toBe('module-cycle');
-    expect(error.message).toContain('sales_channels');
-    expect(error.message).toContain('catalog');
-    expect(error.message).toContain('manifest.ts');
-
-    const hops = /graph: \[([^\]]+)\]/.exec(error.message)?.[1]?.split(' → ') ?? [];
-    expect(hops.length).toBeGreaterThanOrEqual(3);
-    expect(hops[0]).toBe(hops[hops.length - 1]);
+    expect(cycles).toHaveLength(1);
+    expect(cycles[0]!.kind).toBe('module-cycle');
+    expect(cycles[0]!.modules).toContain('sales_channels');
+    expect(cycles[0]!.modules).toContain('catalog');
+    expect(cycles[0]!.modules.length).toBeGreaterThanOrEqual(2);
+    expect(cycles[0]!.message).toContain('dependencies');
   });
 
-  it('reports the whole path for a three-module cycle', () => {
+  it('reports all three members of a three-module cycle', () => {
     const cyclic = new Map(MODULE_DEPENDENCIES);
     cyclic.set('taxes', ['seo']);
     cyclic.set('seo', ['shopping_lists']);
     cyclic.set('shopping_lists', ['taxes']);
 
-    let thrown: unknown;
-    try {
-      order(cyclic);
-    } catch (error) {
-      thrown = error;
-    }
+    const cycles = diagnose(cyclic);
 
-    expect(thrown).toBeInstanceOf(MigrationOrderError);
-    const message = (thrown as MigrationOrderError).message;
-    for (const hop of ['taxes', 'seo', 'shopping_lists']) {
-      expect(message).toContain(hop);
-    }
+    expect(cycles).toHaveLength(1);
+    expect(cycles[0]!.modules).toEqual(['seo', 'shopping_lists', 'taxes']);
+  });
+
+  it('still emits every migration while the cycle stands', () => {
+    // The property that makes reporting the right answer: a mis-declared
+    // manifest must not stop core's schema from migrating.
+    const cyclic = new Map(MODULE_DEPENDENCIES);
+    cyclic.set('taxes', ['seo']);
+    cyclic.set('seo', ['shopping_lists']);
+    cyclic.set('shopping_lists', ['taxes']);
+
+    const emitted = orderMigrations({
+      entries: PROBE,
+      moduleDependencies: cyclic,
+      baselineThrough: '20260801T000000',
+    }).migrations;
+
+    expect(emitted.map((migration) => migration.name)).toEqual([PROBE[0]!.cls.name]);
   });
 });

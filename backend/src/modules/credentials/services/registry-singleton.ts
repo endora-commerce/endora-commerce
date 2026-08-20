@@ -1,3 +1,4 @@
+import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
 import { ConfigurationTypeRegistry } from './configuration-type-registry.js';
 
 /**
@@ -17,5 +18,14 @@ import { ConfigurationTypeRegistry } from './configuration-type-registry.js';
  * from an install hook is immediately recognised by the live admin + resolve
  * paths. Registering without editing the shared core registry satisfies
  * Principle XV.
+ *
+ * The presence probe is wired here rather than in the class: this is the one
+ * instance that participates in the platform's lifecycle, and a registry a test
+ * builds for itself should keep answering about the types that test registered
+ * (issue #129). `presenceOf` rather than `isPresent`, because a type contributed
+ * through this seam may name an owner no manifest declares, and collapsing
+ * "unknown id" into "absent" would filter the extension point away.
  */
-export const configurationTypeRegistry = new ConfigurationTypeRegistry();
+export const configurationTypeRegistry = new ConfigurationTypeRegistry(undefined, (moduleId) =>
+  effectiveState.presenceOf(moduleId),
+);

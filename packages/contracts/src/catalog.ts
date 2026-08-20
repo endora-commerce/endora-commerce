@@ -5,7 +5,11 @@ import {
   multilingualStringSchema,
   productVisibilitySchema,
   uuidSchema,
+  type ProductVisibility,
 } from './common.js';
+import type { FulfilmentStrategy } from './inventory.js';
+import type { BulkImportReport } from './import-export.js';
+import type { AttributeScope } from './product-value-resolver.js';
 
 /**
  * Catalog module contracts — Source of truth per Principle V.
@@ -178,7 +182,7 @@ export type ProductPriceTier = z.infer<typeof productPriceTierSchema>;
 
 export const productSummarySchema = z.object({
   id: uuidSchema,
-  sku: z.string().min(1).max(64),
+  sku: z.string().min(1).max(255),
   type: productTypeSchema,
   name: z.string(),
   slug: z.string(),
@@ -205,7 +209,7 @@ export type ProductSummary = z.infer<typeof productSummarySchema>;
 
 export const productVariantSchema = z.object({
   id: uuidSchema,
-  sku: z.string().min(1).max(64),
+  sku: z.string().min(1).max(255),
   variantAttributeValues: z.record(z.string(), z.unknown()),
   priceOverride: z.number().finite().nullable(),
   stockLevel: z.number().int().nullable(),
@@ -544,7 +548,7 @@ export type FilterDefinition = z.infer<typeof filterDefinitionSchema>;
 // `.partial()` it. The cross-field rule for virtual download fields is
 // applied as a separate refine on the create variant below.
 const baseProductRequestObject = z.object({
-  sku: z.string().min(1).max(64),
+  sku: z.string().min(1).max(255),
   type: productTypeSchema,
   name: multilingualStringSchema,
   description: multilingualStringSchema,
@@ -848,7 +852,7 @@ export const bulkOperationResponseSchema = z.object({ data: bulkOperationSchema 
 export type BulkOperationResponse = z.infer<typeof bulkOperationResponseSchema>;
 
 export const createVariantRequestSchema = z.object({
-  sku: z.string().min(1).max(64),
+  sku: z.string().min(1).max(255),
   variantAttributeValues: z.record(z.string(), z.unknown()),
   priceOverride: z.number().finite().optional(),
   stockLevel: z.number().int().nonnegative().optional(),
@@ -1078,6 +1082,13 @@ export const createCategoryRequestSchema = z.object({
     .max(160)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'must be kebab-case'),
   sortOrder: z.number().int().optional(),
+  /**
+   * Feature 068 — activation switch. Omitted means active: a category created
+   * by an administrator is visible unless they say otherwise. Integrations
+   * that discover categories (e.g. the Ergonode importer) pass `false` so a
+   * first import never exposes a source hierarchy to customers.
+   */
+  isActive: z.boolean().optional(),
 });
 export type CreateCategoryRequest = z.infer<typeof createCategoryRequestSchema>;
 
@@ -1092,6 +1103,12 @@ export const updateCategoryRequestSchema = z
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'must be kebab-case')
       .optional(),
     sortOrder: z.number().int().optional(),
+    /**
+     * Feature 068 — activation switch. `false` hides the category from every
+     * customer-facing read; the admin tree keeps listing it so it can be
+     * re-enabled.
+     */
+    isActive: z.boolean().optional(),
     /** Feature 013 / US5 — Library Asset rendered as the category's main image. */
     mainImageAssetId: uuidSchema.nullable().optional(),
     /** Feature 055 — custom-field values for this category (validated on write). */
@@ -1152,6 +1169,12 @@ export const attributeSetAssignedAttributeSchema = z.object({
   label: multilingualStringSchema,
   valueType: attributeValueTypeSchema,
   position: z.number().int().nonnegative(),
+  /**
+   * Feature 023 — the attribute's value is keyed by language, so the product
+   * editor renders it (and anything scoped to it, such as feature 068's
+   * overwrite protection) per language rather than once for the attribute.
+   */
+  languageScoped: z.boolean(),
 });
 export type AttributeSetAssignedAttribute = z.infer<typeof attributeSetAssignedAttributeSchema>;
 
@@ -1543,3 +1566,1182 @@ export const productLinkSummarySchema = z.object({
   }),
 });
 export type ProductLinkSummary = z.infer<typeof productLinkSummarySchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `catalog` publishes to the fourteen modules that read
+// it (feature 075, Phase P). It is the heaviest provider in the tree — 107
+// inbound import sites, 60 of them on the `Product` and `Category` entity
+// classes — so this section is correspondingly the largest, and every entry in
+// it is a shape somebody measurably asks for rather than a projection of the
+// two classes.
+//
+// **One demand is deliberately unmet.** `product_feeds` compiles its own
+// selection DSL into a MikroORM `where` object and hands it to
+// `em.find(Product, where as never)`. A port cannot take that argument — a
+// query object is the ORM, not a contract — and inverting it means either
+// publishing the DSL or teaching `catalog` about feeds. That is a design
+// question rather than a naming one, so it is escalated and left for the
+// `product_feeds` cut to resolve, not guessed at here.
+// ---------------------------------------------------------------------------
+
+/**
+ * A product as it crosses a module boundary — a plain shape, never the ORM
+ * entity (FR-011). Twenty modules read this row; between them they touch
+ * nearly every column, which is why the record mirrors the table rather than
+ * narrowing it. What it is not is the *class*: a consumer cannot call a method
+ * on it, cannot persist it, and cannot pull a relation off it.
+ */
+export interface CatalogProductRecord {
+  id: string;
+  sku: string;
+  slug: string;
+  type: ProductType;
+  status: ProductStatus;
+  /** Per-locale JSONB. Resolve with the caller's language chain. */
+  name: Record<string, string>;
+  description: Record<string, string>;
+  /** Per-product override of the global stock mode; `null` ⇒ inherit. */
+  stockMode: StockMode | null;
+  visibility: ProductVisibility;
+  /** JSONB `{ attributeKey: value }`, validated against the attribute set. */
+  attributeValues: Record<string, unknown>;
+  allowedOrganizationIds: string[];
+  attributeSetId: string;
+  downloadAssetId: string | null;
+  downloadUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt: Date | null;
+  deletedAt: Date | null;
+  manageStock: boolean;
+  backorderEnabled: boolean;
+  lowStockThreshold: number | null;
+  lowStockThresholdMode: 'cumulative' | 'per_warehouse';
+  fulfilmentStrategy: FulfilmentStrategy | null;
+  fulfilmentStrategyWarehouseOrder: string[] | null;
+}
+
+/**
+ * Who is asking for a product — the single input every enforcing read path
+ * needs beyond the row itself (issue #227).
+ *
+ * Two fields rather than one, because `organizationId === null` conflates two
+ * callers that the `logged_in_only` visibility distinguishes: an anonymous
+ * crawler, and a signed-in buyer whose account carries no Organization (the
+ * guest-style Customer of feature 026). The first must not see a
+ * `logged_in_only` row; the second must.
+ *
+ * An `organizationId` is never asserted by the caller: it comes off the
+ * resolved actor — the customer session's Organization, or a bound API key's.
+ */
+export interface ProductAudience {
+  /**
+   * The asking buyer's Organization, or `null` when the caller has none.
+   * Matched against `allowed_organization_ids` by membership, never by
+   * prefix or by comparing the array to anything.
+   */
+  readonly organizationId: string | null;
+  /** `true` for any caller the platform has identified; `false` for the public. */
+  readonly authenticated: boolean;
+}
+
+/**
+ * The most restrictive audience there is. Anything it may see, every other
+ * audience may see too — which is what makes it the right default for a path
+ * that has not yet been taught to resolve its caller, and the right constant
+ * for a test that means "the public".
+ */
+export const ANONYMOUS_PRODUCT_AUDIENCE: ProductAudience = {
+  organizationId: null,
+  authenticated: false,
+};
+
+/**
+ * Does this audience get to see this product?
+ *
+ * **This is the platform's one answer.** `Product.visibility` and
+ * `Product.allowedOrganizationIds` have been persisted, defaulted and
+ * operator-editable since the foundation migration, and until issue #227 a
+ * single read path out of two dozen enforced them — `catalog`'s quick-search,
+ * repaired for issue #174 after a buyer's type-ahead disclosed products
+ * restricted to other organisations. Every other surface answered the question
+ * its own way or not at all, so the repair starts by making the question have
+ * one answer that a listing, a PDP, a search hit, a cart line, a comparison and
+ * a feed row can all reach.
+ *
+ * It lives in `@b2b/contracts` rather than in `catalog` because the record it
+ * reads is already published here: twenty modules hold a
+ * {@link CatalogProductRecord}, both columns are on it, and a predicate over a
+ * published shape needs no port, no manifest edge and no `catalog` on the other
+ * end of a call. A module that holds the row can enforce; a module that cannot
+ * hold the row has nothing to enforce over.
+ *
+ * The rule, in the order it is decided:
+ *
+ *  1. **A non-empty `allowedOrganizationIds` decides alone**, and it restricts
+ *     whatever `visibility` says — `public` included. `public` with an
+ *     allow-list naming three organisations is a state an operator can save
+ *     today, and reading it as "public wins" discloses exactly the rows the
+ *     operator named someone else on.
+ *  2. Otherwise the allow-list is empty and the answer is `visibility`'s alone:
+ *     `public` to everybody; `logged_in_only` to any authenticated caller;
+ *     `organization_restricted` **to nobody**. That last one is the reading
+ *     that surprises: the restriction was asked for and names no organisation,
+ *     so the permissive reading of it would disclose the row to the whole
+ *     world.
+ *
+ * The SQL half of the same rule — the one `catalog`'s quick-search applies
+ * inside its statement, where a post-filter would break the `limit` — asks with
+ * `@>` containment over the JSONB array, so the buyer's id has to be an element
+ * of the list rather than a substring of the serialised bag. Keep the two in
+ * step; `backend/test/unit/catalog/product-visibility-predicate.test.ts` is the
+ * truth table both are read against.
+ *
+ * What this predicate is **not** is the channel answer. Channel scoping is
+ * Principle XII's, travels through `sales_channel_products` and the sanctioned
+ * bridge accessors, and is a second filter every buyer-facing path owes on top
+ * of this one.
+ */
+export function isProductVisibleTo(
+  product: Pick<CatalogProductRecord, 'visibility' | 'allowedOrganizationIds'>,
+  audience: ProductAudience,
+): boolean {
+  const allowed = product.allowedOrganizationIds ?? [];
+  if (allowed.length > 0) {
+    return audience.organizationId !== null && allowed.includes(audience.organizationId);
+  }
+  if (product.visibility === 'organization_restricted') return false;
+  if (product.visibility === 'logged_in_only') return audience.authenticated;
+  return true;
+}
+
+/** A category row, as the eight modules that read one see it. */
+export interface CatalogCategoryRecord {
+  id: string;
+  parentCategoryId: string | null;
+  name: Record<string, string>;
+  slug: string;
+  sortOrder: number;
+  metaTitleOverride: Record<string, string> | null;
+  metaDescriptionOverride: Record<string, string> | null;
+  customFieldValues: Record<string, unknown>;
+  isActive: boolean;
+  inventoryThresholdHigh: number | null;
+  inventoryThresholdMedium: number | null;
+  inventoryThresholdLow: number | null;
+  mainImageAssetId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+/**
+ * One `product ↔ category` assignment, with the category's slug alongside.
+ *
+ * The slug rides on the row because every caller that reads assignments in
+ * bulk is building a projection keyed by product — a search document, a feed
+ * line — and would otherwise follow every assignment with a category lookup.
+ */
+export interface CatalogCategoryAssignmentRecord {
+  productId: string;
+  categoryId: string;
+  slug: string;
+}
+
+/** A configurable product's variant row. */
+export interface CatalogProductVariantRecord {
+  id: string;
+  parentProductId: string;
+  sku: string;
+  variantAttributeValues: Record<string, unknown>;
+  /** Decimal string, or `null` when the variant inherits the parent's price. */
+  priceOverride: string | null;
+  stockLevel: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** A packaging unit — "box of 12" — a cart line may be placed in. */
+export interface CatalogPackagingUnitRecord {
+  id: string;
+  productId: string;
+  name: string;
+  baseQuantity: number;
+  position: number;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** A directed product↔product relation (cross-sell, up-sell, related). */
+export interface CatalogProductLinkRow {
+  id: string;
+  sourceProductId: string;
+  targetProductId: string;
+  kind: ProductLinkKind;
+  position: number;
+}
+
+/** A per-channel / per-language override of one attribute value (feature 022). */
+export interface CatalogProductValueOverrideRecord {
+  id: string;
+  productId: string;
+  attributeKey: string;
+  channelId: string;
+  languageCode: string | null;
+  /** The stored value, wrapped so `null` and "absent" stay distinguishable. */
+  value: { v: unknown };
+}
+
+/**
+ * Which products a lookup should consider.
+ *
+ * `liveOnly` excludes soft-deleted rows and `activeOnly` narrows further to
+ * `status === 'active'`. Both default to `false`, which is the wider read —
+ * and the correct default, because an inactive or soft-deleted product still
+ * has to resolve from a historical order, invoice, RFQ or shopping list.
+ */
+export interface CatalogProductLookupOptions {
+  liveOnly?: boolean;
+  activeOnly?: boolean;
+}
+
+/**
+ * Container name: `catalogProductReadPort`. Owner: `catalog`.
+ *
+ * Forty-six of `catalog`'s inbound sites are a read of the `Product` entity,
+ * and they reduce to four questions: by id, by ids, by sku, by skus. The rest
+ * of this port is the three neighbouring tables the same callers reach for in
+ * the same breath — variants, packaging units and links — plus the value
+ * overrides the search indexer reads.
+ *
+ * When `catalog` is off every method fails closed, and that is the answer a
+ * cart or an order line should get: pricing a line for a product the platform
+ * will not read is worse than refusing the line.
+ *
+ * Whether `catalog` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface CatalogProductReadPort {
+  findById(
+    id: string,
+    options?: CatalogProductLookupOptions,
+  ): Promise<CatalogProductRecord | null>;
+  findByIds(
+    ids: readonly string[],
+    options?: CatalogProductLookupOptions,
+  ): Promise<CatalogProductRecord[]>;
+  findBySku(
+    sku: string,
+    options?: CatalogProductLookupOptions,
+  ): Promise<CatalogProductRecord | null>;
+  findBySkus(
+    skus: readonly string[],
+    options?: CatalogProductLookupOptions,
+  ): Promise<CatalogProductRecord[]>;
+  /** `count === ids.length` existence check, without loading the rows. */
+  countByIds(ids: readonly string[]): Promise<number>;
+  /** Every product, ordered by sku — the bulk export and the price-list backfill. */
+  listAll(options?: CatalogProductLookupOptions): Promise<CatalogProductRecord[]>;
+
+  /** Variants of the given parent products, ordered by sku. */
+  listVariantsByProductIds(productIds: readonly string[]): Promise<CatalogProductVariantRecord[]>;
+  findVariantsBySkus(skus: readonly string[]): Promise<CatalogProductVariantRecord[]>;
+  /** A variant, but only if it belongs to that parent. */
+  findVariantInProduct(
+    parentProductId: string,
+    variantId: string,
+  ): Promise<CatalogProductVariantRecord | null>;
+
+  /** A packaging unit, but only if it belongs to that product. */
+  findPackagingUnitInProduct(
+    productId: string,
+    packagingUnitId: string,
+  ): Promise<CatalogPackagingUnitRecord | null>;
+
+  /** Links out of the given products, optionally narrowed to one kind. */
+  listLinksBySourceIds(
+    sourceProductIds: readonly string[],
+    kind?: ProductLinkKind,
+  ): Promise<CatalogProductLinkRow[]>;
+
+  /** Attribute-value overrides for the given products. */
+  listValueOverridesByProductIds(
+    productIds: readonly string[],
+  ): Promise<CatalogProductValueOverrideRecord[]>;
+}
+
+/**
+ * Container name: `catalogCategoryReadPort`. Owner: `catalog`.
+ *
+ * Fourteen inbound sites read the `Category` entity: the inventory threshold
+ * resolver walks it, `price_lists` walks the ancestor chain to resolve a
+ * category rule, `product_feeds` maps the whole tree onto an external
+ * taxonomy, `seo` renders a category page's meta tags.
+ *
+ * `ancestorsOf` is here rather than in `price_lists` because that module walks
+ * the chain with a `findOne` per level today — a loop over the parent pointer
+ * whose depth is data, in a module that does not own the table.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CatalogCategoryReadPort {
+  findById(id: string, options?: { liveOnly?: boolean }): Promise<CatalogCategoryRecord | null>;
+  findByIds(
+    ids: readonly string[],
+    options?: { liveOnly?: boolean },
+  ): Promise<CatalogCategoryRecord[]>;
+  findBySlug(slug: string): Promise<CatalogCategoryRecord | null>;
+  /** `count === ids.length` existence check. */
+  countByIds(ids: readonly string[]): Promise<number>;
+  /** The whole tree, ordered by sort order then slug. */
+  listAll(options?: { liveOnly?: boolean }): Promise<CatalogCategoryRecord[]>;
+  /** Categories carrying at least one inventory threshold override. */
+  listWithInventoryThresholds(): Promise<CatalogCategoryRecord[]>;
+  /**
+   * The category and its ancestors, nearest-first. Empty when the id does not
+   * resolve. A cycle is impossible — the write path enforces it — but the walk
+   * is bounded anyway, because a corrupt `parent_id` should not hang a request.
+   */
+  ancestorsOf(categoryId: string): Promise<CatalogCategoryRecord[]>;
+
+  /**
+   * The category assignments of the given products (feature 075 / D-87).
+   *
+   * `product_categories` is a `catalog` table with no entity class, so the two
+   * modules that needed it joined it in raw SQL — a boundary crossing that
+   * names no import specifier and therefore compiled, gated by nothing.
+   *
+   * `activeOnly` drops assignments to a deactivated category. That is the
+   * narrowing a customer-facing projection wants and the reason the option
+   * exists rather than a hidden filter: an inactive category left in a search
+   * document keeps working as a storefront PLP filter.
+   */
+  listAssignmentsForProducts(
+    productIds: readonly string[],
+    options?: { activeOnly?: boolean },
+  ): Promise<CatalogCategoryAssignmentRecord[]>;
+
+  /**
+   * Distinct ids of the products assigned to `categoryId` or to any category
+   * below it.
+   *
+   * The walk is **structural**: it filters neither `isActive` nor `deletedAt`.
+   * The caller is re-projecting a subtree because a category just changed, and
+   * the change that matters most is a deactivation — narrowing to live rows
+   * would return nothing exactly when the stale projections need rewriting.
+   * A caller that wants the live set narrows the rows it gets back.
+   */
+  listProductIdsInSubtree(categoryId: string): Promise<string[]>;
+
+  /**
+   * Ids of the products assigned to `categoryId` itself — not to anything below
+   * it (feature 075 / D-87).
+   *
+   * The narrow sibling of {@link listProductIdsInSubtree}, and the two are not
+   * interchangeable: a caller detaching products because one category left the
+   * source tree must touch that category's own assignments and no descendant's,
+   * because a descendant that is still mapped keeps its products.
+   *
+   * **Structural**, like the subtree walk: it filters neither `isActive` nor
+   * `deletedAt`. The assignment is the fact being asked about, and a caller
+   * removing one wants it gone whatever state the product is in.
+   */
+  listProductIdsInCategory(categoryId: string): Promise<string[]>;
+
+  /**
+   * How many **live** products sit in each of `categoryIds` — one grouped read,
+   * not a count per id (feature 075 / D-87).
+   *
+   * Live means not soft-deleted: a deleted product is not in the category any
+   * more in any sense an operator means, which is the filter the caller this
+   * replaced had written into its own join. Categories with no live product are
+   * omitted rather than returned as zero, so the caller decides what an absent
+   * count renders as.
+   */
+  countLiveProductsByCategory(
+    categoryIds: readonly string[],
+  ): Promise<CatalogCategoryProductCount[]>;
+}
+
+/** One category's live product count — see `countLiveProductsByCategory`. */
+export interface CatalogCategoryProductCount {
+  categoryId: string;
+  productCount: number;
+}
+
+// --- the bulk import surface -------------------------------------------------
+//
+// D-74. `import_export` used to apply a spreadsheet by holding this module's
+// entity classes and writing them inside its own transaction — no Command, no
+// audit row, and a within-run parent lookup that worked only because MikroORM
+// flushes before a query its pending insert would change.
+//
+// The transaction never had to cross the boundary; it had to be on the other
+// side of it. One POST is one entity and one owner, so the owner takes the
+// whole operation — validation, within-run resolution, the transaction and the
+// audit row — and the caller passes rows.
+
+/**
+ * One row of a categories import.
+ *
+ * Absent fields are left unchanged on an existing row; `parentSlug: null` means
+ * root. `slug` addresses the row: a slug that exists is updated, one that does
+ * not is created, and a slug introduced earlier in the same call resolves as a
+ * parent for a later one.
+ */
+export interface CategoryImportRow {
+  slug: string;
+  parentSlug?: string | null;
+  sortOrder?: number;
+  /** Per-locale, merged into the stored JSONB rather than replacing it. */
+  name?: Record<string, string>;
+  isActive?: boolean;
+}
+
+/**
+ * One row of a products import.
+ *
+ * `sku` addresses an existing product; the import creates none, because a
+ * product needs an attribute set, a type and a slug that a flat sheet does not
+ * carry.
+ */
+export interface ProductImportRow {
+  sku: string;
+  status?: ProductStatus;
+  visibility?: ProductVisibility;
+  /** Per-locale, merged into the stored JSONB rather than replacing it. */
+  name?: Record<string, string>;
+  description?: Record<string, string>;
+}
+
+/**
+ * Container name: `catalogBulkImportPort`. Owner: `catalog`.
+ *
+ * All-or-nothing per call: one transaction, one audit row, no partial commits.
+ * A rejected row leaves the whole call applying nothing, which is what makes a
+ * corrected re-upload safe — see {@link BulkImportReport}.
+ *
+ * With `catalog` off the call answers 503 `MODULE_DISABLED`; the caller is
+ * expected to decide presence before offering the surface at all.
+ *
+ * Whether `catalog` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface CatalogBulkImportPort {
+  importCategories(rows: readonly CategoryImportRow[]): Promise<BulkImportReport>;
+  importProducts(rows: readonly ProductImportRow[]): Promise<BulkImportReport>;
+}
+
+// --- the attribute read model ------------------------------------------------
+
+export interface CatalogAttributeOptionView {
+  /** `custom_field_options` id. */
+  id: string;
+  value: string;
+  label: Record<string, string>;
+  labelDefault: string;
+  isDefault: boolean;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * The composed attribute view (feature 061,
+ * `contracts/catalog-attribute-view.md`): the `custom_fields` definition and
+ * the `product_attributes` extension row, joined, shaped like the pre-061
+ * `ProductAttribute` so consumer rewires stay mechanical.
+ */
+export interface CatalogAttributeView {
+  /** Extension row id — the id the admin API has always exposed. */
+  id: string;
+  /** Backing `custom_field_definitions` id (host `product`). */
+  customFieldDefinitionId: string;
+
+  key: string;
+  label: Record<string, string>;
+  labelDefault: string;
+  /** Legacy 8-value form, derived bijectively (feature 061 research §R7). */
+  valueType: AttributeValueType;
+  isRequired: boolean;
+  options: CatalogAttributeOptionView[];
+
+  isSearchable: boolean;
+  isFilterable: boolean;
+  isVariantAxis: boolean;
+  displayAsSlider: boolean;
+  isComparable: boolean;
+  quickSearchable: boolean;
+  isPromoRule: boolean;
+  filterPosition: number;
+  isVisibleOnProductPage: boolean;
+  channelScoped: boolean;
+  languageScoped: boolean;
+  massEditable: boolean;
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type CatalogAttributeFlag =
+  | 'isSearchable'
+  | 'isFilterable'
+  | 'isVariantAxis'
+  | 'isComparable'
+  | 'quickSearchable'
+  | 'isPromoRule'
+  | 'massEditable'
+  | 'isVisibleOnProductPage';
+
+/**
+ * Container name: `catalogAttributeReadPort`. Owner: `catalog`.
+ *
+ * The **only** sanctioned way any module — including `catalog`'s own route
+ * serializers — reads product-attribute definitions (Principle I). `search`,
+ * `comparisons`, `quick_order` and `pim_ergonode` all read it today by
+ * importing the class.
+ *
+ * Freshness: the definitions half rides the custom-fields cache (invalidated
+ * by every committed attribute Command, 5 s TTL fallback); the extension half
+ * is a live query, so flag reads are always fresh.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CatalogAttributeReadPort {
+  listAll(): Promise<CatalogAttributeView[]>;
+  getByIdOrKey(idOrKey: string): Promise<CatalogAttributeView | null>;
+  listByFlag(flag: CatalogAttributeFlag): Promise<CatalogAttributeView[]>;
+  /** `attributeKey → optionValue → labels`, for label resolution on read. */
+  optionLabelIndex(): Promise<Map<string, Map<string, CatalogAttributeOptionLabels>>>;
+}
+
+/** The two label forms an option carries: per-locale, and the fallback. */
+export interface CatalogAttributeOptionLabels {
+  label: Record<string, string>;
+  labelDefault: string;
+}
+
+/** Which of the three quick-search predicates a hit satisfied. */
+export type CatalogQuickSearchField = 'sku' | 'name' | 'attribute';
+
+export interface CatalogQuickSearchParams {
+  /** The raw needle. Matched case-insensitively, as a substring. */
+  q: string;
+  limit: number;
+  /**
+   * The channel the caller resolved for this request. Required, and there is
+   * no "all channels" spelling: a channel is always resolved (feature 053), so
+   * an optional parameter here could only mean "the caller forgot", and the
+   * answer to that must not be the cross-channel catalogue.
+   */
+  salesChannelId: string;
+  /**
+   * The organisation the buyer is shopping on behalf of. Required, and — like
+   * `salesChannelId` — there is no anonymous spelling: every transacting
+   * customer has an Organization (Constitution XI), and the alternative to
+   * requiring one is a caller that forgets and gets the unrestricted
+   * catalogue. A surface with no signed-in buyer must not call this port.
+   *
+   * See {@link CatalogQuickSearchPort} for what it restricts.
+   */
+  organizationId: string;
+}
+
+export interface CatalogQuickSearchHit {
+  productId: string;
+  sku: string;
+  slug: string;
+  /** Per-locale JSONB as stored — the caller picks its own language. */
+  name: Record<string, string>;
+  status: ProductStatus;
+  matchedOn: CatalogQuickSearchField[];
+}
+
+/**
+ * Container name: `catalogQuickSearchPort`. Owner: `catalog`.
+ *
+ * The buyer-facing type-ahead behind `quick_order`'s CSV-free entry path
+ * (feature 039 FR-011/FR-013), published here because the predicate is a
+ * catalogue question in every part: which products are active, which are
+ * visible on the channel being shopped, and which attribute values are
+ * searchable at all — the last decided by the `quickSearchable` flag this
+ * module owns, over the `attribute_values` JSONB layout this module owns.
+ *
+ * It exists because `quick_order` was answering it with a hand-written knex
+ * `select` against `products`, which filtered `status = 'active'` and nothing
+ * else (issue #174). No import specifier, so `check:module-boundary` read
+ * clean; and no channel predicate, so a signed-in buyer's type-ahead returned
+ * every active product on the platform whatever channel they were shopping —
+ * Constitution XII, in the one place no static check was looking.
+ *
+ * ## What it restricts, and how strictly
+ *
+ * Channel scoping is the same `sales_channel_products` membership filter this
+ * module's own public listing applies, and it fails closed to the empty set.
+ *
+ * `visibility` and `allowed_organization_ids` are applied too, on the
+ * **restrictive** reading of both columns. A row is disclosed when
+ *
+ *   - the buyer's `organizationId` appears in `allowed_organization_ids`; or
+ *   - `allowed_organization_ids` is empty **and** `visibility` is not
+ *     `organization_restricted`.
+ *
+ * Two consequences are deliberate. A non-empty allow-list restricts **whatever
+ * the `visibility` column says** — `public` with an allow-list naming three
+ * organisations is a state an operator can save today, and reading it as
+ * "public wins" would let a type-ahead disclose exactly the rows the operator
+ * named someone else on. And `organization_restricted` with an **empty**
+ * allow-list is visible to nobody, rather than to everybody.
+ * `logged_in_only` *is* disclosed, because `organizationId` is required: there
+ * is no caller of this port that is not a signed-in buyer.
+ *
+ * A looser reading would differ on precisely those two rows, and only there.
+ *
+ * This is stricter than the rest of the module, and knowingly so. No other read
+ * path in `catalog` enforces either column (the standing platform-wide gap),
+ * but this surface requires a signed-in buyer, discloses SKU, slug and name for
+ * every hit, and hands back an id that `POST /quick-order/build` accepts — so a
+ * restriction an operator set on the product would otherwise be bypassed by
+ * typing three characters. Closing the gap on the remaining surfaces is its own
+ * change; leaving this one open until then is not the safe half of the choice.
+ *
+ * When `catalog` is off the call fails closed: `quick_order` declares `catalog`
+ * in `dependencies`, and a type-ahead that cannot ask the catalogue has nothing
+ * true to answer.
+ *
+ * Whether `catalog` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface CatalogQuickSearchPort {
+  quickSearch(params: CatalogQuickSearchParams): Promise<CatalogQuickSearchHit[]>;
+}
+
+/**
+ * Scope flags for the **system** product attributes — the ones that are not
+ * rows in `product_attributes` and therefore carry no DB-stored scope flags.
+ *
+ * Published as a **constant, not a port** (FR-013): `name` and `description`
+ * are channel- and language-scoped because the product table stores them as
+ * per-locale JSONB, which is a fact about the schema rather than about whether
+ * a module is switched on. `search`'s indexer reads it to decide which
+ * overrides to resolve.
+ *
+ * Adding another system attribute is a one-line change here plus a resolver
+ * consumer. The reserved keys MUST NOT collide with `product_attributes.key`
+ * — enforced at write time by the override-service validator.
+ */
+export const SYSTEM_ATTRIBUTE_SCOPES: Readonly<Record<string, AttributeScope>> = {
+  name: { channelScoped: true, languageScoped: true },
+  description: { channelScoped: true, languageScoped: true },
+};
+
+export type SystemAttributeKey = keyof typeof SYSTEM_ATTRIBUTE_SCOPES;
+
+export function isSystemAttributeKey(key: string): key is SystemAttributeKey {
+  return Object.prototype.hasOwnProperty.call(SYSTEM_ATTRIBUTE_SCOPES, key);
+}
+
+/**
+ * Resolve the effective scope of an attribute given its key and (for
+ * user-defined attributes) its scope flags. Returns the system-pinned scope
+ * when the key is reserved; falls back to the row's flags otherwise; returns
+ * `{ false, false }` when neither applies (the caller should treat that as
+ * global-only).
+ */
+export function getAttributeScope(
+  attributeKey: string,
+  productAttributeRow?: { channelScoped: boolean; languageScoped: boolean } | null,
+): AttributeScope {
+  if (isSystemAttributeKey(attributeKey)) {
+    // Keyed by `SystemAttributeKey`, so the lookup is non-undefined here; TS'
+    // index signature still widens under `noUncheckedIndexedAccess`.
+    return SYSTEM_ATTRIBUTE_SCOPES[attributeKey]!;
+  }
+  if (productAttributeRow) {
+    return {
+      channelScoped: productAttributeRow.channelScoped,
+      languageScoped: productAttributeRow.languageScoped,
+    };
+  }
+  return { channelScoped: false, languageScoped: false };
+}
+
+// --- the write surface -------------------------------------------------------
+
+/** Optional metadata attaching an audit entry to an admin mutation. */
+export interface CatalogAdminAuditContext {
+  actorAdminUserId: string;
+  impersonatedCustomerAccountId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  requestId?: string | null;
+}
+
+/**
+ * An attribute option as the write path returns it.
+ *
+ * Distinct from `AttributeOption`, the API DTO above, on one axis: the two
+ * timestamps are `Date`, not an ISO string. That is what an in-process call
+ * hands back, and serialising them here would mean every consumer parsing them
+ * again.
+ */
+export interface CatalogAttributeOptionResult {
+  id: string;
+  attributeId: string;
+  value: string;
+  label: Record<string, string>;
+  labelDefault: string;
+  isDefault: boolean;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** The eight flags `listAttributesByFlag` accepts — a superset of the read model's. */
+export type CatalogAdminAttributeFlag =
+  | 'isSearchable'
+  | 'isFilterable'
+  | 'isComparable'
+  | 'isVariantAxis'
+  | 'isPromoRule'
+  | 'isVisibleOnProductPage'
+  | 'isRequired'
+  | 'isMassEditable';
+
+/**
+ * Container name: `catalogProductWritePort`. Owner: `catalog`.
+ *
+ * `pim_ergonode` is the only consumer, and it is the whole reason this port is
+ * narrow: an import run creates and updates products, attributes and variants,
+ * and touches nothing else on `CatalogAdminService`'s considerable surface.
+ *
+ * `createProduct` and the two variant writes return **records**, where the
+ * service returns entities. That substitution is the point of the port.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CatalogProductWritePort {
+  createProduct(
+    req: CreateProductRequest,
+    auditCtx?: CatalogAdminAuditContext,
+  ): Promise<CatalogProductRecord>;
+  updateProduct(id: string, req: UpdateProductRequest): Promise<CatalogProductRecord>;
+
+  listAttributes(): Promise<CatalogAttributeView[]>;
+  listAttributesByFlag(flag: CatalogAdminAttributeFlag): Promise<CatalogAttributeView[]>;
+  createAttribute(req: CreateAttributeRequest): Promise<CatalogAttributeView>;
+  updateAttributeByIdOrKey(
+    idOrKey: string,
+    req: UpdateAttributeRequest,
+    auditCtx?: CatalogAdminAuditContext,
+  ): Promise<CatalogAttributeView>;
+  addAttributeOption(
+    attributeIdOrKey: string,
+    input: {
+      value: string;
+      label?: Record<string, string>;
+      labelDefault: string;
+      isDefault?: boolean;
+      sortOrder?: number;
+    },
+  ): Promise<CatalogAttributeOptionResult>;
+
+  createVariant(
+    parentProductId: string,
+    req: CreateVariantRequest,
+  ): Promise<CatalogProductVariantRecord>;
+  updateVariant(
+    parentProductId: string,
+    variantId: string,
+    req: UpdateVariantRequest,
+  ): Promise<CatalogProductVariantRecord>;
+  deleteVariant(parentProductId: string, variantId: string): Promise<void>;
+}
+
+/** The patch `updateCategory` accepts. Absent keys are left alone. */
+export interface UpdateCategoryInput {
+  parentCategoryId?: string | null;
+  name?: Record<string, string>;
+  slug?: string;
+  sortOrder?: number;
+  /** Feature 013 / US5 — library asset rendered as the storefront main image. */
+  mainImageAssetId?: string | null;
+  /** Feature 055 — validated and merged against the definitions on write. */
+  customFieldValues?: Record<string, unknown>;
+  /**
+   * Feature 068 — activation switch. `false` hides the category from every
+   * customer-facing read while the admin tree keeps listing it.
+   */
+  isActive?: boolean;
+}
+
+/**
+ * The three display-band thresholds a category may override. Absent keys are
+ * left alone; an explicit `null` clears the override.
+ */
+export interface CategoryInventoryThresholdPatch {
+  high?: number | null;
+  medium?: number | null;
+  low?: number | null;
+}
+
+/**
+ * Container name: `catalogCategoryWritePort`. Owner: `catalog`.
+ *
+ * `pim_ergonode` again, and again narrow: an import run lists the tree,
+ * creates the categories it is missing and updates the ones that moved.
+ *
+ * `setInventoryThresholds` is the fourth method and belongs to a different
+ * consumer: `inventory` stores the per-category half of its display-band
+ * thresholds in three columns on this module's `categories` table, and wrote
+ * them by holding the entity. It is deliberately **not** a key on
+ * {@link UpdateCategoryInput}: `update` runs the `category.update` Command,
+ * emits the search-reindex event and writes an audit row, none of which a
+ * threshold patch did or should — `inventory` records one
+ * `low_stock_threshold.update` summary row for the whole patch, and an
+ * operator reading a category's history should not find a rename-shaped entry
+ * for it. The columns' owner is still the question underneath, and the answer
+ * that retires this method is moving them into `inventory_thresholds` with
+ * `scopeKind = 'category'`, which is a data migration and not a cut.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CatalogCategoryWritePort {
+  listAll(): Promise<CatalogCategoryRecord[]>;
+  create(input: CreateCategoryRequest): Promise<CatalogCategoryRecord>;
+  update(id: string, input: UpdateCategoryInput): Promise<CatalogCategoryRecord>;
+  /** Rejects an unknown or soft-deleted category with 404 `NOT_FOUND`. */
+  setInventoryThresholds(id: string, patch: CategoryInventoryThresholdPatch): Promise<void>;
+}
+
+/**
+ * Container name: `attributeSetService`. Owner: `catalog`.
+ *
+ * Already returns contract DTOs, so the port is the four methods
+ * `pim_ergonode` calls and nothing else.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CatalogAttributeSetPort {
+  listSets(): Promise<AttributeSet[]>;
+  getSetDetail(id: string): Promise<AttributeSetDetail>;
+  createSet(input: CreateAttributeSetRequest): Promise<AttributeSetDetail>;
+  assignAttributes(id: string, input: AssignAttributesRequest): Promise<AttributeSetDetail>;
+}
+
+/**
+ * Container name: `attachmentService`. Owner: `catalog`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CatalogAttachmentPort {
+  listTypes(): Promise<AttachmentType[]>;
+  createType(req: CreateAttachmentTypeRequest): Promise<AttachmentType>;
+  listAttachments(productId: string): Promise<ProductAttachment[]>;
+  createAttachment(productId: string, req: CreateAttachmentRequest): Promise<ProductAttachment>;
+  updateAttachment(
+    productId: string,
+    attachmentId: string,
+    req: UpdateAttachmentRequest,
+  ): Promise<ProductAttachment>;
+  deleteAttachment(productId: string, attachmentId: string): Promise<void>;
+}
+
+/** Whether a gallery write may silently move a conflicting label off another item. */
+export interface CatalogGalleryWriteOptions {
+  replaceConflictingLabels: boolean;
+}
+
+/**
+ * Container name: `galleryService`. Owner: `catalog`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CatalogGalleryPort {
+  list(productId: string): Promise<GalleryItem[]>;
+  create(
+    productId: string,
+    req: CreateGalleryItemRequest,
+    options: CatalogGalleryWriteOptions,
+  ): Promise<GalleryItem>;
+  delete(productId: string, itemId: string): Promise<void>;
+  reorder(productId: string, orderedIds: string[]): Promise<void>;
+}
+
+/** One child line of a grouped product. */
+export interface CatalogGroupedItemRow {
+  id: string;
+  parentProductId: string;
+  childProductId: string;
+  quantity: number;
+  position: number;
+}
+
+/**
+ * Container name: `groupedService`. Owner: `catalog`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CatalogGroupedPort {
+  list(parentProductId: string): Promise<CatalogGroupedItemRow[]>;
+  addItem(
+    parentProductId: string,
+    input: { childProductId: string; quantity: number; position?: number | undefined },
+  ): Promise<CatalogGroupedItemRow>;
+  updateItem(
+    parentProductId: string,
+    itemId: string,
+    input: { quantity?: number | undefined; position?: number | undefined },
+  ): Promise<CatalogGroupedItemRow>;
+  removeItem(parentProductId: string, itemId: string): Promise<void>;
+}
+
+/** A link to create, as the bulk writer takes it. */
+export interface CatalogCreateProductLinkInput {
+  targetProductId: string;
+  kind: ProductLinkKind;
+  position?: number | undefined;
+}
+
+/**
+ * Container name: `productLinkService`. Owner: `catalog`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CatalogProductLinkPort {
+  listForAdmin(sourceProductId: string, kind?: ProductLinkKind): Promise<CatalogProductLinkRow[]>;
+  bulkCreate(
+    sourceProductId: string,
+    inputs: CatalogCreateProductLinkInput[],
+  ): Promise<CatalogProductLinkRow[]>;
+  removeLink(sourceProductId: string, linkId: string): Promise<void>;
+}
+
+/** One attribute with its options, as the promotion rule builder renders it. */
+export interface CatalogAttributeWithOptions {
+  id: string;
+  key: string;
+  label: Record<string, string>;
+  labelDefault: string;
+  valueType: AttributeValueType;
+  isPromoRule: boolean;
+  options: Array<{ value: string; label: Record<string, string>; labelDefault: string }>;
+}
+
+/**
+ * Container name: `catalogPromoAttributePort`. Owner: `catalog`.
+ *
+ * `promotions` builds its rule editor from these two answers, and reaches
+ * `CatalogQueryService` — the storefront query service, 1400 lines — for them.
+ * The port is the two questions.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `catalog` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CatalogPromoAttributePort {
+  promoRuleAttributeKeys(): Promise<string[]>;
+  getAttributeWithOptions(key: string): Promise<CatalogAttributeWithOptions | null>;
+}
+
+// --- the sellable-product filter ---------------------------------------------
+//
+// Feature 075. This is the demand the header of this section recorded as
+// deliberately unmet and the `product_feeds` shard escalated back: that module
+// compiles its own selection DSL into a MikroORM `where` object and hands it to
+// `em.find(Product, where as never)`. A port cannot take that argument — a query
+// object is the ORM, not a contract.
+//
+// The answer is a filter that is **narrower than MikroORM on purpose**: six
+// columns, one JSONB bag, twelve operators, two combinators, and nothing else.
+// It expresses every leaf `product_feeds` compiles today and it cannot become a
+// general query surface, because there is no node for a join, a relation, a raw
+// fragment or a column this list does not name.
+//
+// The **eligibility floor and the keyset cursor live inside the port**, not in
+// the caller's conjunction. That is the whole reason the port is shaped this way
+// rather than as "take a predicate, return rows": feature 067's FR-026 makes the
+// floor non-overridable, and a caller-composed `$and` is exactly how it could
+// stop being — the floor's channel membership, a category criterion and the
+// cursor all constrain `id`, one object spread away from being a single
+// surviving key.
+
+/** A scalar a filter condition compares against. */
+export type CatalogProductFilterValue = string | number | boolean | Date | null;
+
+/**
+ * What a condition addresses.
+ *
+ * `column` names one of the six product columns a selection may filter on;
+ * `attribute` addresses one key of `products.attribute_values`, the JSONB bag
+ * that has held product attributes and product custom fields alike since
+ * feature 061.
+ */
+export type CatalogProductFilterField =
+  | { kind: 'column'; column: 'id' | 'sku' | 'type' | 'status' | 'createdAt' | 'updatedAt' }
+  | { kind: 'attribute'; key: string };
+
+/**
+ * The operators a condition may use.
+ *
+ * `contains` and `startsWith` are patterns the **owner** builds, so a caller
+ * never writes SQL `LIKE` syntax and the escaping rule has one home. Both match
+ * case-insensitively, as the queries they replace already did.
+ *
+ * **Their value is matched literally.** `%`, `_` and the escape character are
+ * characters, not wildcards: the owner escapes them before building the
+ * pattern, so `contains "50%"` selects the products whose text carries the
+ * three characters `5`, `0`, `%` and not every product with "50" followed by
+ * anything. That is part of this shape rather than one provider's detail — a
+ * caller passes the value as the operator's user typed it and never
+ * pre-escapes, and any provider of {@link CatalogProductFilterPort} owes the
+ * same semantics.
+ */
+export type CatalogProductFilterOperator =
+  | 'eq'
+  | 'ne'
+  | 'in'
+  | 'nin'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'contains'
+  | 'startsWith'
+  | 'isNull'
+  | 'isNotNull';
+
+export interface CatalogProductFilterCondition {
+  kind: 'condition';
+  field: CatalogProductFilterField;
+  op: CatalogProductFilterOperator;
+  /**
+   * The comparison values. `in` / `nin` read all of them; a range is expressed
+   * as two conditions under an `and` group; every other operator reads the
+   * first; `isNull` and `isNotNull` read none.
+   */
+  values: readonly CatalogProductFilterValue[];
+}
+
+export interface CatalogProductFilterGroup {
+  kind: 'group';
+  op: 'and' | 'or';
+  children: readonly CatalogProductFilter[];
+}
+
+/**
+ * The two constants a compiler needs and an empty object cannot express.
+ *
+ * `all` constrains nothing; `none` can never be satisfied. They are named
+ * rather than left to `{}`, because inside an `or` branch an empty predicate
+ * collapses the branch instead of matching everything — a superset silently
+ * becoming a subset, which is how a filter drops the rows it was meant to keep.
+ *
+ * Two interfaces rather than one with a two-value `kind`, so `kind` stays a
+ * discriminant a translator can narrow the whole union on.
+ */
+export interface CatalogProductFilterAll {
+  kind: 'all';
+}
+export interface CatalogProductFilterNone {
+  kind: 'none';
+}
+export type CatalogProductFilterConstant = CatalogProductFilterAll | CatalogProductFilterNone;
+
+export type CatalogProductFilter =
+  | CatalogProductFilterCondition
+  | CatalogProductFilterGroup
+  | CatalogProductFilterAll
+  | CatalogProductFilterNone;
+
+/** One keyset page of the products a filter selects. */
+export interface CatalogSellableProductQuery {
+  /**
+   * The only ids the query may consider — for a feed, the sales channel's
+   * membership, resolved by the caller through the sanctioned bridge accessor
+   * (Principle XII). Required, and an empty list selects nothing: this port has
+   * no "every product in the platform" reading.
+   */
+  productIds: readonly string[];
+  filter: CatalogProductFilter;
+  /** Keyset cursor. Only ids strictly greater come back; `null` starts at the first. */
+  afterId?: string | null;
+  /** Page size. Defaults to 500, the size the feed pipeline already walks in. */
+  limit?: number;
+}
+
+/**
+ * Container name: `catalogProductFilterPort`. Owner: `catalog`.
+ *
+ * **Sellable** is this module's floor and this module applies it: `status`
+ * `active`, not archived, not soft-deleted, and **visible to
+ * {@link ANONYMOUS_PRODUCT_AUDIENCE}** — `isProductVisibleTo`'s answer for a
+ * caller with no session and no organisation, which is what a product feed's
+ * reader is (issue #259). It is conjoined *with* the caller's filter here, so
+ * no filter a caller can construct widens past it.
+ *
+ * The audience is fixed rather than a parameter because this port has one
+ * consumer and that consumer is a feed: an operator ruled that a feed shows the
+ * prices of the sales channel it is generated for and takes no organisation
+ * into account, so there is no per-buyer reading of it to ask for. A caller
+ * that needs another audience needs a different port, not a wider floor —
+ * `visibility` said `public` alone until issue #259, and a `public` product
+ * carrying a non-empty `allowed_organization_ids` went into a Google Shopping
+ * feed for as long as that was the whole test.
+ *
+ * Rows come back as {@link CatalogProductRecord} in ascending id order, which
+ * is what makes the cursor a keyset rather than an offset: a catalogue that
+ * moves under a long walk cannot make the walk skip a row or repeat one.
+ *
+ * When `catalog` is off both methods fail closed. A feed assembled from a
+ * catalogue the platform is refusing to serve is worse than a run that stops
+ * and says why.
+ *
+ * Whether `catalog` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface CatalogProductFilterPort {
+  listSellable(query: CatalogSellableProductQuery): Promise<CatalogProductRecord[]>;
+  countSellable(query: Omit<CatalogSellableProductQuery, 'afterId' | 'limit'>): Promise<number>;
+}

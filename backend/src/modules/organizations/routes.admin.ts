@@ -12,6 +12,13 @@ import {
   assignOrganizationParentRequestSchema,
   setCreditInheritanceModeRequestSchema,
   inviteMemberRequestSchema,
+  isCustomFieldValidationFailure,
+  type AddressServicePort,
+  type CustomFieldValuePort,
+  type CustomerAccountMemberWritePort,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
+  type CustomerRolePort,
 } from '@b2b/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import { HttpError } from '../../http/error-envelope.js';
@@ -20,21 +27,14 @@ import type { OrganizationTreeService } from './services/organization-tree-servi
 import { makeSetParentCommand } from './commands/set-parent.command.js';
 import { makeMoveCommand } from './commands/move.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
-import {
-  CustomFieldValidationError,
-  type CustomFieldValueService,
-} from '../custom_fields/services/custom-field-value.service.js';
 import { Organization } from './entities/organization.entity.js';
-import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
-import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
+import type { RequireAdminAnyFactory } from '../../kernel/ports/require-admin.js';
 import type { InvitationService } from './services/invitation-service.js';
 import {
   emitCustomerAccountCreated,
   type OrganizationEventBus,
 } from './services/registration-service.js';
-import type { RoleService } from '../customer_accounts/services/role-service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type {
   OrganizationModerationService} from './services/organization-moderation-service.js';
 import {
@@ -49,7 +49,6 @@ import {
 } from './services/organization-restriction-service.js';
 import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
 import type { OrganizationTaxIdValidationService } from './services/organization-tax-id-validation-service.js';
-import type { AddressService } from '../addresses/services/address-service.js';
 import {
   approveOrganizationSchema,
   rejectOrganizationSchema,
@@ -59,8 +58,8 @@ import {
   patchOrgRestrictionsSchema,
   triggerVatValidationSchema,
 } from './schemas/organization.js';
-import { hashPassword } from '../auth/services/password-hasher.js';
 import { normalizeOrganizationName } from './services/normalize-name.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin /admin/organizations — platform staff operations (003).
@@ -82,7 +81,20 @@ export interface AdminOrgsDeps {
   requireAdmin: RequireAdminFactory;
   requireAdminAny: RequireAdminAnyFactory;
   invitationService: InvitationService;
-  roleService: RoleService;
+  roleService: CustomerRolePort;
+  /**
+   * `customer_accounts`' published read and member write (feature 075, Phase
+   * C). Every member endpoint below used to load, create and mutate that
+   * module's entity directly; the writes moved to its side of the port and the
+   * audit row stayed here, because the operation being audited is an admin
+   * edit on *this* module's member panel.
+   *
+   * With `customer_accounts` off the member endpoints fail closed. The module
+   * is non-deactivatable, so that is a statement about direction rather than a
+   * reachable state.
+   */
+  customerAccountRead: CustomerAccountReadPort;
+  customerAccountWrite: CustomerAccountMemberWritePort;
   auditLogService: AuditLogService;
   /**
    * Optional — when provided, the admin direct-member-create endpoint emits
@@ -99,13 +111,13 @@ export interface AdminOrgsDeps {
   /** Optional — when provided, mounts the VAT-validation endpoints (US7). */
   taxIdValidationService?: OrganizationTaxIdValidationService;
   /** Optional — when provided, mounts the org-addresses read endpoint used by the default-preferences panel. */
-  addressService?: AddressService;
+  addressService?: AddressServicePort;
   /**
    * Feature 055 — validates + merges custom-field values on org edit and exposes
    * them on read. The org module owns the write/audit; the value service only
    * validates (Principle XIV).
    */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
   /**
    * Feature 056 — when both are provided, mounts the org-hierarchy endpoints
    * (assign/move parent, subtree/ancestors read, delete-with-children guard).
@@ -211,9 +223,8 @@ export async function registerOrganizationsAdminRoutes(
       if (!org) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       }
-      const members = await em.find(CustomerAccount, {
-        organizationId: org.id,
-        deletedAt: null,
+      const members = await deps.customerAccountRead.listByOrganization(org.id, {
+        activeOnly: true,
       });
       return {
         data: {
@@ -284,7 +295,12 @@ export async function registerOrganizationsAdminRoutes(
             body.customFieldValues,
           );
         } catch (err) {
-          if (err instanceof CustomFieldValidationError) {
+          // Narrowed structurally rather than by `instanceof`: the constructor
+          // is a file in `custom_fields`' directory, and the guard is what
+          // `@b2b/contracts` publishes in its place. `customFieldValueService`
+          // is a gated port, so this re-throws anything that is not the
+          // validation failure — a `ModuleDisabledError` included.
+          if (isCustomFieldValidationFailure(err)) {
             throw new HttpError(
               422,
               ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
@@ -582,26 +598,20 @@ export async function registerOrganizationsAdminRoutes(
           'A personal (individual) organization cannot have additional members.',
         );
       }
-      const email = body.email.toLowerCase();
-      const dup = await em.findOne(CustomerAccount, { email });
-      if (dup) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.EMAIL_ALREADY_REGISTERED,
-          'An account with this email already exists.',
-        );
-      }
-      const passwordHash = await hashPassword(body.password);
       const role = body.role ?? 'regular_user';
-      const customer = em.create(CustomerAccount, {
+      // The duplicate check and the argon2 hash both moved to the owner's side
+      // of the port with the write; `create` raises the same 409
+      // `EMAIL_ALREADY_REGISTERED`.
+      const customer = await deps.customerAccountWrite.create({
         organizationId: org.id,
-        email,
-        passwordHash,
+        // Handed over as typed: the write port folds it, so this surface
+        // cannot disagree with the one the buyer registers through.
+        email: body.email,
+        password: body.password,
         firstName: body.firstName,
         lastName: body.lastName,
         role,
       });
-      await em.persistAndFlush(customer);
       if (deps.eventBus) {
         emitCustomerAccountCreated(deps.eventBus, customer.id, org.id);
       }
@@ -626,12 +636,11 @@ export async function registerOrganizationsAdminRoutes(
     },
     async (request) => {
       const body = adminPatchMemberRoleRequestSchema.parse(request.body);
-      const em = emFactory();
-      const member = await em.findOne(CustomerAccount, {
-        id: request.params.customerAccountId,
-        organizationId: request.params.id,
-        deletedAt: null,
-      });
+      const member = await deps.customerAccountRead.findInOrganization(
+        request.params.customerAccountId,
+        request.params.id,
+        { activeOnly: true },
+      );
       if (!member) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Member not found.');
       }
@@ -660,28 +669,29 @@ export async function registerOrganizationsAdminRoutes(
     },
     async (request) => {
       const body = adminSetMemberRollupRequestSchema.parse(request.body);
-      const em = emFactory();
-      const member = await em.findOne(CustomerAccount, {
-        id: request.params.customerAccountId,
-        organizationId: request.params.id,
-        deletedAt: null,
-      });
+      const member = await deps.customerAccountRead.findInOrganization(
+        request.params.customerAccountId,
+        request.params.id,
+        { activeOnly: true },
+      );
       if (!member) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Member not found.');
       }
       assertVersion(member.updatedAt, body.expectedUpdatedAt);
       const before = serializeMemberDetail(member);
-      member.subtreeRollupEnabled = body.subtreeRollupEnabled;
-      await em.flush();
+      const updated = await deps.customerAccountWrite.setSubtreeRollup(
+        member.id,
+        body.subtreeRollupEnabled,
+      );
       await audit(
         request,
         'customer_account.admin_rollup_change',
         'customer_account',
-        member.id,
+        updated.id,
         before as Record<string, unknown>,
-        serializeMemberDetail(member) as Record<string, unknown>,
+        serializeMemberDetail(updated) as Record<string, unknown>,
       );
-      return { data: serializeMemberDetail(member) };
+      return { data: serializeMemberDetail(updated) };
     },
   );
 
@@ -693,47 +703,33 @@ export async function registerOrganizationsAdminRoutes(
     },
     async (request) => {
       const body = adminPatchMemberProfileRequestSchema.parse(request.body);
-      const em = emFactory();
-      const member = await em.findOne(CustomerAccount, {
-        id: request.params.customerAccountId,
-        organizationId: request.params.id,
-        deletedAt: null,
-      });
+      const member = await deps.customerAccountRead.findInOrganization(
+        request.params.customerAccountId,
+        request.params.id,
+        { activeOnly: true },
+      );
       if (!member) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Member not found.');
       }
       assertVersion(member.updatedAt, body.expectedUpdatedAt);
       const before = serializeMemberDetail(member);
-      if (body.email !== undefined) {
-        const nextEmail = body.email.toLowerCase();
-        if (nextEmail !== member.email) {
-          const taken = await em.findOne(CustomerAccount, {
-            email: nextEmail,
-            deletedAt: null,
-          });
-          if (taken && taken.id !== member.id) {
-            throw new HttpError(
-              409,
-              ERROR_CODES.EMAIL_ALREADY_REGISTERED,
-              'That email is already used by another account.',
-            );
-          }
-          member.email = nextEmail;
-          member.emailVerifiedAt = null;
-        }
-      }
-      if (body.firstName !== undefined) member.firstName = body.firstName;
-      if (body.lastName !== undefined) member.lastName = body.lastName;
-      await em.flush();
+      // The uniqueness check, the lower-casing and the "a changed address is
+      // no longer verified" rule all went with the write: they are properties
+      // of the column, not of this screen.
+      const updated = await deps.customerAccountWrite.updateProfile(member.id, {
+        ...(body.email !== undefined ? { email: body.email } : {}),
+        ...(body.firstName !== undefined ? { firstName: body.firstName } : {}),
+        ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
+      });
       await audit(
         request,
         'customer_account.admin_profile_update',
         'customer_account',
-        member.id,
+        updated.id,
         before as Record<string, unknown>,
-        serializeMemberDetail(member) as Record<string, unknown>,
+        serializeMemberDetail(updated) as Record<string, unknown>,
       );
-      return { data: serializeMemberDetail(member) };
+      return { data: serializeMemberDetail(updated) };
     },
   );
 
@@ -741,12 +737,11 @@ export async function registerOrganizationsAdminRoutes(
     '/api/v1/admin/organizations/:id/members/:customerAccountId',
     { preHandler: requireAdmin('customers:manage') },
     async (request, reply) => {
-      const em = emFactory();
-      const member = await em.findOne(CustomerAccount, {
-        id: request.params.customerAccountId,
-        organizationId: request.params.id,
-        deletedAt: null,
-      });
+      const member = await deps.customerAccountRead.findInOrganization(
+        request.params.customerAccountId,
+        request.params.id,
+        { activeOnly: true },
+      );
       if (!member) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Member not found.');
       }
@@ -772,27 +767,29 @@ export async function registerOrganizationsAdminRoutes(
     },
     async (request) => {
       const body = adminRecoverOrgAccessRequestSchema.parse(request.body);
-      const em = emFactory();
-      const member = await em.findOne(CustomerAccount, {
-        id: body.promoteCustomerAccountId,
-        organizationId: request.params.id,
-        deletedAt: null,
-      });
+      const member = await deps.customerAccountRead.findInOrganization(
+        body.promoteCustomerAccountId,
+        request.params.id,
+        { activeOnly: true },
+      );
       if (!member) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Member not found.');
       }
       const before = serializeMemberDetail(member);
-      member.role = 'organization_admin';
-      await em.flush();
+      // Deliberately not `roleService.changeRole`: this is the break-glass
+      // path an operator reaches *because* the organisation has no admin left,
+      // and that method writes its own `customer_account.change_role` audit
+      // row, which would double-count the one below.
+      const updated = await deps.customerAccountWrite.promoteToOrganizationAdmin(member.id);
       await audit(
         request,
         'organization.break_glass_admin_promoted',
         'customer_account',
-        member.id,
+        updated.id,
         before as Record<string, unknown>,
-        serializeMemberDetail(member) as Record<string, unknown>,
+        serializeMemberDetail(updated) as Record<string, unknown>,
       );
-      return { data: serializeMemberDetail(member) };
+      return { data: serializeMemberDetail(updated) };
     },
   );
 
@@ -960,7 +957,7 @@ function serializeOrg(o: Organization): Record<string, unknown> {
   };
 }
 
-function serializeMemberDetail(m: CustomerAccount): Record<string, unknown> {
+function serializeMemberDetail(m: CustomerAccountRecord): Record<string, unknown> {
   return {
     id: m.id,
     email: m.email,
@@ -969,7 +966,7 @@ function serializeMemberDetail(m: CustomerAccount): Record<string, unknown> {
     role: m.role,
     subtreeRollupEnabled: m.subtreeRollupEnabled,
     emailVerifiedAt: m.emailVerifiedAt?.toISOString() ?? null,
-    twoFactorEnabled: !!m.twoFactorConfirmedAt,
+    twoFactorEnabled: m.twoFactorEnabled,
     lastLoginAt: m.lastLoginAt?.toISOString() ?? null,
     createdAt: m.createdAt.toISOString(),
     updatedAt: m.updatedAt.toISOString(),

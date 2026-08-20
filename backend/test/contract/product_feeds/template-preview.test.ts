@@ -8,7 +8,7 @@ import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { FeedRun } from '../../../src/modules/product_feeds/entities/feed-run.entity.js';
 import { FeedArtefact } from '../../../src/modules/product_feeds/entities/feed-artefact.entity.js';
 import { FeedTemplate } from '../../../src/modules/product_feeds/entities/feed-template.entity.js';

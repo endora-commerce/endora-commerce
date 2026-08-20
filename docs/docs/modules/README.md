@@ -59,6 +59,7 @@ how to consume it.
 | [payu](./payu) | PayU payment gateway (BLIK, cards, pay-by-link) | yes |
 | [autopay](./autopay) | Autopay payment gateway (BLIK, cards, pay-by-link, wallets) | yes |
 | [payments](./payments) | Payment driver dispatch + settlement events | yes |
+| [pim_ergonode](./pim_ergonode) | Read-only inbound connector for the Ergonode PIM — products, attribute values, category placement, media and optional prices, on demand or on a schedule | yes (admin) |
 | [price_lists](./price_lists) | Customer / group / default pricing with volume tiers + per-category adjustments | yes |
 | [promotions](./promotions) | Cart-level percentage / amount / free-delivery discounts with eligibility filters | yes |
 | [quick_order](./quick_order) | CSV-import + type-ahead helpers for buyers ordering by SKU | yes |

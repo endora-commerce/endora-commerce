@@ -4,7 +4,7 @@ import { ERROR_CODES, type ApiKeyBinding } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ApiKey } from '../entities/api-key.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * ApiKeyService (T227, extended by feature 062 — distributor binding).

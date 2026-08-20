@@ -6,7 +6,7 @@ import { EventBus, type EventBase } from '../../../src/events/bus.js';
 import type {
   AuditLogService,
   RecordAuditInput,
-} from '../../../src/modules/audit_logs/services/audit-log-service.js';
+} from '../../../src/kernel/audit/audit-log-service.js';
 import {
   MissingTenantContextError,
   runWithTenantContext,

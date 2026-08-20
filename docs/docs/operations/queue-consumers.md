@@ -128,6 +128,13 @@ replaces. New asynchronous, queue-backed work MUST use the durable-queue +
 separable-worker model described here, never a request-process timer.
 :::
 
+The cart abandonment sweep reads module presence from `module_registrations`
+before it does anything and exits non-zero with `MODULE_DISABLED` when `carts`
+is not installed on the deployment — the same answer an HTTP route would give,
+for an entry point that has no route to gate. It sweeps in batches of 500,
+committing each batch's status flips together with the audit rows for them, so
+an interrupted run leaves whole batches behind rather than a partial one.
+
 ## Monitoring & troubleshooting
 
 - **Queue depth / failed jobs** — inspect the BullMQ keys in Redis, e.g.

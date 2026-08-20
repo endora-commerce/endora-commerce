@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import type { CatalogProductReadPort } from '@b2b/contracts';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListProduct } from '../entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
@@ -85,8 +85,22 @@ export class DefaultPriceListMigrator {
    *
    * Auto-seeds the Default row first so this method works against a fresh
    * test fixture that just truncated `price_lists`.
+   *
+   * Feature 075 Phase C — the product list arrives over `catalog`'s published
+   * read port instead of `em.find(Product, {})`.
+   *
+   * The port is a **parameter of this method**, not of the constructor, for two
+   * reasons. `seedDefault` needs nothing of `catalog`, and eighteen of this
+   * class's twenty callers only ever call that — a constructor argument would
+   * make all of them declare a dependency two of them have. And the read has to
+   * happen on the **caller's** unit of work: a backfill run inside an open
+   * transaction, as the dev seed and the migration tests do, must see the
+   * products that transaction has just written, which a port bound to another
+   * fork cannot. Passing it per call is what lets the caller say which
+   * `EntityManager` the read runs on, and the previous `em.find(Product, …)`
+   * only got that right by accident of sharing this class's own factory.
    */
-  async run(): Promise<MigrationReport> {
+  async run(catalogProductRead: CatalogProductReadPort): Promise<MigrationReport> {
     // command-coverage-ignore: one-time data migration (backfills the Default
     // price list + assignments) run at install/upgrade — not an admin action.
     await this.seedDefault();
@@ -104,9 +118,8 @@ export class DefaultPriceListMigrator {
       }
     }
 
-    // Discover legacy-priced products via the EM (sees uncommitted writes
-    // inside the active transaction).
-    const products = await em.find(Product, {});
+    // Discover legacy-priced products through `catalog`'s read port.
+    const products = await catalogProductRead.listAll();
 
     const skipped: MigrationReport['productsSkipped'] = [];
     const candidates: Array<{ productId: string; legacyAmount: string }> = [];

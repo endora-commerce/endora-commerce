@@ -3,18 +3,19 @@ import {
   ChannelMemberEntityTypeSchema,
   ERROR_CODES,
   SalesChannelCreateBodySchema,
+  SalesChannelSetDefaultBodySchema,
   SalesChannelUpdateBodySchema,
   type ChannelMemberEntityType,
 } from '@b2b/contracts';
 import { z } from 'zod';
 import { HttpError } from '../../http/error-envelope.js';
-import type { RequireAdminFactory } from '../settings/plugin.js';
 import type {
   AdminAuditContext,
   SalesChannelsService,
 } from './services/sales-channels.service.js';
-import type { SalesChannelMembershipService } from './services/sales-channel-membership.service.js';
-import type { SalesChannel } from './entities/sales-channel.entity.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin HTTP surface — feature 005 / US2 (T034).
@@ -30,6 +31,10 @@ import type { SalesChannel } from './entities/sales-channel.entity.js';
  *                                  is sugar that drops here later).
  *   - POST   /:code/deactivate   — deactivate (sales_channels:write)
  *   - POST   /:code/activate     — activate (sales_channels:write)
+ *   - POST   /:code/set-default  — move the system-default flag here
+ *                                  (sales_channels:write); a Command, so the
+ *                                  move is audited and the demote/promote pair
+ *                                  is one transaction (D-51).
  *   - DELETE /:code              — hard delete (sales_channels:write); accepts
  *                                  `?fallbackToDefault=true` to rebind orphan
  *                                  members in the same transaction.
@@ -233,6 +238,32 @@ export async function registerSalesChannelsAdminRoutes(
       );
       setEtag(reply, channel);
       return serializeDetail(channel);
+    },
+  );
+
+  /**
+   * Move the system-default flag — feature 072 / D-51.
+   *
+   * Gated by the same `sales_channels:write` that gates every other mutation on
+   * this surface: it is a channel-registry write, and an operator who may retire
+   * a channel may certainly choose which one is the fallback. No new permission
+   * code, so `/admin-roles` and the permission inventory are unchanged.
+   *
+   * Mounted before the membership routes' `/:code/:entityType` shapes, which
+   * mount no POST — and Fastify prefers the static `set-default` segment anyway.
+   */
+  app.post<{ Params: { code: string } }>(
+    '/api/v1/admin/sales-channels/:code/set-default',
+    { preHandler: requireAdmin(SC_WRITE) },
+    async (request, reply) => {
+      SalesChannelSetDefaultBodySchema.parse(request.body ?? {});
+      const result = await salesChannelsService.setDefault(request.params.code);
+      setEtag(reply, result.channel);
+      return {
+        channel: serializeDetail(result.channel),
+        previousDefaultCode: result.previousDefaultCode,
+        changed: result.changed,
+      };
     },
   );
 

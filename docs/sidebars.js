@@ -20,6 +20,7 @@ const sidebars = {
         'architecture/command-bus',
         'architecture/custom-fields',
         'architecture/overlay-pattern',
+        'architecture/pim-ergonode',
       ],
     },
     {
@@ -124,6 +125,7 @@ const sidebars = {
         'modules/payu',
         'modules/autopay',
         'modules/price_lists',
+        { type: 'doc', id: 'modules/pim_ergonode', label: 'Ergonode PIM' },
         { type: 'doc', id: 'modules/product_feeds', label: 'Product Feeds' },
         {
           type: 'doc',
@@ -179,7 +181,7 @@ const sidebars = {
       type: 'category',
       label: 'Deployment',
       link: { type: 'generated-index', title: 'Deployment' },
-      items: [],
+      items: ['deployment/first-deployment-checklist'],
     },
   ],
 };

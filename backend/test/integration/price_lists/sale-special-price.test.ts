@@ -7,14 +7,15 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerGroup } from '../../../src/modules/price_lists/entities/customer-group.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
 import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 011 / US6 — Sale → Special Price (T070).
@@ -77,15 +78,31 @@ describe('Feature 011 / US6 — Sale → Special Price (T070)', () => {
   });
 
   async function seedDefaultBracket(amount: string): Promise<void> {
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {
       PLN: [{ minQuantity: 1, maxQuantity: null, amount }],
     });
   }
 
-  async function seedSaleList(name: string, rule: Record<string, unknown>, amount: string): Promise<string> {
-    const svc = new PriceListService(h.em);
+  async function seedSaleList(
+    name: string,
+    rule: Record<string, unknown>,
+    amount: string,
+  ): Promise<string> {
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
     const list = await svc.create({ name, type: 'sale', applicationRule: rule as never });
     await svc.addProduct(list.id, product.id);
     await svc.replaceBrackets(list.id, product.id, {
@@ -103,7 +120,7 @@ describe('Feature 011 / US6 — Sale → Special Price (T070)', () => {
       '60',
     );
 
-    const pricing = new PricingService(h.em);
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization, salesChannel },
@@ -123,7 +140,7 @@ describe('Feature 011 / US6 — Sale → Special Price (T070)', () => {
       '60',
     );
 
-    const pricing = new PricingService(h.em);
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
     const line = await pricing.resolveLinePrice({
       product,
       context: { quantity: 1, organization, salesChannel },
@@ -147,7 +164,7 @@ describe('Feature 011 / US6 — Sale → Special Price (T070)', () => {
       '50',
     );
 
-    const pricing = new PricingService(h.em);
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
     const line = await pricing.resolveLinePrice({
       product,
       context: { quantity: 1, organization, salesChannel },
@@ -162,7 +179,7 @@ describe('Feature 011 / US6 — Sale → Special Price (T070)', () => {
     await seedDefaultBracket('100');
     // No sale list at all.
 
-    const pricing = new PricingService(h.em);
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization, salesChannel },
@@ -173,7 +190,13 @@ describe('Feature 011 / US6 — Sale → Special Price (T070)', () => {
 
   it('FR-035: a Sale list in draft state is excluded — base-only resolution', async () => {
     await seedDefaultBracket('100');
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(
+      h.em,
+      undefined,
+      undefined,
+      undefined,
+      neighbourReadPorts(h.em),
+    );
     const draft = await svc.create({
       name: 'Draft Promo',
       type: 'sale',
@@ -185,7 +208,7 @@ describe('Feature 011 / US6 — Sale → Special Price (T070)', () => {
     });
     // Intentionally do NOT activate.
 
-    const pricing = new PricingService(h.em);
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization, salesChannel },
@@ -212,7 +235,7 @@ describe('Feature 011 / US6 — Sale → Special Price (T070)', () => {
       '50',
     );
 
-    const pricing = new PricingService(h.em);
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization, salesChannel },
@@ -223,7 +246,7 @@ describe('Feature 011 / US6 — Sale → Special Price (T070)', () => {
 
   it('returns null line price when no Base bracket exists for the requested currency', async () => {
     // Default has no bracket for this product.
-    const pricing = new PricingService(h.em);
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
     const line = await pricing.resolveLinePrice({
       product,
       context: { quantity: 1, organization, salesChannel },

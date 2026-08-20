@@ -6,20 +6,20 @@ import {
   patchMegamenuRequestSchema,
   putItemsRequestSchema,
 } from '@b2b/contracts';
-import type { RequireAdminFactory } from './plugin.js';
 import type { MegamenuService } from './services/megamenu-service.js';
 import type { MegamenuItemService } from './services/megamenu-item-service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export async function registerMegamenuAdminRoutes(
   app: FastifyInstance,
   deps: {
     menuService: MegamenuService;
     itemService: MegamenuItemService;
-    requireAdmin?: RequireAdminFactory;
+    requireAdmin: RequireAdminFactory;
   },
 ): Promise<void> {
-  const requireRead = deps.requireAdmin?.('megamenu.read') ?? (async () => {});
-  const requireWrite = deps.requireAdmin?.('megamenu.write') ?? (async () => {});
+  const requireRead = deps.requireAdmin('megamenu.read');
+  const requireWrite = deps.requireAdmin('megamenu.write');
 
   app.get('/api/v1/admin/megamenu/menus', { preHandler: requireRead }, async () =>
     deps.menuService.list(),

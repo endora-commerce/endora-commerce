@@ -1,17 +1,19 @@
 #!/usr/bin/env tsx
 // Emits the committed override-manifest artifact for the active deployment.
 //
-// Reuses the codegen pattern of `generate-manifest-index.ts` (feature 018).
+// Reuses the codegen pattern of `generate-composer.ts` (feature 018).
 // The manifest is the deterministic audit record of a deployment's divergence
 // from core (US3, FR-005/FR-006). Resolution fails the build on a conflict, an
-// unknown/stale target, a schema override, or an un-contracted service override
-// (the resolver throws — see src/overlay/resolve-overlay.ts).
+// unknown/stale target or a schema override (the resolver throws — see
+// src/overlay/resolve-overlay.ts).
 //
-// Contract enforcement (FR-003): a service overlay lives under
-// `backend/src/apps/<deployment>/…` and MUST `implements` its `@core/…`
-// interface, so the standard `tsc -p tsconfig.build.json` build is the primary
-// contract gate; `check-core-contracts.ts` provides the explicit negative test
-// (SC-004) and a CI step with known targets.
+// Service overrides are NOT in this manifest since feature 072 (T067): they are
+// decorations of container registrations, not shadowed files, so there is no
+// path to record and nothing for a resolver to classify. `tsc` remains the
+// contract gate — a decoration is written against the core interface and stops
+// being assignable when that interface changes. The composer's own override
+// report (`ComposedModules.decorations`, T065) is where a build's decorations
+// are enumerated.
 //
 // Output:
 //   - bare core:  backend/src/overlay/override-manifest.core.generated.ts
@@ -34,6 +36,18 @@ import {
   serializeManifestModule,
 } from '../src/overlay/override-manifest.js';
 
+/**
+ * Where a deployment's committed override manifest lives — `null` for bare core.
+ *
+ * Path only, so the determinism gate can enumerate the artefacts it covers
+ * without walking the overlay tree once per deployment to learn their names.
+ */
+export function overrideManifestOutputPath(deployment: string | null): string {
+  return deployment === null
+    ? join(coreModulesRoot(), '..', 'overlay', 'override-manifest.core.generated.ts')
+    : join(overlayModulesRootFor(deployment), '..', 'override-manifest.generated.ts');
+}
+
 /** Pure render — the target path + expected file content. Used by the generator
  * and by the git-free determinism check (`check-overlay-determinism.ts`). */
 export function renderOverrideManifest(env: NodeJS.ProcessEnv = process.env): {
@@ -52,10 +66,7 @@ export function renderOverrideManifest(env: NodeJS.ProcessEnv = process.env): {
   const resolution = resolveOverlay({ coreRoot, overlayRoot, deployment });
   const manifest = buildOverrideManifest({ deployment, coreRoot, overlayRoot, resolution });
 
-  const outputPath =
-    deployment === null
-      ? join(coreModulesRoot(), '..', 'overlay', 'override-manifest.core.generated.ts')
-      : join(overlayModulesRootFor(deployment), '..', 'override-manifest.generated.ts');
+  const outputPath = overrideManifestOutputPath(deployment);
 
   // Module-resolvable path from the emitted file to src/overlay/types.js.
   const typesFile = join(coreModulesRoot(), '..', 'overlay', 'types.ts');

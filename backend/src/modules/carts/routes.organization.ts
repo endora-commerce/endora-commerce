@@ -7,13 +7,13 @@ import {
   ERROR_CODES,
   type CartStatus,
   type CartApprovalStatus,
+  type CustomerAccountReadPort,
 } from '@b2b/contracts';
 import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CartService } from './services/cart-service.js';
 import type { CartApprovalService } from './services/cart-approval-service.js';
 import type { CartOrganizationVisibilityService } from './services/cart-organization-visibility-service.js';
-import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import { HttpError } from '../../http/error-envelope.js';
 
 /**
@@ -53,6 +53,14 @@ const orgCartsListQuerySchema = z.object({
 
 export interface CartsOrganizationRoutesDeps {
   cartService: CartService;
+  /**
+   * `customer_accounts`' read model (feature 075, Phase C). Two reads: the
+   * caller's own role — which is the org-admin gate on every route here — and
+   * the owner's e-mail on the cart detail. Both were `em.findOne` against
+   * `customer_accounts`' table, so the gate went on answering out of rows a
+   * deactivation leaves in place.
+   */
+  customerAccounts: CustomerAccountReadPort;
   cartApprovalService: CartApprovalService;
   visibilityService: CartOrganizationVisibilityService;
   emFactory: () => EntityManager;
@@ -66,7 +74,13 @@ export async function registerCartsOrganizationRoutes(
   app: FastifyInstance,
   deps: CartsOrganizationRoutesDeps,
 ): Promise<void> {
-  const { cartService, cartApprovalService, visibilityService, emFactory, resolveCartActor } = deps;
+  const {
+    cartService,
+    cartApprovalService,
+    visibilityService,
+    customerAccounts,
+    resolveCartActor,
+  } = deps;
 
   /** Resolves the caller as an Organization Administrator (404 if not). */
   const requireOrgAdmin = async (request: FastifyRequest): Promise<{
@@ -80,8 +94,7 @@ export async function registerCartsOrganizationRoutes(
     if (!actor.customer.organizationId) {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'No organization in session.');
     }
-    const em = emFactory();
-    const me = await em.findOne(CustomerAccount, { id: actor.customer.customerAccountId });
+    const me = await customerAccounts.findById(actor.customer.customerAccountId);
     if (!me || me.role !== 'organization_admin') {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization Admin role required.');
     }
@@ -114,9 +127,8 @@ export async function registerCartsOrganizationRoutes(
       const items = await cartService.getItems(cart.id);
       const total = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
       const currency = items[0]?.currency ?? 'PLN';
-      const em = emFactory();
       const owner = cart.customerAccountId
-        ? await em.findOne(CustomerAccount, { id: cart.customerAccountId })
+        ? await customerAccounts.findById(cart.customerAccountId)
         : null;
       return {
         data: {

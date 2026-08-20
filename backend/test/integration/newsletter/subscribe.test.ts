@@ -5,7 +5,7 @@ import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
 import { NewsletterTokenHelper } from '../../../src/modules/newsletter/services/token.helper.js';
 import { NewsletterOptInService } from '../../../src/modules/newsletter/services/opt-in.service.js';
 import { NewsletterSubscriberService } from '../../../src/modules/newsletter/services/subscriber.service.js';
-import type { SettingsService } from '../../../src/modules/settings/services/settings.service.js';
+import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
 import { NewsletterTag } from '../../../src/modules/newsletter/entities/newsletter-tag.entity.js';
 import { NewsletterSubscriberTag } from '../../../src/modules/newsletter/entities/newsletter-subscriber-tag.entity.js';
@@ -42,7 +42,7 @@ describe('newsletter subscribe/confirm (US1)', () => {
     service = new NewsletterSubscriberService({
       emFactory: () => db.em(),
       optIn,
-      platformChannelId: 'default',
+      defaultChannelId: null,
       links: {
         confirm: (t) => `http://x/confirm?token=${t}`,
         unsubscribe: (t) => `http://x/unsubscribe?token=${t}`,

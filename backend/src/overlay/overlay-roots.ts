@@ -5,7 +5,7 @@
 // exist on disk, resolution proceeds CORE-ONLY and the build behaves
 // byte-for-byte like bare core (FR-008, SC-006).
 
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,6 +36,53 @@ export function selectedDeployment(env: NodeJS.ProcessEnv = process.env): string
 /** Absolute path to a deployment's overlay modules root (whether or not it exists). */
 export function overlayModulesRootFor(deployment: string): string {
   return join(BACKEND_SRC, 'apps', deployment, 'modules');
+}
+
+/**
+ * Every deployment shipped in this checkout, sorted — one directory under
+ * `backend/src/apps/`.
+ *
+ * `DEPLOYMENT` selects which one a *build* composes; this is the whole set, and
+ * it exists so the determinism gate can verify each deployment's committed
+ * override manifest without being run once per deployment (issue #120). An
+ * artefact only a run nobody makes would check is an artefact nothing checks.
+ */
+export function deploymentsOnDisk(): readonly string[] {
+  const appsRoot = join(BACKEND_SRC, 'apps');
+  if (!existsSync(appsRoot)) return [];
+  return readdirSync(appsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+/** Absolute path to a deployment's decorations root (whether or not it exists). */
+export function overlayDecorationsRootFor(deployment: string): string {
+  return join(BACKEND_SRC, 'apps', deployment, 'decorations');
+}
+
+/**
+ * The active decorations root, or `null` when there is no deployment or it
+ * ships none (feature 072, T066).
+ *
+ * Decorations sit beside `modules/` rather than inside it because they are not
+ * a shadowing of anything: a decoration names a container registration, and a
+ * registration name is not a file path. Putting them under `modules/<id>/`
+ * would re-create the thing this replaced — an override located by where it
+ * sits on disk.
+ */
+export function activeOverlayDecorationsRoot(
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  const deployment = selectedDeployment(env);
+  if (deployment === null) return null;
+  const root = overlayDecorationsRootFor(deployment);
+  if (!existsSync(root)) return null;
+  try {
+    return statSync(root).isDirectory() ? root : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

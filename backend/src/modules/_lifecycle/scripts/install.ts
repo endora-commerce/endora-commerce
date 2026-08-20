@@ -2,10 +2,11 @@ import { z } from 'zod';
 import Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { initOrm, closeOrm } from '../../../db/index.js';
-import { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../services/orchestrator.js';
 import { buildStaticRegistry } from '../services/static-registry.js';
 import { REGISTERED_MANIFESTS } from '../registered-manifests.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 /**
  * `pnpm --filter backend run module:install <module-id> [--dry-run] [--json]`
@@ -192,6 +193,6 @@ function mapError(err: unknown, asJson: boolean): number {
   return 70;
 }
 
-void main().then((code) => {
+void enterSystemScope('cli: install a module', main, { entryPoint: 'cli' }).then((code) => {
   process.exit(code);
 });

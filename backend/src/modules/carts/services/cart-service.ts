@@ -1,14 +1,23 @@
 import { createHash } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type CartMergeOutcome } from '@b2b/contracts';
+import {
+  ANONYMOUS_PRODUCT_AUDIENCE,
+  ERROR_CODES,
+  isProductVisibleTo,
+  type CartMergeOutcome,
+  type ProductAudience,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { ProductPackagingUnit } from '../../catalog/entities/product-packaging-unit.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
-import type { PricingService } from '../../price_lists/services/pricing-service.js';
+import type {
+  CatalogPackagingUnitRecord,
+  CatalogProductReadPort,
+  CatalogProductRecord,
+  LinePricePort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { CartApprovalService } from './cart-approval-service.js';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartRecomputeCache } from './cart-recompute-cache.js';
@@ -49,11 +58,13 @@ export const CART_MAX_LINES = 200;
 
 export class CartService {
   /**
-   * `pricingService` is optional so test rigs that don't wire the
-   * full pricing module still construct the service. Production
-   * composition (composition.ts) supplies it; when absent the cart
-   * silently falls back to the legacy `attributeValues['defaultPrice']`
-   * read so the foundation flow stays intact.
+   * `pricingService` is **required** since issue #124. It used to be optional
+   * "for test rigs", and the cart then read the legacy
+   * `attributeValues['defaultPrice']` whenever it was missing — so a rig, a
+   * wiring slip and `price_lists` switched off all produced the same thing: a
+   * cart line priced from a catalogue attribute that no price list supports.
+   * Absence is now a `lazyPort` gate that throws `MODULE_DISABLED` at the call,
+   * which nothing downstream can mistake for a price.
    *
    * Cart entities don't currently track which sales channel they were
    * created on (multi-channel cart attribution is a separate
@@ -73,7 +84,12 @@ export class CartService {
    */
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly pricingService?: PricingService,
+    /** `price_lists`' line-resolution slice (feature 075, Phase C). */
+    private readonly pricingService: LinePricePort,
+    /** `catalog`'s product read model — products, variants, packaging units. */
+    private readonly catalogProducts: CatalogProductReadPort,
+    /** `organizations`' read model — the buying org the price resolves against. */
+    private readonly organizations: OrganizationDetailsPort,
     private readonly approvalService?: CartApprovalService,
     private readonly auditService?: CartAuditService,
     private readonly recomputeCache?: CartRecomputeCache,
@@ -161,20 +177,33 @@ export class CartService {
     if (input.quantity <= 0) {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Quantity must be > 0.');
     }
-    const product = await em.findOne(Product, { id: input.productId });
-    if (!product) {
+    const product = await this.catalogProducts.findById(input.productId);
+    // Issue #227 — a product this shopper may not see is a product they may not
+    // put in a cart. The read port is the row-level one and applies no policy of
+    // its own, deliberately: an order line has to resolve its product long after
+    // the operator restricted it. That makes enforcement the caller's, and this
+    // caller is holding a `productId` the buyer chose.
+    //
+    // 404 and not 403, matching the product detail: a caller who may not see the
+    // row may not learn it exists, and the two answers are indistinguishable to
+    // an honest client because they are the same answer.
+    if (!product || !isProductVisibleTo(product, cartAudience(actor))) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
 
     // Feature 043 — ordering by a packaging unit (e.g. a pallet): the line is
     // measured in base pieces (`baseQuantity × units`) and snapshots the unit
     // name so the cart/order/RFQ can append it to the product name.
-    let packagingUnit: ProductPackagingUnit | null = null;
+    //
+    // `findPackagingUnitInProduct` is the two-argument form of the same read:
+    // the "does this unit belong to this product?" test was the second half of
+    // the `where` clause and stays inside one query.
+    let packagingUnit: CatalogPackagingUnitRecord | null = null;
     if (input.packagingUnitId) {
-      packagingUnit = await em.findOne(ProductPackagingUnit, {
-        id: input.packagingUnitId,
-        productId: product.id,
-      });
+      packagingUnit = await this.catalogProducts.findPackagingUnitInProduct(
+        product.id,
+        input.packagingUnitId,
+      );
       if (!packagingUnit) {
         throw new HttpError(
           404,
@@ -239,6 +268,11 @@ export class CartService {
             }
           : {}),
         quantity: effectiveQuantity,
+        // `resolved === null` is `price_lists` answering "no list applies to
+        // this line"; the catalogue attribute is the legacy stand-in for that
+        // case and is reported as remaining debt (issue #124). What can no
+        // longer land here is an *absent* `price_lists`: resolving the port
+        // throws `MODULE_DISABLED` before this expression runs.
         unitPrice: resolved
           ? Number(resolved.amount).toFixed(2)
           : (Number(
@@ -280,16 +314,20 @@ export class CartService {
   }
 
   /**
-   * Look up the line's unit price via the resolver when the pricing
-   * service is wired (production); fall back to `null` so the legacy
-   * read path runs (foundation tests). Returns `null` on any resolver
-   * failure to match the foundation flow's "never block on price
-   * resolution" semantics.
+   * Look up the line's unit price via the resolver.
+   *
+   * `null` means "the price-list engine answered, and nothing applies" —
+   * `resolveLinePrice`'s own documented answer — so there is no `catch` here
+   * (issue #84). There used to be one, and it made the two answers
+   * indistinguishable: a `price_lists` switched off, or a resolver bug, both
+   * came back as "this line has no price", and the cart quietly re-priced from
+   * the catalogue default. An absent `price_lists` now throws through this
+   * method to the route (issue #124).
    */
   async #resolveLineUnitPrice(
     em: EntityManager,
     input: {
-      product: Product;
+      product: CatalogProductRecord;
       organizationId: string | null;
       quantity: number;
       variantId: string | null;
@@ -300,32 +338,27 @@ export class CartService {
     priceListId: string;
     displayMode: DisplayMode;
   } | null> {
-    if (!this.pricingService) return null;
-    try {
-      const channel = await em.findOne(SalesChannel, { systemDefault: true });
-      if (!channel) return null;
-      const organization = input.organizationId
-        ? await em.findOne(Organization, { id: input.organizationId })
-        : null;
-      const resolved = await this.pricingService.resolveLinePrice({
-        product: input.product,
-        variantId: input.variantId,
-        context: {
-          quantity: input.quantity,
-          ...(organization ? { organization } : {}),
-          salesChannel: channel,
-        },
-      });
-      if (!resolved) return null;
-      return {
-        amount: resolved.amount,
-        currency: resolved.currency,
-        priceListId: resolved.priceListId,
-        displayMode: resolved.displayMode,
-      };
-    } catch {
-      return null;
-    }
+    const channel = await em.findOne(SalesChannel, { systemDefault: true });
+    if (!channel) return null;
+    const organization = input.organizationId
+      ? await this.organizations.findById(input.organizationId)
+      : null;
+    const resolved = await this.pricingService.resolveLinePrice({
+      product: input.product,
+      variantId: input.variantId,
+      context: {
+        quantity: input.quantity,
+        ...(organization ? { organization } : {}),
+        salesChannel: channel,
+      },
+    });
+    if (!resolved) return null;
+    return {
+      amount: resolved.amount,
+      currency: resolved.currency,
+      priceListId: resolved.priceListId,
+      displayMode: resolved.displayMode,
+    };
   }
 
   async updateItem(
@@ -581,4 +614,21 @@ export class CartService {
     if (actor.anonymousToken && cart.anonymousCartToken === actor.anonymousToken) return;
     throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart not found.');
   }
+}
+
+/**
+ * The {@link ProductAudience} a cart operation speaks for (issue #227).
+ *
+ * An anonymous cart is the anonymous audience — the token in the cookie
+ * identifies a basket, not a buyer, and it is minted by asking for one. A
+ * signed-in shopper carries their Organization, `null` included: the guest-style
+ * accounts of feature 026 have none, and they are exactly the caller
+ * `logged_in_only` distinguishes from the public.
+ */
+function cartAudience(actor: {
+  customer?: CustomerContext;
+  anonymousToken?: string;
+}): ProductAudience {
+  if (!actor.customer) return ANONYMOUS_PRODUCT_AUDIENCE;
+  return { organizationId: actor.customer.organizationId, authenticated: true };
 }

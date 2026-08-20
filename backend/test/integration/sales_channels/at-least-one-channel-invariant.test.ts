@@ -2,9 +2,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { EventBus } from '../../../src/events/bus.js';
-import { SalesChannelMembershipService } from '../../../src/modules/sales_channels/services/sales-channel-membership.service.js';
-import { DefaultChannelReconciler } from '../../../src/modules/sales_channels/services/default-channel-reconciler.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
+import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 

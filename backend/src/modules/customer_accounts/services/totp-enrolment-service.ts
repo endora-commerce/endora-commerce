@@ -3,9 +3,12 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
-import { enroll, verifyTotp } from '../../auth/services/totp-service.js';
+// Feature 075, Phase C — pure functions over their arguments (a secret and a
+// code in, valid or not out), so they live in the kernel: "is this code valid
+// for this secret" has no business answering 503 because a module is off.
+import { enroll, verifyTotp } from '../../../kernel/crypto/totp.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * Customer-side 2FA enrolment (T119).

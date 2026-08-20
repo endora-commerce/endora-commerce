@@ -4,15 +4,22 @@ import { HttpError } from '../../../http/error-envelope.js';
 import type { ReturnCase } from '../entities/return-case.entity.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import type { RmaNumberGenerator } from './rma-number-generator.js';
+import type { ReturnEmailResult } from './return-email-notifier.js';
 import {
   RETURN_STATUS_AUTHORIZED,
   RETURN_STATUS_REJECTED,
 } from '../domain/return-status-graph.js';
 
-/** Best-effort customer notifications on authorize/reject (FR-017). */
+/**
+ * Best-effort customer notifications on authorize/reject (FR-017).
+ *
+ * Each answers whether the message went out and, when it did not, why (issue
+ * #78). `Promise<void>` said nothing, and this service is the caller that could
+ * not tell a delivered notification from a deactivated template.
+ */
 export interface ReturnNotifier {
-  authorized(rc: ReturnCase): Promise<void>;
-  rejected(rc: ReturnCase): Promise<void>;
+  authorized(rc: ReturnCase): Promise<ReturnEmailResult>;
+  rejected(rc: ReturnCase): Promise<ReturnEmailResult>;
 }
 
 export interface ReturnAuthorizationServiceDeps {
@@ -47,7 +54,7 @@ export class ReturnAuthorizationService {
         },
       },
     );
-    await this.notifySafely(() => this.deps.notifier?.authorized(rc));
+    await this.notifySafely(rc, 'return_authorized', () => this.deps.notifier?.authorized(rc));
     return { rmaNumber: rc.rmaNumber!, statusCode: rc.statusCode };
   }
 
@@ -69,15 +76,37 @@ export class ReturnAuthorizationService {
         },
       },
     );
-    await this.notifySafely(() => this.deps.notifier?.rejected(rc));
+    await this.notifySafely(rc, 'return_rejected', () => this.deps.notifier?.rejected(rc));
     return rc;
   }
 
-  private async notifySafely(fn: () => Promise<void> | undefined): Promise<void> {
+  /**
+   * The outer net for a notification that must not undo the transition it
+   * announces.
+   *
+   * The notifier itself now names every non-sent path in its result and writes
+   * it to the log (issue #78), so what reaches here is the residue: a throw the
+   * notifier deliberately let travel. That includes a `ModuleDisabledError`,
+   * which this `catch` still absorbs — re-throwing it would answer 503 to an
+   * authorize that has already committed, and the honest repair is an outbox
+   * the transition hands the message to, not a rethrow here. What it no longer
+   * does is absorb it in silence.
+   */
+  private async notifySafely(
+    rc: ReturnCase,
+    kind: string,
+    fn: () => Promise<ReturnEmailResult> | undefined,
+  ): Promise<void> {
     try {
       await fn();
-    } catch {
+    } catch (error) {
       // Notifications are best-effort; never block the workflow transition.
+      console.warn('[returns] the return e-mail was not sent', {
+        returnCaseId: rc.id,
+        kind,
+        reason: 'failed',
+        error: error instanceof Error ? error.message : error,
+      });
     }
   }
 }

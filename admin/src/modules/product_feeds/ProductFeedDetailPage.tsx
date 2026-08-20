@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { Download, Play } from 'lucide-react';
+import { Download, History, Play } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
 import { useAuth } from '@/lib/auth';
@@ -14,11 +15,12 @@ import {
   type IssuedFeedToken,
   type ProductFeedDto,
 } from './api';
+import { FeedDeliveryPanel } from './components/FeedDeliveryPanel';
 import { FeedLinkCard } from './components/FeedLinkCard';
 import { FeedSettingsForm } from './components/FeedSettingsForm';
 import { FeedStatusBadge } from './components/FeedStatusBadge';
 
-type Tab = 'overview' | 'runs' | 'settings';
+type Tab = 'overview' | 'runs' | 'delivery' | 'settings';
 
 const POLL_INTERVAL_MS = 5_000;
 
@@ -230,13 +232,13 @@ export function ProductFeedDetailPage(): ReactNode {
 
       <div className="b2b-tabs-scroll mb-4">
         <div className="b2b-tabs" role="tablist">
-          {(['overview', 'runs', 'settings'] as const).map((id) => (
+          {(['overview', 'runs', 'delivery', 'settings'] as const).map((id) => (
             <button
               key={id}
               type="button"
               role="tab"
               aria-selected={tab === id}
-              className={`b2b-tab ${tab === id ? 'b2b-tab--active' : ''}`}
+              className={`b2b-tab ${tab === id ? 'is-active' : ''}`}
               onClick={() => setTab(id)}
             >
               {t(`feeds.tab.${id}`)}
@@ -257,18 +259,31 @@ export function ProductFeedDetailPage(): ReactNode {
       )}
 
       {tab === 'runs' && (
-        <ResponsiveTable
-          columns={runColumns}
-          data={runs}
-          keyExtractor={(row) => row.id}
-          emptyState={
-            <div className="rounded-lg border border-dashed p-8 text-center">
-              <p className="font-medium">{t('feeds.runs.empty.title')}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{t('feeds.runs.empty.subtitle')}</p>
-            </div>
-          }
-        />
+        // Same card surface as every other admin list, and the same `.b2b-empty`
+        // block the feed list uses — the hand-rolled dashed box was a third
+        // empty-state design in one module.
+        <Card>
+          <CardContent className="pt-6">
+            <ResponsiveTable
+              columns={runColumns}
+              data={runs}
+              keyExtractor={(row) => row.id}
+              emptyState={
+                <div className="b2b-empty">
+                  <div className="b2b-empty__icon">
+                    <History size={20} aria-hidden="true" />
+                  </div>
+                  <div className="b2b-empty__title">{t('feeds.runs.empty.title')}</div>
+                  <div className="b2b-empty__sub">{t('feeds.runs.empty.subtitle')}</div>
+                </div>
+              }
+            />
+          </CardContent>
+        </Card>
       )}
+
+      {/* Feature 070 — where this feed is pushed, and whether the partner got it. */}
+      {tab === 'delivery' && <FeedDeliveryPanel feedId={feed.id} />}
 
       {tab === 'settings' && <FeedSettingsForm feed={feed} onSaved={setFeed} />}
     </div>

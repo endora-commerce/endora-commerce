@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { PromptActionToolRegistry, type PromptActionTool } from './tool-registry.js';
+import type { PromptActionTool } from '@b2b/contracts';
+import { PromptActionToolRegistry } from './tool-registry.js';
 
 /**
  * T018 — unit tests for the PromptActionToolRegistry port (feature 043,

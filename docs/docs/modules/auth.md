@@ -18,8 +18,12 @@ folders permitted by Principle VI (alongside `example`).
   section of `README.md` at the repository root).
 - **TOTP** — `totp-service.ts` wraps `otpauth` + a backup-code pool.
 - **Fastify plugin** — `plugin.ts` parses the session cookie and attaches
-  `request.actor = { kind, id, ... }`; exposes `requireCustomer`,
-  `requireAdmin(permission?)`, `requireApiKey(scope)` pre-handlers.
+  `request.actor = { kind, id, ... }` plus `request.adminActor`.
+- **Route guards** — `requireAdmin(permission?)`, `requireAdminAny(codes)` and
+  `requireCustomer`, provided as ports from `backend.ts` and resolved by every
+  module that gates a route. They were Fastify decorators on the plugin once;
+  feature 072 (T078) and issue #43 made them ports so production and the test
+  harness run the same implementation instead of one each.
 
 ## No HTTP routes of its own
 

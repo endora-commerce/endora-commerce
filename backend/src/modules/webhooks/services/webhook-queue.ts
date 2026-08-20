@@ -1,4 +1,5 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
+import { enterSystemScope } from '../../../kernel/scope.js';
 import type Redis from 'ioredis';
 
 /**
@@ -50,5 +51,13 @@ export function createWebhookWorker(
     concurrency: 8,
     ...overrides,
   };
-  return new Worker<WebhookJobData>(WEBHOOK_QUEUE_NAME, processor, options);
+  // Feature 072 (T033) — a delivery job runs detached, so it establishes its
+  // own scope here. Before this it established NOTHING: it survived only
+  // because `Webhook` and `WebhookDelivery` carry no automatic tenant filter,
+  // which is a fact about their classification, not a guarantee.
+  return new Worker<WebhookJobData>(
+    WEBHOOK_QUEUE_NAME,
+    (job) => enterSystemScope('webhooks: deliver', () => processor(job)),
+    options,
+  );
 }

@@ -5,11 +5,11 @@ import {
   type FeedOutputFormat,
   type FeedRunIssueReason,
   type FeedTemplatePreviewRequest,
+  type CatalogProductReadPort,
   type TaxonomyProviderCode,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { FeedTemplate } from '../entities/feed-template.entity.js';
 import { FeedTemplateField } from '../entities/feed-template-field.entity.js';
 import { ProductFeed } from '../entities/product-feed.entity.js';
@@ -56,6 +56,11 @@ const KEYED_SOURCE_KINDS = new Set(['attribute', 'custom_field']);
 
 export interface TemplatePreviewDeps {
   emFactory: () => EntityManager;
+  /**
+   * Feature 075, Phase C — the product a preview is rendered for, read over
+   * `catalog`'s published port rather than out of its table.
+   */
+  catalogProducts: CatalogProductReadPort;
   generation: FeedGenerationService;
   resolver: ItemFieldResolverPort;
   listProductFieldKeys: () => Promise<Set<string>>;
@@ -277,12 +282,11 @@ export class TemplatePreviewService {
     draft: FeedTemplatePreviewRequest['draft'],
     context: FeedResolutionContext,
   ): Promise<FeedItemSource> {
-    const em = this.deps.emFactory();
     // The preview is evaluated in the channel the draft names, exactly as a run
     // would be; binding it here keeps that visible at the read
-    // (`no-unscoped-channel-query`).
+    // (Principle XII's accessor clause).
     const salesChannelId = channel.id;
-    const product = await em.findOne(Product, { id: request.productId });
+    const product = await this.deps.catalogProducts.findById(request.productId);
     if (!product) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product not found.');
 
     const bindsProviderCategory = draft.fields.some(
@@ -330,9 +334,13 @@ function renderItem(
   if (outputFormat === 'xml') {
     return new XmlFeedSerializer({ title: '', link: '', description: '' }).item(emitted);
   }
+  // An XLSX preview is rendered tab-separated on purpose. The preview answers
+  // "which value lands in which column", and that layout is identical; the
+  // alternative is showing the operator a fragment of a ZIP archive, which
+  // answers nothing. The real file is still a genuine workbook.
   const serializer = new DelimitedFeedSerializer({
     columns: fields.map((field) => field.outputName),
-    delimiter: outputFormat === 'tsv' ? '\t' : ',',
+    delimiter: outputFormat === 'csv' ? ',' : '\t',
   });
   return `${serializer.begin()}${serializer.item(emitted)}`;
 }

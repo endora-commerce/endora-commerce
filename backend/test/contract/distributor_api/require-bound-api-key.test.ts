@@ -10,7 +10,7 @@ import {
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { ApiKey } from '../../../src/modules/api_keys/entities/api-key.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
 /**
  * Feature 062 / T010 — `requireBoundApiKey(scope)` gate
@@ -49,7 +49,7 @@ describe('requireBoundApiKey gate (062)', () => {
       scopes: ['catalog:read', 'orders:read', 'orders:write'],
       binding: {
         organizationId: TEST_ORGANIZATION_ID,
-        salesChannelId: defaultChannel!.id,
+        salesChannelId: defaultChannel.id,
         customerAccountId: TEST_CUSTOMER_ID,
       },
     });

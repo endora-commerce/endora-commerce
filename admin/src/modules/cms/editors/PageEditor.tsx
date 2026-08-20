@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@measured/puck';
-import type { CmsPageDetail } from '@b2b/contracts';
+import { slugify as slugifyText, type CmsPageDetail } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +12,6 @@ import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslation } from '@/i18n/useTranslation';
-import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
@@ -47,17 +46,18 @@ const blankForm: FormState = {
 };
 
 /**
- * Build a URL slug from a free-text page name. Reuses the diacritic-folding
- * `normalize` helper (so Polish "Łatwy poradnik" → "latwy-poradnik"), then
- * collapses any run of non-alphanumerics to a single hyphen and trims to the
- * 180-char limit enforced by the CMS slug validation regex.
+ * Build a URL slug from a free-text page name (so Polish `Łatwy poradnik` gives
+ * `latwy-poradnik`), within the 180-character limit the CMS slug validation
+ * regex enforces.
+ *
+ * `slugify` from `@b2b/contracts`, **imported, never re-implemented** (issue
+ * #245) — aliased because this wrapper keeps the local name the JSX reads. This
+ * site's chain was already correct: it and `BlockEditor` were the only two of
+ * eight that cut to length *before* stripping the trailing separator, so
+ * nothing about its output moves.
  */
 function slugify(input: string): string {
-  return normalize(input)
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+/, '')
-    .slice(0, 180)
-    .replace(/-+$/, '');
+  return slugifyText(input, { maxLength: 180 });
 }
 
 function dataFor(page: CmsPageDetail | null, language: string | null): Data | null {

@@ -35,7 +35,23 @@ export const manifest = defineModuleManifest({
   description:
     'Cross-module registry of countries, languages, and currencies — backs every dropdown, validator, and address-form picker on the storefront and admin.',
   version: '1.0.0',
-  dependencies: ['currencies', 'languages'],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by. Feature
+  // 072 made it a container resolution rather than an optional argument that
+  // decided whether the admin surface existed at all.
+  dependencies: ['currencies', 'languages', 'auth'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: DICTIONARY_PERMISSIONS.WRITE, label: 'Manage dictionary registry' }],
+  // Feature 074 (Constitution XVII), test C3 — platform primitive. The flag
+  // used to rest on `organizations` declaring this module; ruling 2 withdraws
+  // a dependent's authority to impose the lock, so the ground is now this
+  // module's own. It is the shared reference-data primitive — countries,
+  // units, document types — that every other module validates and renders
+  // against. There is no business decision underneath it: nobody chooses to
+  // stop having countries.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'The shared reference-data primitive — countries, units, document types — that every ' +
+      'other surface validates and renders against.',
+  },
 });

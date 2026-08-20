@@ -8,7 +8,7 @@ import {
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
 /**
  * Feature 062 / T003 — API key creation binding rules B1–B5
@@ -55,7 +55,7 @@ describe('API key binding validation (062 / B1–B5)', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     const defaultChannel = await h.salesChannels.resolver.getSystemDefault();
-    defaultChannelId = defaultChannel!.id;
+    defaultChannelId = defaultChannel.id;
 
     // Second organization + its customer account (B3 cross-org refusal) and a
     // blocked account inside the bound org (B3 active-account refusal).

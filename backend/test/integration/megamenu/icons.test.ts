@@ -2,10 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Asset } from '../../../src/modules/assets_library/entities/asset.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * T059 + T060 — Icons on link items. The target validator refuses an
@@ -56,9 +57,7 @@ describe('Megamenu link icons (T059 + T060)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   async function createMenu(): Promise<{ id: string; version: number }> {

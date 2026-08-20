@@ -1,7 +1,8 @@
 import { initOrm, closeOrm } from '../../../db/index.js';
 import { I18nService } from '../services/i18n-service.js';
-import { reconcileBundles } from '../plugin.js';
+import { reconcileBundles } from '../services/bundle-reconciler.js';
 import { REGISTERED_MANIFESTS } from '../../_lifecycle/registered-manifests.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 /**
  * `pnpm --filter backend run i18n:reload` — hot-reload translations.
@@ -39,7 +40,7 @@ async function main(): Promise<void> {
   }
 }
 
-void main().catch((err: unknown) => {
+void enterSystemScope('cli: reload i18n bundles', main, { entryPoint: 'cli' }).catch((err: unknown) => {
   process.stderr.write(`${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
   process.exit(2);
 });

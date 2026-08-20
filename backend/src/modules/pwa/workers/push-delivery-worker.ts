@@ -5,7 +5,6 @@ import { PushMessage } from '../entities/push-message.entity.js';
 import { PushMessageDelivery } from '../entities/push-message-delivery.entity.js';
 import { PushSubscription } from '../entities/push-subscription.entity.js';
 import type { PushDeliveryJobData } from '../services/push-delivery-queue.js';
-import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 
 export interface PushDeliveryProcessorDeps {
   emFactory: () => EntityManager;
@@ -20,10 +19,18 @@ export interface PushDeliveryProcessorDeps {
  * back off and retry.
  */
 export function makePushDeliveryProcessor(deps: PushDeliveryProcessorDeps) {
-  return async (job: Job<PushDeliveryJobData>): Promise<void> =>
-    // Feature 050 — BullMQ job runs detached; scope the PushSubscription reads
-    // under a system context (fail-closed guard).
-    withSystemScope('push-delivery', async () => {
+  // command-coverage-ignore: delivery-state bookkeeping for an operation already
+  // audited at its start — the operator's write was creating and sending the
+  // PushMessage. Attempt counters, `sent`/`failed`/`pruned` transitions and the
+  // pruning of a subscription the push endpoint reported `gone` are the machine
+  // reporting on that one decision; an audit row per delivery would say nothing
+  // about who did what, and there are as many as there are subscribers.
+  //
+  // Feature 050 — a BullMQ job runs detached and needs an ambient tenant
+  // context for the PushSubscription reads (fail-closed guard). Feature 072
+  // (T033) moved that wrapper out to the `new Worker(...)` site, where every
+  // other queue in the tree puts it, so the processor is a plain function again.
+  return async (job: Job<PushDeliveryJobData>): Promise<void> => {
     const em = deps.emFactory();
     const delivery = await em.findOne(PushMessageDelivery, { id: job.data.deliveryId });
     if (!delivery) return; // delivery (or its message) was removed — nothing to do
@@ -95,7 +102,7 @@ export function makePushDeliveryProcessor(deps: PushDeliveryProcessorDeps) {
     message.failedCount += 1;
     await em.flush();
     await maybeFinalize(em, message);
-    });
+  };
 }
 
 /**
@@ -104,6 +111,8 @@ export function makePushDeliveryProcessor(deps: PushDeliveryProcessorDeps) {
  * source of truth for the admin history).
  */
 async function maybeFinalize(em: EntityManager, message: PushMessage): Promise<void> {
+  // command-coverage-ignore: closes out the same already-audited send. The
+  // terminal status is derived from the delivery counts, not chosen by anybody.
   const pending = await em.count(PushMessageDelivery, {
     messageId: message.id,
     status: 'pending',

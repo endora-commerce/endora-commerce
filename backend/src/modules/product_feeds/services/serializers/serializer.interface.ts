@@ -1,3 +1,5 @@
+import type { Writable } from 'node:stream';
+
 /**
  * Feed serializer SPI — feature 067 / FR-011, FR-034.
  *
@@ -25,7 +27,7 @@ export interface FeedItemField {
   readonly value: string;
 }
 
-export type FeedFileExtension = 'xml' | 'csv' | 'tsv';
+export type FeedFileExtension = 'xml' | 'csv' | 'tsv' | 'txt' | 'xlsx';
 
 export interface FeedSerializer {
   /** `Content-Type` for both the admin download and the public route. */
@@ -39,4 +41,35 @@ export interface FeedSerializer {
   item(fields: readonly FeedItemField[]): string;
   /** Everything following the last item. Empty for a delimited file. */
   end(): string;
+}
+
+/**
+ * The second shape of serializer: one that owns its own sink.
+ *
+ * A text format can be cut into independent chunks, which is why `FeedSerializer`
+ * above is the better contract wherever it applies — it makes buffering
+ * structurally impossible. A container format cannot: an `.xlsx` is a ZIP whose
+ * central directory depends on every entry written before it, so no `item()`
+ * can be a pure function of its argument.
+ *
+ * Rather than weaken the chunk contract for everyone, such a format implements
+ * this instead. The obligation the chunk contract enforced by construction
+ * becomes an explicit one here: **`writeTo` must pull `source` lazily and honour
+ * back-pressure on `sink`**, so peak memory stays independent of catalogue size
+ * (research §R2, §R4). `createFeedReadable` accepts either shape and both reach
+ * storage as a `Readable`.
+ */
+export interface StreamingFeedSerializer {
+  readonly contentType: string;
+  readonly fileExtension: FeedFileExtension;
+  /** Resolves once the last byte has been handed to `sink`. */
+  writeTo(sink: Writable, source: AsyncIterable<readonly FeedItemField[]>): Promise<void>;
+}
+
+export type AnyFeedSerializer = FeedSerializer | StreamingFeedSerializer;
+
+export function isStreamingSerializer(
+  serializer: AnyFeedSerializer,
+): serializer is StreamingFeedSerializer {
+  return typeof (serializer as StreamingFeedSerializer).writeTo === 'function';
 }

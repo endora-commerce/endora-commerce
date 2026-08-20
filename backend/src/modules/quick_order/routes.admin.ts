@@ -5,10 +5,10 @@ import {
   quickOrderImportRequestSchema,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import type { QuickOrderBuildService } from './services/quick-order-build-service.js';
 import { parseImportRequest } from './services/import-from-request.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin quick-order routes (feature 039, FR-008). An operator imports a file
@@ -36,7 +36,11 @@ export async function registerQuickOrderAdminRoutes(
       const body = quickOrderImportRequestSchema.parse(request.body);
       const maxRows = await resolveImportMaxRows();
       const parse = await parseImportRequest(body);
-      const result = await pipeline.run(parse, { maxRows });
+      // Issue #227 — `'unrestricted'`, and stated rather than omitted. This
+      // route is gated by `orders:write`, and the operator names the
+      // organisation on the *build* call one step later, so at import time
+      // there is no buyer whose allow-list this run could be scoped by.
+      const result = await pipeline.run(parse, { maxRows, audience: 'unrestricted' });
       return { data: result };
     },
   );

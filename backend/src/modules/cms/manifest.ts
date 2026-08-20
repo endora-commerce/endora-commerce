@@ -9,8 +9,21 @@ export const CMS_PAGE_BUILDER_SETTING_CODES = {
 
 const settings = defineModuleSettingsManifest({
   moduleCode: 'cms',
-  groups: [{ code: 'cms_page_builder', name: 'Page Builder' }],
+  groups: [
+    { code: 'cms', name: 'CMS' },
+    { code: 'cms_page_builder', name: 'Page Builder' },
+  ],
   settings: [
+    {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'cms.enabled',
+      name: 'CMS enabled',
+      description:
+        'Switches the CMS admin screens, its API and the storefront pages, blocks and hooks it serves on or off. Nothing is dropped: pages, blocks, templates and hook attachments stay in the database and reappear exactly as they were when you switch it back on.',
+      groupCode: 'cms',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
     {
       code: CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_TABLET_MIN,
       name: 'Tablet breakpoint (min-width px)',
@@ -48,7 +61,17 @@ export const manifest = defineModuleManifest({
   name: 'CMS',
   description: 'Pages, blocks, templates, and hooks for content management.',
   version: '1.0.0',
-  dependencies: ['sales_channels'],
+  // `auth` owns the `requireAdmin` port both route files are gated by, and
+  // `settings` owns the store the page-builder resolvers read and write.
+  // `assets_library` owns the reference registry this module contributes its
+  // embedded-asset scan to (T143a) — the edge existed as a composition root's
+  // cross-registration, which is to say it existed nowhere an operator, the
+  // lifecycle or the migration order could see it.
+  // `languages` owns `languageReferenceRegistry`, the registry this module
+  // contributes its "which languages do pages carry" descriptor to (feature 077,
+  // D-87). `languages` used to ask the question itself, with a jsonb
+  // containment test against `cms_pages` — this module's table.
+  dependencies: ['assets_library', 'languages', 'sales_channels', 'auth', 'settings'],
   i18n: { bundlesDir: 'i18n' },
   settings,
   permissions: [
@@ -67,6 +90,11 @@ export const manifest = defineModuleManifest({
       weight: 130,
     },
   ],
+  // Feature 073 — the operator's activation control. A platform without a CMS
+  // is a smaller platform, not a broken one: pages, blocks and hooks are
+  // content, and switching the module off hides the screens and the storefront
+  // surface without dropping a row.
+  activation: { settingCode: 'cms.enabled', default: true },
 });
 
 export function resolvePageBuilderBreakpointsFromEnv(): PageBuilderBreakpoints {

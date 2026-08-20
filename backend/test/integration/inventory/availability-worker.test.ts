@@ -4,11 +4,32 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import type { CatalogProductReadPort, CustomerAccountReadPort } from '@b2b/contracts';
 import { AvailabilityWorker } from '../../../src/modules/inventory/services/availability-worker.js';
 import { AvailabilityNotification } from '../../../src/modules/inventory/entities/availability-notification.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
+
+/**
+ * The container's own registrations — feature 075, Phase C. The worker takes
+ * `catalog`'s and `customer_accounts`' published read ports instead of loading
+ * their entities, so a hand-built worker here resolves the same gates the
+ * composed module does rather than becoming a second reader of the same rows.
+ */
+function ports(handle: BackendServerHandle): {
+  catalogProducts: CatalogProductReadPort;
+  customerAccounts: CustomerAccountReadPort;
+} {
+  const cradle = handle.container.cradle as never as {
+    catalogProductReadPort: CatalogProductReadPort;
+    customerAccountReadPort: CustomerAccountReadPort;
+  };
+  return {
+    catalogProducts: cradle.catalogProductReadPort,
+    customerAccounts: cradle.customerAccountReadPort,
+  };
+}
 
 /**
  * T136 / FR-061 — availability worker fans out a back-in-stock email to
@@ -35,7 +56,8 @@ describe('AvailabilityWorker.dispatchForStockIncrease', () => {
 
   beforeEach(async () => {
     mailer = new InMemoryMailer();
-    worker = new AvailabilityWorker(h.em, mailer);
+    const { catalogProducts, customerAccounts } = ports(h);
+    worker = new AvailabilityWorker(h.em, mailer, catalogProducts, customerAccounts);
     await h
       .em()
       .getConnection()

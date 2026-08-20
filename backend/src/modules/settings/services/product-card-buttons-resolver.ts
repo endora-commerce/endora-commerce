@@ -1,5 +1,4 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SettingsService } from './settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 
 const ADD_TO_CART_CODE = 'storefront.product_card.show_add_to_cart';
 const ADD_TO_SHOPPING_LIST_CODE = 'storefront.product_card.show_add_to_shopping_list';
@@ -20,23 +19,19 @@ export interface ProductCardButtonsConfig {
  * storefront affordance and never 500s a public page.
  */
 export class ProductCardButtonsResolver {
-  constructor(
-    private readonly emFactory: () => EntityManager,
-    private readonly settingsService: SettingsService,
-  ) {}
+  constructor(private readonly settingsService: SettingsService) {}
 
-  async resolve(salesChannelCode: string | undefined): Promise<ProductCardButtonsConfig> {
-    const fallback: ProductCardButtonsConfig = {
-      showAddToCart: true,
-      showAddToShoppingList: true,
-      showAddToQuote: true,
-    };
-    const channelId = await this.resolveChannelId(salesChannelCode);
-    if (!channelId) return fallback;
-
+  /**
+   * Feature 075 / D-87 — the resolved request channel's id, passed in by the
+   * route. It used to be the channel *code*, looked back up here with a raw
+   * `select id from sales_channels`: a re-resolution of a channel the resolver
+   * middleware had already resolved (feature 053, FR-011), across a boundary
+   * no import specifier named.
+   */
+  async resolve(salesChannelId: string): Promise<ProductCardButtonsConfig> {
     const resolved = await this.settingsService.getMany(
       [ADD_TO_CART_CODE, ADD_TO_SHOPPING_LIST_CODE, ADD_TO_QUOTE_CODE],
-      channelId,
+      salesChannelId,
     );
     const flag = (code: string): boolean => {
       const r = resolved.get(code);
@@ -47,20 +42,5 @@ export class ProductCardButtonsResolver {
       showAddToShoppingList: flag(ADD_TO_SHOPPING_LIST_CODE),
       showAddToQuote: flag(ADD_TO_QUOTE_CODE),
     };
-  }
-
-  private async resolveChannelId(code: string | undefined): Promise<string | null> {
-    const conn = this.emFactory().getConnection();
-    if (code) {
-      const rows = (await conn.execute(
-        `select id::text as id from sales_channels where code = ? limit 1`,
-        [code],
-      )) as Array<{ id: string }>;
-      return rows[0]?.id ?? null;
-    }
-    const rows = (await conn.execute(
-      `select id::text as id from sales_channels where system_default = true limit 1`,
-    )) as Array<{ id: string }>;
-    return rows[0]?.id ?? null;
   }
 }

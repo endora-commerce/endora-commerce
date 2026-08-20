@@ -1,14 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
-import { ERROR_CODES, type CreateCategoryRequest } from '@b2b/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import type { CommandBus } from '../../../commands/index.js';
-import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import {
-  CustomFieldValidationError,
-  type CustomFieldValueService,
-} from '../../custom_fields/services/custom-field-value.service.js';
+  ERROR_CODES,
+  isCustomFieldValidationFailure,
+  type CreateCategoryRequest,
+  type CustomFieldValuePort,
+  type UpdateCategoryInput,
+} from '@b2b/contracts';
+import { HttpError } from '../../../http/error-envelope.js';
+import type { EventBase, EventBus } from '../../../events/bus.js';
+import type { CommandBus, CommandEvent } from '../../../commands/index.js';
+import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 import { Category } from '../entities/category.entity.js';
 
 /** Result of a category write closure: the entity + its audit snapshot. */
@@ -17,6 +20,38 @@ interface CategoryWrite {
   before: Record<string, unknown> | null;
   after: Record<string, unknown> | null;
   skipAudit?: boolean;
+  /**
+   * Feature 068 — domain event dispatched once the write commits (dropped on
+   * rollback), in the shape the Command Bus expects.
+   */
+  event?: CommandEvent;
+}
+
+/**
+ * Feature 068 — events this service publishes.
+ *
+ * `category.updated.v1` carries the changed category id. The search module
+ * subscribes to it and re-indexes every product in the affected subtree,
+ * because a category's slug and its activation state are both projected onto
+ * the product documents (`categorySlugs`) that back the storefront PLP.
+ */
+export interface CategoryEvents extends Record<string, EventBase> {
+  'category.updated.v1': EventBase & { categoryId: string };
+}
+
+export type CategoryEventBus = EventBus<CategoryEvents>;
+
+function categoryUpdatedEvent(
+  categoryId: string,
+): CommandEvent<CategoryEvents['category.updated.v1']> {
+  return {
+    eventName: 'category.updated.v1',
+    payload: {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      categoryId,
+    },
+  };
 }
 
 /**
@@ -31,16 +66,13 @@ interface CategoryWrite {
  * historical reference; the public catalog filters them out.
  */
 
-export interface UpdateCategoryInput {
-  parentCategoryId?: string | null;
-  name?: Record<string, string>;
-  slug?: string;
-  sortOrder?: number;
-  /** Feature 013 / US5 — Library Asset rendered as the storefront category main image. */
-  mainImageAssetId?: string | null;
-  /** Feature 055 — custom-field values (validated + merged against definitions on write). */
-  customFieldValues?: Record<string, unknown>;
-}
+/**
+ * The patch this service's `update` accepts.
+ *
+ * Published in `@b2b/contracts` in feature 075's Phase P — the category write
+ * port takes it — and aliased back here so the two cannot drift.
+ */
+export type { UpdateCategoryInput };
 
 export class CategoryAdminService {
   constructor(
@@ -56,7 +88,13 @@ export class CategoryAdminService {
     /** Feature 054 — audits category writes co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
     /** Feature 055 — validates + merges custom-field values on category write. */
-    private readonly customFieldValues?: CustomFieldValueService,
+    private readonly customFieldValues?: CustomFieldValuePort,
+    /**
+     * Feature 068 — publishes `category.updated.v1`. Only consulted on the
+     * bus-less fallback path: when a Command Bus is injected it dispatches the
+     * command's event itself, on commit.
+     */
+    private readonly events?: CategoryEventBus,
   ) {}
 
   /** Validate + merge a custom-field patch, mapping validation errors to HTTP 422. */
@@ -68,7 +106,12 @@ export class CategoryAdminService {
     try {
       return await this.customFieldValues.validateAndMerge('category', current ?? {}, patch);
     } catch (err) {
-      if (err instanceof CustomFieldValidationError) {
+      // Feature 075 — narrowed structurally, not by `instanceof` on
+      // `custom_fields`' class. The guard tests `name` and the `errors`
+      // array, which is what still works once each module is its own npm
+      // package; and the re-throw below stays unconditional, so a
+      // `ModuleDisabledError` from the port leaves through it.
+      if (isCustomFieldValidationFailure(err)) {
         throw new HttpError(
           422,
           ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
@@ -91,12 +134,17 @@ export class CategoryAdminService {
     write: (em: EntityManager) => Promise<CategoryWrite>,
   ): Promise<Category> {
     if (this.commandBus) {
+      // The event is declared per run, so `event()` can hand the bus whatever
+      // the closure produced. Captured here rather than on the entity because
+      // the bus dispatches it after the transaction commits.
+      let declared: CommandEvent | undefined;
       return this.commandBus.run({
         action,
         objectType: 'category',
         objectId,
         run: async ({ em }) => {
           const w = await write(em);
+          declared = w.event;
           return {
             result: w.result,
             before: w.before,
@@ -104,11 +152,18 @@ export class CategoryAdminService {
             ...(w.skipAudit ? { skipAudit: true } : {}),
           };
         },
+        event: () => declared,
       });
     }
     const em = this.emFactory();
     const w = await write(em);
     await em.flush(); // no-op when the closure already flushed (create/update)
+    if (w.event) {
+      this.events?.emit(
+        w.event.eventName as keyof CategoryEvents & string,
+        w.event.payload as CategoryEvents[keyof CategoryEvents & string],
+      );
+    }
     return w.result;
   }
 
@@ -133,6 +188,8 @@ export class CategoryAdminService {
         name: input.name,
         slug: input.slug,
         sortOrder: input.sortOrder ?? 0,
+        // Feature 068 — omitted means active (the column default).
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       });
       try {
         await em.flush();
@@ -154,6 +211,7 @@ export class CategoryAdminService {
           slug: created.slug,
           parentCategoryId: created.parentCategoryId ?? null,
           sortOrder: created.sortOrder,
+          isActive: created.isActive,
         },
       };
     });
@@ -174,6 +232,7 @@ export class CategoryAdminService {
         slug: cat.slug,
         parentCategoryId: cat.parentCategoryId ?? null,
         sortOrder: cat.sortOrder,
+        isActive: cat.isActive,
       };
       if (input.parentCategoryId !== undefined) {
         if (input.parentCategoryId !== null) {
@@ -185,6 +244,7 @@ export class CategoryAdminService {
       if (input.name !== undefined) cat.name = input.name;
       if (input.slug !== undefined) cat.slug = input.slug;
       if (input.sortOrder !== undefined) cat.sortOrder = input.sortOrder;
+      if (input.isActive !== undefined) cat.isActive = input.isActive;
       if (input.mainImageAssetId !== undefined) cat.mainImageAssetId = input.mainImageAssetId;
       if (input.customFieldValues !== undefined) {
         cat.customFieldValues = await this.#mergeCustomFields(cat.customFieldValues ?? {}, input.customFieldValues);
@@ -209,7 +269,12 @@ export class CategoryAdminService {
           slug: cat.slug,
           parentCategoryId: cat.parentCategoryId ?? null,
           sortOrder: cat.sortOrder,
+          isActive: cat.isActive,
         },
+        // Feature 068 — the subtree's products carry this category's slug and
+        // (through the activation flag) their reachability, so every update
+        // has to reach the search index.
+        event: categoryUpdatedEvent(cat.id),
       };
     });
   }
@@ -229,6 +294,35 @@ export class CategoryAdminService {
       cat.deletedAt = new Date();
       return { result: cat, before: { name: cat.name, slug: cat.slug }, after: { deletedAt: cat.deletedAt } };
     });
+  }
+
+  /**
+   * Set the inventory display-band thresholds on a category (feature 075,
+   * Phase C — published as `catalogCategoryWritePort.setInventoryThresholds`).
+   *
+   * `inventory` owns the meaning of these three columns and stored them here
+   * because the storefront resolver reads them alongside the category row. It
+   * wrote them by importing `Category`; this is the same write, on this side of
+   * the boundary, and deliberately the same write and no more: no Command, no
+   * `category.updated.v1`, no `category.update` audit row. The caller records
+   * one `low_stock_threshold.update` summary row for the whole patch, and
+   * routing this through {@link update} would give an operator reading a
+   * category's history a second, differently-named entry for the same act.
+   */
+  async setInventoryThresholds(
+    id: string,
+    patch: { high?: number | null; medium?: number | null; low?: number | null },
+  ): Promise<void> {
+    // command-coverage-ignore: three threshold columns on a category row, audited
+    // by the caller as one `low_stock_threshold.update` summary — see the doc
+    // comment above and `ThresholdAdminService.patch`.
+    const em = this.emFactory();
+    const cat = await em.findOne(Category, { id, deletedAt: null });
+    if (!cat) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Category ${id} not found`);
+    if (patch.high !== undefined) cat.inventoryThresholdHigh = patch.high;
+    if (patch.medium !== undefined) cat.inventoryThresholdMedium = patch.medium;
+    if (patch.low !== undefined) cat.inventoryThresholdLow = patch.low;
+    await em.flush();
   }
 
   async #assertParentExists(em: EntityManager, parentId: string): Promise<void> {

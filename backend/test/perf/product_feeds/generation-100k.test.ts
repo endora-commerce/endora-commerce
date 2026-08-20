@@ -6,7 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
 import { FeedArtefact } from '../../../src/modules/product_feeds/entities/feed-artefact.entity.js';
 import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
@@ -149,6 +149,8 @@ describe.skipIf(!shouldRun)('product feed generation — 100k perf', () => {
       defaultCurrency: 'PLN',
       active: true,
     });
+    // Catch-all rather than `isSystem` (issue #50): the system flag marks the
+    // platform's one seeded `Default` row and is now a database singleton.
     const priceList = em.create(PriceList, {
       code: 'perf_feed_list',
       name: 'Perf feed list',
@@ -156,7 +158,6 @@ describe.skipIf(!shouldRun)('product feed generation — 100k perf', () => {
       type: 'base',
       status: 'active',
       applicationRule: { kind: 'all' },
-      isSystem: true,
       modifiedAt: new Date(),
     });
     await em.persistAndFlush([small, large, priceList]);

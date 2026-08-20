@@ -19,14 +19,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck source=scripts/lib/read-size.sh
+source "$SCRIPT_DIR/lib/read-size.sh"
+
 # 32 MB headroom over the ~14.6 MB measured at install time. The number
 # is intentionally generous: this gate is a tripwire against accidents,
 # not a tight budget.
 MAX_BYTES=$((32 * 1024 * 1024))
 
+# Both preconditions below used to `exit 0` with a "skipping" line. A gate that
+# reports success when it measured nothing is indistinguishable from one that
+# measured and approved — the whole of issue #113 — so an unmeasurable run exits
+# 2: not clean (0), not over budget (1), but "this said nothing".
 if ! command -v du >/dev/null 2>&1; then
-  echo "[pdfmake-gate] du(1) is not available; skipping the footprint check." >&2
-  exit 0
+  echo "[pdfmake-gate] du(1) is not available — refusing to report a vacuous pass." >&2
+  exit 2
 fi
 
 # pnpm hoists pdfmake into .pnpm/pdfmake@<version>/node_modules/pdfmake.
@@ -44,9 +51,17 @@ for c in "${candidates[@]}"; do
   fi
 done
 if [ -z "$target" ]; then
-  echo "[pdfmake-gate] pdfmake not installed; skipping (run pnpm install first)." >&2
-  exit 0
+  echo "[pdfmake-gate] pdfmake is not installed — nothing was measured; run pnpm install first." >&2
+  exit 2
 fi
+
+# What was read, beside what was found (issue #244). `du` on a directory that
+# exists but holds almost nothing — a half-written pnpm store entry, a package
+# whose files were pruned — reports a small size, which this gate reads as
+# "under budget" and reports as a pass. The file count is what tells the two
+# apart. `self-reported`: nothing in the tree derives how many files a
+# dependency ships.
+read_size_report '[pdfmake-gate]' "$(find "$target" -type f | wc -l)" - self-reported
 
 actual=$(du -sb "$target" | awk '{print $1}')
 if [ "$actual" -gt "$MAX_BYTES" ]; then

@@ -19,6 +19,36 @@ export const mfaSocialProviderSchema = z.enum(['google', 'microsoft']);
 export type MfaSocialProvider = z.infer<typeof mfaSocialProviderSchema>;
 
 // ---------------------------------------------------------------------------
+// Federated sign-in availability (issue #193)
+// ---------------------------------------------------------------------------
+
+/**
+ * `GET /api/v1/auth/{customer|admin}/oauth/providers` — public, unauthenticated.
+ *
+ * The providers a sign-in surface can actually complete a hand-off with. A
+ * provider is listed only when **both** halves hold: client credentials are
+ * configured for it (backend env, never Settings) *and* the surface's
+ * `mfa.*.<provider>_enabled` setting is on for the request's sales channel.
+ *
+ * A provider missing either half is **absent from the array**, not present with
+ * a `false` flag. That asymmetry is the contract's job: a frontend deciding
+ * "render this button or not" must not be handed a reason to render a control
+ * whose click leads back to the login screen with an error. Both settings
+ * default to `false`, so the honest answer on a fresh deployment is `[]`.
+ *
+ * The route belongs to `mfa` and is gated at its registration seam, so a
+ * switched-off module answers 503 `MODULE_DISABLED`. Frontends still project
+ * absence from `/module-presence` first and treat the 503 as defence in depth —
+ * absence is projected, never inferred from a status code.
+ */
+export const federatedSignInOptionsResponseSchema = z.object({
+  providers: z.array(mfaSocialProviderSchema),
+});
+export type FederatedSignInOptionsResponse = z.infer<
+  typeof federatedSignInOptionsResponseSchema
+>;
+
+// ---------------------------------------------------------------------------
 // Two-step login result (replaces the inline `twoFactorCode` shape)
 // ---------------------------------------------------------------------------
 
@@ -104,11 +134,39 @@ export const mfaRegenerateRequestSchema = z.object({
 });
 export type MfaRegenerateRequest = z.infer<typeof mfaRegenerateRequestSchema>;
 
+/**
+ * Why an account may not sever a federated identity (issue #194).
+ *
+ * `last_credential` — it is the account's only link, and the platform cannot
+ * tell whether its holder has ever chosen a password: an account created by a
+ * social sign-in is given a random one at signup. Removing the link could
+ * therefore remove the only credential its holder can use, so it is refused
+ * until another credential is in place.
+ */
+export const mfaSocialUnlinkBlockedReasonSchema = z.enum(['last_credential']);
+export type MfaSocialUnlinkBlockedReason = z.infer<typeof mfaSocialUnlinkBlockedReasonSchema>;
+
 export const mfaSocialLinkSummarySchema = z.object({
   provider: mfaSocialProviderSchema,
   email: z.string(),
   linkedAt: z.string(),
+  /** The surface renders the unlink control from this, never from its own guess. */
+  canUnlink: z.boolean(),
+  unlinkBlockedReason: mfaSocialUnlinkBlockedReasonSchema.nullable(),
 });
+export type MfaSocialLinkSummary = z.infer<typeof mfaSocialLinkSummarySchema>;
+
+/** `DELETE {prefix}/social-links/:provider` — one link per provider per account. */
+export const mfaSocialUnlinkParamsSchema = z.object({
+  provider: mfaSocialProviderSchema,
+});
+export type MfaSocialUnlinkParams = z.infer<typeof mfaSocialUnlinkParamsSchema>;
+
+export const mfaSocialUnlinkResponseSchema = z.object({
+  status: z.literal('unlinked'),
+  provider: mfaSocialProviderSchema,
+});
+export type MfaSocialUnlinkResponse = z.infer<typeof mfaSocialUnlinkResponseSchema>;
 
 export const mfaStatusResponseSchema = z.object({
   totpActive: z.boolean(),
@@ -158,6 +216,13 @@ export type MfaResetBulkResult = z.infer<typeof mfaResetBulkResultSchema>;
 // ---------------------------------------------------------------------------
 
 export const MFA_SETTING_CODES = {
+  /**
+   * Feature 074 — the operator-activation control (Constitution XVII). It sits
+   * above the eight policy switches below rather than beside them: those decide
+   * *which* second factor a surface offers, this decides whether the module is
+   * present at all.
+   */
+  ACTIVATION: 'mfa.enabled',
   ADMIN_TOTP_ENABLED: 'mfa.admin.totp_enabled',
   ADMIN_TOTP_ENFORCED: 'mfa.admin.totp_enforced',
   STOREFRONT_TOTP_ENABLED: 'mfa.storefront.totp_enabled',
@@ -167,3 +232,38 @@ export const MFA_SETTING_CODES = {
   STOREFRONT_GOOGLE_ENABLED: 'mfa.storefront.google_enabled',
   STOREFRONT_MICROSOFT_ENABLED: 'mfa.storefront.microsoft_enabled',
 } as const;
+
+// ---------------------------------------------------------------------------
+// Ports
+// ---------------------------------------------------------------------------
+
+/** How many subjects hold an active second factor, split by identity store. */
+export const mfaActiveEnrolmentCountsSchema = z.object({
+  admins: z.number().int().nonnegative(),
+  customers: z.number().int().nonnegative(),
+});
+export type MfaActiveEnrolmentCounts = z.infer<typeof mfaActiveEnrolmentCountsSchema>;
+
+/**
+ * Container name: `mfaEnrolmentCountPort`. Owner: `mfa`.
+ *
+ * How many people would lose their second factor. Read by `/platform/modules`
+ * before an operator switches this module off, so the confirmation dialog can
+ * say "14 administrators and 320 customers currently use a second factor"
+ * instead of only naming the capability.
+ *
+ * **It is read while `mfa` is still on**, which is the whole reason it can be a
+ * port at all: the dialog renders before the flip, so the gate on this
+ * registration is open at exactly the moment the question is asked. A count
+ * taken *after* deactivation would be a read of `mfa_enrolments` through a
+ * closed gate, which is why "refuse the login of an enrolled subject while the
+ * module is off" was ruled unimplementable (D-96.7).
+ *
+ * The caller therefore decides presence before it resolves this, and treats a
+ * failed read as "count unavailable" — a number that cannot be fetched must
+ * never stop an operator switching a module off.
+ */
+export interface MfaEnrolmentCountPort {
+  /** Subjects with an `active` (confirmed) TOTP enrolment, right now. */
+  countActiveEnrolments(): Promise<MfaActiveEnrolmentCounts>;
+}

@@ -1,9 +1,14 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { BULK_OPERATION_TYPES, type BulkUpdateProductsRequest } from '@b2b/contracts';
-import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
-import type { AdminNotificationService } from '../../admin_notifications/services/admin-notification-service.js';
-import type { Mailer } from '../../email/services/mailer.js';
+import {
+  BULK_OPERATION_TYPES,
+  type AdminUserReadPort,
+  type BulkUpdateProductsRequest,
+  type EmailMailerPort,
+} from '@b2b/contracts';
+
+import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
 import { applyUndo, type RevertRecord } from '../../../commands/index.js';
 import { Product } from '../entities/product.entity.js';
@@ -40,6 +45,64 @@ import type {
 
 /** Per-product outcomes are capped on the row so a huge run can't bloat it. */
 const MAX_PERSISTED_RESULTS = 1000;
+
+/** The bell entry a finished bulk operation writes for the admin who asked. */
+export interface BulkNotificationInput {
+  audience: 'admin_user';
+  targetAdminUserId: string;
+  kind: string;
+  subjectType?: string | null;
+  subjectId?: string | null;
+  title: string;
+  body?: string | null;
+  linkPath?: string | null;
+}
+
+/**
+ * `admin_notifications`' port, as this module reaches it.
+ *
+ * Resolving it asks a gate, so it either records or throws — it cannot answer
+ * "the operator switched the bell off", which is why the degrade lives in the
+ * recorder below rather than here (D-61's rejected alternative).
+ */
+export interface BulkNotificationPort {
+  record(input: BulkNotificationInput): Promise<unknown>;
+}
+
+/**
+ * What this module actually holds — the degrade in the return type (D-60).
+ *
+ * `not-present` is the operator having switched `admin_notifications` off. It
+ * is composed before the port is reached, so the `catch` around the write is
+ * left with what a `catch` should be left with: a failed write.
+ */
+export type BulkNotificationOutcome = 'recorded' | 'not-present';
+
+export interface BulkNotificationRecorder {
+  record(input: BulkNotificationInput): Promise<BulkNotificationOutcome>;
+}
+
+/**
+ * Wraps the gated port in the presence decision, so absence is *decided* rather
+ * than caught (D-60; Constitution XVII).
+ *
+ * A function rather than an object literal at the composition site on purpose:
+ * `check-port-catches.ts` follows the port **through the value**, and an object
+ * literal is where that trail deliberately stops.
+ */
+export function presenceAwareBulkRecorder(
+  adminNotifications: BulkNotificationPort,
+): BulkNotificationRecorder {
+  return {
+    async record(input: BulkNotificationInput): Promise<BulkNotificationOutcome> {
+      // First, and outside any `try`: a closed gate throws rather than
+      // answering, so asking after the call is asking too late.
+      if (!effectiveState.isPresent('admin_notifications')) return 'not-present';
+      await adminNotifications.record(input);
+      return 'recorded';
+    },
+  };
+}
 
 export interface CreateBulkOperationInput {
   requestedByAdminUserId: string;
@@ -98,8 +161,17 @@ export class BulkOperationService {
     private readonly emFactory: () => EntityManager,
     private readonly bulkUpdateService: CatalogBulkUpdateService,
     private readonly deps: {
-      notificationService?: AdminNotificationService;
-      mailer?: Mailer;
+      notificationService?: BulkNotificationRecorder;
+      mailer?: EmailMailerPort;
+      /**
+       * Feature 075 — who requested the operation, read through `admin_users`'
+       * port instead of `em.findOne(AdminUser, …)` against its table. Only the
+       * e-mail address is used, to tell the requester their run finished.
+       *
+       * Optional in the shape, like the two above, because a composition that
+       * neither notifies nor mails never reaches it.
+       */
+      adminUsers?: AdminUserReadPort;
       /**
        * Producer hook: hands the new operation's id to the durable queue.
        * Called once per `create()` with the persisted row's id. Failures are
@@ -435,8 +507,7 @@ export class BulkOperationService {
     summary: { succeeded: number; skipped: number; failed: number; total: number } | null,
     error?: string,
   ): Promise<void> {
-    const em = this.emFactory();
-    const admin = await em.findOne(AdminUser, { id: op.requestedByAdminUserId });
+    const admin = await this.deps.adminUsers?.findById(op.requestedByAdminUserId);
 
     const succeeded = summary?.succeeded ?? 0;
     const total = summary?.total ?? op.total;
@@ -457,6 +528,10 @@ export class BulkOperationService {
         : `The bulk edit of ${op.total} products could not be completed: ${error ?? 'unknown error'}.`;
 
     try {
+      // The outcome is read rather than discarded: `not-present` is the
+      // operator having switched `admin_notifications` off, which is their
+      // choice and not a failure, and it used to be indistinguishable from a
+      // failed write inside this `catch` (D-60).
       await this.deps.notificationService?.record({
         audience: 'admin_user',
         targetAdminUserId: op.requestedByAdminUserId,
@@ -467,19 +542,33 @@ export class BulkOperationService {
         body,
         linkPath: '/catalog/bulk-operations',
       });
-    } catch {
+    } catch (err) {
+      // Narrow, and correct: the bell is written when the operation has already
+      // finished and its row carries the outcome, so a failed write must not
+      // fail a job whose work is done. Presence is decided by the recorder
+      // before the port is reached, so what is left here is a failed write.
+      rethrowIfModuleDisabled(err);
       /* notification is best-effort */
     }
 
     if (this.deps.mailer && admin?.email) {
       try {
-        await this.deps.mailer.send({
+        const outcome = await this.deps.mailer.send({
           messageId: `bulk-op-${op.id}-${status}`,
           to: admin.email,
           subject: title,
           text: `${body}\n\nView the bulk actions page in the admin panel for details.`,
+          kind: `catalog.bulk_operation.${status}`,
           meta: { bulkOperationId: op.id, status },
         });
+        if (outcome.status !== 'sent') {
+          // The products are already written; this only tells the operator it
+          // finished. Named rather than silent, and durable in D-59's record.
+          console.warn('[catalog] the bulk-operation e-mail was not sent', {
+            bulkOperationId: op.id,
+            reason: outcome.reason,
+          });
+        }
       } catch {
         /* email is best-effort */
       }

@@ -3,9 +3,9 @@ import Redis from 'ioredis';
 import {
   ModuleRegistryCache,
   STATE_CHANGED_CHANNEL,
-} from '../../../src/modules/_lifecycle/services/registry-cache.js';
+} from '../../../src/kernel/lifecycle/registry-cache.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ModuleRegistration } from '../../../src/modules/_lifecycle/entities/module-registration.entity.js';
+import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 
 /**
  * Integration test for the cache-refresh path on Redis pub/sub
@@ -43,14 +43,20 @@ describe('ModuleRegistryCache — pub/sub refresh between processes (integration
     await em.flush();
 
     cacheB = new ModuleRegistryCache();
-    await cacheB.start({
-      redis: publisher,
+    // Feature 072 (D-38) — the two halves a process runs in order: `load()`
+    // reads PostgreSQL and is fatal, `watch()` arms the pub/sub side and is not.
+    await cacheB.load({ em: () => db.orm.em.fork() as never });
+    await cacheB.watch({
       redisSubscriber: subscriberRedis,
       em: () => db.orm.em.fork() as never,
     });
   }, 60_000);
 
   afterAll(async () => {
+    // Feature 073 — a dropped subscriber arms a degraded-mode refresh timer.
+    // Disconnecting below fires `'end'`, so the timer must be stopped or it
+    // outlives this file and polls a closed ORM for the rest of the fork.
+    cacheB.stopFallbackRefresh();
     await db.orm.em.fork().nativeDelete(ModuleRegistration, { moduleId: 'fixture_pubsub' });
     publisher.disconnect();
     subscriberRedis.disconnect();

@@ -1,13 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  LanguageReadPort,
   ProductEditorPreferenceFields,
   ProductScopeChannel,
   ProductScopeContextResponse,
 } from '@b2b/contracts';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { LanguageService } from '../../languages/services/language-service.js';
-import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
+
+import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductEditorPreference } from '../entities/product-editor-preference.entity.js';
 import type { ProductEditorPreferencesService } from './product-editor-preferences.service.js';
@@ -31,7 +32,7 @@ export class ProductScopeContextService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly salesChannelMembership: SalesChannelMembershipService,
-    private readonly languageService: LanguageService,
+    private readonly languageService: LanguageReadPort,
     private readonly editorPreferences: ProductEditorPreferencesService,
   ) {}
 

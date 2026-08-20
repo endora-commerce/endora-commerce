@@ -1,0 +1,724 @@
+/**
+ * `customer_accounts` module contracts — the in-process port surface
+ * (feature 075, Phase P).
+ *
+ * `customer_accounts` is the second-heaviest provider in the tree: 65 import
+ * sites across 19 modules, 51 of them on the `CustomerAccount` entity alone.
+ * That concentration is what this file answers — one record shape and one read
+ * port, so nineteen modules stop each writing their own `em.findOne`.
+ *
+ * Plain TypeScript rather than Zod: these describe in-process calls, not API
+ * boundaries. The module's HTTP shapes live in `customers.ts`, which is a
+ * different module's surface over the same rows and stays where it is — with
+ * one exception, the customer-group admin surface, whose Zod schemas arrived
+ * here with the entity in feature 076 (D-79) because this module serves those
+ * three routes itself.
+ *
+ * Nothing here imports from `backend/src/` (FR-034).
+ */
+
+import { z } from 'zod';
+import { isoDateTimeSchema, uuidSchema } from './common.js';
+
+// --- customer groups ---------------------------------------------------------
+//
+// Feature 076, D-79 — the segmentation bucket a customer belongs to. It used to
+// live in `price-lists.ts` because `price_lists` owned the table; a price list
+// refers to a group by id, which is a reference rather than ownership, and the
+// one real foreign key into `customer_groups` is
+// `customer_accounts.customer_group_id`.
+
+export const customerGroupSchema = z.object({
+  id: uuidSchema,
+  code: z.string().min(1).max(64),
+  name: z.string().min(1).max(160),
+  description: z.string().max(1000).nullable(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type CustomerGroup = z.infer<typeof customerGroupSchema>;
+
+export const upsertCustomerGroupRequestSchema = z.object({
+  code: z.string().min(1).max(64),
+  name: z.string().min(1).max(160),
+  description: z.string().max(1000).nullable().optional(),
+});
+
+/** A segmentation bucket as a module outside `customer_accounts` sees it. */
+export interface CustomerGroupRecord {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Container name: `customerGroupReadPort`. Owner: `customer_accounts`.
+ *
+ * The container name is unchanged by the relocation (D-81): it is what
+ * `check-port-dependencies.ts` compares, and keeping it means `pwa` did not
+ * have to be edited at all. `price_lists` reads it for the pricing rule-target
+ * picker and the rule-target validation; `pwa` for the push audience builder;
+ * `customers` for the group name on the admin customer list.
+ *
+ * This module is non-deactivatable, so the gate the port registration applies
+ * cannot be reached — as it could not under the previous owner, which is also
+ * non-deactivatable. The registration is a `providePort` anyway, for the reason
+ * its siblings give.
+ */
+export interface CustomerGroupReadPort {
+  findById(id: string): Promise<CustomerGroupRecord | null>;
+  findByIds(ids: readonly string[]): Promise<CustomerGroupRecord[]>;
+  /** Every group, ordered by code. */
+  listAll(): Promise<CustomerGroupRecord[]>;
+}
+
+// --- records -----------------------------------------------------------------
+
+export type CustomerAccountRole = 'organization_admin' | 'regular_user';
+
+export type CustomerAccountBlockSource = 'staff' | 'org_owner';
+
+/**
+ * A customer account as it crosses a module boundary — a plain shape, never
+ * the ORM entity (FR-011).
+ *
+ * `passwordHash` and `twoFactorSecret` are deliberately absent. Both are read
+ * by exactly one module — the owner — and neither has any business travelling:
+ * a record that carries them turns every consumer into a place a credential
+ * can leak from.
+ */
+export interface CustomerAccountRecord {
+  id: string;
+  organizationId: string | null;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: CustomerAccountRole;
+  emailVerifiedAt: Date | null;
+  /** Whether a confirmed TOTP enrolment exists. The secret itself never travels. */
+  twoFactorEnabled: boolean;
+  lastLoginAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  customFieldValues: Record<string, unknown>;
+  deletedAt: Date | null;
+  customerGroupId: string | null;
+  subtreeRollupEnabled: boolean;
+  blockedAt: Date | null;
+  blockReason: string | null;
+  blockSource: CustomerAccountBlockSource | null;
+  blockedByAdminUserId: string | null;
+  blockedByCustomerAccountId: string | null;
+  deletionRequestedByAdminUserId: string | null;
+  anonymizedAt: Date | null;
+}
+
+/**
+ * Which accounts a lookup should consider. Soft-deleted accounts still resolve
+ * from historical Orders, Invoices and RFQs, so "include them" is a real and
+ * frequently correct answer — sixteen of the measured call sites pass
+ * `deletedAt: null` and the rest deliberately do not.
+ */
+export interface CustomerAccountLookupOptions {
+  /** Exclude soft-deleted accounts. Defaults to `false` — the wider read. */
+  activeOnly?: boolean;
+}
+
+// --- ports -------------------------------------------------------------------
+
+/**
+ * Container name: `customerAccountReadPort`. Owner: `customer_accounts`.
+ *
+ * The union of what the nineteen consuming modules measurably ask for, and no
+ * more: identity lookups by id, ids, email and organisation, plus the two
+ * counting questions the org-admin invariant is enforced with.
+ *
+ * When `customer_accounts` is off every method throws `ModuleDisabledError`
+ * (503 `MODULE_DISABLED`) at the resolution seam. That is the right answer for
+ * a read whose absence would otherwise be indistinguishable from "no such
+ * account": a cart approval that cannot identify its buyer must refuse, not
+ * proceed anonymously.
+ *
+ * Whether `customer_accounts` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface CustomerAccountReadPort {
+  findById(
+    id: string,
+    options?: CustomerAccountLookupOptions,
+  ): Promise<CustomerAccountRecord | null>;
+
+  findByIds(
+    ids: readonly string[],
+    options?: CustomerAccountLookupOptions,
+  ): Promise<CustomerAccountRecord[]>;
+
+  findByEmail(
+    email: string,
+    options?: CustomerAccountLookupOptions,
+  ): Promise<CustomerAccountRecord | null>;
+
+  /**
+   * The account, but only if it belongs to that organisation. The two-argument
+   * form exists because every admin path that touches a member checks
+   * membership first, and doing it in one query is what stops the check being
+   * forgotten.
+   */
+  findInOrganization(
+    id: string,
+    organizationId: string,
+    options?: CustomerAccountLookupOptions,
+  ): Promise<CustomerAccountRecord | null>;
+
+  /** Members of an organisation, ordered by role then creation date. */
+  listByOrganization(
+    organizationId: string,
+    options?: CustomerAccountLookupOptions,
+  ): Promise<CustomerAccountRecord[]>;
+
+  /**
+   * How many accounts in the organisation hold the role, optionally ignoring
+   * one id and optionally counting only unblocked accounts. This is the shape
+   * the "an organisation may not lose its last admin" rule is spelled with, in
+   * three modules, three slightly different ways.
+   */
+  countByOrganizationRole(
+    organizationId: string,
+    role: CustomerAccountRole,
+    options?: {
+      excludeCustomerAccountId?: string;
+      activeOnly?: boolean;
+      notBlocked?: boolean;
+    },
+  ): Promise<number>;
+
+  /**
+   * Substring search over the e-mail address, ordered by e-mail, capped at
+   * `limit`. An empty `query` returns the first `limit` accounts.
+   *
+   * Published after Phase P because `pwa`'s push Rule Builder is the one
+   * measured consumer that asks this question, and `listAll` is not the same
+   * answer: a picker that loads every account to keep 200 of them is a
+   * full-table read wearing a port.
+   */
+  searchByEmail(query: string, limit: number): Promise<CustomerAccountRecord[]>;
+
+  /**
+   * Ids of accounts whose e-mail, first name or last name contains `query`,
+   * case-insensitively. An empty `query` returns no ids.
+   *
+   * Published after Phase P, as the twin of
+   * `OrganizationDetailsPort.searchIdsByName` and for the same consumer: the
+   * admin orders list resolves the people a search term names, then constrains
+   * orders to them. It is deliberately **not** {@link searchByEmail}, which
+   * matches the address alone — an operator typing a surname into the orders
+   * search expects the surname to match, and it does today.
+   *
+   * Ids only, and uncapped, because the caller feeds them straight into an
+   * `$in` over its own table and a cap would silently drop orders rather than
+   * accounts.
+   */
+  searchIdsByName(query: string): Promise<string[]>;
+
+  /** Every account, for the bulk export adapter. Ordered by email. */
+  listAll(): Promise<CustomerAccountRecord[]>;
+}
+
+/**
+ * A new account, as the module that owns the membership asks for one.
+ *
+ * The **plain** password crosses, not a hash: `passwordHash` is deliberately
+ * absent from {@link CustomerAccountRecord} for the same reason, and a caller
+ * that hashes is a caller that has to be told which algorithm the owner uses
+ * and be trusted to keep using it. Hashing belongs on the owner's side of the
+ * port, and moving it there removed the last three `hashPassword` imports from
+ * `organizations`.
+ */
+export interface CustomerAccountCreateInput {
+  organizationId: string;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role: CustomerAccountRole;
+  /**
+   * Whether the address is already confirmed. Accepting an invitation implies
+   * it — the invitation was delivered to that address; self-registration and
+   * the admin direct-create do not.
+   */
+  emailVerified?: boolean;
+}
+
+/** Absent fields are left unchanged. */
+export interface CustomerAccountProfilePatch {
+  /**
+   * Lower-cased by the owner. Changing it clears `emailVerifiedAt`: the new
+   * address has not been confirmed, and leaving the old confirmation standing
+   * would let an admin verify an address by editing it.
+   */
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+/**
+ * Container name: `customerAccountMemberWritePort`. Owner: `customer_accounts`.
+ *
+ * The member lifecycle `organizations` runs over accounts in its
+ * organisations, published because that module ran it by creating and mutating
+ * this module's entity directly (feature 075, Phase C). It is the union of
+ * what that module measurably does and no more: three creation paths
+ * (self-registration, invitation accept, admin direct-create) collapse into
+ * one `create`, and the four field writes are one method each.
+ *
+ * **Every method is one unit of work on this module's table only** (D-78 rule
+ * 1). No `EntityManager` crosses, and none needs to: each caller's remaining
+ * writes are its own tables, flushed on its own side. Where that splits a
+ * flush the caller used to share — the invitation accept wrote the account and
+ * consumed the invitation together — the caller orders the two so the
+ * recoverable half fails first, and says so at the call site.
+ *
+ * **Each method audits its own write**, in the same unit of work, exactly as
+ * `roleService` and `addresses`' `addressService` do. The caller's own audit
+ * row is a different fact — "an operator edited this member on the
+ * organisation panel" rather than "this account's e-mail changed" — and both
+ * are kept, which is what the role endpoint has always recorded.
+ *
+ * `changeRole` is **not** here: {@link CustomerRolePort} already owns it, with
+ * the "an organisation keeps at least one admin" guard.
+ * {@link CustomerAccountMemberWritePort.promoteToOrganizationAdmin} is a
+ * different question — the break-glass path an operator reaches *because* an
+ * organisation has no admin left — and it is named rather than expressed as an
+ * unguarded `setRole`, which is a footgun beside a guarded one.
+ *
+ * When `customer_accounts` is off every method fails closed. The module is
+ * non-deactivatable, so that gate cannot be reached today; it is registered
+ * through `providePort` anyway, for the reason its seven siblings give.
+ */
+export interface CustomerAccountMemberWritePort {
+  /**
+   * Creates the account. Throws HTTP 409 `EMAIL_ALREADY_REGISTERED` when the
+   * address is taken — the check is inside the write, so a caller that races
+   * its own pre-check still gets the right code rather than a constraint
+   * violation.
+   */
+  create(input: CustomerAccountCreateInput): Promise<CustomerAccountRecord>;
+
+  /**
+   * Throws HTTP 404 `NOT_FOUND` when no live account has that id, and HTTP 409
+   * `EMAIL_ALREADY_REGISTERED` when the new address belongs to another one.
+   */
+  updateProfile(
+    customerAccountId: string,
+    patch: CustomerAccountProfilePatch,
+  ): Promise<CustomerAccountRecord>;
+
+  /** Feature 056 — the customer-side subtree roll-up capability. */
+  setSubtreeRollup(
+    customerAccountId: string,
+    enabled: boolean,
+  ): Promise<CustomerAccountRecord>;
+
+  /** The break-glass promotion. Idempotent on an account that already holds it. */
+  promoteToOrganizationAdmin(customerAccountId: string): Promise<CustomerAccountRecord>;
+
+  /**
+   * Stamps `emailVerifiedAt`, idempotently — a second call keeps the first
+   * timestamp, so a retried verification does not move it.
+   */
+  markEmailVerified(customerAccountId: string, verifiedAt: Date): Promise<CustomerAccountRecord>;
+
+  /**
+   * Feature 051 — binds an org-less account to the organisation just
+   * provisioned for it. Throws HTTP 404 `NOT_FOUND` when no account has that
+   * id.
+   */
+  attachToOrganization(
+    customerAccountId: string,
+    organizationId: string,
+  ): Promise<CustomerAccountRecord>;
+}
+
+// --- the authenticated-surface ports -----------------------------------------
+
+/** What a caller sets the session cookie from after a successful first factor. */
+export interface CustomerLoginResult {
+  customerAccount: CustomerAccountRecord;
+  /** Value to put into the Set-Cookie header. */
+  sessionCookieValue: string;
+  sessionExpiresAt: Date;
+}
+
+/** Discriminated outcome of the first login step (feature 042). */
+export type CustomerLoginOutcome =
+  | ({ status: 'authenticated' } & CustomerLoginResult)
+  | { status: 'mfaRequired'; challengeId: string }
+  | { status: 'mfaSetupRequired'; setupTicket: string };
+
+export interface CustomerLoginInput {
+  email: string;
+  password: string;
+  ip?: string;
+  userAgent?: string;
+  salesChannelId?: string | null;
+}
+
+/**
+ * Container name: `customerAuthPort`. Owner: `customer_accounts`.
+ *
+ * (It said `customerAuthService` until issue #192. That name is registered too,
+ * for the `CustomerAuthService` **class**, which returns the `CustomerAccount`
+ * entity; it stays registered because this adapter is built over it. `customers/backend.ts` was the last consumer outside the module
+ * and resolves `customerAuthPort` since issue #195 — which was **not** the
+ * record-over-a-class trap {@link AddressServicePort} describes: it typed that
+ * resolution against a direct class-type import, an ordinary FR-011 edge that
+ * happened to sit on the same container name.)
+ *
+ * Consumed by `customers` and `organizations`, which own the storefront login,
+ * registration and self-service routes over these accounts.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CustomerAuthPort {
+  login(input: CustomerLoginInput): Promise<CustomerLoginOutcome>;
+  changePassword(
+    customerAccountId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void>;
+  logout(sessionId: string): Promise<void>;
+}
+
+/**
+ * Container name: `passwordResetService`. Owner: `customer_accounts`.
+ *
+ * `requestReset` returns `{ rawToken: null }` for an unknown address on
+ * purpose — the caller must not be able to tell an unknown e-mail from a known
+ * one.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CustomerPasswordResetPort {
+  requestReset(email: string): Promise<{ rawToken: string | null }>;
+  confirmReset(rawToken: string, newPassword: string): Promise<void>;
+}
+
+/**
+ * Container name: `customerPasswordStatePort`. Owner: `customer_accounts`.
+ *
+ * Whether the account has a password its holder can actually use — issue #222.
+ *
+ * `passwordHash` cannot answer that and never travels anyway: it is NOT NULL
+ * for every account, because federated auto-create mints a random one to keep
+ * the column satisfied. So a consumer asking "is there another way into this
+ * account" over `password_hash is not null` gets `true` for exactly the
+ * accounts where it is false.
+ *
+ * Deliberately not a field on {@link CustomerAccountRecord}. That record is
+ * read by nineteen modules; the state of a credential is a question one module
+ * asks — `mfa`, before severing an account's last federated identity — and a
+ * targeted port is what keeps it that way.
+ *
+ * The date rather than a boolean, because the one is derivable from the other
+ * and an account surface that wants to show *when* a password was set should
+ * not need a second method for it. `null` means no such password is on record:
+ * either none was ever set, or the row predates the column.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its
+ * manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CustomerPasswordStatePort {
+  /** `null` for an unknown id as well — an account nobody can find has no password on record. */
+  passwordSetAt(customerAccountId: string): Promise<Date | null>;
+}
+
+/**
+ * Container name: `customerRolePort`. Owner: `customer_accounts`.
+ *
+ * (It said `roleService` until issue #192. Nothing registers that name; the
+ * module's own class is `customerRoleService` and the gated port is this one.
+ * A name-keyed sweep had already miscounted this port as unreached because of
+ * it — see the Phase-P unreached-port audit, A5.)
+ *
+ * Consumed by `organizations`, which owns the member-management surface. The
+ * "an organisation keeps at least one admin" rule lives on this side of the
+ * port, not in the caller.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CustomerRolePort {
+  listMembers(organizationId: string): Promise<CustomerAccountRecord[]>;
+  changeRole(
+    organizationId: string,
+    targetCustomerAccountId: string,
+    newRole: CustomerAccountRole,
+  ): Promise<CustomerAccountRecord>;
+  removeMember(organizationId: string, targetCustomerAccountId: string): Promise<void>;
+}
+
+/** The one-time enrolment payload. The backup codes are shown once and hashed. */
+export interface CustomerTotpEnrolmentResult {
+  secret: string;
+  otpauthUri: string;
+  backupCodes: string[];
+}
+
+/**
+ * Container name: `totpEnrolmentService`. Owner: `customer_accounts`.
+ *
+ * The customer's own second factor, which is a different thing from the `mfa`
+ * module's login orchestration: this port writes the enrolment onto the
+ * account row, `mfa` decides whether a login must present one.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CustomerTotpEnrolmentPort {
+  enable(customerAccountId: string): Promise<CustomerTotpEnrolmentResult>;
+  confirm(customerAccountId: string, code: string): Promise<void>;
+  disable(customerAccountId: string, codeOrBackup: string): Promise<void>;
+}
+
+// --- the lifecycle surface `customers` runs ----------------------------------
+
+/**
+ * A standalone (org-less) self-registration, as `customers` asks for one.
+ *
+ * The **plain** password crosses, for the reason
+ * {@link CustomerAccountCreateInput} gives: hashing belongs on the owner's
+ * side of the port, and a caller that hashes is a caller that has to be told
+ * which algorithm the owner uses and be trusted to keep using it.
+ *
+ * There is no `organizationId`: the account is created org-less and
+ * `organizations`' `personalOrganizationPort` binds it to the personal
+ * organisation it provisions, in its own unit of work. That order is the
+ * recoverable one — see {@link PersonalOrganizationPort}.
+ */
+export interface CustomerAccountStandaloneCreateInput {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+}
+
+/**
+ * The request the write was made from, stamped onto its audit row.
+ *
+ * It travels because the admin moderation surface has always recorded it and
+ * the row is written on the owner's side of the port now: dropping it would
+ * quietly narrow what an operator can reconstruct from the audit log, which is
+ * the one thing a boundary cut must not do.
+ */
+export interface CustomerAccountWriteRequestMeta {
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  requestId?: string | null;
+}
+
+/** Which lifecycle bucket the admin customer list is asking for. */
+export type CustomerAccountLifecycleStatus = 'active' | 'blocked' | 'deleted';
+
+/**
+ * The admin customer list's filter, as plain data.
+ *
+ * `allowedOrganizationIds` is `null` for a platform administrator — the
+ * unscoped read — and otherwise the organisations the acting staff member may
+ * see, in which case org-less accounts are visible too (a standalone customer
+ * belongs to nobody's territory, so it belongs to everybody's). Expressing the
+ * scope as a nullable list rather than an `isPlatformAdmin` flag keeps the
+ * authority decision in `customers`, which is where the sales-rep scope is
+ * resolved.
+ */
+export interface CustomerAccountAdminSearchCriteria {
+  /** Substring match over e-mail, first name and last name. */
+  q?: string | undefined;
+  status?: CustomerAccountLifecycleStatus | undefined;
+  organizationId?: string | undefined;
+  customerGroupId?: string | undefined;
+  allowedOrganizationIds: readonly string[] | null;
+  page: number;
+  pageSize: number;
+}
+
+export interface CustomerAccountAdminSearchResult {
+  rows: CustomerAccountRecord[];
+  total: number;
+}
+
+/**
+ * Container name: `customerAccountAdminSearchPort`. Owner: `customer_accounts`.
+ *
+ * The paginated, filtered read behind the admin customer list (feature 040,
+ * US5). Deliberately **not** a method on {@link CustomerAccountReadPort}: that
+ * port is what nineteen modules resolve and it is the union of what they all
+ * ask, whereas this is one screen's query — the same argument
+ * {@link CustomerPasswordStatePort} is separate for.
+ *
+ * It is one method rather than a set of primitives because the filter, the
+ * ordering and the page have to be one SQL statement: a caller that narrows a
+ * page after the fact returns fewer rows than it asked for, and one that pages
+ * after narrowing reads the whole table.
+ *
+ * The policy stays with the caller. This port takes the organisations the
+ * actor may see; it does not decide who that is.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its
+ * manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CustomerAccountAdminSearchPort {
+  search(criteria: CustomerAccountAdminSearchCriteria): Promise<CustomerAccountAdminSearchResult>;
+}
+
+/**
+ * Container name: `customerAccountLifecycleWritePort`. Owner: `customer_accounts`.
+ *
+ * The account lifecycle `customers` runs over this module's table — the
+ * counterpart to {@link CustomerAccountMemberWritePort}, which is the member
+ * lifecycle `organizations` runs. `customers` ran it by loading and mutating
+ * the `CustomerAccount` entity in five services and two route files; these are
+ * those writes, one method each, each a single unit of work on this table
+ * alone (D-78 rule 1). No `EntityManager` crosses.
+ *
+ * **The policy stays with the caller and the audit row comes here.** Whether a
+ * staff member may act on this customer, and whether blocking them would
+ * strand an organisation without an administrator, are `customers`' questions
+ * and stay there — the counting half of the second one is
+ * {@link CustomerAccountReadPort.countByOrganizationRole}, which already
+ * exists. What moves is the write and the one audit row that describes it, so
+ * that a row on this table is never written by a module that does not own it
+ * and never written without being recorded. Unlike
+ * {@link CustomerAccountMemberWritePort} the caller keeps **no** second row:
+ * there is no separate host fact here — "an operator blocked this customer" is
+ * the write.
+ *
+ * `anonymize` is the one method that is not an operator action. It is the
+ * retention sweep, it records itself with a null actor, and it is idempotent:
+ * an account already anonymised is returned unchanged, so a re-run after a
+ * partial sweep scrubs nothing twice.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its
+ * manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CustomerAccountLifecycleWritePort {
+  /**
+   * Creates an org-less account. Throws HTTP 409 `EMAIL_ALREADY_REGISTERED`
+   * when the address is taken — the check is inside the write, so a caller
+   * that races its own pre-check still gets the right code rather than a
+   * constraint violation.
+   */
+  createStandalone(input: CustomerAccountStandaloneCreateInput): Promise<CustomerAccountRecord>;
+
+  /**
+   * Idempotent: an account that is already blocked is returned unchanged and
+   * nothing is recorded. Throws HTTP 404 `CUSTOMER_NOT_FOUND` for an id no
+   * live account has.
+   */
+  block(
+    customerAccountId: string,
+    input: {
+      actorAdminUserId: string;
+      reason?: string | null;
+      audit?: CustomerAccountWriteRequestMeta;
+    },
+  ): Promise<CustomerAccountRecord>;
+
+  /** Idempotent, the same way round. */
+  unblock(
+    customerAccountId: string,
+    input: { actorAdminUserId: string; audit?: CustomerAccountWriteRequestMeta },
+  ): Promise<CustomerAccountRecord>;
+
+  /**
+   * Soft-delete. Throws HTTP 409 `CUSTOMER_ALREADY_DELETED` when the account
+   * already carries one — the caller's own refusal, kept here because the
+   * check and the write have to see the same row.
+   */
+  softDelete(
+    customerAccountId: string,
+    input: { actorAdminUserId: string },
+  ): Promise<CustomerAccountRecord>;
+
+  /**
+   * Throws HTTP 409 `CUSTOMER_NOT_DELETED` when there is nothing to restore,
+   * and HTTP 409 `CUSTOMER_RESTORE_WINDOW_ELAPSED` once the account has been
+   * anonymised, which is irreversible.
+   */
+  restore(
+    customerAccountId: string,
+    input: { actorAdminUserId: string },
+  ): Promise<CustomerAccountRecord>;
+
+  /** `null` detaches the account, leaving it standalone. */
+  setOrganization(
+    customerAccountId: string,
+    organizationId: string | null,
+    input: { actorAdminUserId: string },
+  ): Promise<CustomerAccountRecord>;
+
+  /** `null` clears the direct group; the organisation's own group still applies. */
+  setCustomerGroup(
+    customerAccountId: string,
+    customerGroupId: string | null,
+    input: { actorAdminUserId: string },
+  ): Promise<CustomerAccountRecord>;
+
+  /**
+   * Feature 055 — the admin custom-field patch, as a read-modify-write the
+   * owner runs inside one Command.
+   *
+   * The **merge is the caller's**, and it is a callback rather than a
+   * pre-merged bag for one reason: the bag has to be read, validated and
+   * written inside a single transaction or a concurrent patch is silently
+   * lost, and the validator is {@link CustomFieldValuePort}, which the admin
+   * surface owning this screen resolves. So the caller supplies the function
+   * over the current bag and the owner runs it between its own load and its
+   * own write — one transaction, one audit row, and the entity never leaves.
+   *
+   * `merge` may throw; `custom_fields`' validation failure propagates to the
+   * caller unchanged, which is what the admin surface turns into a 422.
+   */
+  setCustomFieldValues(
+    customerAccountId: string,
+    merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
+  ): Promise<CustomerAccountRecord>;
+
+  /**
+   * Soft-deleted accounts whose retention window elapsed before `cutoff` and
+   * that have not been anonymised yet — the sweep's work list.
+   */
+  listDueForAnonymization(cutoff: Date): Promise<CustomerAccountRecord[]>;
+
+  /**
+   * Irreversibly scrubs the account's personal data. Returns the account
+   * unchanged when it was already anonymised, and throws HTTP 404
+   * `CUSTOMER_NOT_FOUND` for an id nothing matches.
+   */
+  anonymize(customerAccountId: string): Promise<CustomerAccountRecord>;
+}

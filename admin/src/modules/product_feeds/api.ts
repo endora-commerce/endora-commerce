@@ -1,5 +1,9 @@
 import { apiClient } from '@/lib/api-client';
+import { slugify as sharedSlugify } from '@b2b/contracts';
 import type {
+  FeedDeliveryAttempt,
+  FeedDeliveryConfig,
+  FeedDeliveryFailureReason,
   FeedFieldSourceCatalogue,
   FeedFieldSourceKind,
   FeedFieldTransform,
@@ -11,6 +15,7 @@ import type {
   FeedPricePresentation,
   ProductSelectionRule,
   TaxonomyProviderCode,
+  UpsertFeedDeliveryRequest,
 } from '@b2b/contracts';
 
 /**
@@ -39,8 +44,18 @@ export interface FeedTokenView {
   prefix: string | null;
   rotatedAt: string | null;
   revokedAt: string | null;
-  /** Masked form for display; the full link is only returned when issued. */
+  /**
+   * The feed's absolute public URL, or null when revoked. It is the real,
+   * working link whenever {@link urlIsLive} is true; otherwise it is a masked
+   * display form built from the prefix.
+   */
   url: string | null;
+  /**
+   * False for tokens issued before the plaintext became recoverable, and on a
+   * deployment with no encryption key. The card must not offer to copy a URL
+   * that would 404.
+   */
+  urlIsLive: boolean;
 }
 
 export interface FeedRunSummary {
@@ -251,6 +266,14 @@ export interface SelectionPreview {
   sample: Array<{ id: string; sku: string; name: string }>;
 }
 
+/**
+ * The largest page `listQuerySchema` accepts (`packages/contracts/src/pagination.ts`).
+ * Exported so the run-detail page can tell "this run had 200 problems" from
+ * "this run had more problems than one page holds" — a full page means the
+ * list is truncated and the CSV export is the only complete view.
+ */
+export const RUN_ISSUE_PAGE_LIMIT = 200;
+
 export const productFeedsClient = {
   list(limit = 50): Promise<{ data: ProductFeedDto[] }> {
     return apiClient.get<{ data: ProductFeedDto[] }>(`${BASE}?limit=${limit}`);
@@ -305,11 +328,15 @@ export const productFeedsClient = {
    * FR-054 — the per-item diagnostics. `:read`, deliberately: a read-only
    * operator has to be able to answer "why were 61 products left out" without
    * being handed the priced catalogue the artefact carries.
+   *
+   * Capped at `RUN_ISSUE_PAGE_LIMIT`: the shared `listQuerySchema` rejects
+   * anything larger, and the run-detail page loads this alongside the feed and
+   * the run in one `Promise.all`, so a 400 here hid the whole run.
    */
   listRunIssues(
     id: string,
     runId: string,
-    limit = 500,
+    limit: number = RUN_ISSUE_PAGE_LIMIT,
   ): Promise<{ data: FeedRunIssueDto[] }> {
     return apiClient.get<{ data: FeedRunIssueDto[] }>(
       `${BASE}/${id}/runs/${runId}/issues?limit=${limit}`,
@@ -443,13 +470,87 @@ export const productFeedsClient = {
   },
 };
 
-/** Kebab-cases a feed name into a slug candidate, the way the operator expects. */
+/**
+ * Kebab-cases a feed name into a slug candidate, the way the operator expects.
+ *
+ * The generator is `slugify` from `@b2b/contracts`, **imported, never
+ * re-implemented** (issues #239, #245). !753 repaired the fold here by
+ * composing `lib/text-normalization.ts`; issue #245 found seven more copies of
+ * the same four-line chain and moved the whole thing — fold, collapse, cut,
+ * trim, fallback — into one function the backend, the admin and the storefront
+ * all import.
+ *
+ * The private one-liner this started as deleted `ł` instead of folding it:
+ * U+0142 has no canonical decomposition, so NFD left it standing and the
+ * `[^a-z0-9]` collapse swallowed it. `Kanał sprzedaży` produced
+ * `kana-sprzedazy`, a slug missing a letter for no reason the operator can see.
+ *
+ * **The shared generator is NFD, not NFKD, deliberately.** The compatibility
+ * mappings NFKD adds only reach a slug through characters that map *into*
+ * `[a-z0-9]` — the `fi` ligature, superscript digits, full-width forms. None of
+ * them is typed into a feed name, and where one is, it now collapses to the `-`
+ * separator rather than to a wrong letter, so the slug stays legal. That is a
+ * much smaller loss than deleting a letter out of every Polish name.
+ *
+ * The 160-character cut is this caller's own and is passed explicitly: the
+ * eight callers cap at 80, 150, 160, 180 or not at all, and a cap decides which
+ * new values collide under that caller's constraint.
+ *
+ * Slugs already published are **not** migrated (owner's ruling, 2026-08-19).
+ * A feed's slug is a URL somebody may have handed to Google; re-folding it is
+ * a rename, and with two developer environments in existence it buys nothing.
+ * New slugs are correct from here on.
+ */
 export function slugify(value: string): string {
-  return value
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 160);
+  return sharedSlugify(value, { maxLength: 160 });
 }
+
+// ---------------------------------------------------------------------------
+// Delivery (feature 070)
+// ---------------------------------------------------------------------------
+
+/**
+ * The delivery surface, split out from `productFeedsClient` because it is a
+ * separable capability: a deployment wired without the credentials module has
+ * no delivery routes at all, and the screen has to render that as "unavailable"
+ * rather than as a broken tab.
+ *
+ * The DTO types come from `@b2b/contracts` — every secret on them is already a
+ * boolean, so there is nothing here to be careful about beyond not inventing a
+ * field the server does not send.
+ */
+export const feedDeliveryClient = {
+  /** `null` data means this feed has no delivery configured, which is a state. */
+  get(feedId: string): Promise<{ data: FeedDeliveryConfig | null }> {
+    return apiClient.get<{ data: FeedDeliveryConfig | null }>(`${BASE}/${feedId}/delivery`);
+  },
+
+  save(
+    feedId: string,
+    body: UpsertFeedDeliveryRequest,
+  ): Promise<{ data: FeedDeliveryConfig }> {
+    return apiClient.put<{ data: FeedDeliveryConfig }>(`${BASE}/${feedId}/delivery`, body);
+  },
+
+  remove(feedId: string): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/${feedId}/delivery`);
+  },
+
+  /** FR-106. Rate-limited server-side; a 429 is the expected refusal. */
+  test(feedId: string): Promise<{
+    data: {
+      ok: boolean;
+      failureReason: FeedDeliveryFailureReason | null;
+      failureDetail: string | null;
+      attempt: FeedDeliveryAttempt;
+    };
+  }> {
+    return apiClient.post(`${BASE}/${feedId}/delivery/test`, {});
+  },
+
+  listAttempts(feedId: string, limit = 20): Promise<{ data: FeedDeliveryAttempt[] }> {
+    return apiClient.get<{ data: FeedDeliveryAttempt[] }>(
+      `${BASE}/${feedId}/delivery/attempts?limit=${limit}`,
+    );
+  },
+};

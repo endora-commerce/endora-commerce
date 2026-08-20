@@ -11,21 +11,32 @@ import { GalleryItem } from '../entities/gallery-item.entity.js';
 import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
 import { ProductAttachment } from '../entities/product-attachment.entity.js';
 import { AttachmentType } from '../entities/attachment-type.entity.js';
-import { Asset } from '../../assets_library/entities/asset.entity.js';
 import type { ProductLinkService } from './product-link.service.js';
-import type { DefinitionSource } from '../../custom_fields/services/custom-field-value.service.js';
+
 import { GroupedItem } from '../entities/grouped-item.entity.js';
 import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.js';
 import { BundleSlot } from '../entities/bundle-slot.entity.js';
 import { BundleSlotOption } from '../entities/bundle-slot-option.entity.js';
+import { resolvePrimaryAssetUrls } from './primary-asset-url.js';
+import { viewerOrganizationFor } from './viewer-organization.js';
 import {
   ERROR_CODES,
+  isProductVisibleTo,
+  listingPriceMoney,
+  type AssetReadPort,
+  type AssetRecord,
   type CategoryNode,
+  type CustomFieldDefinitionReadPort,
   type FilterDefinition,
+  type ListingPrice,
+  type ListingPricePort,
+  type OrganizationDetailsPort,
+  type ProductAudience,
   type ProductDetail,
   type ProductSummary,
   type ProductVariant as VariantDto,
 } from '@b2b/contracts';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { encodeCursor, decodeCursor } from '../../../http/cursor.js';
 
@@ -72,8 +83,22 @@ export interface CatalogResolvedChannel {
 }
 
 export interface CatalogQueryContext {
-  /** The request's resolved sales channel (from `request.salesChannel`). */
+  /** The request's resolved sales channel (from `getResolvedChannel()`). */
   resolvedChannel: CatalogResolvedChannel;
+  /**
+   * Who is asking (issue #227). Every read in this service applies
+   * {@link isProductVisibleTo} with it, next to the channel filter that was
+   * already here — `visibility` and `allowed_organization_ids` were read by no
+   * query on this surface, so an anonymous `GET` of a product an operator
+   * marked `organization_restricted` returned it in full.
+   *
+   * **Required, not defaulted.** A default would have to be the anonymous
+   * audience to fail closed, and a route that forgot to resolve its caller
+   * would then quietly stop serving the buyer their own restricted catalogue —
+   * a bug that reads as "the operator's allow-list does not work" and is found
+   * by nobody. Two route files pass it; `tsc` names the third.
+   */
+  audience: ProductAudience;
   /**
    * Language preference — BCP-47. Used to pick the right string out of the
    * multilingual JSONB blobs. Falls back to the Sales Channel's default language,
@@ -113,7 +138,7 @@ export class CatalogQueryService {
      * the storefront filter set. The catalog interprets the opaque `config` here;
      * the custom-fields core stays unaware of catalog (Principle XIV / FR-006).
      */
-    private readonly customFieldDefinitions?: DefinitionSource,
+    private readonly customFieldDefinitions?: CustomFieldDefinitionReadPort,
     /**
      * Feature 061 — composed attribute read model. Required for every
      * attribute-metadata read (filters, PDP visible attributes, promo-rule and
@@ -121,7 +146,76 @@ export class CatalogQueryService {
      * fixtures keep constructing the service without attribute wiring.
      */
     private readonly attributeRead?: CatalogAttributeReadService,
+    /**
+     * Issue #132 — the pricing engine, resolved through the `pricingService`
+     * port. Every storefront-facing price this service emits comes from here;
+     * the catalogue no longer projects its own legacy default-price attribute,
+     * because that figure is not a price any price list stands behind.
+     *
+     * Optional only in the signature, and unwiring it is not a fallback: a
+     * listing asked to render a price without it fails loudly, the same way an
+     * unwired attribute read model does. `null` from the port is the engine's
+     * own "nothing applies" answer and is rendered as an absence.
+     */
+    private readonly listingPrices?: ListingPricePort,
+    /**
+     * Feature 075 — `assets_library`'s read port, where six raw
+     * `join assets a on a.id = …` clauses and an `em.find(Asset, …)` used to
+     * be. The bridge rows are still this module's; only the asset row is asked
+     * of its owner.
+     *
+     * Optional only in the signature, for the same reason the two above are:
+     * a fixture that renders no image never reaches it. A PDP that does and
+     * finds it unwired fails loudly rather than silently dropping every image.
+     */
+    private readonly assets?: AssetReadPort,
+    /**
+     * Issue #185 — the kernel's channel-membership accessor, where the
+     * hand-written `select product_id from sales_channel_products …` in
+     * {@link filterByChannel} used to be. Constitution XII says the
+     * `sales_channel_*` bridges are read and written only through this service;
+     * the query here named the table itself, which crosses the boundary while
+     * naming no import specifier.
+     *
+     * Optional only in the signature, and unwiring it is not a fallback: the
+     * channel filter fails loudly rather than quietly answering the full
+     * cross-channel set, which is the one degrade Principle XII rules out.
+     */
+    private readonly channelMembership?: SalesChannelMembershipPort,
+    /**
+     * `organizations`' read model, for the one field the pricing engine needs
+     * beyond the viewer's organisation id: the customer group a group-targeted
+     * price list is selected by. Without it a buyer's catalogue card and their
+     * own cart line would resolve against different lists and quote different
+     * figures for one product.
+     *
+     * Optional only in the signature, and unwiring it is not a fallback: a
+     * listing asked to price a signed-in buyer without it fails loudly, the
+     * same way the two ports above do. An **anonymous** listing never reaches
+     * it, which is what keeps the fixtures that construct this service with no
+     * organisation wiring working unchanged.
+     */
+    private readonly organizationDetails?: OrganizationDetailsPort,
   ) {}
+
+  #requireChannelMembership(): SalesChannelMembershipPort {
+    if (!this.channelMembership) {
+      throw new Error(
+        'CatalogQueryService: the channel-membership port is not wired — a channel-scoped ' +
+          'listing cannot be answered without leaking the cross-channel set.',
+      );
+    }
+    return this.channelMembership;
+  }
+
+  #requireAssets(): AssetReadPort {
+    if (!this.assets) {
+      throw new Error(
+        'CatalogQueryService: the asset read port is not wired — product images are unavailable.',
+      );
+    }
+    return this.assets;
+  }
 
   #requireAttributeRead(): CatalogAttributeReadService {
     if (!this.attributeRead) {
@@ -130,6 +224,75 @@ export class CatalogQueryService {
       );
     }
     return this.attributeRead;
+  }
+
+  #requireListingPrices(): ListingPricePort {
+    if (!this.listingPrices) {
+      throw new Error(
+        'CatalogQueryService: the pricing port is not wired — a listing cannot be priced.',
+      );
+    }
+    return this.listingPrices;
+  }
+
+  #requireOrganizationDetails(): OrganizationDetailsPort {
+    if (!this.organizationDetails) {
+      throw new Error(
+        'CatalogQueryService: the organization read port is not wired — a signed-in buyer cannot be priced.',
+      );
+    }
+    return this.organizationDetails;
+  }
+
+  /**
+   * The chain's answer for a batch of products, keyed by product id, **for the
+   * viewer in front of the page**.
+   *
+   * A non-public sales channel withholds prices (R-18), and it withholds them
+   * *before* the resolution rather than after: the catalogue has nothing to ask
+   * about on a channel whose prices it may not show.
+   *
+   * The organisation is the whole of this method's share of the owner's ruling
+   * — an anonymous visitor sees the channel price, a signed-in buyer sees their
+   * organisation's. It is resolved once per page rather than per card, and it
+   * is `null` for every caller {@link viewerOrganizationFor} answers `null`
+   * for, so the anonymous request issues exactly the resolution it issued
+   * before and lands on exactly the cache entry it landed on before.
+   */
+  async #listingPricesFor(
+    products: readonly Product[],
+    channel: CatalogResolvedChannel | undefined,
+    audience: ProductAudience,
+  ): Promise<Map<string, ListingPrice>> {
+    if (products.length === 0) return new Map();
+    if (!(channel?.isPublic ?? true)) return new Map();
+    const organization =
+      audience.organizationId === null
+        ? null
+        : await viewerOrganizationFor(this.#requireOrganizationDetails(), audience);
+    return this.#requireListingPrices().resolveListingPrices({
+      products,
+      context: {
+        salesChannel: {
+          id: channel?.id ?? '',
+          defaultCurrency: channel?.defaultCurrency ?? 'PLN',
+        },
+        organization,
+      },
+    });
+  }
+
+  /**
+   * `ProductSummary.price` for one resolved chain answer. A product the channel
+   * withholds prices for is absent from the map and renders `null`, and so does
+   * the chain's `none` arm — the wire field has one spelling for "no price".
+   */
+  #summaryPrice(
+    resolved: Map<string, ListingPrice>,
+    productId: string,
+  ): { amount: number; currency: string } | null {
+    const price = resolved.get(productId);
+    return price === undefined ? null : listingPriceMoney(price);
   }
 
   // ------------------------------------------------------------------
@@ -223,10 +386,9 @@ export class CatalogQueryService {
         ? encodeObjectCursor({ createdAt: page[page.length - 1]!.createdAt.toISOString(), id: page[page.length - 1]!.id })
         : null;
 
-    // Sales Channel visibility — only products associated with the channel
-    // are returned. If no channel, everything public-visibility.
+    // Sales Channel membership — only products associated with the channel are
+    // returned, failing closed to the empty set.
     const visibleIds = await this.filterByChannel(
-      em,
       page.map((p) => p.id),
       channel,
     );
@@ -234,6 +396,16 @@ export class CatalogQueryService {
     // Attribute filter post-filtering (simple equality on attributeValues JSONB).
     const filtered = page.filter((p) => {
       if (!visibleIds.has(p.id)) return false;
+      // Issue #227 — the second scoping axis, alongside the channel one above.
+      // It is applied here, on the page, rather than in the `where` for the
+      // same reason the channel filter is: the allow-list test is a JSONB
+      // containment the ORM query object cannot spell, and splitting the two
+      // axes across the query and the page would leave the `limit` accounting
+      // to reason about twice instead of once. The known cost is this path's
+      // existing one — a page narrowed after the fetch can come back shorter
+      // than `limit` — and it is bounded by how much of a catalogue an
+      // operator restricts.
+      if (!isProductVisibleTo(p, ctx.audience)) return false;
       if (!params.attributeFilters) return true;
       for (const [k, values] of Object.entries(params.attributeFilters)) {
         const av = p.attributeValues[k];
@@ -249,11 +421,18 @@ export class CatalogQueryService {
       categoryFilteredIds = await this.productIdsInCategoryTree(em, params.categorySlug);
     }
 
-    // Build the summaries
+    // Build the summaries. The page is priced **once** — `toSummary` used to
+    // ask `price_lists` for a batch of one, so a 50-card page made 50 calls and
+    // paid the resolution's fixed cost (the active lists, the settings pair, the
+    // organisation's chain) 50 times over. Resolving the page here and handing
+    // the map down is what makes `resolveListingPrices` a batch in practice
+    // rather than only in signature.
+    const priceable = filtered.filter((p) =>
+      categoryFilteredIds ? categoryFilteredIds.has(p.id) : true,
+    );
+    const resolvedPrices = await this.#listingPricesFor(priceable, channel, ctx.audience);
     const summaries = await Promise.all(
-      filtered
-        .filter((p) => (categoryFilteredIds ? categoryFilteredIds.has(p.id) : true))
-        .map((p) => this.toSummary(em, p, channel, ctx.preferredLanguage)),
+      priceable.map((p) => this.toSummary(em, p, channel, ctx.preferredLanguage, resolvedPrices)),
     );
 
     return {
@@ -278,28 +457,49 @@ export class CatalogQueryService {
 
     // Visibility — if the product is not associated with the requested channel,
     // behave like it doesn't exist. Avoids exposing non-public catalogue.
-    const visibleIds = await this.filterByChannel(em, [product.id], channel);
+    const visibleIds = await this.filterByChannel([product.id], channel);
     if (!visibleIds.has(product.id)) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
 
-    const summary = await this.toSummary(em, product, channel, ctx.preferredLanguage);
+    // Issue #227 — and the same answer for the audience axis. 404 rather than
+    // 403: a caller who may not see the row may not learn it exists either,
+    // and a 403 on a slug tells them it does. This is also the gate the
+    // `/links` and `/bundle-configuration/validate` routes stand behind, since
+    // both resolve their subject through here first.
+    if (!isProductVisibleTo(product, ctx.audience)) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
+
+    const summary = await this.toSummary(
+      em,
+      product,
+      channel,
+      ctx.preferredLanguage,
+      await this.#listingPricesFor([product], channel, ctx.audience),
+    );
 
     // Categories
-    const categoryRows = await em.getConnection().execute<{ category_id: string }[]>(
+    const categoryRows = await em.execute<{ category_id: string }[]>(
       `select category_id from product_categories where product_id = ?`,
       [product.id],
     );
     const categoryIds = categoryRows.map((r) => r.category_id);
-    const categories = await em.find(Category, { id: { $in: categoryIds } });
+    // Feature 068 — the PDP breadcrumb/category list is customer-facing: skip
+    // deactivated categories, and deleted ones (never filtered here before).
+    const categories = await em.find(Category, {
+      id: { $in: categoryIds },
+      deletedAt: null,
+      isActive: true,
+    });
 
     // Assets
-    const assetRows = await em.getConnection().execute<{ asset_id: string; position: number }[]>(
+    const assetRows = await em.execute<{ asset_id: string; position: number }[]>(
       `select asset_id, position from product_assets where product_id = ? order by position asc`,
       [product.id],
     );
     const assetIds = assetRows.map((r) => r.asset_id);
-    const assets = await em.find(Asset, { id: { $in: assetIds } });
+    const assets = await this.#requireAssets().findByIds(assetIds);
 
     // Variants
     const variants = product.type === 'configurable' ? await em.find(ProductVariant, { parentProductId: product.id }) : [];
@@ -320,9 +520,9 @@ export class CatalogQueryService {
       { orderBy: { position: 'asc', id: 'asc' } },
     );
     const galleryAssetIds = galleryItems.map((g) => g.assetId);
-    const galleryAssetsById = new Map<string, Asset>();
+    const galleryAssetsById = new Map<string, AssetRecord>();
     if (galleryAssetIds.length > 0) {
-      const galleryAssets = await em.find(Asset, { id: { $in: galleryAssetIds } });
+      const galleryAssets = await this.#requireAssets().findByIds(galleryAssetIds);
       for (const a of galleryAssets) galleryAssetsById.set(a.id, a);
     }
     const galleryLabels = galleryItems.length > 0
@@ -348,9 +548,9 @@ export class CatalogQueryService {
       for (const t of types) attachmentTypesById.set(t.id, t);
     }
     const attachmentAssetIds = [...new Set(attachmentRows.map((a) => a.assetId))];
-    const attachmentAssetsById = new Map<string, Asset>();
+    const attachmentAssetsById = new Map<string, AssetRecord>();
     if (attachmentAssetIds.length > 0) {
-      const aAssets = await em.find(Asset, { id: { $in: attachmentAssetIds } });
+      const aAssets = await this.#requireAssets().findByIds(attachmentAssetIds);
       for (const a of aAssets) attachmentAssetsById.set(a.id, a);
     }
 
@@ -495,6 +695,7 @@ export class CatalogQueryService {
         product.id,
         {
           resolvedChannel: ctx.resolvedChannel,
+          audience: ctx.audience,
           ...(ctx.preferredLanguage ? { preferredLanguage: ctx.preferredLanguage } : {}),
         },
       );
@@ -640,70 +841,14 @@ export class CatalogQueryService {
     if (ids.length === 0) return result;
     const products = await em.find(Product, { id: { $in: ids } });
 
-    // Primary asset url via gallery thumb chain → base_image → first item
-    // → legacy product_assets first row (mirrors toSummary).
-    const galleryRows = await em.getConnection().execute<{
-      product_id: string;
-      storage_url: string;
-      label: string | null;
-      position: number;
-    }[]>(
-      `select gi.product_id, a.storage_url, gil.label, gi.position
-         from gallery_items gi
-         join assets a on a.id = gi.asset_id
-         left join gallery_item_labels gil on gil.gallery_item_id = gi.id
-         where gi.product_id in (${ids.map(() => '?').join(',')})
-         order by gi.product_id, gi.position asc, gi.id asc`,
-      ids,
-    );
-    const galleryByProduct = new Map<string, typeof galleryRows>();
-    for (const row of galleryRows) {
-      const list = galleryByProduct.get(row.product_id) ?? [];
-      list.push(row);
-      galleryByProduct.set(row.product_id, list);
-    }
-    const assetUrlByProduct = new Map<string, string | null>();
-    for (const id of ids) {
-      const gallery = galleryByProduct.get(id) ?? [];
-      const findByLabel = (label: string): string | null =>
-        gallery.find((r) => r.label === label)?.storage_url ?? null;
-      const url =
-        findByLabel('thumbnail') ??
-        findByLabel('base_image') ??
-        gallery[0]?.storage_url ??
-        null;
-      assetUrlByProduct.set(id, url);
-    }
-    const missing = ids.filter((id) => !assetUrlByProduct.get(id));
-    if (missing.length > 0) {
-      const legacy = await em.getConnection().execute<{
-        product_id: string;
-        storage_url: string;
-      }[]>(
-        `select pa.product_id, a.storage_url
-           from product_assets pa join assets a on a.id = pa.asset_id
-           where pa.product_id in (${missing.map(() => '?').join(',')})
-           order by pa.product_id, pa.position asc`,
-        missing,
-      );
-      const seen = new Set<string>();
-      for (const row of legacy) {
-        if (seen.has(row.product_id)) continue;
-        seen.add(row.product_id);
-        assetUrlByProduct.set(row.product_id, row.storage_url);
-      }
-    }
+    // Primary asset url via gallery thumb chain -> base_image -> first item
+    // -> legacy product_assets first row. One helper, shared with `toSummary`
+    // and `ProductLinkService`, so the chain and the port call have one home.
+    const assetUrlByProduct = await resolvePrimaryAssetUrls(em, this.#requireAssets(), ids);
 
-    const isPublic = channel?.isPublic ?? true;
+    const resolvedPrices = await this.#listingPricesFor(products, channel, ctx.audience);
     for (const p of products) {
-      const rawPrice = Number(
-        p.attributeValues['defaultPrice'] ??
-          p.attributeValues['price'] ??
-          Number.NaN,
-      );
-      const currency = channel?.defaultCurrency ?? 'PLN';
-      const price =
-        isPublic && Number.isFinite(rawPrice) ? { amount: rawPrice, currency } : null;
+      const price = this.#summaryPrice(resolvedPrices, p.id);
       result.set(p.id, {
         id: p.id,
         sku: p.sku,
@@ -723,10 +868,17 @@ export class CatalogQueryService {
   async getCategoryTree(ctx: CatalogQueryContext): Promise<CategoryNode[]> {
     const em = this.emFactory();
     const channel = ctx.resolvedChannel;
-    const rows = await em.find(Category, { deletedAt: null }, { orderBy: { sortOrder: 'asc' } });
+    // Feature 068 — an inactive category is invisible to customers, and so is
+    // everything under it: its children never reach `build()` because only
+    // roots seed the walk.
+    const rows = await em.find(
+      Category,
+      { deletedAt: null, isActive: true },
+      { orderBy: { sortOrder: 'asc' } },
+    );
 
-    // Directly-assigned, channel-visible products per category.
-    const directSets = await this.directProductSetsByCategory(em, channel);
+    // Directly-assigned products per category that this caller may see.
+    const directSets = await this.directProductSetsByCategory(em, channel, ctx.audience);
 
     const byParent = new Map<string | null, Category[]>();
     for (const row of rows) {
@@ -777,8 +929,13 @@ export class CatalogQueryService {
 
     // Build option / range facets by scanning Products in the channel.
     const products = await em.find(Product, { status: 'active', deletedAt: null });
-    const visibleIds = await this.filterByChannel(em, products.map((p) => p.id), channel);
-    const visible = products.filter((p) => visibleIds.has(p.id));
+    const visibleIds = await this.filterByChannel(products.map((p) => p.id), channel);
+    // Issue #227 — a facet count is a disclosure too. "Brass (3)" on a
+    // catalogue holding two brass products the caller may see is the third
+    // one, named by arithmetic.
+    const visible = products.filter(
+      (p) => visibleIds.has(p.id) && isProductVisibleTo(p, ctx.audience),
+    );
 
     const definitions = attrs.map((a) => {
       const label = this.pickLang(a.label, ctx.preferredLanguage, channel);
@@ -962,8 +1119,7 @@ export class CatalogQueryService {
     // (membership is definition-keyed since feature 061).
     let positionByKey = new Map<string, number>();
     if (product.attributeSetId) {
-      const conn = em.getConnection();
-      const posRows = (await conn.execute<
+      const posRows = (await em.execute<
         Array<{ custom_field_definition_id: string; position: number }>
       >(
         `select custom_field_definition_id, position
@@ -1114,19 +1270,22 @@ export class CatalogQueryService {
   }
 
   private async filterByChannel(
-    em: EntityManager,
     productIds: string[],
     channel: CatalogResolvedChannel,
   ): Promise<Set<string>> {
     if (productIds.length === 0) return new Set();
     // Feature 053 / Principle XII: a channel is ALWAYS resolved, so the catalog
-    // constrains to the resolved channel's `sales_channel_products` membership
-    // and fails closed to an empty set — never the full cross-channel set.
-    const rows = await em.getConnection().execute<{ product_id: string }[]>(
-      `select product_id from sales_channel_products where sales_channel_id = ? and product_id in (${productIds.map(() => '?').join(',')})`,
-      [channel.id, ...productIds],
+    // constrains to the resolved channel's membership and fails closed to an
+    // empty set — never the full cross-channel set. Through the kernel's
+    // accessor since issue #185; this was a `select … from
+    // sales_channel_products` written here, which is the clause's own
+    // counter-example.
+    const visible = await this.#requireChannelMembership().filterEntityIdsInChannel(
+      channel.id,
+      'product',
+      productIds,
     );
-    return new Set(rows.map((r) => r.product_id));
+    return new Set(visible);
   }
 
   /**
@@ -1191,7 +1350,7 @@ export class CatalogQueryService {
     }
 
     const allIds = [...new Set([...descendants.values()].flat())];
-    const rows = await em.getConnection().execute<{ category_id: string; product_id: string }[]>(
+    const rows = await em.execute<{ category_id: string; product_id: string }[]>(
       `select category_id, product_id from product_categories
         where category_id in (${allIds.map(() => '?').join(',')})`,
       allIds,
@@ -1217,20 +1376,30 @@ export class CatalogQueryService {
     em: EntityManager,
     categorySlug: string,
   ): Promise<Set<string>> {
-    const root = await em.findOne(Category, { slug: categorySlug, deletedAt: null });
+    // Feature 068 — an inactive category narrows to nothing, and an inactive
+    // branch contributes no products to an active ancestor.
+    const root = await em.findOne(Category, {
+      slug: categorySlug,
+      deletedAt: null,
+      isActive: true,
+    });
     if (!root) return new Set();
 
     // Collect descendant ids (BFS).
     const all: string[] = [root.id];
     let frontier: string[] = [root.id];
     while (frontier.length > 0) {
-      const children = await em.find(Category, { parentCategoryId: { $in: frontier }, deletedAt: null });
+      const children = await em.find(Category, {
+        parentCategoryId: { $in: frontier },
+        deletedAt: null,
+        isActive: true,
+      });
       const nextIds = children.map((c) => c.id);
       all.push(...nextIds);
       frontier = nextIds;
     }
 
-    const rows = await em.getConnection().execute<{ product_id: string }[]>(
+    const rows = await em.execute<{ product_id: string }[]>(
       `select product_id from product_categories where category_id in (${all.map(() => '?').join(',')})`,
       all,
     );
@@ -1245,21 +1414,38 @@ export class CatalogQueryService {
   private async directProductSetsByCategory(
     em: EntityManager,
     channel: CatalogResolvedChannel,
+    audience: ProductAudience,
   ): Promise<Map<string, Set<string>>> {
-    const base = await em.getConnection().execute<{ category_id: string; product_id: string }[]>(
+    const base = await em.execute<{ category_id: string; product_id: string }[]>(
       `select category_id, product_id from product_categories`,
     );
     if (base.length === 0) return new Map();
 
-    // Filter by visibility.
+    // Channel membership.
     const visibleIds = await this.filterByChannel(
-      em,
       base.map((r) => r.product_id),
       channel,
+    );
+    // Issue #227 — and the audience axis, which needs the two columns this
+    // path never loaded: `product_categories` carries ids and nothing else, so
+    // the rows come back here rather than the predicate going down there. The
+    // category tree publishes a `productCount` per node, and a count is the
+    // one field a restricted product can still move.
+    const restricted = new Set(
+      (
+        await em.find(
+          Product,
+          { id: { $in: [...visibleIds] } },
+          { fields: ['id', 'visibility', 'allowedOrganizationIds'] },
+        )
+      )
+        .filter((p) => !isProductVisibleTo(p, audience))
+        .map((p) => p.id),
     );
     const sets = new Map<string, Set<string>>();
     for (const row of base) {
       if (!visibleIds.has(row.product_id)) continue;
+      if (restricted.has(row.product_id)) continue;
       let set = sets.get(row.category_id);
       if (!set) {
         set = new Set<string>();
@@ -1270,59 +1456,41 @@ export class CatalogQueryService {
     return sets;
   }
 
+  /**
+   * One product's listing summary.
+   *
+   * `resolvedPrices` is the **page's** chain answer, resolved by the caller and
+   * required rather than optional: this method used to resolve its own price,
+   * which meant every listing path that mapped over a page called
+   * `resolveListingPrices` once per card. Making the parameter mandatory is
+   * what stops the next caller from quietly re-opening that.
+   */
   private async toSummary(
     em: EntityManager,
     product: Product,
     channel: CatalogResolvedChannel,
-    preferredLanguage?: string,
+    preferredLanguage: string | undefined,
+    resolvedPrices: Map<string, ListingPrice>,
   ): Promise<ProductSummary> {
     // Primary asset — for listings prefer the gallery's Thumbnail (US3),
     // then Base Image, then any first gallery item, finally the legacy
     // product_assets row. Resolution chain pinned by T096.
-    const galleryRows = await em.getConnection().execute<{
-      storage_url: string;
-      label: string | null;
-      position: number;
-    }[]>(
-      `select a.storage_url, gil.label, gi.position
-         from gallery_items gi
-         join assets a on a.id = gi.asset_id
-         left join gallery_item_labels gil on gil.gallery_item_id = gi.id
-         where gi.product_id = ?
-         order by gi.position asc, gi.id asc`,
-      [product.id],
-    );
-    let primaryAssetUrl: string | null = null;
-    const findByLabel = (label: string): string | null =>
-      galleryRows.find((r) => r.label === label)?.storage_url ?? null;
-    primaryAssetUrl =
-      findByLabel('thumbnail') ??
-      findByLabel('base_image') ??
-      galleryRows[0]?.storage_url ??
+    const primaryAssetUrl =
+      (await resolvePrimaryAssetUrls(em, this.#requireAssets(), [product.id])).get(product.id) ??
       null;
-    if (!primaryAssetUrl) {
-      const primary = await em.getConnection().execute<{ storage_url: string }[]>(
-        `select a.storage_url from product_assets pa join assets a on a.id = pa.asset_id where pa.product_id = ? order by pa.position asc limit 1`,
-        [product.id],
-      );
-      primaryAssetUrl = primary[0]?.storage_url ?? null;
-    }
 
     // Category slugs
-    const catRows = await em.getConnection().execute<{ slug: string }[]>(
+    const catRows = await em.execute<{ slug: string }[]>(
       `select c.slug from product_categories pc join categories c on c.id = pc.category_id where pc.product_id = ?`,
       [product.id],
     );
 
-    // Price (from PriceList module in US2; for US1 we derive from attributeValues.defaultPrice
-    // if set, otherwise null). Sales Channel visibility strips price on non-public channels.
-    const rawPrice = Number(
-      product.attributeValues['defaultPrice'] ?? product.attributeValues['price'] ?? Number.NaN,
-    );
-    const currency = channel?.defaultCurrency ?? 'PLN';
-    const showPrice = channel?.isPublic ?? true;
-    const price =
-      showPrice && Number.isFinite(rawPrice) ? { amount: rawPrice, currency } : null;
+    // Price — the pricing engine's answer for this product on this channel
+    // (issue #132), read out of the page's resolution. Sales Channel visibility
+    // still strips it on a non-public channel; what changed is that the figure
+    // underneath is one a price list stands behind rather than the catalogue's
+    // own legacy attribute.
+    const price = this.#summaryPrice(resolvedPrices, product.id);
 
     const nameText = this.pickLang(product.name, preferredLanguage, channel);
 

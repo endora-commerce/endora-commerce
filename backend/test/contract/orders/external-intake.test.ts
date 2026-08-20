@@ -17,12 +17,13 @@ import {
   TEST_SUSPENDED_ORGANIZATION_ID,
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { ApiKey } from '../../../src/modules/api_keys/entities/api-key.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 062 / T020 — `POST /api/v1/external/orders` + the orders half of the
@@ -141,7 +142,7 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
 
     // Org-targeted price list — the intake must charge the ORG price (100),
     // not the channel default (19.99).
-    const priceLists = new PriceListService(() => h.em());
+    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
     const list = await priceLists.create({
       name: 'Org A intake base',
       type: 'base',
@@ -232,8 +233,13 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
   });
 
   it('happy path 201 — bound org + service account + org pricing + reserved stock', async () => {
-    const stockBefore = await h.em().findOne(StockLevel, { productId: SEED_PRODUCT_101_ID });
-    const reservedBefore = stockBefore?.reserved ?? 0;
+    // Issue #159 — `?? 0` here made the reservation delta below pass whether or
+    // not the seeded stock row existed: no row and no reservation both read as
+    // zero. The harness seeds it, so absence is a broken fixture, not a datum.
+    const stockBefore = await h
+      .em()
+      .findOneOrFail(StockLevel, { productId: SEED_PRODUCT_101_ID });
+    const reservedBefore = stockBefore.reserved;
 
     const res = await post(boundToken, basePayload(), `happy-${randomUUID()}`);
     expect(res.statusCode).toBe(201);
@@ -331,9 +337,24 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
       `suspended-${randomUUID()}`,
     );
     expect(res.statusCode).toBe(423);
-    expect((res.json() as { error: { code: string } }).error.code).toBe(
-      ERROR_CODES.ORGANIZATION_SUSPENDED,
-    );
+    // `FORBIDDEN` + `organization_cannot_transact`, which is what this feature's
+    // own contract specifies (`specs/062-distributor-api/contracts/
+    // orders-api-key-intake.md` error vocabulary) and what the published
+    // `docs/docs/integrations/api-access.md` documents to distributors. SC-009
+    // requires this to be identical to what the Organization's own buyer gets,
+    // and since T141 both paths are fed from the same container binding rather
+    // than from two root arguments that happened to agree.
+    //
+    // This is one of the two assertions issue #63 is about — it pinned
+    // `ORGANIZATION_SUSPENDED`, a code production does not emit on a gated
+    // route, and could only pass because the harness had never wired the gate.
+    // Corrected in 633538a9 (072 T141), left here as the record of which code
+    // the surface really answers with.
+    const body = res.json() as {
+      error: { code: string; details?: { code?: string } };
+    };
+    expect(body.error.code).toBe(ERROR_CODES.FORBIDDEN);
+    expect(body.error.details?.code).toBe('organization_cannot_transact');
   });
 
   it('insufficient stock ⇒ 409 STOCK_UNAVAILABLE (existing placement semantics)', async () => {

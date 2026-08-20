@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { manifest as customersManifest } from '../../../src/modules/customers/manifest.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 
@@ -35,9 +36,7 @@ describe('Admin customer list + detail (US5)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   it('lists customers and finds the registered one by search', async () => {

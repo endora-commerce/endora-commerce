@@ -16,7 +16,9 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
  *
  * The foundation backward-compat single-bucket PUT (`PUT /api/v1/admin/inventory`)
  * is kept and lives behind `setLegacyStockLevelSchema`; covered by
- * `legacy-stock.test.ts` so the surface area is documented.
+ * `legacy-stock-audit.test.ts`. That citation used to name `legacy-stock.test.ts`,
+ * a file which has never existed — the surface was documented as covered while
+ * nothing exercised it (issue #125).
  */
 const DEFAULT_WAREHOUSE_ID = '00000000-0000-4000-8000-00000000d017';
 

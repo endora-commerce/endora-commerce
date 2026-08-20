@@ -128,6 +128,37 @@ export const returnCaseSummarySchema = z.object({
 });
 export type ReturnCaseSummary = z.infer<typeof returnCaseSummarySchema>;
 
+/**
+ * What became of the corrective invoice for a settled case (D-92, issue #156).
+ *
+ * Three values, because `correctiveInvoiceId: null` is a two-way answer to a
+ * three-way question: it stands for "no correction was due", "none was asked
+ * for" and "one was asked for and we do not know" at once. `not_due` carries
+ * its own reason in the enum — `order_not_invoiced` is the only one there is,
+ * and a second reason becomes a fourth value rather than a free-text column.
+ *
+ * `issued` is exactly the case where the settlement holds an invoice id.
+ */
+export const correctiveInvoiceOutcomeSchema = z.enum(['issued', 'not_due', 'not_requested']);
+export type CorrectiveInvoiceOutcome = z.infer<typeof correctiveInvoiceOutcomeSchema>;
+
+/**
+ * The persisted corrective-invoice answer, as the case detail reports it.
+ *
+ * The settlement *response* (`settlementResultSchema` below) says the same
+ * thing with the document's number attached, and only at the moment of
+ * settling. This is the copy a reloaded screen reads, so it names what the
+ * `Refund` row holds and nothing else: resolving the number would mean reading
+ * `invoices` from `returns` on a screen that must keep answering while that
+ * module is off.
+ */
+export const returnCaseCorrectiveInvoiceSchema = z.object({
+  outcome: correctiveInvoiceOutcomeSchema,
+  /** The correction, when one was issued. Null in the other two outcomes. */
+  invoiceId: uuidSchema.nullable(),
+});
+export type ReturnCaseCorrectiveInvoice = z.infer<typeof returnCaseCorrectiveInvoiceSchema>;
+
 export const returnCaseDetailSchema = returnCaseSummarySchema.extend({
   salesChannelId: uuidSchema,
   customerAccountId: uuidSchema,
@@ -140,6 +171,12 @@ export const returnCaseDetailSchema = returnCaseSummarySchema.extend({
   rejectionReason: z.string().nullable(),
   items: z.array(returnCaseItemSchema),
   comments: z.array(returnCaseCommentSchema),
+  /**
+   * Null while the case has no `Refund` row — never settled, or settled as a
+   * replacement or repair, which corrects no document and is not an outcome of
+   * "not requested" (D-92).
+   */
+  correctiveInvoice: returnCaseCorrectiveInvoiceSchema.nullable(),
 });
 export type ReturnCaseDetail = z.infer<typeof returnCaseDetailSchema>;
 
@@ -256,6 +293,28 @@ export const settlementRequestSchema = z.object({
 });
 export type SettlementRequest = z.infer<typeof settlementRequestSchema>;
 
+/**
+ * What became of the corrective invoice a settlement asked for (#135).
+ *
+ * Both outcomes are stated. A settled return on an order that was never
+ * invoiced corrects no VAT document, and this says so with a reason instead of
+ * leaving the caller to read it out of a missing id — reading absence is how
+ * the never-invoiced path came to emit a document that corrected nothing.
+ */
+export const settlementCorrectiveInvoiceSchema = z.discriminatedUnion('issued', [
+  z.object({
+    issued: z.literal(true),
+    invoiceId: uuidSchema,
+    number: z.string(),
+  }),
+  z.object({
+    issued: z.literal(false),
+    /** `order_not_invoiced` — the order carries no VAT invoice to correct. */
+    reason: z.enum(['order_not_invoiced']),
+  }),
+]);
+export type SettlementCorrectiveInvoice = z.infer<typeof settlementCorrectiveInvoiceSchema>;
+
 export const settlementResultSchema = z.object({
   totalRefundAmount: z.number().finite(),
   refund: z
@@ -266,6 +325,8 @@ export const settlementResultSchema = z.object({
     })
     .optional(),
   correctiveInvoiceId: uuidSchema.nullable().optional(),
+  /** Present whenever a correction was asked for — issued or not (#135). */
+  correctiveInvoice: settlementCorrectiveInvoiceSchema.optional(),
   creditLimitTopupApplied: z.boolean().optional(),
 });
 export type SettlementResult = z.infer<typeof settlementResultSchema>;
@@ -425,3 +486,204 @@ export const returnSavedViewUpdateSchema = z.object({
   sort: returnSavedViewSortSchema.optional(),
   visibleColumns: z.array(z.string()).nullable().optional(),
 });
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The refund seam, published early (feature 075, Phase P).
+//
+// `returns` declares this shape and `payments` — through the four gateway
+// modules — implements it. That direction is deliberate (R-03) and publishing
+// it keeps it: the consumer states what it needs and the gateways satisfy it.
+//
+// It lands in the first Phase-P wave rather than the third, where the rest of
+// `returns`' ports sit, because `payments` is a first-wave provider and its
+// `GatewayRefundHandler` is written against these two shapes. Publishing the
+// handler without them would leave the contract naming a file in a module.
+// ---------------------------------------------------------------------------
+
+export interface PaymentRefundInput {
+  orderId: string;
+  amount: number;
+  currency: string;
+  paymentMethodId?: string;
+  /** Idempotency key (the return case id) so retries do not double-refund. */
+  idempotencyKey: string;
+}
+
+export interface PaymentRefundResult {
+  state: 'issued' | 'pending_manual' | 'failed';
+  externalReference?: string | null;
+  providerDetails?: Record<string, unknown>;
+  failureReason?: string;
+}
+
+/**
+ * Container name: `paymentRefundPort`. Owner: `payments`.
+ *
+ * The interface through which `returns` asks the payments domain to return
+ * funds. The implementation resolves the order's payment and, where the method
+ * supports an automatic refund, issues it; otherwise it reports
+ * `pending_manual` so an operator settles it out of band (feature 046 FR-035).
+ *
+ * `pending_manual` is the degrade, and it is in the return type rather than in
+ * a caller's `catch` — which is what makes an absent or switched-off gateway
+ * leave the obligation on the platform's books, named, instead of dropping it.
+ */
+export interface PaymentRefundPort {
+  refund(input: PaymentRefundInput): Promise<PaymentRefundResult>;
+}
+
+// --- the other three consumer-declared seams ---------------------------------
+//
+// The same move as `PaymentRefundPort` above, and for the same reason: this
+// module states what it needs of a settlement and three other modules
+// implement it. Publishing them keeps that direction (R-03) — a consumer
+// declaring its own requirement is the shape feature 075 wants, and the only
+// thing wrong with it was that the declaration lived in a module directory
+// three other modules had to import from.
+
+/**
+ * A "credit toward future orders" resolution credits the customer's
+ * organisation credit limit, which `credit_limits` already grants and the
+ * checkout credit-check already redeems.
+ *
+ * `applied: false` when the organisation has no credit-limit grant — a
+ * declared outcome, not a failure, so the settlement records the answer rather
+ * than a caller inventing one from a caught error.
+ */
+export interface CreditTopupInput {
+  organizationId: string;
+  amount: number;
+  currency: string;
+  returnCaseId: string;
+}
+
+export interface CreditTopupResult {
+  applied: boolean;
+  availableAmountAfter?: number;
+}
+
+/**
+ * Container name: `creditTopupPort`. Owner: `credit_limits`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `credit_limits` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CreditTopupPort {
+  creditFromReturn(input: CreditTopupInput): Promise<CreditTopupResult>;
+}
+
+export interface OrderReturnContextLine {
+  orderItemId: string;
+  productId: string;
+  name: string;
+  purchasedQty: number;
+  /** Amount paid per unit, including its proportional tax. */
+  paidUnitAmount: number;
+  /** Amount paid for the whole purchased line, including tax. */
+  paidLineAmount: number;
+}
+
+export interface OrderReturnContext {
+  salesChannelId: string;
+  customerAccountId: string;
+  organizationId: string | null;
+  currency: string;
+  /** When the order entered its fulfilment-completing status; null if it has not. */
+  completingStatusEnteredAt: Date | null;
+  lines: OrderReturnContextLine[];
+}
+
+/**
+ * Container name: `orderReturnContextPort`. Owner: `orders`.
+ *
+ * The order facts a return needs — paid-per-line amounts, the
+ * fulfilment-completing timestamp, channel, customer, organisation — without
+ * `returns` reading the orders tables (Principle I).
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `orders` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface OrderReturnContextPort {
+  getReturnContext(orderId: string): Promise<OrderReturnContext | null>;
+}
+
+export interface CorrectiveInvoiceLine {
+  /**
+   * The order item this line credits. It is the link back to the line of the
+   * original invoice being corrected: issuance snapshots `orderItemId` on every
+   * product line, and a return-case item carries the same order item, so the
+   * corrected line's VAT rate can be mirrored rather than assumed (issue #131).
+   */
+  orderItemId: string;
+  productName: string;
+  quantity: number;
+  /** Credited amount for this line, gross (as paid, including its tax). */
+  amount: number;
+}
+
+export interface CorrectiveInvoiceInput {
+  orderId: string;
+  lines: CorrectiveInvoiceLine[];
+  /** Credited total, gross. */
+  total: number;
+  currency: string;
+  /**
+   * The caller's key for this correction — the return case id (D-91).
+   *
+   * A settlement attempts every external effect **before** it writes any state,
+   * so a refusal from a later step leaves a retryable case behind and the retry
+   * asks for the same correction again. With a key, the second call returns the
+   * document the first one issued; without it, the order carries two corrections
+   * for one return.
+   *
+   * It keys the **return case**, not the order: a second partial return against
+   * the same order is a different case and legitimately gets its own correction.
+   * Omitted, no deduplication is attempted and every call issues a document.
+   */
+  idempotencyKey?: string;
+}
+
+/** A correction was issued: the document that credits the original invoice. */
+export interface CorrectiveInvoiceIssued {
+  issued: true;
+  invoiceId: string;
+  number: string;
+  status: 'pending' | 'ready' | 'cancelled';
+}
+
+/**
+ * No correction was due, with the reason (issue #135).
+ *
+ * The settlement caller cannot know whether the order was ever invoiced — the
+ * invoices module can, and answers here. `order_not_invoiced` is the only
+ * reason today: with no original there is no VAT document to correct, so a
+ * correction would be a number, a zero rate and an empty seller/buyer snapshot
+ * standing in for a document that never existed.
+ */
+export interface CorrectiveInvoiceNotDue {
+  issued: false;
+  reason: 'order_not_invoiced';
+}
+
+export type CorrectiveInvoiceResult = CorrectiveInvoiceIssued | CorrectiveInvoiceNotDue;
+
+/**
+ * Container name: `correctiveInvoicePort`. Owner: `invoices`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `invoices` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CorrectiveInvoicePort {
+  createCorrection(input: CorrectiveInvoiceInput): Promise<CorrectiveInvoiceResult>;
+}

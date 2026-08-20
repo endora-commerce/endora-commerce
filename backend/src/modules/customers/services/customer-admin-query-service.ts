@@ -1,8 +1,13 @@
-import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
-import type { AdminCustomerDetail, AdminCustomerListItem } from '@b2b/contracts';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import { CustomerGroup } from '../../price_lists/entities/customer-group.entity.js';
+import type {
+  AdminCustomerDetail,
+  AdminCustomerListItem,
+  CustomerAccountAdminSearchPort,
+  CustomerAccountReadPort,
+  CustomerAccountRecord,
+  CustomerGroupReadPort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import { Order } from '../../orders/entities/order.entity.js';
 import type { CustomerDefaultsService } from './customer-defaults-service.js';
 
@@ -11,6 +16,12 @@ import type { CustomerDefaultsService } from './customer-defaults-service.js';
  * US5). Applies the same visibility scope as moderation: a Platform
  * Administrator sees everyone; a Salesperson sees standalone customers plus
  * customers of the Organizations they are assigned to.
+ *
+ * **Feature 075, Phase C — the three foreign tables are three ports now.** The
+ * account page, the organisation names beside it and the customer-group names
+ * were all `em.find` calls on other modules' entities. The scope decision stays
+ * here, because it is this module's: the port takes the organisations the actor
+ * may see and does not decide who the actor is.
  */
 export interface AdminCustomerListScope {
   isPlatformAdmin: boolean;
@@ -31,63 +42,37 @@ export interface AdminCustomerListResult {
   total: number;
 }
 
+export interface CustomerAdminQueryPorts {
+  accounts: CustomerAccountReadPort;
+  accountSearch: CustomerAccountAdminSearchPort;
+  organizations: OrganizationDetailsPort;
+  customerGroups: CustomerGroupReadPort;
+}
+
 export class CustomerAdminQueryService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly defaults: CustomerDefaultsService,
+    private readonly ports: CustomerAdminQueryPorts,
   ) {}
 
   async list(
     query: AdminCustomerListQuery,
     scope: AdminCustomerListScope,
   ): Promise<AdminCustomerListResult> {
-    const em = this.emFactory();
-    const and: FilterQuery<CustomerAccount>[] = [];
-
-    // Lifecycle status.
-    if (query.status === 'blocked') {
-      and.push({ blockedAt: { $ne: null }, deletedAt: null });
-    } else if (query.status === 'deleted') {
-      and.push({ deletedAt: { $ne: null } });
-    } else {
-      // Default "active" view excludes deleted accounts.
-      and.push({ deletedAt: null });
-    }
-
-    if (query.organizationId) and.push({ organizationId: query.organizationId });
-    if (query.customerGroupId) and.push({ customerGroupId: query.customerGroupId });
-
-    // Visibility scope.
-    if (!scope.isPlatformAdmin) {
-      and.push({
-        $or: [
-          { organizationId: null },
-          { organizationId: { $in: scope.allowedOrganizationIds } },
-        ],
-      });
-    }
-
-    // Free-text search over email / first / last name.
-    if (query.q && query.q.trim()) {
-      const like = `%${query.q.trim()}%`;
-      and.push({
-        $or: [
-          { email: { $ilike: like } },
-          { firstName: { $ilike: like } },
-          { lastName: { $ilike: like } },
-        ],
-      });
-    }
-
-    const where: FilterQuery<CustomerAccount> = and.length ? { $and: and } : {};
-    const offset = (query.page - 1) * query.pageSize;
-    const [rows, total] = await em.findAndCount(CustomerAccount, where, {
-      orderBy: { createdAt: 'desc' },
-      limit: query.pageSize,
-      offset,
+    const { rows, total } = await this.ports.accountSearch.search({
+      q: query.q,
+      status: query.status,
+      organizationId: query.organizationId,
+      customerGroupId: query.customerGroupId,
+      // `null` is the unscoped read. A salesperson gets their territory, and
+      // org-less customers are visible to every salesperson by construction.
+      allowedOrganizationIds: scope.isPlatformAdmin ? null : scope.allowedOrganizationIds,
+      page: query.page,
+      pageSize: query.pageSize,
     });
 
-    const { orgNames, groupNames } = await this.resolveNames(em, rows);
+    const { orgNames, groupNames } = await this.resolveNames(rows);
     return {
       rows: rows.map((c) => this.toListItem(c, orgNames, groupNames)),
       total,
@@ -95,15 +80,14 @@ export class CustomerAdminQueryService {
   }
 
   async getDetail(id: string): Promise<AdminCustomerDetail | null> {
-    const em = this.emFactory();
-    const customer = await em.findOne(CustomerAccount, { id });
+    const customer = await this.ports.accounts.findById(id);
     if (!customer) return null;
 
-    const { orgNames, groupNames } = await this.resolveNames(em, [customer]);
+    const { orgNames, groupNames } = await this.resolveNames([customer]);
     const base = this.toListItem(customer, orgNames, groupNames);
 
     const salesChannelIds = (
-      await em.find(
+      await this.emFactory().find(
         Order,
         { placedByCustomerAccountId: customer.id },
         { fields: ['salesChannelId'] },
@@ -131,7 +115,7 @@ export class CustomerAdminQueryService {
           }
         : null,
       emailVerifiedAt: customer.emailVerifiedAt ? customer.emailVerifiedAt.toISOString() : null,
-      twoFactorEnabled: customer.twoFactorConfirmedAt != null,
+      twoFactorEnabled: customer.twoFactorEnabled,
       salesChannelIds: [...new Set(salesChannelIds)],
       defaults,
       customFieldValues: customer.customFieldValues ?? {},
@@ -139,20 +123,21 @@ export class CustomerAdminQueryService {
   }
 
   private async resolveNames(
-    em: EntityManager,
-    rows: CustomerAccount[],
+    rows: readonly CustomerAccountRecord[],
   ): Promise<{ orgNames: Map<string, string>; groupNames: Map<string, string> }> {
     const orgIds = [...new Set(rows.map((r) => r.organizationId).filter((x): x is string => !!x))];
-    const groupIds = [...new Set(rows.map((r) => r.customerGroupId).filter((x): x is string => !!x))];
+    const groupIds = [
+      ...new Set(rows.map((r) => r.customerGroupId).filter((x): x is string => !!x)),
+    ];
     const orgNames = new Map<string, string>();
     const groupNames = new Map<string, string>();
     if (orgIds.length) {
-      for (const o of await em.find(Organization, { id: { $in: orgIds } }, { fields: ['id', 'name'] })) {
+      for (const o of await this.ports.organizations.findByIds(orgIds)) {
         orgNames.set(o.id, o.name);
       }
     }
     if (groupIds.length) {
-      for (const g of await em.find(CustomerGroup, { id: { $in: groupIds } }, { fields: ['id', 'name'] })) {
+      for (const g of await this.ports.customerGroups.findByIds(groupIds)) {
         groupNames.set(g.id, g.name);
       }
     }
@@ -160,7 +145,7 @@ export class CustomerAdminQueryService {
   }
 
   private toListItem(
-    c: CustomerAccount,
+    c: CustomerAccountRecord,
     orgNames: Map<string, string>,
     groupNames: Map<string, string>,
   ): AdminCustomerListItem {

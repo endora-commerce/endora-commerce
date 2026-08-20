@@ -23,9 +23,9 @@ import { randomUUID } from 'crypto';
 export async function seedDefaultCategory(
   emFactory: () => EntityManager,
 ): Promise<{ categoryId: string; created: boolean }> {
-  const conn = emFactory().getConnection();
+  const em = emFactory();
 
-  const existingRows = (await conn.execute(
+  const existingRows = (await em.execute(
     'select id::text as id from blog_categories where is_system = true and deleted_at is null limit 1',
   )) as Array<{ id: string }>;
   if (existingRows.length > 0) {
@@ -33,7 +33,7 @@ export async function seedDefaultCategory(
   }
 
   const categoryId = randomUUID();
-  await conn.execute(
+  await em.execute(
     `insert into blog_categories
        (id, slug, name, enabled, is_system, position, version, created_at, updated_at)
        values
@@ -41,12 +41,12 @@ export async function seedDefaultCategory(
     [categoryId],
   );
 
-  const channelRows = (await conn.execute(
+  const channelRows = (await em.execute(
     'select id::text as id from sales_channels',
   )) as Array<{ id: string }>;
 
   for (const row of channelRows) {
-    await conn.execute(
+    await em.execute(
       `insert into blog_category_sales_channels
          (blog_category_id, sales_channel_id, slug)
          values (?, ?, 'default')`,

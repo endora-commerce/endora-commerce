@@ -1,19 +1,25 @@
 import { createHash } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import { ERROR_CODES, type ApiPlaceOrderRequest } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type AddressServicePort,
+  type ApiPlaceOrderRequest,
+  type CartWritePort,
+  type CatalogProductReadPort,
+  type CatalogProductRecord,
+  type LinePricePort,
+  type OrganizationDetailsPort,
+  type OrganizationRecord,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
-import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
-import type { PricingService } from '../../price_lists/services/pricing-service.js';
-import type { CartService } from '../../carts/services/cart-service.js';
-import type { AddressService } from '../../addresses/services/address-service.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderPlacementIntent } from '../entities/order-placement-intent.entity.js';
 import type { OrderService } from './order-service.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /**
  * OrderApiIntakeService — feature 062 (research §R8, contracts/orders-api-key-intake.md §1).
@@ -38,9 +44,13 @@ export interface ApiKeyOrderBinding {
 
 export interface OrderApiIntakeDeps {
   emFactory: () => EntityManager;
-  cartService: CartService;
+  cartService: CartWritePort;
   orderService: OrderService;
-  addressService: AddressService;
+  addressService: AddressServicePort;
+  /** `catalog`'s product read model — the SKU → product resolution below. */
+  catalogProductRead: CatalogProductReadPort;
+  /** `organizations`' row, for the pricing context of the price probe. */
+  organizationDetails: OrganizationDetailsPort;
   /**
    * Sanctioned bridge accessor (feature 052 pattern) — the bound channel's
    * published assortment gate. Absent (legacy rigs) ⇒ fail closed: every SKU
@@ -48,10 +58,14 @@ export interface OrderApiIntakeDeps {
    */
   salesChannelMembership?: SalesChannelMembershipService | undefined;
   /**
-   * The SAME resolver cart pricing uses. Absent ⇒ the `defaultPrice` fallback
-   * below is the only price source (mirrors CartService's legacy path).
+   * The SAME resolver cart pricing uses.
+   *
+   * Required since issue #124. "Absent" used to select the `defaultPrice`
+   * fallback below, so the distributor API accepted orders priced from a
+   * catalogue attribute whenever the pricing engine was not wired — including
+   * with `price_lists` switched off, which is exactly when nobody was watching.
    */
-  pricingService?: PricingService | undefined;
+  pricingService: LinePricePort;
   /** Per-key intake lock (research §R8 step 2). Absent ⇒ no serialization. */
   redis?: Redis | undefined;
   /**
@@ -156,7 +170,7 @@ export class OrderApiIntakeService {
   async #placeGuarded(binding: ApiKeyOrderBinding, body: ApiPlaceOrderRequest): Promise<Order> {
     const em = this.deps.emFactory();
     const channel = await em.findOne(SalesChannel, { id: binding.salesChannelId });
-    const organization = await em.findOne(Organization, { id: binding.organizationId });
+    const organization = await this.deps.organizationDetails.findById(binding.organizationId);
 
     // FR-021 — the org's method allow-lists (feature 026 US4). The customer
     // flow never offers a disallowed method; this surface refuses it with the
@@ -190,10 +204,9 @@ export class OrderApiIntakeService {
     // Step 4 — SKU → product + bound-channel assortment + resolvable price.
     // Refusals are whole-order 422 with per-line issues; nothing persists.
     const skus = Array.from(new Set(body.lines.map((l) => l.sku)));
-    const products = await em.find(Product, {
-      sku: { $in: skus },
-      deletedAt: null,
-      status: 'active',
+    const products = await this.deps.catalogProductRead.findBySkus(skus, {
+      liveOnly: true,
+      activeOnly: true,
     });
     const productBySku = new Map(products.map((p) => [p.sku, p]));
     const inChannel = new Set<string>();
@@ -272,7 +285,10 @@ export class OrderApiIntakeService {
       for (const addressId of transientAddressIds) {
         try {
           await this.deps.addressService.deleteAddress(binding.organizationId, addressId);
-        } catch {
+        } catch (error) {
+          // `addresses` being absent is not a cleanup failure — it is the port's
+          // fail-closed answer, and it travels on (issue #197).
+          rethrowIfModuleDisabled(error);
           // best-effort cleanup; a leftover soft-deletable row is harmless.
         }
       }
@@ -324,25 +340,26 @@ export class OrderApiIntakeService {
    * the org's own buyer can put in a cart is never refused here.
    */
   async #hasResolvablePrice(
-    product: Product,
-    organization: Organization | null,
+    product: CatalogProductRecord,
+    organization: OrganizationRecord | null,
     channel: SalesChannel | null,
     quantity: number,
   ): Promise<boolean> {
-    if (this.deps.pricingService && channel) {
-      try {
-        const resolved = await this.deps.pricingService.resolveLinePrice({
-          product,
-          context: {
-            quantity,
-            organization,
-            salesChannel: { id: channel.id, defaultCurrency: channel.defaultCurrency },
-          },
-        });
-        if (resolved) return true;
-      } catch {
-        // fall through to the catalog default below
-      }
+    // No `catch` (issue #84): `resolveLinePrice` returns `null` for "nothing
+    // resolves", which is the answer this probe wants, and the fall-through to
+    // the catalogue default below already covers it. Catching turned "the
+    // pricing engine is unreachable" into "this product is priced at the
+    // catalogue default", and the API accepted an order at that price.
+    if (channel) {
+      const resolved = await this.deps.pricingService.resolveLinePrice({
+        product,
+        context: {
+          quantity,
+          organization,
+          salesChannel: { id: channel.id, defaultCurrency: channel.defaultCurrency },
+        },
+      });
+      if (resolved) return true;
     }
     const fallback = product.attributeValues['defaultPrice'] ?? product.attributeValues['price'];
     return fallback !== undefined && fallback !== null;

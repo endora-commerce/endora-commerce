@@ -1,4 +1,14 @@
 {
   "adminRoles.permission.mfa:reset": "Resetowanie 2FA użytkownika",
-  "adminRoles.permission.mfa:manage": "Zarządzanie politykami 2FA i wymuszaniem w Organizacji"
+  "adminRoles.permission.mfa:manage": "Zarządzanie politykami 2FA i wymuszaniem w Organizacji",
+  "errors.MFA_SOCIAL_LAST_CREDENTIAL": "To ostatnia tożsamość logowania powiązana z kontem, a konto nie ma zapisanego hasła — usunięcie jej mogłoby trwale odciąć dostęp do konta. Najpierw ustaw hasło do konta, a potem to powiązanie będzie można usunąć.",
+  "errors.MFA_ALREADY_ENROLLED": "Uwierzytelnianie dwuskładnikowe jest już skonfigurowane na tym koncie i nie ma nic więcej do ustawienia. Aby przenieść je do innej aplikacji uwierzytelniającej, najpierw je wyłącz, a potem skonfiguruj od nowa.",
+  "errors.MFA_INVALID_CHALLENGE": "Ten krok logowania nie jest już ważny — wygasł albo został już zakończony. Zaloguj się ponownie, aby rozpocząć nowy.",
+  "errors.MFA_INVALID_CODE": "Ten kod nie został przyjęty. Kod z aplikacji uwierzytelniającej jest ważny tylko przez około pół minuty, więc poczekaj na kolejny i wpisz go bez spacji; kodu odzyskiwania można użyć tylko raz.",
+  "errors.MFA_NOT_ENABLED": "Uwierzytelnianie dwuskładnikowe nie jest tu dostępne, więc nie można go włączyć na tym koncie. O tym, gdzie można z niego korzystać, decyduje administrator — poproś go o włączenie tej opcji.",
+  "errors.MFA_NO_ACTIVE_ENROLMENT": "Uwierzytelnianie dwuskładnikowe nie jest włączone na tym koncie, więc nie ma kodów odzyskiwania do wygenerowania na nowo. Najpierw je skonfiguruj — kody otrzymasz na końcu konfiguracji.",
+  "errors.MFA_NO_PENDING_ENROLMENT": "Nie ma konfiguracji czekającej na potwierdzenie — została już zakończona albo rozpoczęta na nowo w innym miejscu. Rozpocznij konfigurację jeszcze raz i zeskanuj nowy kod QR, zanim wpiszesz kod.",
+  "errors.MFA_REAUTH_REQUIRED": "Wyłączenie uwierzytelniania dwuskładnikowego musi zostać przez Ciebie potwierdzone. Podaj aktualny kod z aplikacji uwierzytelniającej albo hasło do tego konta.",
+  "errors.MFA_TOO_MANY_ATTEMPTS": "Wpisano zbyt wiele błędnych kodów, więc ta próba logowania została przerwana. Zaloguj się ponownie i użyj kolejnego kodu prosto z aplikacji uwierzytelniającej albo jednego z kodów odzyskiwania.",
+  "errors.MFA_WRONG_SURFACE": "To logowanie zostało rozpoczęte w innym miejscu, więc tego kodu nie można tu potwierdzić. Wróć na stronę, na której rozpoczęło się logowanie, i wpisz kod tam."
 }

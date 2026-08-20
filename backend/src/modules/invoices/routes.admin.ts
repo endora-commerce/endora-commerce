@@ -1,10 +1,14 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { issueInvoiceRequestSchema, sendInvoiceEmailRequestSchema } from '@b2b/contracts';
+import {
+  issueInvoiceRequestSchema,
+  sendInvoiceEmailRequestSchema,
+  type IssueInvoiceEmailOutcome,
+  type OrderReadPort,
+} from '@b2b/contracts';
 import { Invoice } from './entities/invoice.entity.js';
 import { Order } from '../orders/entities/order.entity.js';
 import { isOrgInScope } from '../../tenancy/derived-scope.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import { z } from 'zod';
 import type { InvoiceService } from './services/invoice-service.js';
 import type { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
@@ -12,13 +16,15 @@ import type { InvoiceTemplateService } from './services/invoice-template-service
 import { INVOICE_PAGE_BUILDER_DESCRIPTOR } from './pdf-components/descriptor.js';
 import { sampleInvoiceDetail } from './pdf-components/sample.js';
 import { pickLanguageTree } from './pdf-components/tree-mapper.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { InvoiceEmailDispatchResult } from './services/invoice-email-dispatch.js';
 
 /** Minimal email-dispatch seam — implemented by the US5 dispatcher. */
 export interface InvoiceEmailDispatcher {
   dispatch(
     invoiceId: string,
     opts?: { mode?: 'attachment' | 'link'; messageId?: string },
-  ): Promise<boolean>;
+  ): Promise<InvoiceEmailDispatchResult>;
   sendOnIssueEnabled(salesChannelId: string | null): Promise<boolean>;
 }
 
@@ -29,6 +35,8 @@ export interface InvoiceEmailDispatcher {
  */
 export interface InvoicesAdminDeps {
   emFactory: () => EntityManager;
+  /** `orders`' published read model (feature 075, Phase C). */
+  orderReadPort: OrderReadPort;
   requireAdmin: RequireAdminFactory;
   invoiceService: InvoiceService;
   pdfRenderer: InvoicePdfRenderer;
@@ -43,7 +51,8 @@ export async function registerInvoicesAdminRoutes(
   app: FastifyInstance,
   deps: InvoicesAdminDeps,
 ): Promise<void> {
-  const { emFactory, requireAdmin, invoiceService, pdfRenderer, templateService } = deps;
+  const { emFactory, orderReadPort, requireAdmin, invoiceService, pdfRenderer, templateService } =
+    deps;
 
   // List ------------------------------------------------------------------
   app.get(
@@ -87,9 +96,9 @@ export async function registerInvoicesAdminRoutes(
       const limit = Math.min(Math.max(Number.parseInt(q['limit'] ?? '50', 10), 1), 200);
       const rows = await em.find(Invoice, where, { orderBy: { issuedAt: 'desc' }, limit });
       const orderIds = [...new Set(rows.map((r) => r.orderId))];
-      const orders = orderIds.length
-        ? await em.find(Order, { id: { $in: orderIds } }, { fields: ['id', 'businessId', 'organizationId'] })
-        : [];
+      // Feature 075, Phase C — the order number and the owning organisation are
+      // `orders`' fields, read over its port rather than out of its table.
+      const orders = await orderReadPort.findByIds(orderIds);
       const byOrder = new Map(orders.map((o) => [o.id, o.businessId]));
       const orgByOrder = new Map(orders.map((o) => [o.id, o.organizationId]));
       // Feature 050 — Invoice is transitively scoped via its Order's org; hide
@@ -138,12 +147,11 @@ export async function registerInvoicesAdminRoutes(
         ...(body.paymentDueDate ? { paymentDueDate: body.paymentDueDate } : {}),
         ...(issuedBy ? { issuedBy } : {}),
       });
-      // Best-effort send-on-issue (FR-024); never fails the issuance.
-      if (deps.emailDispatcher && (await deps.emailDispatcher.sendOnIssueEnabled(detail.salesChannelId))) {
-        await deps.emailDispatcher.dispatch(detail.id);
-      }
+      const email = await sendOnIssue(deps, detail.id, detail.salesChannelId);
+      // Still a 201 whatever `email` says: the notification is best-effort
+      // (FR-024) and a suppressed message must not undo an issued document.
       reply.status(201);
-      return { data: detail };
+      return { data: detail, email };
     },
   );
 
@@ -169,14 +177,21 @@ export async function registerInvoicesAdminRoutes(
     async (request) => {
       const body = sendInvoiceEmailRequestSchema.parse(request.body ?? {});
       if (!deps.emailDispatcher) {
-        return { data: { ok: false, reason: 'email_not_configured' } };
+        // `no_sender`, the name the dispatcher and the issue route both use for
+        // this composition. It was `email_not_configured` — an eighth word for
+        // one of the seven reasons, which no caller could translate (#149).
+        return { data: { ok: false, reason: 'no_sender' } };
       }
       const messageId = `invoice_issued:${request.params.id}:resend:${Date.now()}`;
-      const ok = await deps.emailDispatcher.dispatch(request.params.id, {
+      // Issue #103 — the operator asked for this send explicitly, so the reason
+      // it did not happen belongs in the answer rather than only in the log.
+      const result = await deps.emailDispatcher.dispatch(request.params.id, {
         ...(body.mode ? { mode: body.mode } : {}),
         messageId,
       });
-      return { data: { ok } };
+      return {
+        data: result.sent ? { ok: true } : { ok: false, reason: result.reason },
+      };
     },
   );
 
@@ -261,6 +276,31 @@ export async function registerInvoicesAdminRoutes(
       return reply.send(pdf);
     },
   );
+}
+
+/**
+ * Send-on-issue, and what became of it (issue #149).
+ *
+ * The dispatch result used to be awaited and dropped, so an operator who
+ * clicked "issue and send" was told "issued" whether the e-mail went out or was
+ * suppressed for one of seven named reasons — the last site of the #67/#78/#115
+ * family. Nothing catches here: `dispatch` contains its own failures and names
+ * them in the result (FR-029), and the one thing it re-throws is a presence
+ * answer that must reach the caller as a 503.
+ */
+async function sendOnIssue(
+  deps: InvoicesAdminDeps,
+  invoiceId: string,
+  salesChannelId: string | null,
+): Promise<IssueInvoiceEmailOutcome> {
+  const dispatcher = deps.emailDispatcher;
+  // The situation the dispatcher names `no_sender`, one layer earlier: there is
+  // no dispatcher to name it, so the route does — the same answer the auto-issue
+  // reactor gives for the same composition.
+  if (!dispatcher) return { status: 'not_sent', reason: 'no_sender' };
+  if (!(await dispatcher.sendOnIssueEnabled(salesChannelId))) return { status: 'not_requested' };
+  const result = await dispatcher.dispatch(invoiceId);
+  return result.sent ? { status: 'sent' } : { status: 'not_sent', reason: result.reason };
 }
 
 function serialize(i: Invoice, orderBusinessId: string | null) {

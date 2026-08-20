@@ -1,4 +1,4 @@
-import type { MailerSendInput } from '../../email/services/mailer.js';
+import type { EmailMailerSendInput } from '@b2b/contracts';
 
 /**
  * Feature 046 (US2) — email to the customer when their return/complaint case is
@@ -8,7 +8,7 @@ export function buildReturnAuthorizedEmail(params: {
   to: string;
   rmaNumber: string;
   returnCaseId: string;
-}): MailerSendInput {
+}): EmailMailerSendInput {
   return {
     messageId: `return_authorized:${params.returnCaseId}`,
     to: params.to,

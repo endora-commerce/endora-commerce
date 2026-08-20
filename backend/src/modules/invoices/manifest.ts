@@ -27,6 +27,16 @@ export const invoicesSettingsManifest = defineModuleSettingsManifest({
   groups: [{ code: 'invoices', name: 'Invoices' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'invoices.enabled',
+      name: 'Invoices enabled',
+      description:
+        'Switches invoice issuance, corrections, the PDF renderer and the customer-facing invoice list on or off. Nothing is dropped: issued invoices, their numbering sequence and their templates stay in the database, and issuance resumes from the same sequence when you switch it back on.',
+      groupCode: 'invoices',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: INVOICES_SETTING_CODES.SELLER_TAX_ID,
       name: 'Seller VAT / NIP',
       description:
@@ -71,30 +81,48 @@ export const invoicesSettingsManifest = defineModuleSettingsManifest({
       defaultValue: 'attachment',
       enumOptions: ['attachment', 'link'],
     },
+    // Feature 078, D-95.3 — the three numbering defaults carry `{channel}`.
+    //
+    // Every channel used to resolve one and the same default, so *creating a
+    // sales channel* armed a duplicate: two channels drew sequence 1 in the
+    // same year, rendered one string, and the second issuance died on
+    // `invoices_number_unique`. The operator never had to open this screen for
+    // that to happen, which is why the fix is in the default rather than only
+    // in the write refusal.
+    //
+    // `previousDefaultValues` names the pre-D-95 string so `ManifestReconciler`
+    // migrates a deployment that never overrode it instead of refusing to boot.
+    // The system-default channel is pinned back to the old pattern by this
+    // module's boot hook, so no existing series changes shape.
     {
       code: INVOICES_SETTING_CODES.NUMBERING_INVOICE_PATTERN,
       name: 'Invoice numbering pattern',
       description:
-        'Format for VAT invoice numbers. Tokens: {seq}, {seq:N} (zero-padded), {YYYY}, {YY}, {MM}. The sequence resets yearly, per channel.',
+        'Format for VAT invoice numbers. Tokens: {seq}, {seq:N} (zero-padded), {channel} (the sales channel code), {YYYY}, {YY}, {MM}. The sequence resets yearly, per channel, while the number itself must be unique across the whole platform — so a pattern shared by two channels needs {channel} in it.',
       groupCode: 'invoices',
       valueType: 'string',
-      defaultValue: 'FV {seq}/{YYYY}',
+      defaultValue: 'FV {seq}/{channel}/{YYYY}',
+      previousDefaultValues: ['FV {seq}/{YYYY}'],
     },
     {
       code: INVOICES_SETTING_CODES.NUMBERING_PROFORMA_PATTERN,
       name: 'Proforma numbering pattern',
-      description: 'Format for proforma numbers. Same tokens as the invoice pattern.',
+      description:
+        'Format for proforma numbers. Tokens: {seq}, {seq:N} (zero-padded), {channel} (the sales channel code), {YYYY}, {YY}, {MM}. The sequence resets yearly, per channel, while the number itself must be unique across the whole platform — so a pattern shared by two channels needs {channel} in it.',
       groupCode: 'invoices',
       valueType: 'string',
-      defaultValue: 'PRO {seq}/{YYYY}',
+      defaultValue: 'PRO {seq}/{channel}/{YYYY}',
+      previousDefaultValues: ['PRO {seq}/{YYYY}'],
     },
     {
       code: INVOICES_SETTING_CODES.NUMBERING_CORRECTION_PATTERN,
       name: 'Correction numbering pattern',
-      description: 'Format for corrective-invoice numbers. Same tokens as the invoice pattern.',
+      description:
+        'Format for corrective-invoice numbers. Tokens: {seq}, {seq:N} (zero-padded), {channel} (the sales channel code), {YYYY}, {YY}, {MM}. The sequence resets yearly, per channel, while the number itself must be unique across the whole platform — so a pattern shared by two channels needs {channel} in it.',
       groupCode: 'invoices',
       valueType: 'string',
-      defaultValue: 'KOR {seq}/{YYYY}',
+      defaultValue: 'KOR {seq}/{channel}/{YYYY}',
+      previousDefaultValues: ['KOR {seq}/{YYYY}'],
     },
     {
       code: INVOICES_SETTING_CODES.STOREFRONT_BASE_URL,
@@ -113,7 +141,17 @@ export const manifest = defineModuleManifest({
   name: 'Invoices',
   description: 'Invoice generation, numbering, PDF templates, corrections, and email delivery.',
   version: '2.0.0',
-  dependencies: ['orders', 'settings'],
+  // `auth` owns the `requireAdmin` port and the customer guard this module
+  // resolves; feature 072 made both container resolutions.
+  // `ksef` is deliberately absent: it reads `invoiceService`, so declaring it
+  // here would close a cycle. The KSeF verification block reaches this module
+  // as a contribution a root fills, not as a port this module resolves.
+  dependencies: [
+    'auth',
+    'orders',
+    'settings',
+    'transactional_emails',
+  ],
   settings: invoicesSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — admin-editable transactional email owned by this module.
@@ -152,9 +190,12 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.invoiceTemplates.description',
       icon: 'Layers',
       targetRoute: '/invoices/templates',
-      requiredPermission: 'invoices:write',
+      // `invoices:read` — `GET /api/v1/admin/invoice-templates` is read-gated,
+      // and the row is a destination rather than an operation (issue #232).
+      requiredPermission: 'invoices:read',
       keywords: ['invoice template', 'szablon faktury', 'pdf'],
       weight: 245,
     },
   ],
+  activation: { settingCode: 'invoices.enabled', default: true },
 });

@@ -52,7 +52,15 @@ describe('expandCategoryProductIds — cyclic category data', () => {
     a.parentCategoryId = c.id;
     await em.flush();
 
-    const service = new CatalogQueryService(() => h.orm.em.fork());
+    const service = new CatalogQueryService(
+      () => h.orm.em.fork(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      h.assetRead,
+      h.salesChannels.membershipService,
+    );
 
     // The assertion that matters is that this resolves at all. A hang fails
     // the test through vitest's own timeout rather than through an
@@ -66,7 +74,15 @@ describe('expandCategoryProductIds — cyclic category data', () => {
   }, 15_000);
 
   it('still returns an entry for a category id that does not exist', async () => {
-    const service = new CatalogQueryService(() => h.orm.em.fork());
+    const service = new CatalogQueryService(
+      () => h.orm.em.fork(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      h.assetRead,
+      h.salesChannels.membershipService,
+    );
     const missing = randomUUID();
 
     const result = await service.expandCategoryProductIds([missing]);

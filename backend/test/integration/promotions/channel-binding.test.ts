@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import type { CartSnapshot } from '@b2b/contracts';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * Feature 052 (US3) — Sales-channel gate on promotion evaluation (FR-004 / FR-005).
@@ -28,7 +28,6 @@ describe('PromotionService — sales-channel gate (feature 052 US3)', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     const def = await h.salesChannels.resolver.getSystemDefault();
-    if (!def) throw new Error('system-default sales channel missing in test setup');
     channelAId = def.id;
 
     const em = h.em();

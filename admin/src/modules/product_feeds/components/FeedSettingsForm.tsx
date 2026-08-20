@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { useAuth } from '@/lib/auth';
 import { useTranslation } from '@/i18n/useTranslation';
 import { productFeedsClient, type ProductFeedDto } from '../api';
@@ -120,9 +121,8 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="feed-price-presentation">{t('feeds.settings.prices')}</Label>
-            <select
+            <Select
               id="feed-price-presentation"
-              className="b2b-select"
               value={presentation}
               onChange={(e) => setPresentation(e.target.value as 'net' | 'gross')}
               disabled={!canWrite}
@@ -130,7 +130,7 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
             >
               <option value="net">net</option>
               <option value="gross">gross</option>
-            </select>
+            </Select>
           </div>
           {presentation === 'gross' && (
             <div className="flex flex-col gap-1.5">

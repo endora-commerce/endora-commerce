@@ -41,7 +41,7 @@ export class CmsPageService {
 
   private async invalidateForPageId(pageId: string): Promise<void> {
     if (!this.cache) return;
-    const rows = (await this.emFactory().getConnection().execute(
+    const rows = (await this.emFactory().execute(
       `select slug from cms_page_sales_channels where page_id = ?
        union
        select slug from cms_pages where id = ?`,
@@ -84,7 +84,7 @@ export class CmsPageService {
       params.push(`%${filters.q.toLowerCase()}%`);
     }
 
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select p.* from cms_pages p
        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
        order by p.updated_at desc
@@ -112,7 +112,7 @@ export class CmsPageService {
     await em.transactional(async (tx) => {
       await this.assertLanguagesInChannelScope(tx, input.languages, input.salesChannelIds);
       await this.assertSlugAvailable(tx, input.slug, input.salesChannelIds);
-      await tx.getConnection().execute(
+      await tx.execute(
         `insert into cms_pages
           (id, path, status, title, body, published_at, archived_at, created_at, updated_at,
            name, slug, active, description, meta_title, meta_description, meta_keywords,
@@ -188,7 +188,7 @@ export class CmsPageService {
 
       if (sets.length > 0) {
         params.push(id);
-        await tx.getConnection().execute(
+        await tx.execute(
           `update cms_pages
            set ${sets.join(', ')}, version = version + 1, updated_at = now()
            where id = ?`,
@@ -234,7 +234,7 @@ export class CmsPageService {
         );
       }
 
-      await tx.getConnection().execute(
+      await tx.execute(
         `update cms_pages
          set content = ?::jsonb, version = version + 1, updated_at = now()
          where id = ?`,
@@ -266,7 +266,7 @@ export class CmsPageService {
       }
     }
     await this.invalidateForPageId(id);
-    await this.emFactory().getConnection().execute('delete from cms_pages where id = ?', [id]);
+    await this.emFactory().execute('delete from cms_pages where id = ?', [id]);
   }
 
   private async transition(
@@ -277,7 +277,7 @@ export class CmsPageService {
     const row = await this.findRow(id, em);
     if (!row) throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
 
-    await em.getConnection().execute(
+    await em.execute(
       `update cms_pages
        set status = ?,
            published_at = case when ? = 'published' then now() else published_at end,
@@ -292,7 +292,7 @@ export class CmsPageService {
   }
 
   private async findRow(id: string, em = this.emFactory()): Promise<PageRow | null> {
-    const rows = (await em.getConnection().execute('select * from cms_pages where id = ?', [
+    const rows = (await em.execute('select * from cms_pages where id = ?', [
       id,
     ])) as PageRow[];
     return rows[0] ?? null;
@@ -306,7 +306,7 @@ export class CmsPageService {
   ): Promise<void> {
     if (salesChannelIds.length === 0) return;
     const placeholders = salesChannelIds.map(() => '?').join(', ');
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select page_id from cms_page_sales_channels
        where slug = ? and sales_channel_id in (${placeholders})
        ${exceptPageId ? 'and page_id <> ?' : ''}
@@ -352,7 +352,7 @@ export class CmsPageService {
     if (languages.length === 0 || salesChannelIds.length === 0) return;
 
     const placeholders = salesChannelIds.map(() => '?').join(', ');
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select languages, default_language
        from sales_channels
        where id in (${placeholders})`,
@@ -379,11 +379,11 @@ export class CmsPageService {
     salesChannelIds: string[],
     slug: string,
   ): Promise<void> {
-    await em.getConnection().execute('delete from cms_page_sales_channels where page_id = ?', [
+    await em.execute('delete from cms_page_sales_channels where page_id = ?', [
       pageId,
     ]);
     for (const salesChannelId of salesChannelIds) {
-      await em.getConnection().execute(
+      await em.execute(
         `insert into cms_page_sales_channels (page_id, sales_channel_id, slug)
          values (?, ?, ?)`,
         [pageId, salesChannelId, slug],
@@ -401,7 +401,7 @@ export class CmsPageService {
 
     const codePlaceholders = codes.map(() => '?').join(', ');
     const channelPlaceholders = salesChannelIds.map(() => '?').join(', ');
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select distinct code
        from cms_block_sales_channels
        where code in (${codePlaceholders})
@@ -416,7 +416,7 @@ export class CmsPageService {
   }
 
   private async channelIdsFor(pageId: string, em = this.emFactory()): Promise<string[]> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       'select sales_channel_id::text as id from cms_page_sales_channels where page_id = ?',
       [pageId],
     )) as Array<{ id: string }>;

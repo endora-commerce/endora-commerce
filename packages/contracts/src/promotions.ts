@@ -571,3 +571,73 @@ export const promotionRuleAttributesResponseSchema = z.object({
 export type PromotionRuleAttributesResponse = z.infer<
   typeof promotionRuleAttributesResponseSchema
 >;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `promotions` publishes to the two modules that read
+// it (feature 075, Phase P) — `carts` and `orders`.
+// ---------------------------------------------------------------------------
+
+/**
+ * What a presented coupon code resolved to.
+ *
+ * Deliberately **not** the `Promotion` row. `carts` reaches both entities for
+ * one question in two parts — "is this code live, and if the buyer cannot use
+ * it, *why* not?" — across a three-step lookup: the legacy `promotions.code`
+ * column first, then the `promotion_coupons` table, then the promotion behind
+ * the coupon, each filtered on `isActive`. Publishing the row would publish
+ * thirty columns to answer a question about eight.
+ *
+ * The four eligibility fields were missing when this shape was first published
+ * and were added in `carts`' cut. Its coupon service does not merely accept or
+ * reject a code: it answers `expired`, `wrong_organization` or
+ * `below_min_spend`, and the storefront renders that sentence. Without them the
+ * cut would have collapsed three explanations into `invalid_code`, which is a
+ * product change wearing a refactor.
+ */
+export interface ResolvedPromotionCode {
+  promotionId: string;
+  /** The coupon row the code came from, or `null` for a legacy inline code. */
+  couponId: string | null;
+  name: string;
+  isActive: boolean;
+  /** Window bounds; `null` means unbounded on that side. */
+  validFrom: Date | null;
+  validUntil: Date | null;
+  /** When set, only carts of that organisation may use the code. */
+  organizationId: string | null;
+  /** Decimal string, or `null` for no minimum. Compared against the subtotal. */
+  minCartSubtotal: string | null;
+}
+
+/**
+ * Container name: `promotionCodePort`. Owner: `promotions`.
+ *
+ * When `promotions` is off the lookup fails closed, and that is right: a cart
+ * that cannot resolve a coupon must refuse it rather than silently accept the
+ * code and price the order without the discount, which is the failure a buyer
+ * only notices on the invoice.
+ */
+export interface PromotionCodePort {
+  /** `null` when no live promotion answers to the code. */
+  resolveByCode(code: string): Promise<ResolvedPromotionCode | null>;
+}
+
+/**
+ * Container name: `promotionService`. Owner: `promotions`.
+ *
+ * The evaluation seam: a cart snapshot in, the applicable discounts out.
+ * `carts` and `orders` both call it, and both already pass and receive
+ * contract-typed shapes — so this port names what they were importing the
+ * class to get.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `promotions` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface PromotionApplyPort {
+  applyToCart(snapshot: CartSnapshot): Promise<PromotionApplication>;
+}

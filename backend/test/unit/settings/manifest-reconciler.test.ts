@@ -7,9 +7,9 @@ import {
   ManifestReconciler,
   ManifestSchemaInvalid,
   SettingCodeConflict,
-} from '../../../src/modules/settings/services/manifest-reconciler.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
+} from '../../../src/kernel/settings/manifest-reconciler.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
 import { settingsManifest } from '../../../src/modules/settings/manifest.js';
 
 /**
@@ -180,6 +180,100 @@ describe('ManifestReconciler (T021)', () => {
     } finally {
       await rollback();
     }
+  });
+
+  /**
+   * Feature 078, D-95.3 move 4 — the declared default migration.
+   *
+   * `BreakingChangeRejected` refuses any `defaultValue` change at boot, and no
+   * composition root passes `force`, so changing a shipped default takes every
+   * existing deployment down at start-up. `previousDefaultValues` is how a
+   * module declares which prior value it is safe to move from — the same shape,
+   * and the same self-healing argument, as the sanctioned `string` → `secret`
+   * valueType upgrade beside it.
+   */
+  describe('previousDefaultValues (D-95.3)', () => {
+    function knob(defaultValue: string, previous?: readonly string[]) {
+      return defineModuleSettingsManifest({
+        moduleCode: 'mod_pdv',
+        groups: [],
+        settings: [
+          {
+            code: 'mod_pdv.pattern',
+            name: 'Pattern',
+            valueType: 'string',
+            defaultValue,
+            ...(previous ? { previousDefaultValues: [...previous] } : {}),
+          },
+        ],
+      });
+    }
+
+    it('migrates a stored default the manifest declares it supersedes', async () => {
+      try {
+        const em = db.em();
+        const reconciler = new ManifestReconciler(em);
+        await reconciler.apply([settingsManifest]);
+        await reconciler.apply([knob('FV {seq}/{YYYY}')]);
+
+        const result = await reconciler.apply([
+          knob('FV {seq}/{channel}/{YYYY}', ['FV {seq}/{YYYY}']),
+        ]);
+
+        const stored = await em.findOne(Setting, { code: 'mod_pdv.pattern' });
+        expect(stored?.defaultValue).toBe('FV {seq}/{channel}/{YYYY}');
+        expect(result.perModule.find((m) => m.moduleCode === 'mod_pdv')?.updatedSettings).toBe(1);
+      } finally {
+        await rollback();
+      }
+    });
+
+    it('still refuses a stored default the manifest does not declare', async () => {
+      try {
+        const em = db.em();
+        const reconciler = new ManifestReconciler(em);
+        await reconciler.apply([settingsManifest]);
+        await reconciler.apply([knob('OPERATOR CHOICE {seq}')]);
+
+        await expect(
+          reconciler.apply([knob('FV {seq}/{channel}/{YYYY}', ['FV {seq}/{YYYY}'])]),
+        ).rejects.toBeInstanceOf(BreakingChangeRejected);
+      } finally {
+        await rollback();
+      }
+    });
+
+    it('leaves a manifest without the declaration exactly as it was', async () => {
+      try {
+        const em = db.em();
+        const reconciler = new ManifestReconciler(em);
+        await reconciler.apply([settingsManifest]);
+        await reconciler.apply([knob('FV {seq}/{YYYY}')]);
+
+        await expect(
+          reconciler.apply([knob('FV {seq}/{channel}/{YYYY}')]),
+        ).rejects.toBeInstanceOf(BreakingChangeRejected);
+      } finally {
+        await rollback();
+      }
+    });
+
+    it('keeps force overriding both paths', async () => {
+      try {
+        const em = db.em();
+        const reconciler = new ManifestReconciler(em);
+        await reconciler.apply([settingsManifest]);
+        await reconciler.apply([knob('OPERATOR CHOICE {seq}')]);
+
+        await reconciler.apply([knob('FV {seq}/{channel}/{YYYY}', ['FV {seq}/{YYYY}'])], {
+          force: true,
+        });
+        const stored = await em.findOne(Setting, { code: 'mod_pdv.pattern' });
+        expect(stored?.defaultValue).toBe('FV {seq}/{channel}/{YYYY}');
+      } finally {
+        await rollback();
+      }
+    });
   });
 
   it('rejects defaultValue mismatched against valueType', async () => {

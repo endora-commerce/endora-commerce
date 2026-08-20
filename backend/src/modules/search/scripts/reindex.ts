@@ -11,9 +11,21 @@
 import { initOrm, closeOrm } from '../../../db/index.js';
 import type { CommandBus } from '../../../commands/index.js';
 import { SearchIndexer } from '../services/search-indexer.js';
+// Feature 075, Phase C — escalated, not cut. This is a module-owned CLI entry
+// point: it has no container and no `ModuleContext`, so there is nothing here
+// to resolve `catalogAttributeReadPort`, `catalogProductReadPort` or
+// `catalogCategoryReadPort` from, and it builds `catalog`'s read services by
+// hand instead. The five imports below are ledgered together in
+// `backend/scripts/ledgers/cross-module-imports/search.ts`, waiting on the same
+// ruling `modules/_i18n/scripts/reload.ts` waits on.
 import { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
+import { CatalogCategoryReadService } from '../../catalog/services/catalog-category-read.service.js';
+import { CatalogProductReadService } from '../../catalog/services/catalog-product-read.service.js';
 import { CustomFieldDefinitionsCache } from '../../custom_fields/services/custom-field-definitions-cache.js';
 import { CustomFieldDefinitionService } from '../../custom_fields/services/custom-field-definition.service.js';
+import { EventBus } from '../../../events/bus.js';
+import { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 async function main(): Promise<void> {
   const orm = await initOrm();
@@ -33,6 +45,13 @@ async function main(): Promise<void> {
   );
   const indexer = new SearchIndexer({
     attributeRead: new CatalogAttributeReadService(() => orm.em.fork(), definitionSource),
+    products: new CatalogProductReadService(() => orm.em.fork()),
+    categories: new CatalogCategoryReadService(() => orm.em.fork()),
+    // The membership accessor is kernel code, so building it here crosses no
+    // module boundary. It takes an EventBus because its *mutations* announce
+    // themselves; a reindex only reads, and the reads emit nothing — a bus with
+    // no subscribers is the honest argument rather than a cast.
+    channelMembership: new SalesChannelMembershipService(() => orm.em.fork(), new EventBus()),
   });
   const results = await indexer.reindexAllChannels(em);
 
@@ -52,7 +71,7 @@ async function main(): Promise<void> {
   await closeOrm();
 }
 
-main().catch((err) => {
+enterSystemScope('cli: search reindex', main, { entryPoint: 'cli' }).catch((err) => {
   console.error('search:reindex failed:', err);
   process.exit(1);
 });

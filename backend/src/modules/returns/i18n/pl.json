@@ -23,10 +23,5 @@
   "settlement.refund": "Zwrot pieniędzy",
   "settlement.credit": "Zaliczenie na poczet przyszłych zamówień",
   "settlement.replacement": "Wymiana",
-  "settlement.repair": "Naprawa",
-  "errors.INVALID_TRANSITION": "Ta zmiana statusu jest niedozwolona.",
-  "errors.NOT_ELIGIBLE": "To zamówienie nie kwalifikuje się jeszcze do zwrotu.",
-  "errors.QTY_EXCEEDS_RETURNABLE": "Żądana ilość przekracza ilość możliwą do zwrotu.",
-  "errors.REFUND_EXCEEDS_PAID": "Kwota zwrotu nie może przekraczać kwoty zapłaconej.",
-  "errors.REASON_REQUIRED": "Podanie powodu jest wymagane, aby odrzucić sprawę."
+  "settlement.repair": "Naprawa"
 }

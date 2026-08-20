@@ -1,10 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { FeedRunFailureCode, FeedRunTrigger } from '@b2b/contracts';
+import type {
+  CatalogCategoryReadPort,
+  CatalogCategoryRecord,
+  CatalogProductReadPort,
+  CatalogProductRecord,
+  CatalogProductVariantRecord,
+  FeedRunFailureCode,
+  FeedRunTrigger,
+} from '@b2b/contracts';
 import { withSystemScope } from '../../../tenancy/escape-hatch.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { ProductVariant } from '../../catalog/entities/product-variant.entity.js';
-import { Category } from '../../catalog/entities/category.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { FeedRun } from '../entities/feed-run.entity.js';
 import { FeedArtefact } from '../entities/feed-artefact.entity.js';
 import { FeedTemplate } from '../entities/feed-template.entity.js';
@@ -31,8 +36,9 @@ import {
 } from './taxonomy-mapping-resolver.js';
 import { createFeedReadable, measureStream } from './serializers/feed-stream.js';
 import { DelimitedFeedSerializer } from './serializers/delimited-feed-serializer.js';
+import { XlsxFeedSerializer } from './serializers/xlsx-feed-serializer.js';
 import { XmlFeedSerializer } from './serializers/xml-feed-serializer.js';
-import type { FeedItemField, FeedSerializer } from './serializers/serializer.interface.js';
+import type { AnyFeedSerializer, FeedItemField } from './serializers/serializer.interface.js';
 
 /**
  * The generation pipeline — feature 067 / FR-034–FR-039, FR-060.
@@ -74,7 +80,7 @@ export type NamedListPriceResolver = (input: {
 
 /** Resolves the anonymous channel price — organization-less, the storefront's own path. */
 export type AnonymousPriceResolver = (input: {
-  product: Product;
+  product: CatalogProductRecord;
   variantId: string | null;
   salesChannel: { id: string; defaultCurrency: string };
   currencyCode: string;
@@ -124,8 +130,39 @@ export type FailedRunNotifierPort = (input: {
   failureDetail: string | null;
 }) => Promise<unknown>;
 
+/**
+ * Push the published artefact to the feed's delivery target — feature 070,
+ * FR-102.
+ *
+ * A third optional port on the same seam as `enforceRetention` and
+ * `notifyFailedRun`, invoked on **exactly one branch**: after a run has
+ * published successfully. That placement is FR-102 itself — a failed, empty or
+ * skipped run must not deliver, because the previously published file is the one
+ * still being served and re-sending it would tell the partner something changed
+ * when nothing did.
+ *
+ * The port only *enqueues*: the transfer is somebody else's server and a
+ * multi-megabyte upload, so it runs in its own queue with its own retries
+ * (Principle X). That is also what keeps FR-103 true — a delivery that fails
+ * cannot fail the run, because by the time it is attempted the run is finished.
+ */
+export type ArtefactDeliveryPort = (input: {
+  feedId: string;
+  runId: string;
+  artefactId: string;
+}) => Promise<unknown>;
+
 export interface FeedGenerationDeps {
   emFactory: () => EntityManager;
+  /**
+   * Feature 075, Phase C — the product, variant and category rows a feed line
+   * is built from. All three were `em.find(<catalog entity>, …)` against tables
+   * this module does not own, so a run kept publishing a catalogue an operator
+   * had switched `catalog` off from. `catalog` is a binding dependency of this
+   * manifest and the reads now fail closed with it.
+   */
+  catalogProducts: CatalogProductReadPort;
+  catalogCategories: CatalogCategoryReadPort;
   selection: ProductSelectionService;
   runs: FeedRunService;
   artefactStore: ArtefactStorePort;
@@ -133,6 +170,8 @@ export interface FeedGenerationDeps {
   enforceRetention?: ArtefactRetentionPort;
   /** FR-056 — raised by the worker, never by a route. */
   notifyFailedRun?: FailedRunNotifierPort;
+  /** FR-102 — enqueued after a successful publish, never on any other branch. */
+  deliverArtefact?: ArtefactDeliveryPort;
   resolver: ItemFieldResolverPort;
   settings: FeedSettingsReader;
   resolveNamedListPrice: NamedListPriceResolver;
@@ -324,6 +363,17 @@ export class FeedGenerationService {
         // the artefact it just published is already excluded by the time the
         // sweep reads the feed row.
         await this.deps.enforceRetention?.(feedId, artefactId);
+        // FR-102 — and delivery, on this branch alone. Enqueue only: the upload
+        // is somebody else's server, so it never runs inside the generation job
+        // (Principle X), and a delivery failure therefore cannot reach the run
+        // that has already published (FR-103).
+        //
+        // Deliberately swallowed: an unreachable Redis must not turn a published
+        // run into a failed one. The operator sees a feed with no delivery
+        // attempt, which is the truth.
+        await this.deps
+          .deliverArtefact?.({ feedId, runId, artefactId })
+          .catch(() => undefined);
         return finished;
       }
 
@@ -363,6 +413,9 @@ export class FeedGenerationService {
         failureDetail = err.message;
       } else if (err instanceof UnboundTemplateError) {
         failureCode = 'unbound_template_fields';
+        failureDetail = err.message;
+      } else if (err instanceof StorefrontUrlUnconfiguredError) {
+        failureCode = 'storefront_url_unconfigured';
         failureDetail = err.message;
       } else {
         failureCode = 'internal_error';
@@ -426,6 +479,18 @@ export class FeedGenerationService {
       process.env['STOREFRONT_BASE_URL'] ?? '',
     );
 
+    // A required `link` field cannot resolve without an origin, so every single
+    // item would be skipped as `missing_required_field` and the run would die
+    // on the skip threshold — describing the symptom once per product instead
+    // of naming the one value that has to change. This is a configuration
+    // failure and is reported as one (FR-029).
+    const originDependentRequired = fieldRows
+      .filter((f) => f.sourceKind === 'link' && f.providerRequired)
+      .map((f) => f.outputName);
+    if (storefrontOrigin.trim() === '' && originDependentRequired.length > 0) {
+      throw new StorefrontUrlUnconfiguredError(channel.code, originDependentRequired);
+    }
+
     const languages = await this.deps.listActiveLanguages();
     const fallbacks = buildLanguageChain(feed.languageCode, languages);
 
@@ -481,18 +546,25 @@ export class FeedGenerationService {
       );
   }
 
-  private buildSerializer(prepared: PreparedRun): FeedSerializer {
-    if (prepared.outputFormat === 'xml') {
-      return new XmlFeedSerializer({
-        title: prepared.channelName,
-        link: prepared.context.storefrontOrigin,
-        description: prepared.feed.name,
-      });
+  private buildSerializer(prepared: PreparedRun): AnyFeedSerializer {
+    const columns = prepared.fields.map((f) => f.outputName);
+    switch (prepared.outputFormat) {
+      case 'xml':
+        return new XmlFeedSerializer({
+          title: prepared.channelName,
+          link: prepared.context.storefrontOrigin,
+          description: prepared.feed.name,
+        });
+      case 'xlsx':
+        return new XlsxFeedSerializer({ columns });
+      case 'tsv':
+        return new DelimitedFeedSerializer({ columns, delimiter: '\t', flavour: 'tsv' });
+      case 'txt':
+        // Tab-separated like TSV; only the extension and media type differ.
+        return new DelimitedFeedSerializer({ columns, delimiter: '\t', flavour: 'txt' });
+      case 'csv':
+        return new DelimitedFeedSerializer({ columns, delimiter: ',', flavour: 'csv' });
     }
-    return new DelimitedFeedSerializer({
-      columns: prepared.fields.map((f) => f.outputName),
-      delimiter: prepared.outputFormat === 'tsv' ? '\t' : ',',
-    });
   }
 
   // -------------------------------------------------------------------------
@@ -573,9 +645,9 @@ export class FeedGenerationService {
     const em = this.deps.emFactory();
     // The ids arrive already scoped to this channel by `ProductSelectionService`;
     // binding the channel as a local keeps that visible where the reads happen
-    // (`no-unscoped-channel-query`), and it is what availability resolves against.
+    // (Principle XII's accessor clause), and it is what availability resolves against.
     const { salesChannelId } = prepared;
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.deps.catalogProducts.findByIds(productIds);
     if (products.length === 0) return [];
 
     const conn = em.getConnection();
@@ -590,7 +662,7 @@ export class FeedGenerationService {
     )) as Array<{ product_id: string; category_id: string }>;
     const categoryIds = [...new Set(categoryRows.map((r) => r.category_id))];
     const categories = categoryIds.length
-      ? await em.find(Category, { id: { $in: categoryIds } })
+      ? await this.deps.catalogCategories.findByIds(categoryIds)
       : [];
     const categoryById = new Map(categories.map((c) => [c.id, c]));
 
@@ -610,9 +682,9 @@ export class FeedGenerationService {
 
     const variants =
       prepared.itemGranularity === 'variant'
-        ? await em.find(ProductVariant, { parentProductId: { $in: productIds } })
+        ? await this.deps.catalogProducts.listVariantsByProductIds(productIds)
         : [];
-    const variantsByProduct = new Map<string, ProductVariant[]>();
+    const variantsByProduct = new Map<string, CatalogProductVariantRecord[]>();
     for (const variant of variants) {
       const list = variantsByProduct.get(variant.parentProductId) ?? [];
       list.push(variant);
@@ -687,7 +759,7 @@ export class FeedGenerationService {
   /** Deepest assigned category's ancestry, localized. */
   private categoryPath(
     ids: string[],
-    byId: Map<string, Category>,
+    byId: Map<string, CatalogCategoryRecord>,
     languageCode: string,
   ): string[] {
     let best: string[] = [];
@@ -706,7 +778,7 @@ export class FeedGenerationService {
   }
 
   private async resolvePrice(
-    product: Product,
+    product: CatalogProductRecord,
     variantId: string | null,
     prepared: FeedItemHydrationScope,
   ): Promise<FeedItemPrice | null> {
@@ -755,6 +827,25 @@ class UnboundTemplateError extends Error {
   constructor(public readonly outputNames: string[]) {
     super(`Template fields are not bound to anything: ${outputNames.join(', ')}.`);
     this.name = 'UnboundTemplateError';
+  }
+}
+
+/**
+ * Raised before the catalogue is walked, so the operator gets the setting to
+ * change rather than one skipped-item row per product.
+ */
+class StorefrontUrlUnconfiguredError extends Error {
+  constructor(
+    public readonly channelCode: string,
+    public readonly outputNames: string[],
+  ) {
+    super(
+      `Required ${outputNames.length === 1 ? 'field' : 'fields'} ${outputNames.join(', ')} ` +
+        `${outputNames.length === 1 ? 'builds' : 'build'} a product link, but sales channel ` +
+        `"${channelCode}" has no storefront URL. Set "${STOREFRONT_URL_SETTING}" for that ` +
+        `channel, or the STOREFRONT_BASE_URL environment variable.`,
+    );
+    this.name = 'StorefrontUrlUnconfiguredError';
   }
 }
 

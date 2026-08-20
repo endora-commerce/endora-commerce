@@ -1,15 +1,16 @@
 /**
  * CI check — Systemic Organization Tenant Scoping (feature 050, FR-012 / SC-001).
  *
- * Enumerates every `*.entity.ts` under `src/modules/**` and `src/db/**` and asserts
- * that each MikroORM entity class carries EXACTLY ONE tenant-scope classification
+ * Enumerates every MikroORM entity declared anywhere under `src/` — the file's
+ * name is not part of the rule (issue #113) — and asserts
+ * that each entity class carries EXACTLY ONE tenant-scope classification
  * decorator (`@OrgScoped`, `@CustomerScoped`, `@GlobalEntity`, `@TransitivelyScoped`,
  * `@RuleScoped`). A new tenant-owned entity added without a classification fails the
  * build, so it cannot silently escape the guard.
  *
  * Static analysis via the TypeScript compiler API — no DB, no new dependency
  * (`typescript` is already a devDependency). Sits alongside the existing
- * `i18n-hardcoded-strings.ts` / `generate-manifest-index.ts` checks.
+ * `i18n-hardcoded-strings.ts` / `generate-composer.ts` checks.
  *
  * Usage: `tsx scripts/check-entity-tenant-classification.ts [--list]`
  * Exit 0 = every entity classified; exit 1 = at least one unclassified.
@@ -19,6 +20,8 @@ import { readdirSync, statSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { reportReadSize } from './lib/read-size.js';
 
 const CLASSIFICATION_DECORATORS = new Set([
   'OrgScoped',
@@ -30,18 +33,29 @@ const CLASSIFICATION_DECORATORS = new Set([
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
-function walk(dir: string, out: string[] = []): string[] {
+/**
+ * Every `.ts` under `dir` except tests and declaration files.
+ *
+ * The walk used to collect `*.entity.ts` only. Nothing enforces that suffix, so
+ * an entity declared anywhere else was not unclassified as far as this check was
+ * concerned — it was unread, which a green run cannot be told apart from
+ * (issue #113). {@link ENTITY_DECORATOR_HINT} decides what is worth parsing.
+ */
+export function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
     if (statSync(full).isDirectory()) {
       if (name === 'node_modules' || name === 'dist') continue;
       walk(full, out);
-    } else if (name.endsWith('.entity.ts')) {
+    } else if (name.endsWith('.ts') && !name.endsWith('.test.ts') && !name.endsWith('.d.ts')) {
       out.push(full);
     }
   }
   return out;
 }
+
+/** Only a file that spells `@Entity(` can declare one; the parse decides the rest. */
+export const ENTITY_DECORATOR_HINT = /@Entity\s*\(/;
 
 function decoratorName(decorator: ts.Decorator): string | undefined {
   const expr = decorator.expression;
@@ -74,10 +88,28 @@ function analyzeFile(file: string): EntityFinding[] {
   return analyzeSource(readFileSync(file, 'utf8'), file);
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const files = walk(SRC_ROOT);
-  const findings = files.flatMap(analyzeFile);
+  // 216 of the 221 entities in the tree are a module's. `src/` minus
+  // `src/modules` still holds the kernel's five, so an emptiness guard passes
+  // on the residue and the check reports every entity classified — over a tree
+  // it did not read (issue #215). The expectation is per registered module and
+  // comes from the manifest index.
+  const coverage = await refuseVacuousModulePopulation({
+    prefix: '[tenant-classification]',
+    srcRoot: SRC_ROOT,
+    files,
+  });
+  const entityFiles = files.filter((f) => ENTITY_DECORATOR_HINT.test(readFileSync(f, 'utf8')));
+  const findings = entityFiles.flatMap(analyzeFile);
+  if (findings.length === 0) {
+    console.error(
+      '[tenant-classification] no entities found in a tree that has hundreds — ' +
+        'refusing to report a vacuous pass',
+    );
+    process.exit(2);
+  }
 
   const unclassified = findings.filter((f) => f.classifications.length === 0);
   const multi = findings.filter((f) => f.classifications.length > 1);
@@ -98,8 +130,19 @@ function main(): void {
     console.log('');
   }
 
+  // What was read, in the shared grammar (issue #244). The entity classes are
+  // this check's finer population: the file count stayed at 1459 through the
+  // module-tree move that broke the attribution, and only a per-site number
+  // would have moved with it.
+  reportReadSize({
+    prefix: '[tenant-classification]',
+    files: files.length,
+    sites: findings.length,
+    coverage: [coverage],
+  });
   console.log(
-    `[tenant-classification] entities=${findings.length} classified=${classified.length} ` +
+    `[tenant-classification] sources=${files.length} entity files=${entityFiles.length} ` +
+      `entities=${findings.length} classified=${classified.length} ` +
       `unclassified=${unclassified.length} multiple=${multi.length}`,
   );
 
@@ -118,5 +161,5 @@ function main(): void {
 // Run as CLI only — importing this module (e.g. from a unit test) must not
 // trigger the full scan + process.exit.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }

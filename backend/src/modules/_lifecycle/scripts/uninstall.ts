@@ -2,10 +2,11 @@ import { z } from 'zod';
 import Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { initOrm, closeOrm } from '../../../db/index.js';
-import { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../services/orchestrator.js';
 import { buildStaticRegistry } from '../services/static-registry.js';
 import { REGISTERED_MANIFESTS } from '../registered-manifests.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 /**
  * `pnpm --filter backend run module:uninstall <module-id> [--hard] [--force] [--json]`
@@ -22,6 +23,7 @@ import { REGISTERED_MANIFESTS } from '../registered-manifests.js';
  *   - 66  conflict: dependents still installed
  *   - 70  internal error during uninstall
  *   - 75  lock unavailable
+ *   - 77  refused: the module declares itself non-deactivatable (D-69)
  */
 
 const UninstallArgsSchema = z.object({
@@ -142,7 +144,9 @@ async function main(): Promise<number> {
           `  ✓ uninstall hook completed\n` +
           `  ✓ settings unregistered: ${result.removedGroups} groups, ${result.removedSettings} settings (rows removed; tables intact)\n` +
           `  ✓ registry updated: state=uninstalled\n` +
-          `re-installing this module will restore configuration without re-running migrations.\n`,
+          `re-installing re-uses the applied migrations, but not the configuration:\n` +
+          `the settings above are gone; a re-install recreates them from the manifest defaults.\n` +
+          `Use module:disable to pause a module without losing its configuration.\n`,
       );
     }
     return 0;
@@ -166,6 +170,17 @@ function mapError(err: unknown, asJson: boolean): number {
       );
     } else {
       process.stderr.write(`[uninstall] ${err.message}\n`);
+      if (err.kind === 'non-deactivatable') {
+        // Same hint the disable path prints, for the same reason: there is no
+        // `--force` to suggest. The consequence of removing one of these is a
+        // deployment that cannot authenticate the operator who would put it
+        // back — and after `--hard` the tables that recovery needs are gone.
+        process.stderr.write(
+          `hint: this module declares itself non-deactivatable in its manifest, which refuses ` +
+            `uninstall as well as disable. If that declaration is wrong, change the manifest — ` +
+            `there is no override flag.\n`,
+        );
+      }
     }
     switch (err.kind) {
       case 'unknown-module':
@@ -181,6 +196,9 @@ function mapError(err: unknown, asJson: boolean): number {
         return 70;
       case 'lock-busy':
         return 75;
+      case 'non-deactivatable':
+        // EX_NOPERM — the request was well-formed and is not permitted.
+        return 77;
     }
   }
   const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
@@ -188,6 +206,6 @@ function mapError(err: unknown, asJson: boolean): number {
   return 70;
 }
 
-void main().then((code) => {
+void enterSystemScope('cli: uninstall a module', main, { entryPoint: 'cli' }).then((code) => {
   process.exit(code);
 });

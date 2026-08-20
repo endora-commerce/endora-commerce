@@ -31,6 +31,16 @@ const settings = defineModuleSettingsManifest({
   groups: [{ code: 'returns', name: 'Returns' }],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'returns.enabled',
+      name: 'Returns enabled',
+      description:
+        'Switches the returns and complaints flow on or off: the customer-facing RMA request, the admin case list and the settlement paths that refund a payment, issue a corrective invoice or top up a credit limit. Nothing is dropped — open cases, their history and their refunds stay in the database and resume exactly where they were.',
+      groupCode: 'returns',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: RETURNS_SETTING_CODES.FREE_RETURN_DAYS,
       name: 'Free-return window (days)',
       description:
@@ -73,7 +83,14 @@ export const manifest = defineModuleManifest({
   name: 'Returns',
   description: 'Return/complaint (RMA) case management, settlement, and refunds.',
   version: '1.0.0',
-  dependencies: ['orders', 'settings'],
+  // `auth` owns the `requireAdmin` port and the customer guard this module
+  // resolves; feature 072 made both container resolutions.
+  dependencies: [
+    'auth',
+    'orders',
+    'settings',
+    'transactional_emails',
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — admin-editable transactional emails owned by this module.
@@ -118,9 +135,13 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.returnStatusConfig.description',
       icon: 'Settings',
       targetRoute: '/returns/statuses',
-      requiredPermission: 'returns:write',
+      // `returns:read`, for the same reason as `orders:order-statuses`: the GET
+      // that renders the screen is read-gated, so the write code hid a screen
+      // read-only operators can open (issue #232).
+      requiredPermission: 'returns:read',
       keywords: ['return status', 'rma workflow', 'statusy zwrotów'],
       weight: 235,
     },
   ],
+  activation: { settingCode: 'returns.enabled', default: true },
 });

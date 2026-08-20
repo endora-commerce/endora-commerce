@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
 import type { ComboboxOption } from '@/components/ui/combobox';
 import { useAuth } from '@/lib/auth';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -19,6 +20,7 @@ import {
   type TaxonomyNodeOption,
 } from './taxonomy-api';
 import { CategoryMappingRow } from './components/CategoryMappingRow';
+import { normalize } from '@/lib/text-normalization';
 
 /**
  * Category → provider taxonomy mapping — ux-design §2.8, FR-079–FR-081, FR-085.
@@ -141,9 +143,9 @@ export function CategoryMappingPage(): ReactNode {
 
   const filtered = useMemo(() => {
     const all = rows ?? [];
-    const needle = filter.trim().toLowerCase();
+    const needle = normalize(filter);
     if (needle === '') return all;
-    return all.filter((row) => row.categoryName.toLowerCase().includes(needle));
+    return all.filter((row) => normalize(row.categoryName).includes(needle));
   }, [rows, filter]);
 
   const useFlatList = (rows?.length ?? 0) > TREE_CEILING;
@@ -197,9 +199,8 @@ export function CategoryMappingPage(): ReactNode {
           <div className="flex flex-wrap items-end gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="mapping-provider">{t('mapping.provider')}</Label>
-              <select
+              <Select
                 id="mapping-provider"
-                className="b2b-select"
                 value={providerCode}
                 onChange={(e) => {
                   setProviderCode(e.target.value as TaxonomyProviderCode);
@@ -211,7 +212,7 @@ export function CategoryMappingPage(): ReactNode {
                     {taxonomy.providerCode} — {taxonomy.revision}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className="flex flex-1 flex-col gap-1.5">
               <Label htmlFor="mapping-filter">{t('mapping.filter')}</Label>

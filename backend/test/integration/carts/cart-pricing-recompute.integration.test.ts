@@ -1,11 +1,15 @@
+import { randomUUID } from 'node:crypto';
 import Redis from 'ioredis';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { CartRecomputeCache } from '../../../src/modules/carts/services/cart-recompute-cache.js';
 import { CartPricingRecompute } from '../../../src/modules/carts/services/cart-pricing-recompute.js';
-import type { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
+import type {
+  CatalogProductReadPort,
+  LinePricePort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
 
 /**
  * T021 (feature 027) — CartPricingRecompute helper.
@@ -15,10 +19,30 @@ import type { PricingService } from '../../../src/modules/price_lists/services/p
  * cache (zero further resolver calls), (c) the `writeBackTo` helper
  * stamps recomputed_* on the entity rows.
  *
- * The PricingService is stubbed (vi.fn) so we can count calls precisely;
- * the database is real PostgreSQL for the SalesChannel + Product lookups,
- * and Redis is real for the cache.
+ * The pricing engine is stubbed (vi.fn) so we can count calls precisely; the
+ * database is real PostgreSQL for the SalesChannel lookup and Redis is real for
+ * the cache.
+ *
+ * `catalog` and `organizations` are reached through their published read ports
+ * since feature 075's cut, so the product lookup is a stub here rather than a
+ * real `em.find` — which is the point of the cut: the helper no longer queries
+ * another module's table, and this test can no longer pass by seeding one.
  */
+
+/** Answers for exactly the seeded product, the way `catalog`'s port would. */
+function catalogStub(knownProductId: () => string): CatalogProductReadPort {
+  return {
+    findByIds: async (ids: readonly string[]) =>
+      ids
+        .filter((id) => id === knownProductId())
+        .map((id) => ({ id, attributeValues: {} }) as never),
+  } as unknown as CatalogProductReadPort;
+}
+
+/** No organisation in these cases — the anonymous-price path. */
+const NO_ORGANIZATIONS = {
+  findById: async () => null,
+} as unknown as OrganizationDetailsPort;
 
 describe('CartPricingRecompute — resolver call counts & write-back', () => {
   let db: TestDb;
@@ -30,21 +54,31 @@ describe('CartPricingRecompute — resolver call counts & write-back', () => {
 
   beforeAll(async () => {
     db = await setupTestDb();
-    const tmpEm = db.orm.em.fork();
-    const ch = await tmpEm.findOne(SalesChannel, { systemDefault: true });
-    systemDefaultChannelId = ch?.id ?? '';
-    const products = await tmpEm.find(Product, {}, { limit: 1 });
-    if (products.length === 0) {
-      throw new Error('No products seeded; cannot run T021');
-    }
-    seedProductId = products[0]!.id;
+    systemDefaultChannelId = db.systemDefaultChannelId;
 
     const url = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
     redis = new Redis(url, { maxRetriesPerRequest: null, lazyConnect: false });
   }, 60_000);
 
+  /**
+   * The product is created inside the per-test transaction and rolled back with
+   * it. It used to be whichever row `find(Product, {}, { limit: 1 })` happened to
+   * return, which made the file depend on committed leftovers from whatever ran
+   * before it — so the suite passed or failed on file ordering alone, and it
+   * failed the moment feature 072 moved an unrelated `.test.ts` inside `src/`.
+   */
   beforeEach(async () => {
-    await db.beginTx();
+    const em = await db.beginTx();
+    const product = em.create(Product, {
+      sku: `T021-${randomUUID().slice(0, 8)}`,
+      slug: `t021-${randomUUID().slice(0, 8)}`,
+      type: 'simple',
+      visibility: 'public',
+      name: { en: 'T021 fixture' },
+      description: { en: 'T021 fixture' },
+    });
+    await em.persistAndFlush(product);
+    seedProductId = product.id;
     await redis.del(CartRecomputeCache.keyFor(testCartId));
   });
 
@@ -53,7 +87,7 @@ describe('CartPricingRecompute — resolver call counts & write-back', () => {
   });
 
   afterAll(() => {
-    redis.disconnect();
+    redis?.disconnect();
   });
 
   it('resolves each line via PricingService on cold cache, then serves from cache', async () => {
@@ -67,9 +101,15 @@ describe('CartPricingRecompute — resolver call counts & write-back', () => {
       bracketStartQuantity: 1,
       displayMode: 'gross_only' as const,
     }));
-    const pricingService = { resolveLinePrice } as unknown as PricingService;
+    const pricingService = { resolveLinePrice } as unknown as LinePricePort;
 
-    const helper = new CartPricingRecompute(() => em, pricingService, cache);
+    const helper = new CartPricingRecompute(
+      () => em,
+      pricingService,
+      cache,
+      catalogStub(() => seedProductId),
+      NO_ORGANIZATIONS,
+    );
 
     const lines = [
       { cartItemId: testItemId, productId: seedProductId, quantity: 2 },
@@ -99,8 +139,14 @@ describe('CartPricingRecompute — resolver call counts & write-back', () => {
     const cache = new CartRecomputeCache(redis, { ttlSeconds: 30 });
     const pricingService = {
       resolveLinePrice: vi.fn().mockResolvedValue(null),
-    } as unknown as PricingService;
-    const helper = new CartPricingRecompute(() => em, pricingService, cache);
+    } as unknown as LinePricePort;
+    const helper = new CartPricingRecompute(
+      () => em,
+      pricingService,
+      cache,
+      catalogStub(() => seedProductId),
+      NO_ORGANIZATIONS,
+    );
 
     const out = await helper.recompute(
       { cartId: testCartId, organizationId: null, salesChannelId: systemDefaultChannelId },
@@ -122,8 +168,14 @@ describe('CartPricingRecompute — resolver call counts & write-back', () => {
         bracketStartQuantity: 1,
         displayMode: 'gross_only' as const,
       }),
-    } as unknown as PricingService;
-    const helper = new CartPricingRecompute(() => em, pricingService, cache);
+    } as unknown as LinePricePort;
+    const helper = new CartPricingRecompute(
+      () => em,
+      pricingService,
+      cache,
+      catalogStub(() => seedProductId),
+      NO_ORGANIZATIONS,
+    );
 
     const out = await helper.recompute(
       { cartId: testCartId, organizationId: null, salesChannelId: systemDefaultChannelId },

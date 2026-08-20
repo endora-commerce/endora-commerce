@@ -1,8 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Queue } from 'bullmq';
-import type { PushAudience, PushTrigger } from '@b2b/contracts';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
+import type {
+  CustomerAccountReadPort,
+  OrganizationDetailsPort,
+  PushAudience,
+  PushTrigger,
+} from '@b2b/contracts';
 import { PushMessage } from '../entities/push-message.entity.js';
 import { PushMessageDelivery } from '../entities/push-message-delivery.entity.js';
 import { PushSubscription } from '../entities/push-subscription.entity.js';
@@ -42,6 +45,14 @@ export class PushMessageService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly queue: Queue<PushDeliveryJobData>,
+    /**
+     * The two rows rule targeting needs, asked of the modules that own them
+     * (feature 075, Phase C). Both are gated: with `customer_accounts` or
+     * `organizations` switched off the send refuses rather than pushing to an
+     * audience it could not resolve.
+     */
+    private readonly customerAccounts: CustomerAccountReadPort,
+    private readonly organizations: OrganizationDetailsPort,
   ) {}
 
   async createAndEnqueue(input: CreateMessageInput): Promise<CreateMessageResult> {
@@ -57,6 +68,12 @@ export class PushMessageService {
       });
       if (dup) return { messageId: dup.id, queuedDeliveries: 0 };
     }
+
+    // Expanded **before** the message row is written. Rule targeting now asks
+    // two other modules for the rows it resolves a subscriber's context from,
+    // so it can refuse (503 `MODULE_DISABLED`); persisting first would leave a
+    // `queued` message behind that nothing will ever deliver.
+    const subscriptions = await this.resolveAudience(em, input.salesChannelId, input.audience);
 
     const message = em.create(PushMessage, {
       salesChannelId: input.salesChannelId,
@@ -74,7 +91,6 @@ export class PushMessageService {
     });
     await em.persistAndFlush(message);
 
-    const subscriptions = await this.resolveAudience(em, input.salesChannelId, input.audience);
     const deliveries = subscriptions.map((sub) =>
       em.create(PushMessageDelivery, {
         messageId: message.id,
@@ -123,7 +139,7 @@ export class PushMessageService {
           .filter((id): id is string => typeof id === 'string'),
       ),
     ];
-    const contexts = await this.loadCustomerContexts(em, accountIds);
+    const contexts = await this.loadCustomerContexts(accountIds);
     return subscriptions.filter((sub) => {
       const ctx = sub.customerAccountId ? contexts.get(sub.customerAccountId) : undefined;
       return evaluatePushAudienceRule(audience.rule, {
@@ -139,15 +155,16 @@ export class PushMessageService {
    * Batch-resolve `{ organizationId, effective customerGroupId }` for each
    * linked customer account. The effective group follows the same chain the
    * pricing engine uses: `account.customerGroupId ?? organization.customerGroupId`.
+   *
+   * Both rows arrive over their owners' published ports, so a switched-off
+   * `customer_accounts` or `organizations` refuses here rather than reporting
+   * an audience of nobody — which reads as a legitimate answer and is not one.
    */
-  private async loadCustomerContexts(
-    em: EntityManager,
-    accountIds: string[],
-  ): Promise<Map<string, CustomerContext>> {
+  private async loadCustomerContexts(accountIds: string[]): Promise<Map<string, CustomerContext>> {
     const map = new Map<string, CustomerContext>();
     if (accountIds.length === 0) return map;
 
-    const accounts = await em.find(CustomerAccount, { id: { $in: accountIds } });
+    const accounts = await this.customerAccounts.findByIds(accountIds);
     const orgIds = [
       ...new Set(
         accounts
@@ -157,7 +174,7 @@ export class PushMessageService {
     ];
     const orgGroups = new Map<string, string | null>();
     if (orgIds.length > 0) {
-      const orgs = await em.find(Organization, { id: { $in: orgIds } });
+      const orgs = await this.organizations.findByIds(orgIds);
       for (const org of orgs) orgGroups.set(org.id, org.customerGroupId ?? null);
     }
 

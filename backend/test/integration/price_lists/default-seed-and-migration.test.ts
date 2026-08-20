@@ -4,11 +4,12 @@ import { PriceList } from '../../../src/modules/price_lists/entities/price-list.
 import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { CatalogProductReadService } from '../../../src/modules/catalog/services/catalog-product-read.service.js';
 
 /**
  * Feature 011 / US1 — Default seed + legacy migration.
@@ -87,7 +88,7 @@ describe('Feature 011 / US1 — Default price list + legacy migration (T027)', (
 
       // Run the migration helper.
       const migrator = new DefaultPriceListMigrator(() => em);
-      const report = await migrator.run();
+      const report = await migrator.run(new CatalogProductReadService(() => em));
 
       expect(report.productsAssigned).toBeGreaterThanOrEqual(1);
       expect(report.bracketRowsInserted).toBeGreaterThanOrEqual(2);
@@ -148,10 +149,10 @@ describe('Feature 011 / US1 — Default price list + legacy migration (T027)', (
       await em.persistAndFlush([channel, product]);
 
       const migrator = new DefaultPriceListMigrator(() => em);
-      const first = await migrator.run();
+      const first = await migrator.run(new CatalogProductReadService(() => em));
       expect(first.bracketRowsInserted).toBeGreaterThanOrEqual(1);
 
-      const second = await migrator.run();
+      const second = await migrator.run(new CatalogProductReadService(() => em));
       expect(second.bracketRowsInserted).toBe(0);
       expect(second.productsAssigned).toBe(0);
 
@@ -190,7 +191,7 @@ describe('Feature 011 / US1 — Default price list + legacy migration (T027)', (
       await em.persistAndFlush([channel, product]);
 
       const migrator = new DefaultPriceListMigrator(() => em);
-      await migrator.run();
+      await migrator.run(new CatalogProductReadService(() => em));
 
       const brackets = await em.find(PriceListPriceBracket, {
         priceListId: DEFAULT_PRICE_LIST_ID,
@@ -206,9 +207,8 @@ describe('Feature 011 / US1 — Default price list + legacy migration (T027)', (
   it('FR-005 / FR-006: PriceListService refuses to delete the Default row, reject empty rule changes, and reject status moves away from active', async () => {
     try {
       const em = db.em();
-      const { PriceListService } = await import(
-        '../../../src/modules/price_lists/services/price-list-service.js'
-      );
+      const { PriceListService } =
+        await import('../../../src/modules/price_lists/services/price-list-service.js');
       const svc = new PriceListService(() => em);
 
       // Delete refused.
@@ -253,9 +253,7 @@ describe('Feature 011 / US1 — Default price list + legacy migration (T027)', (
       await expect(
         svc.assertCanSetApplicationRule(free.id, { kind: 'criterion' }),
       ).resolves.toBeUndefined();
-      await expect(
-        svc.assertCanTransitionStatus(free.id, 'draft'),
-      ).resolves.toBeUndefined();
+      await expect(svc.assertCanTransitionStatus(free.id, 'draft')).resolves.toBeUndefined();
     } finally {
       await db.rollbackTx();
     }
@@ -285,7 +283,7 @@ describe('Feature 011 / US1 — Default price list + legacy migration (T027)', (
       await em.persistAndFlush([channel, product]);
 
       const migrator = new DefaultPriceListMigrator(() => em);
-      const report = await migrator.run();
+      const report = await migrator.run(new CatalogProductReadService(() => em));
 
       const skipped = report.productsSkipped.find((s) => s.productId === product.id);
       expect(skipped).toBeDefined();

@@ -1,14 +1,12 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { CustomerAccountReadPort, CustomerAuthPort } from '@b2b/contracts';
 import {
   changePasswordRequestSchema,
   customerAddressInputSchema,
   updateCustomerDefaultsRequestSchema,
   ERROR_CODES,
 } from '@b2b/contracts';
-import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
-import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
-import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type { CustomerAddressService } from './services/customer-address-service.js';
@@ -44,16 +42,22 @@ export type ResolveCustomerActor = (
 ) => CustomerActorView;
 
 export interface CustomersSelfDeps {
-  emFactory: () => EntityManager;
+  /**
+   * Feature 075 — `customer_accounts`' published read. The own-profile
+   * endpoint used to load that module's entity through an `EntityManager` this
+   * route file no longer needs at all.
+   */
+  accounts: CustomerAccountReadPort;
   requireCustomer: RequireCustomerGuard;
   resolveCustomerActor: ResolveCustomerActor;
-  customerAuthService: CustomerAuthService;
+  customerAuthService: CustomerAuthPort;
   /**
    * Lazy getter — OrderListService is built inside the orders plugin's
    * registration, so it is only available once the server has booted. Routes
-   * resolve it at request time.
+   * resolve it at request time — and, since D-44, may get an empty reader back
+   * when `orders` is not effectively present.
    */
-  getOrderListService: () => OrderListService;
+  getOrderListService: () => Pick<OrderListService, 'list'>;
   rfqService: RfqService;
   customerAddressService: CustomerAddressService;
   customerDefaultsService: CustomerDefaultsService;
@@ -63,7 +67,7 @@ export async function registerCustomersSelfRoutes(
   app: FastifyInstance,
   deps: CustomersSelfDeps,
 ): Promise<void> {
-  const { emFactory, requireCustomer, customerAuthService, resolveCustomerActor } = deps;
+  const { accounts, requireCustomer, customerAuthService, resolveCustomerActor } = deps;
   const { getOrderListService, rfqService } = deps;
   const { customerAddressService, customerDefaultsService } = deps;
 
@@ -73,10 +77,7 @@ export async function registerCustomersSelfRoutes(
     { preHandler: requireCustomer },
     async (request) => {
       const actor = resolveCustomerActor(request);
-      const em = emFactory();
-      const customer = await em.findOne(CustomerAccount, {
-        id: actor.customerAccountId,
-      });
+      const customer = await accounts.findById(actor.customerAccountId);
       if (!customer) {
         throw new HttpError(
           404,
@@ -92,7 +93,7 @@ export async function registerCustomersSelfRoutes(
           lastName: customer.lastName,
           organizationId: customer.organizationId ?? null,
           customerGroupId: customer.customerGroupId ?? null,
-          twoFactorEnabled: customer.twoFactorConfirmedAt != null,
+          twoFactorEnabled: customer.twoFactorEnabled,
         },
       };
     },

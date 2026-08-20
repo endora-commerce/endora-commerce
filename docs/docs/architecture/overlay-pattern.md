@@ -33,22 +33,91 @@ core stays deployment-agnostic and the bare-core build keeps working unchanged.
 
 | Kind | Overridable? | Notes |
 |------|--------------|-------|
-| Service | ✅ | Must satisfy the core interface (see below). |
+| Service | ✅ | By **decoration**, not by shadowing a file — see below. |
 | Route / plugin | ✅ | Same route mechanism as core. |
 | Config / manifest | ✅ | |
-| Whole new module | ✅ | Registered without editing the core registry. |
-| Entity / migration | ❌ | Schema overrides are out of v1 — ship new schema as a client-only overlay module that owns its own tables. |
+| Whole new module | ✅ (no schema — see below) | Registered without editing the core registry. Ships `backend.ts`, never `plugin.ts`. |
+| Entity / migration | ❌ | Out-of-core code contributes no schema — see below. Ship new schema from a **core** module. |
 
-## Contract-gated service overrides
+## Out-of-core code contributes no schema
 
-A core service is overridable only if it exposes a documented interface — a
-sibling `*.interface.ts` the core class `implements`. An overlay service imports
-that interface via a **relative `.js` path** (overlay files are dynamically
-imported at runtime, so a `@core/*` tsconfig alias — which resolves under
-tsc/tsx but not `node dist/` — is not used) and `implements` it too, so the
-standard `tsc` build fails if the overlay does not satisfy the contract.
-Contract drift (core changes the interface, the overlay does not) is therefore a
-**build failure**, never a per-deployment runtime surprise (FR-003).
+Code composed into the platform from outside the core module tree — a
+per-deployment overlay module or an extension package — contributes
+registrations, routes, decorations, interceptors, permissions, i18n bundles and a
+manifest. It contributes **no schema**: no `@Entity()` class and no migration.
+
+This page used to say the opposite ("ship new schema as a client-only overlay
+module that owns its own tables"), and the generator has refused it the whole
+time. The reason is not v1 scope. The migration registry is a committed, ordered
+artifact whose execution order is computed from timestamps and then corrected by
+the module-manifest dependency graph, and that correction is only meaningful over
+a **fixed** set. A set that varies per deployment or per installed package has no
+single correct order to commit — and a per-deployment order is a per-deployment
+schema history, which is the thing "one codebase, many installations" exists to
+avoid. One sentence covers both out-of-core paths because one fact causes both.
+
+So a deployment that wants client-specific tables ships them from a core module
+and reads them from the overlay module through that module's port. The overlay
+module keeps everything else: its own services, its routes, its decorations and
+its permissions.
+
+## Service overrides are decorations
+
+A client override of a service **wraps** the core implementation and delegates to
+it. It does not shadow a file and it does not subclass core.
+
+That is a correctness property, not a style preference. Replacing a service means
+the deployment stops receiving core fixes to the overridden methods the day the
+override is written — whatever core does to that method next lands in a class the
+deployment no longer instantiates, and nobody finds out until the behaviour
+diverges in production. A wrapper keeps core in the call path, so a core fix
+arrives *and* the client behaviour survives it.
+
+A decoration lives in `backend/src/apps/<deployment>/decorations/`, one file per
+registration it wraps, exporting `decorate`:
+
+```ts
+// backend/src/apps/acme/decorations/pricing-service.ts → decorates `pricingService`
+export function decorate(inner: PricingServiceContract): PricingServiceContract {
+  return new AcmePricingService(inner);
+}
+```
+
+The file is named after the **registration**, not after the core file's path, so
+core moving a file breaks nothing. `tsc` remains the contract gate: the
+decoration is written against the core interface (`*.interface.ts`) and stops
+being assignable the moment that interface changes, so contract drift is a build
+failure rather than a per-deployment runtime surprise.
+
+Where two modules decorate the same registration, the wrapping order must be
+declared — composition fails rather than picking by package load order — and
+every applied decoration appears in the composer's override report.
+
+### Decorating across owners is the deployment's, and only the deployment's
+
+`ctx.di.decorate` refuses a module that wraps a registration it did not
+register. The reason is that decoration rewrites what *every* consumer of that
+name resolves: a core module allowed to wrap `commandBus` observes every audited
+write in the platform, one wrapping `auditLogService` changes what the audit
+records, and one wrapping another module's read port sits between a consumer and
+its owner with nothing declared anywhere. A module that needs different
+behaviour from another module asks it for a seam — a port, a contribution point,
+an event — which is a coupling the manifest declares and the checks can see.
+A name a composition root registered is refused on the same rule: no module owns
+it, so no module may wrap it.
+
+An overlay module is the one exemption, because it is a different act. A
+deployment wrapping core is the customisation seam this page describes; core
+wrapping core is a coupling nothing declares. The exemption is not a claim a
+module makes about itself — the generated composer marks an entry `overlay: true`
+from the root the module was discovered under,
+`backend/src/apps/<deployment>/modules/`, so core has no way to assert it and
+`overlay:check` fails on a hand-edited artefact.
+
+Before feature 072 a service override shadowed
+`modules/<id>/services/<name>.ts` and replaced the core class. A `services/`
+file under an overlay is now an **unknown override target**, which is what it
+is: a file the platform would never load.
 
 ## Fail-closed guards
 
@@ -57,7 +126,8 @@ The build fails — never resolves silently — on:
 - **Conflict** — two overlays targeting one core unit (no last-wins).
 - **Unknown target** — an overlay whose core file does not exist (stale/typo).
 - **Schema override** — an overlay under `entities/`/`migrations/` of a core module.
-- **Missing contract** — a service override whose core service has no interface.
+- **Ambiguous decoration** — two modules decorating one registration with no declared order.
+- **Foreign decoration** — a core module decorating a registration it does not own.
 
 ## Guards still apply
 
@@ -70,9 +140,9 @@ and pass the permission-inventory check per deployment.
 ## Adding an overlay
 
 ```bash
-# 1. Override a core service (its interface must already exist):
-#    backend/src/apps/acme/modules/price_lists/services/pricing-service.ts
-#    → export class PricingService implements PricingServiceContract { … }
+# 1. Override a core service by decorating it (its interface must already exist):
+#    backend/src/apps/acme/decorations/pricing-service.ts
+#    → export function decorate(inner: PricingServiceContract) { … }
 
 # 2. Or add a client-only module:
 #    backend/src/apps/acme/modules/acme_loyalty/{manifest,plugin,routes.admin}.ts

@@ -58,6 +58,18 @@ export const productFeedsSettingsManifest = defineModuleSettingsManifest({
   ],
   settings: [
     {
+      // Feature 074 — the operator's activation control. Platform-wide, and
+      // never channel-scoped: activation stops at `global_value` →
+      // `default_value` by construction.
+      code: PRODUCT_FEED_SETTING_CODES.ACTIVATION,
+      name: 'Product feeds enabled',
+      description:
+        'Switches the whole module on or off: the feed admin screens and their API, the public tokenised feed URLs, every scheduled generation and the taxonomy refresh. Nothing is dropped — feeds, templates, category mappings, run history and already-generated files stay in place and resume exactly as before when you switch it back on.',
+      groupCode: 'product_feeds',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: PRODUCT_FEED_SETTING_CODES.ARTEFACT_RETENTION_COUNT,
       name: 'Generated files kept per feed',
       description:
@@ -119,6 +131,27 @@ export const productFeedsSettingsManifest = defineModuleSettingsManifest({
       groupCode: 'product_feeds',
       valueType: 'number',
       defaultValue: 1000,
+    },
+    // Feature 070 — delivery. Both are operator policy, unlike the egress and
+    // timeout limits in `FEED_DELIVERY_LIMITS`, which are safety floors and
+    // therefore deliberately not settings.
+    {
+      code: PRODUCT_FEED_SETTING_CODES.DELIVERY_MAX_ATTEMPTS,
+      name: 'Delivery attempts per generated file',
+      description:
+        'How many times to try pushing a generated file to the configured server before giving up and notifying an administrator. Attempts are spaced out with an increasing delay. The published link keeps working either way.',
+      groupCode: 'product_feeds',
+      valueType: 'number',
+      defaultValue: 5,
+    },
+    {
+      code: PRODUCT_FEED_SETTING_CODES.DELIVERY_TEST_RATE_LIMIT_PER_HOUR,
+      name: 'Delivery connection tests per hour',
+      description:
+        'Ceiling on how often the "Test connection" button may contact a delivery target, per feed. Set to 0 to remove the limit.',
+      groupCode: 'product_feeds',
+      valueType: 'number',
+      defaultValue: 20,
     },
 
     // -----------------------------------------------------------------------
@@ -208,16 +241,27 @@ export const manifest = defineModuleManifest({
   // key this module's tables declare must appear here, or
   // test/unit/db/fk-dependency-drift.test.ts fails.
   dependencies: [
+    'admin_notifications',
     'admin_users',
     'assets_library',
+    'auth',
     'catalog',
+    'credentials',
     'custom_fields',
+    'inventory',
     'languages',
     'price_lists',
     'sales_channels',
     'settings',
+    'taxes',
   ],
   settings: productFeedsSettingsManifest,
+  // Feature 074 (Constitution XVII) — a control this module never had, so an
+  // operator could not decline it at all. Outbound feeds to marketplaces and ad
+  // platforms are an additional capability in ruling 1's sense: a deployment
+  // that sells only through its own storefront publishes none. Default `true`
+  // so that merging this changes no deployment's state (FR-012).
+  activation: { settingCode: PRODUCT_FEED_SETTING_CODES.ACTIVATION, default: true },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     {
@@ -284,7 +328,10 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.openFeedCategoryMapping.description',
       icon: 'Layers',
       targetRoute: '/product-feeds/category-mapping',
-      requiredPermission: PRODUCT_FEEDS_WRITE_PERMISSION,
+      // The read code, because that is what opening the screen needs; saving a
+      // mapping needs the write one, and the palette row is the way in rather
+      // than the save (issue #232).
+      requiredPermission: PRODUCT_FEEDS_READ_PERMISSION,
       keywords: ['taksonomia', 'mapowanie kategorii', 'kategorie', 'google merchant', 'meta'],
       weight: 254,
     },

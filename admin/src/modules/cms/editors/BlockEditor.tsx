@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@measured/puck';
-import type { CmsBlockDetail } from '@b2b/contracts';
+import { slugify, type CmsBlockDetail } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,6 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslation } from '@/i18n/useTranslation';
-import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
@@ -35,18 +34,19 @@ interface FormState {
 const blankForm: FormState = { name: '', code: '', active: true, description: '' };
 
 /**
- * Derive a CMS block code from a free-text name. Folds diacritics via the
- * shared `normalize` helper (so "Łatwy blok" → "latwy-blok"), collapses any
- * run of non-alphanumerics to a single hyphen, trims stray hyphens, and caps
- * at the 180-char limit. The result is a subset of the `cmsCodeRe` charset
+ * Derive a CMS block code from a free-text name (so `Łatwy blok` gives
+ * `latwy-blok`). The result is a subset of the `cmsCodeRe` charset
  * (`[a-z0-9._-]`), so it always validates.
+ *
+ * `slugify` from `@b2b/contracts`, **imported, never re-implemented** (issue
+ * #245). This site's four-line chain was already correct — it and `PageEditor`
+ * were the only two of eight that cut to length *before* stripping the trailing
+ * separator — so nothing about its output moves; it is here because eight
+ * copies of a correct chain are still eight places for the ninth to be wrong.
+ * The 180-character cap is passed explicitly, as every caller's is.
  */
 function codeFromName(input: string): string {
-  return normalize(input)
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+/, '')
-    .slice(0, 180)
-    .replace(/-+$/, '');
+  return slugify(input, { maxLength: 180 });
 }
 
 function dataFor(block: CmsBlockDetail | null, language: string | null): Data | null {

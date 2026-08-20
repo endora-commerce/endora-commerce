@@ -3,10 +3,17 @@ import Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { SessionService } from '../../../src/modules/auth/services/session-service.js';
+import { createAuthSessionPort } from '../../../src/modules/auth/services/session-port.js';
 import { CustomerRegistrationService } from '../../../src/modules/customers/services/customer-registration-service.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { PersonalOrganizationService } from '../../../src/modules/organizations/services/personal-organization-service.js';
+import { toOrganizationRecord } from '../../../src/modules/organizations/services/organization-details-port.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import {
+  customerAccountLifecycleWriteFor,
+  customerAccountPortsFor,
+} from '../../helpers/customer-account-ports.js';
 import type { HttpError } from '../../../src/http/error-envelope.js';
 
 /**
@@ -40,13 +47,33 @@ describe('CustomerRegistrationService.registerStandalone', () => {
     await db.close();
   });
 
-  const makeService = (allow: boolean): CustomerRegistrationService =>
-    new CustomerRegistrationService({
-      emFactory: () => em,
-      sessionService: sessions,
+  const makeService = (allow: boolean): CustomerRegistrationService => {
+    const audit = new AuditLogService(() => em);
+    const personalOrgs = new PersonalOrganizationService(
+      () => em,
+      customerAccountPortsFor(() => em),
+      audit,
+    );
+    return new CustomerRegistrationService({
+      // Feature 075, Phase C — the account row and its audit entry are
+      // `customer_accounts`', so this service creates nothing itself.
+      accounts: customerAccountLifecycleWriteFor(() => em, audit),
+      // D-98.2 — the service takes `auth`'s published `AuthSessionPort` now,
+      // not the `SessionService` class. The adapter is what the container
+      // hands out under `authSessionPort`, and it is what makes the session
+      // cross as a record rather than as the `Session` entity.
+      sessionService: createAuthSessionPort(sessions),
       resolveAllowRegistrationWithoutOrganization: async () => allow,
-      personalOrganizationService: new PersonalOrganizationService(() => em),
+      personalOrganizations: {
+        ensureForCustomerAccount: async (id) =>
+          toOrganizationRecord(await personalOrgs.ensureForCustomerAccountId(id)),
+        anonymizeIfOrphaned: async (id) => {
+          const org = await personalOrgs.anonymizeIfOrphaned(id);
+          return org ? toOrganizationRecord(org) : null;
+        },
+      },
     });
+  };
 
   it('provisions a personal organization + an auto-login session when allowed (feature 051)', async () => {
     const svc = makeService(true);

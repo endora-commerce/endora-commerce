@@ -12,13 +12,13 @@ import {
   putCmsColorPaletteRequestSchema,
   putCmsPageContentRequestSchema,
 } from '@b2b/contracts';
-import type { RequireAdminFactory } from './plugin.js';
 import type { ColorPaletteAuditContext, ColorPaletteWriter } from './plugin.js';
 import type { CmsPageService } from './services/cms-page-service.js';
 import type { PageBuilderRegistry } from './services/page-builder-registry.js';
 import type { CmsBlockService } from './services/cms-block-service.js';
 import type { CmsHookService } from './services/cms-hook-service.js';
 import type { CmsTemplateService } from './services/cms-template-service.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export async function registerCmsAdminRoutes(
   app: FastifyInstance,
@@ -30,11 +30,11 @@ export async function registerCmsAdminRoutes(
     pageBuilderRegistry: PageBuilderRegistry;
     getColorPaletteWriter?: () => ColorPaletteWriter | null;
     resolveAdminAuditContext?: (req: FastifyRequest) => ColorPaletteAuditContext;
-    requireAdmin?: RequireAdminFactory;
+    requireAdmin: RequireAdminFactory;
   },
 ): Promise<void> {
-  const requireRead = deps.requireAdmin?.('cms.read') ?? (async () => {});
-  const requireWrite = deps.requireAdmin?.('cms.write') ?? (async () => {});
+  const requireRead = deps.requireAdmin('cms.read');
+  const requireWrite = deps.requireAdmin('cms.write');
 
   app.get('/api/v1/admin/cms/pages', { preHandler: requireRead }, async (request) => {
     const query = (request.query ?? {}) as Record<string, string | undefined>;

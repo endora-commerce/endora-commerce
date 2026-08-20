@@ -4,7 +4,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { InvoiceTemplate } from '../entities/invoice-template.entity.js';
 import { pickLanguageTree } from '../pdf-components/tree-mapper.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import {
   GENERIC_INVOICE_TEMPLATE_CODE,
   GENERIC_INVOICE_TEMPLATE_CONTENT,

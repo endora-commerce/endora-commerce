@@ -5,7 +5,7 @@ import { NewsletterTokenHelper } from '../../../src/modules/newsletter/services/
 import { NewsletterOptInService } from '../../../src/modules/newsletter/services/opt-in.service.js';
 import { NewsletterSubscriberService } from '../../../src/modules/newsletter/services/subscriber.service.js';
 import { NewsletterSelfService } from '../../../src/modules/newsletter/services/self.service.js';
-import type { SettingsService } from '../../../src/modules/settings/services/settings.service.js';
+import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
 
 class FakeSettings {
@@ -32,7 +32,7 @@ describe('newsletter self-service (US9)', () => {
     const subscribers = new NewsletterSubscriberService({
       emFactory: () => db.em(),
       optIn,
-      platformChannelId: 'default',
+      defaultChannelId: null,
       links: { confirm: (t) => `c?${t}`, unsubscribe: (t) => `u?${t}` },
     });
     self = new NewsletterSelfService(() => db.em(), subscribers);

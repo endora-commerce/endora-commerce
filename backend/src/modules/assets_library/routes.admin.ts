@@ -29,7 +29,7 @@ import { Asset } from './entities/asset.entity.js';
 import type { AssetsLibraryService } from './services/assets-library.service.js';
 import type { FoldersService } from './services/folders.service.js';
 import type { AdapterRegistry } from './services/storage/adapter-registry.js';
-import type { RequireAdminFactory } from './plugin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface AdminRoutesDeps {
   service: AssetsLibraryService;

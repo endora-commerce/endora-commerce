@@ -14,7 +14,8 @@ import {
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
 import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Resolver perf bench (T102).
@@ -34,11 +35,23 @@ import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales
  *     PLN brackets per list, so the bracket lookup runs over a non-
  *     trivial corpus.
  *
+ * ## The budget (issue #143, D-65)
+ *
+ * D-65 called this one "plausible, unmeasured, and sharing F9's environment
+ * variable, so it cannot be re-based independently until precondition 1 is
+ * done". Precondition 1 is done — the name above is this bench's own — and
+ * here is the measurement. Four runs 2026-08-17 on a 16-core / 64 GB Linux dev
+ * box, load average 1.7-3.6, Postgres 16 on localhost: p95 8.49 / 9.94 /
+ * 10.98 / 10.14 ms. Budget = worst observed × 3, rounded up: **35 ms**, down
+ * from 50. The multiplier is ×3 rather than D-65's ×2 for the reason stated in
+ * `test/perf/catalog-list.bench.ts`. Re-base from the first three scheduled
+ * `perf:backend` runs.
+ *
  * Tuning knobs (env):
  *   PERF_LIST_COUNT    — number of active lists (default 50)
  *   PERF_BRACKETS      — brackets per (list, product, currency) (default 5)
  *   PERF_ITERATIONS    — request count (default 200)
- *   PERF_P95_BUDGET_MS — assertion budget (default 50)
+ *   PERF_PRICE_RESOLVER_P95_MS — assertion budget (default 35, see above)
  *   PERF_RUN           — set to 'true' to actually run; otherwise the
  *                         suite skips so PR runs aren't blocked by
  *                         perf flake.
@@ -47,7 +60,7 @@ import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales
 const listCount = Number(process.env['PERF_LIST_COUNT'] ?? '50');
 const bracketsPerCurrency = Number(process.env['PERF_BRACKETS'] ?? '5');
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '200');
-const p95Budget = Number(process.env['PERF_P95_BUDGET_MS'] ?? '50');
+const p95Budget = Number(process.env['PERF_PRICE_RESOLVER_P95_MS'] ?? '35');
 const shouldRun = process.env['PERF_RUN'] === 'true';
 
 describe.skipIf(!shouldRun)('pricing resolver — p95 latency', () => {
@@ -63,7 +76,7 @@ describe.skipIf(!shouldRun)('pricing resolver — p95 latency', () => {
       );
     await new DefaultPriceListMigrator(h.em).seedDefault();
 
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
     // Seed the Default list with a bracket so the terminal floor exists.
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
@@ -109,7 +122,7 @@ describe.skipIf(!shouldRun)('pricing resolver — p95 latency', () => {
     // Build a fresh PricingService with the cache disabled (test-server
     // already constructs one with ttl=0, but we want a clean slate so
     // the bench measures the cold path on every call).
-    const pricing = new PricingService(h.em);
+    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
 
     // Warm-up — first few calls pay the JIT + connection-pool cost.
     for (let i = 0; i < 10; i++) {
@@ -121,6 +134,7 @@ describe.skipIf(!shouldRun)('pricing resolver — p95 latency', () => {
     }
 
     const samples: number[] = [];
+    let seededListWins = 0;
     for (let i = 0; i < iterations; i++) {
       const qty = 1 + (i % bracketsPerCurrency);
       const start = performance.now();
@@ -131,7 +145,12 @@ describe.skipIf(!shouldRun)('pricing resolver — p95 latency', () => {
       });
       samples.push(performance.now() - start);
       expect(out.base.bracket).not.toBeNull();
+      // The claim is "with N active lists", and the Default list alone would
+      // also produce a bracket — cheaply. A winner from the seeded corpus is
+      // what says the priority chain and the tie-break actually ran.
+      if (out.base.listId !== DEFAULT_PRICE_LIST_ID) seededListWins += 1;
     }
+    expect(seededListWins).toBe(iterations);
 
     samples.sort((a, b) => a - b);
     const p50 = samples[Math.floor(samples.length * 0.5)] ?? 0;

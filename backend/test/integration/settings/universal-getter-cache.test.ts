@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { defineModuleSettingsManifest } from '@b2b/contracts';
 import {
@@ -6,18 +6,22 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
- * T047 — Redis cache + EventBus invalidator test for the universal getter.
+ * T047 — Redis cache invalidation test for the universal getter.
  *
  * The cache is wired through `composeApp()` and the test server, so
- * `getSettingsService.get()` reads through Redis. After an admin write
- * fires `settings.value_changed`, the invalidator drops the matching key
- * and the next read materialises the new value.
+ * `settingsService.get()` reads through Redis. An admin write drops the
+ * matching key at the write seam and the next read materialises the new value.
+ *
+ * The drop was an EventBus subscriber until issue #45, and every test here used
+ * to drain the dispatch queue before re-reading. None of them does now: the
+ * write awaits the drop, so a read on the next line is the honest probe.
+ * `write-seam-invalidation.test.ts` asserts that property directly.
  */
 describe('SettingsService cache invalidation (T047)', () => {
   let h: BackendServerHandle;
@@ -35,6 +39,26 @@ describe('SettingsService cache invalidation (T047)', () => {
             valueType: 'string',
             defaultValue: 'https://default.example',
           },
+          // The invalidation-failure tests need their own codes: the per-process
+          // LRU is not reset between tests, only the Redis namespace is.
+          {
+            code: 'us3_cache.raced_url',
+            name: 'Raced URL',
+            valueType: 'string',
+            defaultValue: 'https://default.example',
+          },
+          {
+            code: 'us3_cache.unreachable_url',
+            name: 'Unreachable URL',
+            valueType: 'string',
+            defaultValue: 'https://default.example',
+          },
+          {
+            code: 'us3_cache.cleared_url',
+            name: 'Cleared URL',
+            valueType: 'string',
+            defaultValue: 'https://default.example',
+          },
         ],
       }),
     ]);
@@ -44,7 +68,7 @@ describe('SettingsService cache invalidation (T047)', () => {
     const em = h.em();
     for (const s of await em.find(Setting, { ownerModule: 'us3_cache' })) em.remove(s);
     await em.flush();
-    h.settings.cacheInvalidator?.dispose();
+    h.settings.cacheRegistration.dispose();
     await teardownBackendServer(h);
   });
 
@@ -69,7 +93,7 @@ describe('SettingsService cache invalidation (T047)', () => {
     );
     expect(first).toBe('https://default.example');
 
-    // Admin write — emits settings.value_changed → invalidator drops the key.
+    // Admin write — drops the key at the write seam, then announces it.
     await h.settings.adminService.setValueForSubset(
       'us3_cache.url',
       ['pl_retail'],
@@ -78,10 +102,8 @@ describe('SettingsService cache invalidation (T047)', () => {
       { actorAdminUserId: null },
     );
 
-    // EventBus.emit is fire-and-forget; in production the next request
-    // arrives after the handler completes, but the test reads in the next
-    // tick. Drain the microtask + Redis I/O queue before re-reading.
-    await flushAsyncDispatch();
+    // No drain: the drop was awaited by the write. This call used to be
+    // `flushAsyncDispatch()`, and needing it was the visible half of issue #45.
 
     // Read again. The previous Redis value would still say "default" if the
     // invalidator did not drop the key; passing here proves the path.
@@ -91,6 +113,101 @@ describe('SettingsService cache invalidation (T047)', () => {
       z.string(),
     );
     expect(second).toBe('https://chosen.example');
+  });
+
+  it('does not serve the pre-write value to a read that races the invalidation', async () => {
+    const channel = await h.em().findOneOrFail(SalesChannel, { code: 'pl_retail' });
+
+    expect(
+      await h.settings.settingsService.get('us3_cache.raced_url', channel.id, z.string()),
+    ).toBe('https://default.example');
+
+    await h.settings.adminService.setValueForSubset(
+      'us3_cache.raced_url',
+      ['pl_retail'],
+      'https://raced.example',
+      null,
+      { actorAdminUserId: null },
+    );
+
+    // The shape that made `test/integration/mfa/customer-oauth.test.ts` flaky:
+    // read immediately, while the shared drop may still be on the wire, so the
+    // LRU is already gone and Redis may still hold the pre-write value — the
+    // read must not be served from either layer.
+    expect(
+      await h.settings.settingsService.get('us3_cache.raced_url', channel.id, z.string()),
+    ).toBe('https://raced.example');
+  });
+
+  it('does not serve the pre-write value when the Redis drop fails', async () => {
+    const channel = await h.em().findOneOrFail(SalesChannel, { code: 'pl_retail' });
+
+    expect(
+      await h.settings.settingsService.get('us3_cache.unreachable_url', channel.id, z.string()),
+    ).toBe('https://default.example');
+
+    // The exact failure the flaky run logged: `Error: Connection is closed.`
+    // The shared layer keeps the stale value. Since issue #45 the drop is part
+    // of the write rather than an isolated event handler, so this also pins the
+    // tolerance that replaced `EventBus.dispatch`'s catch-all: the write is
+    // already committed and audited, so an unreachable Redis must not fail it —
+    // it must only stop the cache being trusted.
+    const del = vi
+      .spyOn(h.redis, 'del')
+      .mockRejectedValue(new Error('Connection is closed.'));
+    try {
+      await h.settings.adminService.setValueForSubset(
+        'us3_cache.unreachable_url',
+        ['pl_retail'],
+        'https://unreachable-redis.example',
+        null,
+        { actorAdminUserId: null },
+      );
+
+      expect(
+        await h.settings.settingsService.get('us3_cache.unreachable_url', channel.id, z.string()),
+      ).toBe('https://unreachable-redis.example');
+    } finally {
+      del.mockRestore();
+    }
+
+    // Once Redis answers again the cache heals itself instead of staying
+    // bypassed for the process lifetime.
+    expect(
+      await h.settings.settingsService.get('us3_cache.unreachable_url', channel.id, z.string()),
+    ).toBe('https://unreachable-redis.example');
+    expect(await h.redis.keys('settings:v1:us3_cache.unreachable_url:*')).not.toHaveLength(0);
+  });
+
+  it('lets an operator cache clear reach the in-process layer, not only Redis', async () => {
+    const channel = await h.em().findOneOrFail(SalesChannel, { code: 'pl_retail' });
+
+    // Warm both layers with the default.
+    expect(
+      await h.settings.settingsService.get('us3_cache.cleared_url', channel.id, z.string()),
+    ).toBe('https://default.example');
+
+    // Another process changed the value and this one never heard about it: the
+    // EventBus is in-process, so a missed notification leaves the LRU holding
+    // the pre-change value with nothing to expire it. Writing the row straight
+    // through the EM reproduces that state exactly.
+    const em = h.em();
+    const setting = await em.findOneOrFail(Setting, { code: 'us3_cache.cleared_url' });
+    em.create(SettingValue, {
+      setting,
+      salesChannel: em.getReference(SalesChannel, channel.id),
+      value: 'https://written-elsewhere.example',
+    });
+    await em.flush();
+
+    // This is the button the operator presses when a value "did not take".
+    // Dropping Redis alone leaves every warm process serving the stale value —
+    // and re-pinning it into Redis on the next read.
+    await h.settings.cacheAdminService.clear(['settings']);
+
+    expect(
+      await h.settings.settingsService.get('us3_cache.cleared_url', channel.id, z.string()),
+    ).toBe('https://written-elsewhere.example');
   });
 
   it('caches the "not registered" outcome and invalidates it on subsequent group changes', async () => {
@@ -123,10 +240,3 @@ describe('SettingsService cache invalidation (T047)', () => {
     await h.settings.adminService.deleteGroup('us3_cache_group', { actorAdminUserId: null });
   });
 });
-
-async function flushAsyncDispatch(): Promise<void> {
-  // Two ticks + a brief setTimeout cover the chain:
-  //   emit → dispatch microtask → handler awaits Redis → resolves.
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
-}

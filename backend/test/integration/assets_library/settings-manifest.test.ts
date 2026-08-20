@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { settingsManifest } from '../../../src/modules/settings/manifest.js';
 import { assetsLibraryManifest } from '../../../src/modules/assets_library/manifest.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
 
 /**
  * T026 — Settings manifest reconciliation for the Assets Library.

@@ -1,5 +1,4 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SettingsService } from './settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 
 const ENABLED_CODE = 'storefront.speculation_rules.enabled';
 const EAGERNESS_CODE = 'storefront.speculation_rules.eagerness';
@@ -22,16 +21,20 @@ export interface SpeculationRulesConfig {
  * effect depends on the active Storefront UI theme implementing the mechanism.
  */
 export class SpeculationRulesResolver {
-  constructor(
-    private readonly emFactory: () => EntityManager,
-    private readonly settingsService: SettingsService,
-  ) {}
+  constructor(private readonly settingsService: SettingsService) {}
 
-  async resolve(salesChannelCode: string | undefined): Promise<SpeculationRulesConfig> {
-    const channelId = await this.resolveChannelId(salesChannelCode);
-    if (!channelId) return { enabled: true, eagerness: 'moderate' };
-
-    const resolved = await this.settingsService.getMany([ENABLED_CODE, EAGERNESS_CODE], channelId);
+  /**
+   * Feature 075 / D-87 — the resolved request channel's id, passed in by the
+   * route. It used to be the channel *code*, looked back up here with a raw
+   * `select id from sales_channels`: a re-resolution of a channel the resolver
+   * middleware had already resolved (feature 053, FR-011), across a boundary
+   * no import specifier named.
+   */
+  async resolve(salesChannelId: string): Promise<SpeculationRulesConfig> {
+    const resolved = await this.settingsService.getMany(
+      [ENABLED_CODE, EAGERNESS_CODE],
+      salesChannelId,
+    );
     const enabledRow = resolved.get(ENABLED_CODE);
     const eagernessRow = resolved.get(EAGERNESS_CODE);
 
@@ -45,20 +48,5 @@ export class SpeculationRulesResolver {
         : '';
     const eagerness = VALID_EAGERNESS.has(rawEagerness) ? rawEagerness : 'moderate';
     return { enabled, eagerness };
-  }
-
-  private async resolveChannelId(code: string | undefined): Promise<string | null> {
-    const conn = this.emFactory().getConnection();
-    if (code) {
-      const rows = (await conn.execute(
-        `select id::text as id from sales_channels where code = ? limit 1`,
-        [code],
-      )) as Array<{ id: string }>;
-      return rows[0]?.id ?? null;
-    }
-    const rows = (await conn.execute(
-      `select id::text as id from sales_channels where system_default = true limit 1`,
-    )) as Array<{ id: string }>;
-    return rows[0]?.id ?? null;
   }
 }

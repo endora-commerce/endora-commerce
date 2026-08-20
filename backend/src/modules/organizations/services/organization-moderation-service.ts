@@ -1,8 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { OptimisticLockError } from '@mikro-orm/core';
 import { Organization, type OrganizationStatus } from '../entities/organization.entity.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
-import type { Mailer } from '../../email/services/mailer.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { EmailMailerPort } from '@b2b/contracts';
 import type { OrganizationEventBus } from './registration-service.js';
 
 /**
@@ -63,7 +63,7 @@ export class OrganizationModerationService {
     private readonly emFactory: () => EntityManager,
     private readonly auditLogService: AuditLogService,
     private readonly events: OrganizationEventBus,
-    private readonly mailer: Mailer,
+    private readonly mailer: EmailMailerPort,
     /** Resolver for the moderation-mode setting. Returns 'auto' or 'manual'. */
     private readonly resolveModerationMode: () => Promise<'auto' | 'manual'>,
   ) {}
@@ -269,13 +269,23 @@ export class OrganizationModerationService {
     )) as { rows: Array<{ email: string }> };
     const recipient = rows.rows[0]?.email;
     if (!recipient) return;
-    await this.mailer.send({
+    const outcome = await this.mailer.send({
       messageId: `organization.${input.messageIdSuffix}.${org.id}.${org.version}`,
       to: recipient,
       subject: input.subject,
       text: input.text,
       meta: { organizationId: org.id, kind: input.messageIdSuffix },
     });
+    if (outcome.status !== 'sent') {
+      // The moderation transition has committed and this notification runs
+      // after it, so the non-send is named rather than raised — D-59's record
+      // is what survives to answer "was the customer told".
+      console.warn('[organizations] the moderation e-mail was not sent', {
+        organizationId: org.id,
+        kind: input.messageIdSuffix,
+        reason: outcome.reason,
+      });
+    }
   }
 }
 

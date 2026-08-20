@@ -6,7 +6,8 @@ import {
 } from '../../helpers/test-server.js';
 import { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';
 
 /**
  * T068 — `GET /catalog/products` served from Meilisearch when the env
@@ -46,6 +47,7 @@ describe('catalog list — Meilisearch backend', () => {
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
       attributeRead: h.catalogAttributeRead,
+      ...searchIndexerNeighbourPorts(h),
     });
     const channels = await h.em().find(SalesChannel, {});
     for (const channel of channels) {

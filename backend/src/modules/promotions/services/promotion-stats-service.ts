@@ -35,29 +35,45 @@ export class PromotionStatsService {
     id: string,
     q: StatsQuery,
   ): Promise<PromotionUsageStats> {
-    const knex = this.emFactory().getKnex();
-    const base = (): ReturnType<typeof knex> => {
-      const qb = knex('promotion_usages').where(column, id);
-      if (q.from) qb.andWhere('created_at', '>=', new Date(q.from));
-      if (q.to) qb.andWhere('created_at', '<=', new Date(q.to));
-      return qb;
-    };
+    // `em.execute`, not `em.getKnex()`: a knex handle takes its own pooled
+    // connection, so these totals would be read from outside a transaction the
+    // caller holds open — a redemption the same transaction has just recorded
+    // would not be counted (issue #207). `column` and the breakdown column are
+    // both literals from a closed map, never caller input.
+    const em = this.emFactory();
+    const conditions = [`"${column}" = ?`];
+    const params: unknown[] = [id];
+    if (q.from) {
+      conditions.push('"created_at" >= ?');
+      params.push(new Date(q.from));
+    }
+    if (q.to) {
+      conditions.push('"created_at" <= ?');
+      params.push(new Date(q.to));
+    }
+    const where = conditions.join(' and ');
 
-    const totals = (await base()
-      .count<{ uses: string }>('* as uses')
-      .sum<{ discount: string }>('discount_amount as discount')
-      .first()) as unknown as { uses: string; discount: string | null };
+    const totalsRows = (await em.execute(
+      `select count(*) as uses, sum("discount_amount") as discount
+         from "promotion_usages" where ${where}`,
+      params,
+    )) as Array<{ uses: string; discount: string | null }>;
+    const totals = totalsRows[0];
 
-    const currencyRow = (await base().select('currency').first()) as { currency: string } | undefined;
+    const currencyRows = (await em.execute(
+      `select "currency" from "promotion_usages" where ${where} limit 1`,
+      params,
+    )) as Array<{ currency: string }>;
+    const currencyRow = currencyRows[0];
 
     let breakdown: PromotionUsageStats['breakdown'] = [];
     if (q.groupBy) {
       const col = DIMENSION_COLUMN[q.groupBy];
-      const rows = (await base()
-        .select(`${col} as key`)
-        .count('* as uses')
-        .sum('discount_amount as discount')
-        .groupBy(col)) as Array<{ key: string | null; uses: string; discount: string | null }>;
+      const rows = (await em.execute(
+        `select "${col}" as key, count(*) as uses, sum("discount_amount") as discount
+           from "promotion_usages" where ${where} group by "${col}"`,
+        params,
+      )) as Array<{ key: string | null; uses: string; discount: string | null }>;
       breakdown = rows.map((r) => ({
         key: r.key ?? null,
         uses: Number(r.uses),

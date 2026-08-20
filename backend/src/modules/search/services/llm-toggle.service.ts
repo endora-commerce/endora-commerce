@@ -1,12 +1,12 @@
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type SettingsAdminAuditContext,
+  type SettingsAdminPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type {
-  AdminAuditContext,
-  SettingsAdminService,
-} from '../../settings/services/settings-admin.service.js';
-import type { SettingsService } from '../../settings/services/settings.service.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { SEARCH_SETTING_CODES } from '../manifest.js';
 import {
   resolveEmbedderConfig,
@@ -33,7 +33,7 @@ export interface LlmToggleParams {
   /** When omitted, applies to every channel in the setting's scope. */
   salesChannelCodes?: string[];
   expectedVersion: string | null;
-  actor: AdminAuditContext;
+  actor: SettingsAdminAuditContext;
 }
 
 export interface LlmToggleResult {
@@ -46,7 +46,7 @@ export class LlmToggleService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly settingsService: SettingsService,
-    private readonly settingsAdminService: SettingsAdminService,
+    private readonly settingsAdminService: SettingsAdminPort,
     /** Feature 058 — resolves `search.llm.embedder_credentials` (optional). */
     private readonly credentials?: CredentialResolvePort,
   ) {}

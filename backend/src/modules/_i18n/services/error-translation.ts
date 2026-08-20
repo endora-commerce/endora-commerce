@@ -105,11 +105,50 @@ function moduleIdForErrorCode(code: ErrorCode): string {
   ) {
     return 'inventory';
   }
+  // Feature 078, D-95.2 — routing is by **semantic owner**, not by thrower:
+  // `INVOICE_NUMBER_PATTERN_COLLIDES` is thrown inside `settings`' write path
+  // and `INVOICE_NOT_READY` inside `orders`' download route, exactly as
+  // `PRODUCT_*` codes are thrown from modules other than `catalog`. `_i18n`
+  // loads every registered module's bundle regardless of activation, so a
+  // switched-off `invoices` does not cost another module its sentence. Keeping
+  // the family in one bundle is how the next sentence stops going missing.
+  if (code.startsWith('INVOICE_')) return 'invoices';
+  // Issue #231 — the `CART_*` family is exactly three codes (`CART_EMPTY`,
+  // `CART_LINE_CAP_EXCEEDED`, `CART_COUPON_REJECTED`) and `carts` holds a
+  // written sentence for all three in both languages, while `_i18n` held one
+  // for `CART_EMPTY` alone — so the other two rendered as a raw code to the
+  // buyer, and `CART_COUPON_REJECTED`'s seven refusal tokens could not be
+  // reached at all. Same rule as `INVOICE_*` above: the bundle follows the
+  // domain noun, not the thrower, even though `orders` throws `CART_EMPTY` at
+  // checkout. `_i18n`'s stranded `CART_EMPTY` pair is deleted with this line;
+  // routing only the two unreachable codes would split a three-member family
+  // across two bundles, which is the arrangement that hid this.
+  if (code.startsWith('CART_')) return 'carts';
+  // Feature 082, D-125 — the `ORDER_*` family is exactly two codes
+  // (`ORDER_NOT_FOUND`, `ORDER_NOT_CANCELLABLE`). T1 of D-121 answers directly:
+  // the noun is an order and `orders` owns orders, so the sentence leaves
+  // `invoices` — which throws the code once and wrote the only real sentence
+  // for it — exactly as D-95.2 sent `INVOICE_NOT_READY` the other way from
+  // `orders` to `invoices`. Unlike `CART_*` this family has a member that the
+  // move would strand: `ORDER_NOT_CANCELLABLE` had only `_i18n`'s placeholder,
+  // so `orders` gains a written sentence for it in the same change rather than
+  // a ledger entry or an exception to the rule.
+  if (code.startsWith('ORDER_')) return 'orders';
   if (code.startsWith('ASSET_')) return 'assets_library';
   if (code.startsWith('CMS_')) return 'cms';
   if (code.startsWith('MEGAMENU_')) return 'megamenu';
   if (code.startsWith('BLOG_')) return 'blog';
   if (code.startsWith('DICTIONARY_')) return 'dictionaries';
+  // `INVALID_CREDENTIALS` is auth's sign-in failure and does not start with this
+  // prefix, so it keeps routing to core. Only the credential-configuration
+  // family lands here.
+  if (code.startsWith('CREDENTIAL_')) return 'credentials';
+  // Issue #194 — `MFA_*` routed to `core` by falling off the end of this
+  // function, which is where its sentences would have gone missing unnoticed
+  // (see `check-error-translations.ts`). The family belongs to the module that
+  // owns it; the codes already ledgered as untranslated stay untranslated,
+  // they simply look for their sentence in the right bundle now.
+  if (code.startsWith('MFA_')) return 'mfa';
   if (code.startsWith('MODULE_')) return 'core';
   return 'core';
 }

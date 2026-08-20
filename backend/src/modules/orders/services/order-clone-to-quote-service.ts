@@ -1,9 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type CreateQuoteRequest } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CreateQuoteRequest,
+  type RfqCustomerPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
-import type { RfqService } from '../../quote_requests/services/rfq-service.js';
 
 interface CloneContext {
   customerAccountId: string;
@@ -21,7 +24,7 @@ interface CloneContext {
 export class OrderCloneToQuoteService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly getRfqService: () => RfqService | null,
+    private readonly getRfqService: () => RfqCustomerPort | null,
   ) {}
 
   async clone(orderId: string, ctx: CloneContext): Promise<{ quoteRequestId: string }> {

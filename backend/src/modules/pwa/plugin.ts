@@ -3,14 +3,18 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { Queue } from 'bullmq';
 import { z } from 'zod';
-import type { EventBus } from '../../events/bus.js';
+import type {
+  CustomerAccountReadPort,
+  CustomerGroupReadPort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
 import { PwaConfigResolver, type SettingsReadPort } from './services/pwa-config-resolver.js';
 import { PwaIconService, type AssetUploadPort } from './services/pwa-icon-service.js';
 import { PushSubscriptionService } from './services/push-subscription-service.js';
 import { PushMessageService } from './services/push-message-service.js';
 import { PushProviderRegistry } from './services/push-provider-registry.js';
 import { WebPushProvider } from './services/providers/web-push-provider.js';
-import { setupPushEventSubscriber, type PushEventTarget } from './services/push-event-subscriber.js';
+import { createPushEventHandlers, type PushEventTarget } from './services/push-event-subscriber.js';
 import {
   createPushDeliveryQueue,
   createPushDeliveryWorker,
@@ -23,9 +27,9 @@ import {
 import {
   registerPwaAdminRoutes,
   type AdminAuditContext,
-  type RequireAdminFactory,
   type SettingsWritePort,
 } from './routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 const BoolSchema = z.boolean();
 
@@ -37,13 +41,25 @@ export interface PwaModuleOptions {
   settings: SettingsReadPort & { get<T>(code: string, channelId: string, schema: z.ZodType<T>): Promise<T> };
   settingsWrite: SettingsWritePort;
   requireAdmin: RequireAdminFactory;
-  eventBus: EventBus;
+  /**
+   * The three rows this module reads out of other modules (feature 075,
+   * Phase C). Resolved as gated ports in `backend.ts`, never captured, so a
+   * switched-off owner refuses at the call and not at composition time.
+   */
+  customerAccounts: CustomerAccountReadPort;
+  organizationDetails: OrganizationDetailsPort;
+  customerGroups: CustomerGroupReadPort;
   /** assets_library upload facade. */
   assetUpload: AssetUploadPort;
   resolveAssetUrl: (assetId: string) => Promise<string | null>;
   /** Channel helpers (composition owns the sales_channels coupling). */
-  resolveChannelIdByCode: (code: string | undefined) => Promise<string>;
-  defaultChannelId: () => Promise<string>;
+  /**
+   * `null` = this deployment has no channel to read for, so `pwa` resolves its
+   * configuration platform-wide (feature 072, D-41). Both used to fall back to
+   * the root's `'default'` sentinel — a channel *code* against a `uuid` column.
+   */
+  resolveChannelIdByCode: (code: string | undefined) => Promise<string | null>;
+  defaultChannelId: () => Promise<string | null>;
   channelCodeForId: (channelId: string) => Promise<string | null>;
   resolveAuditContext: (request: FastifyRequest) => AdminAuditContext;
   /** mailto: subject for VAPID. */
@@ -62,6 +78,8 @@ export interface PwaModuleOptions {
 }
 
 export interface PwaModuleHandle {
+  /** The FR-024 auto-trigger handlers; `backend.ts` owns their registration. */
+  pushEventHandlers: ReturnType<typeof createPushEventHandlers>;
   configResolver: PwaConfigResolver;
   iconService: PwaIconService;
   subscriptionService: PushSubscriptionService;
@@ -84,11 +102,17 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
   providerRegistry.register(new WebPushProvider(options.settings, options.vapidSubject));
 
   const deliveryQueue = createPushDeliveryQueue(options.redis);
-  const messageService = new PushMessageService(options.emFactory, deliveryQueue);
+  const messageService = new PushMessageService(
+    options.emFactory,
+    deliveryQueue,
+    options.customerAccounts,
+    options.organizationDetails,
+  );
 
   // Auto-triggered push (FR-024) — producer only; enqueues, never sends inline.
-  setupPushEventSubscriber({
-    eventBus: options.eventBus,
+  // `backend.ts` registers these two through `ctx.subscribe`, so they stop with
+  // the module (issue #107).
+  const pushEventHandlers = createPushEventHandlers({
     messageService,
     ...(options.resolveOrderTarget ? { resolveOrderTarget: options.resolveOrderTarget } : {}),
     ...(options.resolveQuoteTarget ? { resolveQuoteTarget: options.resolveQuoteTarget } : {}),
@@ -112,6 +136,7 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
   }
 
   const handle: PwaModuleHandle = {
+    pushEventHandlers,
     configResolver,
     iconService,
     subscriptionService,
@@ -139,6 +164,9 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
       subscriptionService,
       messageService,
       settingsWrite: options.settingsWrite,
+      customerAccounts: options.customerAccounts,
+      organizationDetails: options.organizationDetails,
+      customerGroups: options.customerGroups,
       settingsRead: options.settings,
       resolveScopeChannelId: async (salesChannelId) =>
         salesChannelId ?? (await options.defaultChannelId()),

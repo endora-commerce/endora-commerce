@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
@@ -10,8 +10,7 @@ import {
   SEED_PRODUCT_102_ID,
 } from '../../helpers/seed-catalog.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
-import { Comparison } from '../../../src/modules/comparisons/entities/comparison.entity.js';
-import { ComparisonProduct } from '../../../src/modules/comparisons/entities/comparison-product.entity.js';
+import { freshShareToken } from '../../helpers/comparison-fixtures.js';
 
 /**
  * T037 — Contract test for `GET /api/v1/comparisons/share/:token`
@@ -37,16 +36,15 @@ describe('GET /api/v1/comparisons/share/:token — feature 007 / US2', () => {
     await teardownBackendServer(h);
   });
 
-  beforeEach(async () => {
-    const em = h.em();
-    await em.nativeDelete(ComparisonProduct, {});
-    await em.nativeDelete(Comparison, {});
-  });
+  // No `beforeEach` cleanup (issue #166): a share token identifies exactly one
+  // comparison, so every case below names the row it created and the unknown-
+  // token case names one it minted and never stored. Neither depends on the
+  // table being empty.
 
   it('returns 404 for an unknown token', async () => {
     const res = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/comparisons/share/AAAAAAAAAAAAAAAAAAAAAA',
+      url: `/api/v1/comparisons/share/${freshShareToken()}`,
       headers: SALES_CHANNEL_HEADER,
     });
     expect(res.statusCode).toBe(404);

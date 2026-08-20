@@ -9,6 +9,7 @@ import { TranslationProvider } from './i18n/TranslationProvider.js';
 import { useTranslation } from './i18n/useTranslation.js';
 import { appBootstrapCopy } from './i18n/preauth-login-copy.js';
 import { AdminActionsProvider } from './lib/admin-actions/AdminActionsProvider.js';
+import { ModulePresenceProvider } from './lib/module-presence';
 import { AppLanguageContext } from './i18n/app-language-context.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
 import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
@@ -58,6 +59,7 @@ import { OrganizationDetail } from './modules/organizations/OrganizationDetail.j
 import { CustomersList } from './modules/customers/CustomersList.js';
 import { CustomerDetail } from './modules/customers/CustomerDetail.js';
 import { OnlineCustomers } from './modules/customers/OnlineCustomers.js';
+import { CustomerGroupsPage } from './modules/customer_accounts/CustomerGroupsPage.js';
 import { OrdersList } from './modules/orders/OrdersList.js';
 import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
@@ -99,6 +101,11 @@ import { FeedTemplateImportPage } from './modules/product_feeds/FeedTemplateImpo
 import { FeedRunDetailPage } from './modules/product_feeds/FeedRunDetailPage.js';
 import { CategoryMappingPage } from './modules/product_feeds/CategoryMappingPage.js';
 import { TaxonomyRevisionsPage } from './modules/product_feeds/TaxonomyRevisionsPage.js';
+import { ErgonodeConnectionPage } from './modules/pim_ergonode/ErgonodeConnectionPage.js';
+import { ErgonodeAttributeMappingPage } from './modules/pim_ergonode/ErgonodeAttributeMappingPage.js';
+import { ErgonodeCategoryMappingPage } from './modules/pim_ergonode/ErgonodeCategoryMappingPage.js';
+import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
+import { ErgonodeRunDetailPage } from './modules/pim_ergonode/ErgonodeRunDetailPage.js';
 import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
 import { TaxesPage } from './modules/taxes/TaxesPage.js';
 import { PromotionsPage } from './modules/promotions/PromotionsPage.js';
@@ -123,6 +130,7 @@ import { StockImportWizard } from './modules/inventory/StockImportWizard.js';
 import { WarehousesList } from './modules/warehouses/WarehousesList.js';
 import { WarehouseEditor } from './modules/warehouses/WarehouseEditor.js';
 import { CreditLimitsPage } from './modules/credit_limits/CreditLimitsPage.js';
+import { ModulesPage as PlatformModulesPage } from './modules/platform/ModulesPage.js';
 import { SettingsPage } from './modules/settings/pages/SettingsPage.js';
 import { GroupsPage as SettingsGroupsPage } from './modules/settings/pages/GroupsPage.js';
 import { CachePage } from './modules/settings/pages/CachePage.js';
@@ -178,6 +186,7 @@ export function App(): ReactNode {
   return (
     <TranslationProvider language={language}>
       <AppLanguageContext.Provider value={{ language, setLanguage }}>
+        <ModulePresenceProvider>
         <AdminActionsProvider language={language}>
         {/* Auto sign-out after the configured inactivity window (default 60 min). */}
         <IdleLogout />
@@ -199,6 +208,7 @@ export function App(): ReactNode {
         <Route path="/customers" element={<CustomersList />} />
         <Route path="/customers/online" element={<OnlineCustomers />} />
         <Route path="/customers/:id" element={<CustomerDetail />} />
+        <Route path="/customer-groups" element={<CustomerGroupsPage />} />
         <Route path="/orders" element={<OrdersList />} />
         <Route path="/orders/new" element={<OrderCreatePage />} />
         <Route path="/orders/quick-order" element={<QuickOrderOnBehalfPage />} />
@@ -252,6 +262,20 @@ export function App(): ReactNode {
           element={<FeedRunDetailPage />}
         />
         <Route path="/product-feeds/:feedId" element={<ProductFeedDetailPage />} />
+        {/* Feature 068 — Ergonode PIM. Literal segments first, the parametric
+            run route last, so a future `/pim-ergonode/:something` cannot swallow
+            its siblings the way the feed routes once did. */}
+        <Route path="/pim-ergonode" element={<ErgonodeConnectionPage />} />
+        <Route
+          path="/pim-ergonode/attribute-mappings"
+          element={<ErgonodeAttributeMappingPage />}
+        />
+        <Route
+          path="/pim-ergonode/category-mappings"
+          element={<ErgonodeCategoryMappingPage />}
+        />
+        <Route path="/pim-ergonode/runs" element={<ErgonodeRunsPage />} />
+        <Route path="/pim-ergonode/runs/:runId" element={<ErgonodeRunDetailPage />} />
         <Route path="/taxes" element={<TaxesPage />} />
         <Route path="/promotions" element={<PromotionsPage />} />
         <Route path="/promotions/new" element={<PromotionEditPage />} />
@@ -322,6 +346,7 @@ export function App(): ReactNode {
         <Route path="/blog/categories/new" element={<BlogCategoryEditor />} />
         <Route path="/blog/categories/:id" element={<BlogCategoryEditor />} />
         <Route path="/blog/tags" element={<BlogTagListPage />} />
+        <Route path="/platform/modules" element={<PlatformModulesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/groups" element={<SettingsGroupsPage />} />
         <Route path="/settings/cache" element={<CachePage />} />
@@ -337,6 +362,7 @@ export function App(): ReactNode {
           </Route>
         </Routes>
         </AdminActionsProvider>
+        </ModulePresenceProvider>
       </AppLanguageContext.Provider>
     </TranslationProvider>
   );

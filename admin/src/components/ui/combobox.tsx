@@ -12,15 +12,18 @@ import {
 import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
+import { normalize } from '@/lib/text-normalization';
 
 /**
  * Generic searchable dropdown. The input narrows the visible options as
  * the user types; the cleared input shows the full list. Selecting an
  * option commits a value through `onChange`, the clear button resets it.
  *
- * Diacritic-insensitive matching mirrors the admin global-search
- * behaviour (feature 020): NFD-normalise both query and label, strip
- * combining marks, then case-fold.
+ * Diacritic-insensitive matching is `lib/text-normalization.ts`, the same
+ * fold the ⌘K palette and the page-builder drawer use — **imported, never
+ * re-implemented**. This file used to carry its own three-line copy, and it
+ * omitted the stroked-letter map, so `platnosci` did not find
+ * `Metody płatności` in any picker in the admin (issue #236).
  *
  * Build is dependency-free (no Radix popover) so it composes anywhere
  * the rest of the shadcn-style components do.
@@ -68,10 +71,6 @@ export interface ComboboxProps<T = string> {
    * the matching option's `label`, then to the empty string.
    */
   selectedLabel?: string;
-}
-
-function normalize(value: string): string {
-  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 }
 
 function defaultFilter<T>(option: ComboboxOption<T>, normalizedQuery: string): boolean {
@@ -142,7 +141,7 @@ function ComboboxInner<T>(
 
   const filtered = useMemo(() => {
     if (manualFilter) return options;
-    const normalizedQuery = normalize(query.trim());
+    const normalizedQuery = normalize(query);
     const filterFn = filter ?? defaultFilter;
     return options.filter((opt) => filterFn(opt, normalizedQuery));
   }, [options, query, filter, manualFilter]);

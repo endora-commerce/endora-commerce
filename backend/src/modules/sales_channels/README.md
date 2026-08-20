@@ -1,14 +1,29 @@
 # sales_channels
 
-Owns the **sales channel** entity and the one canonical way a request's channel
-is resolved. A single deployment serves multiple channels; catalog visibility,
-related/cross-sell/up-sell links, promotions/coupons, pricing, CMS, mega-menu and
-blog are all scoped to the request's channel through the `sales_channel_*`
-membership bridges.
+Owns the **admin surface** for sales channels — CRUD, lifecycle and the
+membership routes — and the nine `sales_channel_*` membership bridge tables and
+their migration. A single deployment serves multiple channels; catalog
+visibility, related/cross-sell/up-sell links, promotions/coupons, pricing, CMS,
+mega-menu and blog are all scoped to the request's channel through those bridges.
+
+## What lives in the kernel (feature 072, T019)
+
+Channel *resolution* is a platform concern, not a module one: the resolution
+order is a refusal contract (Constitution XII) and 49 call sites read the
+resolved channel. So the `SalesChannel` entity, the resolver middleware and
+resolver service, `SalesChannelMembershipService`, the cache and its invalidator
+and `DefaultChannelReconciler` all live under
+`backend/src/kernel/sales-channels/`. This module keeps
+`services/sales-channels.service.ts` (admin CRUD, zero external importers) and
+`routes.admin.ts`.
+
+Nothing about the resolution order or the refusal behaviour changed with the
+move; a module may import the kernel freely.
 
 ## The single resolution contract (feature 053 / FR-002)
 
-The **canonical resolver middleware** (`middleware/sales-channel-resolver.ts`)
+The **canonical resolver middleware**
+(`kernel/sales-channels/sales-channel-resolver.middleware.ts`)
 runs as a Fastify `onRequest` hook on every `/api/v1/*` request (bypassing
 `/api/v1/_health`). It resolves the channel **once**, in this order:
 
@@ -34,7 +49,8 @@ flag, not resolution.
 
 This invariant is enforced by `backend/scripts/check-channel-resolution.ts`
 (CI `--enforce`). Bridge membership is read only through
-`SalesChannelMembershipService` (the `no-unscoped-channel-query` rule).
+`SalesChannelMembershipService`; `check:module-boundary`'s `sql` predicate is what
+refuses a raw `sales_channel_*` statement (D-87).
 
 Full contract + consumption guide: `specs/053-sales-channel-scoping-unification/`
 (`contracts/resolved-channel-context.md`, `contracts/header-dialect.md`,

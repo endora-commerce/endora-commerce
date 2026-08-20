@@ -1,16 +1,32 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, paymentMethodUpsertSchema } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  paymentMethodStatusPatchSchema,
+  paymentMethodUpsertSchema,
+  type PaymentMethodAdminListItem,
+  type PaymentMethodAvailability,
+} from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import type { CommandBus } from '../../commands/index.js';
+import {
+  makeDeletePaymentMethodCommand,
+  makeSetPaymentMethodStatusCommand,
+  makeUpsertPaymentMethodCommand,
+} from './commands/payment-method.commands.js';
+import {
+  effectiveState,
+  toModulePresenceDto,
+} from '../../kernel/lifecycle/effective-state.js';
 import { PaymentMethod } from './entities/payment-method.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
-import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { PaymentAdapterRegistry } from './services/payment-adapter-registry.js';
 import type { PaymentMethodEligibilityService } from './services/payment-method-eligibility.js';
 import {
   OrderStatusRegistryError,
   type OrderStatusRegistry,
 } from './services/order-status-registry.port.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Public read endpoint: list active payment methods (storefront checkout).
@@ -35,6 +51,8 @@ export interface PaymentMethodsPublicDeps {
 export interface PaymentMethodsAdminDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  /** Issue #125 — the two admin writes run on the bus (Principle XIII). */
+  commandBus: CommandBus;
   /** Feature 005 / T027b — new payment methods auto-bind to the system default. */
   salesChannelMembership?: SalesChannelMembershipService;
   /** Feature 034 — validates `adapter` against the registered adapters. */
@@ -144,34 +162,24 @@ export async function registerPaymentMethodsAdminRoutes(
         }
       }
 
-      let row = await em.findOne(PaymentMethod, { code: request.params.code });
-      let isNew = false;
-      if (row) {
-        row.name = body.name;
-        row.kind = body.kind;
-        row.adapter = adapter;
-        if (body.status !== undefined) row.status = body.status;
-        if (body.additionalPrice !== undefined) row.additionalPrice = body.additionalPrice.toFixed(2);
-        if (body.statusOnPending !== undefined) row.statusOnPending = body.statusOnPending;
-        if (body.statusOnSuccess !== undefined) row.statusOnSuccess = body.statusOnSuccess;
-        if (body.statusOnFailure !== undefined) row.statusOnFailure = body.statusOnFailure;
-      } else {
-        row = em.create(PaymentMethod, {
+      // Which methods a shop offers, and which order status each payment result
+      // moves an order to, is operator configuration. The read below only tells
+      // the Command whether this call creates or updates — the write itself
+      // happens inside the bus transaction (issue #125).
+      const existing = await em.findOne(PaymentMethod, { code: request.params.code });
+      const { method: row, created } = await deps.commandBus.run(
+        makeUpsertPaymentMethodCommand({
           code: request.params.code,
-          name: body.name,
-          kind: body.kind,
+          body,
           adapter,
-          status: body.status ?? 'active',
-          additionalPrice: (body.additionalPrice ?? 0).toFixed(2),
-          statusOnPending: body.statusOnPending ?? 'new',
-          statusOnSuccess: body.statusOnSuccess ?? 'paid',
-          statusOnFailure: body.statusOnFailure ?? 'cancelled',
-        });
-        isNew = true;
-      }
-      await em.persistAndFlush(row);
+          existingId: existing?.id ?? null,
+        }),
+      );
 
-      if (isNew && deps.salesChannelMembership) {
+      // Channel membership is the sales-channel bridge's own write, on its own
+      // EntityManager, so it stays outside the Command rather than pretending to
+      // share its transaction.
+      if (created && deps.salesChannelMembership) {
         await deps.salesChannelMembership.bindToDefaultIfEmpty('payment-method', row.id);
       }
       // Replace sales-channel membership when an explicit (non-empty) set is given.
@@ -183,25 +191,39 @@ export async function registerPaymentMethodsAdminRoutes(
     },
   );
 
+  /**
+   * Availability — feature 076, D-82. The one write that decides whether a
+   * method is offered to buyers, wherever an operator arrives from: the four
+   * gateway screens link here rather than writing the column themselves.
+   *
+   * Keyed by **id**, like the `DELETE` beside it and unlike the `PUT` above:
+   * the `PUT` is an upsert, so it is keyed by the natural key it may create,
+   * while this operates on a row that must already exist. The 404 is inside the
+   * Command, on its own transaction.
+   */
+  app.patch<{ Params: { id: string } }>(
+    '/api/v1/admin/payment-methods/:id/status',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: paymentMethodStatusPatchSchema },
+    },
+    async (request) => {
+      const body = paymentMethodStatusPatchSchema.parse(request.body);
+      const row = await deps.commandBus.run(
+        makeSetPaymentMethodStatusCommand(request.params.id, body.status),
+      );
+      return { data: await serializeAdmin(row, deps) };
+    },
+  );
+
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/payment-methods/:id',
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
-      const em = deps.emFactory();
-      const row = await em.findOne(PaymentMethod, { id: request.params.id });
-      if (!row) {
-        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Payment method not found.');
-      }
-      // T017b — delete-guard (FR-003): never orphan a Payment's method reference.
-      const referencing = await countPaymentsForMethod(em, row.id);
-      if (referencing > 0) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Cannot delete payment method: ${referencing} payment(s) reference it. Set status to "inactive" instead.`,
-        );
-      }
-      await em.removeAndFlush(row);
+      // The 404 and the T017b delete-guard (FR-003) live inside the Command, on
+      // its transaction: the guard's answer and the delete are then the same
+      // moment rather than two.
+      await deps.commandBus.run(makeDeletePaymentMethodCommand(request.params.id));
       return reply.status(204).send();
     },
   );
@@ -216,18 +238,6 @@ function assertValidStatus(registry: OrderStatusRegistry, ref: string): void {
     }
     throw err;
   }
-}
-
-async function countPaymentsForMethod(em: EntityManager, methodId: string): Promise<number> {
-  const rows = await em
-    .getConnection()
-    .execute<Array<{ count: string }>>(
-      `select count(*)::text as count from "payments" where "payment_method_id" = ?`,
-      [methodId],
-      'all',
-      em.getTransactionContext(),
-    );
-  return Number(rows[0]?.count ?? '0');
 }
 
 async function replaceChannelMembership(
@@ -260,7 +270,31 @@ function serializePublic(m: PaymentMethod, deps: { registry?: PaymentAdapterRegi
   };
 }
 
-async function serializeAdmin(m: PaymentMethod, deps: PaymentMethodsAdminDeps) {
+/**
+ * Why this method is, or is not, offered to a buyer (issue #96).
+ *
+ * The admin keeps every row — switching a gateway off drops nothing — so the
+ * list carries the reason instead of the row. The reason is the owning module's
+ * presence, taken from the projection `/platform/modules` already renders, so
+ * no second vocabulary and no hard-coded module list on either frontend.
+ */
+function availabilityOf(
+  m: PaymentMethod,
+  deps: { registry?: PaymentAdapterRegistry },
+): PaymentMethodAvailability {
+  const ownerModule = deps.registry?.ownerOf(m.adapter) ?? null;
+  const presence = ownerModule === null ? undefined : effectiveState.presence(ownerModule);
+  return {
+    ownerModule,
+    available: deps.registry?.isAvailable(m.adapter) ?? false,
+    ownerPresence: presence ? toModulePresenceDto(presence) : null,
+  };
+}
+
+async function serializeAdmin(
+  m: PaymentMethod,
+  deps: PaymentMethodsAdminDeps,
+): Promise<PaymentMethodAdminListItem> {
   const channels = deps.salesChannelMembership
     ? await deps.salesChannelMembership.listChannelsForEntity('payment-method', m.id)
     : [];
@@ -276,6 +310,9 @@ async function serializeAdmin(m: PaymentMethod, deps: PaymentMethodsAdminDeps) {
     statusOnSuccess: m.statusOnSuccess,
     statusOnFailure: m.statusOnFailure,
     salesChannelIds: channels.map((c) => c.id),
-    rendererKey: deps.registry?.get(m.adapter)?.renderers?.admin ?? null,
+    // Presence-blind: an admin screen goes on rendering a Stripe row the way
+    // Stripe renders it while Stripe is switched off.
+    rendererKey: deps.registry?.entry(m.adapter)?.adapter.renderers?.admin ?? null,
+    availability: availabilityOf(m, deps),
   };
 }

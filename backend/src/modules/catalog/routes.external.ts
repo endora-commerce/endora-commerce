@@ -1,8 +1,13 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { catalogBulkPriceRequestSchema, ERROR_CODES } from '@b2b/contracts';
+import {
+  catalogBulkPriceRequestSchema,
+  ERROR_CODES,
+  type ProductAudience,
+} from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { productAudienceOf } from '../../http/product-audience.js';
 import type { CatalogQueryService } from './services/catalog-query.service.js';
 import type { CatalogOrgPriceDecorator } from './services/catalog-org-price-decorator.js';
 
@@ -169,6 +174,7 @@ function readContext(request: FastifyRequest): {
     defaultCurrency: string;
     defaultLanguage: string;
   };
+  audience: ProductAudience;
   preferredLanguage?: string | undefined;
 } {
   const channel = getResolvedChannel(request);
@@ -183,6 +189,7 @@ function readContext(request: FastifyRequest): {
       defaultCurrency: channel.defaultCurrency,
       defaultLanguage: channel.defaultLanguage,
     },
+    audience: productAudienceOf(request),
     preferredLanguage,
   };
 }

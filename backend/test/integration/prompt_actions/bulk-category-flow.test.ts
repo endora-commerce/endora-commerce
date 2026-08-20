@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
+  teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ScriptedLlm, seedPromptActionsSettings } from '../../helpers/prompt-actions.js';
@@ -9,7 +10,7 @@ import { PromptActionRequest } from '../../../src/modules/prompt_actions/entitie
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { BulkOperation } from '../../../src/modules/catalog/entities/bulk-operation.entity.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
 /**
  * T041 + T042 — US2 bulk flow (quickstart §3 step 4): preview with match
@@ -66,9 +67,7 @@ describe('US2 — bulk category assignment (T041/T042)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
-    await h.orm.close(true);
+    await teardownBackendServer(h);
     delete process.env['SETTINGS_SECRET_ENCRYPTION_KEY'];
   });
 

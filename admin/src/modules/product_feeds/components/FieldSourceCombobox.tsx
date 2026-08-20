@@ -7,6 +7,7 @@ import type {
 } from '@b2b/contracts';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { useTranslation } from '@/i18n/useTranslation';
+import { normalize } from '@/lib/text-normalization';
 
 /**
  * "Filled from" — the guided binding picker (ux-design §3.2, FR-070).
@@ -86,7 +87,7 @@ export function FieldSourceCombobox(props: FieldSourceComboboxProps): ReactNode 
   const { options, meta } = useMemo(() => {
     const built: ComboboxOption<string>[] = [];
     const metaByValue = new Map<string, SourceOptionMeta>();
-    const needle = query.trim().toLowerCase();
+    const needle = normalize(query);
 
     for (const group of catalogue?.groups ?? []) {
       const groupLabel = t(`fieldSource.group.${group.kind}`);
@@ -111,7 +112,7 @@ export function FieldSourceCombobox(props: FieldSourceComboboxProps): ReactNode 
 
         // Filtering is ours (`manualFilter`) so the group headings can be drawn
         // against the visible list rather than the whole catalogue.
-        const haystack = `${label} ${groupLabel} ${description ?? ''}`.toLowerCase();
+        const haystack = `${normalize(label)} ${normalize(groupLabel)} ${normalize(description ?? '')}`;
         if (needle !== '' && !haystack.includes(needle)) continue;
 
         built.push({

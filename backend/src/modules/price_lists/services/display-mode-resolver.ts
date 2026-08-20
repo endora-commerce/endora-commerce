@@ -64,3 +64,82 @@ export function resolveDisplayMode(
   }
   return { mode: settings.defaultDisplayMode, resolvedFrom: 'settings.default' };
 }
+
+/**
+ * One category-scope override, with the three fields the chain ranks it by.
+ *
+ * `resolveDisplayMode` above receives the already-picked override; the ranking
+ * that picks it used to live inline in `PriceListService`, which is why the
+ * batched path could have ranked differently from the per-product one. It is
+ * here now, so both hand their candidates to the same comparator.
+ */
+export interface DisplayModeCategoryCandidate {
+  mode: DisplayMode;
+  /** Ancestors above the category itself — deeper is more specific. */
+  depth: number;
+  sortOrder: number;
+  categoryId: string;
+}
+
+/** Most specific first: deepest, then `(sort_order asc, id asc)` as tie-break. */
+export function pickCategoryOverride(
+  candidates: readonly DisplayModeCategoryCandidate[],
+): DisplayModeCategoryCandidate | null {
+  let best: DisplayModeCategoryCandidate | null = null;
+  for (const candidate of candidates) {
+    if (best === null) {
+      best = candidate;
+      continue;
+    }
+    if (candidate.depth !== best.depth) {
+      if (candidate.depth > best.depth) best = candidate;
+      continue;
+    }
+    if (candidate.sortOrder !== best.sortOrder) {
+      if (candidate.sortOrder < best.sortOrder) best = candidate;
+      continue;
+    }
+    if (candidate.categoryId.localeCompare(best.categoryId) < 0) best = candidate;
+  }
+  return best;
+}
+
+export type DisplayModeDecision =
+  | { source: 'product' | 'category' | 'organization'; mode: DisplayMode }
+  | { source: 'settings' };
+
+/**
+ * The chain's decision with the settings tier left **unread**.
+ *
+ * The eager `resolveDisplayMode` above wants both settings values in hand,
+ * which is one query per product on a listing page and two more on a cart line
+ * that an override already answered. This form names the settings step instead
+ * of taking its value, so the per-product path reads the pair only when it is
+ * reached and the batched path reads it once for the whole page.
+ *
+ * `organizationOverride` is the caller's answer to "is this a signed-in
+ * customer with an organization" — a guest passes `null`, exactly as the
+ * eager resolver's `customer === 'signed_in'` guard requires.
+ */
+export function decideDisplayMode(inputs: {
+  productOverride: DisplayMode | null;
+  categoryCandidates: readonly DisplayModeCategoryCandidate[];
+  organizationOverride: DisplayMode | null;
+}): DisplayModeDecision {
+  if (inputs.productOverride !== null) {
+    return { source: 'product', mode: inputs.productOverride };
+  }
+  const category = pickCategoryOverride(inputs.categoryCandidates);
+  if (category !== null) return { source: 'category', mode: category.mode };
+  if (inputs.organizationOverride !== null) {
+    return { source: 'organization', mode: inputs.organizationOverride };
+  }
+  return { source: 'settings' };
+}
+
+/** Which `pricing.*` settings key answers for this customer kind. */
+export function settingsDisplayModeKey(
+  customer: CustomerKind,
+): 'default_display_mode' | 'unauthenticated_display_mode' {
+  return customer === 'guest' ? 'unauthenticated_display_mode' : 'default_display_mode';
+}

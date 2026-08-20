@@ -2,12 +2,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SALES_CHANNEL_AUDIT_ACTIONS } from '@b2b/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { EventBus } from '../../../src/events/bus.js';
-import { AuditLogService } from '../../../src/modules/audit_logs/services/audit-log-service.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { SalesChannelAttributionRegistry } from '../../../src/modules/sales_channels/services/sales-channel-attribution-registry.js';
 import { SalesChannelsService } from '../../../src/modules/sales_channels/services/sales-channels.service.js';
-import { SalesChannelMembershipService } from '../../../src/modules/sales_channels/services/sales-channel-membership.service.js';
-import { DefaultChannelReconciler } from '../../../src/modules/sales_channels/services/default-channel-reconciler.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
+import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
+import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 
 /**
@@ -62,7 +64,16 @@ describe('audit trail coverage (T048)', () => {
 
       const auditLogService = new AuditLogService(() => db.em());
       const eventBus = new EventBus();
-      const svc = new SalesChannelsService(() => db.em(), eventBus, auditLogService);
+      const svc = new SalesChannelsService(
+        () => db.em(),
+        eventBus,
+        // Required since feature 075 (D-87). The codes this suite seeds are
+        // active, so the validator accepts exactly what the deleted raw
+        // `select` accepted — and refuses an inactive one, which it did not.
+        dictionaryValidatorFor(() => db.em()),
+        new SalesChannelAttributionRegistry(),
+        auditLogService,
+      );
 
       const created = await svc.create({
         code: 't048-channel',
@@ -101,7 +112,16 @@ describe('audit trail coverage (T048)', () => {
 
       const auditLogService = new AuditLogService(() => db.em());
       const eventBus = new EventBus();
-      const svc = new SalesChannelsService(() => db.em(), eventBus, auditLogService);
+      const svc = new SalesChannelsService(
+        () => db.em(),
+        eventBus,
+        // Required since feature 075 (D-87). The codes this suite seeds are
+        // active, so the validator accepts exactly what the deleted raw
+        // `select` accepted — and refuses an inactive one, which it did not.
+        dictionaryValidatorFor(() => db.em()),
+        new SalesChannelAttributionRegistry(),
+        auditLogService,
+      );
 
       // Create a non-default channel through the service so we can deactivate / delete it.
       // Use raw SQL to side-step the create path's language validation (this test only

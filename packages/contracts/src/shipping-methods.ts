@@ -77,8 +77,26 @@ export const deliveryMethodListItemSchema = z.object({
 });
 export type DeliveryMethodListItem = z.infer<typeof deliveryMethodListItemSchema>;
 
-/** Shipment-process status — distinct from the mapped Order status. */
-export const shipmentStatusSchema = z.enum(['pending', 'success', 'failure']);
+/**
+ * Shipment-process status — distinct from the mapped Order status.
+ *
+ * `pending_manual` is the state a shipment opens in when the carrier was never
+ * asked for it: the adapter that would have requested the label, the tracking
+ * number or the pickup is contributed by a module that is not present, so the
+ * row exists and a human has to finish it. It carries the same meaning as the
+ * refund settlement state of the same name (feature 046, FR-035) — deliberately
+ * the same word, because it is the same instruction to the same operator.
+ *
+ * It is **not** `failure`: nothing was rejected, because nothing was sent. It is
+ * not plain `pending` either — a `pending` shipment is waiting for a carrier
+ * that knows about it, and this one is waiting for a person.
+ */
+export const shipmentStatusSchema = z.enum([
+  'pending',
+  'pending_manual',
+  'success',
+  'failure',
+]);
 export type ShipmentStatus = z.infer<typeof shipmentStatusSchema>;
 
 /** Serialized Shipment (admin order view). */
@@ -121,7 +139,14 @@ export type ShippingSurface = 'storefront' | 'admin' | 'api';
 
 export interface ShippingEligibilityContext {
   deliveryMethod: DeliveryMethodAdmin;
-  salesChannelId: string;
+  /**
+   * The channel the buyer is on, or `null` when none is resolved. Widened from
+   * `string` (issue #103) for the reason spelled out on
+   * `PaymentEligibilityContext.salesChannelId`: the empty-string stand-in it
+   * forced is rejected by the settings seam guard, so an adapter reading its own
+   * configuration answered "not eligible". `null` is the platform-wide tier.
+   */
+  salesChannelId: string | null;
   organizationId: string | null;
   customerAccountId: string | null;
   surface: ShippingSurface;
@@ -177,4 +202,117 @@ export interface ShippingAdapter {
 
   /** Optional renderer keys; absent ⇒ the default fallback renderer is used. */
   readonly renderers?: { storefront?: string; admin?: string; email?: string };
+}
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The rest of the in-process surface `delivery_methods` publishes (feature 075,
+// Phase P). `ShippingAdapter` above is the first of them and pre-dates this
+// section; the module's contracts file is named for the feature-035 framework
+// rather than for the module, which is why nothing new is created here.
+// ---------------------------------------------------------------------------
+
+/**
+ * A delivery method as it crosses a module boundary — a plain shape, never the
+ * ORM entity (FR-011).
+ *
+ * `cost` stays a decimal string: it lands verbatim in an order's
+ * `deliveryMethodSnapshot`, and a `number` cannot round-trip it. The two
+ * `statusOn…` fields name **order statuses**, which are admin-configurable, so
+ * they are `string` rather than a union.
+ */
+export interface DeliveryMethodRecord {
+  id: string;
+  code: string;
+  name: Record<string, string>;
+  cost: string;
+  currency: string;
+  status: 'active' | 'inactive';
+  /** The adapter registry key this method ships through; `''` for none. */
+  adapter: string;
+  statusOnSuccess: string;
+  statusOnFailure: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Container name: `deliveryMethodReadPort`. Owner: `delivery_methods`.
+ *
+ * Five inbound sites read the entity: `orders` resolving the method at
+ * placement, `shipments` resolving it at dispatch, `quick_order` resolving a
+ * buyer's default, and the dev seed.
+ *
+ * `listActive` is separate from `listAll` for the reason its payment twin
+ * gives: a catalogue read wants active methods, a settlement of an order
+ * placed earlier wants any, or the order stops being explicable the day an
+ * operator retires a method.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `delivery_methods` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface DeliveryMethodReadPort {
+  findById(id: string): Promise<DeliveryMethodRecord | null>;
+  findByIds(ids: readonly string[]): Promise<DeliveryMethodRecord[]>;
+  findByCode(code: string): Promise<DeliveryMethodRecord | null>;
+  /** Every method, ordered by code. */
+  listAll(): Promise<DeliveryMethodRecord[]>;
+  /** Only `status === 'active'`, ordered by code. */
+  listActive(): Promise<DeliveryMethodRecord[]>;
+}
+
+/**
+ * Container name: `shippingAdapterRegistry`. Owner: `delivery_methods`.
+ *
+ * A **contribution seam**, the delivery-side twin of
+ * `PaymentAdapterRegistryPort`: a module that ships parcels registers its
+ * adapter from its boot hook, and this module's catalogue reads the table.
+ * Every edge into it classifies as `contributes`, and publishing the shape
+ * must not change that.
+ *
+ * `register` names its contributor, and `isAvailable` / `get` / `resolve` /
+ * `list` filter on that name's effective state, while `entry`, `ownerOf` and
+ * `listAll` deliberately do not — an admin screen has to keep showing a method
+ * *and* the reason it is unavailable.
+ *
+ * **Owner off:** nothing throws here. This is a **contribution seam**, a plain
+ * `di.register` rather than a `providePort`, so a push still lands and
+ * `delivery_methods` filters by contributor when it enumerates. Converting it to
+ * `providePort` would move every edge into it from `contributes` to
+ * `fails-closed` in the deactivation-consequence ledger, and change the
+ * sentence the operator's confirmation dialog renders.
+ */
+export interface ShippingAdapterRegistryPort {
+  register(adapter: ShippingAdapter, module: string): void;
+  unregister(adapterKey: string): void;
+  /** Registered at all, presence-blind. */
+  isRegistered(adapterKey: string): boolean;
+  /** Registered **and** its owning module effectively present. */
+  isAvailable(adapterKey: string): boolean;
+  /** The adapter, or `undefined` when unregistered or its owner is absent. */
+  get(adapterKey: string): ShippingAdapter | undefined;
+  /** Like {@link get}, but throws rather than answering `undefined`. */
+  resolve(adapterKey: string): ShippingAdapter;
+  /** Adapter keys whose owner is present, in registration order. */
+  list(): string[];
+  /** Every registered adapter key, presence-blind. */
+  listAll(): string[];
+  /** Which module contributed the key, or `null` when nobody did. */
+  ownerOf(adapterKey: string): string | null;
+  /**
+   * The module that would have handled this shipment but is not present, or
+   * `null` when the adapter is available or was never contributed.
+   *
+   * The one reader that answers the *question* rather than exposing the table,
+   * and the reason it exists: `get()` collapses "nobody ever contributed this
+   * key" and "its contributor is switched off" into one `undefined`, and those
+   * are two different situations for the operator — the second one names a
+   * module they can switch back on. The payment twin's `absentOwnerFor`
+   * (D-71) is the same reader for the same reason.
+   */
+  absentOwnerFor(adapterKey: string): string | null;
 }

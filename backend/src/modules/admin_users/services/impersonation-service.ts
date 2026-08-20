@@ -1,10 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type AuthSessionPort,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { SessionService } from '../../auth/services/session-service.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * ImpersonationService (T189). Implements the switch-user pattern:
@@ -26,7 +29,7 @@ export interface ImpersonationStartResult {
   impersonationCookieValue: string;
   impersonationExpiresAt: Date;
   adminShadowSessionCookieValue: string;
-  impersonatedCustomerAccount: CustomerAccount;
+  impersonatedCustomerAccount: CustomerAccountRecord;
 }
 
 export interface ImpersonationEndResult {
@@ -37,7 +40,10 @@ export interface ImpersonationEndResult {
 export class ImpersonationService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly sessionService: SessionService,
+    /** `auth`'s published session surface (feature 075, Phase C). */
+    private readonly sessionPort: AuthSessionPort,
+    /** `customer_accounts`' published read model — the impersonation target. */
+    private readonly customerAccounts: CustomerAccountReadPort,
     private readonly auditLog: AuditLogService,
   ) {}
 
@@ -63,11 +69,18 @@ export class ImpersonationService {
     if (!admin) {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
     }
-    const target = await em.findOne(CustomerAccount, {
-      id: input.customerAccountId,
-      ...(input.organizationId != null ? { organizationId: input.organizationId } : {}),
-      deletedAt: null,
-    });
+    // `findInOrganization` is the two-argument form of the same lookup: the
+    // membership check and the identity read in one query, which is what stops
+    // the check being forgotten. `activeOnly` carries the `deletedAt: null`
+    // half of the read this replaced.
+    const target =
+      input.organizationId != null
+        ? await this.customerAccounts.findInOrganization(
+            input.customerAccountId,
+            input.organizationId,
+            { activeOnly: true },
+          )
+        : await this.customerAccounts.findById(input.customerAccountId, { activeOnly: true });
     if (!target) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Target customer not found.');
     }
@@ -86,7 +99,7 @@ export class ImpersonationService {
       ...(input.requestId !== undefined ? { requestId: input.requestId } : {}),
     });
 
-    const session = await this.sessionService.createSession({
+    const session = await this.sessionPort.createSession({
       kind: 'impersonation',
       customerAccountId: target.id,
       impersonatorAdminUserId: admin.id,
@@ -113,7 +126,7 @@ export class ImpersonationService {
     // Resolve current impersonation session to get the admin id for the audit
     // entry; then destroy it, then audit, then return the shadow as the new
     // session cookie.
-    const resolved = await this.sessionService.loadSession(
+    const resolved = await this.sessionPort.loadSession(
       input.impersonationSessionCookieValue,
     );
     if (
@@ -128,7 +141,7 @@ export class ImpersonationService {
     const customerId = resolved.session.customerAccountId;
 
     // Destroy impersonation session — single use.
-    await this.sessionService.destroySession(resolved.session.id);
+    await this.sessionPort.destroySession(resolved.session.id);
 
     await this.auditLog.record({
       actorAdminUserId: adminId,
@@ -146,7 +159,7 @@ export class ImpersonationService {
     // The shadow cookie is the unchanged original admin session — verify it
     // still resolves before handing it back. If somehow the admin session
     // expired during impersonation, return 401 so the client must re-login.
-    const shadow = await this.sessionService.loadSession(input.adminShadowCookieValue);
+    const shadow = await this.sessionPort.loadSession(input.adminShadowCookieValue);
     if (!shadow || shadow.kind !== 'admin') {
       throw new HttpError(
         401,

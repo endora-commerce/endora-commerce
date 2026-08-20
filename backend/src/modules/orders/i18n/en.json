@@ -27,7 +27,6 @@
   "reorder.action": "Reorder",
   "reorder.disabled": "Reordering is disabled for this sales channel",
   "cloneToQuote.action": "Create quote request from order",
-  "errors.INVALID_TRANSITION": "This status change is not allowed.",
-  "errors.ORDER_BELOW_MINIMUM": "Order total is below the minimum required for this sales channel.",
-  "errors.REORDER_DISABLED": "Reordering is disabled."
+  "errors.ORDER_NOT_FOUND": "Order not found.",
+  "errors.ORDER_NOT_CANCELLABLE": "This order can no longer be cancelled."
 }

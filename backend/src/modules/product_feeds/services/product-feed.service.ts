@@ -4,19 +4,20 @@ import {
   PRODUCT_FEED_ERROR_CODES,
   type CreateProductFeedRequest,
   type DuplicateProductFeedRequest,
+  type LanguageReadPort,
+  type PriceListReadPort,
   type UpdateProductFeedRequest,
 } from '@b2b/contracts';
 import type { CommandBus } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Language } from '../../languages/entities/language.entity.js';
-import { PriceList } from '../../price_lists/entities/price-list.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { FeedArtefact } from '../entities/feed-artefact.entity.js';
 import { FeedRun } from '../entities/feed-run.entity.js';
 import { FeedTemplate } from '../entities/feed-template.entity.js';
 import { FeedTemplateField } from '../entities/feed-template-field.entity.js';
 import { ProductFeed } from '../entities/product-feed.entity.js';
 import { isValidCronExpression, isValidTimezone } from './cron-expression.js';
+import { decryptFeedToken } from './token-secret-codec.js';
 import {
   makeCreateFeedCommand,
   makeDeleteFeedCommand,
@@ -49,6 +50,23 @@ export interface ProductFeedServiceDeps {
   commandBus: CommandBus;
   /** Absolute origin the public feed URL is built on; empty ⇒ a path-only URL. */
   publicBaseUrl: string;
+  /**
+   * `SETTINGS_SECRET_ENCRYPTION_KEY`, so a newly issued token can be stored
+   * recoverably and its link shown again. Undefined on a deployment that has
+   * not provisioned the key — tokens still issue, their link is just shown
+   * once and masked afterwards.
+   */
+  tokenEncryptionKey?: string | undefined;
+  /**
+   * Feature 075, Phase C — the two rows feed validation checks and neither of
+   * which this module owns. They were `em.findOne(Language, …)` and
+   * `em.findOne(PriceList, …)`, which answered out of tables deactivation does
+   * not drop: a feed could be saved against a language or a price list the
+   * platform was no longer serving. Both owners are binding `dependencies` of
+   * this manifest, so the check fails closed rather than skipping.
+   */
+  languages: LanguageReadPort;
+  priceLists: PriceListReadPort;
 }
 
 /** Thrown as `400 VALIDATION_FAILED`, naming the offending field (contract §2). */
@@ -66,6 +84,18 @@ export class ProductFeedService {
   publicUrlFor(_feed: ProductFeed, token: string): string {
     const base = this.deps.publicBaseUrl.replace(/\/+$/, '');
     return `${base}/api/v1/public/product-feeds/${token}`;
+  }
+
+  /**
+   * The feed's plaintext token, or null when it is not recoverable.
+   *
+   * Only ever called while building the admin DTO — never on the public
+   * request path, which compares hashes and must not depend on an encryption
+   * key being present.
+   */
+  revealTokenFor(feed: ProductFeed): string | null {
+    if (feed.tokenHash == null || feed.tokenRevokedAt != null) return null;
+    return decryptFeedToken(feed.tokenSecret, this.deps.tokenEncryptionKey);
   }
 
   async getOrFail(feedId: string): Promise<ProductFeed> {
@@ -104,7 +134,7 @@ export class ProductFeedService {
     }
 
     if (values.languageCode !== undefined) {
-      const language = await em.findOne(Language, { code: values.languageCode });
+      const language = await this.deps.languages.findByCode(values.languageCode);
       if (!language || !language.isActive) {
         throw fieldError('languageCode', 'is not an active language on this installation');
       }
@@ -122,7 +152,7 @@ export class ProductFeedService {
     }
 
     if (values.priceListId) {
-      const list = await em.findOne(PriceList, { id: values.priceListId });
+      const list = await this.deps.priceLists.findById(values.priceListId);
       if (!list) throw fieldError('priceListId', 'no such price list');
     }
 
@@ -166,7 +196,9 @@ export class ProductFeedService {
   async create(request: CreateProductFeedRequest): Promise<CreatedFeed> {
     const values = toWriteValues(request);
     await this.validateBindings(values);
-    return this.deps.commandBus.run(makeCreateFeedCommand(values));
+    return this.deps.commandBus.run(
+      makeCreateFeedCommand(values, this.deps.tokenEncryptionKey),
+    );
   }
 
   async update(feedId: string, request: UpdateProductFeedRequest): Promise<ProductFeed> {
@@ -191,7 +223,8 @@ export class ProductFeedService {
         slug: request.slug,
         ...(request.languageCode !== undefined ? { languageCode: request.languageCode } : {}),
         ...(request.currencyCode !== undefined ? { currencyCode: request.currencyCode } : {}),
-      }),
+      },
+      this.deps.tokenEncryptionKey),
     );
   }
 
@@ -202,7 +235,9 @@ export class ProductFeedService {
 
   async rotateToken(feedId: string): Promise<RotatedToken> {
     await this.getOrFail(feedId);
-    return this.deps.commandBus.run(makeRotateTokenCommand(feedId));
+    return this.deps.commandBus.run(
+      makeRotateTokenCommand(feedId, this.deps.tokenEncryptionKey),
+    );
   }
 
   async revokeToken(

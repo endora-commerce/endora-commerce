@@ -16,6 +16,7 @@ import {
   type OpenApiMetadata,
 } from './openapi.js';
 import type { ErrorEnvelopeOptions } from './error-envelope.js';
+import type { TrustedProxy } from './trusted-proxy.js';
 import {
   makePostDispatchPreSerialization,
   makePreDispatchOnRoute,
@@ -66,6 +67,18 @@ export interface BuildServerOptions {
    * byte-for-byte identical to the pre-060 behavior.
    */
   apiInterceptors?: ApiInterceptorRegistry;
+  /**
+   * Issue #220 — which upstream proxy may be believed about the client address.
+   * Omitted (the default) means none: `request.ip` is the socket's peer, which
+   * behind a reverse proxy is the proxy. A deployment that terminates TLS on a
+   * host nginx passes the hop count or the proxy's address, and gets the real
+   * client on rate-limit buckets and audit rows.
+   *
+   * The composition root reads the environment and parses it with
+   * `parseTrustedProxy`; this platform root reads no configuration itself
+   * (D-52/D-53), and the type has no `true` to pass.
+   */
+  trustedProxy?: TrustedProxy;
 }
 
 export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
@@ -91,7 +104,9 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     },
     genReqId: () => `req_${randomHex(16)}`,
     requestIdHeader: 'x-request-id',
-    trustProxy: false,
+    // See BuildServerOptions.trustedProxy — `false` unless a deployment names
+    // the hop it trusts.
+    trustProxy: options.trustedProxy ?? false,
     disableRequestLogging: false,
   });
 
@@ -115,7 +130,11 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Sales-Channel', 'Accept-Language', 'If-Match', 'X-Request-Id'],
-    exposedHeaders: ['X-Request-Id', 'ETag'],
+    // `Content-Language` carries the language the error envelope answered in
+    // (feature 083, D-139 § 8.2). Without it here, a cross-origin storefront or
+    // admin build cannot read the header at all, which is the whole point of
+    // echoing it.
+    exposedHeaders: ['X-Request-Id', 'ETag', 'Content-Language'],
   });
   await app.register(cookie, { secret: options.sessionCookieSecret });
 

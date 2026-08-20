@@ -10,9 +10,13 @@ import {
   putEmailBlockContentRequestSchema,
   putEmailContentQuerySchema,
   putEmailContentRequestSchema,
+  setTransactionalEmailActiveRequestSchema,
   transactionalEmailDetailQuerySchema,
 } from '@b2b/contracts';
 import type { PuckDataTree } from '@b2b/email-components/schema/envelope';
+import type { CommandBus } from '../../commands/index.js';
+import { makeSetTransactionalEmailActiveCommand } from './commands/email-activation.commands.js';
+import type { EmailDefaultsRegistry } from './services/email-defaults-registry.js';
 import { describeEmailBuilder } from './services/email-builder-registry.js';
 import type { TransactionalEmailService } from './services/transactional-email.service.js';
 import type { BrandingService } from './services/branding.service.js';
@@ -28,6 +32,10 @@ export interface TransactionalEmailsAdminRoutesDeps {
   templates: EmailTemplateService;
   requireAdmin: RequireAdmin;
   resolveAdminUserId: (req: FastifyRequest) => string | null;
+  /** The per-email activation flip (issue #89) — Principle XIII. */
+  commandBus: CommandBus;
+  /** Where the owning modules declared which emails may not be switched off. */
+  defaults: EmailDefaultsRegistry;
 }
 
 const READ = 'transactional_emails:read';
@@ -37,7 +45,8 @@ export async function registerTransactionalEmailsAdminRoutes(
   app: FastifyInstance,
   deps: TransactionalEmailsAdminRoutesDeps,
 ): Promise<void> {
-  const { service, branding, blocks, templates, requireAdmin, resolveAdminUserId } = deps;
+  const { service, branding, blocks, templates, requireAdmin, resolveAdminUserId, commandBus, defaults } =
+    deps;
   const base = '/api/v1/admin/transactional-emails';
 
   // --- Page-builder descriptor (email-safe palette) ----------------------
@@ -150,6 +159,26 @@ export async function registerTransactionalEmailsAdminRoutes(
       { adminUserId: resolveAdminUserId(request) },
     );
     return { data };
+  });
+
+  /**
+   * Issue #89 — switch one email on or off.
+   *
+   * `WRITE` rather than a new permission code: it is the same "manage
+   * transactional emails" authority that already lets an operator rewrite the
+   * body of this very email, and silencing it is the lesser of the two.
+   *
+   * The refusal for a protected code happens in the Command factory, before a
+   * transaction opens, so a refused flip leaves no audit row — matching the
+   * module-level door exactly.
+   */
+  app.post(`${base}/:code/activation`, { preHandler: requireAdmin(WRITE) }, async (request) => {
+    const { code } = request.params as { code: string };
+    const body = setTransactionalEmailActiveRequestSchema.parse(request.body);
+    const result = await commandBus.run(
+      makeSetTransactionalEmailActiveCommand({ code, active: body.active }, defaults),
+    );
+    return { data: await service.summary(result.code) };
   });
 
   app.post(`${base}/:code/preview`, { preHandler: requireAdmin(READ) }, async (request) => {

@@ -1,8 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PricingService } from '../../price_lists/services/pricing-service.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import type {
+  CatalogProductReadPort,
+  LinePricePort,
+  OrganizationDetailsPort,
+} from '@b2b/contracts';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { CartRecomputeCache, CachedCartRecompute } from './cart-recompute-cache.js';
 import type { CartItem } from '../entities/cart-item.entity.js';
 
@@ -48,8 +50,13 @@ export interface CartPricingRecomputeContext {
 export class CartPricingRecompute {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly pricingService: PricingService,
+    /** `price_lists`' line-resolution slice (feature 075, Phase C). */
+    private readonly pricingService: LinePricePort,
     private readonly cache: CartRecomputeCache,
+    /** `catalog`'s product read model — the two fields the resolver reads. */
+    private readonly catalogProducts: CatalogProductReadPort,
+    /** `organizations`' read model — the buying org and its customer group. */
+    private readonly organizations: OrganizationDetailsPort,
   ) {}
 
   async recompute(
@@ -84,7 +91,7 @@ export class CartPricingRecompute {
     const em = this.emFactory();
     const channel = await this.loadChannel(em, ctx.salesChannelId);
     const organization = ctx.organizationId
-      ? await em.findOne(Organization, { id: ctx.organizationId })
+      ? await this.organizations.findById(ctx.organizationId)
       : null;
 
     if (!channel) {
@@ -92,7 +99,7 @@ export class CartPricingRecompute {
     }
 
     const productIds = Array.from(new Set(lines.map((l) => l.productId)));
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.catalogProducts.findByIds(productIds);
     const productById = new Map(products.map((p) => [p.id, p]));
 
     const recomputed: RecomputedLinePrice[] = [];
@@ -102,27 +109,28 @@ export class CartPricingRecompute {
         recomputed.push({ cartItemId: line.cartItemId, amount: null, currency: 'PLN' });
         continue;
       }
-      try {
-        const resolved = await this.pricingService.resolveLinePrice({
-          product,
-          variantId: line.variantId ?? null,
-          context: {
-            quantity: line.quantity,
-            ...(organization ? { organization } : {}),
-            salesChannel: channel,
-          },
-        });
-        if (!resolved) {
-          recomputed.push({ cartItemId: line.cartItemId, amount: null, currency: 'PLN' });
-        } else {
-          recomputed.push({
-            cartItemId: line.cartItemId,
-            amount: Number(resolved.amount),
-            currency: resolved.currency,
-          });
-        }
-      } catch {
+      // No `catch` (issue #84): `resolveLinePrice` already answers "no resolver
+      // match" with `null`, which is the `amount: null` this loop wants, and
+      // that answer then goes into the recompute cache below. A `catch` here
+      // cached "no price" for the whole cart whenever `price_lists` was
+      // switched off, and the TTL kept doing it after it came back.
+      const resolved = await this.pricingService.resolveLinePrice({
+        product,
+        variantId: line.variantId ?? null,
+        context: {
+          quantity: line.quantity,
+          ...(organization ? { organization } : {}),
+          salesChannel: channel,
+        },
+      });
+      if (!resolved) {
         recomputed.push({ cartItemId: line.cartItemId, amount: null, currency: 'PLN' });
+      } else {
+        recomputed.push({
+          cartItemId: line.cartItemId,
+          amount: Number(resolved.amount),
+          currency: resolved.currency,
+        });
       }
     }
 

@@ -7,14 +7,15 @@ import {
 import type { PwaConfigResolver } from './services/pwa-config-resolver.js';
 import type { PwaIconService } from './services/pwa-icon-service.js';
 import type { PushSubscriptionService } from './services/push-subscription-service.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 
 export interface PwaStorefrontRoutesDeps {
   configResolver: PwaConfigResolver;
   iconService: PwaIconService;
   subscriptionService: PushSubscriptionService;
   /** Resolve the request's channel code (header) to a channel id, with system-default fallback. */
-  resolveChannelId: (code: string | undefined) => Promise<string>;
+  /** `null` = no channel for this request; the config is read platform-wide. */
+  resolveChannelId: (code: string | undefined) => Promise<string | null>;
   /** Resolve a stored asset id to a servable URL (assets_library). */
   resolveAssetUrl: (assetId: string) => Promise<string | null>;
   /** Resolve the logged-in customer account id from the request, or null when anonymous. */

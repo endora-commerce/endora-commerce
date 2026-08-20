@@ -621,3 +621,339 @@ export const cloneOrderToQuoteResponseSchema = z.object({
   quoteRequestId: uuidSchema,
 });
 export type CloneOrderToQuoteResponse = z.infer<typeof cloneOrderToQuoteResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `orders` publishes to the eleven modules that read it
+// (feature 075, Phase P). Plain TypeScript, not Zod: these describe in-process
+// calls, not an API boundary.
+// ---------------------------------------------------------------------------
+
+/**
+ * The two lifecycle statuses that are **not** admin-configurable, materialised
+ * with universal edges at seed time (feature 038, data-model.md §2), plus the
+ * initial one.
+ *
+ * Published as **constants, not a port** (FR-013): switching `orders` off does
+ * not change the spelling of `'on_hold'`, and a gated port answering 503 to
+ * "what is the on-hold status code" would be a bug. `payments` compares against
+ * the first of them when a gateway reports a partial capture.
+ */
+export const ORDER_STATUS_ON_HOLD = 'on_hold';
+export const ORDER_STATUS_CANCELLED = 'cancelled';
+export const ORDER_STATUS_INITIAL = 'new';
+
+export type OrderPaymentStatus = 'awaiting_payment' | 'paid' | 'deferred' | 'refunded';
+
+export interface OrderAddressSnapshot {
+  recipientName: string;
+  street: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  phone?: string | null;
+  /** Billing only — company name and tax id captured at placement. */
+  companyName?: string | null;
+  taxId?: string | null;
+}
+
+export interface OrderDeliveryMethodSnapshot {
+  code: string;
+  name: string;
+  cost: number;
+}
+
+export interface OrderPaymentMethodSnapshot {
+  code: string;
+  name: string;
+  kind: 'bank_transfer' | 'pickup' | 'credit_limit' | 'gateway';
+  /** Feature 034 — adapter registry key the order was placed with. */
+  adapter?: string;
+  /** Feature 034 — flat payment surcharge captured at placement. */
+  additionalPrice?: number;
+}
+
+/**
+ * An order as it crosses a module boundary — a plain shape, never the ORM
+ * entity (FR-011).
+ *
+ * The money columns keep their `string` form. They are `decimal(14,2)` and the
+ * entity carries them as strings for exactly one reason: a `number` cannot
+ * round-trip a monetary value, and the four payment gateways that read this
+ * record all forward the figure to a provider.
+ *
+ * `status` is a `string` rather than a union because the lifecycle is
+ * admin-configurable (feature 038 FR-001/FR-006) — the set of statuses is a
+ * table, not an enum, and a consumer that narrowed it would break the first
+ * time an operator added one.
+ */
+export interface OrderRecord {
+  id: string;
+  businessId: string;
+  organizationId: string;
+  placedByCustomerAccountId: string;
+  placedOnBehalfByAdminUserId: string | null;
+  salesChannelId: string;
+  status: string;
+  paymentStatus: OrderPaymentStatus;
+  deliveryAddress: OrderAddressSnapshot;
+  billingAddress: OrderAddressSnapshot;
+  deliveryMethodId: string;
+  deliveryMethodSnapshot: OrderDeliveryMethodSnapshot;
+  paymentMethodId: string;
+  paymentMethodSnapshot: OrderPaymentMethodSnapshot;
+  sourceQuoteRequestId: string | null;
+  subtotal: string;
+  taxTotal: string;
+  discountTotal: string;
+  deliveryTotal: string;
+  total: string;
+  currency: string;
+  promotionCode: string | null;
+  customerNote: string | null;
+  placedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  customFieldValues: Record<string, unknown>;
+}
+
+/** One line of an order, as `invoices` reads it. */
+export interface OrderItemRecord {
+  id: string;
+  orderId: string;
+  productId: string;
+  productSnapshot: { sku: string; name: string; slug?: string | null };
+  variantId: string | null;
+  variantSnapshot: { sku: string; label: string } | null;
+  packagingUnitSnapshot: { name: string; baseQuantity: number } | null;
+  quantity: number;
+  unitPrice: string;
+  taxRate: string;
+  lineTotal: string;
+  createdAt: Date;
+}
+
+/**
+ * Container name: `orderReadPort`. Owner: `orders`.
+ *
+ * Thirty-three of the 42 inbound sites are `em.findOne(Order, { id })` — four
+ * payment gateways, `invoices`, `shipments`, `quote_requests` and the export
+ * adapter each spelling the same lookup. That is what this port is.
+ *
+ * When `orders` is off every method fails closed, and that is the answer a
+ * gateway callback should get: acknowledging a payment against an order the
+ * platform will not read is worse than making the provider retry.
+ *
+ * Whether `orders` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface OrderReadPort {
+  findById(id: string): Promise<OrderRecord | null>;
+  findByIds(ids: readonly string[]): Promise<OrderRecord[]>;
+  /** Every order, newest first — for the bulk export adapter. */
+  listAll(): Promise<OrderRecord[]>;
+  /** The order's lines, in insertion order. */
+  listItems(orderId: string): Promise<OrderItemRecord[]>;
+  /**
+   * Ids of orders whose business id contains `fragment`, case-insensitively,
+   * capped at `limit`. An empty `fragment` returns no ids.
+   *
+   * Published after Phase P, for `invoices`' `filter[orderNumber]`. It is not
+   * {@link OrderListPort.list}'s `q`, which also matches the buying
+   * organisation and the placing customer — an invoice list filtered by "order
+   * number" that quietly matched a company name would be a different filter
+   * wearing the same label. It is not `findByIds` either: the caller has a
+   * fragment, not ids.
+   *
+   * `limit` is the caller's, applied by the owner, so the narrowing happens
+   * once. `invoices` used to `em.find(Order, { businessId: { $ilike } }, {
+   * limit: 500 })` and then narrow again against its own page size, which
+   * silently dropped matches beyond the 500th.
+   */
+  findIdsByBusinessIdLike(fragment: string, limit: number): Promise<string[]>;
+}
+
+/** The admin order list's filter set. Page and page size are required. */
+export interface OrderListQuery {
+  status?: string[] | undefined;
+  salesChannelId?: string[] | undefined;
+  paymentMethodId?: string[] | undefined;
+  deliveryMethodId?: string[] | undefined;
+  organizationId?: string | undefined;
+  /**
+   * Feature 040 — restrict to a single customer's own orders. Used by the
+   * customer self-service history and the admin customer-detail orders panel.
+   * Aggregates across sales channels when `salesChannelId` is omitted.
+   */
+  placedByCustomerAccountId?: string | undefined;
+  q?: string | undefined;
+  /** Dedicated org / customer name filters, AND-combined with the global `q`. */
+  orgName?: string | undefined;
+  customerName?: string | undefined;
+  placedFrom?: string | undefined;
+  placedTo?: string | undefined;
+  totalMin?: number | undefined;
+  totalMax?: number | undefined;
+  sort?: string | undefined;
+  page: number;
+  pageSize: number;
+}
+
+/** Restricts a list to the organisations the caller may see. */
+export interface OrderListScope {
+  allowedOrganizationIds: string[];
+}
+
+/**
+ * One row of the admin order list.
+ *
+ * Deliberately **not** `AdminOrderRow` from this file's HTTP section, though
+ * the fields line up: that shape narrows `paymentStatus` and `status` to the
+ * unions the API documents, and the list is served straight off a
+ * configurable-status table (feature 038 FR-001/FR-006). Reusing the narrowed
+ * type would be a lie a consumer could act on the first time an operator adds
+ * a status.
+ */
+export interface OrderListRow {
+  id: string;
+  businessId: string;
+  customerName: string | null;
+  organizationId: string;
+  organizationName: string | null;
+  status: string;
+  statusName: Record<string, string>;
+  paymentStatus: string;
+  total: number;
+  currency: string;
+  placedAt: string;
+  createdAt: string;
+  salesChannelId: string;
+  salesChannelName: string | null;
+  deliveryMethodName: string | null;
+  paymentMethodName: string | null;
+  shipToName: string | null;
+  billToName: string | null;
+}
+
+export interface OrderListResult {
+  rows: OrderListRow[];
+  total: number;
+  counts: Record<string, number>;
+}
+
+/**
+ * Container name: `orderListPort`. Owner: `orders`.
+ *
+ * `customers` serves both the self-service order history and the admin
+ * customer-detail orders panel from this one list. It reaches it today as
+ * `Pick<OrderListService, 'list'>` — a type operator in front of a
+ * cross-module import of the class, which is the violation with punctuation on
+ * (FR-011). This is the shape that replaces it.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `orders` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface OrderListPort {
+  list(query: OrderListQuery, scope?: OrderListScope): Promise<OrderListResult>;
+}
+
+/** Who the buyer is, for a placement made on their behalf or by them. */
+export interface OrderCustomerContext {
+  customerAccountId: string;
+  organizationId: string;
+  /**
+   * When the request is from an admin user impersonating this customer, carry
+   * the admin's id so the order is stamped with it (FR-042 / R-12).
+   */
+  impersonatorAdminUserId?: string | null;
+}
+
+/**
+ * What a placement answers with: the order row **plus** the payment
+ * next-action computed during that placement.
+ *
+ * `nextAction` is not on {@link OrderRecord} and must not be: it is a virtual
+ * column (`persist: false`, `order.entity.ts`) that exists only in the reply to
+ * the call that created the order, so a *read* of an order can never carry a
+ * meaningful one. It is on this record because the one thing a caller does with
+ * a freshly placed order is route the buyer — to the gateway, to the transfer
+ * details, or to the success page.
+ *
+ * Corrected in feature 075's `quick_order` cut: the port below published
+ * `OrderRecord`, and `quick_order`'s one-click response renders `nextAction`.
+ * Cutting onto the port as published would have dropped the redirect from the
+ * one-click reply — a product change wearing a refactor, on the path
+ * MR !582 / issue #64 had just brought under test.
+ */
+export interface PlacedOrderRecord extends OrderRecord {
+  nextAction: NextAction | null;
+}
+
+/**
+ * Container name: `orderPlacementPort`. Owner: `orders`.
+ *
+ * `quick_order`'s one-click buy is the only consumer: it seeds the cart and
+ * then places. It already reaches the service through a lazy accessor that can
+ * answer `null`, which is how it expresses "ordering is unavailable"; the port
+ * expresses the same thing as a 503 at the seam, which is stronger — a `null`
+ * accessor is indistinguishable from a wiring mistake.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `orders` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface OrderPlacementPort {
+  placeOrder(ctx: OrderCustomerContext, req: PlaceOrderRequest): Promise<PlacedOrderRecord>;
+}
+
+export interface OrderStatusActor {
+  kind: 'admin' | 'customer' | 'system';
+  adminUserId?: string;
+  customerAccountId?: string;
+  source?: 'payment' | 'shipment' | 'reorder' | 'checkout';
+}
+
+/** What a caller announcing a committed status change has to say. */
+export interface OrderStatusChange {
+  orderId: string;
+  organizationId: string;
+  salesChannelId: string;
+  from: string;
+  to: string;
+  actor: OrderStatusActor;
+  reason?: string | null;
+  /**
+   * Feature 062 — human-readable order number for webhook receivers
+   * (contracts/order-webhooks.md §5). Optional: system-driven callers
+   * (payments, shipments) may not have it in scope.
+   */
+  businessId?: string | null;
+}
+
+/**
+ * Container name: `orderStatusAnnouncePort`. Owner: `orders`.
+ *
+ * `payments` and `shipments` move an order's status inside their own
+ * transaction and then have to announce it, which they do today by importing
+ * `orders`' event builder and handing it their own `EventBus`. The templated
+ * event names (`order.status.from_x_to_y.after`, `order.status.to_y.after`)
+ * are `orders`' vocabulary and must be built in one place — they are not known
+ * at compile time, because the status set is admin-configurable.
+ *
+ * A no-op when `from === to`, as the builder already is.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `orders` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface OrderStatusAnnouncePort {
+  announceStatusChanged(change: OrderStatusChange): void;
+}

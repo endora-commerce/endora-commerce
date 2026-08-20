@@ -1,12 +1,14 @@
 import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, normalizeEmailAddress } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword } from '../../auth/services/password-hasher.js';
+// Feature 075, Phase C — a pure function over its argument, so it lives in the
+// kernel rather than behind a gate that would answer 503 to "hash this string".
+import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { PasswordResetToken } from '../entities/password-reset-token.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * Password reset flow (FR-045 / T119).
@@ -32,7 +34,14 @@ export class PasswordResetService {
     // limited, account-enumeration-safe); the actual password change is audited
     // at confirmReset (customer_account.password_reset).
     const em = this.emFactory();
-    const customer = await em.findOne(CustomerAccount, { email, deletedAt: null });
+    // Folded like every other lookup on this table (see `normalizeEmailAddress`).
+    // An unmatched address is indistinguishable from an unknown one here — the
+    // method answers `{ rawToken: null }` to both — so a case-sensitive compare
+    // silently denied a reset to exactly the accounts that most needed one.
+    const customer = await em.findOne(CustomerAccount, {
+      email: normalizeEmailAddress(email),
+      deletedAt: null,
+    });
     if (!customer) return { rawToken: null };
 
     const rawToken = randomBytes(32).toString('base64url');
@@ -64,6 +73,11 @@ export class PasswordResetService {
       );
     }
     customer.passwordHash = await hashPassword(newPassword);
+    // Issue #222 — the holder proved control of the address and chose the
+    // password themselves, so the account has one on record from here on. This
+    // is also the one route into that state for an account federated sign-in
+    // created: it never knew a current password to change.
+    customer.passwordSetAt = new Date();
     token.consumedAt = new Date();
     if (this.auditLog) {
       recordAuditFromContext(this.auditLog, em, {

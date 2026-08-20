@@ -1,219 +1,119 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
+import type { CartShoppingListBridge, CartsCradle } from './modules/carts/backend.js';
+import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import { z } from 'zod';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
 import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/services/customer-rollup-scope.js';
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
-import { Organization } from './modules/organizations/entities/organization.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, cmsColorPaletteSchema } from '@b2b/contracts';
+import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { ApiInterceptorRegistry } from './http/interceptors/index.js';
-import { registerHealthRoutes } from './modules/health_checks/routes.js';
 import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
 import { EventBus } from './events/bus.js';
 import { CommandBus } from './commands/index.js';
-import fastifyPlugin from 'fastify-plugin';
 import { forkScopedEm } from './tenancy/scoped-em.js';
-import { runInTenantContext, type TenantContext } from './tenancy/tenant-context.js';
+import { type TenantContext } from './tenancy/tenant-context.js';
 import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-tenant-context.js';
-import { withSystemScope } from './tenancy/escape-hatch.js';
-import { authPlugin, promoteAdminActor } from './modules/auth/plugin.js';
-import { SessionService } from './modules/auth/services/session-service.js';
-import { AuditLogService } from './modules/audit_logs/services/audit-log-service.js';
-import { PermissionService } from './modules/admin_roles/services/permission-service.js';
-import { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
-import { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
-import { createRequireAdminAny } from './http/require-admin-any.js';
+import { enterSystemScope } from './kernel/scope.js';
+import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
+// Feature 072 — the generated module list. D-45 collapsed the early/late split
+// into a single pass: registration resolves nothing (`kernel/compose.ts`'s
+// `registering` guard), so the order modules register in carries no meaning,
+// and every contribution this root makes over a name a module defaults belongs
+// in the one slot between `composeModules` and `runBootHooks`.
+//
+// Issue #52 — that slot is `composedModules.contribute(…)`, so it is no longer
+// a convention two roots had to spell identically. The window's early edge is
+// structural (there is nothing to call the method on until every module has
+// registered) and its late edge throws `ContributionWindowClosedError`.
+// `registerValues` stays for the host values no module defaults, which have no
+// window because there is nothing to overwrite.
+import { MODULES } from './composition.generated.js';
 import {
-  registryCache,
-  STATE_CHANGED_CHANNEL,
-} from './modules/_lifecycle/services/registry-cache.js';
-import { catalogModule } from './modules/catalog/plugin.js';
-import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
-import { organizationsModule } from './modules/organizations/plugin.js';
-import { adminNotificationsModule } from './modules/admin_notifications/plugin.js';
-import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
-import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
-import { OrganizationEffectivePriceListsService } from './modules/organizations/services/organization-effective-pricelists-service.js';
-import { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
-import { OrganizationInheritanceService } from './modules/organizations/services/organization-inheritance-service.js';
-import { SalesRepAssignmentService } from './modules/organizations/services/sales-rep-assignment-service.js';
-import { OrganizationTaxIdValidationService } from './modules/organizations/services/organization-tax-id-validation-service.js';
-import { ViesClient } from './modules/organizations/integrations/vies-client.js';
-import { MinisterstwoFinansowClient } from './modules/organizations/integrations/ministerstwo-finansow-client.js';
-import type { OrganizationEventBus } from './modules/organizations/services/registration-service.js';
-import { OrgRegistrationNotifier } from './modules/organizations/services/org-registration-notifier.js';
-import { OrganizationContextService } from './modules/organizations/services/organization-context-service.js';
-import {
-  moderationModeSchema,
-  notificationRecipientsSchema,
-} from './modules/organizations/schemas/settings.js';
-import { ORGANIZATIONS_SETTING_CODES } from './modules/organizations/manifest.js';
-import { ConsoleMailer } from './modules/email/services/mailer.js';
-import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
-import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
+  assertPublicApiBaseUrlConfigured,
+  composeModules,
+  configuredPublicApiBaseUrl,
+  createRootContainer,
+  createRegistrationOwnership,
+  registerOrm,
+  registerValues,
+  requiredModulesFrom,
+  resolvePublicApiBaseUrl,
+} from './kernel/index.js';
+import { promoteAdminActor } from './modules/auth/plugin.js';
+import { AuditLogService } from './kernel/audit/audit-log-service.js';
+import { publishStateChanged, registryCache } from './kernel/lifecycle/registry-cache.js';
+import { effectiveState } from './kernel/lifecycle/effective-state.js';
+import { StorefrontRevalidator } from './http/storefront-revalidator.js';
+// Feature 072 (T138) — `organizations` owns its services, its routes and its
+// two event subscriptions. T143a — the sales-rep assignment scope too: what is
+// left here is the actor half of the orders/RFQ visibility question, which only
+// a composition can answer.
+import type { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
+import type { OrganizationTaxProfilePort } from './modules/organizations/backend.js';
+// Feature 072 (T079) — `email` is composed through the kernel. The driver
+// decision that used to sit in this file is one registration in its
+// `backend.ts`; what stays here is the pure URL helper, which is a function,
+// not a service, and the cradle shape the senders below resolve through.
+import type { EmailCradle } from './modules/email/backend.js';
 import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
-import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
-import { returnsModule } from './modules/returns/plugin.js';
-import { stripeModule } from './modules/stripe/plugin.js';
-import { tpayModule } from './modules/tpay/plugin.js';
-import { payuModule } from './modules/payu/plugin.js';
-import { autopayModule } from './modules/autopay/plugin.js';
-import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
-import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
-import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
-import { invoicesModule } from './modules/invoices/plugin.js';
-import { ksefModule } from './modules/ksef/plugin.js';
-import { productFeedsModule } from './modules/product_feeds/plugin.js';
-import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
-import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
-import { AddressService } from './modules/addresses/services/address-service.js';
-import type { OrderListService } from './modules/orders/services/order-list-service.js';
-import type { OrderTransitionService } from './modules/orders/services/order-transition-service.js';
-import { customersModule } from './modules/customers/plugin.js';
-import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
-import type { OrderService } from './modules/orders/services/order-service.js';
-import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
-import { adminModule } from './modules/admin_users/plugin.js';
-import { mfaModule } from './modules/mfa/plugin.js';
-import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
-import { verifyPassword, hashPassword } from './modules/auth/services/password-hasher.js';
-import {
-  OpenIdOAuthProvider,
-  readOAuthConfigFromEnv,
-  type OAuthProviderPort,
-} from './modules/mfa/services/oauth-provider-service.js';
-import { inventoryModule } from './modules/inventory/plugin.js';
-import { StockLevelService } from './modules/inventory/services/stock-level-service.js';
-import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
-import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
-import { creditLimitsModule } from './modules/credit_limits/plugin.js';
-import { customFieldsModule } from './modules/custom_fields/plugin.js';
-import { integrationsModule } from './modules/api_keys/plugin.js';
-// Feature 062 (T029) — outbound webhook delivery pipeline.
-import { wireEventBridge } from './modules/webhooks/services/event-bridge.js';
-import {
-  createWebhookQueue,
-  createWebhookWorker,
-} from './modules/webhooks/services/webhook-queue.js';
-import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
-import { analyticsModule } from './modules/analytics/plugin.js';
-import { importExportModule } from './modules/import_export/plugin.js';
-import { seoModule } from './modules/seo/plugin.js';
-import { i18nModule } from './modules/languages/plugin.js';
-import { cmsModule } from './modules/cms/plugin.js';
-import { CMS_PAGE_BUILDER_SETTING_CODES } from './modules/cms/manifest.js';
-import { megamenuModule } from './modules/megamenu/plugin.js';
-import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
-import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
-import { blogModule } from './modules/blog/plugin.js';
-import { dictionariesModule } from './modules/dictionaries/plugin.js';
-import { priceListsModule } from './modules/price_lists/plugin.js';
-import { taxesModule } from './modules/taxes/plugin.js';
-import { promotionsModule } from './modules/promotions/plugin.js';
-import { settingsModule } from './modules/settings/plugin.js';
-import { ManifestReconciler } from './modules/settings/services/manifest-reconciler.js';
-import { salesChannelsModule } from './modules/sales_channels/plugin.js';
-import { DefaultChannelReconciler } from './modules/sales_channels/services/default-channel-reconciler.js';
-import { searchModule } from './modules/search/plugin.js';
-import { createSuggestionPricingEnricher } from './modules/search/services/suggestion-pricing-enricher.js';
-import { SearchIndexer } from './modules/search/services/search-indexer.js';
-import {
-  SEARCH_SETTING_CODES,
-  DEFAULT_REINDEX_INTERVAL_MINUTES,
-} from './modules/search/manifest.js';
-import { comparisonsModule } from './modules/comparisons/plugin.js';
-import { QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
-import { promptActionsModule } from './modules/prompt_actions/plugin.js';
-// Feature 058 — Credentials (reusable credential configurations).
-import { credentialsModule } from './modules/credentials/plugin.js';
-import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
-import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
-import { emailAdapterConfigurationType } from './modules/credentials/types/email-adapter.type.js';
+import type { ReturnsBridge } from './modules/returns/backend.js';
+import type { InvoicesBridge } from './modules/invoices/backend.js';
+import type { KsefCradle } from './modules/ksef/backend.js';
+import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
+import type { AdminUsersCradle } from './modules/admin_users/backend.js';
+import type { MfaActorBridge } from './modules/mfa/backend.js';
+import { verifyPassword } from './modules/auth/services/password-hasher.js';
+import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
+import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
+import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
+import type { TaxesCradle } from './modules/taxes/backend.js';
+import { composeSettingsKernel } from './kernel/settings/compose.js';
+import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
+import { composeSalesChannelsKernel } from './kernel/sales-channels/compose.js';
+import type { SalesChannelsCradle } from './modules/sales_channels/backend.js';
+import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
+import type { ComparisonsCradle } from './modules/comparisons/backend.js';
 // Feature 046 — Progressive Web App.
-import { pwaModule } from './modules/pwa/plugin.js';
+import type { PwaBridge } from './modules/pwa/backend.js';
 // Feature 047 — Transactional Emails.
-import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
-import type { BrandingService } from './modules/transactional_emails/services/branding.service.js';
 // Feature 048 — Newsletter.
-import { newsletterModule } from './modules/newsletter/plugin.js';
+import type { NewsletterBridge } from './modules/newsletter/backend.js';
 // Feature 049 — Google Analytics.
-import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
 // Feature 063 — LinkedIn Ads.
-import { linkedInAdsModule } from './modules/linkedin_ads/plugin.js';
 // Feature 064 — Meta Ads.
-import { metaAdsModule } from './modules/meta_ads/plugin.js';
 // Feature 066 — Google Tag Manager.
-import { googleTagManagerModule } from './modules/google_tag_manager/plugin.js';
 import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
-import type { TransactionalEmailSender } from '@b2b/contracts';
-import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
-import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
-import {
-  ORDER_COMMENT_DEFAULT,
-  REORDER_CREATED_DEFAULT,
-  ADMIN_CREATED_ORDER_DEFAULT,
-} from './modules/orders/email-templates/secondary-defaults.js';
-import {
-  RETURN_AUTHORIZED_DEFAULT,
-  RETURN_REJECTED_DEFAULT,
-} from './modules/returns/email-templates/transactional-defaults.js';
-import {
-  EMAIL_VERIFICATION_DEFAULT,
-  ORGANIZATION_INVITATION_DEFAULT,
-  NEW_ORG_REGISTRATION_DEFAULT,
-} from './modules/organizations/email-templates/transactional-defaults.js';
-import { makeOrgTemplateEmail } from './modules/organizations/services/org-template-email.js';
-import {
-  LOW_STOCK_ALERT_DEFAULT,
-  AVAILABILITY_BACK_IN_STOCK_DEFAULT,
-} from './modules/inventory/email-templates/transactional-defaults.js';
-import { PAYMENT_STATUS_CHANGED_DEFAULT } from './modules/payments/email-templates/transactional-defaults.js';
-import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/transactional-defaults.js';
-import { INVOICE_ISSUED_DEFAULT } from './modules/invoices/email-templates/invoice-issued.default.js';
-import { PaymentEmailNotifier } from './modules/payments/services/payment-email-notifier.js';
-import { ShipmentEmailNotifier } from './modules/shipments/services/shipment-email-notifier.js';
-import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
+import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
 import { Order } from './modules/orders/entities/order.entity.js';
-import {
-  catalogBulkProgressResolver,
-  catalogPromptMutationTools,
-  catalogPromptResolverTools,
-} from './modules/catalog/prompt-tools.js';
-import { inventoryPromptTools } from './modules/inventory/prompt-tools.js';
-import { ordersPromptTools } from './modules/orders/prompt-tools.js';
-import type { PromptActionTool } from './modules/prompt_actions/services/tool-registry.js';
-import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
-import { registerApiInterceptorAdminRoutes } from './modules/_lifecycle/routes.admin.js';
+import { loadModulePresence } from './modules/_lifecycle/services/presence-load.js';
 import {
   REGISTERED_MANIFESTS,
-  type RegisteredManifestEntry,
+  resolvedManifestEntries,
 } from './modules/_lifecycle/registered-manifests.js';
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
 import {
-  discoverOverlayModuleManifests,
-  loadOverlayModulePlugins,
-  loadOverlayServiceClasses,
+  loadOverlayDecorations,
+  loadOverlayModuleEntries,
 } from './overlay/overlay-runtime.js';
-import type { PricingService } from './modules/price_lists/services/pricing-service.js';
-import { i18nModule as adminI18nModule } from './modules/_i18n/plugin.js';
-import { adminActionsModule } from './modules/admin_actions/plugin.js';
-import { AdminUserService } from './modules/admin_users/services/admin-user-service.js';
-import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
-import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
-import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
-import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
-import { CatalogAttributeReadService } from './modules/catalog/services/catalog-attribute-read.service.js';
+import type { PricingServiceContract } from './modules/price_lists/services/pricing-service.interface.js';
+import type { AdminI18nCradle } from './modules/_i18n/backend.js';
+// D-54 — the error envelope takes this map by injection: `src/http` is a
+// kernel-obeying platform peer and may not name a module (D-52). A root may.
+import { ERROR_TRANSLATION_KEYS } from './modules/_i18n/services/error-translation.js';
+import type { AdminActionsCradle } from './modules/admin_actions/backend.js';
+import type { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
-import type { CartService } from './modules/carts/services/cart-service.js';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
 
 /**
@@ -258,12 +158,54 @@ function anyLabel(name: unknown): string {
 }
 
 export async function composeApp(): Promise<ComposeAppHandle> {
+  // Issue #218 — before anything is opened, refuse a production boot with no
+  // public origin. `PUBLIC_API_BASE_URL` is what every payment-gateway callback
+  // URL, public product-feed URL and newsletter confirmation link is built on,
+  // and its old `http://localhost:3001` default produced a wrong-but-plausible
+  // URL nothing logged and nothing refused. Both deployment entry points
+  // (`index.ts`, `worker.ts`) go through this function, so one line covers both
+  // — and `index.ts` already turns a throw from here into a "this is almost
+  // always a configuration problem" message plus `exit(1)`.
+  assertPublicApiBaseUrlConfigured();
+
   const orm = await initOrm();
-  // Feature 050 — the single EM-injection seam. `forkScopedEm` stamps tenant
-  // filter params from the ambient TenantContext on every fork. It is inert until
-  // an entity is classified (@OrgScoped/@CustomerScoped attach the filters), so
-  // this change is behaviorally neutral for unclassified entities.
+  // Feature 050 — the single EM-injection seam. `forkScopedEm` is a bare
+  // `orm.em.fork()`: it stamps NOTHING, because the tenant filters read the
+  // ambient TenantContext from AsyncLocalStorage **when the query is built**
+  // (`tenancy/filters.ts`), not when the manager is forked. That is what makes
+  // the EntityManager stateless with respect to tenancy, and it is the property
+  // the whole request seam rests on — a fork taken in one context and used in
+  // another is scoped by the context it is *used* in (feature 072, T038; see
+  // `test/integration/tenancy/fault-injection.test.ts`). The seam is inert until
+  // an entity is classified (@OrgScoped/@CustomerScoped attach the filters).
   const em = (): EntityManager => forkScopedEm(orm);
+
+  // Feature 072 — the kernel container. Modules composed through
+  // `composeModules` register into it; the deployment values assembled below
+  // are handed to that call and register nothing themselves.
+  //
+  // It is deliberately **not** installed as the process root
+  // (`setRootContainer`). Doing so makes every `enterPlatformScope` branch a
+  // child off this graph, and a scope is what lives in an `AsyncLocalStorage`
+  // store — so every retained store starts pinning a whole composed
+  // application. `ctx.cradle()` therefore resolves through this container
+  // directly, which is also the better contract while two roots exist: what a
+  // name resolves to is a property of the composition, not of where the call
+  // happens.
+  //
+  // Phase 4 measured the cost: the suite died with `JavaScript heap out of
+  // memory` at file 78 of 930 with the root installed. Phase 5 re-measured it
+  // on the generated composer — the condition its deferral was pinned to — and
+  // the answer did not move: file 72 of 930, 348 s, 5.1 GB. It could not have.
+  // Production composes one application per process; the **test harness
+  // composes 555 per run**, and that is what the retention scales with. The
+  // number to change is the number of live compositions, which belongs to the
+  // harness convergence (T070–T077), not to this file.
+  const container = createRootContainer();
+  registerOrm(container, orm);
+  // One ledger for the whole boot, so two modules composed in different
+  // `composeModules` calls still collide loudly on a shared registration name.
+  const registrationOwnership = createRegistrationOwnership();
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
@@ -283,28 +225,47 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     lazyConnect: false,
   });
 
-  const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
-  const permissionService = new PermissionService(em);
 
   // Feature 057 — resolve the per-deployment overlay once. For a bare-core
   // build (no DEPLOYMENT / no overlay dir) all of these are empty and the wiring
   // below is byte-for-byte unchanged. `resolvedRegistry` = the hand-maintained
   // core registry + overlay-only modules (the core array is never edited).
-  const overlayServiceClasses = await loadOverlayServiceClasses();
-  const overlayPricingService = overlayServiceClasses.get(
-    'price_lists/services/pricing-service.ts',
-  ) as typeof PricingService | undefined;
-  const overlayModuleManifests = await discoverOverlayModuleManifests();
-  const resolvedRegistry: RegisteredManifestEntry[] = [
-    ...REGISTERED_MANIFESTS,
-    ...overlayModuleManifests.map((m) => ({ manifest: m.manifest, filePath: m.filePath })),
-  ];
+  // Feature 072 (T066) — a deployment's client overrides, as decorations
+  // keyed by the registration they wrap. The overrides that reach a module
+  // decorate a core registration are applied by `composeModules`; the lookup
+  // survives only to hand that call the decorations it should apply.
+  const overlayDecorations = await loadOverlayDecorations();
+  const decoratePricingService = overlayDecorations.get('pricingService') as
+    | ((inner: PricingServiceContract) => PricingServiceContract)
+    | undefined;
+  // D-104 — one implementation of "the deployment-resolved manifest set", and
+  // one of "the deployment's composed modules". Both are runtime discoveries
+  // over the deployment root, because both answers depend on which deployment
+  // this process runs as rather than on the tree a generator was run against.
+  // This root used to merge the manifests itself while `resolvedManifestEntries()`
+  // merged them again from the generated index; the one under test was not the
+  // one that ran.
+  const resolvedRegistry = await resolvedManifestEntries();
+  const overlayModuleEntries = await loadOverlayModuleEntries();
 
-  const permissionCatalogueService = new PermissionCatalogueService({
-    registryEntries: resolvedRegistry,
-  });
-  const adminRoleService = new AdminRoleService(em, permissionCatalogueService, auditLogService);
+  // Feature 072 (D-38) — module presence is a **composition input**, so it is
+  // loaded here: before the first module registers, and therefore before any
+  // boot hook, plugin body or worker registration asks for it. It used to be
+  // warmed inside `_lifecycle`'s plugin body, which runs in `buildServer` —
+  // after all of them — and the platform stopped booting the moment a boot hook
+  // resolved a gated port, because the cache still answered "not installed" for
+  // everything.
+  //
+  // Awaited and fatal, and that costs nothing new: `initOrm()` above already
+  // makes a reachable PostgreSQL a boot precondition. Arming the Redis pub/sub
+  // side is separate (`registryCache.watch()`, from `_lifecycle`'s plugin) and
+  // must never fail a boot — a lost notification channel means stale, not off.
+  await enterSystemScope(
+    'boot: load module presence',
+    () => loadModulePresence({ em, manifests: resolvedRegistry.map((e) => e.manifest) }),
+    { entryPoint: 'boot' },
+  );
 
   const eventBus = new EventBus();
 
@@ -321,33 +282,188 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
   });
 
+  // Feature 072 — the **host values** this root owns outright. No module
+  // registers a default for any of them, so they have no contribution window
+  // (D-45's one-slot rule is about overwriting a module's default) and are
+  // registered where the value comes into existence rather than after
+  // `composeModules`. Everything a module does default is contributed below,
+  // between that call and `runBootHooks()`.
+  registerValues(container, {
+    redis,
+    // Feature 072 (T125) — the interceptor registry, so `_lifecycle` can serve
+    // the read-only diagnostics screen over it. It was already declared
+    // platform-owned; until this conversion nothing resolved it by name, so
+    // nothing noticed that no root registered it.
+    apiInterceptors,
+    // The module's `ctx.onBoot` schedule reconcile resolves this (T131), and
+    // nothing else in this file has an opinion about it.
+    pimErgonodeRunWorkers: runWorkers,
+    productFeedsRunWorkers: runWorkers,
+    productFeedsPublicBaseUrl: resolvePublicApiBaseUrl(),
+    productFeedsTokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
+    // The one connection ioredis has put into subscriber mode. Shared, because
+    // a subscriber connection cannot serve commands: a per-module one would
+    // cost a socket per module and buy nothing.
+    redisSubscriber,
+    // Modules announce on it; `ctx.subscribe` receives on it. A module that
+    // publishes needs it as a registration, not just as a composer option.
+    eventBus,
+    // The audited write path (Principle XIII). A converted module resolves it
+    // like any other platform service.
+    commandBus,
+    // The resolved registry — core manifests plus this deployment's overlay
+    // modules. `admin_roles` builds the permission catalogue from it and cannot
+    // see it itself: which modules a deployment ships is a composition-root
+    // input, not something a module decides.
+    resolvedModuleRegistry: resolvedRegistry,
+    auditLogService,
+    // Feature 072 (T138) — the three `organizations` inputs no module defaults.
+    //
+    // `customerOrganizationIdResolver` is the actor half of what used to be
+    // `buildOrgAllowListResolver`: who is asking, as a bare Organization id.
+    // Soft by contract — `null` for anonymous traffic *and* for a Customer with
+    // no Organization — which is why it cannot reuse `customerContextResolver`,
+    // that one throwing 401/422 for both. Catching that to mean "unrestricted"
+    // is the fail-open hazard this split exists to remove.
+    customerOrganizationIdResolver: (request: FastifyRequest): string | null => {
+      const actor = (request as { actor?: { kind: string; organizationId?: string | null } })
+        .actor;
+      return actor?.kind === 'customer' ? actor.organizationId ?? null : null;
+    },
+    storefrontBaseUrl:
+      process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+    // No verification-token probe outside the harness.
+    organizationsExposeTestProbe: false,
+  });
+  // T143a — `search`'s full-reindex port, read lazily. `catalog` triggers a
+  // reindex when an attribute's `searchable` flag flips, and the module that
+  // owns the indexer is the one that must answer for it.
+  const searchCradle = (): {
+    searchReindexPort: { reindexAll(): Promise<{ documentCount: number }> };
+  } => container.cradle as never;
+
+  // T143a — `inventory`'s availability port, read lazily.
+  const inventoryCradle = (): {
+    inventoryAvailabilityPort: {
+      resolveAvailabilityBands(
+        productIds: string[],
+        salesChannelId: string,
+      ): Promise<Map<string, { band: string; inStock: boolean }>>;
+    };
+  } => container.cradle as never;
+
+  // Where this call sits no longer decides whether a cache is fresh, and that
+  // is the point of D-93. It used to: the sales-channel cache invalidator
+  // subscribed to the EventBus, `EventBus.dispatch` awaits its handlers in
+  // registration order, and composing it before the modules was the one
+  // ordering this root still had to get right (D-45).
+  //
+  // The settings cache stopped depending on it under issue #45 and the channel
+  // cache under D-93: both drops happen at the write seam, awaited after the
+  // flush and before the emit, so no registration order — and no buffered
+  // `EventBus.run` scope, which is what `CommandBus.run` opens around
+  // `sales_channel.set_default` — can defer one past a read.
+  //
+  // Channel *resolution* is kernel infrastructure for the reason T110 gave:
+  // every channel-scoped read depends on it (Principle XII), so it must keep
+  // working whether or not an operator wants the administration screens. The
+  // module owns the admin CRUD service and its routes, and composes itself.
+  const salesChannels = composeSalesChannelsKernel({
+    emFactory: em,
+    eventBus,
+    redis,
+    auditLogService,
+  });
+  // Feature 072 (T118) — the universal settings *reader* is kernel
+  // infrastructure: almost every module calls `SettingsService.get`, so it
+  // cannot be gated on whether an operator wants the settings screens. The
+  // module owns the admin write service, the cache-clear action, the four
+  // storefront resolvers and its routes, and composes itself.
+  const settings = composeSettingsKernel({
+    emFactory: em,
+    redis,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
+  });
+
+  // Feature 072 — the **generated** module list, composed in one pass (D-45).
+  // Nothing about these modules is named here any more: the list is a walk of
+  // the tree, so adding a module is adding a folder and removing one is
+  // deleting it. Registration resolves nothing, so this call has no opinion
+  // about the order the composer emitted; the boot hooks it collects run once,
+  // at the bottom of this function, after every contribution below.
+  //
+  // D-103/D-104 — the deployment's overlay modules are **appended to this one
+  // list**, not composed by a second path. That keeps D-45 exactly as it is
+  // (one registration pass, one contribution slot, one `runBootHooks()`) and
+  // makes "overlay last, so a deployment's decoration wins" structural: the
+  // core list is frozen and the deployment's entries come after it, rather than
+  // the ordering being a property of a generator's sort.
+  const composedModules = composeModules([...MODULES, ...overlayModuleEntries], {
+    container,
+    eventBus,
+    // Composition runs before `buildServer`, so there is no `app.log` yet.
+    log: console,
+    interceptorRegistry: apiInterceptors,
+    ownership: registrationOwnership,
+    // Issue #258 — the modules this deployment is required to have, derived
+    // from the manifest set it resolved above rather than written down (D-100).
+    // The composer refuses before the first module registers when one of them
+    // is missing, which is what stops a first boot from dying in whichever
+    // module's boot hook happened to need it first.
+    requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
+  });
+
+  // Feature 072 (T094) — one `CustomerAuthService` for the composition.
+  // `customers` and `organizations` each built their own and the MFA argument
+  // differed between them; there is one now, and both modules resolve it as a
+  // port rather than being handed it (T138/T140).
+
+  // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
+  // their registries, eligibility services and routes now. `orders` resolves
+  // them itself, so nothing is read here.
+  //
+  // T143a — the four built-in payment adapters are gone from this file too.
+  // They are `payments`' classes and it seeds them from its own boot hook; a
+  // root doing it made the platform's settleable payment kinds a property of
+  // the composition, and kept them registered with `payments` switched off.
+
+  // Feature 072 (wave 1) — `admin_roles` owns these three now, and this root no
+  // longer holds any of them. `permissionService` is resolved where it is needed
+  // (`organizations` reads it as a port for the sales-rep roll-up since T143a),
+  // and `permissionCatalogueService` stopped being held here with issue #213:
+  // the only reason left was to hand it an enabled-set accessor and a pub/sub
+  // invalidation, and both were wrong — the accessor read the platform axis
+  // alone, and the memo it invalidated should not have existed. The module reads
+  // `effectiveState` itself now and caches nothing.
+
+  // `currencyService` is resolved from the container where it is needed —
+  // `pim_ergonode` reads it as a port since T131, and nothing else here did.
+
+  // Feature 072 (wave 1) — `admin_notifications` provides this as a port, so a
+  // cross-module write answers on its effective state rather than succeeding
+  // into a module the operator switched off. Resolved where it is needed since
+  // T142; nothing in this file reads it any more.
+
   // ---- Cross-cutting actor resolvers --------------------------------------
 
-  const requireCustomer = async (request: FastifyRequest): Promise<void> => {
-    if (request.actor.kind !== 'customer') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-    }
-  };
-
-  const requireAdmin =
-    (permission?: string) =>
-    async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
-      promoteAdminActor(request);
-      if (request.actor.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      if (!permission) return;
-      const ok = await permissionService.hasPermission(request.actor.adminUserId, permission);
-      if (!ok) {
-        throw new HttpError(
-          403,
-          ERROR_CODES.FORBIDDEN,
-          `Missing permission: ${permission}.`,
-        );
-      }
-    };
-
-  const requireAdminAny = createRequireAdminAny(permissionService);
+  // Feature 072, T011/T012 — one guard implementation, owned by `auth` and
+  // shared with the test harness. It used to be declared inline here while the
+  // harness ran its own copy that read a different request property and took
+  // `permissionService` as optional.
+  //
+  // Issue #43 — the same is now true of `requireCustomer`, which this root
+  // declared inline right here until the customer-side twin got the same
+  // treatment. That copy read `request.actor` and crashed on a request carrying
+  // none; the harness's `requireTestCustomer()` read `request.testActor` and
+  // refused. `auth` provides the one guard, and the 16 route surfaces that take
+  // it resolve the name out of the container.
+  //
+  // D-103 removed this root's last direct read of `requireAdmin`, and the
+  // `authCradle` alias with it: the overlay module's route guard used to be
+  // handed over through `OverlayModuleContext`, and an overlay module now
+  // resolves `requireAdmin` from the container exactly as a core module does.
 
   /**
    * Resolver for routes that require an authenticated Customer **with** an
@@ -407,11 +523,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Build the integrations module first so its API-key authenticator can be
   // injected into the auth plugin; that lets every Bearer-tokened request
   // resolve to an `actor.kind === 'api_key'` early in the request lifecycle.
-  const integrations = integrationsModule({
-    emFactory: em,
-    auditLogService,
-    requireAdmin,
-  });
+  // Feature 072 (T100) — `api_keys` owns its service, its two gates and its
+  // routes now, and provides `apiKeyResolver` itself.
 
   // Feature 062 (T029 / FR-014) — outbound webhook delivery, org-scoped.
   // The bridge (producer) runs in every role: it maps bridged in-process
@@ -422,124 +535,74 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // worker: HMAC signing + retries + `webhook_deliveries` bookkeeping) runs
   // co-located unless BACKEND_ROLE=api, exactly like the other workers
   // (Principle X — separable via `pnpm --filter backend run worker`).
-  const webhookQueue = createWebhookQueue(redis);
-  const unwireWebhookBridge = wireEventBridge({
-    eventBus,
-    queue: webhookQueue,
-    subscriptionLookup: integrations.handle.webhookService,
-    bridgedEventTypes: ['order.created.v1', 'order.status_changed.v1'],
-  });
-  const webhookWorker = runWorkers
-    ? createWebhookWorker(
-        redis,
-        createDeliveryProcessor({
-          recordDelivery: async (input) => {
-            await integrations.handle.webhookService.recordDelivery(input);
-          },
-        }),
-      )
-    : null;
+  // Feature 072 (T098) — the queue, the EventBus bridge and the admin routes
+  // are `webhooks`' own. T143a — so is the delivery worker: only the *flag*
+  // was ever a deployment decision, and the consumer built here was the one
+  // part of the module nothing could switch off, draining the queue and writing
+  // `webhook_deliveries` rows with `webhooks` disabled.
+  composedModules.contribute({ webhooksRunWorkers: runWorkers });
 
+  // Feature 072 (T078) — the auth plugin is `auth`'s own contribution now,
+  // collected by `ctx.rootPlugin` because it decorates `request.actor` for the
+  // whole application rather than contributing routes. The two resolvers it
+  // reads are registered below, once the modules that own them exist; the
+  // plugin reads them per request, so the order is not a race.
   const authModulePlugin: ModulePlugin = async (app) => {
-    await app.register(authPlugin, {
-      sessionService,
-      apiKeyResolver: async (token) => integrations.handle.apiKeyService.authenticate(token),
-      customerOrgResolver: async (customerAccountId) =>
-        // Feature 050 — runs in the auth hook, before the tenant context exists;
-        // identity resolution is a system-scoped read.
-        withSystemScope('auth: resolve customer org', async () => {
-          const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
-          return customer?.organizationId ?? null;
-        }),
-    });
+    for (const plugin of composedModules.sink.rootPlugins) await plugin(app);
   };
 
-  // Feature 042 — the MFA module is constructed after `settings` exists, so its
-  // login port is late-bound here and resolved lazily by the auth services.
-  let mfaLoginPort: MfaLoginPort | undefined;
-  const getMfaLoginPort = (): MfaLoginPort | undefined => mfaLoginPort;
+  // Feature 042 / D-96 — the MFA login port is the consumers' resolution, not
+  // this root's.
+  //
+  // This root used to read `mfaLoginPort` off the cradle and contribute the
+  // getter to both login consumers. Two things were wrong with that. A root
+  // resolving a gated port on a module's behalf is composition checklist item 6
+  // — the knob drifted between the two roots, and the harness captured what
+  // this one read lazily. And the sentence that stood here said an absent `mfa`
+  // must make the login *fail closed*, which is what actually shipped: a 503 on
+  // every admin and customer login the moment an operator used the activation
+  // switch that promises them nothing is dropped. D-96 ruled the other way, as
+  // FR-033 always required — off means no second factor. `admin_users` and
+  // `customer_accounts` each resolve the port through `lazyPort` behind an
+  // `effectiveState.isPresent('mfa')` probe and declare the edge
+  // `degrades-without`, so neither root binds anything here.
 
-  const admin = adminModule({
-    emFactory: em,
-    sessionService,
-    auditLogService,
-    permissionService,
-    permissionCatalogueService,
-    adminRoleService,
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-    getMfaLoginPort,
-  });
 
-  // Feature 056 — organization tree + inheritance resolution port (shared by
-  // US2 scope expansion and US3 commercial-term inheritance). The global
-  // credit-mode default is read from Settings at call time (settings module is
-  // constructed further below; the closure runs at request time).
-  const organizationTreeService = new OrganizationTreeService(em);
-  const organizationInheritanceService = new OrganizationInheritanceService(
-    em,
-    organizationTreeService,
-    async () => {
-      try {
-        const { z } = await import('zod');
-        return await settings.handle.settingsService.get(
-          ORGANIZATIONS_SETTING_CODES.CREDIT_INHERITANCE_MODE,
-          'default',
-          z.enum(['shared_pool', 'independent_default']),
-        );
-      } catch {
-        return 'shared_pool';
-      }
-    },
-  );
+  // Feature 056 — organization tree + inheritance resolution. Both are
+  // `organizations`' own services and both are gated ports since T138; this
+  // root reads them lazily for the hand-wired remainder that still takes them
+  // as arguments.
+  const organizationTreeService = (): OrganizationTreeService =>
+    (container.cradle as never as { organizationTreeService: OrganizationTreeService })
+      .organizationTreeService;
 
-  const creditLimits = creditLimitsModule({
-    emFactory: em,
-    eventBus,
-    commandBus,
-    requireCustomer,
-    requireAdmin,
-    resolveCustomerContext: customerResolver,
-    // Feature 056 — inherited credit limits (shared_pool / independent_default).
-    inheritance: organizationInheritanceService,
-  });
+  // Feature 072 (T101) — `credit_limits` owns its service and routes now, and
+  // since T143c the return-settlement top-up as well, so this root reads
+  // nothing of the module.
 
-  // Feature 055 — Custom Fields Layer. Exposes the definition/value services as
-  // a handle consumed by host modules; registers the admin definition API. The
-  // per-entity-type cache subscribes to its own Redis channel for cross-process
-  // invalidation.
-  const customFields = customFieldsModule({
-    emFactory: em,
-    commandBus,
-    requireAdmin,
-    redis,
-  });
-  void customFields.handle.cache.start(redisSubscriber);
+  // Feature 055 — Custom Fields Layer, converted in feature 072 (T087), and
+  // feature 061's attribute read model, which `catalog` provides as
+  // `catalogAttributeReadPort` since T142. This root read neither by T143a.
 
-  // Feature 061 — the composed attribute read model (product-host custom-field
-  // definitions + catalog extension rows). Built once, threaded into catalog,
-  // search, quick_order, and comparisons as the sanctioned attribute read port.
-  const catalogAttributeReadService = new CatalogAttributeReadService(
-    em,
-    customFields.handle.definitionService,
-  );
-
-  const analytics = analyticsModule({ emFactory: em, requireAdmin });
-  const importExport = importExportModule({ emFactory: em, requireAdmin });
-  // `seoModule` is instantiated AFTER settings (further below) so the
-  // sitemap generator can read the per-channel `sales_channels.storefront_url`
-  // setting via the SettingsService port. See `const seo = seoModule(...)` /
-  // `modules.push(seo.plugin)` further down.
-  const i18n = i18nModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
+  // Feature 072 (T122) — `import_export` owns its service and routes now.
+  // Feature 072 (T105) — `languages` owns its services and routes now.
 
   // Feature 005 — Sales Channels module. The boot-time
   // DefaultChannelReconciler runs FIRST so every other module can rely on a
   // system-default channel existing; it must precede the modules array
   // because catalog (and later other modules) consume
-  // `salesChannels.handle.membershipService` in their composition. The
+  // `salesChannels.membershipService` in their composition. The
   // plugin itself (resolver middleware) is pushed into `modules` below.
   const salesChannelsReconciler = new DefaultChannelReconciler(em, auditLogService);
-  const salesChannelsReconciliation = await salesChannelsReconciler.run();
+  // Feature 072 (T036) — boot reconcilers establish their own scope. They ran
+  // with NO ambient tenant context before, and survived only because the rows
+  // they touch carry no automatic filter; that was an accident of entity
+  // classification, not a guarantee.
+  const salesChannelsReconciliation = await enterSystemScope(
+    'boot: reconcile the default sales channel',
+    () => salesChannelsReconciler.run(),
+    { entryPoint: 'boot' },
+  );
   if (salesChannelsReconciliation.action === 'warning' && salesChannelsReconciliation.warning) {
     console.warn(salesChannelsReconciliation.warning);
   }
@@ -549,101 +612,99 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // the seed runs BEFORE DefaultChannelReconciler creates the system channel
   // at boot. This reconciler catches up at runtime so US3 (channel→warehouse)
   // never sees a channel without at least one (default) assignment.
-  await new WarehouseChannelReconciler(em()).run();
 
   // Feature 017 — construct the Dictionary module before its validator
   // consumers so the shared port can be threaded through their services.
   // The plugin itself is still registered later to preserve route order.
-  const dictionaries = dictionariesModule({
-    emFactory: em,
-    requireAdmin,
-    redis,
-    auditLog: auditLogService,
-  });
+  // Feature 072 (T112) — `dictionaries` owns its services, its cache
+  // invalidation listeners and its routes now.
 
-  const salesChannels = salesChannelsModule({
-    emFactory: em,
-    eventBus,
-    redis,
-    auditLogService,
-    requireAdmin,
-    dictionaryValidator: dictionaries.handle.validator,
-    resolveAdminAuditContext: (request) => {
-      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
-      return { actorAdminUserId: request.actor.adminUserId };
-    },
+  // Registered here rather than with the other host values further down:
+  // `addresses` reads it to build the one `AddressService`, and both `orders`
+  // and `organizations` are constructed before that block runs.
+  // Feature 072 (T090) — one `AddressService` for the whole composition.
+  // `orders` and `organizations` used to build their own, and the constructor's
+  // validator and audit writer are optional, so the instances were free to
+  // disagree — and one did.
+
+  // Feature 072 (wave 1) — `dictionaries` reacts to a currency change instead
+  // of `currencies` calling into it. The direction matters: declaring the call
+  // as a dependency produced a real cycle, and the cycle was the design saying
+  // a currency must not know a dictionary cache exists.
+  // Feature 072 (T105) — the language half of the same drop. `languages` used
+  // to pass a hard-coded `undefined` for its invalidator, so a deactivated
+  // language kept validating for up to the validator's 60 s TTL and kept being
+  // served from the Redis dictionary cache for up to an hour, while a currency
+  // change dropped both immediately.
+
+  // Feature 072 (T110) — the channel-resolution names. The kernel itself is
+  // composed above `composeModules`, for the subscriber ordering; what belongs
+  // here is the registration, in the one contribution slot.
+  composedModules.contribute({
+    salesChannelsCache: salesChannels.cache,
+    // The kernel-reserved membership port. `payment_methods` and
+    // `delivery_methods` resolve it to auto-bind a new method to the system
+    // default channel; both read it when their routes register, which is well
+    // after this line.
+    salesChannelMembershipPort: salesChannels.membershipService,
+    // The channel resolver itself. `inventory` has resolved this name since
+    // T129 and neither root registered it, so the channel-scoped storefront
+    // stock read threw `AwilixResolutionError` on its first call — in
+    // production only, because the harness exercises no channel-scoped read.
+    // It went unseen because the name is on `PLATFORM_OWNED_NAMES`, and
+    // `check-port-dependencies` skips those rather than verifying them (#49).
+    salesChannelResolutionPort: salesChannels.resolver,
   });
 
   // Feature 014 — CMS module (Pages, Blocks, Templates, Hooks, Page
   // Builder). Phase 2 ships module instantiation + seeded-Hook
   // reconciliation; admin/storefront routes land in subsequent phases.
-  const cms = cmsModule({ emFactory: em, requireAdmin, redis });
-  // Reconcile the 23 seeded Hook codes idempotently before HTTP starts.
-  // The same logic also runs inside migration 035 so first boot has the
-  // rows already; this call covers re-deploys when the seeded list grows.
-  await cms.handle.reconcile();
+  // Feature 072 (T093) — `cms` owns its services, its four late-bound
+  // resolvers, its seeded-Hook reconciliation and its routes now. T143a — and
+  // the reference registry too: `megamenu` cross-registers into it from its own
+  // boot hook, so this root reads nothing of the module and only contributes
+  // the asset resolver further below.
 
-  // The Megamenu module is constructed later in this composition root —
-  // after the assetsLibrary module is built — so its `storefrontDeps`
-  // can resolve asset URLs through the assets-library service. Search
-  // for `megamenuModule(` below for the actual instantiation.
-  const priceLists = priceListsModule({
-    emFactory: em,
-    requireAdmin,
-    auditLogService,
-    commandBus,
-    // Feature 057 — swap in the deployment's overlay pricing engine, if any.
-    ...(overlayPricingService ? { pricingServiceClass: overlayPricingService } : {}),
-    resolveAdminAuditContext: (request) => {
+  // Feature 072 (T127) — `price_lists` owns its services and routes now. Two
+  // names stay a composition's: whether a wall-clock status sweeper runs, and
+  // how this deployment names a non-admin caller on an audit record. The
+  // pricing decoration (D-28) is contributed here too, when the deployment
+  // ships one.
+  //
+  // T143a — `priceListsPricingCacheTtlMs` is gone: this file was importing the
+  // module's own `DEFAULT_PRICING_CACHE_TTL_MS` to hand it back to the module.
+  // The module defaults it now, and production wanting the shipped TTL says so
+  // by contributing nothing.
+  composedModules.contribute({
+    priceListsEnableStatusSweeper: true,
+    priceListsAdminAuditContext: (request: FastifyRequest) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {
         return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
       }
       return { actorAdminUserId: actor.adminUserId };
     },
-    // Feature 056 — inherited price lists resolve up the org tree (nearest-first).
-    resolveOrgChain: (orgId) => organizationInheritanceService.priceListOrgChain(orgId),
+    ...(decoratePricingService ? { decoratePricingService } : {}),
   });
-  const taxes = taxesModule({
-    emFactory: em,
-    requireAdmin,
-    salesChannelMembership: salesChannels.handle.membershipService,
-    dictionaryValidator: dictionaries.handle.validator,
-    auditLog: auditLogService,
-  });
+  // Feature 072 (T119) — `taxes` owns its service and routes now.
+  const taxesCradle = container.cradle as unknown as TaxesCradle;
   // Feature 012 / US8 — promotions reads catalog through CatalogQueryService
   // (the documented cross-module port — Constitution I) so the rule editor
   // can list `isPromoRule` attributes and the resolver can validate
   // `attribute` criteria against the authoritative option list.
-  const catalogQueryServiceForPromotions = new CatalogQueryService(
-    em,
-    undefined,
-    undefined,
-    catalogAttributeReadService,
-  );
-  const promotions = promotionsModule({
-    emFactory: em,
-    requireAdmin,
-    auditLog: auditLogService,
-    salesChannelMembership: salesChannels.handle.membershipService,
-    catalogQueryService: catalogQueryServiceForPromotions,
-    dictionaryValidator: dictionaries.handle.validator,
-    // Feature 026 US5 — org-targeted promotions only fire for active Organizations.
-    resolveOrganizationStatus: async (orgId) => {
-      const row = (await em().getKnex()
-        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
-      return row.rows[0]?.status ?? null;
-    },
-    // Feature 045 (T033) — Rule Builder picker sources. Channels + customer
-    // groups come from their module services; the rest are read at the wiring
-    // layer so the promotions module stays decoupled (Principle I).
-    ruleTargets: {
+  // Feature 072 (T115) — `promotions` owns its services and routes now.
+  // These three stay here: the org-status gate and the Rule Builder picker
+  // sources read `organizations`, `categories`, `payment_methods` and
+  // `delivery_methods` directly, and the catalog read port is `catalog`'s.
+  // Registered after `composeModules`, where the module declares its defaults.
+  composedModules.contribute({
+    promotionRuleTargets: {
       salesChannels: async () => {
-        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: anyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await priceLists.handle.customerGroupService.list();
+        const groups = await (container.cradle as unknown as CustomerAccountsCradle).customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
@@ -673,22 +734,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
   });
 
-  // Settings module is constructed up here (rather than further down) so its
-  // SettingsService handle can be threaded into inventory + search at module
-  // construction time. The plugin itself is still pushed onto `modules` below.
-  const settings = settingsModule({
-    emFactory: em,
-    eventBus,
-    auditLogService,
-    requireAdmin,
-    redis,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
-    dictionaryValidator: dictionaries.handle.validator,
-    resolveAdminAuditContext: (request) => {
-      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
-      return { actorAdminUserId: request.actor.adminUserId };
+  // Feature 072 (T118) — the settings names. The kernel itself is composed
+  // above `composeModules`, for the subscriber ordering; what belongs here is
+  // the registration, in the one contribution slot.
+  composedModules.contribute({
+    settingsSecretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
+    // Feature 073 — the effective-state reader. Registered here rather than
+    // imported inside the module so the dependency direction stays declared in
+    // a root: `_lifecycle` reads this module's `Setting` rows, and this module
+    // reads nothing of `_lifecycle`'s.
+    settingsModulePresence: {
+      presenceOf: (moduleId: string) => effectiveState.presenceOf(moduleId),
+      activationControlOwner: (code: string) => effectiveState.activationControlOwner(code),
     },
   });
 
@@ -708,311 +765,183 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     );
   }
 
-  // Feature 058 — Credentials module. Instantiated right after `settings` (its
-  // only hard dependency) so that consumer modules constructed further down
-  // (search, newsletter, prompt_actions) can receive `credentials.handle.service`
-  // for the `credential_ref` resolution path (feature 058 Phase 8). The
-  // configuration-type registry is the process-wide cross-module seam; core
-  // types are registered here at boot.
-  configurationTypeRegistry.register(llmConfigurationType);
-  configurationTypeRegistry.register(emailAdapterConfigurationType);
-  const credentials = credentialsModule({
-    emFactory: em,
+  // Feature 058 — Credentials module. Feature 072 (T143a) — the
+  // configuration-type registry and the four core descriptors are gone from
+  // here: `credentials` declares the registry it owns, and each of the four
+  // types is declared by the module whose manifest already claims it
+  // (`credentials` for LLM and the e-mail adapter, `pim_ergonode`,
+  // `product_feeds`), from that module's own boot hook. What stays is how an
+  // admin actor is resolved from a request, which production and the harness
+  // genuinely answer differently.
+  composedModules.contribute({
+    adminContextResolver,
     // US2 — the delete-integrity guard reaches settings only through this port
     // (Principle I): `SettingsService.listReferencesToConfiguration`.
-    settings: settings.handle.settingsService,
-    permissionService,
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-    commandBus,
-    configurationTypeRegistry,
-    auditLogService,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
+    credentialsSettingsPort: settings.settingsService,
   });
-  // `credentials.plugin` is added to the `modules` array below (declared later);
-  // the handle is used by the consumer modules constructed above/below.
+  // `credentialsService` is resolved from the container where it is needed —
+  // `product_feeds` read it as a port since T137, and it was this root's last
+  // consumer.
 
   // Feature 042 — MFA module. Constructed here (after `settings`) so it can
   // read the per-scope MFA settings; its login port is bound to the late-bound
   // `mfaLoginPort` captured by the auth services above. Plugin pushed below.
-  // Feature 042 US4/US5 — federated sign-in. Wire the OIDC provider only when
-  // at least one provider is configured via env; otherwise the OAuth routes
-  // are simply not registered.
-  const oauthConfig = readOAuthConfigFromEnv();
-  const oauthProvider: OAuthProviderPort | undefined =
-    oauthConfig.google || oauthConfig.microsoft
-      ? new OpenIdOAuthProvider(oauthConfig)
-      : undefined;
+  // Feature 042 US4/US5 — federated sign-in. T143c — `mfa` reads `MFA_OAUTH_*`
+  // and builds its own provider now, so this root no longer decides on the
+  // module's behalf whether the module has social sign-in. The egress seam is
+  // unchanged and is declared once instead of asserted twice: production takes
+  // the module's default, the harness contributes a deterministic fake over the
+  // same name.
+  // T143a — the two customer-side resolvers forward to `customer_accounts`'
+  // port. They used to be written out here: a root reading and *writing*
+  // another module's table, with a policy gate (`customers.allow_registration_without_organization`)
+  // this root happened to apply and the harness did not. Read per call, so the
+  // gate stays live. `resolveAdminByEmail` stays a root's for now — it is the
+  // same shape one module over, in `admin_users`, which has no port for it yet.
+  const customerSocialLogin = (): {
+    resolveByEmail(email: string): Promise<{ id: string } | null>;
+    autoCreate(email: string): Promise<{ id: string } | null>;
+  } =>
+    (container.cradle as never as {
+      customerSocialLoginPort: {
+        resolveByEmail(email: string): Promise<{ id: string } | null>;
+        autoCreate(email: string): Promise<{ id: string } | null>;
+      };
+    }).customerSocialLoginPort;
+
   const mfaSocialResolvers = {
-    resolveCustomerByEmail: async (email: string) =>
-      // Feature 050 — social-login identity resolution, before tenant context.
-      withSystemScope('mfa: resolve customer by email', async () => {
-        const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
-        return c ? { id: c.id } : null;
-      }),
-    autoCreateCustomer: async (email: string) => {
-      let allowed = false;
-      try {
-        const { z } = await import('zod');
-        allowed = await settings.handle.settingsService.get(
-          'customers.allow_registration_without_organization',
-          'default',
-          z.boolean(),
-        );
-      } catch {
-        allowed = false;
-      }
-      if (!allowed) return null;
-      const account = em().create(CustomerAccount, {
-        email,
-        passwordHash: await hashPassword(randomUUID() + randomUUID()),
-        firstName: '',
-        lastName: '',
-        role: 'regular_user',
-        organizationId: null,
-        emailVerifiedAt: new Date(),
-      });
-      await em().persistAndFlush(account);
-      return { id: account.id };
-    },
+    resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
+    autoCreateCustomer: (email: string) => customerSocialLogin().autoCreate(email),
     resolveAdminByEmail: async (email: string) => {
-      const a = await em().findOne(AdminUser, { email, deletedAt: null, status: 'active' });
+      // The claim's spelling is the identity provider's, and the row holds the
+      // folded address, so the two are compared in the one form both modules
+      // store (issue #249). This read is still a root's — `admin_users` has no
+      // port for it — so the fold is written here rather than behind one.
+      const a = await em().findOne(AdminUser, {
+        email: normalizeEmailAddress(email),
+        deletedAt: null,
+        status: 'active',
+      });
       return a ? { id: a.id } : null;
     },
   };
 
-  const mfa = mfaModule({
-    emFactory: em,
-    redis,
-    settingsService: settings.handle.settingsService,
-    auditLogService,
-    sessionService,
-    resolveDefaultChannelId: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
-    secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
-    ...(oauthProvider ? { oauthProvider } : {}),
-    socialAccountResolvers: mfaSocialResolvers,
-    ...(process.env['BACKEND_PUBLIC_URL'] ? { backendBaseUrl: process.env['BACKEND_PUBLIC_URL'] } : {}),
-    ...(process.env['STOREFRONT_BASE_URL'] ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] } : {}),
-    ...(process.env['ADMIN_BASE_URL'] ? { adminBaseUrl: process.env['ADMIN_BASE_URL'] } : {}),
-    requireCustomer,
-    requireAdmin,
-    resolveCustomerActor: (request) => {
-      if (request.actor.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      return {
-        customerAccountId: request.actor.customerAccountId,
-        organizationId: request.actor.organizationId ?? null,
-      };
-    },
-    resolveAdminActor: (request) => {
-      promoteAdminActor(request);
-      if (request.actor.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      return { adminUserId: request.actor.adminUserId };
-    },
-    resolveOrganizationCustomerIds: async (organizationId) => {
-      const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
-      return rows.map((r) => r.id);
-    },
-    resolveOrgAdmin: async (request) => {
-      if (request.actor.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      const c = await em().findOne(CustomerAccount, { id: request.actor.customerAccountId });
-      if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-        throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
-      }
-      return { organizationId: c.organizationId, actor: c.id };
-    },
-    resolveAccountEmail: async (subjectType, subjectId) => {
-      const em2 = em();
-      if (subjectType === 'admin') {
-        const a = await em2.findOne(AdminUser, { id: subjectId });
-        return a?.email ?? null;
-      }
-      const c = await em2.findOne(CustomerAccount, { id: subjectId });
-      return c?.email ?? null;
-    },
-    verifyAccountPassword: async (subjectType, subjectId, password) => {
-      const em2 = em();
-      if (subjectType === 'admin') {
-        const a = await em2.findOne(AdminUser, { id: subjectId });
-        return a ? verifyPassword(a.passwordHash, password) : false;
-      }
-      const c = await em2.findOne(CustomerAccount, { id: subjectId });
-      return c ? verifyPassword(c.passwordHash, password) : false;
-    },
+  // Feature 072 (T096) — `mfa` owns its services, routes and configuration
+  // now. What a root still owns is the *shape this composition gives an actor*:
+  // production reads `request.actor`, the harness reads `request.testActor`.
+  // That is contributed whole rather than as ten separate names, because a
+  // composition either knows how to resolve an actor or it does not.
+  composedModules.contribute({
+    // D-48 — the system-default channel, which always exists. It used to be
+    // `?? null`, which switched MFA policy resolution to the platform-wide
+    // settings tier on a branch that cannot be taken.
+    mfaDefaultChannelIdResolver: async () =>
+      (await salesChannels.resolver.getSystemDefault()).id,
+    mfaSocialAccountResolvers: mfaSocialResolvers,
+    mfaActorBridge: {
+      resolveCustomerActor: (request: FastifyRequest) => {
+        if (request.actor.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        return {
+          customerAccountId: request.actor.customerAccountId,
+          organizationId: request.actor.organizationId ?? null,
+        };
+      },
+      resolveAdminActor: (request: FastifyRequest) => {
+        promoteAdminActor(request);
+        if (request.actor.kind !== 'admin') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+        }
+        return { adminUserId: request.actor.adminUserId };
+      },
+      resolveOrganizationCustomerIds: async (organizationId: string) => {
+        const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+        return rows.map((r) => r.id);
+      },
+      resolveOrgAdmin: async (request: FastifyRequest) => {
+        if (request.actor.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        const c = await em().findOne(CustomerAccount, { id: request.actor.customerAccountId });
+        if (!c || c.role !== 'organization_admin' || !c.organizationId) {
+          throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+        }
+        return { organizationId: c.organizationId, actor: c.id };
+      },
+      resolveAccountEmail: async (subjectType: 'customer' | 'admin', subjectId: string) => {
+        const em2 = em();
+        if (subjectType === 'admin') {
+          const a = await em2.findOne(AdminUser, { id: subjectId });
+          return a?.email ?? null;
+        }
+        const c = await em2.findOne(CustomerAccount, { id: subjectId });
+        return c?.email ?? null;
+      },
+      verifyAccountPassword: async (
+        subjectType: 'customer' | 'admin',
+        subjectId: string,
+        password: string,
+      ) => {
+        const em2 = em();
+        if (subjectType === 'admin') {
+          const a = await em2.findOne(AdminUser, { id: subjectId });
+          return a ? verifyPassword(a.passwordHash, password) : false;
+        }
+        const c = await em2.findOne(CustomerAccount, { id: subjectId });
+        return c ? verifyPassword(c.passwordHash, password) : false;
+      },
+    } satisfies MfaActorBridge,
   });
-  mfaLoginPort = mfa.handle().mfaLoginPort;
+  // The login port is `customer_accounts`' and `admin_users`' own resolution
+  // (D-96); the actor shape above is the only thing about `mfa` a root knows.
 
   // SEO module — needs the SettingsService port for the per-channel
   // `sales_channels.storefront_url` setting that the sitemap generator
   // stamps into URLs. Plugin is pushed onto `modules` further below.
-  const seo = seoModule({
-    emFactory: em,
-    requireAdmin,
-    auditLog: auditLogService,
-    settings: {
-      get: (code, salesChannelId, schema) =>
-        settings.handle.settingsService.get(code, salesChannelId, schema),
-    },
-    sitemap: {
-      staleAfterMs: 60 * 60 * 1000,
-      baseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    },
-  });
-
-  let cartService: CartService | null = null;
+  // Feature 072 (T117) — `seo` owns its services and routes now.
   let shoppingListService: ShoppingListService | null = null;
-  // Feature 039 — late-bound OrderService for the quick_order one-click flow.
-  let orderServiceForOneClick: OrderService | null = null;
-  // Feature 040 — late-bound OrderListService for the customers module's
-  // self-service + admin order-history panels.
-  let orderListServiceForCustomers: OrderListService | null = null;
-  // Feature 043 — late-bound OrderTransitionService for the orders
-  // prompt-action status tools.
-  let orderTransitionServiceForPrompts: OrderTransitionService | null = null;
 
-  const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
-  const organizationsMailer = organizationsSmtpUrl
-    ? new SmtpMailer(organizationsSmtpUrl)
-    : new ConsoleMailer();
+  // Feature 072 (T079) — the platform mailer, resolved from the container the
+  // `email` module registered it into. Six senders share it, which is why it
+  // was never really "the organizations mailer" and is not named one now.
+  const platformMailer = (container.cradle as unknown as EmailCradle).emailMailer;
 
-  // Forward-reference for the onLogin hook below — the comparisons module
-  // is constructed further down (it depends on services declared after
-  // this point), but the post-login hook needs to call into it. The
-  // closure captures the binding, not its value, so the late assignment
-  // is safe at request time.
-  let comparisonAdoption: ((customerAccountId: string, anonymousToken: string) => Promise<void>) | null = null;
-
-  // ── Feature 026 — Organizations moderation lifecycle ────────────────────
+  // Feature 026's moderation lifecycle — the moderation service, the
+  // registration notifier, their two `organization.registered.v1`
+  // subscriptions and the transaction gate — moved into
+  // `organizations/backend.ts` in T138. The subscriptions in particular were
+  // bare `eventBus.on` calls here, so they fired whether or not the module was
+  // present.
   //
-  // Builds the admin_notifications sub-module + the moderation service +
-  // the registration notifier, subscribes both to organization.registered.v1,
-  // and exposes the resulting transaction gate (assertOrganizationCanTransact)
-  // for the carts / orders / quote_requests modules.
+  // What used to remain was `platformSettingsChannelId`, the fallback the
+  // kernel settings resolver answered with when the deployment had no
+  // system-default channel. Feature 072 (D-41) deleted it, along with the
+  // undocumented `ORGANIZATIONS_SETTINGS_CHANNEL_ID` env var behind it: its
+  // default was the string `'default'`, which is a channel **code**
+  // (`DEFAULT_SALES_CHANNEL_CODE`) used where a `uuid` id was wanted, so it
+  // could not address a `setting_values` row at all. "No channel" is now `null`
+  // and the read decides what that means.
 
-  const adminNotifications = adminNotificationsModule({
-    emFactory: em,
-    requireAdmin,
-  });
 
-  const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
-
-  const pageBuilderBreakpointSchema = z.number().int().positive();
-  cms.handle.setPageBuilderBreakpointsResolver(async () => {
-    try {
-      const [tabletMin, desktopMin] = await Promise.all([
-        settings.handle.settingsService.get(
-          CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_TABLET_MIN,
-          platformSettingsChannelId,
-          pageBuilderBreakpointSchema,
-        ),
-        settings.handle.settingsService.get(
-          CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_DESKTOP_MIN,
-          platformSettingsChannelId,
-          pageBuilderBreakpointSchema,
-        ),
-      ]);
-      return { tabletMin, desktopMin };
-    } catch {
-      return cms.handle.pageBuilderRegistry.getBreakpoints();
-    }
-  });
-
-  cms.handle.setColorPaletteResolver(async () => {
-    try {
-      return await settings.handle.settingsService.get(
-        CMS_PAGE_BUILDER_SETTING_CODES.COLOR_PALETTE,
-        platformSettingsChannelId,
-        cmsColorPaletteSchema,
-      );
-    } catch {
-      return [];
-    }
-  });
-
-  cms.handle.setColorPaletteWriter(async (entries, expectedVersion, actor) => {
-    await settings.handle.adminService.setValueForAllChannels(
-      CMS_PAGE_BUILDER_SETTING_CODES.COLOR_PALETTE,
-      entries,
-      expectedVersion,
-      actor,
-    );
-    return entries;
-  });
-
-  const resolveModerationMode = async (): Promise<'auto' | 'manual'> => {
-    try {
-      return await settings.handle.settingsService.get(
-        ORGANIZATIONS_SETTING_CODES.MODERATION_MODE,
-        platformSettingsChannelId,
-        moderationModeSchema,
-      );
-    } catch {
-      // Setting not seeded / out-of-scope for the channel — degrade safely
-      // to the most restrictive option so brand-new installs never grant
-      // unverified Organizations transaction rights by accident.
-      return 'manual';
-    }
-  };
-
-  const resolveRegistrationRecipients = async (): Promise<string[]> => {
-    try {
-      return await settings.handle.settingsService.get(
-        ORGANIZATIONS_SETTING_CODES.NEW_REGISTRATION_RECIPIENTS,
-        platformSettingsChannelId,
-        notificationRecipientsSchema,
-      );
-    } catch {
-      return [];
-    }
-  };
-
-  const organizationModerationService = new OrganizationModerationService(
-    em,
-    auditLogService,
-    eventBus as unknown as OrganizationEventBus,
-    organizationsMailer,
-    resolveModerationMode,
-  );
-
-  // Feature 047 — org emails resolve against the system-default sales channel.
-  const resolveScopeSalesChannelId = async (): Promise<string | null> =>
-    (await em().findOne(SalesChannel, { systemDefault: true }))?.id ?? null;
-  const resolveSalesChannelLanguage = async (salesChannelId: string): Promise<string> =>
-    (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
-  const orgRegistrationNotifier = new OrgRegistrationNotifier({
-    emFactory: em,
-    adminNotificationService: adminNotifications.handle.adminNotificationService,
-    mailer: organizationsMailer,
-    resolveRecipients: resolveRegistrationRecipients,
-    templateEmail: makeOrgTemplateEmail({
-      getSender: () => transactionalEmailSender,
-      resolveScopeSalesChannelId,
-      resolveLanguage: resolveSalesChannelLanguage,
-    }),
-  });
-
-  const organizationContextService = new OrganizationContextService(em);
-  const organizationRestrictionService = new OrganizationRestrictionService(em, auditLogService);
-
-  // Feature 056 — subtree-aware assignment service. When a scoped sales-rep
-  // actor holds the `organizations:rollup` capability, `listAssignedOrganizationIds`
-  // expands each assignment to its subtree (with per-descendant override, FR-011);
-  // `canSeeOrganization` uses the nearest-assignment-on-ancestor-chain rule.
-  // Without the capability, behavior is byte-for-byte the pre-feature flat set.
-  // (`organizationTreeService` is constructed above, before creditLimits.)
-  const scopedSalesRepAssignment = new SalesRepAssignmentService(em, auditLogService, {
-    treeService: organizationTreeService,
-    hasRollupCapability: (adminUserId) =>
-      permissionService.hasPermission(adminUserId, 'organizations:rollup'),
-  });
+  // Feature 056 — subtree-aware assignment scope. When a scoped sales-rep actor
+  // holds the `organizations:rollup` capability, `listAssignedOrganizationIds`
+  // expands each assignment to its subtree (with per-descendant override,
+  // FR-011). Without the capability, behavior is byte-for-byte the pre-feature
+  // flat set.
+  //
+  // T143a — `organizations`' port, read lazily, rather than a
+  // `SalesRepAssignmentService` built here. The class, the tree it walks and
+  // the rule it applies are all that module's; a root built one and the harness
+  // built a different one, which is how the roll-up went untested.
+  const salesRepScope = (): {
+    listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+  } =>
+    (container.cradle as never as {
+      organizationSalesRepScopePort: {
+        listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+      };
+    }).organizationSalesRepScopePort;
 
   /**
    * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
@@ -1020,7 +949,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
    * (platform admin, content manager, etc.) sees everything.
    *
    * Feature 056 — the assigned set is subtree-expanded when the rep holds the
-   * roll-up capability (see `scopedSalesRepAssignment`).
+   * roll-up capability, which `organizations` decides (see `salesRepScope`).
    */
   const resolveAdminOrdersScope = async (
     request: FastifyRequest,
@@ -1038,607 +967,100 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     if (roleCode !== 'sales_representative') {
       return { allowAll: true };
     }
-    const allowedOrganizationIds = await scopedSalesRepAssignment.listAssignedOrganizationIds(
+    const allowedOrganizationIds = await salesRepScope().listAssignedOrganizationIds(
       actor.adminUserId,
     );
     return { allowAll: false, allowedOrganizationIds };
   };
 
-  /**
-   * Builds per-request resolvers that fetch the caller's Organization
-   * allow-list for one of the three restriction kinds. Anonymous requests
-   * and no-org Customers return `null` (no filter applied; platform defaults).
-   * Production wiring resolves the actor via `request.actor`; the test
-   * harness uses `request.testActor` — both shapes are checked.
-   */
-  const buildOrgAllowListResolver = (
-    kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
-  ) => async (request: FastifyRequest): Promise<string[] | null> => {
-    const r = request as FastifyRequest & {
-      testActor?: { kind: string; organizationId?: string | null };
-      actor?: { kind: string; organizationId?: string | null };
-    };
-    const orgId =
-      (r.testActor?.kind === 'customer' && r.testActor.organizationId) ||
-      (r.actor?.kind === 'customer' && r.actor.organizationId) ||
-      null;
-    if (!orgId) return null;
-    try {
-      const lists = await organizationRestrictionService.readAllowLists(orgId);
-      return lists[kind];
-    } catch {
-      // Org not found / soft-deleted — degrade to "no restriction".
-      return null;
-    }
-  };
 
-  const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
-  const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
-  const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
 
-  const organizationEffectivePriceListsService = new OrganizationEffectivePriceListsService({
-    emFactory: em,
-    resolveDefaultSalesChannelId: async () => {
-      const channel = await salesChannels.handle.resolver.getSystemDefault();
-      return channel?.id ?? 'default';
-    },
-  });
-
-  // Feature 026 US7 — tax-ID validation. The two real clients hit VIES +
-  // Ministerstwo Finansów. Both degrade safely on outage; the service
-  // persists a record regardless of outcome and never throws upstream.
-  const organizationTaxIdValidationService = new OrganizationTaxIdValidationService({
-    emFactory: em,
-    vies: new ViesClient(),
-    mfPl: new MinisterstwoFinansowClient(),
-    auditLog: auditLogService,
-  });
-  const assertOrganizationCanTransact = async (organizationId: string): Promise<void> => {
-    await organizationContextService.assertCanTransact(organizationId);
-  };
-
-  // Subscribe the two reactors to the registration event. Failures inside
-  // either reactor never poison the registration itself — the EventBus
-  // catches handler throws and logs them.
-  eventBus.on('organization.registered.v1', async (payload) => {
-    const orgId = (payload as unknown as { organizationId: string }).organizationId;
-    await orgRegistrationNotifier.handleRegistered(orgId);
-  });
-  eventBus.on('organization.registered.v1', async (payload) => {
-    const orgId = (payload as unknown as { organizationId: string }).organizationId;
-    await organizationModerationService.handleNewlyRegistered(orgId);
-  });
-
-  // Liveness/readiness endpoint (`/api/v1/_health`). The health_checks module
-  // ships the route factory but never wired it in — register it here with live
-  // pings to Postgres/Redis/Meilisearch. Orchestrators (compose healthcheck)
-  // depend on this returning 200; without it the route 404s and the backend
-  // container is reported unhealthy forever.
-  const healthPlugin: ModulePlugin = async (app) => {
-    await registerHealthRoutes(app, {
-      pingDatabase: async () => {
-        await orm.em.getConnection().execute('select 1');
-        return true;
-      },
-      pingRedis: async () => (await redis.ping()) === 'PONG',
-      pingMeilisearch: async () => {
-        const base = process.env['MEILISEARCH_URL'] ?? 'http://localhost:7700';
-        const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2000) });
-        return res.ok;
-      },
-    });
-  };
-
-  // Feature 047 — late-bound transactional-email sender. commerceModule (and
+  // Feature 047 — late-bound transactional-email sender. `orders` (and
   // other owning modules) read it via a getter; the transactional_emails module
   // sets it through exposeSender once built.
-  let transactionalEmailSender: TransactionalEmailSender | undefined;
-  let emailBrandingService: BrandingService | undefined;
+  // Feature 072 (T120) — `transactional_emails` owns the binding now and
+  // publishes both services as accessor ports; this root reads them like any
+  // other consumer instead of holding the variables its callbacks filled in.
+  const emailCradle = (): {
+    transactionalEmailSenderAccessor: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
+    emailBrandingAccessor: () =>
+      | { resolve(salesChannelId: string | null): Promise<{ logoUrl: string; accentColor: string }> }
+      | undefined;
+  } => container.cradle as never;
 
   // Feature 050 — establish the ambient TenantContext for every request from the
-  // already-authenticated actor (never from request inputs). fp-wrapped and
-  // registered right after auth so its onRequest runs after `request.actor` is set
-  // and applies globally (mirrors the auth plugin). See specs/050-org-tenant-scoping/.
+  // already-authenticated actor (never from request inputs). Registered right
+  // after auth so its onRequest runs after `request.actor` is set and applies
+  // globally (mirrors the auth plugin). See specs/050-org-tenant-scoping/.
+  //
+  // Feature 072 (T027) — the same hook now also opens the request's resolution
+  // scope; `registerRequestScopeHook` owns the shape, shared with the test
+  // harness so the two cannot drift.
   const tenantContextModulePlugin: ModulePlugin = async (app) => {
-    await app.register(
-      fastifyPlugin(async (inner) => {
-        const buildContext = async (request: FastifyRequest): Promise<TenantContext> => {
-          const actor = request.actor;
-          if (actor.kind === 'customer') {
-            const orgId =
-              actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
-            // Feature 056 (T032) — a roll-up-enabled customer widens to its org
-            // subtree (server-derived). Absent the capability, stays single-org.
-            const rollupSubtree = await resolveCustomerRollupSubtreeIds(
-              em,
-              (id) => organizationTreeService.subtreeIds(id),
-              actor.customerAccountId,
-              orgId,
-            );
-            return resolveTenantContext({
-              kind: 'customer',
-              customerAccountId: actor.customerAccountId,
-              organizationId: orgId,
-              impersonatorAdminUserId: actor.impersonatorAdminUserId,
-              ...(rollupSubtree && rollupSubtree.length > 0
-                ? { rollupSubtreeOrganizationIds: rollupSubtree }
-                : {}),
-            });
-          }
-          if (actor.kind === 'admin') {
-            const scope = await resolveAdminOrdersScope(request);
-            return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
-          }
-          // Feature 062 — a BOUND api key pins the request to its organization +
-          // designated service account; an unbound key keeps the legacy trusted
-          // system scope (its only surface is the global-entity PIM path).
-          if (actor.kind === 'api_key') {
-            return resolveTenantContext({
-              kind: 'api_key',
-              apiKeyId: actor.apiKeyId,
-              organizationId: actor.organizationId ?? null,
-              customerAccountId: actor.customerAccountId ?? null,
-            });
-          }
-          // anonymous: trusted platform read scope. Guest-owned rows are
-          // scoped by their own token mechanism, not by the tenant filter.
-          return systemTenantContext(`actor:${actor.kind}`);
-        };
-        // Callback-style hook so the AsyncLocalStorage store propagates to the
-        // route handler (async `enterWith` would not). See runInTenantContext.
-        inner.addHook('onRequest', (request: FastifyRequest, _reply, done) => {
-          buildContext(request).then(
-            (ctx) => runInTenantContext(ctx, () => done()),
-            (err: unknown) => done(err as Error),
-          );
+    const buildContext = async (request: FastifyRequest): Promise<TenantContext> => {
+      const actor = request.actor;
+      if (actor.kind === 'customer') {
+        const orgId =
+          actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
+        // Feature 056 (T032) — a roll-up-enabled customer widens to its org
+        // subtree (server-derived). Absent the capability, stays single-org.
+        const rollupSubtree = await resolveCustomerRollupSubtreeIds(
+          em,
+          (id) => organizationTreeService().subtreeIds(id),
+          actor.customerAccountId,
+          orgId,
+        );
+        return resolveTenantContext({
+          kind: 'customer',
+          customerAccountId: actor.customerAccountId,
+          organizationId: orgId,
+          impersonatorAdminUserId: actor.impersonatorAdminUserId,
+          ...(rollupSubtree && rollupSubtree.length > 0
+            ? { rollupSubtreeOrganizationIds: rollupSubtree }
+            : {}),
         });
-      }),
-    );
+      }
+      if (actor.kind === 'admin') {
+        const scope = await resolveAdminOrdersScope(request);
+        return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
+      }
+      // Feature 062 — a BOUND api key pins the request to its organization +
+      // designated service account; an unbound key keeps the legacy trusted
+      // system scope (its only surface is the global-entity PIM path).
+      if (actor.kind === 'api_key') {
+        return resolveTenantContext({
+          kind: 'api_key',
+          apiKeyId: actor.apiKeyId,
+          organizationId: actor.organizationId ?? null,
+          customerAccountId: actor.customerAccountId ?? null,
+        });
+      }
+      // anonymous: trusted platform read scope. Guest-owned rows are
+      // scoped by their own token mechanism, not by the tenant filter.
+      return systemTenantContext(`actor:${actor.kind}`);
+    };
+    await registerRequestScopeHook(app, { buildTenantContext: buildContext });
   };
 
   // Feature 062 — read-only inventory accessors backing the external catalog
   // namespace's availability indication (channel-candidate warehouses +
   // cumulative on-hand → display band). Standalone instances: reads only,
   // no event emission, no audit.
-  const externalAvailabilityStockLevels = new StockLevelService(em);
-  const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
 
   const modules: ModulePlugin[] = [
-    healthPlugin,
+    // Feature 072 — every module's route contribution, in the generated order.
+    //
+    // They sit ahead of the three root plugins, and that is not an ordering
+    // claim: `buildServer` calls each of these with the root instance, so an
+    // `onRequest` hook any of them adds is a root hook, and Fastify assembles a
+    // route's hook chain when the application is readied rather than when the
+    // route is registered. D-45 measured it — a root hook added after an
+    // encapsulated child still runs for that child's routes — which is why the
+    // 26 modules that used to be "early" have always authenticated correctly
+    // despite mounting before `authModulePlugin`.
+    ...composedModules.sink.plugins,
     authModulePlugin,
     tenantContextModulePlugin,
-    admin.plugin,
-    // Feature 058 — Credentials (instantiated earlier, right after settings).
-    credentials.plugin,
-    creditLimits.plugin,
-    customFields.plugin,
-    integrations.plugin,
-    analytics.plugin,
-    importExport.plugin,
-    seo.plugin,
-    i18n.plugin,
-    cms.plugin,
-    priceLists.plugin,
-    taxes.plugin,
-    promotions.plugin,
-    commerceModule({
-      commandBus,
-      emFactory: em,
-      eventBus,
-      auditLogService,
-      customFieldValues: customFields.handle.valueService,
-      mailer: organizationsMailer,
-      // Feature 047 — late-bound; set once the transactional_emails module builds.
-      getTransactionalEmailSender: () => transactionalEmailSender,
-      creditLimit: creditLimits.handle.creditLimitService,
-      requireCustomer,
-      requireAdmin,
-      resolveCustomerContext: customerResolver,
-      salesChannelMembership: salesChannels.handle.membershipService,
-      pricingService: priceLists.handle.pricingService,
-      addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
-      promotionService: promotions.handle.promotionService,
-      redis,
-      // Feature 062 — external orders namespace (/api/v1/external/orders*):
-      // bound-key gate + the org method allow-lists (FR-021 envelope).
-      requireBoundApiKey: integrations.handle.requireBoundApiKey,
-      resolveOrganizationMethodAllowLists: async (organizationId: string) => {
-        try {
-          const lists = await organizationRestrictionService.readAllowLists(organizationId);
-          return {
-            paymentMethodIds: lists.paymentMethodIds,
-            deliveryMethodIds: lists.deliveryMethodIds,
-          };
-        } catch {
-          return null;
-        }
-      },
-      // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
-      resolveCartAbandonmentInactivityMinutes: async () => {
-        try {
-          const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
-            'carts.abandonment.inactivity_minutes',
-            'default',
-            z.number().int().nonnegative(),
-          );
-        } catch {
-          return 0;
-        }
-      },
-      resolveCartAbandonmentNotificationRecipient: async () => {
-        try {
-          const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
-            'carts.abandonment.notification_recipient',
-            'default',
-            z.string(),
-          );
-        } catch {
-          return '';
-        }
-      },
-      // Feature 036 — business Order ID prefix/suffix, resolved per Sales
-      // Channel. Missing/out-of-scope settings resolve to '' (bare numeric ID).
-      resolveOrderBusinessIdPrefix: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
-            'orders.business_id.prefix',
-            salesChannelId,
-            z.string(),
-          );
-        } catch {
-          return '';
-        }
-      },
-      resolveOrderBusinessIdSuffix: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
-            'orders.business_id.suffix',
-            salesChannelId,
-            z.string(),
-          );
-        } catch {
-          return '';
-        }
-      },
-      // Feature 038 US6 — reorder enable flag, resolved per Sales Channel.
-      // Missing/out-of-scope settings resolve to enabled (the default).
-      resolveReorderEnabled: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
-            'orders.reorder_enabled',
-            salesChannelId,
-            z.boolean(),
-          );
-        } catch {
-          return true;
-        }
-      },
-      // Feature 038 US4 — additional order-confirmation recipients per scope.
-      resolveOrderConfirmationRecipients: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
-            'orders.confirmation_recipients',
-            salesChannelId,
-            z.array(z.string()),
-          );
-        } catch {
-          return [];
-        }
-      },
-      // Feature 038 US3 / FR-035 — minimum order value per scope (0 = none).
-      resolveMinOrderValue: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
-            'orders.min_order_value',
-            salesChannelId,
-            z.number(),
-          );
-        } catch {
-          return 0;
-        }
-      },
-      // Real per-product VAT — resolve the rate from the product's tax class
-      // (its `type`), the billing country, and the org VAT status, against the
-      // `taxes` rules (mirrors Quote Requests). order-service already returns 0
-      // for VAT-exempt / reverse-charge orgs; failures degrade to a flat 23%.
-      resolveTaxRate: async ({ country, productType, vatStatus }) => {
-        try {
-          const resolved = await taxes.handle.taxService.taxRateFor({
-            country: country ?? 'PL',
-            productType: productType as
-              | 'simple'
-              | 'configurable'
-              | 'grouped'
-              | 'bundle'
-              | 'virtual',
-            vatStatus: vatStatus as 'vat_payer' | 'vat_exempt' | 'reverse_charge',
-          });
-          return resolved.rate;
-        } catch {
-          return 0.23;
-        }
-      },
-      // Sales-channel layer of the fulfilment-strategy precedence chain — the
-      // SettingsService collapses per-channel value → global value → manifest
-      // default ('default_first'). Failures degrade to that same default.
-      resolveChannelFulfilmentStrategy: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
-            'inventory.fulfilment_strategy',
-            salesChannelId,
-            z.enum([
-              'any',
-              'default_first',
-              'lowest_stock_first',
-              'highest_stock_first',
-              'defined_order',
-            ]),
-          );
-        } catch {
-          return 'default_first';
-        }
-      },
-      resolveChannelFulfilmentWarehouseOrder: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
-            'inventory.fulfilment_strategy_warehouse_order',
-            salesChannelId,
-            z.array(z.string()),
-          );
-        } catch {
-          return [];
-        }
-      },
-      // Global backorder gate — collapses per-channel value → global value →
-      // manifest default (false). Failures degrade to false (never oversell).
-      resolveChannelAllowNegativeStock: async (salesChannelId: string) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
-            'inventory.allow_negative_stock',
-            salesChannelId,
-            z.boolean(),
-          );
-        } catch {
-          return false;
-        }
-      },
-      getRfqService: () => quoteRequests?.handle().rfqService ?? null,
-      // Feature 039 — expose OrderService for the quick_order one-click flow.
-      exposeOrderService: (svc) => {
-        orderServiceForOneClick = svc;
-      },
-      // Feature 040 — expose OrderListService for the customers module.
-      exposeOrderListService: (svc) => {
-        orderListServiceForCustomers = svc;
-      },
-      // Feature 043 — capture the configured transition engine for the orders
-      // prompt-action tools (reuses its guards + cancel side-effects).
-      exposeOrderTransitionService: (svc) => {
-        orderTransitionServiceForPrompts = svc;
-      },
-      appendShoppingListToCart: async (input) => {
-        if (!shoppingListService) {
-          throw new Error('shopping_lists module not initialized');
-        }
-        const res = await shoppingListService.convertToCart(
-          {
-            customerAccountId: input.customerAccountId,
-            organizationId: input.organizationId ?? '',
-          },
-          input.shoppingListId,
-          undefined,
-        );
-        // Map ShoppingListService.convertToCart's shape onto the carts
-        // module's uniform return shape across the three conversions.
-        return {
-          cartId: '',
-          appendedLineCount: res.added,
-          droppedLines: res.skipped.map((it) => ({
-            productId: it.productId,
-            productName: it.productId,
-            reason: 'not_purchasable',
-          })),
-        };
-      },
-      resolveCartActor: (request) => {
-        if (request.actor.kind === 'customer') {
-          return {
-            customer: {
-              customerAccountId: request.actor.customerAccountId,
-              organizationId: request.actor.organizationId,
-            },
-          };
-        }
-        const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
-        const anon = cookies?.['b2b_cart_anon'];
-        if (anon) return { anonymousToken: anon };
-        return {};
-      },
-      exposeCartService: (cs) => {
-        cartService = cs;
-      },
-      assertOrganizationCanTransact,
-      resolveOrganizationPaymentMethodAllowList,
-      resolveOrganizationDeliveryMethodAllowList,
-      resolveAdminOrdersScope,
-      // Feature 027 — `Save to shopping list` bridge. Late-bound via
-      // closure so the shopping_lists module (constructed below) can
-      // inject the real service after this point.
-      pushLineToShoppingList: async (input) => {
-        if (!shoppingListService) {
-          throw new Error('shopping_lists module not initialized');
-        }
-        await shoppingListService.addItem(
-          {
-            customerAccountId: input.customerAccountId,
-            organizationId: input.organizationId ?? '',
-          },
-          input.shoppingListId,
-          {
-            productId: input.productId,
-            ...(input.variantId ? { variantId: input.variantId } : {}),
-            quantity: input.quantity,
-          },
-        );
-      },
-    }),
-    organizationsModule({
-      emFactory: em,
-      eventBus,
-      commandBus,
-      sessionService,
-      getMfaLoginPort,
-      requireCustomer,
-      requireAdmin,
-      requireAdminAny,
-      resolveCustomerContext: customerResolver,
-      mailer: organizationsMailer,
-      getTransactionalEmailSender: () => transactionalEmailSender,
-      resolveScopeSalesChannelId,
-      resolveSalesChannelLanguage,
-      auditLogService,
-      moderationService: organizationModerationService,
-      restrictionService: organizationRestrictionService,
-      effectivePriceListsService: organizationEffectivePriceListsService,
-      taxIdValidationService: organizationTaxIdValidationService,
-      customFieldValues: customFields.handle.valueService,
-      dictionaryValidator: dictionaries.handle.validator,
-      ...(process.env['STOREFRONT_BASE_URL']
-        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
-        : {}),
-      onLogin: async (ctx) => {
-        let cartMerge: Awaited<
-          ReturnType<NonNullable<typeof cartService>['mergeAnonymousIntoCustomer']>
-        > | undefined;
-        if (cartService && ctx.anonymousCartToken) {
-          cartMerge = await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
-            customerAccountId: ctx.customerAccountId,
-            organizationId: ctx.organizationId,
-          });
-        }
-        // Comparisons module's anonymous→authenticated adoption (R-2 /
-        // FR-005). The hook is late-bound below once `comparisons` is
-        // constructed; before then it's a no-op.
-        if (comparisonAdoption && ctx.anonymousCompareToken) {
-          await comparisonAdoption(
-            ctx.customerAccountId,
-            ctx.anonymousCompareToken,
-          );
-        }
-        return cartMerge ? { cartMerge } : {};
-      },
-    }),
-    catalogModule({
-      emFactory: em,
-      eventBus,
-      commandBus,
-      requireAdmin,
-      auditLogService,
-      customFieldValues: customFields.handle.valueService,
-      customFieldDefinitions: customFields.handle.definitionService,
-      // Feature 061 — apply seam + composed attribute read model.
-      customFieldsPort: customFields.handle.definitionService,
-      attributeReadService: catalogAttributeReadService,
-      requireApiKey: integrations.handle.requireApiKey,
-      // Feature 062 — external catalog namespace (/api/v1/external/catalog/*):
-      // bound-key gate + the SAME pricing engine cart pricing uses (SC-001
-      // parity by construction) + the inventory availability indication port.
-      requireBoundApiKey: integrations.handle.requireBoundApiKey,
-      pricingService: priceLists.handle.pricingService,
-      resolveExternalAvailability: async (productIds, salesChannelId) => {
-        const candidateWarehouseIds =
-          await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
-        return externalAvailabilityStockLevels.resolveAvailabilityBands(
-          productIds,
-          candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
-        );
-      },
-      salesChannelMembership: salesChannels.handle.membershipService,
-      languageService: i18n.handle.languageService,
-      adminNotificationService: adminNotifications.handle.adminNotificationService,
-      mailer: organizationsMailer,
-      // Principle X — durable BullMQ queue for bulk operations. The consumer
-      // (BullMQ worker) runs co-located here unless BACKEND_ROLE=api, in which
-      // case it runs only in the separate `pnpm worker` process.
-      redis,
-      runBulkOperationWorker: runWorkers,
-      // Full Meilisearch reindex (the `search:reindex` CLI equivalent),
-      // run as a `search_reindex` bulk operation when an attribute's
-      // `searchable` flag flips. A fresh indexer reads Meili config from env,
-      // exactly like the CLI.
-      reindexSearchIndexes: async () => {
-        const indexer = new SearchIndexer({ attributeRead: catalogAttributeReadService });
-        const results = await indexer.reindexAllChannels(em());
-        const documentCount = results.reduce((sum, r) => sum + r.documentCount, 0);
-        return { documentCount };
-      },
-      resolveAdminAuditContext: (request) => {
-        if (request.actor.kind !== 'admin') {
-          // Auditing an anonymous mutation shouldn't happen — the admin gate
-          // refuses these — but if it ever does, fall back to a sentinel.
-          return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
-        }
-        return {
-          actorAdminUserId: request.actor.adminUserId,
-          impersonatedCustomerAccountId: null,
-        };
-      },
-      // Storefront product-image placeholder (general.product_image_placeholder_url),
-      // resolved global-or-per-channel through the SettingsService. Returns null
-      // (no placeholder) when unset or on any resolution error so a settings
-      // hiccup can never break product listings.
-      resolveProductImagePlaceholderUrl: async (salesChannelCode) => {
-        try {
-          const channel = salesChannelCode
-            ? await salesChannels.handle.resolver.getByCode(salesChannelCode)
-            : await salesChannels.handle.resolver.getSystemDefault();
-          const channelId = channel?.id ?? platformSettingsChannelId;
-          const url = await settings.handle.settingsService.get(
-            'product_image_placeholder_url',
-            channelId,
-            z.string(),
-          );
-          const trimmed = url.trim();
-          return trimmed === '' ? null : trimmed;
-        } catch {
-          return null;
-        }
-      },
-    }),
-    inventoryModule({
-      emFactory: em,
-      requireCustomer,
-      resolveCustomerContext: customerResolver,
-      requireAdmin,
-      eventBus,
-      channelResolver: salesChannels.handle.resolver,
-      templateEmail: makeOrgTemplateEmail({
-        getSender: () => transactionalEmailSender,
-        resolveScopeSalesChannelId,
-        resolveLanguage: resolveSalesChannelLanguage,
-      }),
-      settingsService: settings.handle.settingsService,
-      dictionaryValidator: dictionaries.handle.validator,
-      auditLogService,
-      resolveAdminAuditContext: (request) => {
-        const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
-        if (actor?.kind !== 'admin') {
-          return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
-        }
-        return { actorAdminUserId: actor.adminUserId };
-      },
-      resolveOrganizationWarehouseAllowList,
-    }),
   ];
 
   // Feature 005 — Sales Channels plugin (resolver middleware on every
@@ -1651,37 +1073,34 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // service handle was constructed up at the inventory site so other
   // modules can read it at construction time. The boot-time reconciler
   // runs below before HTTP comes up.
-  modules.push(settings.plugin);
-  modules.push(mfa.plugin);
 
   // Feature 013 — Assets Library. Phase 2 instantiates the module so its
   // manifest is reconciled and the AssetsLibraryService / referenceRegistry
-  // are accessible to other modules. Routes (admin upload, public file
-  // serving) and consumer wiring (Catalog / CMS reference descriptors) land
-  // in subsequent phases (US1 + US2).
-  const assetsLibrary = assetsLibraryModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
-  modules.push(assetsLibrary.plugin);
-  // Register Catalog's reference descriptors so the Library's soft-delete
-  // path (FR-030) blocks deletion of any asset still pointed at by a
-  // gallery item / product attachment / virtual-download / category main
-  // image.
-  registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
-  registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
-  registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
+  // are accessible to other modules.
+  // Feature 072 (T092) — the module owns its plugin and its registry now.
+  // T143a — and the reference descriptors are gone from here too: `catalog`,
+  // `cms` and `megamenu` each push their own from `ctx.onBoot`, so which edges
+  // block an asset delete follows from which modules are present rather than
+  // from what this root was taught.
+  const assetsLibrary = (container.cradle as unknown as AssetsLibraryCradle).assetsLibrary;
 
-  cms.handle.setAssetResolver(async (assetId) => {
-    try {
-      const detail = await assetsLibrary.handle.service.getAsset(assetId);
-      return {
-        url: detail.url,
-        mimeType: detail.mimeType,
-        filename: detail.filename,
-        label: detail.label ?? null,
-        visibility: detail.visibility,
-      };
-    } catch {
-      return null;
-    }
+  // Feature 072 (T093) — contributed, not set: which modules a deployment
+  // ships is this root's business, and `cms` reads the contribution per call.
+  composedModules.contribute({
+    cmsAssetResolver: async (assetId: string) => {
+      try {
+        const detail = await assetsLibrary.handle.service.getAsset(assetId);
+        return {
+          url: detail.url,
+          mimeType: detail.mimeType,
+          filename: detail.filename,
+          label: detail.label ?? null,
+          visibility: detail.visibility,
+        };
+      } catch {
+        return null;
+      }
+    },
   });
 
   // Feature 046 — PWA module. Owns the installable-app control plane (over the
@@ -1689,73 +1108,74 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // push fan-out (BullMQ; co-located unless BACKEND_ROLE=api), and the icon
   // rendition pipeline (sharp + assets_library). Channel/asset/customer coupling
   // is injected here so the module stays isolated (Principle I).
-  const pwa = pwaModule({
-    emFactory: em,
-    redis,
-    runWorkers,
-    settings: settings.handle.settingsService,
-    settingsWrite: settings.handle.adminService,
-    requireAdmin,
-    eventBus,
-    assetUpload: {
-      upload: async (input) => {
-        const detail = await assetsLibrary.handle.service.upload(input);
-        return { id: detail.id };
+  // Feature 072 (T116) — `pwa` owns its services, its queue and its routes
+  // now. What stays here is every way it reaches outside itself, contributed
+  // as one bridge: a composition knows how to reach `assets_library` and
+  // `sales_channels`, or it does not.
+  composedModules.contribute({
+    pwaRunWorkers: runWorkers,
+    pwaBridge: {
+      assetUpload: {
+        upload: async (input) => {
+          const detail = await assetsLibrary.handle.service.upload(input);
+          return { id: detail.id };
+        },
       },
-    },
-    resolveAssetUrl: async (assetId) => {
-      try {
-        const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
-        return absolutizePublicUrl(resolved.url);
-      } catch {
-        return null;
-      }
-    },
-    resolveChannelIdByCode: async (code) => {
-      if (code) {
-        const ch = await salesChannels.handle.resolver.getByCode(code);
-        if (ch) return ch.id;
-      }
-      return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId;
-    },
-    defaultChannelId: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-    channelCodeForId: async (channelId) => {
-      const ch = await em().findOne(SalesChannel, { id: channelId });
-      return ch?.code ?? null;
-    },
-    resolveAuditContext: (request) => ({
-      actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-    }),
-    vapidSubject: process.env['PWA_VAPID_SUBJECT'] ?? 'mailto:admin@b2b-platform.local',
-    resolveCustomerAccountId: async (request) =>
-      request.actor.kind === 'customer' ? request.actor.customerAccountId : null,
-    // FR-024 auto-trigger — resolve an order-status event into a push target
-    // (the placing customer + a deep link to their order). Reading the Order
-    // entity here keeps the pwa module decoupled from the orders module.
-    resolveOrderTarget: async (payload) => {
-      const order = await em().findOne(Order, { id: payload.orderId });
-      if (!order || !order.placedByCustomerAccountId) return null;
-      return {
-        salesChannelId: payload.salesChannelId,
-        customerAccountId: order.placedByCustomerAccountId,
-        title: 'Order update',
-        body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
-        url: `/account/orders/${order.businessId}`,
-      };
-    },
+      resolveAssetUrl: async (assetId: string) => {
+        try {
+          const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
+          return absolutizePublicUrl(resolved.url);
+        } catch {
+          return null;
+        }
+      },
+      // An unknown code falls back to the system-default channel, which always
+      // exists (D-48). It used to be the `'default'` sentinel, which resolved
+      // nothing at all, and then `?? null`, which read `pwa`'s per-storefront
+      // configuration platform-wide on a branch that cannot be taken.
+      resolveChannelIdByCode: async (code: string | undefined) => {
+        if (code) {
+          const ch = await salesChannels.resolver.getByCode(code);
+          if (ch) return ch.id;
+        }
+        return (await salesChannels.resolver.getSystemDefault()).id;
+      },
+      defaultChannelId: async () => (await salesChannels.resolver.getSystemDefault()).id,
+      channelCodeForId: async (channelId: string) => {
+        const ch = await em().findOne(SalesChannel, { id: channelId });
+        return ch?.code ?? null;
+      },
+      resolveAuditContext: (request: FastifyRequest) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      resolveCustomerAccountId: async (request: FastifyRequest) =>
+        request.actor.kind === 'customer' ? request.actor.customerAccountId : null,
+      resolveOrderTarget: async (payload) => {
+        const order = await em().findOne(Order, { id: payload.orderId });
+        if (!order || !order.placedByCustomerAccountId) return null;
+        return {
+          salesChannelId: payload.salesChannelId,
+          customerAccountId: order.placedByCustomerAccountId,
+          title: 'Order update',
+          body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
+          url: `/account/orders/${order.businessId}`,
+        };
+      },
+    } satisfies PwaBridge,
   });
-  modules.push(pwa.plugin);
 
   // Feature 015 — Megamenu module. Wires the cross-module ports the
   // target validator + storefront resolver delegate to. v1 uses small
   // direct SQL lookups instead of forcing new upstream surfaces.
-  const megamenu = megamenuModule({
-    emFactory: em,
-    requireAdmin,
-    redis,
-    dictionaryValidator: dictionaries.handle.validator,
-    validatorDeps: {
+  // Feature 072 (T107) — `megamenu` owns its services and routes now. These
+  // two bundles stay here: both are existence checks and URL lookups against
+  // OTHER modules' tables, so moving them into the module would give it
+  // direct reads of `catalog`, `cms` and `assets_library` storage.
+  //
+  // Registered after `composeModules`, where `megamenu` declares its own
+  // defaults — contributing earlier would let the module overwrite the root.
+  composedModules.contribute({
+    megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
         const rows = (await em().getConnection().execute(
           'select 1 from categories where id = ? limit 1',
@@ -1784,11 +1204,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         )) as Array<{ '?column?': number }>;
         return rows.length > 0;
       },
-    },
-    storefrontDeps: {
+    } satisfies TargetValidatorDeps,
+    megamenuStorefrontDeps: {
       resolveCategoryUrl: async (categoryId) => {
+        // Feature 068 — a megamenu item pointing at a deactivated (or deleted)
+        // category resolves to null, which drops the item from the menu.
         const rows = (await em().getConnection().execute(
-          'select slug from categories where id = ? limit 1',
+          'select slug from categories where id = ? and is_active = true and deleted_at is null limit 1',
           [categoryId],
         )) as Array<{ slug: string }>;
         return rows[0]?.slug ? `/c/${rows[0].slug}` : null;
@@ -1831,31 +1253,282 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           content: { schemaVersion: 1, data },
         };
       },
-    },
+    } satisfies StorefrontDeps,
   });
-  modules.push(megamenu.plugin);
-  // Megamenu items that reference a CMS page or block block those entities'
-  // deletion via the CMS module's reference registry.
-  registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
 
-  // Feature 016 — Blog module. Wires the cache + settings resolver +
-  // asset-reference descriptors. Real admin/storefront routes land in
-  // user-story phases (Phase 3+); the plugin currently runs the seed
-  // reconcilers (Default Category + Blog Manager + Content Manager) on
-  // first registration so the platform boots in a usable state.
-  const blog = blogModule({
-    emFactory: em,
-    requireAdmin,
-    redis,
-    eventBus,
-    settings: {
-      get: (code, salesChannelId, schema) =>
-        settings.handle.settingsService.get(code, salesChannelId, schema),
+  // Feature 072 — the **host values** any module may resolve. No converted
+  // module is named here: each entry is a name whose value only a composition
+  // can supply, and several are ports their owning module will register itself
+  // once the surface they wrap is theirs.
+  composedModules.contribute({
+    // `requireAdmin` is NOT here any more: `auth` provides it as a port
+    // (T078), and re-registering the name would silently replace a gated
+    // registration with an ungated value — the exact failure `providePort`
+    // exists to prevent.
+    // `apiKeyResolver` is NOT here either: `api_keys` provides it as a gated
+    // port (T100), and re-registering the name replaced that gate with a plain
+    // closure — API-key authentication kept working after the module was
+    // switched off. Both roots carried the entry until the root-registration
+    // check started reading them (T118).
+    // `redis` is registered further up, where the client is created.
+    // The kernel's `SettingsService` already implements the read port; the
+    // adapter object this replaces existed only to narrow it.
+    settingsReadPort: settings.settingsService,
+    // The same cache, seen from the writing side (issue #45). The `settings`
+    // module owns the one write seam, so it is the one place that can drop the
+    // cache *as part of* the write instead of announcing the write and hoping a
+    // subscriber gets there first.
+    settingsCache: settings.cache,
+    // Which channel a global-scope settings read resolves against. It is a
+    // property of the deployment — the system-default channel, or the env
+    // fallback when none is configured yet — not of any module, and this root
+    // had spelled the same expression out four times.
+    // `requireCustomer` is NOT here any more: `auth` provides it as a port
+    // (issue #43), for the same reason `requireAdmin` is not — re-registering
+    // the name would replace a gated registration with a plain closure.
+    // Feature 072 (wave 2) — how this composition resolves the calling
+    // customer. Root-shaped as `requireCustomer` used to be: five
+    // modules take it as an option and each root spells it once.
+    customerContextResolver: customerResolver,
+    // Feature 072 (wave 3) — how this composition names the calling customer,
+    // as an id. The four payment gateways each declared an identically-shaped
+    // `resolveCustomerAccountId` option and this root spelled the same
+    // reference once per module.
+    customerAccountIdResolver: resolveCustomerAccountId,
+    // Feature 072 (T101) — inherited credit limits, owned by `organizations`,
+    // which provides `organizationInheritancePort`. This entry is the root's
+    // bridge to it and goes when the consumer resolves the port directly.
+    // Feature 072 (T111) — the composed attribute read model, owned by
+    // `catalog`. A root bridge, not a module that is unconverted.
+    // Feature 072 (wave 2) — how this composition names the acting admin for an
+    // audit record: the admin's id, or `null` for a non-admin caller. The ad
+    // modules each declared an identically-shaped `resolveAuditContext` option
+    // and both roots spelled the same closure once per module.
+    adminAuditActorResolver: (request: FastifyRequest) => ({
+      actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+    }),
+    // Feature 072 (wave 2) — the connection a module may build a BullMQ
+    // producer queue on. Deliberately a different name from `redis`: the test
+    // harness registers `redis` but must NOT hand a queue to these modules, and
+    // "no queue in this composition" is a statement a root should be able to
+    // make rather than something inferred from a missing option.
+    moduleQueueRedis: redis,
+    // Feature 072 (wave 2) — the sales-channel code⇄id lookup `google_analytics`
+    // resolves. Owned by `sales_channels`; this is a root bridge to its port.
+    salesChannelCodeIdPort: {
+      idByCode: async (code: string) =>
+        (await salesChannels.resolver.getByCode(code))?.id ?? null,
+      codeById: async (id: string) => {
+        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
+        return items.find((c) => c.id === id)?.code ?? null;
+      },
     },
-    assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
-    dictionaryValidator: dictionaries.handle.validator,
+    /**
+     * The channel a **channel-scoped** settings read resolves against outside a
+     * request (worker, boot hook, CLI): the deployment's system-default sales
+     * channel.
+     *
+     * D-48 removed the `?? null` — the resolver cannot fail to find a default,
+     * so this cannot answer "none". The return type stays `string | null`
+     * because the *seam* still admits one: a composition may register a
+     * resolver of its own that has no channel to offer, and
+     * `test/integration/quote_requests/settings-channel.test.ts` exercises
+     * exactly that, pinning D-43's warn-once degrade. What is gone is a
+     * resolver silently switching tier on an impossible branch.
+     *
+     * A read that is not per-storefront at all does not call this: it passes
+     * `null` to `settingsReadPort.get` deliberately, for a platform-wide read.
+     */
+    settingsChannelResolver: async (): Promise<string | null> =>
+      (await salesChannels.resolver.getSystemDefault()).id,
+    // Blog ships no storefront ports today — the factory defaulted this to `{}`
+    // and neither composition root ever passed one.
+    blogStorefrontDeps: undefined,
   });
-  modules.push(blog.plugin);
+  // `audit_logs` registers its own empty default for this name, so a value
+  // written before `composeModules` would be overwritten by it (the same trap
+  // `prompt_actions` hit).
+  composedModules.contribute({
+    // Feature 072 (T084) — `audit_logs` owns its routes now and no longer
+    // reaches into `admin_users` for identities. Turning an actor id into a
+    // name is a **contribution**, so it is gated here rather than declared as
+    // a dependency: the audit log must stay readable when `admin_users` is
+    // off, and it degrades to raw ids instead of refusing. Deciding what
+    // "`admin_users` is present" means is a root's job, not the reading
+    // module's; this entry disappears when `admin_users` converts and
+    // publishes the resolver itself.
+    // Feature 072 (T121) — the gate is the port's own now: `adminUserService`
+    // is provided by `admin_users` and raises `ModuleDisabledError` when that
+    // module is off, so no root hard-codes `isPresent('admin_users')` here.
+    // The contribution itself stays a root's: `audit_logs` owns the name and
+    // defaults it absent, and it composes after `admin_users`, so a
+    // registration from the module would be overwritten by that default.
+    auditActorResolver: async (ids: string[]) => {
+      const users = await (
+        container.cradle as unknown as AdminUsersCradle
+      ).adminUserService.listByIds(ids);
+      return users.map((u) => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+      }));
+    },
+  });
+  // Feature 072 (T136) — `carts` owns its thirteen services and three route
+  // files now. What stays a composition's: who is asking (production reads
+  // `request.actor`, the harness `request.testActor`), and the bridge into
+  // `shopping_lists`, which points outward and so cannot be a port.
+  // Feature 072 (T120) — how an asset id becomes a public URL inside an email.
+  // It reaches `assets_library`, which `transactional_emails` must not read
+  // through directly, so it stays a composition's to supply.
+  composedModules.contribute({
+    transactionalEmailAssetUrl: async (assetId: string): Promise<string | null> => {
+      try {
+        const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
+        return absolutizePublicUrl(resolved.url);
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  // Feature 072 (T142) — `catalog` owns its services and routes now, and the
+  // seven `pim_ergonode` reads through are its ports rather than a second
+  // instance built here. What stays a composition's: whether this process runs
+  // the bulk-operation consumer (Principle X), how this deployment names an
+  // acting admin on an audit record, and the three adapters that reach modules
+  // `catalog` must not read through directly.
+  composedModules.contribute({
+    catalogRunBulkOperationWorker: runWorkers,
+    catalogAdminAuditContext: (request: FastifyRequest) => {
+      if (request.actor.kind !== 'admin') {
+        // Auditing an anonymous mutation shouldn't happen — the admin gate
+        // refuses these — but if it ever does, fall back to a sentinel.
+        return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
+      }
+      return {
+        actorAdminUserId: request.actor.adminUserId,
+        impersonatedCustomerAccountId: null,
+      };
+    },
+    catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
+      // D-61 — the presence probe a `degrades-without` edge owes its owner
+      // (D-44), and it belongs here because this closure is where the port is
+      // resolved. `catalog` declares the degrade in its manifest: a product
+      // listing without `inventory` carries no availability band, which is the
+      // empty map, and is exactly what the decorator's absent-contribution path
+      // already answers. A closed gate **throws** rather than resolving to
+      // `undefined`, so this has to come before the resolution — optional
+      // chaining and a `catch` both defend against nothing here.
+      if (!effectiveState.isPresent('inventory')) {
+        return new Map<string, ProductAvailability>();
+      }
+      return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
+        productIds,
+        salesChannelId,
+      );
+    },
+    // Full Meilisearch reindex (the `search:reindex` CLI equivalent), run as a
+    // `search_reindex` bulk operation when an attribute's `searchable` flag
+    // flips. T143a — forwarded to `search`'s own port rather than performed
+    // here: this closure used to build a **second** `SearchIndexer` beside the
+    // one `searchModule` already holds, and being a root's it answered with
+    // `search` switched off. Read per call, so the gate stays live.
+    catalogSearchReindex: async () => searchCradle().searchReindexPort.reindexAll(),
+    // Storefront product-image placeholder (general.product_image_placeholder_url),
+    // resolved global-or-per-channel through the SettingsService. Returns null
+    // (no placeholder) when unset or on any resolution error so a settings
+    // hiccup can never break product listings.
+    catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
+      try {
+        // An unknown code falls back to the system-default channel, which
+        // always exists (D-48); the placeholder is a per-storefront property,
+        // so the default channel's value is the wanted answer, not the
+        // platform-wide one the old `?? null` quietly switched to.
+        const channelId =
+          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)?.id ??
+          (await salesChannels.resolver.getSystemDefault()).id;
+        const url = await settings.settingsService.get(
+          'product_image_placeholder_url',
+          channelId,
+          z.string(),
+        );
+        const trimmed = url.trim();
+        return trimmed === '' ? null : trimmed;
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  // Feature 072 (T141) — the two names `orders` still takes from a composition:
+  // which organizations a sales-rep admin may see (actor-shaped, owner `auth`),
+  // and the admin-editable sender, late-bound because `transactional_emails`
+  // publishes it after this module composes.
+  composedModules.contribute({
+    ordersAdminScopeResolver: resolveAdminOrdersScope,
+  });
+
+  composedModules.contribute({
+    cartActorResolver: (request: FastifyRequest) => {
+      if (request.actor.kind === 'customer') {
+        return {
+          customer: {
+            customerAccountId: request.actor.customerAccountId,
+            organizationId: request.actor.organizationId,
+          },
+        };
+      }
+      const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+      const anon = cookies?.['b2b_cart_anon'];
+      if (anon) return { anonymousToken: anon };
+      return {};
+    },
+    cartShoppingListBridge: {
+      pushLineToShoppingList: async (input) => {
+        if (!shoppingListService) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        await shoppingListService.addItem(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          {
+            productId: input.productId,
+            ...(input.variantId ? { variantId: input.variantId } : {}),
+            quantity: input.quantity,
+          },
+        );
+      },
+      appendShoppingListToCart: async (input) => {
+        if (!shoppingListService) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        const res = await shoppingListService.convertToCart(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          undefined,
+        );
+        // Map ShoppingListService.convertToCart's shape onto the carts
+        // module's uniform return shape across the three conversions.
+        return {
+          cartId: '',
+          appendedLineCount: res.added,
+          droppedLines: res.skipped.map((it) => ({
+            productId: it.productId,
+            productName: it.productId,
+            reason: 'not_purchasable',
+          })),
+        };
+      },
+    } satisfies CartShoppingListBridge,
+  });
 
   // Feature 017 — Dictionary module. Boot reconciler populates the
   // ISO 3166-1 country catalogue, the major-currency seed metadata,
@@ -1865,291 +1538,203 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // HTTP routes ship in user-story phases (Phase 3+); the plugin
   // currently performs the seed reconciler on first registration so
   // the platform boots with a fully populated registry.
-  modules.push(dictionaries.plugin);
 
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
   // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config
   // resolution + LLM-toggle wrapper hook in via the same handle.
-  const search = searchModule({
-    emFactory: em,
-    eventBus,
-    catalogAttributeRead: catalogAttributeReadService,
-    settingsService: settings.handle.settingsService,
-    settingsAdminService: settings.handle.adminService,
-    // Feature 058 — resolve `search.llm.embedder_credentials`; legacy embedder
-    // settings remain the per-field fallback.
-    credentials: credentials.handle.service,
-    requireAdmin,
-    // Typeahead suggestions carry the per-customer price-list resolution so
-    // the popup shows the price the searching user would actually pay,
-    // honouring their price list and price-visibility (feature 011).
-    enrichSuggestionPricing: createSuggestionPricingEnricher({
-      emFactory: em,
-      pricingService: priceLists.handle.pricingService,
-    }),
-    resolveAdminAuditContext: (request) => {
-      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
-      return { actorAdminUserId: request.actor.adminUserId };
-    },
-    // Periodic full Meilisearch reindex — interval from Settings
-    // (`search.reindex_interval_minutes`, default 10; 0 disables). The sweep
-    // runs co-located unless BACKEND_ROLE=api, exactly like the other workers.
-    enableReindexScheduler: runWorkers,
-    resolveReindexIntervalMinutes: async () => {
-      try {
-        return await settings.handle.settingsService.get(
-          SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES,
-          'default',
-          z.number().int().nonnegative(),
-        );
-      } catch {
-        return DEFAULT_REINDEX_INTERVAL_MINUTES;
+  // Feature 072 (T123) — `search` owns its services, routes and reindex
+  // cadence now. Two names stay a composition's: whether this process runs the
+  // sweep, and `price_lists`' resolver, which the module narrows to a
+  // suggestion price.
+  composedModules.contribute({
+    searchRunWorkers: runWorkers,
+  });
+
+  // Feature 072 (T129) — the two adapters `inventory` reaches outside itself
+  // through: the transactional-email sender that `transactional_emails`
+  // announces late, and the Organization's warehouse assignment. Both are a
+  // root's to build; how this deployment names a non-admin caller on an audit
+  // record is too.
+  composedModules.contribute({
+    // Feature 072 (T138) — the admin-editable sender `organizations` sends its
+    // verification, invitation and new-registration emails through. A getter
+    // because `transactional_emails` announces the sender well after this
+    // point; same shape and owner as `inventoryTemplateEmail`.
+    inventoryAdminAuditContext: (request: FastifyRequest) => {
+      const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
+      if (actor?.kind !== 'admin') {
+        return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
       }
+      return { actorAdminUserId: actor.adminUserId };
     },
   });
-  modules.push(search.plugin);
 
   // Feature 026 — Admin notifications bell. The plugin only mounts read
   // routes; writes happen via the handle (consumed above by the
   // OrgRegistrationNotifier and by future modules that emit notifications).
-  modules.push(adminNotifications.plugin);
 
   // Feature 007 — Comparisons module. US1 wires the customer-facing CRUD
   // endpoints; US2/US4/US5 extend the plugin with share, PDF, and admin
   // routes respectively. Reads catalog through CatalogQueryService (the
   // documented service port — Constitution I) and `compare.max_products`
   // through SettingsService.
-  const catalogQueryServiceForCompare = new CatalogQueryService(
-    em,
-    undefined,
-    undefined,
-    catalogAttributeReadService,
-  );
-  const comparisons = comparisonsModule({
-    emFactory: em,
-    catalogQueryService: catalogQueryServiceForCompare,
-    catalogAttributeRead: catalogAttributeReadService,
-    settingsService: settings.handle.settingsService,
-    requireAdmin,
-  });
-  modules.push(comparisons.plugin);
-  // Late-bind the adoption hook captured by organizationsModule.onLogin
-  // above; from this point onwards customer logins also adopt the
-  // anonymous Comparison the caller was carrying (R-2 / spec FR-005).
-  comparisonAdoption = comparisons.handle.comparisonService.adoptAnonymousComparison.bind(
-    comparisons.handle.comparisonService,
-  );
+  // Feature 072 (T111) — the `CatalogQueryService` built here fed a parameter
+  // `ComparisonService` discarded (`_catalogQuery`). Both are gone.
+  // Feature 072 (T111) — `comparisons` owns its services and routes now.
+  // Anonymous→authenticated adoption is called straight from the login hook
+  // below (R-2 / spec FR-005): `comparisonService` is a gated port, so it is
+  // resolved per login rather than bound here.
 
   // Feature 008 — Quote Requests workflow. Built after Settings so the
   // expiry worker can read `quote_requests.expiryDays` through the
   // settings service. Customer + admin context resolvers look up the
   // caller's role for visibility scoping (research §R2 / FR-011 / FR-013).
-  const quoteRequests = quoteRequestsModule({
-    emFactory: em,
-    eventBus,
-    requireCustomer,
-    requireAdmin,
-    customFieldValues: customFields.handle.valueService,
-    resolveCustomerContext: async (request) => {
-      if (request.actor.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      if (!request.actor.organizationId) {
-        throw new HttpError(
-          422,
-          ERROR_CODES.VALIDATION_FAILED,
-          'Quote Requests require an Organization attached to your account.',
-          { code: 'organization_required' },
-        );
-      }
-      const account = await em().findOne(CustomerAccount, {
-        id: request.actor.customerAccountId,
-      });
-      return {
-        customerAccountId: request.actor.customerAccountId,
-        organizationId: request.actor.organizationId,
-        isOrgAdmin: account?.role === 'organization_admin',
-      };
-    },
-    resolveAdminContext: async (request) => {
-      if (request.actor.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
-      const role = adminUser?.adminRoleId
-        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
-        : null;
-      return {
-        adminUserId: request.actor.adminUserId,
-        isPlatformAdmin: role?.code === 'platform_admin',
-        roleLabel:
-          role?.code === 'platform_admin'
-            ? 'Platform administrator'
-            : role?.code === 'sales_representative'
-              ? 'Sales representative'
-              : (role?.name ?? 'Administrator'),
-      };
-    },
-    resolveExpiryDays: async () => {
-      try {
-        const { z } = await import('zod');
-        const value = await settings.handle.settingsService.get(
-          QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS,
-          'default',
-          z.number().int().nonnegative(),
-        );
-        return value;
-      } catch {
-        return 0;
-      }
-    },
-    resolveBoolSetting: async (key) => {
-      try {
-        const { z } = await import('zod');
-        const code =
-          key === 'show_add_to_quote_on_card'
-            ? QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_CARD
-            : QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_PDP;
-        return await settings.handle.settingsService.get(code, 'default', z.boolean());
-      } catch {
-        return true;
-      }
-    },
-    // Business Quote Request ID prefix/suffix — global (not Sales-Channel
-    // scoped). Missing settings resolve to '' (bare numeric ID).
-    resolveBusinessIdPrefix: async () => {
-      try {
-        const { z } = await import('zod');
-        return await settings.handle.settingsService.get(
-          QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_PREFIX,
-          'default',
-          z.string(),
-        );
-      } catch {
-        return '';
-      }
-    },
-    resolveBusinessIdSuffix: async () => {
-      try {
-        const { z } = await import('zod');
-        return await settings.handle.settingsService.get(
-          QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_SUFFIX,
-          'default',
-          z.string(),
-        );
-      } catch {
-        return '';
-      }
-    },
-    assertOrganizationCanTransact,
-    // Quote Request prices are net; the VAT rate is resolved from the
-    // Organization's VAT status + tax rules at read time (mirrors Orders).
-    // VAT-exempt / reverse-charge Organizations resolve to 0.
-    resolveTaxRate: async (organizationId: string) => {
-      try {
-        const org = await em().findOne(Organization, { id: organizationId });
+  // Feature 072 (T132) — `quote_requests` owns its services, routes and the
+  // four settings reads now. What stays is a composition's answer to who is
+  // asking, the organization's tax rate, and the subtree the RFQ admin scope
+  // rolls up over.
+  composedModules.contribute({
+      rfqCustomerContextResolver: async (request: FastifyRequest) => {
+        if (request.actor.kind !== 'customer') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+        }
+        if (!request.actor.organizationId) {
+          throw new HttpError(
+            422,
+            ERROR_CODES.VALIDATION_FAILED,
+            'Quote Requests require an Organization attached to your account.',
+            { code: 'organization_required' },
+          );
+        }
+        const account = await em().findOne(CustomerAccount, {
+          id: request.actor.customerAccountId,
+        });
+        return {
+          customerAccountId: request.actor.customerAccountId,
+          organizationId: request.actor.organizationId,
+          isOrgAdmin: account?.role === 'organization_admin',
+        };
+      },
+      rfqAdminContextResolver: async (request: FastifyRequest) => {
+        if (request.actor.kind !== 'admin') {
+          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+        }
+        const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
+        const role = adminUser?.adminRoleId
+          ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+          : null;
+        return {
+          adminUserId: request.actor.adminUserId,
+          isPlatformAdmin: role?.code === 'platform_admin',
+          roleLabel:
+            role?.code === 'platform_admin'
+              ? 'Platform administrator'
+              : role?.code === 'sales_representative'
+                ? 'Sales representative'
+                : (role?.name ?? 'Administrator'),
+        };
+      },
+      // No `catch` (issue #84). `taxRateFor` answers "nothing applies" as a
+      // value — `{ source: 'none' }`, with no rate to read — so the only errors
+      // left here are a failing database and `taxes` being switched off.
+      // Returning 0 for either quoted a zero-VAT price on an operator's behalf
+      // and called it an answer.
+      // T143c — the Organization is read through `organizations`' own port
+      // rather than by loading its entity here. Both roots spelled the same
+      // query, and being a root's it answered with `organizations` switched
+      // off: a quote priced from a tenancy row the platform was refusing to
+      // serve. The refusal now reaches the same place a database failure does.
+      rfqTaxRateResolver: async (organizationId: string) => {
+        const org = await (
+          container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
+        ).organizationTaxProfilePort.taxProfileOf(organizationId);
         const vatStatus = org?.vatStatus ?? 'vat_payer';
         if (vatStatus !== 'vat_payer') return 0;
-        const country = org?.registeredAddress?.country ?? 'PL';
-        const resolved = await taxes.handle.taxService.taxRateFor({
+        const country = org?.country ?? 'PL';
+        const resolved = await taxesCradle.taxService.taxRateFor({
           country,
           productType: 'simple',
           vatStatus,
         });
-        return resolved.rate;
-      } catch {
-        return 0;
+        // `none` is the operator's own configuration state — `taxes` is present
+        // and holds no rule that applies and no default — so a quote is priced
+        // net, and the quote view drops its VAT row rather than printing a 0%
+        // one. An *absent* `taxes` never reaches this line: the port gate above
+        // throws (issue #124).
+        return resolved.source === 'none' ? 0 : resolved.rate;
+      },
+  });
+
+  // Feature 072 (T138) — what a login does beyond logging in. Points *outward*
+  // from `organizations` to two modules that depend on it, so it cannot be a
+  // port; the module defaults it to a no-op and this overwrites that default.
+  //
+  // Registered after `composeModules` rather than before it, because a value
+  // registered before is what the module's own default then overwrites. It is
+  // safe this late for the reason it is safe at all: the hook is read at login
+  // time, not at construction.
+  composedModules.contribute({
+    organizationsLoginHook: async (loginCtx: {
+      customerAccountId: string;
+      organizationId: string | null;
+      anonymousCartToken?: string;
+      anonymousCompareToken?: string;
+    }) => {
+      let cartMerge:
+        | Awaited<ReturnType<CartsCradle['cartService']['mergeAnonymousIntoCustomer']>>
+        | undefined;
+      if (loginCtx.anonymousCartToken) {
+        cartMerge = await (
+          container.cradle as unknown as CartsCradle
+        ).cartService.mergeAnonymousIntoCustomer(loginCtx.anonymousCartToken, {
+          customerAccountId: loginCtx.customerAccountId,
+          organizationId: loginCtx.organizationId,
+        });
       }
-    },
-    auditLog: auditLogService,
-    // Feature 056 — RFQ admin scope is subtree-aware for reps holding roll-up.
-    salesRepSubtree: {
-      treeService: organizationTreeService,
-      hasRollupCapability: (adminUserId) =>
-        permissionService.hasPermission(adminUserId, 'organizations:rollup'),
+      // Comparisons' anonymous→authenticated adoption (R-2 / FR-005). Resolved
+      // per login rather than captured, so a switched-off `comparisons` cannot
+      // go on adopting through an instance this root is holding.
+      //
+      // D-70 — and the presence question is **decided** here, before the
+      // resolution, in the shape D-61 already shipped for
+      // `catalogExternalAvailability` above. A closed gate throws rather than
+      // resolving to `undefined`, so the probe has to come first. What it buys
+      // is not the login's survival — the route's `catch` covers that and stays
+      // — but that the one condition an operator creates on purpose stops
+      // arriving as a caught error: a skipped adoption is a decision, a caught
+      // one is indistinguishable from a database failure. The route then
+      // absorbs exactly what feature 037 FR-007/FR-008 say it must, and nothing
+      // else.
+      if (loginCtx.anonymousCompareToken && effectiveState.isPresent('comparisons')) {
+        await (
+          container.cradle as unknown as ComparisonsCradle
+        ).comparisonService.adoptAnonymousComparison(
+          loginCtx.customerAccountId,
+          loginCtx.anonymousCompareToken,
+        );
+      }
+      return cartMerge ? { cartMerge } : {};
     },
   });
-  modules.push(quoteRequests.register);
 
   // Feature 040 — Customers module. Built after orders + quote_requests so it
   // can reach the OrderListService (late-bound) and the RfqService for the
   // self-service order / RFQ history endpoints.
-  const customers = customersModule({
-    emFactory: em,
-    sessionService,
-    requireCustomer,
-    commandBus,
-    customFieldValues: customFields.handle.valueService,
-    resolveCustomerActor: (request) => {
+  // Feature 072 (T140) — `customers` owns its services, its routes and its
+  // three settings reads now. Three names stay a composition's: who is asking,
+  // who is moderating (both actor-shaped, owner `auth`), and the late-bound
+  // order-list service `orders` builds.
+  composedModules.contribute({
+    customerActorResolver: (request: FastifyRequest) => {
       if (request.actor.kind !== 'customer') {
-        throw new HttpError(
-          401,
-          ERROR_CODES.UNAUTHORIZED,
-          'Customer session required.',
-        );
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
       }
       return {
         customerAccountId: request.actor.customerAccountId,
         organizationId: request.actor.organizationId ?? null,
       };
     },
-    resolveAllowRegistrationWithoutOrganization: async () => {
-      try {
-        const { z } = await import('zod');
-        const channel = await salesChannels.handle.resolver.getSystemDefault();
-        if (!channel) return false;
-        return await settings.handle.settingsService.get(
-          CUSTOMERS_SETTING_CODES.ALLOW_REGISTRATION_WITHOUT_ORGANIZATION,
-          channel.id,
-          z.boolean(),
-        );
-      } catch {
-        // Setting not seeded / out-of-scope — default closed (org required).
-        return false;
-      }
-    },
-    getOrderListService: () => {
-      if (!orderListServiceForCustomers) {
-        throw new Error('OrderListService not yet bound');
-      }
-      return orderListServiceForCustomers;
-    },
-    rfqService: quoteRequests.handle().rfqService,
-    auditLogService,
-    organizationRestrictionService,
-    requireAdmin,
-    vatValidator: new ViesClient(),
-    mailer: organizationsMailer,
-    storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    resolveDeletionRetentionDays: async () => {
-      try {
-        const { z } = await import('zod');
-        const channel = await salesChannels.handle.resolver.getSystemDefault();
-        if (!channel) return 365;
-        return await settings.handle.settingsService.get(
-          CUSTOMERS_SETTING_CODES.DELETION_RETENTION_DAYS,
-          channel.id,
-          z.number(),
-        );
-      } catch {
-        return 365;
-      }
-    },
-    resolvePresenceFreshnessMinutes: async () => {
-      try {
-        const { z } = await import('zod');
-        const channel = await salesChannels.handle.resolver.getSystemDefault();
-        if (!channel) return 10;
-        return await settings.handle.settingsService.get(
-          CUSTOMERS_SETTING_CODES.PRESENCE_FRESHNESS_MINUTES,
-          channel.id,
-          z.number(),
-        );
-      } catch {
-        return 10;
-      }
-    },
-    resolveModerationActor: async (request) => {
+    customerModerationActorResolver: async (request: FastifyRequest) => {
       const actor = request.actor;
       if (actor.kind !== 'admin') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
@@ -2163,83 +1748,68 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       let allowedOrganizationIds: string[] = [];
       if (!isPlatformAdmin) {
         // Feature 056 — subtree-expanded when the rep holds `organizations:rollup`.
-        allowedOrganizationIds = await scopedSalesRepAssignment.listAssignedOrganizationIds(
+        allowedOrganizationIds = await salesRepScope().listAssignedOrganizationIds(
           actor.adminUserId,
         );
       }
       return { adminUserId: actor.adminUserId, isPlatformAdmin, allowedOrganizationIds };
     },
   });
-  modules.push(customers.plugin);
 
   // Feature 047 — Invoices. Owns issuance, numbering, PDF rendering, admin +
   // customer routes. Constructed before returns so the corrective-invoice
   // provider can draw correction numbers from the shared number generator.
-  const invoices = invoicesModule({
-    emFactory: em,
-    eventBus,
-    requireAdmin,
-    requireCustomer,
-    settingsService: settings.handle.settingsService,
-    audit: auditLogService,
-    auditLog: auditLogService,
-    resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-    resolveCustomerContext: (req: FastifyRequest) => {
-      const c = customerResolver(req);
-      return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
-    },
-    getTransactionalEmailSender: () => transactionalEmailSender,
-    resolveRecipientEmail: async (order) =>
-      (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
-    resolveLanguage: async (salesChannelId) =>
-      (salesChannelId
-        ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
-        : null) ?? 'en-US',
-    loadAssetImage: async (assetId) => {
-      try {
-        const a = await em().findOne(Asset, { id: assetId, deletedAt: null });
-        if (!a || !a.mimeType.startsWith('image/')) return null;
-        const adapter = await assetsLibrary.handle.adapters.getForBackend(
-          a.storageBackend as 'local' | 's3' | 'gcs' | 'legacy',
-        );
-        // Legacy resolver only has resolveUrl — cannot stream bytes for PDF embed.
-        if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
-        const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
-        const chunks: Buffer[] = [];
-        for await (const chunk of stream) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  // Feature 072 (T113) — `invoices` owns its services and routes now. What
+  // stays here is how this composition reaches outside the module,
+  // contributed as one bridge.
+  composedModules.contribute({
+    invoicesBridge: {
+      resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
+      resolveCustomerContext: (req: FastifyRequest) => {
+        const c = customerResolver(req);
+        return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
+      },
+      getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
+      resolveRecipientEmail: async (order) =>
+        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
+      resolveLanguage: async (salesChannelId) =>
+        (salesChannelId
+          ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
+          : null) ?? 'en-US',
+      loadAssetImage: async (assetId) => {
+        try {
+          const a = await em().findOne(Asset, { id: assetId, deletedAt: null });
+          if (!a || !a.mimeType.startsWith('image/')) return null;
+          const adapter = await assetsLibrary.handle.adapters.getForBackend(
+            a.storageBackend as 'local' | 's3' | 'gcs' | 'legacy',
+          );
+          // Legacy resolver only has resolveUrl — cannot stream bytes for PDF embed.
+          if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
+          const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
+          const chunks: Buffer[] = [];
+          for await (const chunk of stream) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          }
+          return { bytes: Buffer.concat(chunks), mimeType: a.mimeType };
+        } catch {
+          return null;
         }
-        return { bytes: Buffer.concat(chunks), mimeType: a.mimeType };
-      } catch {
-        return null;
-      }
-    },
+      },
+    } satisfies InvoicesBridge,
   });
-  modules.push(invoices.plugin);
 
   // Feature 059 — KSeF (Krajowy System e-Faktur). Consumes the invoices
   // domain events, submits FA(3) documents through a durable queue, and feeds
   // the KSeF number/QR back through the invoices port + PDF-renderer seam.
-  const ksef = ksefModule({
-    emFactory: em,
-    requireAdmin,
-    settingsService: settings.handle.settingsService,
-    commandBus,
-    eventBus,
-    invoices: {
-      buildDetail: (invoiceId) => invoices.handle.invoiceService.buildDetail(invoiceId),
-      recordKsefAssignment: (invoiceId, assignment) =>
-        invoices.handle.invoiceService.recordKsefAssignment(invoiceId, assignment),
-    },
-    auditLogService,
-    redis,
-    runWorkers,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
-    resolveSellerNip: async () => {
+  // Feature 072 (T104) — `ksef` owns its services and routes now.
+  composedModules.contribute({
+    ksefSellerNipResolver: async () => {
       try {
-        const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', z.string());
+        // Platform-wide: one legal seller issues every invoice this deployment
+        // produces, so there is no channel to read for. This used to be the nil
+        // UUID — a well-formed id that addresses no row, which resolved to the
+        // same tier by accident rather than by saying so (D-41).
+        const raw = await settings.settingsService.get('invoices.seller.tax_id', null, z.string());
         const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
         return nip.length > 0 ? nip : null;
       } catch {
@@ -2247,10 +1817,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
     },
   });
-  modules.push(ksef.plugin);
+  const ksefCradle = container.cradle as unknown as KsefCradle;
   // PDF QR seam (contracts/invoices-integration.md §3) — one resolver covers
   // every render path; absent/disabled module ⇒ pre-059 output.
-  invoices.handle.pdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
+  // Feature 072 (T113) — contributed, not set. `invoices` installs its own
+  // resolver at construction and reads this per call, so a deployment without
+  // KSeF simply has no verification block rather than an unset setter.
+  composedModules.contribute({
+    ksefVerificationResolver: ksefCradle.ksef.handle.buildVerification,
+  });
 
   // Feature 067 — Product Feed. Projects a sales channel's catalogue into
   // provider-shaped feed files published at a tokenised URL. Every cross-module
@@ -2263,559 +1838,255 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // one: it is the documented cross-module catalog port (Constitution I), and
   // sharing one instance between two unrelated consumers would make an
   // unrelated wiring change to one of them a silent change to the other.
-  const catalogQueryServiceForProductFeeds = new CatalogQueryService(
-    em,
-    undefined,
-    undefined,
-    catalogAttributeReadService,
-  );
-  const productFeeds = productFeedsModule({
-    emFactory: em,
-    requireAdmin,
-    commandBus,
-    eventBus,
-    storageAdapters: {
-      getActive: () => assetsLibrary.handle.adapters.getActive(),
-      getForBackend: async (backend) => {
-        const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
-        // `getForBackend` also answers the legacy resolver, which can only
-        // build URLs. A feed artefact is always written by a real adapter, so
-        // reaching this branch means the row is corrupt — fail loudly rather
-        // than serving nothing.
-        if (!('open' in adapter) || typeof adapter.open !== 'function') {
-          throw new Error(
-            `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
-          );
-        }
-        return adapter;
+  // Feature 072 (T137) — `product_feeds` owns its services and routes now.
+  // The four adapters it reaches outside itself through stay a root's: each
+  // crosses a boundary the module must not reach through directly.
+  composedModules.contribute({
+    productFeedsBridge: {
+      storageAdapters: {
+        getActive: () => assetsLibrary.handle.adapters.getActive(),
+        getForBackend: async (backend) => {
+          const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
+          // `getForBackend` also answers the legacy resolver, which can only
+          // build URLs. A feed artefact is always written by a real adapter, so
+          // reaching this branch means the row is corrupt — fail loudly rather
+          // than serving nothing.
+          if (!('open' in adapter) || typeof adapter.open !== 'function') {
+            throw new Error(
+              `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
+            );
+          }
+          return adapter;
+        },
       },
-    },
-    salesChannelMembership: salesChannels.handle.membershipService,
-    pricingService: priceLists.handle.pricingService,
-    taxService: taxes.handle.taxService,
-    resolveAvailability: async (productIds, salesChannelId) => {
-      const candidateWarehouseIds =
-        await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
-      return externalAvailabilityStockLevels.resolveAvailabilityBands(
-        productIds,
-        candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
-      );
-    },
-    // FR-025 — "category membership, including descendants" through the
-    // documented catalog port, never a `product_categories` read from here.
-    expandCategoryProductIds: (categoryIds) =>
-      catalogQueryServiceForProductFeeds.expandCategoryProductIds(categoryIds),
-    // FR-043 — only stable, PUBLIC URLs reach a feed file. A private asset is
-    // absent from the map rather than present as an expiring signed URL, which
-    // would survive token rotation and break as soon as it expired.
-    resolvePublicImageUrls: async (assetIds) => {
-      const out = new Map<string, string>();
-      if (assetIds.length === 0) return out;
-      const assets = await em().find(Asset, {
-        id: { $in: assetIds },
-        visibility: 'public',
-        deletedAt: null,
-      });
-      const apiOrigin = (process.env['PUBLIC_API_BASE_URL'] ?? '').replace(/\/+$/, '');
-      for (const asset of assets) {
-        try {
-          const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
-          if (resolved.expiresAt !== null) continue; // signed ⇒ not stable
-          const url = /^https?:\/\//i.test(resolved.url)
-            ? resolved.url
-            : apiOrigin === ''
-              ? null
-              : `${apiOrigin}/${resolved.url.replace(/^\/+/, '')}`;
-          if (url) out.set(asset.id, url);
-        } catch {
-          // An unresolvable asset is simply not an image for this feed.
+      resolveAvailability: async (productIds: string[], salesChannelId: string) => {
+        // T143a — `inventory`'s port. Both roots built a second
+        // `StockLevelService` + `WarehouseChannelService` here and spelled this
+        // two-step twice; the module owns one pair now, and it stops answering
+        // when `inventory` is switched off.
+        return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
+          productIds,
+          salesChannelId,
+        );
+      },
+      // Feature 072 (T143a) — `catalog`'s own port. This root used to build a
+      // second `CatalogQueryService` here, and a second
+      // `CatalogAttributeReadService` whose only purpose was to feed it, while
+      // the module built its own of each. Both are gone: one instance now, and
+      // it stops answering when `catalog` is switched off, which the root's
+      // copy never did.
+      expandCategoryProductIds: (categoryIds: string[]) =>
+        (container.cradle as never as { catalogQueryPort: CatalogQueryService })
+          .catalogQueryPort.expandCategoryProductIds(categoryIds),
+      resolvePublicImageUrls: async (assetIds: string[]) => {
+        const out = new Map<string, string>();
+        if (assetIds.length === 0) return out;
+        const assets = await em().find(Asset, {
+          id: { $in: assetIds },
+          visibility: 'public',
+          deletedAt: null,
+        });
+        const apiOrigin = configuredPublicApiBaseUrl();
+        for (const asset of assets) {
+          try {
+            const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
+            if (resolved.expiresAt !== null) continue; // signed ⇒ not stable
+            const url = /^https?:\/\//i.test(resolved.url)
+              ? resolved.url
+              : apiOrigin === null
+                ? null
+                : `${apiOrigin}/${resolved.url.replace(/^\/+/, '')}`;
+            if (url) out.set(asset.id, url);
+          } catch {
+            // An unresolvable asset is simply not an image for this feed.
+          }
         }
-      }
-      return out;
-    },
-    customFieldDefinitions: customFields.handle.definitionService,
-    languageService: i18n.handle.languageService,
-    adminNotificationService: adminNotifications.handle.adminNotificationService,
-    settings: settings.handle.settingsService,
-    publicBaseUrl: process.env['PUBLIC_API_BASE_URL'] ?? '',
-    redis,
-    // Principle X — the generation and reaper consumers run co-located unless
-    // BACKEND_ROLE=api, in which case only the separate `pnpm worker` process
-    // owns them.
-    runWorkers,
+        return out;
+      },
+    } satisfies ProductFeedsBridge,
   });
-  modules.push(productFeeds.plugin);
-  // FR-007 / FR-008 — install any missing predefined template. Non-destructive
-  // (an existing `system_code` is left alone) and log-and-continue on failure,
-  // the same posture as the `_i18n` bundle reconciler: a missing predefined
-  // template is an inconvenience, an unbootable API is an outage.
-  void productFeeds.handle.reconcileTemplates().catch((err: unknown) => {
-    console.warn(
-      JSON.stringify({
-        level: 'warn',
-        msg: 'product_feeds predefined-template reconcile failed',
-        error: String(err),
-      }),
-    );
-  });
-  // FR-077 / FR-078 / FR-086 — install any bundled taxonomy revision the
-  // database does not have and re-evaluate mappings for staleness. **This path
-  // reads files only and opens no socket**; a bundled revision becomes the one
-  // in force only when the provider has none, so a platform upgrade never
-  // activates a revision an operator did not choose. An installation with no
-  // bundled data simply installs nothing.
+  // Feature 072 (T137) — the three boot reconciles (predefined templates,
+  // bundled taxonomies, per-feed schedules) moved into the module's own
+  // `ctx.onBoot`, where the schedule one reads the same `runWorkers` decision
+  // this root contributes.
+
+  // Feature 068 — Ergonode PIM integration. A read-only inbound connector that
+  // walks Ergonode's cursor-based change streams and keeps the catalogue in step
+  // with them.
   //
-  // The other way a revision can arrive is the optional taxonomy check, which
-  // ships **off** (`product_feeds.taxonomy_fetch_enabled` defaults to `false`):
-  // its scheduler is asserted by `reconcileSchedules` below and exists only
-  // while the setting is on, and a check it runs may only add an **inactive**
-  // revision. Feed generation reads the revision in force from Postgres and
-  // contacts nobody, however either arrived.
-  void productFeeds.handle.reconcileTaxonomies().catch((err: unknown) => {
-    console.warn(
-      JSON.stringify({
-        level: 'warn',
-        msg: 'product_feeds taxonomy reconcile failed',
-        error: String(err),
-      }),
-    );
+  // Every catalogue write goes through catalog's own services, so an imported
+  // product is audited, channel-bound and tenant-guarded by exactly the code an
+  // administrator's edit runs through (Principle XIII). Those services are
+  // constructed here rather than shared, for the same reason `product_feeds`
+  // gets its own `CatalogQueryService`: they are this module's documented
+  // cross-module ports (Principle I), and sharing one instance between two
+  // unrelated consumers would make a wiring change to one a silent change to the
+  // other.
+  // Feature 072 (T142) — the seven `catalog` services this block used to build
+  // a **second** time, purely to hand to `pim_ergonode` while `catalog` built
+  // its own set inside its plugin, are gone: that module provides them as
+  // ports, so there is one instance of each per composition and the Ergonode
+  // importer writes through the same one the admin API does. `assetsLibrary`'s
+  // is the last one left here, and it drains when that module converts.
+  composedModules.contribute({
+    assetsLibraryService: assetsLibrary.handle.service,
   });
-  // FR-031 / research §R5.2 — Postgres is the source of truth for schedules and
-  // Redis is a derived index. Re-asserting every per-feed Job Scheduler on each
-  // worker boot is what makes a flushed Redis, an old snapshot, or a crash
-  // between the Postgres commit and the Redis call cost at most one missed
-  // tick instead of a feed that silently stops regenerating. Only the worker
-  // role does it: an API-only process must not own schedules.
-  if (runWorkers) {
-    void productFeeds.handle.reconcileSchedules().catch((err: unknown) => {
-      console.warn(
-        JSON.stringify({
-          level: 'warn',
-          msg: 'product_feeds schedule reconcile failed',
-          error: String(err),
-        }),
-      );
-    });
-  }
+  // FR-005 — the boot-time schedule reconcile moved into the module's own
+  // `ctx.onBoot` in T131, where it reads the same `runWorkers` decision this
+  // root contributes.
 
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the
   // free-return window and RMA prefix/suffix.
-  modules.push(
-    returnsModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.handle.settingsService,
-      requireCustomer,
-      requireAdmin,
+  // Feature 072 (T109) — `returns` owns its services and routes now. The
+  // four settlement adapters and the actor resolvers stay here as one
+  // bridge: each is a small adapter over `payments`, `invoices`,
+  // `credit_limits` and `orders`, and a composition supplies all or none.
+  // T143c — the four settlement adapters are their owners' ports now. Each was
+  // a class this root constructed out of `orders`, `payments`, `invoices` and
+  // `credit_limits`, so the root held an **ungated** second way into all four:
+  // a settlement kept refunding, correcting and crediting through modules an
+  // operator had switched off. Read per call, so the gate answers at the
+  // settlement it is about, which is also why the accessor shape the two
+  // money-moving ones already used is no longer needed here.
+  const settlementCradle = (): {
+    orderReturnContextPort: ReturnsBridge['orderContext'];
+    paymentRefundPort: ReturnsBridge['paymentRefund'];
+    correctiveInvoicePort: ReturnsBridge['correctiveInvoice'];
+    creditTopupPort: ReturnsBridge['creditTopup'];
+  } => container.cradle as never;
+  composedModules.contribute({
+    returnsBridge: {
       resolveCustomerAccountId,
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-      orderContext: new OrderReturnContextProvider(em),
-      paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator, auditLogService, eventBus),
-      creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
-      auditLog: auditLogService,
-      notifier: new ReturnEmailNotifier(
-        organizationsMailer,
-        async (customerAccountId) =>
-          (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
-        {
-          getTransactionalEmailSender: () => transactionalEmailSender,
-          resolveLanguage: async (salesChannelId) =>
-            (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
-        },
-      ),
-    }),
-  );
+      orderContext: {
+        getReturnContext: (orderId) =>
+          settlementCradle().orderReturnContextPort.getReturnContext(orderId),
+      },
+      paymentRefund: {
+        refund: (input) => settlementCradle().paymentRefundPort.refund(input),
+      },
+      correctiveInvoice: {
+        createCorrection: (input) =>
+          settlementCradle().correctiveInvoicePort.createCorrection(input),
+      },
+      creditTopup: {
+        creditFromReturn: (input) => settlementCradle().creditTopupPort.creditFromReturn(input),
+      },
+      // The notifier itself is `returns`' own class and is built by `returns`
+      // since T143c; what a composition still answers is where the message goes
+      // and in which language.
+      resolveCustomerEmail: async (customerAccountId) =>
+        (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+      resolveChannelLanguage: async (salesChannelId) =>
+        (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
+    } satisfies ReturnsBridge,
+  });
 
   // Feature 047 — Transactional Emails. Owning modules register their default
   // subject + content here; the module reconciles all manifest-declared emails
   // at boot and exposes the sender port for future send-site cutover.
-  emailDefaultsRegistry.register('order_confirmation', {
-    defaultSubject: ORDER_CONFIRMATION_DEFAULT.defaultSubject,
-    defaultContent: ORDER_CONFIRMATION_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('order_comment', {
-    defaultSubject: ORDER_COMMENT_DEFAULT.defaultSubject,
-    defaultContent: ORDER_COMMENT_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('reorder_created', {
-    defaultSubject: REORDER_CREATED_DEFAULT.defaultSubject,
-    defaultContent: REORDER_CREATED_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('admin_created_order', {
-    defaultSubject: ADMIN_CREATED_ORDER_DEFAULT.defaultSubject,
-    defaultContent: ADMIN_CREATED_ORDER_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('return_authorized', {
-    defaultSubject: RETURN_AUTHORIZED_DEFAULT.defaultSubject,
-    defaultContent: RETURN_AUTHORIZED_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('return_rejected', {
-    defaultSubject: RETURN_REJECTED_DEFAULT.defaultSubject,
-    defaultContent: RETURN_REJECTED_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('email_verification', {
-    defaultSubject: EMAIL_VERIFICATION_DEFAULT.defaultSubject,
-    defaultContent: EMAIL_VERIFICATION_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('organization_invitation', {
-    defaultSubject: ORGANIZATION_INVITATION_DEFAULT.defaultSubject,
-    defaultContent: ORGANIZATION_INVITATION_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('new_org_registration', {
-    defaultSubject: NEW_ORG_REGISTRATION_DEFAULT.defaultSubject,
-    defaultContent: NEW_ORG_REGISTRATION_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('low_stock_alert', {
-    defaultSubject: LOW_STOCK_ALERT_DEFAULT.defaultSubject,
-    defaultContent: LOW_STOCK_ALERT_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('availability_back_in_stock', {
-    defaultSubject: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultSubject,
-    defaultContent: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('payment_status_changed', {
-    defaultSubject: PAYMENT_STATUS_CHANGED_DEFAULT.defaultSubject,
-    defaultContent: PAYMENT_STATUS_CHANGED_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('shipment_created', {
-    defaultSubject: SHIPMENT_CREATED_DEFAULT.defaultSubject,
-    defaultContent: SHIPMENT_CREATED_DEFAULT.defaultContent,
-  });
-  emailDefaultsRegistry.register('invoice_issued', {
-    defaultSubject: INVOICE_ISSUED_DEFAULT.defaultSubject,
-    defaultContent: INVOICE_ISSUED_DEFAULT.defaultContent,
-  });
   // Feature 047 — net-new email subscribers (payment status + shipment created).
-  new PaymentEmailNotifier({
-    emFactory: em,
-    getTransactionalEmailSender: () => transactionalEmailSender,
-  }).attach(eventBus);
-  new ShipmentEmailNotifier({
-    emFactory: em,
-    getTransactionalEmailSender: () => transactionalEmailSender,
-  }).attach(eventBus);
+  // Feature 072 (T126) — `payments` owns the payment-status notifier now and
+  // subscribes through `ctx.subscribe`, so it stops when the module does. The
+  // sender stays a contribution: `transactional_emails` announces it through a
+  // callback this root holds, later than the module composes.
+  composedModules.contribute({
+    paymentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
+  });
+  // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
+  // subscribes through `ctx.subscribe`, so it stops when the module does. The
+  // sender stays a contribution: `transactional_emails` announces it through a
+  // callback this root holds, later than the module composes.
+  composedModules.contribute({
+    shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
+  });
   // Feature 049 — Stripe payment gateway. Registers the Stripe PaymentAdapter
   // + gateway refund handler into the shared singletons, seeds one
   // payment_methods row per Stripe method, and mounts the webhook / storefront /
   // admin routes. Coupling (settings, sales channels, default channel) is
   // injected so the module stays isolated (Principle I).
-  modules.push(
-    stripeModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.handle.settingsService,
-      settingsAdmin: settings.handle.adminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    }),
-  );
+
+
+
 
   modules.push(
-    tpayModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.handle.settingsService,
-      settingsAdmin: settings.handle.adminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-      publicApiBaseUrl:
-        process.env['PUBLIC_API_BASE_URL'] ??
-        process.env['API_PUBLIC_URL'] ??
-        'http://localhost:3001',
-    }),
-  );
-
-  modules.push(
-    payuModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.handle.settingsService,
-      settingsAdmin: settings.handle.adminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-      publicApiBaseUrl:
-        process.env['PUBLIC_API_BASE_URL'] ??
-        process.env['API_PUBLIC_URL'] ??
-        'http://localhost:3001',
-    }),
-  );
-
-  modules.push(
-    autopayModule({
-      emFactory: em,
-      eventBus,
-      settingsService: settings.handle.settingsService,
-      settingsAdmin: settings.handle.adminService,
-      requireAdmin,
-      requireCustomer,
-      resolveCustomerAccountId,
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveDefaultChannelId: async () =>
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-      salesChannelMembership: salesChannels.handle.membershipService,
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    }),
-  );
-
-  modules.push(
-    transactionalEmailsModule({
-      emFactory: em,
-      settingsService: settings.handle.settingsService,
-      requireAdmin,
-      resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-      manifests: resolvedRegistry.map((e) => e.manifest),
-      mailer: organizationsMailer,
-      auditLog: auditLogService,
-      settingsAdmin: settings.handle.adminService,
-      resolveAssetUrl: async (assetId) => {
-        try {
-          const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
-          return absolutizePublicUrl(resolved.url);
-        } catch {
-          return null;
-        }
-      },
-      exposeSender: (sender) => {
-        transactionalEmailSender = sender;
-      },
-      exposeBranding: (branding) => {
-        emailBrandingService = branding;
-      },
-    }),
   );
 
   // Feature 048 — Newsletter. Own-infrastructure bulk email: subscriber
   // signup (per-channel opt-in), campaigns, automations, and a configurable
   // sending provider. Channel/mailer/settings coupling is injected here so the
   // module stays isolated (Principle I).
-  modules.push(
-    newsletterModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
+  // Feature 072 (T114) — `newsletter` owns its services and routes now.
+  // These stay here because they are pinned per composition rather than
+  // derived: the token secret and base URLs decide what an unsubscribe link
+  // looks like, and the harness needs that predictable.
+  composedModules.contribute({
+    newsletterBridge: {
       tokenSecret:
         process.env['NEWSLETTER_TOKEN_SECRET'] ??
         process.env['SESSION_COOKIE_SECRET'] ??
         'newsletter-dev-secret',
-      // Settings reads need a real channel UUID (the per-channel override
-      // lookup casts to uuid); the system default channel is the platform fallback.
-      platformChannelId:
-        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      // The channel a subscriber with no channel context belongs to. Kept as a
+      // *channel* rather than folded into D-41's platform-wide read: opt-in
+      // mode and confirmation TTL are per-storefront properties, so "the
+      // system-default channel's value" and "the platform-wide value" are
+      // different answers and this one wants the former. The provider config
+      // reads, which are genuinely platform-wide, no longer take it at all.
+      defaultChannelId: (await salesChannels.resolver.getSystemDefault()).id,
       resolveChannelIdByCode: async (code) =>
-        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
-      publicBaseUrl:
-        process.env['PUBLIC_API_BASE_URL'] ??
-        process.env['STOREFRONT_BASE_URL'] ??
-        'http://localhost:3000',
+        (await salesChannels.resolver.getByCode(code))?.id ?? null,
+      // The confirm/unsubscribe links this builds are `/api/v1/newsletter/...`
+      // paths, so the origin is the API's, never the storefront's. It used to
+      // fall back to `STOREFRONT_BASE_URL`, which on the shipped production
+      // template pointed every confirmation link at a Next.js host that serves
+      // no such route (issue #218).
+      publicBaseUrl: resolvePublicApiBaseUrl(),
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-      requireAdmin,
-      settingsWrite: settings.handle.adminService,
-      resolveAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      requireCustomer,
-      resolveCustomerAccountId,
       loadCustomerEmail: async (customerAccountId) =>
         (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
-      mailer: organizationsMailer,
-      auditLog: auditLogService,
+      mailer: platformMailer,
       emitEvent: (name, payload) =>
         eventBus.emit(name, {
           eventId: randomUUID(),
           occurredAt: new Date().toISOString(),
           ...payload,
         }),
-      redis,
-      runWorkers,
-      // Feature 058 — resolve `newsletter.email_credentials` (email_adapter);
-      // falls back to the legacy `newsletter.smtp.*` settings when unset.
-      credentials: credentials.handle.service,
-      resolveEmailBranding: async (salesChannelId) => {
-        if (!emailBrandingService) {
-          return { logoUrl: '', accentColor: '#1f2937' };
-        }
-        const branding = await emailBrandingService.resolve(salesChannelId);
-        return { logoUrl: branding.logoUrl, accentColor: branding.accentColor };
-      },
-    }),
-  );
+      resolveCustomerAccountId,
+    } satisfies NewsletterBridge,
+    // Contribution: campaign email carries this deployment's logo and accent,
+    // announced by `transactional_emails` after it is built.
+    newsletterEmailBranding: async (salesChannelId: string | null) => {
+      const branding = emailCradle().emailBrandingAccessor();
+      if (!branding) return { logoUrl: '', accentColor: '#1f2937' };
+      return branding.resolve(salesChannelId);
+    },
+  });
 
   // Feature 049 — Google Analytics. GA4 integration: per-channel activation +
   // Measurement ID, Enhanced Ecommerce, custom events, and server-side tagging.
   // Config lives in the Settings module; server-side delivery is queue-backed.
-  modules.push(
-    googleAnalyticsModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
-      requireAdmin,
-      channels: {
-        idByCode: async (code) =>
-          (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
-        codeById: async (id) => {
-          const { items } = await salesChannels.handle.salesChannelsService.list({});
-          return items.find((c) => c.id === id)?.code ?? null;
-        },
-      },
-      resolveAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      auditLog: auditLogService,
-      redis,
-      runWorkers,
-      // On-demand storefront cache invalidation: any google_analytics.* setting
-      // change (and custom-event CRUD) revalidates the storefront `ga:config`.
-      onSettingChanged: (handler) =>
-        eventBus.on('settings.value_changed', (payload) =>
-          handler((payload as unknown as { settingCode: string }).settingCode),
-        ),
-      ...(process.env['STOREFRONT_BASE_URL']
-        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
-        : {}),
-      ...(process.env['REVALIDATE_SECRET']
-        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
-        : {}),
-    }),
-  );
 
   // Feature 063 — LinkedIn Ads. Per-channel Insight Tag + conversion mappings.
   // Config lives in the Settings module; the access token is a `secret` setting.
-  modules.push(
-    linkedInAdsModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
-      requireAdmin,
-      resolveAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      auditLog: auditLogService,
-      // Any linkedin_ads.* setting change (and mapping CRUD) revalidates the
-      // storefront `linkedin:config` cache tag.
-      onSettingChanged: (handler) =>
-        eventBus.on('settings.value_changed', (payload) =>
-          handler((payload as unknown as { settingCode: string }).settingCode),
-        ),
-      ...(process.env['STOREFRONT_BASE_URL']
-        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
-        : {}),
-      ...(process.env['REVALIDATE_SECRET']
-        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
-        : {}),
-    }),
-  );
 
   // Feature 064 — Meta Ads. Per-channel Meta Pixel + custom event mappings.
-  modules.push(
-    metaAdsModule({
-      emFactory: em,
-      settings: settings.handle.settingsService,
-      requireAdmin,
-      resolveAuditContext: (request) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      auditLog: auditLogService,
-      onSettingChanged: (handler) =>
-        eventBus.on('settings.value_changed', (payload) =>
-          handler((payload as unknown as { settingCode: string }).settingCode),
-        ),
-      ...(process.env['STOREFRONT_BASE_URL']
-        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
-        : {}),
-      ...(process.env['REVALIDATE_SECRET']
-        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
-        : {}),
-    }),
-  );
 
   // Feature 066 — Google Tag Manager. Settings-only module: per-channel
   // container injection plus the optional server-side tagging relay. It owns
   // no table and no admin page, so no EntityManager and no requireAdmin here.
-  modules.push(
-    googleTagManagerModule({
-      settings: settings.handle.settingsService,
-      redis,
-      runWorkers,
-      // Any google_tag_manager.* setting change revalidates the storefront
-      // `gtm:config` cache tag.
-      onSettingChanged: (handler) =>
-        eventBus.on('settings.value_changed', (payload) =>
-          handler((payload as unknown as { settingCode: string }).settingCode),
-        ),
-      ...(process.env['STOREFRONT_BASE_URL']
-        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
-        : {}),
-      ...(process.env['REVALIDATE_SECRET']
-        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
-        : {}),
-    }),
-  );
 
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.
-  modules.push(
-    shoppingListsModule({
-      emFactory: em,
-      rfqService: quoteRequests.handle().rfqService,
-      catalogAttributeRead: catalogAttributeReadService,
-      requireCustomer,
-      resolveCustomerContext: customerResolver,
-      // Provision the customer's default shopping list eagerly on creation.
-      eventBus,
-      // Feature 027 — late-bind the service for the carts module's
-      // save-to-list bridge (commerceModule's pushLineToShoppingList).
-      exposeShoppingListService: (svc) => {
-        shoppingListService = svc;
-      },
-      // Feature 039 — resolve the quick-order import row cap from settings,
-      // register the admin on-behalf quick-order routes, and wire the
-      // default-preferences routes (audit + org allow-list eligibility).
-      settingsService: settings.handle.settingsService,
-      requireAdmin,
-      auditLog: auditLogService,
-      organizationRestriction: organizationRestrictionService,
-      resolveAdminContext: adminContextResolver,
-      // Feature 039 — one-click buy: lazy OrderService + the enabled setting.
-      getOrderService: () => orderServiceForOneClick,
-      resolveOneClickEnabled: async (salesChannelId) => {
-        try {
-          const { z } = await import('zod');
-          return await settings.handle.settingsService.get(
-            QUICK_ORDER_SETTING_CODES.ONE_CLICK_BUY_ENABLED,
-            salesChannelId,
-            z.boolean(),
-          );
-        } catch {
-          return false;
-        }
-      },
-    }),
-  );
+  // Feature 072 (T133) — `shopping_lists` owns its services and routes now, and
+  // reads the quick-order settings itself. Three names stay a composition's:
+  // two cross-module services it must not reach for directly, and the sink that
+  // hands its own service back to `carts` until that module converts.
+  composedModules.contribute({
+    shoppingListServiceSink: (svc: ShoppingListService) => {
+      shoppingListService = svc;
+    },
+  });
 
   // Feature 018 — Module Lifecycle. Builds the static manifest registry
   // from every module's `manifest` export, exposes the orchestrator handle,
@@ -2829,28 +2100,30 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // lazy registry accessor (the lifecycle's registry is populated by
   // the time the plugin chain is registered).
   let lifecycleRef: typeof lifecycle | undefined;
-  const adminI18n = adminI18nModule({
-    orm,
-    emFactory: em,
-    registry: () => lifecycleRef?.handle.registry,
-    adminUserService: new AdminUserService(em),
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-  });
+  // Feature 072 (T089) — `_i18n` owns its service, its reconciler and its
+  // routes now. The root only reads the two the platform consumes.
+  const adminI18nCradle = container.cradle as unknown as AdminI18nCradle;
 
   // Feature 020 — Admin Command Palette actions registry. Built before
   // the lifecycle so its reconciler can be plugged into the orchestrator
   // at construction time.
-  const adminActions = adminActionsModule({
-    orm,
-    emFactory: em,
-    registry: () => lifecycleRef?.handle.registry,
-    i18nService: adminI18n.handle.i18nService,
-    permissionService,
-    redisSubscriber,
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
+  // Feature 072 (T099) — `admin_actions` owns its service, its reconcile and
+  // its routes now. The operator presence axis stays a root's to supply:
+  // which modules a deployment ships is not this module's business.
+  composedModules.contribute({
+    // Issue #225 — the reading and its generation, contributed as one value.
+    // The palette memoises what the reading produced, so a root that handed
+    // over the reading alone would hand over a cache nothing can drop: the
+    // pub/sub message that announces a flip arrives while `refreshFromDb` is
+    // still in flight, and the snapshot rebuilt on it is built from the
+    // presence before the flip.
+    modulePresenceProbe: {
+      isActivated: (moduleId: string): boolean =>
+        effectiveState.presence(moduleId)?.operatorActivated ?? true,
+      version: (): number => effectiveState.presenceVersion(),
+    },
   });
+  const adminActionsCradle = container.cradle as unknown as AdminActionsCradle;
 
   const lifecycle = lifecycleModuleFromStaticEntries(
     {
@@ -2859,15 +2132,30 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       redisSubscriber,
       emFactory: em,
       auditLog: auditLogService,
-      requireAdmin,
       // Feature 019: hand the i18n reconciler to the orchestrator so
       // module:install and module:uninstall --hard keep
       // translation_bundles aligned with the lifecycle.
-      i18nReconciler: adminI18n.handle.reconciler,
+      i18nReconciler: adminI18nCradle.adminI18nReconciler,
       // Feature 020: hand the admin-actions reconciler to the
       // orchestrator so module:install and module:uninstall --hard keep
       // module_actions aligned with the lifecycle.
-      adminActionsReconciler: adminActions.handle.reconciler,
+      //
+      // Forwarded rather than resolved, because `adminActionsReconciler` is a
+      // gated port and `admin_actions` is deactivatable: reading it here asked
+      // whether the command palette was on *at boot*, and an operator who had
+      // switched it off could not start the backend at all. Forwarding moves
+      // the question to `module:install` / `module:uninstall --hard`, where a
+      // switched-off palette aborts that one operation — inside its
+      // transaction, so nothing half-reconciled survives it.
+      adminActionsReconciler: {
+        install: (args) => adminActionsCradle.adminActionsReconciler.install(args),
+        remove: (moduleId) => adminActionsCradle.adminActionsReconciler.remove(moduleId),
+      },
+      // `_i18n` is read directly, one line above, and stays that way: it
+      // declares itself non-deactivatable and the orchestrator refuses to
+      // disable such a module on either axis, so that resolution has no state
+      // in which it can throw. Same for `auth`'s `requireAdmin` at the top of
+      // this function.
     },
     resolvedRegistry.map((e) => ({
       manifest: e.manifest,
@@ -2877,68 +2165,58 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     })),
   );
   lifecycleRef = lifecycle;
-
-  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
-  redisSubscriber.on('message', (channel) => {
-    if (channel === STATE_CHANGED_CHANNEL) {
-      permissionCatalogueService.invalidate();
-    }
+  // Feature 072 (T125) — `_lifecycle` registers its own routes now, through
+  // `ctx.ungatedRoutes`. Two names stay a composition's, and both genuinely
+  // differ: this deployment boots an orchestrator (the harness does not, because
+  // it never populates `module_registrations`), and a committed flip propagates
+  // by refreshing from the database and dropping the storefront's cache.
+  composedModules.contribute({
+    lifecycleOrchestrator: lifecycle.handle.orchestrator,
+    lifecycleActivationPropagation: {
+      commandBus,
+      propagation: {
+        // The writing process refreshes itself rather than waiting on its own
+        // pub/sub round trip, so the very next request it serves sees the
+        // new state.
+        refreshLocalState: () => registryCache.refreshFromDb(em),
+        publishStateChanged: (payload: Parameters<typeof publishStateChanged>[1]) =>
+          publishStateChanged(redis, payload),
+        revalidateStorefront: (tags: string[]) =>
+          new StorefrontRevalidator({
+            baseUrl: process.env['STOREFRONT_BASE_URL'],
+            secret: process.env['REVALIDATE_SECRET'],
+          }).revalidate(tags),
+      },
+    },
+  });
+  // Feature 072 (T089) — the accessor `_i18n` walks to reconcile every module's
+  // translation bundles. It stays an accessor rather than the registry itself
+  // because of the order this file is written in: `_i18n` composes ~1900 lines
+  // above, and the registry it needs does not exist until the line above this
+  // one. `_i18n` resolves it at plugin-attach time, which
+  // is after this function returns. Goes when `_lifecycle` converts.
+  composedModules.contribute({
+    lifecycleManifestRegistry: () => lifecycleRef?.handle.registry,
   });
 
+  // The boot half only: reconciling first-boot registrations, warming the
+  // registry cache and resuming workers. Its routes are the module's own now.
   modules.push(lifecycle.plugin);
-  // Feature 060 — read-only interceptor diagnostics on the lifecycle admin
-  // surface (same permission gate as the modules listing).
-  modules.push(async (app) => {
-    registerApiInterceptorAdminRoutes(app, { registry: apiInterceptors, requireAdmin });
-  });
-  modules.push(adminI18n.plugin);
-  modules.push(adminActions.plugin);
 
-  // Feature 043 — prompt assistant for the admin command palette. The module
-  // owns the registry port; catalog/inventory contribute their tool handlers
-  // here (adapter-registry pattern — Principle I).
-  const catalogToolDeps = {
-    emFactory: em,
-    events: eventBus,
-    auditLogService,
-    salesChannelMembership: salesChannels.handle.membershipService,
-    redis,
-  };
-  const promptActions = promptActionsModule({
-    emFactory: em,
-    settings: settings.handle.settingsService,
-    resolveSettingsChannelId: async () =>
-      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
-    permissionService,
-    isModuleInstalled: (moduleId) => registryCache.isEnabled(moduleId),
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-    auditLogService,
-    // Feature 058 — resolve `prompt_actions.llm_credentials`; legacy settings
-    // remain the fallback when no credential reference is configured.
-    credentials: credentials.handle.service,
-    bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
-  });
-  // Feature 043 — per-module AI-assistant command registration.
+  // Feature 043 — prompt assistant for the admin command palette.
   //
-  // Each module contributes its prompt-action tools (resolvers + mutations) as
-  // a flat `PromptActionTool[]`; the registry validates `<moduleId>.*` id
-  // prefixing, uniqueness, and the mutation-preview rule on `register()`.
-  // Onboarding a new module's assistant commands is exactly one entry here —
-  // see `prompt_actions/PROMPT_TOOLS.md` for the contribution contract.
-  const promptActionToolProviders: PromptActionTool[] = [
-    ...catalogPromptResolverTools(catalogToolDeps),
-    ...catalogPromptMutationTools(catalogToolDeps),
-    ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
-    ...ordersPromptTools({
-      emFactory: em,
-      getTransitionService: () => orderTransitionServiceForPrompts,
-    }),
-  ];
-  for (const tool of promptActionToolProviders) {
-    promptActions.handle.registry.register(tool);
-  }
-  modules.push(promptActions.plugin);
+  // Nothing here any more, and the sentence that used to be is worth keeping.
+  // The **tools** left this root with D-44: `catalog`, `inventory` and `orders`
+  // each push their own from their own boot hook, declaring the edge as
+  // `nonBindingDependencies` — a contribution that says nothing about who may
+  // switch whom off. The bulk-progress reader could not follow, because what a
+  // root cannot hand over is a name a module *defaults*: `prompt_actions`
+  // registered `promptActionsBulkProgressResolver` as `undefined` for a
+  // deployment that ships no `catalog`, and a module may not write a name
+  // another module owns (`kernel.md`). D-72 point 4 turned that slot into
+  // `promptActionBulkProgressRegistry`, a table keyed by contributing module,
+  // so `catalog` pushes from its own boot hook like the other five and this
+  // root stops naming `catalog/prompt-tools.js` at all.
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings
@@ -2949,11 +2227,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // /settings silently omitted it (see collectRegisteredSettingsManifests).
   // linkedin_ads / meta_ads / tpay / payu / cms need no entry here — registering
   // their manifests is enough.
+  // Feature 075, Phase C — the registry is passed in rather than imported by
+  // `settings`. Which modules a deployment ships is this root's input, which is
+  // why `resolvedModuleRegistry` is a platform-owned name; the reconciliation
+  // keeps reading the **core** registry, exactly as it did before the argument
+  // existed, so this is a cut and not a widening.
   const settingsManifests: ModuleSettingsManifest[] =
-    collectRegisteredSettingsManifests();
+    collectRegisteredSettingsManifests(REGISTERED_MANIFESTS);
   const reconcilerEm = em();
   const reconciler = new ManifestReconciler(reconcilerEm);
-  const reconciliation = await reconciler.apply(settingsManifests);
+  const reconciliation = await enterSystemScope(
+    'boot: reconcile module settings manifests',
+    () => reconciler.apply(settingsManifests),
+    { entryPoint: 'boot' },
+  );
   for (const m of reconciliation.perModule) {
     if (m.orphanSettings.length > 0 || m.orphanGroups.length > 0) {
       // Boot-time logging path; the Fastify logger is not yet available here.
@@ -2972,18 +2259,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     } as never);
   }
 
-  // Feature 057 — mount the active deployment's client-only overlay modules.
-  // Empty for a bare-core build, so `modules` is unchanged there.
-  const overlayModulePlugins = await loadOverlayModulePlugins({
-    emFactory: em,
-    redis,
-    eventBus,
-    commandBus,
-    auditLogService,
-    requireAdmin,
-    apiInterceptors,
-  });
-  for (const plugin of overlayModulePlugins) modules.push(plugin);
+  // The explicit boot phase (FR-021), run **once**, after every registration
+  // and every contribution above and before `index.ts` calls `buildServer`
+  // (D-45). That is what makes the rule statable in one sentence: a boot hook
+  // may resolve anything, and a root contribution goes between `composeModules`
+  // and this line.
+  //
+  // Why one phase rather than several: a contribution registered *after* a boot
+  // hook has already run is invisible to that hook, which reads the owning
+  // module's default instead and reports nothing — no error, no warning, a
+  // value that is simply the wrong one. Any split of this phase reopens that
+  // window for every name a module defaults; D-45 counted six live ones when it
+  // closed the split (`organizationsLoginHook`, `ksefVerificationResolver`,
+  // `newsletterEmailBranding`, `shoppingListServiceSink`, `lifecycleOrchestrator`,
+  // `promptActionsBulkProgressResolver`). One `composeModules` call, one
+  // contribution slot, one `runBootHooks()` is what keeps that unspellable.
+  //
+  // Issue #52 — and this line is what closes the slot: every
+  // `composedModules.contribute(…)` below it throws
+  // `ContributionWindowClosedError` naming the rule, rather than landing
+  // somewhere no hook will read.
+  await composedModules.runBootHooks();
 
   return {
     orm,
@@ -2992,26 +2288,40 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     commandBus,
     apiInterceptors,
     errorEnvelope: {
-      resolvePreferredLanguage: async (request) => {
-        if (request.actor.kind !== 'admin') return null;
-        const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
-        return adminUser?.preferredLanguage === 'pl' ? 'pl' : 'en';
-      },
-      translateErrorMessage: async ({ moduleId, key, language, originalMessage }) => {
-        const translated = await adminI18n.handle.i18nService.translate(
+      errorTranslationTargets: ERROR_TRANSLATION_KEYS,
+      // Issue #234 — the ladder is one kernel function, and the root keeps the
+      // one rung that reads a module's table (D-137). What stood here was
+      // `if (request.actor.kind !== 'admin') return null`, which the envelope
+      // turns into the platform fallback: every Polish error sentence the
+      // platform ships was unreachable for a buyer.
+      resolvePreferredLanguage: createRequestLanguageResolver({
+        adminPreferredLanguage: async (adminUserId) =>
+          (await em().findOne(AdminUser, { id: adminUserId }))?.preferredLanguage ?? null,
+      }),
+      translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
+        const translated = await adminI18nCradle.adminI18nService.translate(
           moduleId,
           key,
           language,
+          params,
         );
         return translated === `${moduleId}.${key}` ? originalMessage : translated;
       },
     },
     dispose: async () => {
-      // Feature 062 — stop bridging + drain the webhook delivery pipeline
-      // before dropping the Redis connections (graceful shutdown).
-      unwireWebhookBridge();
-      if (webhookWorker) await webhookWorker.close().catch(() => undefined);
-      await webhookQueue.close().catch(() => undefined);
+      // Feature 062 — drain the webhook delivery pipeline before dropping the
+      // Redis connections (graceful shutdown). Every part of that is the
+      // container's job since T143a: `ctx.subscribe` unsubscribes with the
+      // module, the queue registration carries its own disposer, and the
+      // delivery worker is `webhooks`' own. Disposing the container runs those
+      // disposers — for every module, not only this one — and it runs *before*
+      // the Redis sockets go, which is the ordering the drain needs.
+      //
+      // The call is new here, and its absence was a quiet leak: production
+      // never disposed the container at all, so the BullMQ producer queue
+      // T098 moved into the module was never closed on shutdown. The harness
+      // has always disposed it (`teardownBackendServer`).
+      await container.dispose();
       redis.disconnect();
       redisSubscriber.disconnect();
       await closeOrm();

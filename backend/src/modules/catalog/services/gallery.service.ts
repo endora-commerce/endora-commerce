@@ -16,6 +16,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 
 import {
   ERROR_CODES,
+  type AssetReadPort,
   type GalleryItem as GalleryItemDto,
   type GalleryLabel,
   type CreateGalleryItemRequest,
@@ -24,7 +25,6 @@ import {
 
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CommandBus } from '../../../commands/index.js';
-import { Asset } from '../../assets_library/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { GalleryItem } from '../entities/gallery-item.entity.js';
 import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
@@ -46,7 +46,23 @@ export class GalleryService {
     private readonly emFactory: () => EntityManager,
     /** Feature 054 — audits gallery-item writes co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
+    /**
+     * Feature 075 — `assets_library`'s read port, where `em.findOne(Asset, …)`
+     * used to be. It backs the kind check below, so with `assets_library` off
+     * the port fails closed and a gallery item pointing at an unverifiable
+     * asset is refused rather than stored.
+     */
+    private readonly assets?: AssetReadPort,
   ) {}
+
+  #requireAssets(): AssetReadPort {
+    if (!this.assets) {
+      throw new Error(
+        'GalleryService: the asset read port is not wired — a gallery item cannot be verified.',
+      );
+    }
+    return this.assets;
+  }
 
   /**
    * Feature 054 — run a gallery-item write through the Command Bus. The item +
@@ -85,7 +101,7 @@ export class GalleryService {
     const em0 = this.emFactory();
     await this.#assertProductExists(em0, productId);
 
-    const asset = await em0.findOne(Asset, { id: req.assetId });
+    const asset = await this.#requireAssets().findById(req.assetId);
     if (!asset) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Asset ${req.assetId} not found.`);
     }
@@ -144,8 +160,7 @@ export class GalleryService {
     if (req.labels !== undefined) {
       const em = this.emFactory();
       const labels = this.#normalizeAndValidateLabels(req.labels);
-      const conn = em.getConnection();
-      await conn.execute(`delete from gallery_item_labels where gallery_item_id = ?`, [itemId]);
+      await em.execute(`delete from gallery_item_labels where gallery_item_id = ?`, [itemId]);
       if (labels.length > 0) {
         await this.#applyLabels(em, productId, itemId, labels, options);
       }
@@ -173,7 +188,6 @@ export class GalleryService {
   async reorder(productId: string, orderedIds: string[]): Promise<void> {
     const em = this.emFactory();
     await this.#assertProductExists(em, productId);
-    const conn = em.getConnection();
     // Verify all ids belong to this product.
     const existing = await em.find(GalleryItem, { productId });
     const existingIds = new Set(existing.map((i) => i.id));
@@ -187,9 +201,13 @@ export class GalleryService {
         'orderedGalleryItemIds must cover every existing gallery item exactly once.',
       );
     }
-    // One UPDATE per row; transactional.
+    // One UPDATE per row. `em.execute`, not `em.getConnection().execute`, so a
+    // caller that ever opens a transaction around this gets the whole reorder
+    // in it (issue #207). This comment used to claim the loop was transactional
+    // and it is not: `em` here is a bare fork, so a failure part-way through
+    // leaves the gallery in the order the successful updates put it.
     for (let i = 0; i < orderedIds.length; i++) {
-      await conn.execute(
+      await em.execute(
         `update gallery_items set position = ? where id = ?`,
         [i, orderedIds[i]],
       );
@@ -240,8 +258,7 @@ export class GalleryService {
   }
 
   async #nextPosition(em: EntityManager, productId: string): Promise<number> {
-    const conn = em.getConnection();
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select coalesce(max(position), -1) + 1 as next_position from gallery_items where product_id = ?`,
       [productId],
     )) as Array<{ next_position: number }>;
@@ -261,11 +278,10 @@ export class GalleryService {
     labels: GalleryLabel[],
     options: GalleryServiceOptions,
   ): Promise<void> {
-    const conn = em.getConnection();
     if (options.replaceConflictingLabels) {
       // Remove any other assignment of these labels under the product.
       const placeholders = labels.map(() => '?').join(', ');
-      await conn.execute(
+      await em.execute(
         `delete from gallery_item_labels
          where product_id = ? and label in (${placeholders}) and gallery_item_id <> ?`,
         [productId, ...labels, itemId],
@@ -273,7 +289,7 @@ export class GalleryService {
     } else {
       // Fail-fast on any conflict.
       const placeholders = labels.map(() => '?').join(', ');
-      const conflicts = (await conn.execute(
+      const conflicts = (await em.execute(
         `select label, gallery_item_id from gallery_item_labels
          where product_id = ? and label in (${placeholders}) and gallery_item_id <> ?`,
         [productId, ...labels, itemId],
@@ -294,7 +310,7 @@ export class GalleryService {
     const values = labels.map(() => '(?, ?, ?)').join(', ');
     const params: unknown[] = [];
     for (const l of labels) params.push(itemId, productId, l);
-    await conn.execute(
+    await em.execute(
       `insert into gallery_item_labels (gallery_item_id, product_id, label) values ${values}
        on conflict (gallery_item_id, label) do nothing`,
       params,

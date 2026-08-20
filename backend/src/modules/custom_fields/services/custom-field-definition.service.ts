@@ -1,7 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CreateCustomFieldDefinitionRequest,
+  CustomFieldDefinitionRecord,
   CustomFieldOptionDto,
+  CustomFieldOptionRecord,
   SupportedEntityType,
   UpdateCustomFieldDefinitionRequest,
 } from '@b2b/contracts';
@@ -31,6 +33,10 @@ import {
   assertOptionsRule,
   CustomFieldDefinitionError,
 } from './custom-field-definition-apply.js';
+import {
+  toCustomFieldDefinitionRecord,
+  toCustomFieldOptionRecord,
+} from './custom-field-read-port.js';
 import type { CustomFieldValueService } from './custom-field-value.service.js';
 import type { DefinitionSource } from './custom-field-value.service.js';
 
@@ -48,26 +54,44 @@ const SELECT_TYPES = new Set(['select', 'multiselect']);
  * (the host command audits the composite operation), and NO cache publish.
  * The caller MUST invoke `publishInvalidate(entityType)` after its transaction
  * commits.
+ *
+ * **Which transaction it runs in, said on this side too** (D-77). The caller's:
+ * a host Command's `run({ em })`, the same `EntityManager` the host writes its
+ * own row on. That is not a convenience — `fk_product_attributes_custom_field_definition`
+ * is `on delete restrict` with a `unique` on the same column, so the child
+ * insert must see its parent inside one transaction, and a second transaction
+ * cannot satisfy a foreign key against a row it cannot see. The seam is
+ * therefore permanent, declared, and named on both sides; what would retire it
+ * is F4's package entry points, or dropping the constraint.
+ *
+ * **The returns are published records, not live entities** (D-77's first
+ * narrowing). A host reads `id`, `sortOrder`, `labelDefault` and the rest off
+ * what comes back; handing it a managed entity also handed it the ability to
+ * mutate a definition outside the seam, and the ability to persist that change
+ * on the transaction it happens to be holding.
  */
 export interface CustomFieldDefinitionApplyApi {
-  applyCreate(em: EntityManager, input: CreateCustomFieldDefinitionRequest): Promise<CustomFieldDefinition>;
+  applyCreate(
+    em: EntityManager,
+    input: CreateCustomFieldDefinitionRequest,
+  ): Promise<CustomFieldDefinitionRecord>;
   applyUpdate(
     em: EntityManager,
     id: string,
     patch: UpdateCustomFieldDefinitionRequest,
-  ): Promise<CustomFieldDefinition>;
+  ): Promise<CustomFieldDefinitionRecord>;
   applyDelete(em: EntityManager, id: string): Promise<void>;
   applyCreateOption(
     em: EntityManager,
     definitionId: string,
     input: CustomFieldOptionDto,
-  ): Promise<CustomFieldOption>;
+  ): Promise<CustomFieldOptionRecord>;
   applyUpdateOption(
     em: EntityManager,
     definitionId: string,
     optionId: string,
     patch: Partial<Pick<CustomFieldOptionDto, 'label' | 'labelDefault' | 'isDefault' | 'sortOrder'>>,
-  ): Promise<CustomFieldOption>;
+  ): Promise<CustomFieldOptionRecord>;
   applyDeleteOption(em: EntityManager, definitionId: string, optionId: string): Promise<void>;
   /** Post-commit responsibility of the caller. */
   publishInvalidate(entityType: SupportedEntityType): Promise<void>;
@@ -104,6 +128,26 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
   async listForEntity(entityType: SupportedEntityType): Promise<CachedDefinition[]> {
     if (!isSupportedEntityType(entityType)) return [];
     return this.cache.getForEntity(entityType, () => this.loadForEntity(entityType));
+  }
+
+  /**
+   * The same list, past the cache, and every other process's cache with it
+   * (D-97.1).
+   *
+   * A consumer that composes its own rows against these definitions is the only
+   * party that can *detect* a stale entry — it knows what its rows say — and
+   * this module is the only one that may *resolve* it, because the cache is its
+   * own. The invalidation is the same fan-out a committed definition Command
+   * publishes, so the reload converges every process rather than only this one.
+   *
+   * This is what `catalog` used to do by calling `publishInvalidate` through an
+   * optional widening of the read port, which the `lazyPort` proxy made
+   * always-truthy and therefore always wrong when the real provider lacked it.
+   */
+  async listForEntityFresh(entityType: SupportedEntityType): Promise<CachedDefinition[]> {
+    if (!isSupportedEntityType(entityType)) return [];
+    await this.cache.publishInvalidate(entityType);
+    return this.listForEntity(entityType);
   }
 
   private async loadForEntity(entityType: SupportedEntityType): Promise<CachedDefinition[]> {
@@ -259,16 +303,18 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
   async applyCreate(
     em: EntityManager,
     input: CreateCustomFieldDefinitionRequest,
-  ): Promise<CustomFieldDefinition> {
-    return applyCreateDefinition(em, input);
+  ): Promise<CustomFieldDefinitionRecord> {
+    return toCustomFieldDefinitionRecord(await applyCreateDefinition(em, input));
   }
 
   async applyUpdate(
     em: EntityManager,
     id: string,
     patch: UpdateCustomFieldDefinitionRequest,
-  ): Promise<CustomFieldDefinition> {
-    return applyUpdateDefinition(em, id, patch, this.valueService);
+  ): Promise<CustomFieldDefinitionRecord> {
+    return toCustomFieldDefinitionRecord(
+      await applyUpdateDefinition(em, id, patch, this.valueService),
+    );
   }
 
   async applyDelete(em: EntityManager, id: string): Promise<void> {
@@ -279,8 +325,8 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
     em: EntityManager,
     definitionId: string,
     input: CustomFieldOptionDto,
-  ): Promise<CustomFieldOption> {
-    return applyCreateOption(em, definitionId, input);
+  ): Promise<CustomFieldOptionRecord> {
+    return toCustomFieldOptionRecord(await applyCreateOption(em, definitionId, input));
   }
 
   async applyUpdateOption(
@@ -288,8 +334,8 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
     definitionId: string,
     optionId: string,
     patch: Partial<Pick<CustomFieldOptionDto, 'label' | 'labelDefault' | 'isDefault' | 'sortOrder'>>,
-  ): Promise<CustomFieldOption> {
-    return applyUpdateOption(em, definitionId, optionId, patch);
+  ): Promise<CustomFieldOptionRecord> {
+    return toCustomFieldOptionRecord(await applyUpdateOption(em, definitionId, optionId, patch));
   }
 
   async applyDeleteOption(em: EntityManager, definitionId: string, optionId: string): Promise<void> {

@@ -5,7 +5,7 @@ import { NewsletterTokenHelper } from '../../../src/modules/newsletter/services/
 import { NewsletterOptInService } from '../../../src/modules/newsletter/services/opt-in.service.js';
 import { NewsletterSubscriberService } from '../../../src/modules/newsletter/services/subscriber.service.js';
 import { NewsletterAudienceResolver } from '../../../src/modules/newsletter/services/audience-resolver.js';
-import type { SettingsService } from '../../../src/modules/settings/services/settings.service.js';
+import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
 import { NewsletterTag } from '../../../src/modules/newsletter/entities/newsletter-tag.entity.js';
 import { NewsletterSubscriberTag } from '../../../src/modules/newsletter/entities/newsletter-subscriber-tag.entity.js';
@@ -38,7 +38,7 @@ describe('newsletter suppression + events (US3/US6 edge cases)', () => {
     service = new NewsletterSubscriberService({
       emFactory: () => db.em(),
       optIn,
-      platformChannelId: 'default',
+      defaultChannelId: null,
       links: { confirm: (t) => `c?${t}`, unsubscribe: (t) => `u?${t}` },
       emitEvent: (name, payload) => events.push({ name, payload }),
     });

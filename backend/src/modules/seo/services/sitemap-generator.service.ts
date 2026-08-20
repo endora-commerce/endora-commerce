@@ -1,9 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { Category } from '../../catalog/entities/category.entity.js';
-import { CmsPage } from '../../cms/entities/cms-page.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import {
+  ANONYMOUS_PRODUCT_AUDIENCE,
+  isProductVisibleTo,
+  type CatalogCategoryReadPort,
+  type CatalogProductReadPort,
+  type ChannelMemberEntityType,
+  type CmsPageReadPort,
+} from '@b2b/contracts';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { SitemapCache } from '../entities/sitemap-cache.entity.js';
 
 /**
@@ -22,15 +28,29 @@ import { SitemapCache } from '../entities/sitemap-cache.entity.js';
  *
  * Cache: one row per channel in `sitemap_cache`, keyed by the channel
  * `code` (varchar(32)). Regenerate is per-channel; the public route
- * resolves the channel from `request.salesChannel` and serves that row.
+ * resolves the channel from the request scope and serves that row.
  *
  * Anonymous-visible only: products with `visibility != 'public'` and
  * archived/deleted rows are excluded so we don't leak internal SKUs into
  * crawlers.
+ *
+ * Feature 075, Phase C — the three entity reads go through their owners'
+ * published read ports and the membership lookup through
+ * `salesChannelMembershipPort`, which is the sanctioned bridge accessor of
+ * Constitution XII. Both were the same defect in two disguises: the entity
+ * reads were imports no gate can reach, and the membership read was three
+ * hand-written `SELECT`s against `sales_channel_products`,
+ * `sales_channel_categories` and `sales_channel_cms_pages` — which
+ * `check-module-boundary` cannot see at all, because raw SQL names no
+ * specifier. `catalog` and `cms` are binding dependencies: a sitemap that
+ * silently drops every product URL still parses as a sitemap, which is exactly
+ * why it must not be produced.
  */
 
 const DEFAULT_STALE_AFTER_MS = 6 * 60 * 60 * 1000; // 6 hours
 const STOREFRONT_URL_SETTING = 'sales_channels.storefront_url';
+/** How many member ids one bridge read fetches. The port's own default is 100. */
+const MEMBERSHIP_PAGE_SIZE = 500;
 
 export interface SitemapGeneratorOptions {
   /** Public origin used when no per-channel URL is configured. Defaults to env or localhost. */
@@ -64,6 +84,11 @@ export class SitemapGeneratorService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly settings: SitemapSettingsPort | null,
+    /** What this channel contains, and what those rows are (feature 075, Phase C). */
+    private readonly membership: SalesChannelMembershipPort,
+    private readonly catalogProducts: CatalogProductReadPort,
+    private readonly catalogCategories: CatalogCategoryReadPort,
+    private readonly cmsPages: CmsPageReadPort,
     options: SitemapGeneratorOptions = {},
   ) {
     this.fallbackBaseUrl =
@@ -100,39 +125,42 @@ export class SitemapGeneratorService {
     }
 
     const baseUrl = await this.resolveStorefrontUrl(channel);
-    const memberIds = await this.collectChannelMemberIds(em, channel.id);
+    const memberIds = await this.collectChannelMemberIds(channel.id);
 
-    const products = memberIds.products.size
-      ? await em.find(
-          Product,
-          {
-            id: { $in: [...memberIds.products] },
-            status: 'active',
-            visibility: 'public',
-            archivedAt: null,
-            deletedAt: null,
-          },
-          { orderBy: { updatedAt: 'desc' } },
-        )
-      : [];
-    const categories = memberIds.categories.size
-      ? await em.find(
-          Category,
-          { id: { $in: [...memberIds.categories] }, deletedAt: null },
-          { orderBy: { sortOrder: 'asc' } },
-        )
-      : [];
-    const cmsPages = memberIds.cmsPages.size
-      ? await em.find(
-          CmsPage,
-          {
-            id: { $in: [...memberIds.cmsPages] },
-            status: 'published',
-            active: true,
-          },
-          { orderBy: { slug: 'asc' } },
-        )
-      : [];
+    // Each read keeps the filter and the ordering the SQL spelled. `liveOnly`
+    // and `activeOnly` are the port's names for the `deleted_at is null` and
+    // `status = 'active'` halves; `visibility`, `archivedAt`, `isActive` and
+    // `active` are columns on the records, so those predicates stay here — the
+    // same conditions, evaluated one layer up.
+    const products = (
+      await this.catalogProducts.findByIds([...memberIds.products], {
+        liveOnly: true,
+        activeOnly: true,
+      })
+    )
+      // Issue #227 — `visibility === 'public'` was here, and it is not the
+      // whole answer: an operator can save `public` **with** a non-empty
+      // `allowed_organization_ids`, which restricts the row to the
+      // organisations it names whatever the visibility column says. A sitemap
+      // is read by crawlers, so the audience is the anonymous one, and
+      // `isProductVisibleTo` answers both columns for it — the `public` half
+      // unchanged, the allow-list half for the first time.
+      .filter(
+        (p) => isProductVisibleTo(p, ANONYMOUS_PRODUCT_AUDIENCE) && p.archivedAt === null,
+      )
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
+    // Feature 068 — a deactivated category is not a customer-reachable URL, so
+    // it must not be advertised to crawlers.
+    const categories = (
+      await this.catalogCategories.findByIds([...memberIds.categories], { liveOnly: true })
+    )
+      .filter((c) => c.isActive)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const cmsPages = (await this.cmsPages.findByIds([...memberIds.cmsPages]))
+      .filter((page) => page.status === 'published' && page.active)
+      .sort((a, b) => a.slug.localeCompare(b.slug));
 
     const urls: SitemapUrl[] = [];
     for (const c of categories) {
@@ -253,38 +281,50 @@ export class SitemapGeneratorService {
     return { url: this.fallbackBaseUrl, source: 'fallback' };
   }
 
-  private async collectChannelMemberIds(
-    em: EntityManager,
-    salesChannelId: string,
-  ): Promise<{
+  /**
+   * What belongs to this channel, through the sanctioned bridge accessor
+   * (Constitution XII). This was three hand-written `SELECT`s against
+   * `sales_channel_products`, `sales_channel_categories` and
+   * `sales_channel_cms_pages` — the tables `SalesChannelMembershipPort`'s own
+   * doc comment says a module must not reach for, and the one cross-module
+   * read in this file that `check-module-boundary` could never have found,
+   * because raw SQL names no import specifier.
+   */
+  private async collectChannelMemberIds(salesChannelId: string): Promise<{
     products: Set<string>;
     categories: Set<string>;
     cmsPages: Set<string>;
   }> {
-    const conn = em.getConnection();
-    const params = [salesChannelId];
+    const [products, categories, cmsPages] = await Promise.all([
+      this.allMemberIds(salesChannelId, 'product'),
+      this.allMemberIds(salesChannelId, 'category'),
+      this.allMemberIds(salesChannelId, 'cms-page'),
+    ]);
+    return { products, categories, cmsPages };
+  }
 
-    const productRows = (await conn.execute(
-      `SELECT product_id FROM sales_channel_products WHERE sales_channel_id = ?`,
-      params,
-      'all',
-    )) as Array<{ product_id: string }>;
-    const categoryRows = (await conn.execute(
-      `SELECT category_id FROM sales_channel_categories WHERE sales_channel_id = ?`,
-      params,
-      'all',
-    )) as Array<{ category_id: string }>;
-    const cmsPageRows = (await conn.execute(
-      `SELECT cms_page_id FROM sales_channel_cms_pages WHERE sales_channel_id = ?`,
-      params,
-      'all',
-    )) as Array<{ cms_page_id: string }>;
-
-    return {
-      products: new Set(productRows.map((r) => r.product_id)),
-      categories: new Set(categoryRows.map((r) => r.category_id)),
-      cmsPages: new Set(cmsPageRows.map((r) => r.cms_page_id)),
-    };
+  /**
+   * Every member id, not the first page of them. `listEntityIdsForChannel` is
+   * paginated and defaults to 100; a sitemap wants the channel's whole
+   * catalogue, so the pages are walked to `total`. `total` is re-read on each
+   * call and the loop is bounded by it, so a concurrent membership write
+   * cannot spin it.
+   */
+  private async allMemberIds(
+    salesChannelId: string,
+    entityType: ChannelMemberEntityType,
+  ): Promise<Set<string>> {
+    const ids = new Set<string>();
+    for (let page = 0; ; page += 1) {
+      const { entityIds, total } = await this.membership.listEntityIdsForChannel(
+        salesChannelId,
+        entityType,
+        page,
+        MEMBERSHIP_PAGE_SIZE,
+      );
+      for (const id of entityIds) ids.add(id);
+      if (entityIds.length === 0 || ids.size >= total) return ids;
+    }
   }
 }
 

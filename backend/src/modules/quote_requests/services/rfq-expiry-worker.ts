@@ -1,12 +1,10 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { AdminUserReadPort, SalesRepAssignmentPort } from '@b2b/contracts';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { RfqEventBus } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqNotificationService, NotificationRecipient } from './rfq-notification-service.js';
-import type { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
-import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
 import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 
 /**
@@ -34,7 +32,13 @@ export interface RfqExpiryWorkerDeps {
   events: RfqEventBus;
   eventService: RfqEventService;
   notificationService: RfqNotificationService;
-  salesRepAssignment: SalesRepAssignmentService;
+  salesRepAssignment: SalesRepAssignmentPort;
+  /**
+   * Feature 075, Phase C — the unassigned-organisation fan-out. It was
+   * `em.find(AdminUser, {})` against `admin_users`' table; `listAll` is the
+   * read that module published for exactly this, and its doc comment says so.
+   */
+  adminUsers: AdminUserReadPort;
   /** Resolves the current `quote_requests.expiryDays` from settings.
    * Implementation lives in plugin.ts so the worker isn't coupled to
    * the settings module's read API. */
@@ -86,7 +90,7 @@ export class RfqExpiryWorker {
         for (const a of assignments) recipients.push({ adminUserId: a.adminUserId });
       } else {
         // Unassigned-org fallback — notify every active admin.
-        const everyAdmin = await em.find(AdminUser, {});
+        const everyAdmin = await this.deps.adminUsers.listAll();
         for (const a of everyAdmin) recipients.push({ adminUserId: a.id });
       }
       await this.deps.notificationService.enqueue({
@@ -103,7 +107,6 @@ export class RfqExpiryWorker {
       });
     }
 
-    void CustomerAccount; // avoid tree-shaking the import — used elsewhere
     return { expiredCount: expirable.length };
     });
   }

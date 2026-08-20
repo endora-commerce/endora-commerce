@@ -10,7 +10,11 @@
 // suggest contracts below. US2 / US3 schemas land later.
 
 import { z } from 'zod';
-import { productSummarySchema } from './catalog.js';
+import {
+  productSummarySchema,
+  type ProductAudience,
+  type ProductSummary,
+} from './catalog.js';
 import { displayModeSchema } from './price-lists.js';
 
 // ---------------------------------------------------------------------------
@@ -184,4 +188,93 @@ export const SearchReindexResponseSchema = z.object({
   documentCount: z.number().int().nonnegative(),
 });
 export type SearchReindexResponse = z.infer<typeof SearchReindexResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `search` publishes to the one module that reads it
+// (feature 075, Phase P): `catalog`'s public product listing hands the query
+// over when `CATALOG_SEARCH_BACKEND=meilisearch`, and serves it from Postgres
+// otherwise.
+// ---------------------------------------------------------------------------
+
+/** The channel a search runs in, resolved before the query is built. */
+export interface ResolvedSearchChannel {
+  id: string;
+  code: string;
+  isPublic: boolean;
+  defaultCurrency: string;
+  defaultLanguage: string;
+}
+
+export interface SearchQueryContext {
+  resolvedChannel: ResolvedSearchChannel;
+  /**
+   * Who is asking (issue #227). The index is not the authority on this: it
+   * carries `visibility` as a filterable attribute and has never carried
+   * `allowed_organization_ids` at all, so the answer is recomputed against the
+   * Postgres rows the hits hydrate from — the same place this path already
+   * insists the price comes from.
+   */
+  audience: ProductAudience;
+  preferredLanguage?: string | undefined;
+}
+
+export interface SearchListProductsParams {
+  q?: string | undefined;
+  limit: number;
+  cursor?: string | undefined;
+  sort?: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+  categorySlug?: string | undefined;
+  attributeFilters?: Record<string, string[]> | undefined;
+}
+
+export interface SearchListResult {
+  data: ProductSummary[];
+  pagination: { cursor: string | null; hasMore: boolean; limit: number };
+}
+
+/**
+ * What a listing query answered: the page, or the fact that the index could
+ * not be reached.
+ *
+ * The second arm exists so the caller does not have to write a `catch` to
+ * learn it. `search` raises `SearchBackendUnavailable` internally when
+ * Meilisearch is unreachable; the port converts it here, on the owner's side,
+ * because a consumer catching it would be a `catch` around a port call — and
+ * that `catch` would swallow `ModuleDisabledError` too, turning "the operator
+ * switched `search` off" into "the index is slow today". Two different facts
+ * with two different right answers, fused by one `catch` clause.
+ *
+ * This is the `allowedIdsFor(): Promise<string[] | null>` shape AGENTS.md names
+ * as the worked example: where a degrade genuinely belongs, it goes inside the
+ * owner's implementation and is expressed in the return type.
+ */
+export type SearchListOutcome =
+  | { status: 'ok'; result: SearchListResult }
+  /** Meilisearch refused or timed out. `reason` is for the caller's log line. */
+  | { status: 'index-unavailable'; reason: string };
+
+/**
+ * Container name: `searchQueryPort`. Owner: `search`.
+ *
+ * **The one port in the sweep whose consumer is right to degrade rather than
+ * fail**, and the degrade is already where it belongs: `catalog`'s listing
+ * route checks the backend setting and falls back to its own Postgres query.
+ * That is a `nonBindingDependencies` edge, declared, not a `catch` — a search
+ * index being unavailable must not take the catalogue down with it.
+ *
+ * Note what the fallback is *not* allowed to be: a `try`/`catch` around the
+ * call. Catching here would swallow `ModuleDisabledError` and make a
+ * switched-off `search` look like a slow one, which is the fail-open shape
+ * `check:port-catches` exists for. That is why `listProducts` answers a
+ * {@link SearchListOutcome} rather than throwing: the consumer distinguishes
+ * the two states by reading a field, and never by catching.
+ */
+export interface SearchQueryPort {
+  listProducts(
+    params: SearchListProductsParams,
+    ctx: SearchQueryContext,
+  ): Promise<SearchListOutcome>;
+}
 

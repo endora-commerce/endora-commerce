@@ -11,6 +11,7 @@ import {
   segmentFor,
   validateModuleId,
 } from '../../../scripts/new-migration.js';
+import { collectMigrations } from '../../../scripts/generate-composer.js';
 
 /**
  * Pure parts of the migration scaffolder (FR-032, FR-033). Filesystem writes
@@ -108,9 +109,9 @@ describe('nextFreeStamp — collision advance', () => {
     );
   });
 
-  it('never emits a stamp inside the frozen block', () => {
-    // A clock reading before FROZEN_THROUGH would otherwise produce a stamp
-    // that fails the frozen-prefix assertion at config-build time.
+  it('never emits a stamp inside the uncorrected block', () => {
+    // A clock reading before UNCORRECTED_THROUGH would otherwise produce a
+    // stamp that silently opts the migration out of dependency correction.
     expect(
       nextFreeStamp(new Date(Date.UTC(2026, 6, 30, 16, 18, 18)), new Set(), '20260801T000000'),
     ).toBe('20260801T000001');
@@ -203,17 +204,26 @@ describe('buildScaffold', () => {
     expect(scaffold.contents).toContain('override async down(): Promise<void> {');
   });
 
-  it('prints the exact import line, entry line and group banner to paste', () => {
-    expect(scaffold.importLine).toBe(
-      `import { ${scaffold.className} } from '../modules/orders/migrations/${scaffold.filename.replace(/\.ts$/, '.js')}';`,
+  // The scaffolder used to print two lines to paste into a hand-maintained
+  // registry, and these two cases asserted their exact text. Registration is a
+  // regeneration now, so what has to hold is that the generator picks the
+  // scaffolded file up — under the module that owns it and with the class name
+  // the scaffold exports. Both halves derive the name from the filename
+  // independently, and this is where they are made to agree.
+  it.each([
+    ['orders', 'placement intents'],
+    ['core', 'tenant_indexes'],
+  ])('scaffolds a file the registry generator registers (%s)', (moduleId, slug) => {
+    const built = buildScaffold({ moduleId, slug, stamp: '20260805T141530' });
+    const collected = collectMigrations(
+      new Map([[built.relativePath.replace(/^src\//, ''), built.contents]]),
     );
-    expect(scaffold.entryLine).toBe(`  migration('orders', ${scaffold.className}),`);
-    expect(scaffold.groupBanner).toContain('── orders ──');
-  });
-
-  it('imports core migrations from ./migrations/', () => {
-    const core = buildScaffold({ moduleId: 'core', slug: 'tenant_indexes', stamp: '20260805T141530' });
-    expect(core.importLine).toContain("from './migrations/20260805T141530_core_tenant_indexes.js'");
-    expect(core.entryLine).toBe(`  migration('core', ${core.className}),`);
+    expect(collected).toEqual([
+      {
+        moduleId,
+        className: built.className,
+        file: built.relativePath.replace(/^src\//, ''),
+      },
+    ]);
   });
 });

@@ -1,11 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { OptimisticLockError } from '@mikro-orm/core';
+import { NotFoundError, OptimisticLockError } from '@mikro-orm/core';
 import { Organization } from '../entities/organization.entity.js';
 import { OrganizationPaymentMethodLink } from '../entities/organization-payment-method-link.entity.js';
 import { OrganizationDeliveryMethodLink } from '../entities/organization-delivery-method-link.entity.js';
 import { OrganizationWarehouseLink } from '../entities/organization-warehouse-link.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 export interface AllowLists {
   paymentMethodIds: string[];
@@ -69,6 +69,39 @@ export class OrganizationRestrictionService {
       warehouseIds: warehouses.map((r) => r.warehouseId).sort(),
       version: org.version,
     };
+  }
+
+  /**
+   * The allow-list for one restriction kind, or `null` for "no restriction".
+   *
+   * Feature 072 (T138). Three composition roots' worth of callers —
+   * `payment_methods`, `delivery_methods` and `inventory` — used to reach this
+   * service through a root closure that wrapped {@link readAllowLists} in a
+   * bare `catch` and read "organization not found" as "unrestricted". That is
+   * the right policy and the wrong place for it: a `catch` around a *port* call
+   * also swallows `ModuleDisabledError`, turning a fail-closed gate into a
+   * fail-open restriction check — on the one code path whose entire job is to
+   * restrict.
+   *
+   * So the degrade is expressed here, in the return type, by the module that
+   * owns the policy. A caller needs no `catch`, and a genuine module-disabled
+   * error propagates as the 503 it is.
+   */
+  async allowedIdsFor(
+    organizationId: string,
+    kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
+  ): Promise<string[] | null> {
+    let lists: AllowListsRead;
+    try {
+      lists = await this.readAllowLists(organizationId);
+    } catch (err) {
+      // The one condition this may absorb: the Organization is unknown or
+      // soft-deleted, which `readAllowLists` reports as a `findOneOrFail`
+      // rejection. Anything else is a real failure and must surface.
+      if (err instanceof NotFoundError) return null;
+      throw err;
+    }
+    return lists[kind];
   }
 
   async replaceAllowLists(

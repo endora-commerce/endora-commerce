@@ -60,13 +60,37 @@ export function formatMoneyObject(
 }
 
 /**
- * Polish VAT rate used to derive a gross amount from a net one. The wire only
- * carries net money (see `packages/contracts/src/common.ts` — `Money` has no
- * tax breakdown), so gross is computed client-side as `net × (1 + vatRate)`.
- * This mirrors the pre-existing convention baked into `BaseSalePriceBlock` and
- * `ProductCard` (both hardcode 0.23), keeping every price surface aligned.
+ * The VAT rate this deployment **assumes** when deriving a gross amount from a
+ * net one — issue #132.
+ *
+ * It is an assumption, and saying so is the point. The `taxes` module resolves
+ * a real rate per `(country, productType, vatStatus)`, but nothing the
+ * storefront reads carries it: `ProductSummary`, `CartSummary` and the
+ * resolved-price payload are all net-only, and the `taxes` routes are
+ * admin-gated. So no code path on a listing, a card, a PDP price block or a
+ * cart line can consult a tax authority today.
+ *
+ * What changed here is that the assumption lives in one place instead of three.
+ * `BaseSalePriceBlock`, `ProductCard` and `ProductRow` each carried their own
+ * `0.23` / `1.23` literal, so a deployment in another jurisdiction had nothing
+ * to correct; each of them now takes an optional rate and defaults to this
+ * constant. When the resolved rate reaches the wire, this is the one seam that
+ * has to change.
  */
 export const DEFAULT_VAT_RATE = 0.23;
+
+/**
+ * Derive a gross amount from a net one, or `null` when there is no rate to
+ * apply — a gross figure nobody supplied a rate for is not a figure.
+ *
+ * A net of `0` derives a gross of `0`. That is not a detail: one of the three
+ * copies this replaces tested the derived amount for truthiness, so a free
+ * product silently lost its gross line while every other product kept one.
+ */
+export function grossFromNet(net: number, vatRate: number | null): number | null {
+  if (vatRate === null || !Number.isFinite(net) || !Number.isFinite(vatRate)) return null;
+  return net * (1 + vatRate);
+}
 
 /**
  * Resolve a net `Money` value into the amount(s) a given display mode should
@@ -94,7 +118,8 @@ export function moneyByMode(
   vatRate: number = DEFAULT_VAT_RATE,
 ): MoneyByMode {
   const netStr = formatMoneyObject(net, locale);
-  const grossStr = formatMoney(net.amount * (1 + vatRate), net.currency, locale);
+  const gross = grossFromNet(net.amount, vatRate);
+  const grossStr = formatMoney(gross ?? net.amount, net.currency, locale);
   switch (mode) {
     case 'gross_only':
       return { primary: grossStr, primaryKind: 'gross', secondary: null, secondaryKind: null };

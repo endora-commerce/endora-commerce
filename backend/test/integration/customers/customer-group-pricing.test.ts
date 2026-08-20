@@ -2,11 +2,12 @@ import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
-import { CustomerGroup } from '../../../src/modules/price_lists/entities/customer-group.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
 import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
 import { DefaultPriceListMigrator } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 040, US6 / R6 — the customer's DIRECT customer-group overrides the
@@ -57,7 +58,7 @@ describe('Customer-group pricing override (US6)', () => {
     });
     await em.persistAndFlush([channel, group, product]);
 
-    const svc = new PriceListService(() => em);
+    const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
     const list = await svc.create({
       name: 'VIP List',
       type: 'base',
@@ -69,7 +70,7 @@ describe('Customer-group pricing override (US6)', () => {
     });
     await svc.activate(list.id);
 
-    const pricing = new PricingService(() => em);
+    const pricing = new PricingService(() => em, undefined, undefined, neighbourReadPorts(() => em));
 
     // With the customer group present → the VIP list applies.
     const withGroup = await pricing.resolveLinePrice({

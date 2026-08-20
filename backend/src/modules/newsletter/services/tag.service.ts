@@ -3,7 +3,7 @@ import { ERROR_CODES, type CreateNewsletterTagRequest, type NewsletterTag as New
 import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /** Newsletter tag CRUD (feature 048, US3). */
 export class NewsletterTagService {

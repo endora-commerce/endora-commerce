@@ -4,8 +4,12 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import type { CartApprovalStatus } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import type {
+  CustomerAccountReadPort,
+  OrganizationCartApprovalWritePort,
+  OrganizationDetailsPort,
+  OrganizationRecord,
+} from '@b2b/contracts';
 import type { CartAuditService } from './cart-audit-service.js';
 
 /**
@@ -63,6 +67,18 @@ export class CartApprovalService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cartAuditService: CartAuditService,
+    /** `organizations`' read model — the approval policy and its owner row. */
+    private readonly organizations: OrganizationDetailsPort,
+    /**
+     * `organizations`' write surface for the policy column (issue #175). The
+     * two `setPolicy*` methods below used to assign
+     * `organizations.requires_cart_approval` on that module's entity; the write
+     * belongs to its owner, which audits it through the Command Bus. What stays
+     * here is the cascade over this module's own carts.
+     */
+    private readonly organizationCartApproval: OrganizationCartApprovalWritePort,
+    /** `customer_accounts`' read model — the submitting buyer's role. */
+    private readonly customerAccounts: CustomerAccountReadPort,
     private readonly emailDispatch?: CartEmailDispatch,
   ) {}
 
@@ -102,12 +118,12 @@ export class CartApprovalService {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'approval_already_initiated');
     }
 
-    const org = await em.findOne(Organization, { id: actor.organizationId });
+    const org = await this.organizations.findById(actor.organizationId);
     if (!org || !org.requiresCartApproval) {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'approval_not_required');
     }
 
-    const buyer = await em.findOne(CustomerAccount, { id: actor.customerAccountId });
+    const buyer = await this.customerAccounts.findById(actor.customerAccountId);
     if (buyer?.role === 'organization_admin') {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'org_admin_self_submit');
     }
@@ -203,38 +219,13 @@ export class CartApprovalService {
     organizationId: string,
     adminUserId: string,
     requires: boolean,
-  ): Promise<Organization> {
-    const em = this.emFactory();
-    const org = await em.findOne(Organization, { id: organizationId });
-    if (!org) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'organization_not_found');
+  ): Promise<OrganizationRecord> {
+    const { organization, changed } =
+      await this.organizationCartApproval.setCartApprovalPolicy(organizationId, requires);
+    if (changed && !requires) {
+      await this.resetPendingApprovals(organizationId, 'platform_admin', adminUserId);
     }
-    if (org.requiresCartApproval === requires) {
-      return org;
-    }
-    org.requiresCartApproval = requires;
-    await em.flush();
-
-    if (!requires) {
-      const affected = await em.find(Cart, {
-        organizationId,
-        approvalStatus: { $in: ['pending', 'approved'] satisfies CartApprovalStatus[] },
-      });
-      for (const cart of affected) {
-        const prev = cart.approvalStatus;
-        cart.approvalStatus = 'not_required';
-        await em.flush();
-        await this.cartAuditService.record({
-          cartId: cart.id,
-          actorType: 'platform_admin',
-          actorId: adminUserId,
-          action: 'approval_policy_reset',
-          fromState: prev,
-          toState: 'not_required',
-        });
-      }
-    }
-    return org;
+    return organization;
   }
 
   /**
@@ -246,42 +237,47 @@ export class CartApprovalService {
     organizationId: string,
     actor: ApproveActor,
     requires: boolean,
-  ): Promise<Organization> {
+  ): Promise<OrganizationRecord> {
     if (organizationId !== actor.organizationId) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'organization_not_found');
     }
-    const em = this.emFactory();
-    const org = await em.findOne(Organization, { id: organizationId });
-    if (!org) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'organization_not_found');
+    const { organization, changed } =
+      await this.organizationCartApproval.setCartApprovalPolicy(organizationId, requires);
+    if (changed && !requires) {
+      await this.resetPendingApprovals(organizationId, 'org_admin', actor.customerAccountId);
     }
-    if (org.requiresCartApproval === requires) {
-      return org;
-    }
-    org.requiresCartApproval = requires;
-    await em.flush();
+    return organization;
+  }
 
-    if (!requires) {
-      // Reset every non-terminal cart's approval_status to not_required.
-      const affected = await em.find(Cart, {
-        organizationId,
-        approvalStatus: { $in: ['pending', 'approved'] satisfies CartApprovalStatus[] },
+  /**
+   * The half of a policy switch-off that belongs to this module: every
+   * `pending` or `approved` cart in the Organization returns to
+   * `not_required`, audited as `approval_policy_reset` in this module's own
+   * per-cart trail with the actor that switched the policy off.
+   */
+  private async resetPendingApprovals(
+    organizationId: string,
+    actorType: 'platform_admin' | 'org_admin',
+    actorId: string,
+  ): Promise<void> {
+    const em = this.emFactory();
+    const affected = await em.find(Cart, {
+      organizationId,
+      approvalStatus: { $in: ['pending', 'approved'] satisfies CartApprovalStatus[] },
+    });
+    for (const cart of affected) {
+      const prev = cart.approvalStatus;
+      cart.approvalStatus = 'not_required';
+      await em.flush();
+      await this.cartAuditService.record({
+        cartId: cart.id,
+        actorType,
+        actorId,
+        action: 'approval_policy_reset',
+        fromState: prev,
+        toState: 'not_required',
       });
-      for (const cart of affected) {
-        const prev = cart.approvalStatus;
-        cart.approvalStatus = 'not_required';
-        await em.flush();
-        await this.cartAuditService.record({
-          cartId: cart.id,
-          actorType: 'org_admin',
-          actorId: actor.customerAccountId,
-          action: 'approval_policy_reset',
-          fromState: prev,
-          toState: 'not_required',
-        });
-      }
     }
-    return org;
   }
 
   /**

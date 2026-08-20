@@ -25,8 +25,22 @@ narrowed by zero or more of `country`, `productType`, `appliesToVatStatuses`.
 2. Among matching rules, the one with the **most narrowed fields** wins.
 3. Specificity ties → `priority` desc → `createdAt` asc.
 4. When no rule matches, the row with `isDefault=true` wins.
-5. When no default exists either, the resolver returns
-   `{ rate: 0, source: 'none' }`.
+5. When no default exists either, the resolver returns `{ source: 'none' }` —
+   an answer with **no `rate` field at all**.
+
+Point 5 is a type, not a convention (issue #124). A configured 0% rate is a
+legitimate answer in some jurisdictions, so it comes back as
+`{ source: 'default', rate: 0, taxId }` and prices an order like any other rate.
+"Nothing is configured" is not an answer, so it carries no number a caller could
+spend by accident: `ResolvedTax` is a discriminated union and `.rate` does not
+compile until the caller narrows on `source`. The two used to share one shape,
+`{ rate: 0, source: 'none' }`, and every consumer read `.rate` — which is how an
+unconfigured deployment quoted 0% VAT onto real invoices.
+
+A third state — the `taxes` module being absent — is deliberately not in the
+union. Absence is not a value: the port gate raises the 503 `MODULE_DISABLED`
+envelope before a resolution runs, so an order the platform cannot tax is
+refused rather than taxed at a figure nobody chose.
 
 The "at most one default" invariant is enforced by a partial unique index
 `(is_default) WHERE is_default = true`. `upsertByCode` demotes any prior

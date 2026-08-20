@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
 import type { NewsletterSendProvider, ResolveResult } from '@b2b/contracts';
-import type { SettingsService } from '../../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../../kernel/settings/settings.service.js';
 import { ConsoleNewsletterProvider } from './console-provider.js';
 import { SmtpProvider } from './smtp-provider.js';
 
@@ -30,12 +30,20 @@ export interface CredentialResolvePort {
 export class NewsletterProviderRegistry {
   constructor(
     private readonly settings: SettingsService,
-    private readonly platformChannelId: string,
     private readonly credentials?: CredentialResolvePort,
   ) {}
 
+  /**
+   * Platform-wide (feature 072, D-41). The sending provider is one SMTP
+   * transport for the deployment — `NewsletterProviderAdminService` writes it
+   * with `setValueForAllChannels` — so a read scoped to a channel was always
+   * asking the wrong question. It used to take a `platformChannelId` the root
+   * resolved to the system-default channel, falling back to the `'default'`
+   * sentinel; the name is gone rather than corrected, because a DI name
+   * carrying a sentinel is one no static check can see.
+   */
   private async getString(code: string): Promise<string> {
-    return this.settings.get(code, this.platformChannelId, z.string());
+    return this.settings.get(code, null, z.string());
   }
 
   /**

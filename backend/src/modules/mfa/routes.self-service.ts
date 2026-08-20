@@ -3,12 +3,15 @@ import {
   mfaActivateRequestSchema,
   mfaDisableRequestSchema,
   mfaRegenerateRequestSchema,
+  mfaSocialUnlinkParamsSchema,
 } from '@b2b/contracts';
+import type { MfaSubjectRef } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { MfaSubjectRef } from '../auth/services/mfa-login-port.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
+import type { SocialLinkService } from './services/social-link-service.js';
 
 /**
  * Surface-agnostic self-service 2FA endpoints (feature 042). Mounted twice by
@@ -26,6 +29,7 @@ export interface MfaSelfServiceOptions {
   resolveOrganizationId?: (req: FastifyRequest) => string | null;
   enrolmentService: MfaEnrolmentService;
   policyResolver: MfaPolicyResolver;
+  socialLinkService: SocialLinkService;
   auditLogService: AuditLogService;
   resolveAccountEmail?: (
     subjectType: 'customer' | 'admin',
@@ -50,6 +54,7 @@ export async function registerMfaSelfServiceRoutes(
     resolveSubjectId,
     enrolmentService,
     policyResolver,
+    socialLinkService,
     auditLogService,
   } = opts;
 
@@ -62,8 +67,7 @@ export async function registerMfaSelfServiceRoutes(
     const subject = subjectOf(request);
     // FR-001 — enrolment is only permitted when 2FA is enabled for the scope.
     const policy = await policyResolver.resolve(subject, {
-      salesChannelId:
-        (request as { salesChannel?: { id: string } }).salesChannel?.id ?? null,
+      salesChannelId: currentSalesChannel()?.id ?? null,
       organizationId: opts.resolveOrganizationId?.(request) ?? null,
     });
     if (!policy.totpEnabled) {
@@ -132,8 +136,7 @@ export async function registerMfaSelfServiceRoutes(
     const subject = subjectOf(request);
     const status = await enrolmentService.status(subject);
     const policy = await policyResolver.resolve(subject, {
-      salesChannelId:
-        (request as { salesChannel?: { id: string } }).salesChannel?.id ?? null,
+      salesChannelId: currentSalesChannel()?.id ?? null,
       organizationId: opts.resolveOrganizationId?.(request) ?? null,
     });
     return {
@@ -142,10 +145,31 @@ export async function registerMfaSelfServiceRoutes(
         recoveryCodesRemaining: status.recoveryCodesRemaining,
         totpEnabledForScope: policy.totpEnabled,
         totpEnforcedForScope: policy.totpEnforced,
-        socialLinks: [],
+        // Issue #194 — the contract has declared this field since feature 042
+        // and the handler answered `[]` unconditionally, so the account holder
+        // could neither see a linked identity nor reach the route that removes
+        // one. The verdict travels with each link, so the surface renders the
+        // refusal instead of discovering it on the click.
+        socialLinks: await socialLinkService.list(subject),
       },
     };
   });
+
+  /**
+   * Sever a federated identity (issue #194). Refused when it is the account's
+   * only link — see {@link SocialLinkService} for why that is the rule and what
+   * would be needed to relax it.
+   */
+  app.delete(
+    `${pathPrefix}/social-links/:provider`,
+    { preHandler: requireGuard, schema: { params: mfaSocialUnlinkParamsSchema } },
+    async (request) => {
+      const { provider } = mfaSocialUnlinkParamsSchema.parse(request.params);
+      const subject = subjectOf(request);
+      await socialLinkService.unlink(subject, provider);
+      return { data: { status: 'unlinked' as const, provider } };
+    },
+  );
 }
 
 /** Re-auth on self-disable: a current TOTP/recovery code or the password. */

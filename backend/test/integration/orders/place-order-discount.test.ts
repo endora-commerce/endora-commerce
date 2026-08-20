@@ -11,8 +11,9 @@ import { OrderService, type OrderEventBus } from '../../../src/modules/orders/se
 import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
-import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
+import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 /**
  * Feature 036 (US3) — placeOrder recomputes the cart's coupon discount via the
@@ -27,7 +28,7 @@ describe('placeOrder — coupon discount stamped on the order (feature 036)', ()
     await seedCartForStubCustomer(h.em());
 
     // Arrange a 10%-off coupon and apply it to the stub customer's cart.
-    const promotionService = new PromotionService(h.em);
+    const promotionService = promotionServiceFor(h);
     await promotionService.upsert({
       code: 'CHECKOUT10',
       name: 'Checkout 10% off',
@@ -37,6 +38,14 @@ describe('placeOrder — coupon discount stamped on the order (feature 036)', ()
     const em = h.em();
     const cart = await em.findOne(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' });
     cart!.appliedPromotionCode = 'CHECKOUT10';
+    // Issue #251 — the promotion engine's channel gate is live in every
+    // composition now (`salesChannelMembership` used to be optional and this
+    // rig omitted it). `upsert` binds the promotion to the system-default
+    // channel, and a cart that resolved to **no** channel matches no
+    // channel-bound promotion — FR-005, fail closed. `seedCartForStubCustomer`
+    // leaves `salesChannelId` unset, which no real cart is (D-47…D-51), so the
+    // cart is placed in the default channel here.
+    cart!.salesChannelId = (await h.salesChannels.resolver.getSystemDefault()).id;
     await em.persistAndFlush(cart!);
   });
   afterAll(async () => {
@@ -45,7 +54,7 @@ describe('placeOrder — coupon discount stamped on the order (feature 036)', ()
 
   it('reflects the discount in promotionCode, discountTotal, and total', async () => {
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     const service = new OrderService(
       h.em,
       new EventBus() as OrderEventBus,
@@ -53,9 +62,14 @@ describe('placeOrder — coupon discount stamped on the order (feature 036)', ()
       undefined,
       undefined,
       {
+      neighbours: orderServiceNeighbours(h.em),
+        // Issue #124 — a rig states its own tax authority. `OrderService` has no
+        // fallback rate, so an order it cannot price is refused rather than taxed
+        // at a figure nobody configured.
+        resolveTaxRate: async () => 0.23,
         paymentAdapters: registry,
         orderStatusRegistry: new EnumOrderStatusRegistry(),
-        promotion: new PromotionService(h.em),
+        promotion: promotionServiceFor(h),
       },
     );
 

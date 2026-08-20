@@ -29,6 +29,16 @@ const settings = defineModuleSettingsManifest({
   ],
   settings: [
     {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'comparisons.enabled',
+      name: 'Product comparison enabled',
+      description:
+        'Switches the product-comparison feature on or off: the storefront compare list, the shareable comparison links and the admin screens. Nothing is dropped — saved comparisons stay in the database and their share links work again when you switch it back on. While it is off, a comparison list an anonymous visitor built is no longer adopted when they sign in, and expires with its own cookie.',
+      groupCode: 'compare',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
       code: COMPARE_SETTING_CODES.MAX_PRODUCTS,
       name: 'Maximum products per comparison',
       description:
@@ -47,10 +57,33 @@ export const manifest = defineModuleManifest({
   description:
     'Customer-facing product comparison feature with shareable links and PDF export.',
   version: '1.0.0',
-  dependencies: ['catalog', 'customer_accounts', 'sales_channels', 'settings'],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by; feature
+  // 072 made it a container resolution rather than an optional argument that
+  // decided whether the admin surface existed at all.
+  //
+  // `price_lists` joined in issue #132: a comparison column shows a price, and
+  // it now resolves that price through the `pricingService` port instead of
+  // projecting the catalogue's legacy attribute. The edge binds — comparing
+  // products on prices the platform is refusing to serve is exactly the
+  // failure the port gate exists to prevent.
+  //
+  // `organizations` joined with the viewer-priced comparison: the columns are
+  // resolved for whoever is looking, and the engine selects a group-targeted
+  // price list by the buyer's customer group, which is a field on the
+  // organisation row.
+  dependencies: [
+    'catalog',
+    'customer_accounts',
+    'organizations',
+    'price_lists',
+    'sales_channels',
+    'settings',
+    'auth',
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: 'comparisons:read', label: 'View product comparisons' }],
+  activation: { settingCode: 'comparisons.enabled', default: true },
 });
 
 /** Legacy export retained for backward compatibility. */

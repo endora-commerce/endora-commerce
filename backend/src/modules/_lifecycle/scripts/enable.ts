@@ -2,10 +2,11 @@ import { z } from 'zod';
 import Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { initOrm, closeOrm } from '../../../db/index.js';
-import { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../services/orchestrator.js';
 import { buildStaticRegistry } from '../services/static-registry.js';
 import { REGISTERED_MANIFESTS } from '../registered-manifests.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 const EnableArgsSchema = z.object({
   id: z.string().regex(/^_?[a-z][a-z0-9_]*$/),
@@ -114,4 +115,4 @@ function mapError(err: unknown, asJson: boolean): number {
   return 70;
 }
 
-void main().then((code) => process.exit(code));
+void enterSystemScope('cli: enable a module', main, { entryPoint: 'cli' }).then((code) => process.exit(code));

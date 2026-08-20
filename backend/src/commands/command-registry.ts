@@ -25,6 +25,13 @@ export const COMMAND_REGISTRY = {
   // Commands add the missing co-transactional audit entry.
   'credit_limit.grant': { reversible: false, description: 'Grant an organization credit limit' },
   'credit_limit.adjust': { reversible: false, description: 'Adjust an organization credit limit' },
+  // D-91 — the return-settlement credit, separate from `adjust` because it is
+  // keyed by the return case and applies once per case however often the
+  // settlement is retried.
+  'credit_limit.credit_from_return': {
+    reversible: false,
+    description: 'Credit an organization credit limit for a settled return',
+  },
   // Price-list writes (US1).
   'price_list.create': { reversible: false, description: 'Create a price list' },
   'price_list.update': { reversible: false, description: 'Update a price list' },
@@ -44,6 +51,23 @@ export const COMMAND_REGISTRY = {
   'category.create': { reversible: false, description: 'Create a category' },
   'category.update': { reversible: false, description: 'Update a category' },
   'category.delete': { reversible: false, description: 'Soft-delete a category' },
+  // Feature 075 / D-74 — the CSV import's writes. One Command and one audit row
+  // per run, not per row: a spreadsheet is one operator action. Before this the
+  // import rewrote catalogue and stock with no Command and no audit row at all,
+  // and `check:command-coverage` could not see it, because `em.create` and a
+  // field assignment on a managed entity are not in its vocabulary.
+  'catalog.categories.import': {
+    reversible: false,
+    description: 'Apply a bulk categories import (one run)',
+  },
+  'catalog.products.import': {
+    reversible: false,
+    description: 'Apply a bulk products import (one run)',
+  },
+  'inventory.stock_levels.import': {
+    reversible: false,
+    description: 'Apply a bulk stock-level import (one run)',
+  },
   'attribute_set.create': { reversible: false, description: 'Create an attribute set' },
   'attribute_set.update': { reversible: false, description: 'Update an attribute set' },
   'attribute_set.delete': { reversible: false, description: 'Delete an attribute set' },
@@ -159,6 +183,12 @@ export const COMMAND_REGISTRY = {
     reversible: false,
     description: 'Set an organization credit-inheritance mode (platform-admin only)',
   },
+  // Issue #175 — the cart-approval policy, written by its owner. `carts` drives
+  // both surfaces that flip it and used to write the column itself, unaudited.
+  'organization.set_cart_approval_policy': {
+    reversible: false,
+    description: 'Set the per-organization cart-approval policy',
+  },
   // Promotions module (US1).
   'promotion.create': { reversible: false, description: 'Create a promotion' },
   'promotion.update': { reversible: false, description: 'Update a promotion' },
@@ -215,6 +245,12 @@ export const COMMAND_REGISTRY = {
   'mfa.disable': { reversible: false, description: 'Disable a subject 2FA' },
   'mfa.regenerate_recovery_codes': { reversible: false, description: 'Regenerate 2FA recovery codes' },
   'mfa.set_org_enforcement': { reversible: false, description: 'Set org 2FA enforcement policy' },
+  // Issue #194 — the account holder severs a federated identity. Not
+  // reversible: re-linking means signing in with the provider again.
+  'mfa.social_unlink': {
+    reversible: false,
+    description: 'Unlink a federated identity from an account',
+  },
   // Transactional emails module (US1).
   'email_block.create': { reversible: false, description: 'Create an email block' },
   'email_block.update': { reversible: false, description: 'Update an email block' },
@@ -251,7 +287,15 @@ export const COMMAND_REGISTRY = {
   'admin_user.create': { reversible: false, description: 'Create an admin user' },
   'admin_user.update': { reversible: false, description: 'Update an admin user' },
   'admin_user.delete': { reversible: false, description: 'Soft-delete an admin user' },
-  'admin_user.change_password': { reversible: false, description: 'Admin changes their password' },
+  // Issue #252 — one action for every way an admin password gets set, with
+  // `stateAfter.via` naming which. Two emitters today: `peer_reset` from the
+  // route a colleague uses, and `self_service` from `AdminAuthService`, whose
+  // verify-then-rotate method no route reaches yet (the profile screen rotates
+  // through the self PATCH and audits `admin_user.update`).
+  'admin_user.change_password': {
+    reversible: false,
+    description: "Set an admin user's password (self-rotation or peer reset)",
+  },
   // Addresses module (US1).
   'address.create': { reversible: false, description: 'Create an org address' },
   'address.update': { reversible: false, description: 'Update an org address' },
@@ -331,8 +375,111 @@ export const COMMAND_REGISTRY = {
     reversible: false,
     description: 'Start a check for a newer provider taxonomy revision',
   },
+  // Ergonode PIM integration configuration writes (feature 068). The catalogue
+  // writes the import performs are audited by catalog's own Commands; these are
+  // the module's own decisions — which instance it talks to, where each source
+  // attribute or category lands, which prices it may write, and which fields it
+  // must leave alone. Import-loop internals (cursor advancement, heartbeats, run
+  // finalisation, reaper releases) are machine transitions and carry explicit
+  // `command-coverage-ignore` justifications instead.
+  'pim_ergonode.connection.upsert': {
+    reversible: false,
+    description: 'Create or update the Ergonode connection',
+  },
+  // A *manual* import is an operator decision and is audited. A scheduled tick
+  // is not: it has no acting administrator, and auditing every tick would add a
+  // row per schedule interval forever while saying nothing an operator asked.
+  // The scheduled path keeps its `command-coverage-ignore` at the call site.
+  'pim_ergonode.import.start': {
+    reversible: false,
+    description: 'Start an Ergonode import by hand',
+  },
+  'pim_ergonode.connection.delete': {
+    reversible: false,
+    description: 'Delete the Ergonode connection',
+  },
+  'pim_ergonode.attribute_mapping.set': {
+    reversible: false,
+    description: 'Set the mapping decision for an Ergonode attribute',
+  },
+  'pim_ergonode.category_mapping.set': {
+    reversible: false,
+    description: 'Bind or unbind an Ergonode category to a shop category',
+  },
+  'pim_ergonode.price_binding.create': {
+    reversible: false,
+    description: 'Bind an Ergonode price attribute to a price list and currency',
+  },
+  'pim_ergonode.price_binding.delete': {
+    reversible: false,
+    description: 'Remove an Ergonode price binding',
+  },
+  'pim_ergonode.field_protection.set': {
+    reversible: false,
+    description: 'Replace the set of product fields protected from the Ergonode import',
+  },
+  // Feature 073 — the operator-activation flip. Reversible: switching a module
+  // off preserves its data, configuration, bundles, permissions and schema, so
+  // the undo is switching it back on.
+  'module.activation.set': {
+    reversible: true,
+    description: "Switch a module's operator activation on or off",
+  },
+  // Feature 072 / D-51 — moving the platform's default sales channel. Not
+  // reversible in this registry's sense: `reversible` marks the commands wired
+  // into the feature-054 undo (a stored revert state on a bulk-operation row),
+  // and a single flag move has no such surface. Its inverse is the same command
+  // aimed at the previous default, whose code the response and the audit row
+  // both carry.
+  'sales_channel.set_default': {
+    reversible: false,
+    description: 'Move the system-default flag to another sales channel',
+  },
+  // Issue #89 — the same flip one granularity down. Reversible for the same
+  // reason: switching an email off drops no content, no override and no
+  // per-channel customization, so the undo is switching it back on.
+  'transactional_email.activation.set': {
+    reversible: true,
+    description: 'Switch one transactional email on or off',
+  },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
+  // Feature 068 — product create/delete join the bus. They used to audit by
+  // hand after commit, and only when the caller passed an audit context, so a
+  // background importer's products were written with no audit row at all.
+  'product.create': { reversible: false, description: 'Create a product' },
+  'product.delete': { reversible: false, description: 'Soft-delete a product' },
+  // Issue #125 — payment- and delivery-method configuration. MR !545 audited
+  // these by hand (`recordAuditFromContext`), which lands a row but leaves the
+  // write outside the bus; they are Commands now. None is `reversible`: that
+  // flag marks the commands wired into feature 054's stored-revert undo, and a
+  // configuration row has no such surface. The inverse of an edit is the same
+  // request carrying the values `stateBefore` holds.
+  'payment_method.create': { reversible: false, description: 'Create a payment method' },
+  'payment_method.update': { reversible: false, description: 'Update a payment method' },
+  'payment_method.delete': { reversible: false, description: 'Delete a payment method' },
+  'delivery_method.create': { reversible: false, description: 'Create a delivery method' },
+  'delivery_method.update': { reversible: false, description: 'Update a delivery method' },
+  'delivery_method.delete': { reversible: false, description: 'Delete a delivery method' },
+  // The same write one gateway down: a provider's own rules for one of its
+  // methods — the shop-wide switch, the minimum order amount, the allowed
+  // countries and the per-Organization deny list. Four modules, one shape.
+  'stripe_payment_method.update': {
+    reversible: false,
+    description: 'Update the Stripe rules for one payment method',
+  },
+  'autopay_payment_method.update': {
+    reversible: false,
+    description: 'Update the Autopay rules for one payment method',
+  },
+  'payu_payment_method.update': {
+    reversible: false,
+    description: 'Update the PayU rules for one payment method',
+  },
+  'tpay_payment_method.update': {
+    reversible: false,
+    description: 'Update the Tpay rules for one payment method',
+  },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
   // conversion so the coverage check and undo affordance recognize them.
   'product.bulk_update': { reversible: true, description: 'Queued bulk edit of products' },

@@ -11,10 +11,10 @@ import { ModuleAction } from '../../../src/modules/admin_actions/entities/module
  *
  * Drives the reconciler directly. Mirrors feature 019's
  * install-uninstall-bundles pattern — a per-test EM fork plus explicit
- * row cleanup, NOT begin/rollback transactions, because the
- * reconciler's UPSERT runs through `em.getKnex().raw(...)` which
- * bypasses MikroORM's UnitOfWork transaction. Per-test isolation is
- * achieved by using a unique fixture moduleId.
+ * row cleanup rather than begin/rollback transactions; per-test isolation
+ * comes from the unique fixture moduleId. (Until issue #200 the reconciler's
+ * UPSERT ran through `em.getKnex().raw(...)` and could not have been rolled
+ * back at all; the last test in this file is what holds that fixed.)
  */
 
 const MODULE_ID = 'fixture_admin_actions_test';
@@ -155,5 +155,30 @@ describe('AdminActionsReconciler (integration)', () => {
     const fresh = orm.em.fork() as EntityManager;
     const rows = await fresh.find(ModuleAction, { moduleId: MODULE_ID });
     expect(rows.length).toBe(1);
+  });
+
+  /**
+   * Issue #200 — `installForModule` takes an `em`, and half of what it does
+   * used to ignore it: the UPSERT ran through `em.getKnex().raw(...)`, which
+   * carries no transaction context, while the prune next to it went through
+   * `em.nativeDelete`. A caller that handed in a transactional em therefore got
+   * a method that committed its inserts and rolled back its deletes.
+   */
+  it('rolls the UPSERT back with the transaction it was handed', async () => {
+    const tx = orm.em.fork() as EntityManager;
+    await expect(
+      tx.transactional(async (txEm) => {
+        await reconciler().installForModule({
+          moduleId: MODULE_ID,
+          actions: [actionA],
+          em: txEm,
+        });
+        throw new Error('roll this back');
+      }),
+    ).rejects.toThrow('roll this back');
+
+    const fresh = orm.em.fork() as EntityManager;
+    const rows = await fresh.find(ModuleAction, { moduleId: MODULE_ID });
+    expect(rows.length).toBe(0);
   });
 });

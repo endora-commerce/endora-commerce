@@ -11,12 +11,16 @@ import {
   type SearchProductsParams,
   type SetProductStatusParams,
   type SetProductsVisibilityParams,
+  type BulkProgressReader,
+  type BulkProgressSnapshot,
+  type PromptActionTool,
+  type ToolContext,
 } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import { HttpError } from '../../http/error-envelope.js';
 import type { EventBus } from '../../events/bus.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { Category } from './entities/category.entity.js';
 import { Product } from './entities/product.entity.js';
 import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';
@@ -27,12 +31,7 @@ import {
   BULK_OPERATION_JOB_NAME,
   createBulkOperationQueue,
 } from './services/bulk-operation-queue.js';
-import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
-import type {
-  PromptActionTool,
-  ToolContext,
-} from '../prompt_actions/services/tool-registry.js';
-import type { PromptActionRequest } from '../prompt_actions/entities/prompt-action-request.entity.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 
 /**
  * Catalog's contribution to the prompt-assistant tool catalogue
@@ -218,8 +217,12 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
       'Assign one or more products to a category (additive — existing category assignments are kept). Resolve products via catalog.search_products and the category via catalog.search_categories first. Captured into a plan the operator must confirm; not executed immediately.',
     requiredPermission: 'catalog:write',
     paramsSchema: AssignProductsToCategoryParamsSchema,
-    preview: async (params, ctx: ToolContext) => {
-      const em = ctx.em;
+    preview: async (params) => {
+      // D-75 — this module's own fork, not the caller's manager. A preview
+      // reads committed rows: the request row it would have shared a unit of
+      // work with is flushed before the interpreter runs, and nothing here
+      // writes.
+      const em = deps.emFactory();
       const category = await em.findOne(Category, { id: params.categoryId, deletedAt: null });
       if (!category) throw new HttpError(404, 'NOT_FOUND', 'Category not found.');
       // The preview runs the same membership query execution will use: the
@@ -286,8 +289,12 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
       'Remove one or more products from a category (subtractive — only the named category is removed, other category assignments are kept). Resolve products via catalog.search_products and the category via catalog.search_categories first. Captured into a plan the operator must confirm; not executed immediately.',
     requiredPermission: 'catalog:write',
     paramsSchema: RemoveProductsFromCategoryParamsSchema,
-    preview: async (params, ctx: ToolContext) => {
-      const em = ctx.em;
+    preview: async (params) => {
+      // D-75 — this module's own fork, not the caller's manager. A preview
+      // reads committed rows: the request row it would have shared a unit of
+      // work with is flushed before the interpreter runs, and nothing here
+      // writes.
+      const em = deps.emFactory();
       const category = await em.findOne(Category, { id: params.categoryId, deletedAt: null });
       if (!category) throw new HttpError(404, 'NOT_FOUND', 'Category not found.');
       const products = await em.find(
@@ -325,9 +332,9 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
       'Set the status (draft | active | inactive) of one or more products. Resolve products via catalog.search_products first. Captured into a plan the operator must confirm; not executed immediately.',
     requiredPermission: 'catalog:write',
     paramsSchema: SetProductStatusParamsSchema,
-    preview: async (params, ctx: ToolContext) =>
+    preview: async (params) =>
       previewProducts(
-        ctx.em,
+        deps.emFactory(),
         params.productIds,
         `Set status of ${params.productIds.length} product(s) to "${params.status}"`,
       ),
@@ -343,9 +350,9 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
       'Set the storefront visibility (public | logged_in_only | organization_restricted) of one or more products as a bulk action. Resolve products via catalog.search_products first. Captured into a plan the operator must confirm; not executed immediately.',
     requiredPermission: 'catalog:write',
     paramsSchema: SetProductsVisibilityParamsSchema,
-    preview: async (params, ctx: ToolContext) =>
+    preview: async (params) =>
       previewProducts(
-        ctx.em,
+        deps.emFactory(),
         params.productIds,
         `Set visibility of ${params.productIds.length} product(s) to "${params.visibility}"`,
       ),
@@ -362,21 +369,27 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
 }
 
 /**
- * Folds live `catalog_bulk_operations` progress into a delegated prompt
- * request (`GET /requests/:id`) and finalizes it when the bulk run ends
- * (research §R6, FR-011/FR-018). Injected as the prompt module's
- * `bulkProgressResolver`.
+ * Live `catalog_bulk_operations` progress for one delegated prompt request
+ * (research §R6, FR-011/FR-018), contributed as `prompt_actions`'
+ * `BulkProgressReader`.
+ *
+ * D-76 — data out, and nothing else. This used to take
+ * `(row: PromptActionRequest, em: EntityManager)` and write `row.result`,
+ * `row.status` and `row.error` on `prompt_actions`' own entity, which put that
+ * module's state machine in this module's hands; the `em` was never bound at
+ * all. What a bulk operation did is this module's fact, and this returns
+ * exactly that fact — whether the request is `completed`, `failed` or
+ * `completed_with_errors` is decided by its owner.
+ *
+ * `null` means "not one of mine": the id names no bulk operation here, so the
+ * host may ask the next contributor.
  */
-export function catalogBulkProgressResolver(
-  deps: CatalogPromptToolsDeps,
-): (row: PromptActionRequest, em: EntityManager) => Promise<void> {
+export function catalogBulkProgressReader(deps: CatalogPromptToolsDeps): BulkProgressReader {
   const { bulkOperationService } = buildBulkServices(deps);
-  return async (row) => {
-    if (!row.bulkOperationId || !row.result) return;
-    const op = await bulkOperationService.get(row.bulkOperationId);
-    if (!op) return;
-
-    const summary = {
+  return async (bulkOperationId): Promise<BulkProgressSnapshot | null> => {
+    const op = await bulkOperationService.get(bulkOperationId);
+    if (!op) return null;
+    return {
       total: op.total,
       succeeded: op.succeeded,
       failed: op.failed + op.skipped,
@@ -384,24 +397,8 @@ export function catalogBulkProgressResolver(
         .filter((r) => r.status !== 'succeeded')
         .slice(0, 50)
         .map((r) => ({ id: r.productId, reason: r.details?.message ?? r.reason ?? 'failed' })),
+      terminal: op.status === 'completed' || op.status === 'failed' ? op.status : null,
+      error: op.error ?? null,
     };
-    row.result = {
-      ...row.result,
-      operations: row.result.operations.map((o) =>
-        o.bulkOperationId === row.bulkOperationId ? { ...o, summary } : o,
-      ),
-    };
-
-    if (op.status === 'completed' || op.status === 'failed') {
-      const outcome =
-        summary.failed === 0
-          ? 'completed'
-          : summary.succeeded === 0
-            ? 'failed'
-            : 'completed_with_errors';
-      row.result = { ...row.result, outcome };
-      row.status = outcome;
-      if (op.error) row.error = op.error;
-    }
   };
 }

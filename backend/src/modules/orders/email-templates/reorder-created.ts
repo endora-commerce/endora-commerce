@@ -1,4 +1,4 @@
-import type { MailerSendInput } from '../../email/services/mailer.js';
+import type { EmailMailerSendInput } from '@b2b/contracts';
 
 /**
  * Feature 038 (US6) — email to the customer when a sales rep / admin reorders
@@ -8,7 +8,7 @@ export function buildReorderCreatedEmail(params: {
   to: string;
   sourceBusinessId: string;
   orderId: string;
-}): MailerSendInput {
+}): EmailMailerSendInput {
   return {
     messageId: `order_reorder:${params.orderId}`,
     to: params.to,

@@ -3,7 +3,7 @@ import { GOOGLE_ANALYTICS_SETTING_CODES } from '@b2b/contracts';
 import type { Queue } from 'bullmq';
 import { makeEnqueuer, makeProcessor } from './ss-delivery.service.js';
 import type { GaDeliveryJobData } from './ss-delivery-queue.js';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import type { Ga4MpClient } from './ga4-mp-client.js';
 
 const C = GOOGLE_ANALYTICS_SETTING_CODES;

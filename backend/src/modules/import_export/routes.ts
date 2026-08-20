@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ImportExportService } from './services/import-export-service.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface ImportExportRoutesDeps {
   service: ImportExportService;
@@ -14,6 +14,22 @@ export async function registerImportExportRoutes(
   deps: ImportExportRoutesDeps,
 ): Promise<void> {
   const { service, requireAdmin } = deps;
+
+  /**
+   * The entities this deployment can offer, D-74.
+   *
+   * The admin renders from this instead of the literal five-slug array it used
+   * to carry, so switching `orders` off removes the Orders export from the
+   * screen rather than leaving a button that 404s. `SUPPORTED_EXPORT_ENTITIES`
+   * and `SUPPORTED_IMPORT_ENTITIES` were the static half of this answer and had
+   * no reader at all; they are gone rather than left as a second source of
+   * truth beside this one.
+   */
+  app.get(
+    '/api/v1/admin/import-export/entities',
+    { preHandler: requireAdmin('catalog:write') },
+    async () => ({ data: { entities: service.listEntities() } }),
+  );
 
   app.get<{ Params: { entity: string } }>(
     '/api/v1/admin/export/:entity.csv',

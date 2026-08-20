@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { HomepageResolver } from './services/homepage-resolver.js';
 
 /**
@@ -16,8 +16,10 @@ export async function registerSettingsHomepageRoutes(
   deps: { homepageResolver: HomepageResolver },
 ): Promise<void> {
   app.get('/api/v1/storefront/homepage', async (request) => {
-    const salesChannelCode = getResolvedChannel(request).code;
-    const data = await deps.homepageResolver.resolve(salesChannelCode);
+    // The id, not the code: the channel is already resolved, and handing the
+    // resolver a code made it re-resolve one (feature 075 / D-87).
+    const salesChannelId = getResolvedChannel(request).id;
+    const data = await deps.homepageResolver.resolve(salesChannelId);
     return { data };
   });
 }

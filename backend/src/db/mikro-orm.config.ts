@@ -1,11 +1,10 @@
 import { defineConfig } from '@mikro-orm/postgresql';
 import { Migrator } from '@mikro-orm/migrations';
 import { PluralizingNamingStrategy } from './pluralizing-naming-strategy.js';
-import { ALL_ENTITIES } from './entities-registry.js';
+import { ALL_ENTITIES } from './entities-registry.generated.js';
 import { DISCOVERED_MANIFESTS } from '../modules/_lifecycle/manifest-index.generated.js';
-import { MIGRATION_REGISTRY } from './migrations-registry.js';
-import { orderMigrations } from './migration-order.js';
-import { FROZEN_THROUGH, LEGACY_MIGRATION_RENAMES } from './legacy-migration-names.js';
+import { MIGRATION_REGISTRY } from './migrations-registry.generated.js';
+import { orderMigrations, BASELINE_THROUGH } from './migration-order.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -17,46 +16,58 @@ import { FROZEN_THROUGH, LEGACY_MIGRATION_RENAMES } from './legacy-migration-nam
  *   under src/modules/<module>/migrations/. Only the few genuinely cross-cutting
  *   bootstrap migrations (foundation/commerce init, module-lifecycle, tenant
  *   indexes) live in src/db/migrations/. Adding a migration means dropping a
- *   file in the owning module's migrations/ dir and adding one import + entry
- *   in ./migrations-registry.ts — never here.
- * - The registry stays an explicit static-import list rather than a filesystem
+ *   file in the owning module's migrations/ dir and regenerating — never here.
+ * - Both registries stay explicit static-import lists rather than a filesystem
  *   glob: glob discovery needs runtime dynamic `import()` of .ts files, which
- *   Node's ESM loader cannot transform and which breaks under Vitest (same
- *   reason entities are listed in ./entities-registry.ts). The
- *   "registered ⇔ on-disk" round-trip is enforced by
- *   test/unit/db/migrations-registry.test.ts.
- * - Execution order is computed by ./migration-order.ts from each migration's
- *   UTC timestamp, corrected by the module-manifest dependency graph. See
- *   docs/docs/architecture/migrations.md.
+ *   Node's ESM loader cannot transform and which breaks under Vitest. Since
+ *   feature 071's F2 the lists are *emitted* from a filesystem walk by
+ *   scripts/generate-composer.ts and committed, so they are static imports
+ *   nobody maintains by hand. The "registered ⇔ on-disk" round-trip is enforced
+ *   by test/unit/db/migrations-registry.test.ts, and `overlay:check` fails on a
+ *   committed artefact that drifted from the tree.
+ * - Execution order is computed by ./migration-order.ts: a frozen historical
+ *   prefix, then module by module in a topological order of the manifest
+ *   dependency graph, each module's migrations contiguous and ascending by
+ *   timestamp. See docs/docs/architecture/migrations.md.
  */
 
 const databaseUrl =
   process.env['DATABASE_URL'] ?? 'postgresql://b2b:b2b@localhost:5432/b2b';
-
-/** A dependency inversion is corrected only within this many days (feature 065). */
-const CORRECTION_HORIZON_DAYS = 45;
 
 const moduleDependencies = new Map<string, readonly string[]>([
   ['core', []],
   ...DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
 ]);
 
-// Throws at import time on a cycle, a duplicate timestamp, an unknown module id
-// or a frozen-prefix divergence — a loud, actionable boot failure by design.
-const migrationsList = orderMigrations({
+// Throws at import time on a duplicate name, a duplicate per-module timestamp,
+// an unscoped class name or an unknown module id — a loud, actionable boot
+// failure by design.
+const { migrations: migrationsList, diagnostics } = orderMigrations({
   entries: MIGRATION_REGISTRY,
   moduleDependencies,
-  frozenThrough: FROZEN_THROUGH,
-  correctionHorizonDays: CORRECTION_HORIZON_DAYS,
-  frozenOrder: LEGACY_MIGRATION_RENAMES.map((rename) => rename.name),
+  baselineThrough: BASELINE_THROUGH,
 });
+
+// A dependency cycle is a diagnostic, not a throw: the graph is the primary
+// ordering now, so refusing here would let one mis-declared manifest stop the
+// whole platform's schema from migrating. Nothing in this file branches on it —
+// warning is the whole reaction, and the platform boots and serves. The other
+// two readers refuse instead, each where refusing costs nothing:
+// test/unit/db/module-graph.test.ts fails the build on a cycle in the committed
+// manifests, and the _lifecycle orchestrator refuses an install whose arrival
+// closes one (FR-012). test/unit/db/migration-order-boot-warning.test.ts is the
+// proof that this warning fires on a cycle and is silent without one.
+for (const diagnostic of diagnostics) {
+  console.warn(diagnostic.message);
+}
 
 export default defineConfig({
   clientUrl: databaseUrl,
   namingStrategy: PluralizingNamingStrategy,
   // Explicit class list, not a glob — glob discovery requires runtime dynamic
   // `import()` of .ts files, which Node's ESM loader cannot transform and which
-  // breaks under Vitest. See src/db/entities-registry.ts for the rationale.
+  // breaks under Vitest. See src/db/entities-registry.generated.ts for the
+  // rationale and for what emits it.
   entities: [...ALL_ENTITIES],
   debug: process.env['NODE_ENV'] === 'development' && process.env['DB_DEBUG'] === 'true',
   allowGlobalContext: false,

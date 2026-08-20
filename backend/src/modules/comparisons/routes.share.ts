@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { productAudienceOf } from '../../http/product-audience.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { ComparisonOwner, ComparisonService } from './services/comparison-service.js';
 import { readAnonymousToken } from './services/anonymous-token-cookie.js';
 
@@ -16,6 +17,14 @@ import { readAnonymousToken } from './services/anonymous-token-cookie.js';
  * creator's — per data-model.md §3.2), and returns a typed response
  * with `meta.viewerIsOwner` so the storefront knows whether to render
  * owner-only affordances. No mutation surface; no auth.
+ *
+ * The recipient's **identity** decides the prices for the same reason their
+ * channel does, and one step further: a signed-in recipient from another
+ * organisation is quoted their own negotiated figures, an anonymous one the
+ * channel's. The token names the products; it never carries the sender's
+ * pricing identity, so a link cannot disclose what the sender pays. The view
+ * says which of the two it is in `data.pricedFor`, because a reader who cannot
+ * tell whose prices these are cannot act on either.
  */
 
 export interface ComparisonsShareDeps {
@@ -38,7 +47,11 @@ export async function registerComparisonsShareRoutes(
       const comparison = await comparisonService.findByShareToken(token);
       if (!comparison) throw notFound();
       const channel = getResolvedChannel(request);
-      const view = await comparisonService.buildOwnerView(comparison, channel.id);
+      const view = await comparisonService.buildOwnerView(
+        comparison,
+        channel.id,
+        { kind: 'buyer', audience: productAudienceOf(request) },
+      );
       const viewerIsOwner = comparisonService.isOwnedBy(
         comparison,
         viewerIdentity(request),

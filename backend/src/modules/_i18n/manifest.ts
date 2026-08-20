@@ -20,6 +20,24 @@ export const manifest = defineModuleManifest({
     "Per-user Admin UI language preference and module-scoped translation bundles. " +
     'English is the platform-wide fallback (FR-013 / FR-016).',
   version: '1.0.0',
-  dependencies: ['_lifecycle'],
+  // `auth` owns the `requireAdmin` port every route here is gated by;
+  // `admin_users` owns the service the preferred-language setter writes through.
+  // Neither depends back on this module, so the graph stays acyclic.
+  dependencies: ['_lifecycle', 'auth', 'admin_users'],
   i18n: { bundlesDir: 'i18n' },
+  // Feature 074 (Constitution XVII), test C1 — reachability. Two grounds hold
+  // and they are stated in that order because only the first is about this
+  // module's merits: every user-facing string on every surface resolves here,
+  // including the labels on `/platform/modules`, so switching it off would
+  // leave an operator unable to read the screen that switches it back on. The
+  // `_`-prefix rule is the structural second: an `_`-prefixed id is
+  // platform-internal and `assertActivationRules`
+  // (`packages/contracts/src/modules.ts`) refuses any other activation form
+  // for one.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'Every user-facing string on every surface is served from here, including the labels ' +
+      'on the platform screen that holds the module switches.',
+  },
 });

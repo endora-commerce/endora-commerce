@@ -5,6 +5,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { FeedRun } from '../entities/feed-run.entity.js';
 import { ProductFeed } from '../entities/product-feed.entity.js';
 import { issueFeedToken } from '../services/feed-token.service.js';
+import { encryptFeedToken } from '../services/token-secret-codec.js';
 
 /**
  * Product Feed Commands — feature 067 / FR-059, Principle XIII, research §R17.
@@ -74,7 +75,10 @@ export interface CreatedFeed {
   token: { token: string; prefix: string; rotatedAt: Date };
 }
 
-export function makeCreateFeedCommand(values: FeedWriteValues): Command<CreatedFeed> {
+export function makeCreateFeedCommand(
+  values: FeedWriteValues,
+  encryptionKey: string | undefined,
+): Command<CreatedFeed> {
   const issued = issueFeedToken();
   const rotatedAt = new Date();
   return {
@@ -87,6 +91,9 @@ export function makeCreateFeedCommand(values: FeedWriteValues): Command<CreatedF
         tokenHash: issued.tokenHash,
         tokenPrefix: issued.prefix,
         tokenRotatedAt: rotatedAt,
+        // Null when the deployment has no encryption key: the feed still works,
+        // its link is just shown once and masked afterwards, exactly as before.
+        tokenSecret: encryptFeedToken(issued.token, encryptionKey),
       });
       await em.persistAndFlush(feed);
       return {
@@ -161,6 +168,7 @@ export function makeDeleteFeedCommand(feedId: string): Command<{ tokenHash: stri
 export function makeDuplicateFeedCommand(
   sourceId: string,
   values: { name: string; slug: string; languageCode?: string; currencyCode?: string },
+  encryptionKey: string | undefined,
 ): Command<CreatedFeed> {
   const issued = issueFeedToken();
   const rotatedAt = new Date();
@@ -190,6 +198,7 @@ export function makeDuplicateFeedCommand(
         tokenHash: issued.tokenHash,
         tokenPrefix: issued.prefix,
         tokenRotatedAt: rotatedAt,
+        tokenSecret: encryptFeedToken(issued.token, encryptionKey),
       });
       await em.persistAndFlush(copy);
       return {
@@ -213,7 +222,10 @@ export interface RotatedToken {
   previousTokenHash: string | null;
 }
 
-export function makeRotateTokenCommand(feedId: string): Command<RotatedToken> {
+export function makeRotateTokenCommand(
+  feedId: string,
+  encryptionKey: string | undefined,
+): Command<RotatedToken> {
   const issued = issueFeedToken();
   return {
     action: 'product_feeds.token.rotate',
@@ -235,6 +247,7 @@ export function makeRotateTokenCommand(feedId: string): Command<RotatedToken> {
       feed.tokenPrefix = issued.prefix;
       feed.tokenRotatedAt = rotatedAt;
       feed.tokenRevokedAt = null;
+      feed.tokenSecret = encryptFeedToken(issued.token, encryptionKey);
       await em.persistAndFlush(feed);
       return {
         result: { feed, token: issued.token, prefix: issued.prefix, rotatedAt, previousTokenHash },
@@ -268,6 +281,9 @@ export function makeRevokeTokenCommand(
       // token at all, not merely flagged as revoked.
       feed.tokenHash = null;
       feed.tokenRevokedAt = revokedAt;
+      // The recoverable copy goes with the hash. Revoking must not leave a
+      // readable credential behind on a feed that can no longer serve.
+      feed.tokenSecret = null;
       await em.persistAndFlush(feed);
       return {
         result: { feed, previousTokenHash },

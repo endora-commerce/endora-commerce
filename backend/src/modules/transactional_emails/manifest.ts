@@ -61,6 +61,21 @@ export const manifest = defineModuleManifest({
     'Admin-editable transactional email content and look (global + per sales channel), email-safe blocks/templates, variables, and preview.',
   version: '1.0.0',
   dependencies: ['assets_library', 'email', 'sales_channels', 'settings'],
+  // Feature 074 (Constitution XVII), test C2 — functional base. The second
+  // half of the old ground was that `organizations` declares this module, so
+  // the flip failed closed onto the tenancy root; ruling 2 withdraws that, and
+  // the first half stands on its own. This module is the platform's only
+  // acknowledgement path to a buyer and to an operator — order confirmation,
+  // document delivery, account mail. The granularity a business actually wants
+  // is the individual email, and that control exists: see
+  // `commands/email-activation.commands.ts` and
+  // `services/email-defaults-registry.ts` (issue #89).
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'The platform\'s only acknowledgement path to buyer and operator — order confirmation, ' +
+      'document delivery, account mail. Switch off an individual email instead.',
+  },
   settings: transactionalEmailsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

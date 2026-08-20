@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { subscribeForModule } from '../../../src/modules/_lifecycle/plugin-helpers.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { subscribeForModule } from '../../../src/kernel/lifecycle/plugin-helpers.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { EventBus } from '../../../src/events/bus.js';
 
 /**

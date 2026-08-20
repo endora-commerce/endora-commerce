@@ -1,17 +1,26 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PaymentAdapterType } from '@b2b/contracts';
 import { PaymentMethod } from '../entities/payment-method.entity.js';
-import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 
 /**
  * PaymentMethodReconciler (feature 034, FR-002).
  *
- * When a module registers a payment adapter (from its lifecycle install hook),
- * it calls `ensureMethodForAdapter` to create a configurable `payment_methods`
- * row bound to that adapter — so enabling a payment-method module surfaces an
- * entry at `/payment-methods` with no core change. Idempotent and prune-safe:
- * an existing row (matched by `code`) keeps its admin-edited configuration; the
- * reconciler only fills a missing `adapter` link.
+ * When a module contributes a payment adapter, it calls
+ * `ensureMethodForAdapter` from its `installHook` to create a configurable
+ * `payment_methods` row bound to that adapter — so installing a payment-method
+ * module surfaces an entry at `/payment-methods` with no core change. Idempotent
+ * and prune-safe: an existing row (matched by `code`) keeps its admin-edited
+ * configuration; the reconciler only fills a missing `adapter` link.
+ *
+ * **It no longer touches sales-channel membership (issue #96).** It used to call
+ * `bindToDefaultIfEmpty` for every row it created, and the four gateway modules
+ * called it from their plugin body on every composition — so a method an
+ * operator had deliberately unbound from every channel came back bound to
+ * Default at the next boot, and nothing said so. Binding belongs to the two
+ * seams that own the decision: the admin create path (a method an operator just
+ * created has to land somewhere) and the module's own seed migration (once, for
+ * the rows it creates). "Unbound" is a state an operator is entitled to reach
+ * and to keep.
  */
 export interface EnsureMethodDefaults {
   code: string;
@@ -25,10 +34,7 @@ export interface EnsureMethodDefaults {
 }
 
 export class PaymentMethodReconciler {
-  constructor(
-    private readonly emFactory: () => EntityManager,
-    private readonly salesChannelMembership?: SalesChannelMembershipService,
-  ) {}
+  constructor(private readonly emFactory: () => EntityManager) {}
 
   async ensureMethodForAdapter(
     adapterKey: string,
@@ -60,12 +66,6 @@ export class PaymentMethodReconciler {
       statusOnFailure: defaults.statusOnFailure ?? 'cancelled',
     });
     await em.persistAndFlush(row);
-
-    // Bind to the system-default sales channel when no membership exists yet,
-    // matching the behaviour of the existing admin upsert path.
-    if (this.salesChannelMembership) {
-      await this.salesChannelMembership.bindToDefaultIfEmpty('payment-method', row.id);
-    }
     return row;
   }
 }

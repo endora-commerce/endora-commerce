@@ -6,13 +6,18 @@ import {
   SearchSuggestQuerySchema,
   SEARCH_PHRASE_MAX_LENGTH,
   SEARCH_SUGGEST_LIMIT_MAX,
+  type ProductAudience,
   type ProductSummary,
   type RecordPhraseResponse,
   type SearchSuggestItem,
   type SearchSuggestResponse,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { markPersonalisedPricing, productAudienceOf } from '../../http/product-audience.js';
+import {
+  currentSalesChannel,
+  getResolvedChannel,
+} from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { ResolvedSearchChannel } from './services/search-query.service.js';
 import {
   QueryTooShort,
@@ -32,7 +37,7 @@ import type { SearchPhraseRecorder } from './services/search-phrase-recorder.ser
  *                      (FR-015).
  *
  * Sales-channel scoping mirrors the catalog public routes: the channel
- * is resolved from `request.salesChannel` (set by the resolver
+ * is resolved from the request scope (filled by the resolver
  * middleware) with a header fallback for the contract-level read in
  * `readContext`.
  */
@@ -99,11 +104,11 @@ export async function registerSearchPublicRoutes(
         );
       }
 
-      // The resolver middleware (sales_channels module) attaches
-      // `request.salesChannel`. Storefront paths fall back to the
-      // system-default channel; admin paths refuse with
-      // MISSING_SALES_CHANNEL_CONTEXT before reaching this handler.
-      const salesChannelId = request.salesChannel?.id;
+      // The resolver middleware (kernel) fills the request scope's channel
+      // slot. Storefront paths fall back to the system-default channel; admin
+      // paths refuse with MISSING_SALES_CHANNEL_CONTEXT before reaching this
+      // handler.
+      const salesChannelId = currentSalesChannel()?.id;
       if (!salesChannelId) {
         throw new HttpError(
           400,
@@ -125,9 +130,14 @@ export async function registerSearchPublicRoutes(
   }
 
   // GET /api/v1/search/suggest
-  app.get('/api/v1/search/suggest', async (request) => {
+  app.get('/api/v1/search/suggest', async (request, reply) => {
     const parsed = parseSuggestQuery(request);
     const ctx = readContext(request);
+    // The popup has carried the buyer's own resolved price since feature 075
+    // and said nothing about it to a cache. It is the same private response the
+    // result feed below it now returns, so it gets the same header; the
+    // storefront's own typeahead fetch already asks for `no-store`.
+    markPersonalisedPricing(reply, ctx.audience);
 
     try {
       const result = await suggestService.suggest(
@@ -243,6 +253,7 @@ function parseSuggestQuery(request: FastifyRequest): {
 
 function readContext(request: FastifyRequest): {
   resolvedChannel: ResolvedSearchChannel;
+  audience: ProductAudience;
   preferredLanguage?: string | undefined;
 } {
   // Feature 053 / FR-002: read the channel resolved once by the canonical
@@ -262,6 +273,9 @@ function readContext(request: FastifyRequest): {
       defaultCurrency: ch.defaultCurrency,
       defaultLanguage: ch.defaultLanguage,
     },
+    audience: productAudienceOf(request),
     ...(preferredLanguage !== undefined ? { preferredLanguage } : {}),
   };
 }
+
+

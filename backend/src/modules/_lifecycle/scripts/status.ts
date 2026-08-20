@@ -3,10 +3,11 @@ import Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleListItem } from '@b2b/contracts';
 import { initOrm, closeOrm } from '../../../db/index.js';
-import { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ModuleLifecycleOrchestrator } from '../services/orchestrator.js';
 import { buildStaticRegistry } from '../services/static-registry.js';
 import { REGISTERED_MANIFESTS } from '../registered-manifests.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 const StatusArgsSchema = z.object({
   id: z.string().regex(/^_?[a-z][a-z0-9_]*$/).optional(),
@@ -123,4 +124,4 @@ async function main(): Promise<number> {
   }
 }
 
-void main().then((code) => process.exit(code));
+void enterSystemScope('cli: module status', main, { entryPoint: 'cli' }).then((code) => process.exit(code));

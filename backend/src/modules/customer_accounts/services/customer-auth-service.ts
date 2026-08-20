@@ -1,12 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  normalizeEmailAddress,
+  type AuthSessionPort,
+  type MfaLoginPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword, verifyPassword } from '../../auth/services/password-hasher.js';
-import type { SessionService } from '../../auth/services/session-service.js';
-import type { MfaLoginPort } from '../../auth/services/mfa-login-port.js';
+import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * Customer-side auth flows (T119; two-step login added in feature 042).
@@ -20,6 +23,15 @@ import type { AuditLogService } from '../../audit_logs/services/audit-log-servic
  * - logout: destroy session.
  * - changePassword: argon2 verify of `currentPassword`; reject with
  *   401 CURRENT_PASSWORD_INVALID otherwise; rehash + persist.
+ *
+ * Feature 075, Phase C — the three things this service needed from `auth` are
+ * now named where they belong rather than in `auth`'s directory. Sessions come
+ * over {@link AuthSessionPort}, so a session is minted or destroyed through the
+ * surface `auth` publishes and never through its `Session` entity. The MFA seam
+ * is `auth`'s *shape* implemented by `mfa`, published in `@b2b/contracts` so
+ * this service depends on neither module for it. And the password hash is a
+ * pure function that moved to `src/kernel/crypto/`: an operator switching a
+ * module off must not make "hash this string" answer 503.
  */
 export interface LoginResult {
   customerAccount: CustomerAccount;
@@ -37,7 +49,7 @@ export type CustomerLoginOutcome =
 export class CustomerAuthService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly sessionService: SessionService,
+    private readonly sessionService: AuthSessionPort,
     /** Lazily resolved so composition can late-bind the MFA module. */
     private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
     private readonly auditLog?: AuditLogService,
@@ -51,7 +63,13 @@ export class CustomerAuthService {
     salesChannelId?: string | null;
   }): Promise<CustomerLoginOutcome> {
     const em = this.emFactory();
-    const customer = await em.findOne(CustomerAccount, { email: input.email });
+    // Folded, because the row is. `=` on `text` is case-sensitive in Postgres,
+    // so comparing the address exactly as typed refused every account whose
+    // holder had capitalised anything — with the generic error above, which
+    // says nothing they or support could act on.
+    const customer = await em.findOne(CustomerAccount, {
+      email: normalizeEmailAddress(input.email),
+    });
     if (!customer) {
       // Generic error to avoid account enumeration.
       throw new HttpError(401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password.');
@@ -131,6 +149,9 @@ export class CustomerAuthService {
       );
     }
     customer.passwordHash = await hashPassword(newPassword);
+    // Issue #222 — the holder proved the current password and chose the new
+    // one, so the account has a password on record whatever it had before.
+    customer.passwordSetAt = new Date();
     if (this.auditLog) {
       recordAuditFromContext(this.auditLog, em, {
         action: 'customer_account.change_password',

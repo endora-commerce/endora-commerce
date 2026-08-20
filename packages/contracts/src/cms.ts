@@ -351,3 +351,117 @@ export const cmsResolvedHookSchema = z.object({
   blocks: z.array(cmsResolvedBlockSchema),
 });
 export type CmsResolvedHook = z.infer<typeof cmsResolvedHookSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `cms` publishes to the two modules that read it
+// (feature 075, Phase P) — `megamenu` and `seo`.
+// ---------------------------------------------------------------------------
+
+/**
+ * One thing pointing at a CMS object, as a delete guard reports it.
+ *
+ * `kind` is deliberately open on the string side: the four `cms_*` tags are
+ * this module's own, and a scanner contributed by another module names its own
+ * kind. Closing the union would mean `cms` had to know every module that might
+ * ever embed a block.
+ */
+export interface CmsReference {
+  kind: 'cms_page' | 'cms_block' | 'cms_template' | 'cms_hook' | 'megamenu' | string;
+  entityId: string;
+  label: string;
+}
+
+/**
+ * A scanner contributed by another module so its references block a CMS page,
+ * block or template from being deleted.
+ *
+ * Every method is optional — a scanner fills in only the edges it cares about.
+ * `ownerModuleId` is not: a contribution seam records its contributor, so the
+ * registry can state a policy for an absent owner instead of having no way to
+ * express one (D-39).
+ *
+ * The block and template scanners receive both an id and a code, because a
+ * contributor may have stored either.
+ */
+export interface CmsExternalReferenceScanner {
+  ownerModuleId: string;
+  findPageReferences?: (pageId: string) => Promise<CmsReference[]>;
+  findBlockReferences?: (blockId: string, blockCode: string) => Promise<CmsReference[]>;
+  findTemplateReferences?: (templateId: string, templateCode: string) => Promise<CmsReference[]>;
+}
+
+/**
+ * Container name: `cmsReferenceRegistry`. Owner: `cms`.
+ *
+ * A **contribution seam**, and the reference-integrity twin of
+ * `assetReferenceRegistry`: `megamenu` is the one contributor today. Its
+ * absent-owner policy should be read the same way — these scanners exist to
+ * refuse a delete, not to render a surface, so an absent contributor's edges
+ * still matter. Publishing the shape must not change the classification.
+ */
+export interface CmsReferenceRegistryPort {
+  register(scanner: CmsExternalReferenceScanner): void;
+  /** The contributing module of every registered scanner, in registration order. */
+  owners(): readonly string[];
+}
+
+/**
+ * A CMS page as `seo` reads it — never the ORM entity (FR-011).
+ *
+ * **`path` and `title` are the entity's two `@deprecated` columns**, and the
+ * first version of this record carried only those. `slug`, `name` and `active`
+ * join them in Phase C, because they are what `seo` measurably reads: the
+ * sitemap stamps `${baseUrl}/${slug}` and excludes `active === false`, and the
+ * meta-tag rule falls back to `name` when a page has no localized `metaTitle`.
+ * Publishing the record without them would have made the cut change which URL
+ * a crawler is given and put deactivated pages back into the sitemap — a
+ * product change wearing a refactor.
+ *
+ * The deprecated pair stays: `cms` owns the decision to retire them, and
+ * removing a published field to fix a consumer is the wrong direction.
+ */
+export interface CmsPageRecord {
+  id: string;
+  /** @deprecated Use `slug`. The entity says so; the record repeats it. */
+  path: string;
+  /** The storefront slug — what a URL is built from. */
+  slug: string;
+  status: 'draft' | 'published' | 'archived';
+  /** Admin-facing page name, and the meta-title fallback. */
+  name: string;
+  /** An operator can deactivate a published page; a deactivated one has no URL. */
+  active: boolean;
+  /** @deprecated Use `name` + `metaTitle`. The entity says so; the record repeats it. */
+  title: Record<string, string>;
+  metaTitle: Record<string, string> | null;
+  metaDescription: Record<string, string> | null;
+  metaKeywords: Record<string, string> | null;
+  publishedAt: Date | null;
+  archivedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Container name: `cmsPageReadPort`. Owner: `cms`.
+ *
+ * `seo` reads pages twice: to resolve one page's meta tags, and to enumerate
+ * the published ones for the sitemap. The `body` and `content` columns are
+ * absent from the record on purpose — a sitemap and a meta-tag resolver have
+ * no use for a page's rendered tree, and shipping it would make every sitemap
+ * build carry the whole CMS.
+ */
+export interface CmsPageReadPort {
+  findById(id: string): Promise<CmsPageRecord | null>;
+  findByPath(path: string): Promise<CmsPageRecord | null>;
+  /**
+   * These ids, in the order given. The sitemap's read: it already holds the
+   * channel's member ids, so `listPublished` would fetch every page on the
+   * platform to keep one channel's few.
+   */
+  findByIds(ids: readonly string[]): Promise<CmsPageRecord[]>;
+  /** Published pages only, ordered by path — the platform-wide enumeration. */
+  listPublished(): Promise<CmsPageRecord[]>;
+}

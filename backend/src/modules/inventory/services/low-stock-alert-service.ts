@@ -1,9 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { Mailer } from '../../email/services/mailer.js';
-import type { EventBus } from '../../../events/bus.js';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type {
+  CatalogProductReadPort,
+  CatalogProductRecord,
+  EmailMailerPort,
+} from '@b2b/contracts';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { z } from 'zod';
-import { Product } from '../../catalog/entities/product.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { INVENTORY_SETTING_CODES } from '../manifest.js';
 
@@ -26,7 +28,7 @@ export interface LowStockSummaryRow {
   lowStockThreshold: number;
 }
 
-interface AdjustedPayload {
+export interface AdjustedPayload {
   productId: string;
   warehouseId: string;
   variantId: string | null;
@@ -50,7 +52,15 @@ interface AdjustedPayload {
 export class LowStockAlertService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly mailer: Mailer,
+    private readonly mailer: EmailMailerPort,
+    /**
+     * `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C). The
+     * crossing detector and the admin panel both need the product's SKU, name
+     * and threshold, and both used to load the entity out of a table that is
+     * still there when `catalog` is off — so a switched-off catalogue still
+     * produced low-stock alerts about it.
+     */
+    private readonly catalogProducts: CatalogProductReadPort,
     private readonly settingsService?: SettingsService,
     /** Channel id used to read inventory settings — typically the
      *  system default. */
@@ -58,36 +68,26 @@ export class LowStockAlertService {
     private readonly templateEmail?: InventoryTemplateEmailPort,
   ) {}
 
-  attach(eventBus: EventBus): void {
-    eventBus.on('inventory.adjusted.v1', (payload) => {
-      const cast = payload as unknown as AdjustedPayload;
-      void this.handleAdjusted(cast);
-    });
-  }
-
   async listLowStock(): Promise<LowStockSummaryRow[]> {
     const em = this.emFactory();
-    const knex = em.getKnex();
-    const rows = (await knex('stock_levels')
-      .select('product_id')
-      .sum({ on_hand: 'on_hand' })
-      .groupBy('product_id')) as Array<{ product_id: string; on_hand: string | null }>;
+    // `em.execute`, not `em.getKnex()`: a knex handle takes its own pooled
+    // connection, so the report would answer from outside a transaction the
+    // caller holds open (issue #207).
+    const rows = (await em.execute(
+      `select product_id, sum(on_hand) as on_hand from stock_levels group by product_id`,
+    )) as Array<{ product_id: string; on_hand: string | null }>;
     if (rows.length === 0) return [];
 
     const productIds = rows.map((r) => r.product_id);
-    const products = await em.find(
-      Product,
-      { id: { $in: productIds } },
-      { fields: ['id', 'sku', 'name', 'manageStock', 'lowStockThreshold'] },
-    );
+    const products = await this.catalogProducts.findByIds(productIds);
     const productById = new Map(products.map((p) => [p.id, p]));
     const result: LowStockSummaryRow[] = [];
     for (const row of rows) {
       const p = productById.get(row.product_id);
       if (!p) continue;
-      if (!(p.manageStock ?? true)) continue;
+      if (!p.manageStock) continue;
       const threshold = p.lowStockThreshold;
-      if (threshold === null || threshold === undefined) continue;
+      if (threshold === null) continue;
       const cumulative = Number(row.on_hand ?? 0);
       if (cumulative > threshold) continue;
       const productName = p.name['en-US'] ?? Object.values(p.name)[0] ?? p.sku;
@@ -102,22 +102,28 @@ export class LowStockAlertService {
     return result;
   }
 
-  private async handleAdjusted(payload: AdjustedPayload): Promise<void> {
+  /**
+   * `inventory.adjusted.v1` — one e-mail per crossing of the product's low-stock
+   * threshold. Registered in this module's `backend.ts` through `ctx.subscribe`,
+   * so the alert stops with the module (issue #107); it used to be a bare
+   * `eventBus.on` here, which kept mailing while `inventory` was switched off.
+   */
+  async handleAdjusted(payload: AdjustedPayload): Promise<void> {
     const em = this.emFactory();
-    const product = await em.findOne(Product, { id: payload.productId });
-    if (!product || !(product.manageStock ?? true)) return;
+    const product = await this.catalogProducts.findById(payload.productId);
+    if (!product || !product.manageStock) return;
     const threshold = product.lowStockThreshold;
-    if (threshold === null || threshold === undefined) return;
+    if (threshold === null) return;
 
     // Recompute cumulative across all warehouses (the event payload only
     // carries one warehouse's delta). before/after for the cumulative
     // crossing is `cumulativeBefore = (newCumulative - delta)`.
-    const knex = em.getKnex();
-    const sumRow = await knex('stock_levels')
-      .where('product_id', product.id)
-      .sum<{ on_hand: string | null }[]>('on_hand as on_hand')
-      .first();
-    const cumulativeAfter = Number(sumRow?.on_hand ?? 0);
+    // `em.execute`, not `em.getKnex()` — same reason as the report above.
+    const sumRows = (await em.execute(
+      `select sum(on_hand) as on_hand from stock_levels where product_id = ?`,
+      [product.id],
+    )) as Array<{ on_hand: string | null }>;
+    const cumulativeAfter = Number(sumRows[0]?.on_hand ?? 0);
     const cumulativeBefore = cumulativeAfter - (payload.after - payload.before);
 
     if (cumulativeBefore > threshold && cumulativeAfter <= threshold) {
@@ -126,7 +132,7 @@ export class LowStockAlertService {
   }
 
   private async fireEmail(
-    product: Product,
+    product: CatalogProductRecord,
     cumulative: number,
     threshold: number,
   ): Promise<void> {
@@ -149,13 +155,22 @@ export class LowStockAlertService {
       });
       if (sent) return;
     }
-    await this.mailer.send({
+    const outcome = await this.mailer.send({
       messageId,
       to: recipient,
       subject: `Low stock: ${productName}`,
       text: `Cumulative on-hand for "${productName}" (SKU ${product.sku}) has crossed the low-stock threshold.\n\n  Current cumulative on-hand: ${cumulative}\n  Threshold: ${threshold}\n`,
+      kind: 'low_stock_alert',
       meta,
     });
+    if (outcome.status !== 'sent') {
+      // This fires from a crossing detector with no caller to answer, so the
+      // non-send is named here and durable in D-59's record.
+      console.warn('[inventory] the low-stock alert was not sent', {
+        productId: product.id,
+        reason: outcome.reason,
+      });
+    }
   }
 
   private async resolveRecipient(): Promise<string | null> {

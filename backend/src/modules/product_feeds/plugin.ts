@@ -2,25 +2,29 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import { z } from 'zod';
-import { PRODUCT_FEED_SETTING_CODES } from '@b2b/contracts';
+import {
+  FEED_DELIVERY_LIMITS,
+  PRODUCT_FEED_SETTING_CODES,
+  type CatalogCategoryReadPort,
+  type CatalogProductFilterPort,
+  type CatalogProductReadPort,
+  type CatalogProductRecord,
+  type CredentialsPort,
+  type CustomFieldDefinitionReadPort,
+  type LanguageReadPort,
+  type PriceListReadPort,
+  type TaxServicePort,
+} from '@b2b/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModulePlugin } from '../../http/server.js';
-import { defineModuleRoutes } from '../_lifecycle/plugin-helpers.js';
-import type { AdminNotificationService } from '../admin_notifications/services/admin-notification-service.js';
-import type { CustomFieldDefinitionService } from '../custom_fields/services/custom-field-definition.service.js';
-import { Product } from '../catalog/entities/product.entity.js';
-import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
-import type { LanguageService } from '../languages/services/language-service.js';
-import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
-import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
-import type { TaxService } from '../taxes/services/tax-service.js';
+import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import {
   ArtefactStore,
   type ArtefactStorageAdapterProvider,
   type ArtefactStorePort,
 } from './services/artefact-store.js';
 import {
-  attachFeedCacheInvalidator,
   NoopFeedTokenCache,
   RedisFeedTokenCache,
   type FeedTokenCache,
@@ -32,6 +36,10 @@ import {
   type PublicImageUrlResolver,
 } from './services/feed-generation.service.js';
 import { FeedRunService } from './services/feed-run.service.js';
+import {
+  createNamedListPriceResolver,
+  type NamedListPricePort,
+} from './services/named-list-price-resolver.js';
 import { ItemFieldResolver } from './services/item-field-resolver.js';
 import type { ItemFieldResolverPort } from './services/item-field-resolver.interface.js';
 import { FeedTemplateService } from './services/feed-template.service.js';
@@ -64,10 +72,11 @@ import {
   ArtefactRetentionService,
   DEFAULT_ARTEFACT_RETENTION_COUNT,
 } from './services/artefact-retention.service.js';
-import { FailedRunNotifier } from './services/failed-run-notifier.js';
 import {
-  attachFeedScheduleSync,
-  attachTaxonomyScheduleSync,
+  FailedRunNotifier,
+  type AdminNotificationRecorder,
+} from './services/failed-run-notifier.js';
+import {
   FeedScheduleReconciler,
   type TaxonomyRefreshSchedulePort,
 } from './services/feed-schedule-reconciler.js';
@@ -79,8 +88,16 @@ import {
 import { reconcilePredefinedTemplates } from './seeds/predefined-templates.js';
 import {
   registerProductFeedsAdminRoutes,
-  type RequireAdminFactory,
 } from './routes.admin.js';
+import { registerProductFeedsDeliveryRoutes } from './routes.delivery.js';
+import { DeliveryConfigService } from './services/delivery/delivery-config.service.js';
+import { DeliveryService } from './services/delivery/delivery.service.js';
+import type { FeedDeliveryAdapter } from './services/delivery/delivery-adapter.interface.js';
+import { HttpDeliveryAdapter } from './services/delivery/adapters/http-delivery-adapter.js';
+import { SftpDeliveryAdapter } from './services/delivery/adapters/sftp-delivery-adapter.js';
+import { FtpDeliveryAdapter } from './services/delivery/adapters/ftp-delivery-adapter.js';
+import { createFeedDeliveryQueue } from './services/queues/feed-delivery-queue.js';
+import { registerFeedDeliveryWorker } from './workers/feed-delivery-worker.js';
 import { registerProductFeedsPublicRoutes } from './routes.public.js';
 import { registerProductFeedsTemplateRoutes } from './routes.templates.js';
 import { registerProductFeedsTaxonomyRoutes } from './routes.taxonomies.js';
@@ -101,6 +118,7 @@ import {
   DEFAULT_TAXONOMY_FETCH_CRON,
   DEFAULT_TAXONOMY_SOURCE_URLS,
 } from './manifest.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the Product Feed module — feature 067.
@@ -114,9 +132,11 @@ import {
  * service's own public class, which is the pattern `catalog/plugin.ts` already
  * uses for exactly these collaborators.
  *
- * Lifecycle gating is `defineModuleRoutes('product_feeds', …)` — a disabled
- * module answers `503` with `Retry-After` on both the admin and the public
- * surface.
+ * Lifecycle gating is applied once, by `backend.ts` mounting this plugin
+ * through `ctx.routes` — a disabled module answers `503` with `Retry-After` on
+ * both the admin and the public surface. This file registers an encapsulated
+ * context and no gate: wrapping again here would add a second, identical check
+ * per request.
  *
  * **No Redis ⇒ no queue, no cache, no scheduler, and everything still works.**
  * That is not a convenience: `backend/test/helpers/test-server.ts` runs
@@ -153,7 +173,7 @@ export type FeedCategoryExpander = (
 
 /** Narrow reader over the Settings module. */
 export interface ProductFeedsSettingsReader {
-  get<T>(code: string, salesChannelId: string, schema: z.ZodType<T>): Promise<T>;
+  get<T>(code: string, salesChannelId: string | null, schema: z.ZodType<T>): Promise<T>;
 }
 
 /** The `EventBus` surface this module uses. */
@@ -161,9 +181,6 @@ export interface ProductFeedsEventBus {
   emit(eventName: string, payload: unknown): void | Promise<void>;
   on(eventName: string, handler: (payload: unknown) => void | Promise<void>): () => void;
 }
-
-/** The platform-wide sales-channel id the Settings module uses for global values. */
-const GLOBAL_SETTINGS_SCOPE = '00000000-0000-0000-0000-000000000000';
 
 /**
  * Structured, non-fatal logging for the workers. A background sweep that cannot
@@ -178,6 +195,34 @@ function warn(message: string, detail: Record<string, unknown>): void {
 // Module wiring
 // ---------------------------------------------------------------------------
 
+/**
+ * The slice of `price_lists`' `pricingService` a feed run resolves — feature
+ * 075, Phase C.
+ *
+ * Declared here as a shape rather than imported, in the idiom
+ * `NamedListPricePort` above it already uses. `PricingServiceContract` stays in
+ * `price_lists/services/pricing-service.interface.ts` on purpose — it is the
+ * target of the feature-057 overlay decoration and moving it would move the
+ * contract gate (`packages/contracts/src/price-lists.ts:332-335`) — so a
+ * consumer that only needs two of its five methods names those two.
+ *
+ * `product` is `CatalogProductRecord`, which is what the engine reads off it:
+ * `id` and `attributeValues`, and nothing else.
+ */
+export interface FeedPricingPort extends NamedListPricePort {
+  resolveLinePrice(input: {
+    product: CatalogProductRecord;
+    variantId?: string | null;
+    context: {
+      quantity: number;
+      organization?: null;
+      customerGroupId?: string | null;
+      salesChannel: { id: string; defaultCurrency: string };
+      currencyCode?: string;
+    };
+  }): Promise<{ amount: string; isSale: boolean } | null>;
+}
+
 export interface ProductFeedsModuleOptions {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
@@ -187,8 +232,27 @@ export interface ProductFeedsModuleOptions {
   storageAdapters: ArtefactStorageAdapterProvider;
   /** The ONE sanctioned channel accessor (Principle XII). */
   salesChannelMembership: SalesChannelMembershipService;
-  pricingService: PricingServiceContract;
-  taxService: TaxService;
+  pricingService: FeedPricingPort;
+  taxService: TaxServicePort;
+  /**
+   * Feature 075, Phase C — the product rows a feed line is built from. They
+   * used to be `em.find(Product, …)` against `catalog`'s table, which
+   * deactivation cannot reach: a run kept publishing a catalogue the operator
+   * had switched off. `catalog` is a binding dependency of this manifest, so
+   * the port fails closed and the run records the failure.
+   */
+  catalogProducts: CatalogProductReadPort;
+  /**
+   * The selection scan (feature 075). The criteria compiler emits `catalog`'s
+   * published filter grammar and this port runs it — with the eligibility floor
+   * and the keyset cursor on the owner's side, where an operator's rule cannot
+   * compose past them.
+   */
+  catalogProductFilter: CatalogProductFilterPort;
+  /** The category tree the taxonomy screens and a run's provider mapping read. */
+  catalogCategories: CatalogCategoryReadPort;
+  /** Feed validation refuses a price list that no longer exists (FR-021). */
+  priceLists: PriceListReadPort;
   resolveAvailability: FeedAvailabilityResolver;
   /** Category-subtree expansion for the criteria compiler (FR-025). */
   expandCategoryProductIds: FeedCategoryExpander;
@@ -199,17 +263,27 @@ export interface ProductFeedsModuleOptions {
    */
   resolvePublicImageUrls: PublicImageUrlResolver;
   /** Product-host attributes and custom fields — one registry since feature 061. */
-  customFieldDefinitions: CustomFieldDefinitionService;
-  languageService: LanguageService;
+  customFieldDefinitions: CustomFieldDefinitionReadPort;
+  languageService: LanguageReadPort;
   /**
    * Operator notification on a failed run (FR-056). Optional because the
    * notifying path itself lands with US6 (T106); declaring it here keeps the
    * seam in one place.
+   *
+   * The **recorder** shape rather than `admin_notifications`' service: absence
+   * is an answer this module reads off the return type (D-60), not an exception
+   * it catches after the fact.
    */
-  adminNotificationService?: AdminNotificationService;
+  adminNotificationService?: AdminNotificationRecorder;
   settings: ProductFeedsSettingsReader;
   /** Origin the public feed URL is built on (`PUBLIC_API_BASE_URL`). */
   publicBaseUrl: string;
+  /**
+   * `SETTINGS_SECRET_ENCRYPTION_KEY`. Lets a newly issued feed token be stored
+   * recoverably so the admin can show its link again. Optional: without it the
+   * module behaves exactly as it did before — the link is shown once.
+   */
+  tokenEncryptionKey?: string | undefined;
   redis?: Redis;
   /** Start this module's BullMQ consumer here (`BACKEND_ROLE !== 'api'`). */
   runWorkers?: boolean;
@@ -219,6 +293,20 @@ export interface ProductFeedsModuleOptions {
   artefactStore?: ArtefactStorePort;
   /** Override the item field resolver (overlay seam, Principle XV). */
   itemFieldResolver?: ItemFieldResolverPort;
+  /**
+   * The credentials module, which owns every secret a delivery target needs
+   * (feature 070 / FR-107). Optional: without it the module behaves exactly as
+   * it did before delivery existed — no delivery routes, no delivery worker,
+   * and a feed that is fetched rather than pushed.
+   */
+  credentials?: CredentialsPort;
+  /**
+   * The delivery transports. Defaults to the three shipped adapters; an overlay
+   * replaces or extends the map to speak a partner's bespoke protocol with
+   * `tsc` as the contract gate (Principle XV). Tests inject stubs so **no test
+   * in this repository opens a socket**.
+   */
+  deliveryAdapters?: Map<FeedDeliveryAdapter['protocol'], FeedDeliveryAdapter>;
   /** Root of the bundled taxonomy files. Tests point it at a small fixture. */
   taxonomyDataRoot?: string;
   /**
@@ -247,6 +335,15 @@ export interface ProductFeedsModuleHandle {
   schedules: FeedScheduleReconciler;
   /** Criteria compilation and match counting — the preview surface (FR-028). */
   selection: ProductSelectionService;
+  /**
+   * Feed delivery (feature 070). Null on a deployment wired without the
+   * credentials module — delivery cannot store a password without it, and
+   * storing one anywhere else is what FR-107 forbids.
+   */
+  delivery: {
+    config: DeliveryConfigService;
+    service: DeliveryService;
+  } | null;
   tokenCache: FeedTokenCache;
   taxonomies: TaxonomyMappingService;
   taxonomyReconciler: TaxonomyReconcilerService;
@@ -288,12 +385,21 @@ export function productFeedsModule(
   const tokenCache: FeedTokenCache = options.redis
     ? new RedisFeedTokenCache(options.redis)
     : new NoopFeedTokenCache();
-  const cacheInvalidator = attachFeedCacheInvalidator(options.eventBus, tokenCache);
 
+  /**
+   * Three of these four are **platform-wide** (`null`): a run's page size, its
+   * concurrency and its artefact retention are properties of the job runner,
+   * not of a storefront. Only `getStringForChannel` names a channel, and it is
+   * the one that genuinely varies per feed.
+   *
+   * The three used to pass the nil UUID — a well-formed id that addresses no
+   * row, so resolution landed on `global_value ?? default_value` by accident
+   * rather than by saying so (feature 072, D-41).
+   */
   const settings = {
     async getNumber(code: string, fallback: number): Promise<number> {
       try {
-        return await options.settings.get(code, GLOBAL_SETTINGS_SCOPE, z.number());
+        return await options.settings.get(code, null, z.number());
       } catch {
         // Not registered yet (first boot, before the manifest reconciler ran)
         // or unreadable — the manifest default is the answer.
@@ -314,14 +420,14 @@ export function productFeedsModule(
     },
     async getBoolean(code: string, fallback: boolean): Promise<boolean> {
       try {
-        return await options.settings.get(code, GLOBAL_SETTINGS_SCOPE, z.boolean());
+        return await options.settings.get(code, null, z.boolean());
       } catch {
         return fallback;
       }
     },
     async getString(code: string, fallback: string): Promise<string> {
       try {
-        const value = await options.settings.get(code, GLOBAL_SETTINGS_SCOPE, z.string());
+        const value = await options.settings.get(code, null, z.string());
         return value.trim() !== '' ? value.trim() : fallback;
       } catch {
         return fallback;
@@ -331,27 +437,36 @@ export function productFeedsModule(
 
   const runs = new FeedRunService(options.emFactory);
 
-  /** A named price list is used verbatim (FR-020) — no rule evaluation. */
-  const resolveNamedListPrice: NamedListPriceResolver = async (input) => {
-    const em = options.emFactory();
-    const rows = (await em
-      .getConnection()
-      .execute(
-        `select "amount" from "price_list_price_brackets"
-          where "price_list_id" = ? and "product_id" = ? and "currency_code" = ?
-          order by "min_quantity" asc limit 1`,
-        [input.priceListId, input.productId, input.currencyCode],
-        'all',
-        em.getTransactionContext(),
-      )) as Array<{ amount: string }>;
-    const amount = rows[0]?.amount;
-    return amount === undefined ? null : Number(amount);
-  };
+  /**
+   * A named price list is used verbatim (FR-020) — no rule evaluation. The read
+   * goes through the `pricingService` port (issue #132), so an operator who has
+   * switched `price_lists` off stops the feed run instead of letting it publish
+   * prices the platform is refusing to serve.
+   */
+  const namedListPrices = createNamedListPriceResolver(options.pricingService);
+  const resolveNamedListPrice: NamedListPriceResolver = async (input) =>
+    namedListPrices.one(input);
 
-  /** The anonymous storefront resolution: no organization, no customer group (R12). */
+  /**
+   * The anonymous storefront resolution: no organization, no customer group
+   * (R12).
+   *
+   * **The two nulls are the ruling, not a default that has not been filled in
+   * yet.** A product feed shows the prices of the sales channel it is generated
+   * for and takes no organisation into account — `input.salesChannel` is the
+   * feed's own channel, resolved once in `FeedGenerationService.prepare`, and
+   * `organization` is `null` because the file is fetched by Google, which is
+   * nobody's buyer.
+   *
+   * So if a per-viewer price arrives on this port for some other caller, a feed
+   * keeps passing `null` here. An optional parameter that one caller supplies
+   * and another deliberately does not is exactly the shape issues #164 and #251
+   * were about, and the reason it is safe here is written above rather than
+   * left to be re-derived by whoever widens the port.
+   */
   const resolveAnonymousPrice: AnonymousPriceResolver = async (input) => {
     const resolved = await options.pricingService.resolveLinePrice({
-      product: input.product as Product,
+      product: input.product,
       variantId: input.variantId,
       context: {
         quantity: 1,
@@ -376,29 +491,22 @@ export function productFeedsModule(
     const em = options.emFactory();
 
     if (input.priceListId) {
-      const placeholders = input.productIds.map(() => '?').join(',');
-      const rows = (await em
-        .getConnection()
-        .execute(
-          `select distinct on ("product_id") "product_id", "amount"
-             from "price_list_price_brackets"
-            where "price_list_id" = ? and "currency_code" = ?
-              and "product_id" in (${placeholders})
-            order by "product_id" asc, "min_quantity" asc`,
-          [input.priceListId, input.currencyCode, ...input.productIds],
-          'all',
-          em.getTransactionContext(),
-        )) as Array<{ product_id: string; amount: string }>;
-      for (const row of rows) out.set(row.product_id, Number(row.amount));
-      return out;
+      // Same port, same list, same amounts as generation reads (issue #132), so
+      // the count an operator sees before saving is computed from the prices the
+      // next run will emit (FR-028).
+      return namedListPrices.many({
+        priceListId: input.priceListId,
+        productIds: input.productIds,
+        currencyCode: input.currencyCode,
+      });
     }
 
     const { salesChannelId } = input;
     const channel = await em.findOne(SalesChannel, { id: salesChannelId });
     if (!channel) return out;
     // The ids come from the channel-scoped selection; the channel is bound above
-    // so the scoping is visible here too (`no-unscoped-channel-query`).
-    const products = await em.find(Product, { id: { $in: input.productIds } });
+    // so the scoping is visible here too (Principle XII's accessor clause).
+    const products = await options.catalogProducts.findByIds(input.productIds);
     for (const product of products) {
       const resolved = await resolveAnonymousPrice({
         product,
@@ -422,9 +530,10 @@ export function productFeedsModule(
   };
 
   const selection = new ProductSelectionService({
-    emFactory: options.emFactory,
     membership: options.salesChannelMembership,
     catalog: catalogSelection,
+    productFilter: options.catalogProductFilter,
+    productReads: options.catalogProducts,
     resolveAvailability: options.resolveAvailability,
     resolvePrices: resolveSelectionPrices,
   });
@@ -451,8 +560,49 @@ export function productFeedsModule(
       })
     : null;
 
+  // -------------------------------------------------------------------------
+  // Delivery (feature 070)
+  //
+  // Present iff the credentials module is wired: every secret a target needs
+  // lives there (FR-107), and a delivery configuration that could not store a
+  // password would be a screen that silently loses one. A deployment without it
+  // behaves exactly as it did before delivery existed.
+  // -------------------------------------------------------------------------
+  const deliveryAdapters: Map<FeedDeliveryAdapter['protocol'], FeedDeliveryAdapter> =
+    options.deliveryAdapters ??
+    new Map<FeedDeliveryAdapter['protocol'], FeedDeliveryAdapter>([
+      ['http', new HttpDeliveryAdapter()],
+      ['sftp', new SftpDeliveryAdapter()],
+      ['ftp', new FtpDeliveryAdapter()],
+    ]);
+
+  const deliveryConfig = options.credentials
+    ? new DeliveryConfigService({
+        emFactory: options.emFactory,
+        commandBus: options.commandBus,
+        credentials: options.credentials,
+      })
+    : null;
+
+  const deliveryService = deliveryConfig
+    ? new DeliveryService({
+        emFactory: options.emFactory,
+        config: deliveryConfig,
+        artefactStore,
+        adapters: deliveryAdapters,
+        testRateLimitPerHour: () =>
+          settings.getNumber(
+            PRODUCT_FEED_SETTING_CODES.DELIVERY_TEST_RATE_LIMIT_PER_HOUR,
+            FEED_DELIVERY_LIMITS.DEFAULT_TEST_RATE_LIMIT_PER_HOUR,
+          ),
+        logWarn: warn,
+      })
+    : null;
+
   const generation = new FeedGenerationService({
     emFactory: options.emFactory,
+    catalogProducts: options.catalogProducts,
+    catalogCategories: options.catalogCategories,
     selection,
     runs,
     artefactStore,
@@ -460,6 +610,40 @@ export function productFeedsModule(
       retention.enforce(feedId, 'feed', protectedArtefactId),
     ...(failedRunNotifier
       ? { notifyFailedRun: (input) => failedRunNotifier.notify(input) }
+      : {}),
+    // FR-102 — the port exists whenever delivery does; whether anything is
+    // actually sent is the feed's own configuration, resolved downstream.
+    //
+    // With Redis this only enqueues, which is what keeps the upload out of the
+    // generation job (Principle X) and its retries away from the published run
+    // (FR-103). **Without Redis it delivers inline**, because the alternative is
+    // a deployment where an operator configures a target, sees no error, and is
+    // never delivered to. That path is safe by construction: `deliver()` never
+    // throws, and the caller swallows anyway — the run is finished and
+    // published before either branch runs.
+    ...(deliveryService
+      ? {
+          deliverArtefact: async ({ feedId, runId, artefactId }) => {
+            if (deliveryQueue) {
+              await deliveryQueue.add('deliver', {
+                productFeedId: feedId,
+                feedRunId: runId,
+                feedArtefactId: artefactId,
+              });
+              return;
+            }
+            await deliveryService.deliver({
+              feedId,
+              runId,
+              artefactId,
+              attempt: 1,
+              // One attempt: with no queue there is nothing to schedule a
+              // retry on, and pretending otherwise would record an attempt
+              // count that never happens.
+              maxAttempts: 1,
+            });
+          },
+        }
       : {}),
     resolver: options.itemFieldResolver ?? new ItemFieldResolver(),
     settings,
@@ -497,6 +681,7 @@ export function productFeedsModule(
   const taxonomies = new TaxonomyMappingService({
     emFactory: options.emFactory,
     commandBus: options.commandBus,
+    catalogCategories: options.catalogCategories,
   });
 
   // -------------------------------------------------------------------------
@@ -557,6 +742,9 @@ export function productFeedsModule(
     emFactory: options.emFactory,
     commandBus: options.commandBus,
     publicBaseUrl: options.publicBaseUrl,
+    tokenEncryptionKey: options.tokenEncryptionKey,
+    languages: options.languageService,
+    priceLists: options.priceLists,
   });
 
   /**
@@ -592,6 +780,7 @@ export function productFeedsModule(
 
   const templatePreview = new TemplatePreviewService({
     emFactory: options.emFactory,
+    catalogProducts: options.catalogProducts,
     generation,
     resolver: options.itemFieldResolver ?? new ItemFieldResolver(),
     listProductFieldKeys,
@@ -620,6 +809,10 @@ export function productFeedsModule(
   const taxonomyRefreshQueue = options.redis
     ? createTaxonomyRefreshQueue(options.redis)
     : undefined;
+  // Delivery has a queue of its own so a failed upload and its retries can never
+  // reach the generation run that has already published (FR-103).
+  const deliveryQueue =
+    options.redis && deliveryService ? createFeedDeliveryQueue(options.redis) : undefined;
 
   // The real scheduler exists only where a queue does. Everywhere else the
   // no-op stands in, so no caller needs a null check and no test opens a
@@ -652,6 +845,7 @@ export function productFeedsModule(
   const taxonomyRevisions = new TaxonomyRevisionService({
     emFactory: options.emFactory,
     commandBus: options.commandBus,
+    catalogCategories: options.catalogCategories,
     reconciler: taxonomyReconciler,
     refresh: taxonomyRefresh,
     fetchEnabled: taxonomyFetchEnabled,
@@ -678,21 +872,14 @@ export function productFeedsModule(
     },
   });
 
-  // The schedule lifecycle: Postgres commits first, Redis is touched after
-  // (research §R5.4). Subscribing to the module's own events rather than
-  // calling from the service keeps the ordering true for every write path —
-  // create, update, duplicate and delete alike — and means a Redis failure can
-  // never roll back a committed feed.
-  const scheduleSync = attachFeedScheduleSync(options.eventBus, schedules);
-  // The Settings module emits `settings.value_changed` on commit, so flipping
-  // the taxonomy master switch takes effect at that moment rather than at the
-  // next boot: an operator told the platform will stop contacting Google should
-  // not have to restart it to make that true.
-  const taxonomyScheduleSync = attachTaxonomyScheduleSync(options.eventBus, schedules);
+  // The schedule lifecycle (research §R5.4) and the taxonomy master switch both
+  // react to events; `backend.ts` registers both through `ctx.subscribe`, which
+  // is what stops them when an operator switches this module off.
 
   let worker: ReturnType<typeof createFeedGenerationWorker> | undefined;
   let reaperWorker: ReturnType<typeof createFeedReaperWorker> | undefined;
   let taxonomyRefreshWorker: ReturnType<typeof registerTaxonomyRefreshWorker> | undefined;
+  let deliveryWorker: ReturnType<typeof registerFeedDeliveryWorker> | undefined;
   if (options.redis && options.runWorkers) {
     worker = registerFeedGenerationWorker({
       redis: options.redis,
@@ -710,6 +897,23 @@ export function productFeedsModule(
       refresh: taxonomyRefresh,
       logWarn: warn,
     });
+    if (deliveryService) {
+      deliveryWorker = registerFeedDeliveryWorker({
+        redis: options.redis,
+        delivery: deliveryService,
+        maxAttempts: () =>
+          settings.getNumber(
+            PRODUCT_FEED_SETTING_CODES.DELIVERY_MAX_ATTEMPTS,
+            FEED_DELIVERY_LIMITS.DEFAULT_MAX_ATTEMPTS,
+          ),
+        // AS-3 — an exhausted delivery reaches the operator through the same
+        // path a failed run does, rather than sitting silently in a table.
+        ...(failedRunNotifier
+          ? { notifyExhausted: (input) => failedRunNotifier.notifyDeliveryExhausted(input) }
+          : {}),
+        logWarn: warn,
+      });
+    }
   }
 
   const handle: ProductFeedsModuleHandle = {
@@ -724,6 +928,10 @@ export function productFeedsModule(
     retention,
     schedules,
     selection,
+    delivery:
+      deliveryConfig && deliveryService
+        ? { config: deliveryConfig, service: deliveryService }
+        : null,
     tokenCache,
     taxonomies,
     taxonomyReconciler,
@@ -748,7 +956,10 @@ export function productFeedsModule(
     },
   };
 
-  const plugin = defineModuleRoutes('product_feeds', async (app: FastifyInstance) => {
+  // Encapsulated, not gated — `backend.ts` mounts this through `ctx.routes`,
+  // which already applies `defineModuleRoutes('product_feeds', …)` (feature 072).
+  const plugin = async (outer: FastifyInstance): Promise<void> => {
+    await outer.register(async (app: FastifyInstance) => {
     await registerProductFeedsAdminRoutes(app, {
       requireAdmin: options.requireAdmin,
       emFactory: options.emFactory,
@@ -761,6 +972,13 @@ export function productFeedsModule(
         await queue.add('generate', { productFeedId, feedRunId });
       },
     });
+    if (deliveryConfig && deliveryService) {
+      await registerProductFeedsDeliveryRoutes(app, {
+        requireAdmin: options.requireAdmin,
+        config: deliveryConfig,
+        delivery: deliveryService,
+      });
+    }
     await registerProductFeedsTemplateRoutes(app, {
       requireAdmin: options.requireAdmin,
       templates,
@@ -780,21 +998,21 @@ export function productFeedsModule(
       hitRateLimitPerMinute: () =>
         settings.getNumber(PRODUCT_FEED_SETTING_CODES.PUBLIC_FETCH_RATE_LIMIT_PER_MINUTE, 60),
     });
-  });
+    });
+  };
 
   return {
     plugin,
     handle,
     close: async () => {
-      cacheInvalidator.dispose();
-      scheduleSync.dispose();
-      taxonomyScheduleSync.dispose();
       await worker?.close().catch(() => undefined);
       await reaperWorker?.close().catch(() => undefined);
       await taxonomyRefreshWorker?.close().catch(() => undefined);
+      await deliveryWorker?.close().catch(() => undefined);
       await queue?.close().catch(() => undefined);
       await reaperQueue?.close().catch(() => undefined);
       await taxonomyRefreshQueue?.close().catch(() => undefined);
+      await deliveryQueue?.close().catch(() => undefined);
     },
   };
 }

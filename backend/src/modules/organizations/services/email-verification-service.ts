@@ -1,13 +1,16 @@
 import { createHash, randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CustomerAccountMemberWritePort,
+  type CustomerAccountReadPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Organization } from '../entities/organization.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
 import type { OrganizationEventBus } from './registration-service.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * Email verification flow (T118).
@@ -16,10 +19,24 @@ import type { AuditLogService } from '../../audit_logs/services/audit-log-servic
  * sha256 hash, marks it consumed (one-shot), sets CustomerAccount.emailVerifiedAt,
  * and transitions the Organization to `active`. Emits organization.verified.v1.
  */
+export interface EmailVerificationAccountPorts {
+  /**
+   * `customer_accounts`' published read and write (feature 075, Phase C).
+   * Verifying an address stamps a column on *that* module's row; this service
+   * used to load the entity and assign to it.
+   *
+   * With `customer_accounts` off the verification fails closed, which is the
+   * only coherent answer for a flow whose whole subject is an account.
+   */
+  read: CustomerAccountReadPort;
+  write: CustomerAccountMemberWritePort;
+}
+
 export class EmailVerificationService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: OrganizationEventBus,
+    private readonly accounts: EmailVerificationAccountPorts,
     private readonly auditLog?: AuditLogService,
   ) {}
 
@@ -53,7 +70,7 @@ export class EmailVerificationService {
       );
     }
 
-    const customer = await em.findOne(CustomerAccount, { id: token.customerAccountId });
+    const customer = await this.accounts.read.findById(token.customerAccountId);
     if (!customer) {
       throw new HttpError(
         400,
@@ -82,7 +99,13 @@ export class EmailVerificationService {
     }
 
     const now = new Date();
-    customer.emailVerifiedAt = now;
+    // Two units of work rather than one since the boundary cut: the account
+    // column belongs to `customer_accounts`, the Organization status and the
+    // token to this module. The account is stamped **first** because that half
+    // is the recoverable one — the token is still unconsumed if the second
+    // flush fails, so a retried verification re-runs the whole flow, and
+    // `markEmailVerified` keeps the first timestamp rather than moving it.
+    await this.accounts.write.markEmailVerified(customer.id, now);
     organization.status = 'active';
     token.consumedAt = now;
     if (this.auditLog) {

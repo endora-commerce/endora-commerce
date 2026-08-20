@@ -5,6 +5,7 @@ import { PriceListProduct } from '../../../src/modules/price_lists/entities/pric
 import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
 import { DefaultPriceListMigrator } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 011 / US3 — Per-currency multi-bracket pricing (T044).
@@ -51,7 +52,7 @@ describe('Feature 011 / US3 — multi-bracket pricing (T044)', () => {
   it('FR-014: addProduct creates a single (priceListId, productId) row idempotently', async () => {
     try {
       const em = db.em();
-      const svc = new PriceListService(() => em);
+      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
       const product = await makeProduct(em, 'add');
       const list = await svc.create({ name: 'Add Test', type: 'base' });
 
@@ -69,7 +70,7 @@ describe('Feature 011 / US3 — multi-bracket pricing (T044)', () => {
   it('FR-014 + FR-018: replaceBrackets persists multi-currency multi-bracket rows', async () => {
     try {
       const em = db.em();
-      const svc = new PriceListService(() => em);
+      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
       const product = await makeProduct(em, 'replace');
       const list = await svc.create({ name: 'Replace Test', type: 'sale' });
 
@@ -109,7 +110,7 @@ describe('Feature 011 / US3 — multi-bracket pricing (T044)', () => {
   it('FR-015: overlapping brackets are refused with a structured error', async () => {
     try {
       const em = db.em();
-      const svc = new PriceListService(() => em);
+      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
       const product = await makeProduct(em, 'overlap');
       const list = await svc.create({ name: 'Overlap Test', type: 'sale' });
 
@@ -130,7 +131,7 @@ describe('Feature 011 / US3 — multi-bracket pricing (T044)', () => {
   it('FR-015: minQuantity < 1 and maxQuantity < minQuantity are refused', async () => {
     try {
       const em = db.em();
-      const svc = new PriceListService(() => em);
+      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
       const product = await makeProduct(em, 'invalid');
       const list = await svc.create({ name: 'Invalid Bracket', type: 'sale' });
       await svc.addProduct(list.id, product.id);
@@ -154,7 +155,7 @@ describe('Feature 011 / US3 — multi-bracket pricing (T044)', () => {
   it('FR-017: removing a product cascades the bracket rows', async () => {
     try {
       const em = db.em();
-      const svc = new PriceListService(() => em);
+      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
       const product = await makeProduct(em, 'cascade');
       const list = await svc.create({ name: 'Cascade Test', type: 'sale' });
 
@@ -184,7 +185,7 @@ describe('Feature 011 / US3 — multi-bracket pricing (T044)', () => {
   it('FR-014: replaceProducts performs add+remove in one call (delta semantics)', async () => {
     try {
       const em = db.em();
-      const svc = new PriceListService(() => em);
+      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
       const a = await makeProduct(em, 'a');
       const b = await makeProduct(em, 'b');
       const c = await makeProduct(em, 'c');
@@ -209,7 +210,7 @@ describe('Feature 011 / US3 — multi-bracket pricing (T044)', () => {
   it('FR-019: copyCurrencyBrackets duplicates one currency series into others', async () => {
     try {
       const em = db.em();
-      const svc = new PriceListService(() => em);
+      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
       const product = await makeProduct(em, 'copy');
       const list = await svc.create({ name: 'Copy Test', type: 'sale' });
 
@@ -242,7 +243,7 @@ describe('Feature 011 / US3 — multi-bracket pricing (T044)', () => {
   it('replaceBrackets is bracket-set-replacement, not append: missing currencies are cleared', async () => {
     try {
       const em = db.em();
-      const svc = new PriceListService(() => em);
+      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
       const product = await makeProduct(em, 'replace2');
       const list = await svc.create({ name: 'Replace Set', type: 'sale' });
 
@@ -273,7 +274,7 @@ describe('Feature 011 / US3 — multi-bracket pricing (T044)', () => {
   it('refuses bracket writes for products not assigned to the list', async () => {
     try {
       const em = db.em();
-      const svc = new PriceListService(() => em);
+      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
       const product = await makeProduct(em, 'unassigned');
       const list = await svc.create({ name: 'Unassigned Test', type: 'sale' });
 
@@ -290,7 +291,7 @@ describe('Feature 011 / US3 — multi-bracket pricing (T044)', () => {
   it('refuses currency-copy when source currency has no brackets', async () => {
     try {
       const em = db.em();
-      const svc = new PriceListService(() => em);
+      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
       const product = await makeProduct(em, 'copy-empty');
       const list = await svc.create({ name: 'Copy Empty', type: 'sale' });
 

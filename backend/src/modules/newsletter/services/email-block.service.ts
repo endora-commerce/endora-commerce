@@ -10,7 +10,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterEmailBlock } from '../entities/newsletter-email-block.entity.js';
 import type { ContentTree, EmailEmbeds } from './content.service.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 interface ContentEnvelope {
   schema_version: number;

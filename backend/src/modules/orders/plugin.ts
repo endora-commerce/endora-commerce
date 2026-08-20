@@ -2,32 +2,18 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { CommandBus } from '../../commands/index.js';
-import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
-import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
-import { CartService } from '../carts/services/cart-service.js';
-import { CartUpsellService } from '../carts/services/cart-upsell-service.js';
-import { CartCouponService } from '../carts/services/cart-coupon-service.js';
-import { CartConversionService } from '../carts/services/cart-conversion-service.js';
-import { CartAdminService } from '../carts/services/cart-admin-service.js';
-import { CartAuditService } from '../carts/services/cart-audit-service.js';
-import { CartApprovalService } from '../carts/services/cart-approval-service.js';
-import { CartOrganizationVisibilityService } from '../carts/services/cart-organization-visibility-service.js';
-import { CartRecomputeCache } from '../carts/services/cart-recompute-cache.js';
-import { CartPricingRecompute } from '../carts/services/cart-pricing-recompute.js';
-import { CartAbandonmentWorker } from '../carts/services/cart-abandonment-worker.js';
-import { registerCartsAdminRoutes } from '../carts/routes.admin.js';
-import { registerCartsOrganizationRoutes } from '../carts/routes.organization.js';
-import type { PricingService } from '../price_lists/services/pricing-service.js';
-import { AddressService } from '../addresses/services/address-service.js';
-import type { PromotionService } from '../promotions/services/promotion-service.js';
-import type { RfqService } from '../quote_requests/services/rfq-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type Redis from 'ioredis';
-import type { Mailer } from '../email/services/mailer.js';
+import type { EmailMailerPort } from '@b2b/contracts';
 import {
   OrderService,
-  type CreditLimitPort,
   type OrderEventBus,
+  // The two em-carrying interfaces their owners write (D-94.5), re-exported by
+  // `order-service.ts` — which is where the seam is stated and where the two
+  // permanent ledger entries sit.
+  type CreditLimitPort,
+  type PromotionUsageFinalizer,
 } from './services/order-service.js';
 import { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderTransitionService } from './services/order-transition-service.js';
@@ -42,35 +28,34 @@ import { OrderCreationAdminService } from './services/order-creation-admin-servi
 import { OrderApiIntakeService } from './services/order-api-intake-service.js';
 import { registerOrdersExternalRoutes } from './routes.external.js';
 import type { OrganizationConfirmationEmailsPort } from './ports/organization-confirmation-emails.port.js';
-import type { FulfilmentStrategy } from '@b2b/contracts';
-import { Organization } from '../organizations/entities/organization.entity.js';
+import type {
+  AddressReadPort,
+  AddressServicePort,
+  AssetReadPort,
+  CustomFieldValuePort,
+  CartWritePort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  DeliveryMethodReadPort,
+  FulfilmentStrategy,
+  InventoryFulfilmentPlanningPort,
+  InventoryStockReadPort,
+  InvoicePdfPort,
+  InvoiceReadPort,
+  LinePricePort,
+  OrderStatusRegistry,
+  OrganizationDetailsPort,
+  PaymentAdapterRegistryPort,
+  PaymentMethodReadPort,
+  PromotionApplyPort,
+  RfqCustomerPort,
+  ShippingAdapterRegistryPort,
+} from '@b2b/contracts';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
-import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
-import {
-  registerDeliveryMethodsPublicRoutes,
-  registerDeliveryMethodsAdminRoutes,
-} from '../delivery_methods/routes.js';
-import {
-  registerPaymentMethodsPublicRoutes,
-  registerPaymentMethodsAdminRoutes,
-} from '../payment_methods/routes.js';
-import { paymentAdapterRegistry } from '../payment_methods/services/registry-singleton.js';
-import { EnumOrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
-import { builtInPaymentAdapters } from '../payments/adapters/built-in-adapters.js';
-import { ReceivePaymentHandler, type PaymentEventBus } from '../payments/services/receive-payment-handler.js';
-import { PaymentService } from '../payments/services/payment-service.js';
-import { registerPaymentsRoutes } from '../payments/routes.js';
+import type { OrderConfirmationRenderers } from './email-templates/order-confirmation.js';
 // Feature 035 — shipping-method adapter framework + shipment lifecycle.
-import { shippingAdapterRegistry } from '../delivery_methods/services/registry-singleton.js';
-import { EnumOrderStatusRegistry as ShippingEnumOrderStatusRegistry } from '../delivery_methods/services/order-status-registry.port.js';
-import { ShippingMethodEligibilityService } from '../delivery_methods/services/shipping-method-eligibility.js';
-import { builtInShippingAdapters } from '../delivery_methods/adapters/built-in-adapters.js';
-import { ShipmentService } from '../shipments/services/shipment-service.js';
-import { ReceiveShipmentHandler } from '../shipments/services/receive-shipment-handler.js';
-import type { ShippingEventBus } from '../shipments/services/events.js';
-import { registerShipmentsRoutes } from '../shipments/routes.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the commerce surface — carts + orders + invoice
@@ -93,9 +78,9 @@ export interface OrdersModuleOptions {
   /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
   auditLogService?: AuditLogService;
   /** Feature 055 — validates + persists Order custom-field values on the admin edit path. */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
   /** Feature 034 — mailer for the order-confirmation e-mail (best-effort, post-commit). */
-  mailer?: Mailer;
+  mailer?: EmailMailerPort;
   /**
    * Feature 047 — late-bound transactional-email sender. When provided, the order
    * confirmation is rendered from the admin-editable template instead of the
@@ -105,35 +90,99 @@ export interface OrdersModuleOptions {
   /** Optional CreditLimit driver — wired by the credit_limits module composition root. */
   creditLimit?: CreditLimitPort;
   /**
-   * Resolver for cart actor (customer OR anonymous). The test helper maps
-   * stub cookies + real sessions here; production wires it to the real auth
-   * plugin.
+   * Feature 075 — the order-confirmation e-mail's two adapter-rendered lines.
+   *
+   * An accessor, read per send: `payments` and `shipments` own the two renderer
+   * registries and both are deactivatable, so the answer is theirs to give at
+   * the moment the message is built. Omit ⇒ this module's own baselines.
    */
-  resolveCartActor: (req: FastifyRequest) => {
-    customer?: { customerAccountId: string; organizationId: string | null };
-    anonymousToken?: string;
-  };
-  /** Hook — returned cart service so the login route can merge anonymous baskets. */
-  exposeCartService?: (service: CartService) => void;
+  confirmationRenderers?: () => OrderConfirmationRenderers;
   /**
    * Feature 005 / T027b — when injected, newly-created PaymentMethods and
    * DeliveryMethods auto-bind to the system-default Sales Channel (FR-011).
    */
   salesChannelMembership?: SalesChannelMembershipService;
   /**
-   * Optional pricing-engine service. When wired, cart-line creation
-   * uses `PricingService.resolveLinePrice()` for the unit price + the
-   * displayMode='none' guard (T076 / T084). Foundation tests that
-   * don't care about pricing engine semantics can omit it.
+   * The pricing engine. Cart-line creation uses
+   * `PricingService.resolveLinePrice()` for the unit price and the
+   * displayMode='none' guard (T076 / T084).
+   *
+   * Required since issue #124. It was optional, and "omitted" and "the module
+   * an operator switched off" were the same thing at every call site: both
+   * produced `null`, and every consumer then priced the line from the
+   * catalogue's legacy `defaultPrice` attribute. Absence is now a `lazyPort`
+   * gate that throws `MODULE_DISABLED`, which nothing can mistake for a price.
    */
-  pricingService?: PricingService;
+  pricingService: LinePricePort;
   /**
-   * Feature 038 (US3) — org address book service. Used by the admin
-   * create-order flow to persist (and clean up) addresses typed inline on the
-   * form. Optional so foundation tests that never create inline addresses can
-   * omit it.
+   * Feature 038 (US3) — the org address book. The admin create-order flow and
+   * the external intake persist (and clean up) addresses typed inline on the
+   * form through it.
+   *
+   * Required since feature 072 (T090). It used to fall back to a bare
+   * `AddressService` built from `emFactory` alone — no dictionary validator and
+   * no audit writer — so a caller that forgot the option got silently
+   * unvalidated, unaudited address writes on the checkout path.
+   *
+   * `AddressServicePort` since feature 075: it is `addresses`' published write
+   * surface, and the one-default-per-kind invariant and the country-code
+   * validation stay on that side of it, where they already are.
    */
-  addressService?: AddressService;
+  addressService: AddressServicePort;
+  /** `addresses`' read surface — placement snapshots the two chosen addresses. */
+  addressRead: AddressReadPort;
+  /**
+   * `carts`' published write surface. **`cartWritePort`, not `cartService`**:
+   * `carts/backend.ts` registers both, and the second hands out the class,
+   * which still passes `Cart` and `CartItem` entities across the boundary.
+   * The admin create-order path and the external intake seed a cart with it.
+   */
+  cartWritePort: CartWritePort;
+  /**
+   * The read models the route surface, the external intake and the admin
+   * create path resolve from the modules that own the rows (feature 075).
+   */
+  catalogProductRead: CatalogProductReadPort;
+  customerAccountRead: CustomerAccountReadPort;
+  organizationDetails: OrganizationDetailsPort;
+  /** Accessors: both owners are deactivatable `degrades-without` edges. */
+  deliveryMethodRead: () => DeliveryMethodReadPort | null;
+  paymentMethodRead: () => PaymentMethodReadPort | null;
+  /**
+   * The two `inventory` ports the stock reservation runs on, as one accessor
+   * (D-94.4, issue #188). `null` ⇒ `inventory` is not effectively present, and
+   * placement skips the reservation whole — `orders` declares the edge
+   * `degrades-without` with exactly that sentence.
+   */
+  inventory: () => {
+    readonly stockRead: InventoryStockReadPort;
+    readonly planning: InventoryFulfilmentPlanningPort;
+  } | null;
+  assetRead: AssetReadPort;
+  /**
+   * `invoices` is deactivatable and declares this module, so its two ports are
+   * accessors and the edge is `degrades-without`: `null` ⇒ no invoice surface.
+   */
+  invoiceRead: () => InvoiceReadPort | null;
+  invoicePdf: () => InvoicePdfPort | null;
+  /**
+   * The two method modules' registries and the delivery-eligibility service.
+   * `orders` reads them for placement dispatch and for the `statusOn*`
+   * references (feature 072, T095/T097), so it receives them instead of
+   * building them — and receives them as **accessors** rather than as values
+   * (feature 074, FR-024).
+   *
+   * The difference is when the container is asked. Passing the values meant
+   * `orders` resolved four of another module's registrations at the moment its
+   * own registration was constructed, and held them for the life of the
+   * process: the deactivation ledger's first unacceptable shape, because a
+   * captured registration keeps answering after its owner is switched off, and
+   * no manifest entry can make that untrue. An accessor is read where it is
+   * used, so the answer is the one the container has then.
+   */
+  paymentAdapterRegistry: () => PaymentAdapterRegistryPort;
+  shippingAdapterRegistry: () => ShippingAdapterRegistryPort;
+  paymentOrderStatusRegistry: () => OrderStatusRegistry;
   /**
    * Feature 026 — optional gate that refuses cart-line-add, place-order, and
    * RFQ-submit when the Customer's Organization is not `active`. Threaded
@@ -157,32 +206,29 @@ export interface OrdersModuleOptions {
     | { allowAll: false; allowedOrganizationIds: string[] }
   >;
   /**
-   * Feature 027 — Cross-module port that pushes a cart line into one of
-   * the buyer's shopping lists. The carts module calls this when the
-   * buyer clicks "Save to Purchase List". Wired by the shopping_lists
-   * module composition.
-   */
-  pushLineToShoppingList?: (input: {
-    customerAccountId: string;
-    organizationId: string | null;
-    shoppingListId: string;
-    productId: string;
-    variantId: string | null;
-    quantity: number;
-  }) => Promise<void>;
-  /**
    * Feature 027 US2 — promotion engine used by the cart's coupon flow.
    * When provided, `POST /api/v1/cart/coupon` validates the code via
    * `applyToCart`. Optional so legacy compositions still build.
+   *
+   * `PromotionApplyPort` since D-94.5 — the contract `promotions` publishes,
+   * rather than a near-identical interface this module used to declare and
+   * nothing checked the provider against.
    */
-  promotionService?: PromotionService;
+  promotionService?: PromotionApplyPort;
+  /**
+   * The redemption row placement writes on its own `EntityManager` (D-94.5).
+   * A separate name because it is a separate port: `promotions` declares the
+   * interface, because the signature carries a MikroORM type that FR-034 keeps
+   * out of `@b2b/contracts`.
+   */
+  promotionUsageFinalizer?: PromotionUsageFinalizer;
   /**
    * Feature 027 US3 — getter for the RFQ service used by Cart → Quote
    * Request and Quote Request → Cart conversions. Getter (not direct
    * reference) so the QR module can be constructed AFTER commerceModule
    * in composition.ts; the closure resolves lazily at request time.
    */
-  getRfqService?: () => RfqService | null;
+  getRfqService?: () => RfqCustomerPort | null;
   /**
    * Feature 039 — late-bind the OrderService back to composition so the
    * quick_order module's one-click flow can reuse `placeOrder` without the
@@ -203,54 +249,12 @@ export interface OrdersModuleOptions {
    */
   exposeOrderTransitionService?: (service: OrderTransitionService) => void;
   /**
-   * Feature 027 US3 — port that appends a Shopping List's lines to the
-   * buyer's cart. Wired by composition to ShoppingListService.convertToCart.
-   */
-  appendShoppingListToCart?: (input: {
-    customerAccountId: string;
-    organizationId: string | null;
-    shoppingListId: string;
-  }) => Promise<{
-    cartId: string;
-    appendedLineCount: number;
-    droppedLines: Array<{ productId: string; productName: string; reason: string }>;
-  }>;
-  /**
    * Feature 027 §R5 — Redis client used by the cart-pricing-recompute
    * cache. When provided alongside `pricingService`, every full-cart
    * read re-resolves unit prices through PricingService with a 30 s
    * Redis cache. Without it, the snapshotted unit_price is returned.
    */
   redis?: Redis;
-  /**
-   * Feature 027 US5 — resolves the current
-   * `carts.abandonment.inactivity_minutes` setting. Wired by composition.
-   * `0` disables the sweep.
-   */
-  resolveCartAbandonmentInactivityMinutes?: () => Promise<number>;
-  /**
-   * Feature 027 US5 — resolves the current
-   * `carts.abandonment.notification_recipient` setting. Wired by composition.
-   * Empty string = no notification e-mail.
-   */
-  resolveCartAbandonmentNotificationRecipient?: () => Promise<string>;
-  /**
-   * Feature 027 US5 — outbound notification dispatch. When omitted, the
-   * sweep still flips status but suppresses the e-mail.
-   */
-  dispatchCartAbandonmentNotification?: (input: {
-    recipientEmail: string;
-    cartId: string;
-    ownerDisplayName: string | null;
-    lineCount: number;
-    organizationId: string | null;
-  }) => Promise<void>;
-  /**
-   * Feature 027 US5 — hook for the future scheduler / test harness to
-   * grab the worker handle. The worker exposes `sweep(now?)` for direct
-   * invocation; production scheduling is an operational concern.
-   */
-  exposeCartAbandonmentWorker?: (worker: CartAbandonmentWorker) => void;
   /**
    * Feature 036 — resolves the channel-scoped `orders.business_id.prefix`
    * setting for the business Order ID. Wired by composition through
@@ -263,8 +267,11 @@ export interface OrdersModuleOptions {
   resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>;
   /** Feature 038 US4 — resolves `orders.confirmation_recipients` per Sales Channel. Omit ⇒ none. */
   resolveOrderConfirmationRecipients?: (salesChannelId: string) => Promise<string[]>;
-  /** Feature 038 US3/FR-035 — resolves `orders.min_order_value` per Sales Channel. Omit ⇒ no minimum. */
-  resolveMinOrderValue?: (salesChannelId: string) => Promise<number>;
+  /**
+   * Feature 038 US3/FR-035 — resolves `orders.min_order_value` per Sales
+   * Channel. Omit ⇒ no minimum; `null` ⇒ read it platform-wide (issue #103).
+   */
+  resolveMinOrderValue?: (salesChannelId: string | null) => Promise<number>;
   /**
    * Sales-channel layer of the fulfilment-strategy precedence chain — resolves
    * `inventory.fulfilment_strategy` (+ its warehouse order) per Sales Channel
@@ -280,10 +287,14 @@ export interface OrdersModuleOptions {
   resolveChannelAllowNegativeStock?: (salesChannelId: string) => Promise<boolean>;
   /**
    * Real per-product VAT — resolves the rate (fraction, e.g. `0.23`) for a
-   * product line from its tax class, billing country, and org VAT status. Omit
-   * ⇒ placeOrder falls back to a flat 23%.
+   * product line from its tax class, billing country, and org VAT status.
+   *
+   * Required since issue #124: omitting it used to mean "price the order at a
+   * flat 23%", which is a figure no rule in the deployment supports, printed on
+   * a real invoice. An absent `taxes` module surfaces through this resolver as
+   * the 503 `MODULE_DISABLED` envelope instead.
    */
-  resolveTaxRate?: (input: {
+  resolveTaxRate: (input: {
     country: string | null;
     productType: string;
     vatStatus: string;
@@ -310,55 +321,20 @@ export interface OrdersModuleOptions {
 
 export function commerceModule(options: OrdersModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
-    // Feature 027 — construct audit + approval services first so the
-    // mutation surfaces (CartService, CartCouponService) can wire the
-    // re-arm hook through their optional approvalService param.
-    const cartAuditService = options.auditLogService
-      ? new CartAuditService(options.emFactory, options.auditLogService)
-      : undefined;
-    const cartApprovalService = cartAuditService
-      ? new CartApprovalService(options.emFactory, cartAuditService)
-      : undefined;
-
-    // Construct the recompute cache early so CartService can invalidate
-    // it on every cart-side write (feature 027 data-model.md / §R5
-    // "Cleared on every cart-side write").
-    const cartRecomputeCacheEarly = options.redis
-      ? new CartRecomputeCache(options.redis)
-      : undefined;
-
-    const cartService = new CartService(
-      options.emFactory,
-      options.pricingService,
-      cartApprovalService,
-      cartAuditService,
-      cartRecomputeCacheEarly,
-    );
-    // Feature 034 — payment adapter framework. Built-in adapters are populated
-    // into the process-wide singleton (registry-singleton.ts) idempotently, so
-    // external payment-method modules that registered their adapter from a
-    // lifecycle install hook share the same instance the live routes use. The
-    // OrderStatusRegistry port resolves statusOn* references (enum-backed until
-    // the Orders module ships a configurable registry).
-    for (const adapter of builtInPaymentAdapters()) {
-      if (!paymentAdapterRegistry.isRegistered(adapter.adapterKey)) {
-        paymentAdapterRegistry.register(adapter);
-      }
-    }
-    const orderStatusRegistry = new EnumOrderStatusRegistry();
-
-    // Feature 035 — shipping-method adapter framework. Built-in offline adapters
-    // are populated into the process-wide singleton idempotently, so external
-    // shipping-method modules that registered their adapter from a lifecycle
-    // install hook share the same instance the live routes use. The shipping
-    // OrderStatusRegistry resolves statusOnSuccess/Failure references.
-    for (const adapter of builtInShippingAdapters()) {
-      if (!shippingAdapterRegistry.isRegistered(adapter.adapterKey)) {
-        shippingAdapterRegistry.register(adapter);
-      }
-    }
-    const shippingOrderStatusRegistry = new ShippingEnumOrderStatusRegistry();
-    const shippingEligibility = new ShippingMethodEligibilityService(shippingAdapterRegistry);
+    // Feature 072 (T136) — every cart service moved to `carts`, which registers
+    // them unconditionally. This root used to build them here in a chain where
+    // each optional argument disabled the next thing, so a missing
+    // `auditLogService` silently removed the organization approval routes and a
+    // missing `redis` silently stopped prices being re-resolved. `orders` reads
+    // the one service it genuinely consumes as a required option.
+    // Feature 072 (T095/T097) — the two method modules own their registries,
+    // their eligibility services and their routes now. `orders` still reads
+    // them for placement and for the order-status references, so it takes them
+    // as options rather than building them — as accessors since feature 074,
+    // read here rather than when this module's registration was constructed.
+    const paymentAdapterRegistry = options.paymentAdapterRegistry();
+    const shippingAdapterRegistry = options.shippingAdapterRegistry();
+    const orderStatusRegistry = options.paymentOrderStatusRegistry();
 
     // Feature 036 — business Order ID generator. Adapts the composition-wired
     // prefix/suffix resolver closures (SettingsService-backed) to the
@@ -377,7 +353,10 @@ export function commerceModule(options: OrdersModuleOptions) {
     // Feature 038 US4 — additional confirmation recipients (per-org + scope).
     const orgConfirmationEmailsPort: OrganizationConfirmationEmailsPort = {
       getConfirmationEmails: async (organizationId: string) => {
-        const org = await options.emFactory().findOne(Organization, { id: organizationId });
+        // Feature 075 — the addresses an organisation wants copied on every
+        // confirmation are `organizations`' column, read over its port. This
+        // used to be `em.findOne(Organization, …)` on this module's manager.
+        const org = await options.organizationDetails.findById(organizationId);
         return org?.orderConfirmationEmails ?? [];
       },
     };
@@ -409,18 +388,32 @@ export function commerceModule(options: OrdersModuleOptions) {
         ...(options.resolveChannelAllowNegativeStock
           ? { resolveChannelAllowNegativeStock: options.resolveChannelAllowNegativeStock }
           : {}),
-        // Feature 036 (US3) — PromotionService satisfies PromotionPort
-        // structurally; threaded so placeOrder stamps the cart's coupon
-        // discount onto the Order.
+        // Feature 036 (US3) — threaded so placeOrder stamps the cart's coupon
+        // discount onto the Order, and D-94.5's finalizer beside it for the
+        // redemption row that goes in the same transaction.
         ...(options.promotionService ? { promotion: options.promotionService } : {}),
-        ...(options.resolveTaxRate ? { resolveTaxRate: options.resolveTaxRate } : {}),
+        ...(options.promotionUsageFinalizer
+          ? { promotionUsageFinalizer: options.promotionUsageFinalizer }
+          : {}),
+        resolveTaxRate: options.resolveTaxRate,
+        neighbours: {
+          organizationDetails: options.organizationDetails,
+          customerAccountRead: options.customerAccountRead,
+          addressRead: options.addressRead,
+          catalogProductRead: options.catalogProductRead,
+          paymentMethodRead: options.paymentMethodRead,
+          deliveryMethodRead: options.deliveryMethodRead,
+          inventory: options.inventory,
+        },
         ...(options.mailer ? { mailer: options.mailer } : {}),
+        ...(options.confirmationRenderers
+          ? { confirmationRenderers: options.confirmationRenderers }
+          : {}),
         ...(options.getTransactionalEmailSender
           ? { getTransactionalEmailSender: options.getTransactionalEmailSender }
           : {}),
       },
     );
-    if (options.exposeCartService) options.exposeCartService(cartService);
 
     // Feature 038 — configurable lifecycle. The transition engine validates
     // against the DB-backed graph, runs veto guards, and emits the templated
@@ -447,18 +440,27 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.exposeOrderTransitionService(orderTransitionService);
     }
     // Feature 038 US2 — orders list query, saved views, CSV export.
-    const orderListService = new OrderListService(options.emFactory, orderStatusGraphService);
+    const orderListService = new OrderListService(
+      options.emFactory,
+      orderStatusGraphService,
+      options.organizationDetails,
+      options.customerAccountRead,
+    );
     if (options.exposeOrderListService) options.exposeOrderListService(orderListService);
     const orderListViewService = new OrderListViewService(options.emFactory);
     const orderExportService = new OrderExportService(orderListService);
     const orderCommentService = new OrderCommentService(
       options.emFactory,
       orderStatusGraphService,
+      options.customerAccountRead,
       options.mailer,
       options.getTransactionalEmailSender,
     );
     const orderReorderService = new OrderReorderService(
       options.emFactory,
+      options.cartWritePort,
+      options.catalogProductRead,
+      options.customerAccountRead,
       options.resolveReorderEnabled,
       options.mailer,
       options.getTransactionalEmailSender,
@@ -467,77 +469,16 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.emFactory,
       () => options.getRfqService?.() ?? null,
     );
-    const addressService = options.addressService ?? new AddressService(options.emFactory);
     const orderCreationAdminService = new OrderCreationAdminService(
       options.emFactory,
-      cartService,
+      options.cartWritePort,
       orderService,
-      addressService,
+      options.addressService,
+      options.customerAccountRead,
       options.mailer,
       options.getTransactionalEmailSender,
     );
 
-    const cartUpsellService = new CartUpsellService(options.emFactory);
-    const cartCouponService = options.promotionService
-      ? new CartCouponService(
-          options.emFactory,
-          options.promotionService,
-          cartApprovalService,
-        )
-      : undefined;
-    const cartPricingRecompute =
-      cartRecomputeCacheEarly && options.pricingService
-        ? new CartPricingRecompute(
-            options.emFactory,
-            options.pricingService,
-            cartRecomputeCacheEarly,
-          )
-        : undefined;
-    const cartAdminService = cartAuditService
-      ? new CartAdminService(
-          options.emFactory,
-          cartAuditService,
-          ...(options.promotionService ? ([options.promotionService] as const) : ([] as const)),
-        )
-      : undefined;
-    // Build a thin lazy-resolving wrapper so the QR service can be
-    // injected after commerceModule is constructed (chicken-and-egg in
-    // composition.ts).
-    const lazyRfqProxy = options.getRfqService
-      ? (new Proxy({} as RfqService, {
-          get: (_target, prop) => {
-            const svc = options.getRfqService?.();
-            if (!svc) throw new Error('RfqService not yet available');
-            const value = Reflect.get(svc, prop, svc);
-            // Bind methods to the real service so `this` inside them is the
-            // instance, not this proxy — otherwise private-field/method access
-            // (`this.#audit`) throws "Receiver must be an instance of class".
-            return typeof value === 'function' ? value.bind(svc) : value;
-          },
-        }) as RfqService)
-      : null;
-    const cartConversionService = lazyRfqProxy
-      ? new CartConversionService(options.emFactory, cartService, lazyRfqProxy)
-      : undefined;
-
-    await registerCartRoutes(app, {
-      cartService,
-      cartUpsellService,
-      ...(cartCouponService ? { cartCouponService } : {}),
-      ...(cartConversionService ? { cartConversionService } : {}),
-      ...(cartPricingRecompute ? { cartPricingRecompute } : {}),
-      resolveCartActor: options.resolveCartActor,
-      emFactory: options.emFactory,
-      ...(options.assertOrganizationCanTransact
-        ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
-        : {}),
-      ...(options.pushLineToShoppingList
-        ? { pushLineToShoppingList: options.pushLineToShoppingList }
-        : {}),
-      ...(options.appendShoppingListToCart
-        ? { appendShoppingListToCart: options.appendShoppingListToCart }
-        : {}),
-    });
     if (options.exposeOrderService) options.exposeOrderService(orderService);
 
     await registerOrderRoutes(app, {
@@ -555,7 +496,16 @@ export function commerceModule(options: OrdersModuleOptions) {
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,
       resolveCustomerContext: options.resolveCustomerContext,
-      ...(options.pricingService ? { pricingService: options.pricingService } : {}),
+      pricingService: options.pricingService,
+      resolveTaxRate: options.resolveTaxRate,
+      catalogProductRead: options.catalogProductRead,
+      customerAccountRead: options.customerAccountRead,
+      organizationDetails: options.organizationDetails,
+      deliveryMethodRead: options.deliveryMethodRead,
+      paymentMethodRead: options.paymentMethodRead,
+      invoiceRead: options.invoiceRead,
+      invoicePdf: options.invoicePdf,
+      assetRead: options.assetRead,
       ...(options.assertOrganizationCanTransact
         ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
         : {}),
@@ -571,9 +521,11 @@ export function commerceModule(options: OrdersModuleOptions) {
     if (options.requireBoundApiKey) {
       const orderApiIntakeService = new OrderApiIntakeService({
         emFactory: options.emFactory,
-        cartService,
+        cartService: options.cartWritePort,
         orderService,
-        addressService,
+        addressService: options.addressService,
+        catalogProductRead: options.catalogProductRead,
+        organizationDetails: options.organizationDetails,
         salesChannelMembership: options.salesChannelMembership,
         pricingService: options.pricingService,
         redis: options.redis,
@@ -589,117 +541,20 @@ export function commerceModule(options: OrdersModuleOptions) {
       });
     }
 
-    await registerDeliveryMethodsPublicRoutes(app, {
-      emFactory: options.emFactory,
-      registry: shippingAdapterRegistry,
-      eligibility: shippingEligibility,
-      ...(options.resolveOrganizationDeliveryMethodAllowList
-        ? { resolveOrganizationDeliveryMethodAllowList: options.resolveOrganizationDeliveryMethodAllowList }
-        : {}),
-    });
-    await registerPaymentMethodsPublicRoutes(app, {
-      emFactory: options.emFactory,
-      registry: paymentAdapterRegistry,
-      ...(options.resolveOrganizationPaymentMethodAllowList
-        ? { resolveOrganizationPaymentMethodAllowList: options.resolveOrganizationPaymentMethodAllowList }
-        : {}),
-    });
-    await registerDeliveryMethodsAdminRoutes(app, {
-      emFactory: options.emFactory,
-      requireAdmin: options.requireAdmin,
-      registry: shippingAdapterRegistry,
-      orderStatusRegistry: shippingOrderStatusRegistry,
-      ...(options.salesChannelMembership
-        ? { salesChannelMembership: options.salesChannelMembership }
-        : {}),
-    });
-    await registerPaymentMethodsAdminRoutes(app, {
-      emFactory: options.emFactory,
-      requireAdmin: options.requireAdmin,
-      registry: paymentAdapterRegistry,
-      orderStatusRegistry,
-      ...(options.salesChannelMembership
-        ? { salesChannelMembership: options.salesChannelMembership }
-        : {}),
-    });
-    // Feature 034 — payment lifecycle: receive_payment ingress, retry, history.
-    await registerPaymentsRoutes(app, {
-      requireAdmin: options.requireAdmin,
-      receiveHandler: new ReceivePaymentHandler(
-        options.emFactory,
-        orderStatusRegistry,
-        options.eventBus as PaymentEventBus,
-      ),
-      paymentService: new PaymentService(options.emFactory),
-    });
+    // Feature 034 — the payment lifecycle moved out in feature 072 (T126), for
+    // the same reason the shipment lifecycle did in T124: this root constructed
+    // both services and mounted the routes, so switching `payments` off did
+    // nothing at all.
 
-    // Feature 035 — shipment lifecycle: shipment_created, receive_shipment,
-    // retry, history.
-    await registerShipmentsRoutes(app, {
-      requireAdmin: options.requireAdmin,
-      receiveHandler: new ReceiveShipmentHandler(
-        options.emFactory,
-        shippingOrderStatusRegistry,
-        options.eventBus as ShippingEventBus,
-      ),
-      shipmentService: new ShipmentService(
-        options.emFactory,
-        shippingAdapterRegistry,
-        options.eventBus as ShippingEventBus,
-      ),
-    });
+    // Feature 035 — the shipment lifecycle moved out in feature 072 (T124).
+    // `shipments` owns its services and its routes now, and gates them on its
+    // own state; this root used to construct all three and mount them here,
+    // which is why switching `shipments` off did nothing.
 
-    // Feature 027 US5 — abandonment-sweep worker. Constructed when the
-    // settings resolvers are wired; exposed via the optional hook so a
-    // future scheduler / test harness can invoke `sweep(now?)` directly.
-    if (
-      cartAuditService &&
-      options.resolveCartAbandonmentInactivityMinutes &&
-      options.resolveCartAbandonmentNotificationRecipient
-    ) {
-      const abandonmentWorker = new CartAbandonmentWorker({
-        emFactory: options.emFactory,
-        cartAuditService,
-        resolveInactivityMinutes: options.resolveCartAbandonmentInactivityMinutes,
-        resolveNotificationRecipient: options.resolveCartAbandonmentNotificationRecipient,
-        ...(options.dispatchCartAbandonmentNotification
-          ? { dispatchNotification: options.dispatchCartAbandonmentNotification }
-          : {}),
-      });
-      if (options.exposeCartAbandonmentWorker) {
-        options.exposeCartAbandonmentWorker(abandonmentWorker);
-      }
-    }
-
-    // Feature 027 US4 — Organization-Administrator visibility + approval
-    // workflow. cartApprovalService already constructed above so the
-    // re-arm hook works on every cart-mutation surface.
-    if (cartApprovalService) {
-      const visibilityService = new CartOrganizationVisibilityService(options.emFactory);
-      await registerCartsOrganizationRoutes(app, {
-        cartService,
-        cartApprovalService,
-        visibilityService,
-        emFactory: options.emFactory,
-        resolveCartActor: options.resolveCartActor,
-      });
-    }
-
-    if (cartAdminService) {
-      await registerCartsAdminRoutes(app, {
-        cartAdminService,
-        ...(cartApprovalService ? { cartApprovalService } : {}),
-        requireAdmin: options.requireAdmin,
-        resolveAdminUserId: (req: FastifyRequest): string | null => {
-          // Production rig: `request.actor` (set by the auth plugin).
-          // Test rig: `request.testActor` (set by test-actors.ts).
-          const prodActor = (req as { actor?: { kind?: string; adminUserId?: string } }).actor;
-          if (prodActor?.kind === 'admin' && prodActor.adminUserId) return prodActor.adminUserId;
-          const testActor = (req as { testActor?: { kind?: string; adminUserId?: string } }).testActor;
-          if (testActor?.kind === 'admin' && testActor.adminUserId) return testActor.adminUserId;
-          return null;
-        },
-      });
-    }
+    // Feature 072 (T136) — the abandonment sweep, the organization approval
+    // routes and the admin cart routes all moved to `carts`. Each used to mount
+    // only when a chain of optional arguments happened to reach it, so the route
+    // surface itself was a function of composition arguments; the module's own
+    // activation control is the intentional gate now.
   };
 }

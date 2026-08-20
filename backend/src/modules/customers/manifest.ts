@@ -66,7 +66,61 @@ export const manifest = defineModuleManifest({
   description:
     'Customer lifecycle business logic: registration, self-service, blocking, impersonation, groups, deletion, and presence.',
   version: '1.0.0',
-  dependencies: ['customer_accounts', 'organizations', 'settings'],
+  // Feature 072 (T140) — the edges the module actually resolves. `auth`
+  // (sessions), `email` (the set-password mail), `quote_requests` (the RFQ
+  // history surface) and `custom_fields` were all reached through options a
+  // root passed down, which is why none of them appeared here.
+  // Feature 073 (Constitution XVII) — the operator's activation control. This
+  // is the *management* surface over customer accounts: the admin CRM screens,
+  // moderation, self-service profile and deletion. The accounts themselves live
+  // in `customer_accounts`, which is non-deactivatable, so switching this off
+  // removes screens and self-service rather than the ability to log in.
+  activation: { settingCode: 'customers.enabled', default: true },
+  //
+  // Issue #216 adds `quick_order`: the customer-detail screen and the
+  // self-service profile render and edit a buyer's default payment and
+  // delivery method, and those live in `quick_order`'s preference store. This
+  // module used to build a second instance of that module's service instead of
+  // resolving the port published for it, so the edge existed and was declared
+  // nowhere. Binding rather than `degrades-without`, because that is what
+  // `DefaultPreferencePort`'s contract says its seam does when the owner is
+  // off, and because a half-written set of ordering defaults is worse than a
+  // refusal.
+  //
+  // Feature 075's Phase-C cut adds `addresses`: the self-service and admin
+  // address panels list the buyer's **organisation's** shared addresses beside
+  // their personal ones, and this module used to query that module's table
+  // itself. It reads `addressReadPort` now. Binding, and unremarkably so —
+  // `addresses` is non-deactivatable, so the edge has no absent state to
+  // declare a degrade for.
+  dependencies: [
+    'addresses',
+    'auth',
+    'custom_fields',
+    'customer_accounts',
+    'email',
+    'organizations',
+    'quick_order',
+    'quote_requests',
+    'settings',
+  ],
+  // D-44 — real to the container, binding on no operator.
+  nonBindingDependencies: [
+    {
+      moduleId: 'orders',
+      name: 'orderListServiceAccessor',
+      kind: 'degrades-without',
+      whenAbsent: 'order history is empty on the self-service and admin customer panels',
+      reason:
+        'Two read-only history panels list a customer’s orders through `orders`’ late-bound ' +
+        'list service. Declaring the edge is cycle-free, and that is precisely the problem: ' +
+        'it would make `orders` undeactivatable for as long as the customer surface is ' +
+        'present, which is a presence rule nobody decided. The panels have a defined ' +
+        'behaviour instead — an empty page, the same one an account with no orders sees — ' +
+        'reached through a presence probe ahead of the port, because a closed gate throws ' +
+        'rather than answering `null`.',
+    },
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   actions: [

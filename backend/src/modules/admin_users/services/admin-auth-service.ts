@@ -1,12 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  normalizeEmailAddress,
+  type AuthSessionPort,
+  type MfaLoginPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword, verifyPassword } from '../../auth/services/password-hasher.js';
-import type { SessionService } from '../../auth/services/session-service.js';
-import type { MfaLoginPort } from '../../auth/services/mfa-login-port.js';
+import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * AdminAuthService (T186; two-step login added in feature 042). login →
@@ -29,7 +32,8 @@ export type AdminLoginOutcome =
 export class AdminAuthService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly sessionService: SessionService,
+    /** `auth`'s published session surface (feature 075, Phase C). */
+    private readonly sessionPort: AuthSessionPort,
     /** Lazily resolved so composition can late-bind the MFA module. */
     private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
     private readonly auditLog?: AuditLogService,
@@ -42,7 +46,15 @@ export class AdminAuthService {
     userAgent?: string;
   }): Promise<AdminLoginOutcome> {
     const em = this.emFactory();
-    const admin = await em.findOne(AdminUser, { email: input.email, deletedAt: null });
+    // The address is folded before it is compared, because it was folded before
+    // it was stored: Postgres' `=` on `text` is case-sensitive, so an operator
+    // created as `Anna.Nowak@endora.pl` matched no row when they typed the
+    // address they were handed, and the refusal below says nothing about
+    // casing. `normalizeEmailAddress` is the same fold the write applies.
+    const admin = await em.findOne(AdminUser, {
+      email: normalizeEmailAddress(input.email),
+      deletedAt: null,
+    });
     if (!admin || admin.status !== 'active') {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Invalid email or password.');
     }
@@ -66,7 +78,7 @@ export class AdminAuthService {
       }
     }
 
-    const session = await this.sessionService.createSession({
+    const session = await this.sessionPort.createSession({
       kind: 'admin',
       adminUserId: admin.id,
       ...(input.ip !== undefined ? { ipAddress: input.ip } : {}),
@@ -116,6 +128,6 @@ export class AdminAuthService {
   }
 
   async logout(sessionId: string): Promise<void> {
-    await this.sessionService.destroySession(sessionId);
+    await this.sessionPort.destroySession(sessionId);
   }
 }

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CommandBus } from '../../commands/index.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ConfigurationTypeRegistry } from './services/configuration-type-registry.js';
 import {
   CredentialsService,
@@ -9,8 +9,8 @@ import {
 } from './services/credentials.service.js';
 import {
   registerCredentialsAdminRoutes,
-  type RequireAdminFactory,
 } from './routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the credentials module — feature 058.

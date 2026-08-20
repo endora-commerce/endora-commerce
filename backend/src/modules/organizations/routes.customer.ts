@@ -1,22 +1,31 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { changePasswordRequestSchema, ERROR_CODES } from '@b2b/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
-import type { AddressService } from '../addresses/services/address-service.js';
-import type { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
 import {
+  changePasswordRequestSchema,
   createAddressRequestSchema,
   updateAddressRequestSchema,
+  ERROR_CODES,
+  type AddressServicePort,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
+  type CustomerAuthPort,
+  type CustomerTotpEnrolmentPort,
 } from '@b2b/contracts';
-import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
+import { HttpError } from '../../http/error-envelope.js';
 import { Organization } from './entities/organization.entity.js';
 
 export interface OrganizationsCustomerDeps {
-  customerAuthService: CustomerAuthService;
-  addressService: AddressService;
-  totpEnrolmentService: TotpEnrolmentService;
+  customerAuthService: CustomerAuthPort;
+  addressService: AddressServicePort;
+  totpEnrolmentService: CustomerTotpEnrolmentPort;
+  /**
+   * `customer_accounts`' own read, where `GET /api/v1/me` used to load that
+   * module's entity (feature 075, Phase C). With it off the endpoint fails
+   * closed — a profile page that cannot identify its caller must refuse, not
+   * render an empty one.
+   */
+  customerAccountRead: CustomerAccountReadPort;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
@@ -56,7 +65,7 @@ export async function registerOrganizationsCustomerRoutes(
     async (request) => {
       const ctx = deps.resolveCustomerActorOptionalOrg(request);
       const em = deps.emFactory();
-      const customer = await em.findOne(CustomerAccount, { id: ctx.customerAccountId });
+      const customer = await deps.customerAccountRead.findById(ctx.customerAccountId);
       if (!customer) {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
       }
@@ -212,7 +221,7 @@ function serializeAddress(a: {
   };
 }
 
-function serializeCustomer(c: CustomerAccount) {
+function serializeCustomer(c: CustomerAccountRecord) {
   return {
     id: c.id,
     organizationId: c.organizationId,
@@ -221,7 +230,7 @@ function serializeCustomer(c: CustomerAccount) {
     lastName: c.lastName,
     role: c.role,
     emailVerifiedAt: c.emailVerifiedAt?.toISOString() ?? null,
-    twoFactorEnabled: !!c.twoFactorConfirmedAt,
+    twoFactorEnabled: c.twoFactorEnabled,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };

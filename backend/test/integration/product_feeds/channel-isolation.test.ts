@@ -1,8 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ProductSelectionRule } from '@b2b/contracts';
+import { codeOnly } from '../../../scripts/lib/source-text.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -10,7 +11,7 @@ import {
 } from '../../helpers/test-server.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
 import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
@@ -143,6 +144,8 @@ describe('product feed channel isolation [integration]', () => {
 
     // One price list covering everything, named by every feed here, so an
     // absent price can never be mistaken for channel scoping doing its job.
+    // Catch-all rather than `isSystem` (issue #50): the system flag marks the
+    // platform's one seeded `Default` row and is now a database singleton.
     const priceList = em.create(PriceList, {
       code: 'feed_isolation_list',
       name: 'Feed isolation list',
@@ -150,7 +153,6 @@ describe('product feed channel isolation [integration]', () => {
       type: 'base',
       status: 'active',
       applicationRule: { kind: 'all' },
-      isSystem: true,
       modifiedAt: new Date(),
     });
     await em.persistAndFlush(priceList);
@@ -428,108 +430,25 @@ describe('product feed channel isolation [integration]', () => {
         const source = readFileSync(file, 'utf8');
         // Prose in comments is allowed to name the table (the service header
         // explains precisely why it must not be queried); a SQL string is not.
-        const sql = source
-          .split('\n')
-          .filter((line) => !line.trim().startsWith('*') && !line.trim().startsWith('//'))
-          .join('\n');
+        // The parser decides which spans are comments — this used to be a
+        // line-prefix filter, one of the four hand-rolled comment strippers
+        // issue #241 swept. It left a trailing `// … from sales_channel_x` in
+        // place, which would have failed this assertion over a sentence, and it
+        // dropped any line beginning with `*`, comment or not.
+        const sql = codeOnly(source, file);
         expect(sql, `${file} must not query sales_channel_* directly`).not.toMatch(
           /from\s+"?sales_channel_\w+"?|join\s+"?sales_channel_\w+"?|into\s+"?sales_channel_\w+"?/i,
         );
       }
     });
 
-    /**
-     * The reads this module performs on a rule-listed entity that genuinely
-     * carry no channel dimension. Each is here with its reason; anything not on
-     * this list is a finding, and the list is asserted to be exact, so a stale
-     * entry fails just as loudly as a new violation.
-     *
-     * `eslint-rules/no-unscoped-channel-query.js` is deliberately conservative
-     * (its own header says so) and is not yet referenced from
-     * `eslint.config.js`, so it is run here directly rather than through the
-     * repo lint task — which is also what makes "the module is clean under it"
-     * a statement someone can rely on when it is finally switched on.
-     */
-    const ALLOWED_UNSCOPED: ReadonlyArray<{ file: string; entity: string; why: string }> = [
-      {
-        file: 'services/product-feed.service.ts',
-        entity: 'PriceList',
-        why: 'existence check on the price list a feed names — a price list is not a per-channel object',
-      },
-      {
-        file: 'services/product-selection.service.ts',
-        entity: 'Product',
-        why: 'sampleProducts re-reads ids that iterateProductIds already scoped to the channel',
-      },
-      {
-        file: 'services/taxonomy-mapping.service.ts',
-        entity: 'Category',
-        why: 'category → provider-node mappings are installation-wide by design (FR-079), never per channel',
-      },
-      {
-        file: 'services/taxonomy-revision.service.ts',
-        entity: 'Category',
-        why: 'the impact preview counts coverage over the whole category tree — mappings carry no channel dimension (FR-081), so a channel-scoped read would report a loss that does not depend on the channel',
-      },
-    ];
-
-    it('is clean under no-unscoped-channel-query, bar the documented reads', async () => {
-      const { Linter } = await import('eslint');
-      const tsParser = (await import('@typescript-eslint/parser')).default;
-      // The rule is plain JavaScript with no type declarations — a lint asset,
-      // not a compiled module — so it is loaded by URL rather than by a static
-      // specifier `tsc` would demand types for.
-      const rulePath = pathToFileURL(
-        join(HERE, '../../../../eslint-rules/no-unscoped-channel-query.js'),
-      ).href;
-      const plugin = ((await import(rulePath)) as { default: { rules: Record<string, unknown> } })
-        .default;
-
-      const linter = new Linter();
-      const findings: Array<{ file: string; entity: string; line: number }> = [];
-      for (const file of moduleSources(MODULE_ROOT)) {
-        const messages = linter.verify(
-          readFileSync(file, 'utf8'),
-          [
-            {
-              files: ['**/*.ts'],
-              languageOptions: { parser: tsParser as never },
-              linterOptions: { reportUnusedDisableDirectives: 'off' },
-              plugins: { channels: plugin as never },
-              rules: { 'channels/no-unscoped-channel-query': 'error' },
-            },
-          ],
-          file,
-        );
-        for (const message of messages) {
-          const entity = /`\w+\((\w+), …\)`/.exec(message.message)?.[1] ?? 'unknown';
-          findings.push({
-            file: file.slice(MODULE_ROOT.length + 1),
-            entity,
-            line: message.line,
-          });
-        }
-      }
-
-      const unexpected = findings.filter(
-        (finding) =>
-          !ALLOWED_UNSCOPED.some(
-            (allowed) => allowed.file === finding.file && allowed.entity === finding.entity,
-          ),
-      );
-      expect(
-        unexpected.map((f) => `${f.file}:${f.line} ${f.entity}`),
-        'a channel-scoped entity is read without the channel in scope — thread it through or document it here',
-      ).toEqual([]);
-
-      // Exactness: an allow-list entry that no longer corresponds to a real read
-      // is a comment claiming a scoping decision nobody is making any more.
-      for (const allowed of ALLOWED_UNSCOPED) {
-        expect(
-          findings.some((f) => f.file === allowed.file && f.entity === allowed.entity),
-          `stale allow-list entry: ${allowed.file} / ${allowed.entity}`,
-        ).toBe(true);
-      }
-    });
+    // This file used to run `eslint-rules/no-unscoped-channel-query.js` by path
+    // — the only live reader that rule ever had. D-87 deleted it: it was wired
+    // into no ESLint config, it never looked at a bridge table, and the
+    // Constitution had credited it with enforcing the accessor clause since
+    // feature 005. The repo-wide mechanism is `check:module-boundary`'s `sql`
+    // predicate, which resolves `sales_channel_*` to its owner from the DDL and
+    // ledgers every raw reach. The source-level assertion above stays: it is
+    // this module's own, and it is cheaper to read than a ledger diff.
   });
 });

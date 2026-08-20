@@ -1,16 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
-import type {
-  OrderReturnContext,
-  OrderReturnContextPort,
-} from '../../returns/ports/order-return-context.port.js';
+import type { OrderReturnContext, OrderReturnContextPort } from '@b2b/contracts';
 
 /**
- * Orders-side implementation of the returns module's `OrderReturnContextPort`
- * (feature 046, R4). Exposes the order facts the returns module needs through a
- * single documented interface, so the returns module never reads `orders` tables
- * directly.
+ * Orders-side implementation of `OrderReturnContextPort` (feature 046, R4).
+ * Exposes the order facts the returns module needs through a single documented
+ * interface, so the returns module never reads `orders` tables directly.
+ *
+ * The interface itself is published in `@b2b/contracts` (feature 075, Phase P);
+ * `returns` declares the shape it needs and this module implements it, which is
+ * the direction the port was designed in and the reason it can be named from
+ * both sides without either module importing the other.
  *
  * MVP note: the fulfilment-completing anchor uses the orders default completing
  * status (`completed`) and the order's `updatedAt` as the entered-at timestamp.

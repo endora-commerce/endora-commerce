@@ -3,12 +3,19 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
 import { Order } from '../entities/order.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { Mailer } from '../../email/services/mailer.js';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type {
+  CustomerAccountReadPort,
+  EmailMailerPort,
+  TransactionalEmailSender,
+} from '@b2b/contracts';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import { buildOrderCommentNotificationEmail } from '../email-templates/order-comment-notification.js';
-import { sendOrderTransactionalEmail } from './transactional-email-helper.js';
+import {
+  orderEmailNotSent,
+  sendOrderTransactionalEmail,
+  type OrderEmailResult,
+} from './transactional-email-helper.js';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /**
  * OrderCommentService — feature 038 (US5).
@@ -23,7 +30,8 @@ export class OrderCommentService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly graphService: OrderStatusGraphService,
-    private readonly mailer?: Mailer,
+    private readonly customerAccountRead: CustomerAccountReadPort,
+    private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
 
@@ -100,9 +108,21 @@ export class OrderCommentService {
     return order;
   }
 
-  private async notifyCustomer(em: EntityManager, order: Order, body: string): Promise<void> {
-    const customer = await em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId });
-    if (!customer?.email) return;
+  /**
+   * Tells the customer about a comment, and reports whether it went out.
+   *
+   * It answered `void` before (issue #78): no address on the customer, no
+   * mailer in the composition, an operator-deactivated template and a send that
+   * raised all produced the same nothing as a delivered message.
+   */
+  private async notifyCustomer(
+    em: EntityManager,
+    order: Order,
+    body: string,
+  ): Promise<OrderEmailResult> {
+    const context = { orderId: order.id, code: 'order_comment' };
+    const customer = await this.customerAccountRead.findById(order.placedByCustomerAccountId);
+    if (!customer?.email) return orderEmailNotSent(undefined, context, 'no_recipient');
     const message = buildOrderCommentNotificationEmail({
       to: customer.email,
       orderId: order.id,
@@ -110,21 +130,27 @@ export class OrderCommentService {
       body,
     });
     const sender = this.getTransactionalEmailSender?.();
+    if (sender) {
+      return sendOrderTransactionalEmail(em, sender, order, {
+        orderId: order.id,
+        code: 'order_comment',
+        to: customer.email,
+        messageId: message.messageId,
+        variables: { order: { businessId: order.businessId }, comment: { body } },
+        meta: { orderId: order.id, kind: 'order_comment' },
+      });
+    }
+    if (!this.mailer) return orderEmailNotSent(undefined, context, 'no_transport');
     try {
-      if (sender) {
-        await sendOrderTransactionalEmail(em, sender, order, {
-          code: 'order_comment',
-          to: customer.email,
-          messageId: message.messageId,
-          variables: { order: { businessId: order.businessId }, comment: { body } },
-          meta: { orderId: order.id, kind: 'order_comment' },
-        });
-        return;
-      }
-      if (!this.mailer) return;
-      await this.mailer.send(message);
-    } catch {
-      // Notification delivery is best-effort; never block the comment.
+      const outcome = await this.mailer.send(message);
+      return outcome.status === 'sent'
+        ? { sent: true }
+        : orderEmailNotSent(undefined, context, 'suppressed');
+    } catch (error) {
+      // Notification delivery is best-effort; never block the comment. A
+      // switched-off module is not a delivery failure, so it travels on.
+      rethrowIfModuleDisabled(error);
+      return orderEmailNotSent(undefined, context, 'failed', error);
     }
   }
 }

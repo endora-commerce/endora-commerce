@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { CommandBus } from '../../../src/commands/command-bus.js';
 import { EventBus } from '../../../src/events/bus.js';
-import { AuditLogService } from '../../../src/modules/audit_logs/services/audit-log-service.js';
-import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import {
   CatalogAdminService,
   type CatalogEventBus,

@@ -34,8 +34,6 @@
   "cache.namespace.dictionaries.description": "Rozwiązane rejestry i wpisy słowników (kraje itp.).",
   "cache.namespace.carts.label": "Wycena koszyka",
   "cache.namespace.carts.description": "Zbuforowane migawki przeliczeń koszyka.",
-  "cache.namespace.modules.label": "Rejestr modułów",
-  "cache.namespace.modules.description": "Zbuforowany zbiór włączonych modułów używany przez bramkę cyklu życia.",
   "page.title": "Ustawienia",
   "page.description": "Konfiguracja per kanał sprzedaży, pogrupowana w sekcje. Każde ustawienie jest deklarowane przez moduł backendu; wartości można stosować do wszystkich kanałów lub do wybranego podzbioru.",
   "groups.page.title": "Grupy ustawień",
@@ -154,5 +152,12 @@
   "editor.placeholder.secretSet": "Wartość jest ustawiona — wpisz nową, aby ją zastąpić",
   "editor.placeholder.secretUnset": "Wpisz wartość sekretu",
   "editor.secretIsSet": "Sekret jest ustawiony (tylko do zapisu, nigdy nie jest wyświetlany)",
-  "editor.secretNotSet": "Sekret nie jest ustawiony"
+  "editor.secretNotSet": "Sekret nie jest ustawiony",
+  "activation.title": "Moduł",
+  "activation.on": "Włączony",
+  "activation.off": "Wyłączony",
+  "activation.managedOnPlatformScreen": "To jest przełącznik włączania modułu. Zarządza się nim na ekranie Moduły, razem z tym, co udostępnia ta instalacja.",
+  "activation.openPlatformScreen": "Otwórz Moduły",
+  "editor.readOnly": "Tylko do odczytu",
+  "editor.readOnlyReason": "Moduł, do którego należy to ustawienie, jest wyłączony. Zapisana wartość jest zachowana i będzie ponownie edytowalna po włączeniu modułu."
 }

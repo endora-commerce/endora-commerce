@@ -13,6 +13,8 @@ import {
 } from '../../../lib/session';
 import { Hook } from '../../../components/Hook';
 import { SocialLoginButtons } from '../../../components/SocialLoginButtons';
+import { getServerContext } from '../../../lib/server-context';
+import { getFederatedSignInProviders } from '../../../lib/api/federated-sign-in';
 
 /**
  * Storefront login page (T151 / FR-040). Submits via a server action,
@@ -30,6 +32,22 @@ export default async function LoginPage({
   const params = await searchParams;
   const error = params.error;
   const nextPath = sanitiseNext(params.next);
+
+  // Issue #193 — the federated block is decided **before the HTML is sent**, so
+  // it renders its final shape on first paint: no button appears and then
+  // vanishes under a cursor on the most security-sensitive screen in the shop.
+  //
+  // Two inputs, and `mfa` absent short-circuits the second: presence is
+  // projected from `/module-presence` (Constitution XVII item 5 — the frontend
+  // resolves absence from the server's effective enabled-set, it does not
+  // hard-code a module list), and the provider list is the channel-scoped
+  // "configured AND enabled" answer. Both settings default to `false`, so the
+  // honest default rendering is nothing at all.
+  const { ctx, locale, modules } = await getServerContext();
+  const mfaPresent = modules.isPresent('mfa');
+  const federatedProviders = mfaPresent
+    ? await getFederatedSignInProviders(ctx)
+    : [];
 
   return (
     <>
@@ -62,6 +80,9 @@ export default async function LoginPage({
         <SocialLoginButtons
           backendBaseUrl={process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001'}
           next={nextPath}
+          locale={locale}
+          modulePresent={mfaPresent}
+          availableProviders={federatedProviders}
         />
         <p className="b2b-auth__hint">
           Forgot your password? <Link href="/password-reset/request">Reset it</Link>.

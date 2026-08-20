@@ -64,6 +64,20 @@ before/after events and is written to the audit log.
   quantity and may never exceed it. Resolutions: refund (money), credit (tops up
   the organization's `credit_limits` grant), replacement, or repair. A corrective
   invoice (`invoices` kind `correction`) is requested for money/credit settlements.
+  An order that was never invoiced has no VAT document to correct, so none is
+  issued: the settlement succeeds, the refund is recorded on the return case and
+  the payment record, and the result states `correctiveInvoice: { issued: false,
+  reason: "order_not_invoiced" }`.
+- **A switched-off payment gateway refuses the settlement** (issue #104, D-71).
+  Money resolutions on a gateway-paid order call the PSP module that took the
+  payment; when an operator has that module switched off — or the deployment
+  does not offer it — the settlement answers `503 MODULE_DISABLED` naming the
+  module, with `Retry-After`. Nothing moves: the case keeps its status, no
+  `refunds` row is written, no corrective invoice is issued and no customer
+  e-mail goes out. Switching the module back on is the whole remedy. This is
+  distinct from a deployment that has **no** PSP refund integration at all,
+  which still settles as `pending_manual` for a person to pay out by hand —
+  there is nothing there to switch on.
 
 ## Cross-module interfaces (Principle I)
 
@@ -71,8 +85,11 @@ The module reads/affects other domains only through documented ports, never
 internal imports:
 
 - `OrderReturnContextPort` (orders) — paid-per-line amounts + completing-status time.
-- `PaymentRefundPort` (payments) — issue refund or `pending_manual`.
-- `CorrectiveInvoicePort` (invoices) — create a `correction` invoice.
+- `PaymentRefundPort` (payments) — issue the refund, answer `pending_manual`
+  where no PSP integration exists, or refuse when the gateway that took the
+  payment is switched off (D-71).
+- `CorrectiveInvoicePort` (invoices) — create a `correction` invoice, or answer
+  that none is due because the order carries no invoice to correct.
 - `CreditTopupPort` (credit_limits) — credit the organization grant.
 - `ShipmentService` (shipments) — optional replacement outbound shipment.
 

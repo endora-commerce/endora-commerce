@@ -4,7 +4,6 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SearchEventSubscriber } from '../../../src/modules/search/services/search-event-subscriber.js';
 import type { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
 import { CredentialConfiguration } from '../../../src/modules/credentials/entities/credential-configuration.entity.js';
 import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
@@ -37,11 +36,11 @@ describe('LLM reactor — settings.value_changed → embedder attach/detach (T02
       Buffer.from(Array.from({ length: 32 }, (_, i) => i + 1)).toString('base64');
     h = await setupBackendServer();
 
-    // Replace the reactor's indexer with a recording fake so the test
-    // doesn't depend on Meilisearch task-queue timing. Tear down the
-    // real subscriber's wiring first to avoid double-handling.
-    h.search.subscriber.teardown();
-
+    // Replace the reactor's indexer with a recording fake so the test doesn't
+    // depend on Meilisearch task-queue timing. The subscription itself belongs
+    // to `search/backend.ts` now (issue #107) and is gated there, so the test
+    // swaps the indexer *inside* the composed subscriber rather than tearing
+    // the wiring down and attaching an ungated copy of it.
     const fakeIndexer: Pick<
       SearchIndexer,
       'attachEmbedderForChannel' | 'detachEmbedderForChannel'
@@ -53,14 +52,12 @@ describe('LLM reactor — settings.value_changed → embedder attach/detach (T02
         recorded.push({ kind: 'detach', channelCode });
       },
     };
-    const replacement = new SearchEventSubscriber({
-      eventBus: h.eventBus as never,
-      emFactory: h.em,
-      indexer: fakeIndexer as SearchIndexer,
-      settingsService: h.settings.settingsService,
-      credentials: h.credentials.service,
-    });
-    unsubscribe = replacement.subscribe();
+    const deps = (h.search.subscriber as unknown as { deps: { indexer: SearchIndexer } }).deps;
+    const realIndexer = deps.indexer;
+    deps.indexer = fakeIndexer as SearchIndexer;
+    unsubscribe = () => {
+      deps.indexer = realIndexer;
+    };
   }, 60_000);
 
   afterAll(async () => {

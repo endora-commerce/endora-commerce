@@ -11,14 +11,32 @@ import type { PromotionService, UpsertPromotionInput } from './services/promotio
 import type { CouponService } from './services/coupon-service.js';
 import type { PromotionRuleStore } from './services/promotion-rule-store.js';
 import type { PromotionStatsService, StatsQuery } from './services/promotion-stats-service.js';
-import type { PromotionRuleTargetPorts } from './plugin.js';
+
+/**
+ * List ports feeding the Rule Builder pickers (feature 045, US1/T033).
+ *
+ * Declared here rather than in a module factory since feature 072 (T115): the
+ * factory is gone, and these are the routes' own option shape. Every member is
+ * optional because a composition may know how to list some target kinds and not
+ * others — an absent one yields an empty picker rather than a broken screen.
+ */
+export interface PromotionRuleTargetPorts {
+  salesChannels?: () => Promise<Array<{ id: string; code: string; name: string }>>;
+  customerGroups?: () => Promise<Array<{ id: string; code: string; name: string }>>;
+  organizations?: () => Promise<Array<{ id: string; name: string; taxId: string | null }>>;
+  categories?: () => Promise<
+    Array<{ id: string; slug: string; name: string; parentCategoryId: string | null }>
+  >;
+  paymentMethods?: () => Promise<Array<{ id: string; code: string; name: string }>>;
+  deliveryMethods?: () => Promise<Array<{ id: string; code: string; name: string }>>;
+}
 import { promotionStatsGroupBySchema } from '@b2b/contracts';
 import type { Promotion } from './entities/promotion.entity.js';
 import type { PromotionCoupon } from './entities/promotion-coupon.entity.js';
 import type { PromotionRuleEntity } from './entities/promotion-rule.entity.js';
 import { PROMOTION_PERMISSIONS } from './manifest.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
-import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
+import type { CatalogPromoAttributePort } from '@b2b/contracts';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface PromotionRoutesDeps {
   promotionService: PromotionService;
@@ -26,10 +44,37 @@ export interface PromotionRoutesDeps {
   ruleStore: PromotionRuleStore;
   statsService: PromotionStatsService;
   requireAdmin: RequireAdminFactory;
-  /** Feature 012 / US8 — feeds the rule-target picker endpoint. */
-  catalogQueryService?: CatalogQueryService;
-  /** Feature 045 (T033) — list ports for the remaining rule-target pickers. */
-  ruleTargets?: PromotionRuleTargetPorts;
+  /**
+   * Feature 012 / US8 — feeds the rule-target picker endpoint. Since feature
+   * 075's Phase C this is `catalogPromoAttributePort`, the two questions this
+   * picker asks, rather than `catalog`'s 1400-line storefront query service.
+   *
+   * **Required** (issue #164), for the reason the two ports on
+   * `PromotionService` are. It was optional and the one call site there is —
+   * `backend.ts`, through `lazyPort('catalogPromoAttributePort')` — always
+   * supplied it, so the absent branch had never run; what it would have run
+   * was `503 { code: 'service_unavailable' }`, a code written nowhere else in
+   * the repository, in no `ERROR_CODES`, with no translation and no admin
+   * handler. That made it a second spelling of one absence, and the platform
+   * already spells that absence once: `lazyPort` resolves inside the forwarded
+   * call, so an owner that is not there throws `ModuleDisabledError` and the
+   * envelope answers 503 `MODULE_DISABLED` naming the module. Here even that
+   * cannot happen — `catalog` declares `activation.nonDeactivatable`, so the
+   * gate on this port has no closed state — which leaves exactly one absence
+   * this route can see, and it is the one `getAttributeWithOptions` already
+   * says in its return type: `null`, no such attribute.
+   */
+  catalogPromoAttributes: CatalogPromoAttributePort;
+  /**
+   * Feature 045 (T033) — list ports for the remaining rule-target pickers.
+   *
+   * The bundle is required and its **members** are not: the container
+   * registers `promotionRuleTargets` with a `{}` default that a composition
+   * root contributes over, so the routes always receive one, while which
+   * picker kinds it knows how to list stays the composition's business
+   * (issue #164 again — the outer `?.` guarded nothing).
+   */
+  ruleTargets: PromotionRuleTargetPorts;
 }
 
 export async function registerPromotionRoutes(
@@ -42,7 +87,7 @@ export async function registerPromotionRoutes(
     ruleStore,
     statsService,
     requireAdmin,
-    catalogQueryService,
+    catalogPromoAttributes,
     ruleTargets,
   } = deps;
 
@@ -156,15 +201,11 @@ export async function registerPromotionRoutes(
   app.get(
     '/api/v1/admin/promotions/rule-targets/attributes',
     { preHandler: readGate },
-    async (_request, reply) => {
-      if (!catalogQueryService) {
-        reply.status(503);
-        return { error: { code: 'service_unavailable', message: 'Catalog port not configured.' } };
-      }
-      const keys = await catalogQueryService.promoRuleAttributeKeys();
+    async () => {
+      const keys = await catalogPromoAttributes.promoRuleAttributeKeys();
       const items = [];
       for (const k of keys) {
-        const meta = await catalogQueryService.getAttributeWithOptions(k);
+        const meta = await catalogPromoAttributes.getAttributeWithOptions(k);
         if (!meta) continue;
         const isSelectStyle =
           meta.valueType === 'select' ||
@@ -248,22 +289,22 @@ export async function registerPromotionRoutes(
 
   // Feature 045 (T033) — rule-target pickers feeding the Rule Builder.
   app.get('/api/v1/admin/promotions/rule-targets/sales-channels', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.salesChannels?.()) ?? [] },
+    data: { items: (await ruleTargets.salesChannels?.()) ?? [] },
   }));
   app.get('/api/v1/admin/promotions/rule-targets/customer-groups', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.customerGroups?.()) ?? [] },
+    data: { items: (await ruleTargets.customerGroups?.()) ?? [] },
   }));
   app.get('/api/v1/admin/promotions/rule-targets/organizations', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.organizations?.()) ?? [] },
+    data: { items: (await ruleTargets.organizations?.()) ?? [] },
   }));
   app.get('/api/v1/admin/promotions/rule-targets/categories', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.categories?.()) ?? [] },
+    data: { items: (await ruleTargets.categories?.()) ?? [] },
   }));
   app.get('/api/v1/admin/promotions/rule-targets/payment-methods', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.paymentMethods?.()) ?? [] },
+    data: { items: (await ruleTargets.paymentMethods?.()) ?? [] },
   }));
   app.get('/api/v1/admin/promotions/rule-targets/delivery-methods', { preHandler: readGate }, async () => ({
-    data: { items: (await ruleTargets?.deliveryMethods?.()) ?? [] },
+    data: { items: (await ruleTargets.deliveryMethods?.()) ?? [] },
   }));
 
   app.delete<{ Params: { id: string } }>(

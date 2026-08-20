@@ -84,6 +84,10 @@ function fixtureView(overrides: Partial<ComparisonOwnerView> = {}): ComparisonOw
     shareToken: 'AAAAAAAAAAAAAAAAAAAAAA',
     displayMode: 'all',
     maxProducts: 4,
+    // The owner exports their own comparison, so the figures in it are their
+    // organisation's.
+    pricedFor: 'organization',
+    hiddenProductCount: 0,
     products: [
       productSummary('p1', 'Red Widget', 'http://localhost/red.png', 1900),
       productSummary('p2', 'Blue Widget', 'http://localhost/blue.png', 2400),

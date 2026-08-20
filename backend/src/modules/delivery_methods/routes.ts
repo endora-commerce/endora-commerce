@@ -2,15 +2,20 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, deliveryMethodUpsertSchema } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import type { CommandBus } from '../../commands/index.js';
+import {
+  makeDeleteDeliveryMethodCommand,
+  makeUpsertDeliveryMethodCommand,
+} from './commands/delivery-method.commands.js';
 import { DeliveryMethod } from './entities/delivery-method.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
-import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import type { ShippingAdapterRegistry } from './services/shipping-adapter-registry.js';
 import type { ShippingMethodEligibilityService } from './services/shipping-method-eligibility.js';
 import {
   OrderStatusRegistryError,
   type OrderStatusRegistry,
 } from './services/order-status-registry.port.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Delivery-method catalog routes (feature 035 — adapter framework).
@@ -36,6 +41,8 @@ export interface DeliveryMethodsPublicDeps {
 export interface DeliveryMethodsAdminDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  /** Issue #125 — the two admin writes run on the bus (Principle XIII). */
+  commandBus: CommandBus;
   /** Feature 005 / T027b — new delivery methods auto-bind to the system default. */
   salesChannelMembership?: SalesChannelMembershipService;
   /** Feature 035 — validates `adapter` against the registered adapters. */
@@ -111,12 +118,6 @@ export async function registerDeliveryMethodsAdminRoutes(
       const body = deliveryMethodUpsertSchema.parse(request.body);
       const em = deps.emFactory();
 
-      let row = await em.findOne(DeliveryMethod, { code: request.params.code });
-      let isNew = false;
-      // The adapter is set at registration time and rarely changed; preserve an
-      // existing row's adapter unless the body explicitly overrides it. A new
-      // row defaults its adapter to the code.
-      const adapter = body.adapter ?? row?.adapter ?? request.params.code;
       // Only hard-reject an *explicitly* provided unknown adapter. A row whose
       // derived adapter is not registered is retained but excluded from
       // selection by the eligibility filter (FR-003), so admins can still
@@ -135,29 +136,21 @@ export async function registerDeliveryMethodsAdminRoutes(
         }
       }
 
-      if (row) {
-        row.name = body.name;
-        row.cost = body.cost.toFixed(2);
-        row.currency = body.currency;
-        row.adapter = adapter;
-        if (body.status !== undefined) row.status = body.status;
-        if (body.statusOnSuccess !== undefined) row.statusOnSuccess = body.statusOnSuccess;
-        if (body.statusOnFailure !== undefined) row.statusOnFailure = body.statusOnFailure;
-      } else {
-        row = em.create(DeliveryMethod, {
+      // The read below only tells the Command whether this call creates or
+      // updates; the write itself happens inside the bus transaction, which is
+      // also where the adapter is resolved against the row it finds (#125).
+      const existing = await em.findOne(DeliveryMethod, { code: request.params.code });
+      const { method: row, created: isNew } = await deps.commandBus.run(
+        makeUpsertDeliveryMethodCommand({
           code: request.params.code,
-          name: body.name,
-          cost: body.cost.toFixed(2),
-          currency: body.currency,
-          adapter,
-          status: body.status ?? 'active',
-          statusOnSuccess: body.statusOnSuccess ?? 'shipment_sent',
-          statusOnFailure: body.statusOnFailure ?? 'processing',
-        });
-        isNew = true;
-      }
-      await em.persistAndFlush(row);
+          body,
+          existingId: existing?.id ?? null,
+        }),
+      );
 
+      // Channel membership is the sales-channel bridge's own write, on its own
+      // EntityManager, so it stays outside the Command rather than pretending to
+      // share its transaction.
       if (isNew && deps.salesChannelMembership) {
         await deps.salesChannelMembership.bindToDefaultIfEmpty('delivery-method', row.id);
       }
@@ -174,21 +167,10 @@ export async function registerDeliveryMethodsAdminRoutes(
     '/api/v1/admin/delivery-methods/:id',
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
-      const em = deps.emFactory();
-      const row = await em.findOne(DeliveryMethod, { id: request.params.id });
-      if (!row) {
-        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Delivery method not found.');
-      }
-      // Delete-guard (FR-003): never orphan a Shipment's method reference.
-      const referencing = await countShipmentsForMethod(em, row.id);
-      if (referencing > 0) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Cannot delete delivery method: ${referencing} shipment(s) reference it. Set status to "inactive" instead.`,
-        );
-      }
-      await em.removeAndFlush(row);
+      // The 404 and the delete-guard (FR-003) live inside the Command, on its
+      // transaction: the guard's answer and the delete are then the same moment
+      // rather than two.
+      await deps.commandBus.run(makeDeleteDeliveryMethodCommand(request.params.id));
       return reply.status(204).send();
     },
   );
@@ -203,18 +185,6 @@ function assertValidStatus(registry: OrderStatusRegistry, ref: string): void {
     }
     throw err;
   }
-}
-
-async function countShipmentsForMethod(em: EntityManager, methodId: string): Promise<number> {
-  const rows = await em
-    .getConnection()
-    .execute<Array<{ count: string }>>(
-      `select count(*)::text as count from "shipments" where "delivery_method_id" = ?`,
-      [methodId],
-      'all',
-      em.getTransactionContext(),
-    );
-  return Number(rows[0]?.count ?? '0');
 }
 
 async function replaceChannelMembership(

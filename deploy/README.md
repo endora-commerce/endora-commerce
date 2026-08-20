@@ -91,20 +91,50 @@ The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
 2. Run the manual **`deploy`** job. It ships `compose.prod.yml` (the host nginx
    config stays on the VPS, owned by the operator), pulls the tagged images, runs
    migrations (`backend-migrate`), and starts the stack.
-3. **Seed test data** + **create an admin user** (once), on the VPS:
+3. **Create an admin user** (once), on the VPS:
    ```bash
    cd /opt/b2b
    export IMAGE_TAG=<deployed-sha>   # or: latest
-   # demo catalog:
-   docker compose --env-file .env -f compose.prod.yml --profile seed run --rm seed
-   # admin user (interactive prompts):
    docker compose --env-file .env -f compose.prod.yml run --rm backend \
      pnpm exec tsx src/modules/admin_users/scripts/create-admin.ts
    ```
 
+   There is **no data-seeding step**. A deployment starts empty on purpose; the catalogue is
+   the client's. The developer demo seed is not part of a deployment — see *Populating a demo
+   host* below, which is not a step of this procedure.
+
+4. **For a real client deployment, work through
+   `docs/docs/deployment/first-deployment-checklist.md`.** This file gets the stack running;
+   that one covers what the code cannot decide for the operator — permission grants, module
+   activation, seller identity, gateway environments, backups, and the one environment value
+   these templates still do not carry (`SMTP_URL`).
+
 Subsequent deploys: just run the `deploy` job. Migrations run before the API
 starts every time; rollback = re-run `deploy` from an older pipeline (its images
 are tagged by that commit's SHA).
+
+---
+
+## Populating a demo host — **never a client deployment**
+
+> The developer demo seed **truncates the public catalog and business tables**. It exists to
+> fill a demo or sales host with example data, and it is correct for that and for nothing
+> else. Run it on a host whose data you are willing to lose, and on no other.
+
+`compose.prod.yml` used to ship a `seed` service with `ALLOW_DEV_SEED_IN_PRODUCTION=true`
+already set — the flag whose whole purpose is that an accidental run cannot wipe real data —
+and this file listed it as a deployment step. It no longer exists (issue #218). To populate a
+demo host, the override is typed at the moment it is meant:
+
+```bash
+cd /opt/b2b
+export IMAGE_TAG=<deployed-sha>
+docker compose --env-file .env -f compose.prod.yml run --rm \
+  -e ALLOW_DEV_SEED_IN_PRODUCTION=true backend \
+  pnpm exec tsx src/seeds/dev-catalog-seed.ts
+```
+
+Without that `-e`, the script refuses to run under `NODE_ENV=production` and says so.
 
 ---
 
@@ -137,5 +167,13 @@ docker compose --env-file .env -f compose.prod.yml run --rm backend \
   the SPA, storefront's standalone server starts and listens. `docker compose
   -f deploy/compose.prod.yml config` also validates. The CI runner uses BuildKit
   (`docker:dind`); a local legacy builder works too.
+- **Client IP**: the backend trusts `X-Forwarded-For` only from the hop named by
+  `TRUSTED_PROXY_HOPS` (or `TRUSTED_PROXY_ADDRESSES`). `.env.prod.example` ships
+  `TRUSTED_PROXY_HOPS=1`, which is right for this stack — one host nginx in front
+  of the backend. Leave it unset and every request looks like it came from the
+  proxy: the per-IP rate limit becomes a single shared bucket and the security
+  audit rows record the proxy's address instead of the actor's. Raise it by one
+  per extra proxy (a CDN in front of nginx makes it 2); the backend refuses to
+  boot on a value it cannot make sense of, and has no "trust every hop" setting.
 - **Single environment**: this setup targets one test/staging host. For
   staging+prod, parameterise domains/volumes per environment (or use a second VPS).

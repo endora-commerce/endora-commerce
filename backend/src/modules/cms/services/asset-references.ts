@@ -16,14 +16,14 @@
 // under MikroORM in some cases (carried over from feature 013).
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AssetReference } from '@b2b/contracts';
 import type {
+  AssetReference,
   AssetReferenceDescriptor,
-  AssetReferenceRegistry,
-} from '../../assets_library/services/reference-registry.js';
+  AssetReferenceRegistryPort,
+} from '@b2b/contracts';
 
 export function registerCmsAssetReferences(
-  registry: AssetReferenceRegistry,
+  registry: AssetReferenceRegistryPort,
   emFactory: () => EntityManager,
 ): void {
   registry.register(cmsAssetReferenceDescriptor(emFactory));
@@ -33,16 +33,16 @@ function cmsAssetReferenceDescriptor(
   emFactory: () => EntityManager,
 ): AssetReferenceDescriptor {
   return {
+    ownerModuleId: 'cms',
     async findReferences(assetIds: string[]): Promise<AssetReference[]> {
       if (assetIds.length === 0) return [];
       const em = emFactory();
-      const conn = em.getConnection();
       const out: AssetReference[] = [];
       for (const aidRaw of assetIds) {
         const aid = aidRaw.replace(/[^0-9a-fA-F-]/g, '');
         const path = `'$.** ? (@ == "${aid}")'::jsonpath`;
 
-        const rows = (await conn.execute(
+        const rows = (await em.execute(
           `select id::text as id, name, 'cms_page' as kind
            from cms_pages
            where jsonb_path_exists(content, ${path})

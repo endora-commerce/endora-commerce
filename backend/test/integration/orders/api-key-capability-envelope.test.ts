@@ -21,7 +21,7 @@ import {
   SEED_CREDIT_LIMIT_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-credit-limit.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
@@ -198,9 +198,21 @@ describe('external order intake — org capability envelope (062 / T022)', () =>
     expect(keyRes.statusCode).toBe(423);
     const keyCode = (keyRes.json() as { error: { code: string } }).error.code;
 
-    // Identical domain error — the org envelope caps the key (SC-009).
+    // Identical domain error — the org envelope caps the key (SC-009). The
+    // parity assertion is the one that carries the requirement; the literal
+    // below just records which code the pair settled on. Since feature 072 T141
+    // both paths resolve the same `organizationReadPort` from the container, so
+    // parity is structural rather than two root arguments that agreed.
+    //
+    // The second of the two assertions issue #63 is about: it pinned
+    // `ORGANIZATION_SUSPENDED` until 633538a9 (072 T141), and passed only
+    // because the harness had never wired the route gate that both surfaces run
+    // in production. `ORGANIZATION_SUSPENDED` is still real — it is what
+    // `OrderService`'s service seam answers to a caller that passed no route
+    // gate, which is one-click buy, covered by
+    // `test/contract/quick_order/one-click-place.test.ts`.
     expect(keyCode).toBe(customerCode);
-    expect(keyCode).toBe(ERROR_CODES.ORGANIZATION_SUSPENDED);
+    expect(keyCode).toBe(ERROR_CODES.FORBIDDEN);
   });
 
   it('credit limit exceeded: key caller gets the same 409 LIMIT_INSUFFICIENT as the buyer (fixture reused)', async () => {

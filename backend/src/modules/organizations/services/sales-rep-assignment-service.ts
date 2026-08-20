@@ -3,8 +3,9 @@ import { OrganizationSalesRepAssignment } from '../entities/organization-sales-r
 import { Organization } from '../entities/organization.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ERROR_CODES } from '@b2b/contracts';
+import type { SalesRepAssignmentPort, SalesRepAssignmentRow } from '@b2b/contracts';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { OrganizationTreeService } from './organization-tree-service.js';
 
 /**
@@ -20,6 +21,27 @@ export interface SalesRepSubtreeDeps {
 }
 
 /**
+ * The sales-rep assignment relation as **other modules** see it:
+ * `organizations`' `organizationSalesRepScopePort` (T143a, widened for issue
+ * #108).
+ *
+ * One implementation, five questions. Before this port existed, every consumer
+ * built its own `SalesRepAssignmentService`, and each build was free to omit the
+ * optional third constructor argument — which `customers` did, so
+ * `CustomerAuthorityService` applied the flat pre-056 rule and the roll-up was
+ * skipped for every block / unblock / delete / org-assign decision. `tsc` cannot
+ * see an omitted optional argument; a single port removes the chance to omit it.
+ *
+ * Structural rather than the entity type on purpose: a consumer wants the reps,
+ * not `organizations`' ORM rows.
+ *
+ * Both declarations moved to `@b2b/contracts` in feature 075's Phase P, so the
+ * two consuming modules can name a package rather than this file. Re-exported
+ * here for the length of Phase P, which cuts no consumer.
+ */
+export type { SalesRepAssignmentPort, SalesRepAssignmentRow };
+
+/**
  * Centralised visibility predicate for the sales-rep ↔ organization
  * relation. Every endpoint that lists or operates on Quote Requests
  * (and any future module that wants the same scoping) MUST go through
@@ -32,7 +54,7 @@ export interface SalesRepSubtreeDeps {
  *   - An organization with ZERO assignment rows is in
  *     "unassigned-org fallback" mode and is visible to every sales rep.
  */
-export class SalesRepAssignmentService {
+export class SalesRepAssignmentService implements SalesRepAssignmentPort {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly auditLog?: AuditLogService,

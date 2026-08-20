@@ -1,8 +1,8 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  ADMIN_LANGUAGE_FALLBACK,
-  SUPPORTED_ADMIN_LANGUAGES,
+  LANGUAGE_FALLBACK,
+  SUPPORTED_LANGUAGES,
   SupportedAdminLanguageSchema,
   TranslationBundleEntriesSchema,
   type SupportedAdminLanguage,
@@ -86,7 +86,7 @@ export function loadModuleBundles(
     return { byLanguage: new Map() };
   }
 
-  const supported = new Set<string>(SUPPORTED_ADMIN_LANGUAGES);
+  const supported = new Set<string>(SUPPORTED_LANGUAGES);
   const files = o.readDir(dirPath).filter((f) => f.endsWith('.json'));
   const byLanguage = new Map<SupportedAdminLanguage, TranslationBundleEntries>();
 
@@ -129,11 +129,11 @@ export function loadModuleBundles(
   }
 
   // FR-016 — when the module ships any bundle at all, English MUST be present.
-  if (byLanguage.size > 0 && !byLanguage.has(ADMIN_LANGUAGE_FALLBACK)) {
+  if (byLanguage.size > 0 && !byLanguage.has(LANGUAGE_FALLBACK)) {
     throw new BundleLoadError(
       moduleId,
       'missing-fallback-bundle',
-      `[i18n] module "${moduleId}" ships translation bundles but is missing the "${ADMIN_LANGUAGE_FALLBACK}.json" fallback (FR-016).`,
+      `[i18n] module "${moduleId}" ships translation bundles but is missing the "${LANGUAGE_FALLBACK}.json" fallback (FR-016).`,
       dirPath,
     );
   }

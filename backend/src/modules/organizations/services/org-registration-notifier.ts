@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { Organization } from '../entities/organization.entity.js';
-import type { AdminNotificationService } from '../../admin_notifications/services/admin-notification-service.js';
-import type { Mailer } from '../../email/services/mailer.js';
+import type { AdminNotificationRecordPort, EmailMailerPort } from '@b2b/contracts';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
 
 /**
@@ -21,8 +21,8 @@ import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-emai
  */
 export interface OrgRegistrationNotifierDeps {
   emFactory: () => EntityManager;
-  adminNotificationService: AdminNotificationService;
-  mailer: Mailer;
+  adminNotificationService: AdminNotificationRecordPort;
+  mailer: EmailMailerPort;
   resolveRecipients: () => Promise<string[]>;
   onError?: (err: unknown) => void;
   /** Feature 047 — optional admin-editable template path. */
@@ -41,6 +41,16 @@ export class OrgRegistrationNotifier {
       await this.writeAdminNotification(org);
       await this.dispatchRecipientEmails(org);
     } catch (err) {
+      // `writeAdminNotification` reaches `admin_notifications` through a gated
+      // port, and that module declares no `activation.nonDeactivatable`: switch
+      // it off and every organization registration went silently un-notified,
+      // with `onError` absorbing the 503 (D-88). A registration nobody was told
+      // about is not a degrade `organizations` may choose on
+      // `admin_notifications`' behalf — if that module is off, the answer
+      // belongs in its own port's return type, decided by its owner. The rest
+      // of the tolerance stays: the registration itself has already committed,
+      // so an ordinary downstream failure must not poison it.
+      rethrowIfModuleDisabled(err);
       this.deps.onError?.(err);
     }
   }
@@ -87,13 +97,23 @@ export class OrgRegistrationNotifier {
           meta: { organizationId: org.id, kind: 'organization.registered' },
         });
         if (!sentViaTemplate) {
-          await this.deps.mailer.send({
+          const outcome = await this.deps.mailer.send({
             messageId,
             to,
             subject: `Nowa Organizacja: ${org.name}`,
             text: this.composeBody(org),
             meta: { organizationId: org.id, kind: 'organization.registered' },
           });
+          if (outcome.status !== 'sent') {
+            // `onError` is for a throw; a suppression is not one. Each
+            // recipient is independent, so it is named on its own — and D-59's
+            // record holds the same fact per recipient.
+            console.warn('[organizations] the new-organization e-mail was not sent', {
+              organizationId: org.id,
+              to,
+              reason: outcome.reason,
+            });
+          }
         }
       } catch (err) {
         this.deps.onError?.(err);

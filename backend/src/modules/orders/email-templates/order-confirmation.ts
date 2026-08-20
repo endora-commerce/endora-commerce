@@ -1,6 +1,8 @@
-import type { MailerSendInput } from '../../email/services/mailer.js';
-import { resolvePaymentEmailRenderer } from '../../payments/services/payment-email-renderer.js';
-import { resolveShippingEmailRenderer } from '../../shipments/services/shipping-email-renderer.js';
+import type {
+  EmailMailerSendInput,
+  PaymentEmailRendererPort,
+  ShippingEmailRendererPort,
+} from '@b2b/contracts';
 import {
   orderTotalsLabels,
   type OrderTotalsLabels,
@@ -12,9 +14,23 @@ import {
  * payment method with any additional payment cost, the applied discounts, the
  * order total summary, and the billing + shipping addresses.
  *
- * Pure builder → MailerSendInput; the payment section is rendered through the
- * payment-email renderer registry (adapter renderer or platform default).
+ * Pure builder → `EmailMailerSendInput`.
+ *
+ * **Feature 075 — the two adapter renderers arrive as ports.** This builder used
+ * to import `payments`' and `shipments`' renderer resolvers and call the
+ * functions they returned, which is two modules' internals named inside an
+ * e-mail template. It now takes the two published renderer contracts; the caller
+ * supplies `paymentEmailRendererPort` / `shippingEmailRendererPort` when those
+ * modules are effectively present, so a gateway's own wording still reaches the
+ * message and this file knows nothing about either module.
  */
+export interface OrderConfirmationRenderers {
+  /** `payments`' `paymentEmailRendererPort`, or the no-gateway baseline. */
+  readonly payment: PaymentEmailRendererPort;
+  /** `shipments`' `shippingEmailRendererPort`, or the no-carrier baseline. */
+  readonly shipping: ShippingEmailRendererPort;
+}
+
 export interface OrderConfirmationAddress {
   recipientName: string;
   street: string;
@@ -104,19 +120,20 @@ function buildSummaryLines(
  */
 export function buildOrderConfirmationVariables(
   input: BuildOrderConfirmationEmailInput & { customerFirstName?: string },
+  renderers: OrderConfirmationRenderers,
 ): Record<string, unknown> {
   const { order, items } = input;
   const currency = order.currency;
   const discountTotal = Number(order.discountTotal);
   const labels = orderTotalsLabels(input.language);
 
-  const paymentLine = resolvePaymentEmailRenderer(order.paymentRendererKey)({
+  const paymentLine = renderers.payment.render(order.paymentRendererKey, {
     name: order.paymentMethodSnapshot.name,
     kind: order.paymentMethodSnapshot.kind,
     additionalPrice: Number(order.paymentMethodSnapshot.additionalPrice ?? 0),
     currency,
   });
-  const shippingLine = resolveShippingEmailRenderer(order.shippingRendererKey ?? null)({
+  const shippingLine = renderers.shipping.render(order.shippingRendererKey ?? null, {
     name: order.deliveryMethodSnapshot.name,
     cost: Number(order.deliveryTotal),
     currency,
@@ -153,7 +170,8 @@ export function buildOrderConfirmationVariables(
 
 export function buildOrderConfirmationEmail(
   input: BuildOrderConfirmationEmailInput,
-): MailerSendInput {
+  renderers: OrderConfirmationRenderers,
+): EmailMailerSendInput {
   const { order, items } = input;
   const currency = order.currency;
   const discountTotal = Number(order.discountTotal);
@@ -165,7 +183,7 @@ export function buildOrderConfirmationEmail(
       `  ${it.quantity} × ${it.productSnapshot.name} (${it.productSnapshot.sku}) — ${money(it.lineTotal, currency)}`,
   );
 
-  const paymentLine = resolvePaymentEmailRenderer(order.paymentRendererKey)({
+  const paymentLine = renderers.payment.render(order.paymentRendererKey, {
     name: order.paymentMethodSnapshot.name,
     kind: order.paymentMethodSnapshot.kind,
     additionalPrice: Number(order.paymentMethodSnapshot.additionalPrice ?? 0),
@@ -174,7 +192,7 @@ export function buildOrderConfirmationEmail(
 
   // Feature 035 — render the shipping line through the shipping-email renderer
   // registry (adapter renderer or platform default), mirroring the payment line.
-  const shippingLine = resolveShippingEmailRenderer(order.shippingRendererKey ?? null)({
+  const shippingLine = renderers.shipping.render(order.shippingRendererKey ?? null, {
     name: order.deliveryMethodSnapshot.name,
     cost: Number(order.deliveryTotal),
     currency,

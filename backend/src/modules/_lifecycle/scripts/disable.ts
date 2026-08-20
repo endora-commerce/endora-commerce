@@ -2,10 +2,11 @@ import { z } from 'zod';
 import Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { initOrm, closeOrm } from '../../../db/index.js';
-import { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../services/orchestrator.js';
 import { buildStaticRegistry } from '../services/static-registry.js';
 import { REGISTERED_MANIFESTS } from '../registered-manifests.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 const DisableArgsSchema = z.object({
   id: z.string().regex(/^_?[a-z][a-z0-9_]*$/),
@@ -111,6 +112,15 @@ function mapError(err: unknown, asJson: boolean): number {
           `hint: pass --cascade to disable dependents in dependency order, or disable each manually first.\n`,
         );
       }
+      if (err.kind === 'non-deactivatable') {
+        // No `--force` to suggest, deliberately: the consequence of removing
+        // one of these is a deployment that cannot authenticate the operator
+        // who would put it back.
+        process.stderr.write(
+          `hint: this module declares itself non-deactivatable in its manifest. ` +
+            `If that declaration is wrong, change the manifest — there is no override flag.\n`,
+        );
+      }
     }
     switch (err.kind) {
       case 'unknown-module':
@@ -118,6 +128,9 @@ function mapError(err: unknown, asJson: boolean): number {
         return 64;
       case 'dependents-block':
         return 66;
+      case 'non-deactivatable':
+        // EX_NOPERM — the request was well-formed and is not permitted.
+        return 77;
       case 'lock-busy':
         return 75;
       default:
@@ -128,4 +141,4 @@ function mapError(err: unknown, asJson: boolean): number {
   return 70;
 }
 
-void main().then((code) => process.exit(code));
+void enterSystemScope('cli: disable a module', main, { entryPoint: 'cli' }).then((code) => process.exit(code));

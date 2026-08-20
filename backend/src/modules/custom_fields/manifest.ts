@@ -14,7 +14,8 @@ export const manifest = defineModuleManifest({
   name: 'Custom Fields',
   description: 'Entity-agnostic runtime custom fields for core entities.',
   version: '1.0.0',
-  dependencies: [],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by.
+  dependencies: ['auth'],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'custom_fields:read', label: 'View custom fields' },
@@ -32,6 +33,19 @@ export const manifest = defineModuleManifest({
       weight: 240,
     },
   ],
+  // Feature 074 (Constitution XVII), test C3 — platform primitive. The flag
+  // used to rest on `organizations` declaring this module; ruling 2 withdraws
+  // a dependent's authority to impose the lock, so the ground is now this
+  // module's own. It is Principle XIV's extensibility mechanism: the answer
+  // the platform gives to "add a field" instead of a bespoke column. Switching
+  // it off does not remove a capability a client chose, it makes the values
+  // already stored against every host entity unreachable.
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'The platform\'s extensibility mechanism; the custom values already stored against ' +
+      'every host entity become unreachable without it.',
+  },
 });
 
 /**

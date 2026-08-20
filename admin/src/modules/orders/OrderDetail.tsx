@@ -31,11 +31,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { issueInvoiceNotice } from '../invoices/email-outcome';
 import { OrderPaymentsTab } from './OrderPaymentsTab';
 import { OrderShipmentsTab } from './OrderShipmentsTab';
 import { Section } from './Section';
 import { orderStatusBadgeStyle } from './orderStatusColor';
 import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
+import type { IssueInvoiceEmailOutcome } from '@b2b/contracts';
 
 type OrderTab = 'overview' | 'payment' | 'delivery' | 'comments';
 
@@ -285,8 +287,14 @@ export function OrderDetail(): ReactNode {
 
   const handleIssueInvoice = useCallback(async (): Promise<void> => {
     try {
-      await apiClient.post(`/api/v1/admin/orders/${id}/invoices`, { kind: 'invoice' });
-      setInfo(t('orderDetail.issueInvoice.done'));
+      const res = await apiClient.post<{ email?: IssueInvoiceEmailOutcome }>(
+        `/api/v1/admin/orders/${id}/invoices`,
+        { kind: 'invoice' },
+      );
+      // Issue #149 — the invoice was issued either way, so this is never an
+      // error; the notification is the part that varies, and it is said out
+      // loud instead of being reported as an unqualified success.
+      setInfo(issueInvoiceNotice(res.email, t));
       await loadInvoices();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.issueInvoice.error'));

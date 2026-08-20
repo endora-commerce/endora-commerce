@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   assignAttributesRequestSchema,
   batchByIdProductsRequestSchema,
@@ -53,22 +53,19 @@ import type { ProductEditorPreferencesService } from './services/product-editor-
 import type { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import type { ProductOverridesService } from './services/product-overrides.service.js';
 import { productValueOverridesPatchRequestSchema } from '@b2b/contracts';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ProductVariant } from './entities/product-variant.entity.js';
 import type { Product } from './entities/product.entity.js';
 import type { CatalogAttributeView } from './services/catalog-attribute-read.service.js';
 import type { AttributeOptionResult } from './commands/attribute-commands.js';
 import type { Category } from './entities/category.entity.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Admin write surface for the catalog. Every route is gated by an admin session
  * with the `catalog:write` permission — wiring for permission enforcement is
  * finalised in US4 (T188). Until then the plugin accepts any authenticated admin.
  */
-
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 /**
  * Selections larger than this are delegated to a background bulk
@@ -970,6 +967,7 @@ export async function registerCatalogAdminRoutes(
           ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.slug !== undefined ? { slug: body.slug } : {}),
           ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
+          ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
           ...(body.mainImageAssetId !== undefined
             ? { mainImageAssetId: body.mainImageAssetId }
             : {}),
@@ -1830,6 +1828,9 @@ function serializeAdminCategory(c: Category) {
     name: c.name,
     slug: c.slug,
     sortOrder: c.sortOrder,
+    // Feature 068 — the admin tree lists inactive categories too, so the
+    // operator can see (and undo) what is hidden from customers.
+    isActive: c.isActive,
     mainImageAssetId: c.mainImageAssetId ?? null,
     customFieldValues: c.customFieldValues ?? {},
     createdAt: c.createdAt.toISOString(),

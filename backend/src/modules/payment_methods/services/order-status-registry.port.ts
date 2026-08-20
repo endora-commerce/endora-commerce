@@ -1,4 +1,8 @@
-import { orderStatusSchema, type OrderStatusOption } from '@b2b/contracts';
+import {
+  orderStatusSchema,
+  type OrderStatusOption,
+  type OrderStatusRegistry,
+} from '@b2b/contracts';
 
 /**
  * OrderStatusRegistry port (feature 034 — research.md R2).
@@ -13,15 +17,13 @@ import { orderStatusSchema, type OrderStatusOption } from '@b2b/contracts';
  * The port intentionally does NOT touch the Order entity — applying a status
  * to an order is done by the caller, which already owns the Order. This keeps
  * the module isolated (constitution Principle I).
+ *
+ * The interface moved to `@b2b/contracts` in feature 075's Phase P — `orders`
+ * and `payments` both read it. Re-exported here for the length of Phase P,
+ * which cuts no consumer; the implementation below now `implements` the
+ * published type, which is what keeps the two from drifting.
  */
-export interface OrderStatusRegistry {
-  /** The selectable Order-status options (code + human label). */
-  list(): OrderStatusOption[];
-  /** True when `code` is a known Order status. */
-  has(code: string): boolean;
-  /** Throws when `code` is not a known Order status. */
-  assertValid(code: string): void;
-}
+export type { OrderStatusRegistry };
 
 export class OrderStatusRegistryError extends Error {
   constructor(public readonly code: string) {
@@ -38,6 +40,28 @@ const humanize = (code: string): string =>
 
 /**
  * Default enum-backed implementation. Seed set = the order `status` enum.
+ *
+ * **The absent-owner policy this registry states (issue #129): honour — and the
+ * reason is that there is nothing to skip.** It is named a registry, and the
+ * ledger classifies it as a contribution seam because `payments` reads it across
+ * a module boundary, but no module contributes to it: the option set is
+ * `orderStatusSchema`, fixed at compile time, so it holds no per-contributor
+ * state that an operator's flip could invalidate and no entry that could outlive
+ * the module that pushed it.
+ *
+ * Filtering would therefore not withdraw a stale answer, it would withdraw the
+ * only answer — and the reads are guards rather than surfaces. `payments` asks
+ * `has` before moving an order into the status a settled payment names, so a
+ * skip would silently leave a paid order in its old status; a throw would make a
+ * PSP webhook retry forever. Every status here is one live orders are already
+ * in, and a status an order is in has to stay nameable while the module holding
+ * this table is off. The buyer-facing consequence of that module being off is
+ * carried where it belongs: `payment_methods` closes its own catalogue at its
+ * own seam, and `orders` declares the sentence an operator is shown.
+ *
+ * The policy is structural rather than promised: the class takes no presence
+ * input, so no read of it can be made to drop a status without changing the
+ * policy first.
  */
 export class EnumOrderStatusRegistry implements OrderStatusRegistry {
   private readonly codes: readonly string[] = orderStatusSchema.options;

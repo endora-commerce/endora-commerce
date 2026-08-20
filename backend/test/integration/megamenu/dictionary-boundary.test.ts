@@ -1,10 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
-import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+
+import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Language } from '../../../src/modules/languages/entities/language.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { MegamenuService } from '../../../src/modules/megamenu/services/megamenu-service.js';
 
 describe('Megamenu dictionary boundary', () => {
@@ -20,12 +21,12 @@ describe('Megamenu dictionary boundary', () => {
     await conn.execute(`delete from "dictionary_translations"`);
     await conn.execute(`delete from "language_countries"`);
     await conn.execute(`delete from "countries"`);
-    await runDictionarySeedReconciler(() => db.orm.em);
+    await runDictionarySeedReconcilerFor(() => db.orm.em);
   });
 
   beforeEach(async () => {
     em = await db.beginTx();
-    validator = new DictionaryValidator(() => em);
+    validator = dictionaryValidatorFor(() => em);
     service = new MegamenuService(() => em, undefined, validator);
     const channel = em.create(SalesChannel, {
       code: `menu-${crypto.randomUUID().slice(0, 8)}`,

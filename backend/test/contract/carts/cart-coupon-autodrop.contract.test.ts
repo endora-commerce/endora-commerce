@@ -4,7 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import type { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { promotionServiceFor } from '../../helpers/promotion-service.js';
 
 /**
  * Feature 027 US2 FR-014 — auto-drop coupon on read.
@@ -22,7 +23,7 @@ describe('GET /api/v1/cart — coupon auto-drop on read', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    promotionService = new PromotionService(h.em);
+    promotionService = promotionServiceFor(h);
   });
 
   afterAll(async () => {

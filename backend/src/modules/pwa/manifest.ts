@@ -117,7 +117,22 @@ const pwaSettingEntries: SettingManifestEntry[] = [
 const settings = defineModuleSettingsManifest({
   moduleCode: 'pwa',
   groups: [{ code: 'pwa', name: 'Progressive Web App' }],
-  settings: pwaSettingEntries.map((entry) => ({ ...entry, hidden: true })),
+  settings: [
+    ...pwaSettingEntries.map((entry) => ({ ...entry, hidden: true })),
+    {
+      // Feature 073 — the operator's activation control. Deliberately NOT
+      // hidden: every other setting here is internal plumbing the PWA screen
+      // manages, while this one is the operator's own switch and belongs on
+      // `/platform/modules`.
+      code: 'pwa.enabled',
+      name: 'Progressive Web App enabled',
+      description:
+        'Switches the installable-app manifest, the push-subscription registry and push delivery on or off. Nothing is dropped: subscriptions and icons stay in the database, and pushes resume for the same subscribers when you switch it back on.',
+      groupCode: 'pwa',
+      valueType: 'boolean' as const,
+      defaultValue: true,
+    },
+  ],
 });
 
 /** Settings-only export consumed by the boot-time ManifestReconciler list. */
@@ -129,7 +144,28 @@ export const manifest = defineModuleManifest({
   description:
     'Installability, static-asset caching, controlled service-worker updates, and provider-agnostic push notifications for the storefront and admin.',
   version: '1.0.0',
-  dependencies: ['_i18n', '_lifecycle', 'assets_library', 'sales_channels', 'settings'],
+  // `auth` owns the `requireAdmin` port the admin routes are gated by; feature
+  // 072 made it a container resolution rather than a constructor argument.
+  //
+  // `customer_accounts` and `organizations` arrived with feature 075 Phase C:
+  // the push Rule Builder's three target pickers and the rule-audience
+  // expansion read rows those modules own, and they used to read them off the
+  // tables directly. Both are **binding**: a picker that silently lists nothing
+  // and an audience that silently resolves to nobody both read as legitimate
+  // answers, so the seam fails closed. `price_lists` was the third, for
+  // `customerGroupReadPort`; feature 076 (D-79) moved that port to
+  // `customer_accounts`, which this module already declares, and the port check
+  // confirms nothing else here resolves out of `price_lists`.
+  dependencies: [
+    '_i18n',
+    '_lifecycle',
+    'assets_library',
+    'sales_channels',
+    'settings',
+    'auth',
+    'customer_accounts',
+    'organizations',
+  ],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [
@@ -137,4 +173,5 @@ export const manifest = defineModuleManifest({
     { code: PWA_PERMISSIONS.WRITE, label: 'Configure PWA' },
     { code: PWA_PERMISSIONS.SEND_PUSH, label: 'Send push notifications' },
   ],
+  activation: { settingCode: 'pwa.enabled', default: true },
 });

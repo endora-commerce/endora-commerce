@@ -9,8 +9,9 @@ import { SearchIndexer, indexUidFor } from '../../../src/modules/search/services
 import { SearchEventSubscriber } from '../../../src/modules/search/services/search-event-subscriber.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Meilisearch } from 'meilisearch';
+import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';
 
 /**
  * T067 — incremental subscriber.
@@ -43,14 +44,26 @@ describe('SearchEventSubscriber — incremental index updates', () => {
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
       attributeRead: h.catalogAttributeRead,
+      ...searchIndexerNeighbourPorts(h),
     });
     eventBus = new EventBus();
     subscriber = new SearchEventSubscriber({
-      eventBus: eventBus as never,
       emFactory: h.em,
       indexer,
     });
-    teardown = subscriber.subscribe();
+    // The module's own registrations live in `search/backend.ts` and go through
+    // `ctx.subscribe`, so they are gated and attached to the composed bus. This
+    // test drives a bus of its own, so it wires the three handlers it exercises
+    // itself — the mapping under test here is handler → Meilisearch.
+    const offs = [
+      eventBus.on('product.created.v1' as never, ((p: { productId: string }) =>
+        subscriber.onProductUpserted(p.productId, 'product.created.v1')) as never),
+      eventBus.on('product.archived.v1' as never, ((p: { productId: string }) =>
+        subscriber.onProductRemoved(p.productId, 'product.archived.v1')) as never),
+      eventBus.on('attribute.updated.v1' as never, (() =>
+        subscriber.onAttributeUpdated()) as never),
+    ];
+    teardown = () => offs.forEach((off) => off());
 
     client = new Meilisearch({ host: meilisearchHost, apiKey: meilisearchKey });
     const channel = await h.em().findOneOrFail(SalesChannel, { isPublic: true });

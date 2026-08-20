@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { PageHeader } from '@/components/ui/page-header';
+import { OrderEntryTabs } from '@/components/OrderEntryTabs';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { CountrySelect } from '@/components/country-select';
 import { ProductPicker } from '@/modules/catalog/components/ProductPicker';
@@ -646,6 +647,8 @@ export function OrderCreatePage(): ReactNode {
           </Button>
         }
       />
+
+      <OrderEntryTabs />
 
       {error ? (
         <Alert variant="destructive" className="mb-4">

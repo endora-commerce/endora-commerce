@@ -2,23 +2,33 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { CommandBus } from '../../commands/index.js';
-import type {
-  CustomFieldValueService,
-  DefinitionSource,
-} from '../custom_fields/services/custom-field-value.service.js';
-import { BULK_OPERATION_TYPES } from '@b2b/contracts';
+import {
+  BULK_OPERATION_TYPES,
+  type AssetReadPort,
+  type SearchQueryPort,
+  type AdminUserReadPort,
+  type EmailMailerPort,
+  type LanguageReadPort,
+  type ListingPricePort,
+  type OrgLinePricePort,
+  type CustomFieldDefinitionReadPort,
+  type CustomFieldValuePort,
+  type OrganizationDetailsPort,
+} from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
-import { defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
+import type { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
+import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
 import {
   createBulkOperationQueue,
   createBulkOperationWorker,
   BULK_OPERATION_JOB_NAME,
 } from './services/bulk-operation-queue.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
-import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import {
   CatalogAdminService,
+  type CatalogWarehouseThresholdCopy,
   type CatalogCustomFieldsPort,
   type CatalogEventBus,
 } from './services/catalog-admin.service.js';
@@ -26,9 +36,13 @@ import { CatalogAttributeReadService } from './services/catalog-attribute-read.s
 import { CatalogBulkUpdateService } from './services/catalog-bulk-update.service.js';
 import {
   BulkOperationService,
+  type BulkNotificationRecorder,
   type SearchReindexRunner,
 } from './services/bulk-operation.service.js';
-import { CategoryAdminService } from './services/category-admin.service.js';
+import {
+  CategoryAdminService,
+  type CategoryEventBus,
+} from './services/category-admin.service.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
 import { AttachmentService } from './services/attachment.service.js';
@@ -40,19 +54,15 @@ import { ProductEditorPreferencesService } from './services/product-editor-prefe
 import { ProductOverridesService } from './services/product-overrides.service.js';
 import { ProductScopeContextService } from './services/product-scope-context.service.js';
 import { ProductValueResolverService } from './services/product-value-resolver.service.js';
-import { SearchQueryService } from '../search/services/search-query.service.js';
-import type { LanguageService } from '../languages/services/language-service.js';
-import type { AdminNotificationService } from '../admin_notifications/services/admin-notification-service.js';
-import type { Mailer } from '../email/services/mailer.js';
 import { registerCatalogPublicRoutes } from './routes.public.js';
-import { registerCatalogAdminRoutes, type RequireAdminFactory } from './routes.admin.js';
+import { registerCatalogAdminRoutes } from './routes.admin.js';
 import { registerCatalogApiKeyRoutes } from './routes.api-key.js';
 import { registerCatalogExternalRoutes } from './routes.external.js';
 import {
   CatalogOrgPriceDecorator,
   type ResolveAvailabilityPort,
 } from './services/catalog-org-price-decorator.js';
-import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Composition root for the catalog module. Wires the ORM's per-request EM into
@@ -67,6 +77,13 @@ export type RequireApiKeyFactory = (
 export interface CatalogModuleOptions {
   emFactory: () => EntityManager;
   eventBus: EventBus;
+  /**
+   * Feature 068 — flushes the storefront's `catalog:categories` fetch-cache tag.
+   * Owned by `backend.ts`, which also owns the `category.updated.v1`
+   * subscription that drives it; passed here only so it can pick up `app.log`
+   * once the Fastify instance exists.
+   */
+  categoryRevalidator?: StorefrontRevalidator;
   requireAdmin?: RequireAdminFactory;
   /** Audit-log writer; if provided, mutations land an AuditLogEntry. */
   auditLogService?: AuditLogService;
@@ -94,12 +111,28 @@ export interface CatalogModuleOptions {
    * pricing uses). Consumed only by the external catalog namespace's
    * decoration layer — SC-001 parity by construction.
    */
-  pricingService?: PricingServiceContract;
+  pricingService?: OrgLinePricePort & ListingPricePort;
   /**
    * Feature 062 — inventory availability port for the external namespace's
    * `availability` indication. Optional: when omitted the field is omitted.
    */
   resolveExternalAvailability?: ResolveAvailabilityPort;
+  /**
+   * Feature 075 — `organizations`' read port. The external namespace's price
+   * decoration resolves the calling organisation through it, where it used to
+   * run `em.findOne(Organization, …)` against another module's table.
+   *
+   * The storefront listing, the PDP and the cross-sell strip resolve it too:
+   * the caller's own price is the caller's organisation's, and the one field
+   * the pricing engine needs beyond the id — the customer group a
+   * group-targeted list is selected by — lives on that row.
+   */
+  organizations?: OrganizationDetailsPort;
+  /**
+   * Feature 075 — `admin_users`' read port, for the one row the bulk-operation
+   * completion notice reads: the requester's e-mail address.
+   */
+  adminUsers?: AdminUserReadPort;
   /**
    * Feature 005 / T027 — when provided, every newly-created Product is
    * automatically bound to the system-default Sales Channel unless it
@@ -109,23 +142,35 @@ export interface CatalogModuleOptions {
    */
   salesChannelMembership?: SalesChannelMembershipService;
   /**
+   * Issue #185 — `inventory`'s per-warehouse threshold copy, used by product
+   * duplication. Contributed as a presence-decided closure rather than resolved
+   * here, for the reason `resolveExternalAvailability` is: this module declares
+   * `inventory` `degrades-without`, so absence is decided in front of the gate
+   * and reaches the service in its return type.
+   */
+  copyWarehouseThresholds?: CatalogWarehouseThresholdCopy;
+  /**
    * Feature 022 — language admin service used by the product scope
    * editor's scope-context endpoint (for the primary admin language)
    * and the resolver service (for the same). Optional: when omitted,
    * the new admin endpoints are NOT registered.
    */
-  languageService?: LanguageService;
+  languageService?: LanguageReadPort;
   /**
    * In-app (bell) notifications — used by the queued bulk-edit path to
    * tell the requester their background operation finished. Optional;
    * when omitted the notification is simply skipped.
+   *
+   * The **recorder** shape rather than `admin_notifications`' service: absence
+   * is an answer this module reads off the return type (D-60), not an exception
+   * it catches after the fact.
    */
-  adminNotificationService?: AdminNotificationService;
+  adminNotificationService?: BulkNotificationRecorder;
   /**
    * Email transport — used by the queued bulk-edit path to email the
    * requester on completion. Optional; when omitted email is skipped.
    */
-  mailer?: Mailer;
+  mailer?: EmailMailerPort;
   /**
    * Redis connection used to back the bulk-operation queue (Principle X).
    * When provided, `create()` enqueues each operation onto a durable BullMQ
@@ -160,7 +205,7 @@ export interface CatalogModuleOptions {
     salesChannelCode: string | undefined,
   ) => Promise<string | null>;
   /** Feature 055 — validates + reads Category custom-field values on the admin edit path. */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
   /**
    * Feature 055 (US4) — custom-field definition source. When wired, Category
    * custom fields flagged `config.filterable` are merged into the storefront
@@ -171,7 +216,7 @@ export interface CatalogModuleOptions {
    * model and, when it satisfies {@link CatalogCustomFieldsPort}, the
    * attribute write path (apply seam).
    */
-  customFieldDefinitions?: DefinitionSource;
+  customFieldDefinitions?: CustomFieldDefinitionReadPort;
   /**
    * Feature 061 — the custom_fields apply seam + committed-state read used by
    * the attribute Commands. Production + test composition pass the
@@ -183,11 +228,41 @@ export interface CatalogModuleOptions {
    * `customFieldDefinitions` is present, the plugin constructs its own.
    */
   attributeReadService?: CatalogAttributeReadService;
+  /**
+   * Issue #153 — `search`'s storefront listing backend, resolved as a port.
+   *
+   * This module used to `new SearchQueryService(...)` here out of `search`'s
+   * class, so a composition held two Meilisearch clients and two attribute-read
+   * wirings, and no gate stood between the public product list and an index
+   * whose maintenance subscribers had stopped with a switched-off `search`.
+   * `backend.ts` resolves `searchQueryPort` instead.
+   *
+   * Whether the listing *uses* it is still decided before the call, by
+   * `effectiveState.isPresent('search')` in `routes.public.ts` (MR !573) — a
+   * degrade to Postgres by decision, not by exception.
+   */
+  searchQueryService?: SearchQueryPort;
+
+  /**
+   * Feature 075 — `assets_library`'s read port. Every service below that shows
+   * or verifies an image takes it: the gallery and attachment writers check the
+   * asset's `kind` before storing a reference to it, and the storefront reads
+   * resolve the primary image URL through it. It replaces four
+   * `em.findOne/find(Asset, …)` calls and six raw `join assets` clauses.
+   */
+  assets?: AssetReadPort;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
-    const productLinkServiceForRead = new ProductLinkService(options.emFactory, options.commandBus);
+    const productLinkServiceForRead = new ProductLinkService(
+      options.emFactory,
+      options.commandBus,
+      options.pricingService,
+      options.assets,
+      options.salesChannelMembership,
+      options.organizations,
+    );
     // Feature 061 — the composed attribute read model (definitions from the
     // custom_fields cache + catalog extension rows). Constructed once and
     // threaded into every attribute consumer in this module.
@@ -201,6 +276,10 @@ export function catalogModule(options: CatalogModuleOptions) {
       productLinkServiceForRead,
       options.customFieldDefinitions,
       attributeReadService,
+      options.pricingService,
+      options.assets,
+      options.salesChannelMembership,
+      options.organizations,
     );
     const adminService = new CatalogAdminService(
       options.emFactory,
@@ -210,14 +289,8 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.commandBus,
       attributeReadService,
       options.customFieldsPort,
+      options.copyWarehouseThresholds,
     );
-    // SearchQueryService is wired even when the env var picks Postgres so that
-    // an operator can flip CATALOG_SEARCH_BACKEND=meilisearch at runtime
-    // without restarting (R-08 reserved-fallback still applies). Lifecycle
-    // for the indexer + event subscriber lives in `searchModule` (feature
-    // 006 / R-3); catalog only owns the read-side adapter here.
-    const searchQueryService = new SearchQueryService(options.emFactory, attributeReadService);
-
     const bulkUpdateService = new CatalogBulkUpdateService(
       options.emFactory,
       adminService,
@@ -238,6 +311,7 @@ export function catalogModule(options: CatalogModuleOptions) {
         ? { notificationService: options.adminNotificationService }
         : {}),
       ...(options.mailer ? { mailer: options.mailer } : {}),
+      ...(options.adminUsers ? { adminUsers: options.adminUsers } : {}),
       ...(options.reindexSearchIndexes
         ? { reindexRunner: options.reindexSearchIndexes }
         : {}),
@@ -270,7 +344,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     const bundleServicePublic = new BundleService(options.emFactory, options.commandBus);
     await registerCatalogPublicRoutes(app, {
       queryService,
-      searchQueryService,
+      ...(options.searchQueryService ? { searchQueryService: options.searchQueryService } : {}),
       productLinkService: productLinkServiceForRead,
       bundleService: bundleServicePublic,
       ...(options.resolveProductImagePlaceholderUrl
@@ -282,16 +356,39 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.salesChannelMembership,
       options.commandBus,
       options.customFieldValues,
+      options.eventBus as CategoryEventBus,
     );
+
+    // Feature 068 — the storefront serves the category tree from a fetch cache
+    // tagged `catalog:categories` with a 5-minute TTL, flushed on every category
+    // write so an activation toggle is visible immediately. The subscription
+    // lives in `backend.ts` and goes through `ctx.subscribe` (issue #107); this
+    // is where `app.log` exists, so the revalidator picks it up here.
+    options.categoryRevalidator?.setLogger(app.log);
     const attributeSetService = new AttributeSetService(
       options.emFactory,
       options.commandBus,
       attributeReadService,
     );
-    const galleryService = new GalleryService(options.emFactory, options.commandBus);
-    const attachmentService = new AttachmentService(options.emFactory, options.commandBus);
+    const galleryService = new GalleryService(
+      options.emFactory,
+      options.commandBus,
+      options.assets,
+    );
+    const attachmentService = new AttachmentService(
+      options.emFactory,
+      options.commandBus,
+      options.assets,
+    );
     const packagingUnitService = new PackagingUnitService(options.emFactory, options.commandBus);
-    const productLinkService = new ProductLinkService(options.emFactory, options.commandBus);
+    const productLinkService = new ProductLinkService(
+      options.emFactory,
+      options.commandBus,
+      options.pricingService,
+      options.assets,
+      options.salesChannelMembership,
+      options.organizations,
+    );
     const groupedService = new GroupedService(options.emFactory, options.commandBus);
     const bundleService = new BundleService(options.emFactory, options.commandBus);
     await registerCatalogApiKeyRoutes(app, {
@@ -304,10 +401,21 @@ export function catalogModule(options: CatalogModuleOptions) {
     // Feature 062 — external catalog namespace (/api/v1/external/catalog/*).
     // Registered only when the api-key gates AND the pricing engine are wired
     // (production + full test harness); legacy fixtures skip it.
-    if (options.requireApiKey && options.requireBoundApiKey && options.pricingService) {
+    if (
+      options.requireApiKey &&
+      options.requireBoundApiKey &&
+      options.pricingService &&
+      options.organizations &&
+      // Issue #185 — the assortment check goes through the channel-membership
+      // accessor, so the namespace is not mounted without it rather than
+      // falling back to a hand-written bridge read.
+      options.salesChannelMembership
+    ) {
       const decorator = new CatalogOrgPriceDecorator({
         emFactory: options.emFactory,
         pricingService: options.pricingService,
+        organizations: options.organizations,
+        channelMembership: options.salesChannelMembership,
         ...(options.resolveExternalAvailability
           ? { resolveAvailability: options.resolveExternalAvailability }
           : {}),

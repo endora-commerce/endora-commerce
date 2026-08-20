@@ -2,16 +2,26 @@ import type { FastifyInstance } from 'fastify';
 import {
   upsertLanguageRequestSchema,
   upsertCurrencyRequestSchema,
+  type CurrencyAdminPort,
+  type CurrencyReadPort,
+  type CurrencyRecord,
 } from '@b2b/contracts';
 import type { LanguageService } from './services/language-service.js';
-import type { CurrencyService } from '../currencies/services/currency-service.js';
 import type { Language } from './entities/language.entity.js';
-import type { Currency } from '../currencies/entities/currency.entity.js';
-import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface I18nRoutesDeps {
   languageService: LanguageService;
-  currencyService: CurrencyService;
+  /**
+   * Owned by `currencies` (feature 075, Phase C). This surface serves both
+   * catalogues, but only `languages` owns one of them: the currency half comes
+   * over the ports `currencies` publishes, so this module names neither its
+   * entity nor its service. When `currencies` is off the currency routes answer
+   * 503 `MODULE_DISABLED` — a currency catalogue that guesses is worse than one
+   * that refuses, and `currencies` is non-deactivatable in any case.
+   */
+  currencyRead: CurrencyReadPort;
+  currencyAdmin: CurrencyAdminPort;
   requireAdmin: RequireAdminFactory;
   /** Called after any mutation so cached defaults get invalidated. */
   onConfigChange?: () => void;
@@ -21,15 +31,15 @@ export async function registerI18nRoutes(
   app: FastifyInstance,
   deps: I18nRoutesDeps,
 ): Promise<void> {
-  const { languageService, currencyService, requireAdmin, onConfigChange } = deps;
+  const { languageService, currencyRead, currencyAdmin, requireAdmin, onConfigChange } = deps;
 
   // ---- Public (storefront + admin) i18n config ----
   app.get('/api/v1/i18n/config', async () => {
     const [languages, currencies, defaultLanguage, defaultCurrency] = await Promise.all([
       languageService.listActive(),
-      currencyService.listActive(),
+      currencyRead.listActive(),
       languageService.getDefault(),
-      currencyService.getDefault(),
+      currencyRead.getDefault(),
     ]);
     return {
       data: {
@@ -95,7 +105,7 @@ export async function registerI18nRoutes(
     '/api/v1/admin/currencies',
     { preHandler: requireAdmin('catalog:write') },
     async () => {
-      const rows = await currencyService.list();
+      const rows = await currencyRead.list();
       return { data: rows.map(serializeCurrency) };
     },
   );
@@ -108,7 +118,7 @@ export async function registerI18nRoutes(
     },
     async (request) => {
       const body = upsertCurrencyRequestSchema.parse(request.body);
-      const row = await currencyService.upsert({
+      const row = await currencyAdmin.upsert({
         code: request.params.code,
         label: body.label,
         symbol: body.symbol,
@@ -124,7 +134,7 @@ export async function registerI18nRoutes(
     '/api/v1/admin/currencies/:code/default',
     { preHandler: requireAdmin('catalog:write') },
     async (request) => {
-      const row = await currencyService.setDefault(request.params.code);
+      const row = await currencyAdmin.setDefault(request.params.code);
       onConfigChange?.();
       return { data: serializeCurrency(row) };
     },
@@ -134,7 +144,7 @@ export async function registerI18nRoutes(
     '/api/v1/admin/currencies/:code',
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
-      await currencyService.remove(request.params.code);
+      await currencyAdmin.remove(request.params.code);
       onConfigChange?.();
       return reply.status(204).send();
     },
@@ -153,7 +163,7 @@ function serializeLanguage(l: Language): Record<string, unknown> {
   };
 }
 
-function serializeCurrency(c: Currency): Record<string, unknown> {
+function serializeCurrency(c: CurrencyRecord): Record<string, unknown> {
   return {
     code: c.code,
     label: c.label,

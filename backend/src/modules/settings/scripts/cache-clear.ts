@@ -3,6 +3,7 @@ import {
   CacheAdminService,
   CACHE_NAMESPACES,
 } from '../services/cache-admin.service.js';
+import { enterSystemScope } from '../../../kernel/scope.js';
 
 /**
  * CLI: clear selected (or all) Redis cache namespaces.
@@ -61,7 +62,7 @@ async function main(): Promise<number> {
   }
 }
 
-main()
+enterSystemScope('cli: clear the settings cache', main, { entryPoint: 'cli' })
   .then((code) => process.exit(code))
   .catch((err: unknown) => {
     process.stderr.write(`cache:clear failed: ${String(err)}\n`);

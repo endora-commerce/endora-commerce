@@ -1,3 +1,10 @@
+import type {
+  EmailMailerPort,
+  EmailMailerSendInput,
+  EmailMailerSendOutcome,
+  EmailMailerSuppressionReason,
+} from '@b2b/contracts';
+
 /**
  * Mailer abstraction (T136 + T178 helper).
  *
@@ -7,32 +14,27 @@
  * The default `ConsoleMailer` writes to stdout so dev environments work
  * without an SMTP server. Production composition wires a real SMTP
  * transport (e.g. via nodemailer) by implementing this interface.
+ *
+ * The four shapes moved to `@b2b/contracts` in feature 075's Phase P —
+ * thirty-two sites across eight modules named them at this path, and D-59's
+ * `MailerSendOutcome` is read one layer up by `transactional_emails`. They are
+ * aliased back here so the drivers below and the consumers Phase C has not
+ * reached yet keep compiling; the aliases go with the last of those consumers.
  */
 
-export interface MailerSendInput {
-  /** Stable id, idempotency key for retries. */
-  messageId: string;
-  to: string;
-  subject: string;
-  /** Plain-text body (always present; the readable alternative for HTML mail). */
-  text: string;
-  /** Optional HTML body (feature 047). When present, sent as multipart alternative. */
-  html?: string;
-  /** Optional binary attachments (feature 047 invoices — PDF delivery). */
-  attachments?: Array<{ filename: string; content: Uint8Array; contentType?: string }>;
-  /** Optional structured payload retained alongside the email for audit. */
-  meta?: Record<string, unknown>;
-}
+export type MailerSendInput = EmailMailerSendInput;
 
-export interface Mailer {
-  send(input: MailerSendInput): Promise<void>;
-}
+export type MailerSuppressionReason = EmailMailerSuppressionReason;
+
+export type MailerSendOutcome = EmailMailerSendOutcome;
+
+export type Mailer = EmailMailerPort;
 
 export class ConsoleMailer implements Mailer {
   private readonly seen = new Set<string>();
 
-  async send(input: MailerSendInput): Promise<void> {
-    if (this.seen.has(input.messageId)) return;
+  async send(input: MailerSendInput): Promise<MailerSendOutcome> {
+    if (this.seen.has(input.messageId)) return { status: 'suppressed', reason: 'duplicate_message_id' };
     this.seen.add(input.messageId);
     // eslint-disable-next-line no-console
     console.log(
@@ -44,6 +46,7 @@ export class ConsoleMailer implements Mailer {
         meta: input.meta,
       }),
     );
+    return { status: 'sent' };
   }
 }
 
@@ -54,7 +57,8 @@ export class ConsoleMailer implements Mailer {
 export class InMemoryMailer implements Mailer {
   readonly sent: MailerSendInput[] = [];
 
-  async send(input: MailerSendInput): Promise<void> {
+  async send(input: MailerSendInput): Promise<MailerSendOutcome> {
     this.sent.push(input);
+    return { status: 'sent' };
   }
 }

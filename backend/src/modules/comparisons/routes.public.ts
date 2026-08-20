@@ -6,7 +6,8 @@ import {
   comparisonSetDisplayModeInputSchema,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { productAudienceOf } from '../../http/product-audience.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import {
   ComparisonFullError,
   ComparisonNotFoundError,
@@ -74,7 +75,13 @@ export async function registerComparisonsPublicRoutes(
     }
     const channel = getResolvedChannel(request);
     reply.header('cache-control', 'no-store');
-    return { data: await comparisonService.buildOwnerView(comparison, channel.id) };
+    return {
+      data: await comparisonService.buildOwnerView(
+        comparison,
+        channel.id,
+        { kind: 'buyer', audience: productAudienceOf(request) },
+      ),
+    };
   });
 
   // -----------------------------------------------------------------
@@ -91,12 +98,19 @@ export async function registerComparisonsPublicRoutes(
         owner,
         channel.id,
         body.productId,
+        productAudienceOf(request),
       );
     } catch (err) {
       throw translate(err);
     }
     reply.header('cache-control', 'no-store');
-    return { data: await comparisonService.buildOwnerView(comparison, channel.id) };
+    return {
+      data: await comparisonService.buildOwnerView(
+        comparison,
+        channel.id,
+        { kind: 'buyer', audience: productAudienceOf(request) },
+      ),
+    };
   });
 
   // -----------------------------------------------------------------
@@ -119,7 +133,13 @@ export async function registerComparisonsPublicRoutes(
       }
       const channel = getResolvedChannel(request);
       reply.header('cache-control', 'no-store');
-      return { data: await comparisonService.buildOwnerView(comparison, channel.id) };
+      return {
+        data: await comparisonService.buildOwnerView(
+          comparison,
+          channel.id,
+          { kind: 'buyer', audience: productAudienceOf(request) },
+        ),
+      };
     },
   );
 
@@ -139,7 +159,13 @@ export async function registerComparisonsPublicRoutes(
     }
     const channel = getResolvedChannel(request);
     reply.header('cache-control', 'no-store');
-    return { data: await comparisonService.buildOwnerView(comparison, channel.id) };
+    return {
+      data: await comparisonService.buildOwnerView(
+        comparison,
+        channel.id,
+        { kind: 'buyer', audience: productAudienceOf(request) },
+      ),
+    };
   });
 
   // -----------------------------------------------------------------
@@ -153,7 +179,11 @@ export async function registerComparisonsPublicRoutes(
       const comparison = await comparisonService.getForOwner(owner);
       if (!comparison) throw notFoundComparison();
       const channel = getResolvedChannel(request);
-      const view = await comparisonService.buildOwnerView(comparison, channel.id);
+      const view = await comparisonService.buildOwnerView(
+        comparison,
+        channel.id,
+        { kind: 'buyer', audience: productAudienceOf(request) },
+      );
       if (view.products.length === 0) {
         throw new HttpError(
           409,

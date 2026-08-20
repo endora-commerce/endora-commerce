@@ -196,14 +196,49 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // Rule 1 (platform root) — specs/065-manifest-aware-migrations/research.md §R9.
   // `setting_values.sales_channel_id`, `setting_sales_channels` and
-  // `setting_group_sales_channels` foreign-key `sales_channels`, but the edge
-  // is deliberately NOT declared: settings is a platform root that every other
-  // module (including sales_channels itself) installs on top of. Declaring it
-  // would cycle: settings → sales_channels → settings. The scope columns are
-  // optional — a setting with a null sales_channel_id is the global value.
-  // Recorded in test/unit/db/acknowledged-fk-edges.ts.
-  dependencies: [],
+  // `setting_group_sales_channels` foreign-key `sales_channels`, and the edge is
+  // deliberately not declared: settings is a platform root that every other
+  // module (including sales_channels itself) installs on top of, and declaring
+  // it would cycle settings → sales_channels → settings.
+  //
+  // Since feature 072 (T018/T019) all four of those tables are kernel-owned, so
+  // the edge no longer crosses a module boundary at all and the acknowledged
+  // entry in test/unit/db/acknowledged-fk-edges.ts has been removed. The
+  // reasoning is kept because it is why this module declares no edge to
+  // `sales_channels`.
+  //
+  // Feature 072 (T118) — `auth` *is* declared: the admin routes are gated by
+  // `requireAdmin` and name the acting admin through `adminAuditActorResolver`,
+  // both of which `auth` owns. It closes no cycle (`auth` → `admin_roles` → ∅)
+  // and shifts no migration order, because T018 moved this module's tables into
+  // the kernel and it ships no migrations of its own.
+  dependencies: ['auth'],
   settings,
+  // Feature 074 (Constitution XVII), test C2 — functional base, and named by
+  // ruling 1. The control that used to be here was one of the nineteen that
+  // never accepted a deactivation; making the lock explicit replaces an
+  // accidental refusal with a declared one and takes the dead button off the
+  // screen.
+  //
+  // The recoverability argument that used to carry the switch — D-36 moved the
+  // activation controls onto the kernel-served `/platform/modules`, T118 made
+  // the settings reader kernel-composed — is still true and is why switching
+  // this off is survivable. It is not why it should be offered. This module is
+  // the configuration surface for every other one, and a module that is off
+  // has no editable configuration, so `settings` off means nothing on the
+  // platform is configurable: a different product, not a smaller one.
+  //
+  // `settings.enabled` goes with the control. Left declared it would classify
+  // as an ordinary editable boolean that changes nothing, which is the
+  // present-but-ignored shape Principle XVII prohibits; the reconciler never
+  // deletes a row it stops seeing, so the existing rows are removed by a core
+  // data migration instead (feature 074, FR-010a).
+  activation: {
+    nonDeactivatable: true,
+    reason:
+      'The configuration surface for every other module. A module that is off has no editable ' +
+      'configuration, so switching this off would leave nothing on the platform configurable.',
+  },
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'settings:read', label: 'View settings' },
@@ -216,6 +251,11 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.openSettings.description',
       icon: 'Settings',
       targetRoute: '/settings',
+      // The only one of the 53 shipped actions that declared no code at all
+      // (issue #232), while `/api/v1/admin/settings` is
+      // `requireAdmin('settings:read')` — so the palette offered the screen to
+      // every role and every role without the code collected a 403 on arrival.
+      requiredPermission: 'settings:read',
       keywords: ['settings', 'preferences', 'config', 'ustawienia'],
       weight: 250,
     },

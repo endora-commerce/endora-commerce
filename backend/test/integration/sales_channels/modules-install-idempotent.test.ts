@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { salesChannelsManifest } from '../../../src/modules/sales_channels/manifest.js';
 import { settingsManifest } from '../../../src/modules/settings/manifest.js';
-import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
+import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 
 /**
  * T069 — `b2b modules install sales_channels` is idempotent.
@@ -74,13 +74,15 @@ describe('modules:install sales_channels — idempotency (T069)', () => {
       const all = await em.find(SettingGroup, { code: 'sales_channels' });
       expect(all.length).toBe(1);
 
-      // The sales_channels manifest ships exactly one setting
-      // (`sales_channels.storefront_url`) — confirm the pipeline persists that
-      // single row and does not synthesize phantom rows under
-      // owner_module='sales_channels'.
+      // The sales_channels manifest ships exactly one setting, the storefront
+      // URL, so confirm the pipeline persists that row and synthesizes no
+      // phantom ones under owner_module='sales_channels'. It shipped a second
+      // until feature 074: `sales_channels.enabled` was the operator's
+      // activation control, and the module is core now — channel scoping is
+      // structural, so there is no unscoped path to fall back to and the
+      // control went with the declaration.
       const owned = await em.find(Setting, { ownerModule: 'sales_channels' });
-      expect(owned.length).toBe(1);
-      expect(owned[0]!.code).toBe('sales_channels.storefront_url');
+      expect(owned.map((s) => s.code).sort()).toEqual(['sales_channels.storefront_url']);
     } finally {
       await db.rollbackTx();
     }

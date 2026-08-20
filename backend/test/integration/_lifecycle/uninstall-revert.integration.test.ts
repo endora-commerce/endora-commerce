@@ -8,10 +8,10 @@ import type { IMigrator } from '@mikro-orm/core';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ModuleLifecycleOrchestrator } from '../../../src/modules/_lifecycle/services/orchestrator.js';
 import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
-import { ModuleRegistration } from '../../../src/modules/_lifecycle/entities/module-registration.entity.js';
-import { AuditLogService } from '../../../src/modules/audit_logs/services/audit-log-service.js';
+import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
-import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.js';
+import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 
 /**
  * Hard uninstall must revert the target module's migrations.

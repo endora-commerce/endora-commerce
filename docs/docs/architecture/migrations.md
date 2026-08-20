@@ -5,17 +5,24 @@ title: Database Migrations (Naming, Registry & Ordering)
 # Database Migrations
 
 Migrations are **module-local files with UTC timestamp names**, registered once in a
-single static registry, and executed in an order computed from those timestamps and
-**corrected by the module-manifest dependency graph** (feature `065`). There is no
-repo-wide migration number any more, and no hand-maintained execution list.
+single static registry, and executed **module by module, in a topological order of the
+module-manifest dependency graph** (feature `081`). A timestamp orders a module's own
+migrations and nothing else. There is no repo-wide migration number, and no
+hand-maintained execution list.
 
-Three files carry the mechanism, all under `backend/src/db/`:
+Feature `065` ordered by timestamp and *corrected* the result with the dependency
+graph inside a 45-day horizon. Feature `081` inverted that: the graph is the order, and
+the horizon, the correction edges and the `unresolvable-order` failure are gone. The
+reason is that the set of modules stopped being fixed at build time — an installed npm
+package ships its own entities and migrations, and its author cannot know the host's
+history, so a rule that ordered by a timestamp they choose orders nothing.
+
+Two files carry the mechanism, both under `backend/src/db/`:
 
 | File | Role |
 |------|------|
-| `migrations-registry.ts` | The single registration point — one static import + one entry per migration, grouped by owning module. |
-| `migration-order.ts` | The pure `orderMigrations()` function that computes the execution order. No I/O, no clock, no ORM. |
-| `legacy-migration-names.ts` | The frozen rename map for the 112 migrations that predate this scheme, plus `FROZEN_THROUGH`. Never edited. |
+| `migrations-registry.generated.ts` | The single registration point — one static import + one entry per migration, grouped by owning module. **Generated** from a filesystem walk by `scripts/generate-composer.ts` and committed; never edited by hand. |
+| `migration-order.ts` | The pure `orderMigrations()` function that computes the execution order, plus the `BASELINE_THROUGH` watermark. No I/O, no clock, no ORM. |
 
 `mikro-orm.config.ts` only wires them together; it holds no ordering knowledge.
 
@@ -54,7 +61,7 @@ The single authoritative statement lives in
 
 | Part | Rule |
 |------|------|
-| Timestamp | UTC, fixed width (15 chars), literal `T` at index 8. No `Z`, no separators. Lexicographically sortable. **Unique across the whole repository.** |
+| Timestamp | UTC, fixed width (15 chars), literal `T` at index 8. No `Z`, no separators. Lexicographically sortable. **Unique within its own module** — two modules may legally share a stamp, because after feature `081` a stamp orders nothing outside its module and two package authors cannot coordinate. |
 | `<SEGMENT>` | The owning module id with a leading underscore stripped; the literal `core` for the cross-cutting migrations in `backend/src/db/migrations/`. |
 | `<SLUG>` | `snake_case` (`[a-z0-9_]+`) describing the change. |
 
@@ -77,9 +84,20 @@ Segment normalization has exactly two special cases:
 | `backend/src/modules/_lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
 | `backend/src/db/migrations/` | `core` | `'core'` |
 
+**The class-name tail must begin with the module's segment**, and that is a rule now,
+not just a consequence of deriving the name from the path (feature `081`). It is what
+makes class names globally unique without a registry, a namespace or a hash: module ids
+are unique platform-wide, so `Migration<stamp>Orders…` cannot collide with any other
+module's migration. `orderMigrations()` refuses a violation as `unscoped-name` — the
+only place a package's name can be checked — and `scripts/check-naming.sh` refuses one
+in the core tree at build time. All 141 migrations already satisfied it when the rule
+landed.
+
 **The class name is the migration name persisted in `mikro_orm_migrations.name`.**
-Renaming an applied migration class is therefore a data-migration problem, not a
-refactor — which is exactly why the legacy rename map (below) exists and is frozen.
+Renaming an applied migration class is therefore a database problem, not a refactor:
+every database that already ran it sees the new name as pending. Nothing in the
+repository forbids the rename — see "Renaming an applied migration" below for what it
+costs and how to ship it.
 
 ## How to create a migration
 
@@ -92,37 +110,33 @@ The scaffolder (`backend/scripts/new-migration.ts`):
 1. validates `--module` against the module directories that carry a `manifest.ts`
    (plus the literal `core`), and lists the valid ids when it does not match;
 2. resolves a **free UTC timestamp**, advancing by whole seconds until no migration
-   file anywhere in the tree uses it;
-3. **clamps the timestamp above `FROZEN_THROUGH`.** Today's wall clock can still be
-   *earlier* than `FROZEN_THROUGH = 20260801T000000`; a naive stamp would then land
-   inside the order-frozen legacy block and fail the frozen-prefix assertion at
-   config-build time. The scaffolder turns that confusing boot error into a stamp one
-   second past the boundary;
-4. writes the file from a template into the module's `migrations/` directory;
-5. **prints** the import line, the `migration(...)` entry line, and the `// ── <id> ──`
-   group banner they belong under.
+   file anywhere in the core tree uses it. Tree-wide freedom is tidiness, not ordering:
+   only per-module uniqueness is required;
+3. **clamps the timestamp above `BASELINE_THROUGH`.** Today's wall clock can still be
+   *earlier* than `BASELINE_THROUGH = 20260801T000000`; a naive stamp would then land
+   inside the frozen historical prefix, whose order is history and is never recomputed
+   — the migration would be ordered by that history instead of by its module's
+   `dependencies`. The scaffolder emits a stamp one second past the watermark instead;
+4. writes the file from a template into the module's `migrations/` directory.
 
-It deliberately does **not** edit the registry — text-munging a source file for a
-two-line paste is fragile and can land in the wrong module block, and a forgotten
-registration is already a CI failure.
+Register it by regenerating the committed registry, and commit both files:
 
-Paste the two printed lines into `backend/src/db/migrations-registry.ts`, in the
-owning module's group, chronologically inside that group:
-
-```ts
-// import block, under the module's banner
-import { Migration20260805T141530OrdersPlacementIntents }
-  from '../modules/orders/migrations/20260805T141530_orders_placement_intents.js';
-
-// entry array, under the same banner
-  // ── orders ────────────────────────────────────────────────────────────
-  migration('orders', Migration20260805T141530OrdersPlacementIntents),
+```bash
+pnpm --filter backend run composer:generate
 ```
+
+The generator walks `src/db/migrations/` and every `src/modules/<id>/migrations/`,
+derives each class name from its filename, and refuses — rather than skips — a file it
+cannot place: an unrecognized `.ts` in a migrations directory, a class the file does
+not export, two files deriving the same name, or a migration under
+`src/apps/<deployment>/` (overlay modules cannot ship migrations, so registering one
+would be a new capability rather than a side effect of generating the list).
 
 **An unregistered migration does not run.** The registry is a static-import list, not
 a glob (glob discovery needs runtime dynamic `import()` of `.ts`, which Node's ESM
 loader cannot transform and which breaks under Vitest — the same reason
-`entities-registry.ts` exists). The round-trip guard
+`entities-registry.generated.ts` exists, and it is emitted by the same command). The
+round-trip guard
 `backend/test/unit/db/migrations-registry.test.ts` fails the build for a file with no
 entry, an entry with no file, a class name that does not match its filename, a
 declared `moduleId` that disagrees with the owning directory, a filename segment that
@@ -143,48 +157,96 @@ from the migrator.
 ## Ordering rules
 
 `orderMigrations()` (`backend/src/db/migration-order.ts`) is a pure function: same
-inputs, same output, no database, no clock, no environment. It applies, in order:
+inputs, same output, no database, no clock, no environment. The emitted order is the
+concatenation of **two blocks**.
 
-1. **Chronological primary axis.** Entries are sorted by timestamp ascending. Because
-   timestamps are unique, that is already a total order.
-2. **Frozen prefix.** Everything at or before `FROZEN_THROUGH` (`20260801T000000`) is
-   order-frozen: its relative order is the recorded historical execution order and no
-   later migration may ever be emitted among or before it.
-3. **Intra-module chronology.** A module's migrations always appear in ascending
-   timestamp order, whatever else happens.
-4. **Dependency correction.** When a migration of module `M` would run *before* a
-   migration of a module that `M` transitively depends on, the dependency's migration
-   is pulled ahead. The edge set is derived from module manifests — developers never
-   write per-migration dependency metadata.
-5. **Minimality.** Only *inverted* pairs get a correction edge. A cross-module pair
-   already in the right chronological order is left exactly where chronology put it.
-6. **Bounded correction.** An inversion is corrected only when the two timestamps are
-   within `CORRECTION_HORIZON_DAYS = 45`. Adding a migration today can therefore never
-   reorder history authored months ago.
-7. **Determinism.** The topological sort drains its ready set smallest-timestamp
-   first, so the emitted order is byte-identical across input permutations and across
-   runs. Feeding the output back in yields the same output.
+**1. The baseline block — the frozen historical prefix.** Every entry that came from
+the committed core registry *and* is stamped at or before `BASELINE_THROUGH`
+(`20260801T000000`), in plain timestamp order. That block predates feature `065`: it
+was written and applied in a hand-maintained array order its manifests do not describe
+— they contradict it in 37 places — so emitting it any other way produces an order a
+fresh database cannot apply. It is closed, it never grows (the scaffolder clamps every
+new core stamp past the watermark), and nothing should try to drain it.
+
+Membership takes **both** conditions. A stamp-only test lets a migration that arrived
+from outside the committed registry join a prefix whose order is historical fact:
+measured, a package migration stamped `20250101T000000` was emitted at index 0, ahead
+of the platform's own foundation migration. An entry's `origin` says where it came
+from, and only `'core'` may join.
+
+**2. The open block — everything else, module by module.** The modules are sorted
+topologically over the ordering graph, ties broken by module id ascending, and each
+module's migrations are emitted contiguously in ascending timestamp order.
+
+- The **ordering graph** has module ids as nodes and manifest `dependencies` as edges,
+  and reads **no other manifest array** — not `acknowledgedDependencies`, not
+  `nonBindingDependencies`, neither of which is an ordering claim.
+- The `core` pseudo-module sorts first. It declares nothing and nothing declares it,
+  so it is always ready; every module's tables sit downstream of the bootstrap tables.
+- **A timestamp never crosses a module boundary.** If module `A` declares `B`, every
+  open migration of `A` follows every open migration of `B` — however far apart their
+  stamps are, and in either chronological direction. There is no horizon.
+- **Determinism.** The topological sort drains its ready set by the smallest module id,
+  so the emitted order is byte-identical across input permutations and across runs.
+  Feeding the output back in yields the same output.
 
 The hazard this exists for: branch A adds a `catalog` migration on Wednesday, branch B
 adds an `orders` migration on Monday whose foreign key targets the column branch A
-creates. `orders` transitively depends on `catalog`, so the corrector emits the
-Wednesday `catalog` migration first and a fresh database applies cleanly — with no
-renumbering and no coordination between the branches.
+creates. `orders` transitively depends on `catalog`, so `catalog`'s whole block is
+emitted first and a fresh database applies cleanly — with no renumbering and no
+coordination between the branches. Under feature `065` that only worked while the two
+stamps were within 45 days of each other; now it works unconditionally.
+
+### Cycles are reported, not thrown
+
+If the ordering graph has a strongly connected component of more than one module, the
+order is still computed: the component's migrations are emitted as one contiguous block
+in timestamp order across the whole component — the baseline block's rule, applied
+locally, and the only defined answer when the declarations contain no order. The
+component comes back as a **diagnostic**, and nothing is thrown.
+
+That is deliberate. Under feature `065` the graph was a correction, so refusing a cycle
+cost nothing. Now the graph is the primary ordering and a manifest can arrive from
+`node_modules`, so a throw would mean *one stranger's mis-declared package stops this
+shop's core schema from migrating*. Three readers react instead:
+
+| Reader | Reaction |
+|--------|----------|
+| `backend/test/unit/db/module-graph.test.ts` | asserts **zero** diagnostics over the committed manifests — a cycle in this repository is still a red build |
+| `backend/src/db/mikro-orm.config.ts` | logs each diagnostic at `warn`, naming its members |
+| the `_lifecycle` orchestrator | refuses an install whose arrival closes a cycle, naming every member and exiting `65` |
+
+The three reactions differ on purpose, and the difference is where each one sits. A cycle
+**in this repository** is a mistake made by someone who can fix it before anything ships,
+so it is a red build. A cycle **on a running platform** is already deployed, so the
+platform says so and keeps serving — nothing else it could do would leave the operator
+better off. A cycle that is about to **arrive** is refused, because the install is the one
+moment where refusing costs nothing: nothing downstream of the module exists yet, and the
+operator is standing right there.
+
+The refusal is scoped to the arriving module: the graph it walks is the installed set plus
+that module, and only a component holding it is refused. A loop between two modules that
+are already installed does not block a third module's install — that would reproduce, one
+command later, exactly the platform-wide stall the no-throw rule exists to prevent. It
+walks the graph with `findModuleCycles` from `migration-order.ts`, so the member list an
+operator reads at the install prompt is the same list the boot warning would print.
 
 ### Accepted limitation
 
-A migration added later, inside the 45-day horizon, MAY change the relative order of
-two migrations that some databases have **already applied**. That is harmless for
-those databases: umzug computes pending as `list.filter(name ∉ executed)`, so an
-applied migration is filtered out regardless of its position in the list. Fresh
-databases are covered by the CI backend job, which creates an empty database and
-applies the whole chain on every pipeline.
+A migration added later MAY change the relative order of two migrations that some
+databases have **already applied**. That is harmless for those databases: umzug
+computes pending as `list.filter(name ∉ executed)`, so an applied migration is filtered
+out regardless of its position in the list. Measured on a real database built under the
+feature-`065` order and then read with the feature-`081` one: **pending 0, executed
+142, `up()` applied 0**. Fresh databases are covered by the CI backend job, which
+creates an empty database and applies the whole chain on every pipeline.
 
 ## What `dependencies` in a manifest means
 
-A module manifest's `dependencies` array is the input the corrector consumes, so it
-must be honest — but it means **install-time necessity**, not "every table I hold a
-foreign key to". Read it as: *this module cannot function without that one.*
+A module manifest's `dependencies` array is now the **whole** cross-module ordering
+input, so it must be honest — but it still means **install-time necessity**, not "every
+table I hold a foreign key to". Read it as: *this module cannot function without that
+one.*
 
 Where two modules look mutually dependent, three precedence rules decide which
 direction to keep:
@@ -203,7 +265,8 @@ naming the foreign keys it covers, the rule that drops it, and the cycle it woul
 create where it creates one. See `backend/src/modules/organizations/manifest.ts` for
 the worked example.
 
-A cycle in the graph is a **boot failure**, not a warning — see below.
+A cycle in the graph is a **red build** — `module-graph.test.ts` fails on any
+diagnostic. It is not a boot failure: see "Cycles are reported, not thrown" above.
 
 ## The FK-drift validator
 
@@ -278,71 +341,54 @@ All of these throw at **config-build time** — i.e. the first time anything imp
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `duplicate-timestamp: 20260801T000001: "MigrationA…" and "MigrationB…"` | Two branches scaffolded in the same second (common: both were clamped to the same `FROZEN_THROUGH + 1s` floor) and then merged. | Advance one of them by a whole second — rename the file **and** the class, and update its registry import. This is designed behaviour: the collision is loud and names both classes rather than silently reordering. |
-| `cycle in module dependency graph: [carts → promotions → catalog → carts]` | A manifest `dependencies` edit closed a loop. | Drop one edge per the precedence rules and comment it in the manifest that would have declared it; add an `ACKNOWLEDGED_FK_EDGES` entry if a real foreign key backs it. |
+| `module "orders" has two migrations stamped 20260801T000001` | Two branches scaffolded in the same second **inside one module** (common: both were clamped to the same `BASELINE_THROUGH + 1s` floor) and then merged. | Advance one of them by a whole second — rename the file **and** the class, then regenerate. Inside a module the timestamp is the whole order, so the collision is loud and names both classes rather than silently reordering. Two *different* modules sharing a stamp is legal and is not reported. |
+| `migration "…" is owned by module "orders", so it must be named Migration…Orders…` | A migration class whose tail does not begin with its module's segment. | Rename the class (and the file, which derives it). The name is the database's key for what has run; scoping it by module is what keeps it unique platform-wide. |
 | `migration "…" declares the unknown owning module "x"` | A brand-new module whose manifest is not in the generated index. | `pnpm --filter backend run manifest-index:generate` |
 | `migration class "…" does not match the naming convention` | Hand-written or hand-renamed file; class and filename disagree. | Re-derive the class name from the filename (see the table above) or re-scaffold. |
-| `the frozen migration prefix diverges … at index N` | A new migration was timestamped at or before `FROZEN_THROUGH`, or the frozen map was edited. | Timestamp the migration **after** `FROZEN_THROUGH`. Never edit `legacy-migration-names.ts`. |
-| Round-trip guard fails naming a file/class | A migration on disk with no registry entry, or the reverse. | Add (or remove) the import + `migration(...)` line. |
-| `db:fresh` fails on a foreign key the chain should already have created | An inversion **beyond** the 45-day horizon — the corrector deliberately refuses to reorder that far back. | Advance the new migration's timestamp so the pair falls inside the horizon. Do **not** reorder the registry: declaration order has no effect. |
+| Round-trip guard fails naming a file/class | A migration on disk with no registry entry, or the reverse. | `pnpm --filter backend run composer:generate` and commit the artefact. |
+| `db:fresh` fails on a foreign key the chain should already have created | The referencing module does not declare the module that owns the referenced table. | Add it to `dependencies` in the referencing module's `manifest.ts`, or move the constraint into a migration owned by the module that owns the referencing table. **Do not touch the timestamp** — after feature `081` a stamp cannot fix a cross-module ordering problem, and `fk-dependency-drift.test.ts` fails the build for the undeclared edge anyway. |
 
-The last row is worth repeating: **never "fix" an ordering surprise by moving a line
-in `migrations-registry.ts`.** Declaration order is not execution order. Bump the
-timestamp, or fix the manifest `dependencies`.
+Two things never fix an ordering surprise: **moving a line in the generated registry**
+(declaration order is not execution order, and regenerating restores it) and **bumping
+a timestamp** (a stamp orders nothing outside its own module). The remedy is always the
+manifest `dependencies`.
 
-## The frozen legacy block and the rename map
+## The baseline block, and renaming an applied migration
 
-`mikro_orm_migrations` records executed migrations **by name**, and those names are
-the class names. Renaming 112 classes without touching that table would make the
-migrator see 112 pending migrations and re-run all of them against a fully-populated
-production database.
+`mikro_orm_migrations` records executed migrations **by name**, and those names are the
+class names. The class name is derived mechanically from the filename, so **moving a
+migration file renames it**: relocating
+`modules/settings/migrations/20260430T101450_settings_init.ts` into `db/migrations/`
+forces the `core` segment, and `Migration20260430T101450SettingsInit` becomes
+`Migration20260430T101450CoreSettingsInit`.
 
-`backend/src/db/legacy-migration-names.ts` is the committed, **frozen** map: for each
-of the 112 pre-`065` migrations, its old executed name and its new name, in the
-**historical execution order** (taken verbatim from the pre-change `migrationsList`
-array — the order deployed databases actually executed, not the numeric filename
-order). Timestamps were derived once from git history and clamped to strictly increase
-along that order; the shipped order always wins over the git date.
+Feature `065` shipped a frozen rename map and a boot-time assertion that pinned every
+pre-`065` class name in place, so a database deployed under the old scheme would not
+re-run 112 migrations. Feature `072` retired both: there is no deployed database, and
+the assertion made a legitimate relocation impossible. What is left is the
+**position** watermark, `BASELINE_THROUGH`, which fixes only the *order* of the
+pre-`065` block. Renaming a class inside it is a no-op for the emitted order.
 
-**Never append to, reorder, or edit this file.** A unit test asserts the resolved
-frozen prefix equals it element for element, so an edit is a boot failure.
+It is not a no-op for an existing database. After a rename, umzug — which computes
+pending as `list.filter(name not in executed)` — sees the new name as unapplied and
+re-runs the migration against a schema that already has it:
 
-`backend/src/db/legacy-migration-rename.ts` is the **pre-flight** that rewrites
-`mikro_orm_migrations.name` from the old names to the new ones before anything
-computes pending work. It:
+- `pnpm --filter backend run test` fails in `globalSetup`, which runs `migrator.up()`,
+  with something like `relation "settings" already exists`. Every test file then fails
+  and the message names a migration, not the change that caused it.
+- `pnpm run dev` fails the same way at boot.
+- `allOrNothing: true` and `transactional: true` mean the replay rolls back rather than
+  half-applying: you lose the run, not the database.
 
-- resolves the table identity from the ORM's own configuration (never hard-coded);
-- is a **no-op on a fresh database** (`to_regclass` returns `null`);
-- runs one guarded, parameterized `UPDATE … FROM (VALUES …)` that also matches rows
-  stored with a `.ts` / `.js` suffix (MikroORM's own `unlogMigration` deletes all
-  three forms, so suffixed rows exist in the wild);
-- is **idempotent** — a `not exists` guard prevents duplicate rows, because the table
-  carries no unique index on `name`; a second run reports `renamed: 0`;
-- **warns, never fails**, on an executed-migration row matching neither a legacy nor a
-  current name (e.g. a migration from an abandoned branch).
-
-Operator-facing output on `migration:up`:
-
-```text
-[migrations] legacy name pre-flight: renamed 112 row(s)
-[migrations] warning: unrecognized executed migration "MigrationXyz" — left untouched
-```
-
-## The single migrator accessor
-
-`backend/src/db/migrator.ts` exports `getMigrator(orm)` — **the only sanctioned way**
-application and test code obtains a migrator. It runs the pre-flight once per ORM
-instance (memoized on a `WeakSet`), before anything can compute pending work, then
-returns `orm.getMigrator()`.
-
-Every entry point that can reach the migrator goes through it: the CLI
-(`src/db/migrate.ts`, which is also the production path — a one-shot container running
-`tsx src/db/migrate.ts up` gates the API start), the module-lifecycle orchestrator
-(through an injectable `OrchestratorDeps.migratorFor`, defaulting to `getMigrator`),
-and the test-suite bootstrap (`backend/test/global-setup.ts`).
-
-A root ESLint `no-restricted-syntax` rule fails the build on any other
-`.getMigrator(` call site, with `backend/src/db/migrator.ts` as the sole exemption.
+So a rename ships with a coordinated rebuild — every developer runs
+`DATABASE_URL=…/b2b_test_tpl pnpm --filter backend run db:fresh` for the test database and
+`pnpm --filter backend run db:reset` for the dev one, in the same window as the merge.
+`b2b_test_tpl` is the migrated template every test invocation is cloned from since issue
+#189; dropping it does the same job, because the next invocation recreates and re-migrates
+it from scratch.
+`db:fresh` and `db:reset` read `backend/.env` and default to the **dev** database, so
+always pass `DATABASE_URL` explicitly when you mean the test one. CI builds an empty
+database and needs no intervention.
 
 ## Module-uninstall migration revert
 
@@ -360,9 +406,24 @@ are class names, so hard-uninstall silently reverted **nothing** and only logged
 a module owns no registered migration, the orchestrator logs a warning and reverts
 nothing — hard-uninstall then relies on the module's `uninstallHook`.
 
+That makes the registry `moduleId` load-bearing beyond ordering: **file a migration
+under the module that owns the tables it writes to.** Until feature `072` T020 the
+settings and sales-channel migrations were still filed under their modules although the
+kernel owns those tables, so `modules:uninstall --hard settings` dropped `settings`,
+`setting_groups` and `setting_values`. `backend/test/unit/db/kernel-migration-ownership.test.ts`
+now fails the build when a module-owned migration writes to a kernel-owned table; both
+sets are derived (from the entity tree and from each migration's SQL), never enumerated.
+
 ---
 
-Full design, contracts and rationale: `specs/065-manifest-aware-migrations/` —
-`contracts/naming-convention.md` (the single statement of the naming rule),
-`contracts/ordering-algorithm.md`, `contracts/legacy-rename-map.md`, and
-`contracts/fk-dependency-check.md`.
+Full design, contracts and rationale:
+
+- **`specs/081-per-module-migration-order/contracts/`** — `ordering-algorithm.md` (the
+  current normative statement of the order, superseding the `065` one in whole) and
+  `migration-identity.md` (class-name scoping and per-module stamp uniqueness).
+- **`specs/065-manifest-aware-migrations/contracts/`** — `naming-convention.md` §1 and
+  §2 are still the only recognizers any tool may use;
+  `contracts/fk-dependency-check.md` still describes the FK-drift validator.
+  `contracts/ordering-algorithm.md` there is **superseded**.
+- The frozen rename map and the `getMigrator` accessor those `065` contracts describe
+  were retired by feature `072`; see `specs/072-module-kernel-di/MIGRATION-RESET.md`.

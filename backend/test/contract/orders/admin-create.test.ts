@@ -12,6 +12,7 @@ import { OrderService, type OrderEventBus } from '../../../src/modules/orders/se
 import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
+import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 const SALES_CHANNEL_ID = '00000000-0000-4000-8000-0000000000c1';
 const DELIVERY_ADDRESS_ID = '00000000-0000-4000-8000-0000000000d1';
@@ -57,8 +58,13 @@ describe('Admin create order on behalf (US3)', () => {
   it('blocks placement below the minimum order value (FR-035)', async () => {
     await seedCartForStubCustomer(h.em());
     const registry = new PaymentAdapterRegistry();
-    for (const a of builtInPaymentAdapters()) registry.register(a);
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
     const service = new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
+      neighbours: orderServiceNeighbours(h.em),
+      // Issue #124 — a rig states its own tax authority. `OrderService` has no
+      // fallback rate, so an order it cannot price is refused rather than taxed
+      // at a figure nobody configured.
+      resolveTaxRate: async () => 0.23,
       paymentAdapters: registry,
       orderStatusRegistry: new EnumOrderStatusRegistry(),
       resolveMinOrderValue: async () => 999999,
@@ -75,5 +81,46 @@ describe('Admin create order on behalf (US3)', () => {
         },
       ),
     ).rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  /**
+   * Issue #103 — the gate used to read `req.salesChannelId ?? ''`.
+   *
+   * An empty string is not a channel id, so the settings read behind
+   * `resolveMinOrderValue` threw at the D-42 seam guard and the `.catch(() =>
+   * 0)` around it reported "no minimum" — a configured minimum was therefore
+   * ignored on every placement that did not name a channel. "No channel" is
+   * `null`, which reads the platform-wide tier.
+   */
+  it('names an absent sales channel as null in the minimum-order-value read', async () => {
+    await seedCartForStubCustomer(h.em());
+    const seen: Array<string | null> = [];
+    const registry = new PaymentAdapterRegistry();
+    for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');
+    const service = new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
+      neighbours: orderServiceNeighbours(h.em),
+      // Issue #124 — a rig states its own tax authority. `OrderService` has no
+      // fallback rate, so an order it cannot price is refused rather than taxed
+      // at a figure nobody configured.
+      resolveTaxRate: async () => 0.23,
+      paymentAdapters: registry,
+      orderStatusRegistry: new EnumOrderStatusRegistry(),
+      resolveMinOrderValue: async (salesChannelId) => {
+        seen.push(salesChannelId);
+        return 0;
+      },
+    });
+
+    await service.placeOrder(
+      { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID },
+      {
+        deliveryAddressId: DELIVERY_ADDRESS_ID,
+        billingAddressId: BILLING_ADDRESS_ID,
+        deliveryMethodId: DELIVERY_METHOD_ID,
+        paymentMethodId: SEED_PAYMENT_METHOD_ID,
+      },
+    );
+
+    expect(seen).toEqual([null]);
   });
 });

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { gtmCollectRequestSchema } from '@b2b/contracts';
-import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { GtmConfigService } from './services/gtm-config.service.js';
 import type { GtmCollectEnqueuer } from './services/ss-relay-queue.js';
 

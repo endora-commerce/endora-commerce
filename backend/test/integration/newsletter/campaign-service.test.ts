@@ -7,7 +7,7 @@ import { NewsletterContentService } from '../../../src/modules/newsletter/servic
 import { NewsletterCampaignDispatchService } from '../../../src/modules/newsletter/services/campaign-dispatch.service.js';
 import { NewsletterCampaignService } from '../../../src/modules/newsletter/services/campaign.service.js';
 import { InMemoryNewsletterProvider } from '../../../src/modules/newsletter/services/provider/console-provider.js';
-import type { SettingsService } from '../../../src/modules/settings/services/settings.service.js';
+import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
 import { NewsletterTag } from '../../../src/modules/newsletter/entities/newsletter-tag.entity.js';
 import { NewsletterSubscriberTag } from '../../../src/modules/newsletter/entities/newsletter-subscriber-tag.entity.js';

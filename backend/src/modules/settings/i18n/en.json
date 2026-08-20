@@ -34,8 +34,6 @@
   "cache.namespace.dictionaries.description": "Resolved dictionary registries and entries (countries, etc.).",
   "cache.namespace.carts.label": "Cart pricing",
   "cache.namespace.carts.description": "Cached cart re-pricing snapshots.",
-  "cache.namespace.modules.label": "Module registry",
-  "cache.namespace.modules.description": "Cached enabled-module set used by the lifecycle gate.",
   "page.title": "Settings",
   "page.description": "Per-sales-channel configuration grouped by section. Each setting is declared by a backend module; values can be applied to all channels or to a chosen subset.",
   "groups.page.title": "Setting groups",
@@ -154,5 +152,12 @@
   "editor.placeholder.secretSet": "Value is set — enter a new value to replace it",
   "editor.placeholder.secretUnset": "Enter the secret value",
   "editor.secretIsSet": "Secret value is set (write-only, never displayed)",
-  "editor.secretNotSet": "No secret value set"
+  "editor.secretNotSet": "No secret value set",
+  "activation.title": "Module",
+  "activation.on": "On",
+  "activation.off": "Switched off",
+  "activation.managedOnPlatformScreen": "This is the module's on/off switch. It is managed on the Modules screen, together with what this deployment offers.",
+  "activation.openPlatformScreen": "Open Modules",
+  "editor.readOnly": "Read-only",
+  "editor.readOnlyReason": "The module that owns this setting is switched off. Its stored value is preserved and becomes editable again when the module is switched on."
 }

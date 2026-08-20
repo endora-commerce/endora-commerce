@@ -42,8 +42,27 @@ export type FeedProviderCode = z.infer<typeof feedProviderCodeSchema>;
 export const taxonomyProviderCodeSchema = z.enum(['google_merchant', 'meta']);
 export type TaxonomyProviderCode = z.infer<typeof taxonomyProviderCodeSchema>;
 
-export const feedOutputFormatSchema = z.enum(['xml', 'csv', 'tsv']);
+/**
+ * What the generated file is.
+ *
+ * `txt` is tab-separated like `tsv` and differs only in extension and media
+ * type — several marketplace importers (Google Merchant's own flat file among
+ * them) accept nothing else, and renaming the file is exactly the kind of step
+ * an operator should not have to know about.
+ *
+ * `xlsx` is the real Office Open XML workbook, not a spreadsheet-flavoured
+ * text file. The legacy binary `.xls` (BIFF8) is deliberately absent: it is
+ * superseded, and nothing in this stack can write it.
+ */
+export const feedOutputFormatSchema = z.enum(['xml', 'csv', 'tsv', 'txt', 'xlsx']);
 export type FeedOutputFormat = z.infer<typeof feedOutputFormatSchema>;
+
+/** Formats that lay one item per row across fixed columns (everything but XML). */
+export const TABULAR_FEED_FORMATS = ['csv', 'tsv', 'txt', 'xlsx'] as const satisfies readonly FeedOutputFormat[];
+
+export function isTabularFeedFormat(format: FeedOutputFormat): boolean {
+  return (TABULAR_FEED_FORMATS as readonly string[]).includes(format);
+}
 
 export const feedItemGranularitySchema = z.enum(['product', 'variant']);
 export type FeedItemGranularity = z.infer<typeof feedItemGranularitySchema>;
@@ -128,6 +147,14 @@ export const feedRunFailureCodeSchema = z.enum([
   'unbound_template_fields',
   'unknown_attribute',
   'channel_unavailable',
+  /**
+   * The template binds a required field to the platform `link` source, but the
+   * feed's sales channel has no storefront origin — `sales_channels.storefront_url`
+   * is empty and `STOREFRONT_BASE_URL` is unset. Without it every item loses its
+   * link and is skipped, so the run names the setting instead of reporting the
+   * symptom once per product.
+   */
+  'storefront_url_unconfigured',
   'price_list_unavailable',
   'language_unavailable',
   'skip_threshold_exceeded',
@@ -238,6 +265,102 @@ export const SCHEDULE_PRESETS: ReadonlyArray<SchedulePreset> = [
 export function presetForCron(cron: string): string | null {
   const normalized = cron.trim().replace(/\s+/g, ' ');
   return SCHEDULE_PRESETS.find((preset) => preset.cron === normalized)?.id ?? null;
+}
+
+/**
+ * The point-and-click form of a schedule — the four shapes an operator can
+ * assemble without knowing cron.
+ *
+ * Deliberately a small closed set. Cron can express far more, and the *Custom*
+ * text input remains for anyone who needs it; what this type exists to do is
+ * make the common cases reachable without teaching five positional fields.
+ */
+export type CronBuilderValue =
+  | { frequency: 'hourly'; minute: number }
+  | { frequency: 'daily'; hour: number; minute: number }
+  | { frequency: 'weekly'; dayOfWeek: number; hour: number; minute: number }
+  | { frequency: 'monthly'; dayOfMonth: number; hour: number; minute: number };
+
+export type CronBuilderFrequency = CronBuilderValue['frequency'];
+
+export const CRON_BUILDER_FREQUENCIES = [
+  'hourly',
+  'daily',
+  'weekly',
+  'monthly',
+] as const satisfies readonly CronBuilderFrequency[];
+
+/** The expression a builder selection stands for. Always valid by construction. */
+export function cronFromBuilder(value: CronBuilderValue): string {
+  switch (value.frequency) {
+    case 'hourly':
+      return `${value.minute} * * * *`;
+    case 'daily':
+      return `${value.minute} ${value.hour} * * *`;
+    case 'weekly':
+      return `${value.minute} ${value.hour} * * ${value.dayOfWeek}`;
+    case 'monthly':
+      return `${value.minute} ${value.hour} ${value.dayOfMonth} * *`;
+  }
+}
+
+/** A plain integer field — no `*`, no list, no range, no step. */
+function exactField(field: string): number | null {
+  return /^\d+$/.test(field) ? Number(field) : null;
+}
+
+/**
+ * The builder selection an expression corresponds to, or `null` when the
+ * expression says something the four frequencies cannot.
+ *
+ * The `null` is the important half. `0 * /4 * * *` is a perfectly good schedule
+ * that no frequency here describes; reporting it as "hourly" would show the
+ * operator a dropdown they never chose and quadruple the run rate if they then
+ * saved. Anything with a step, a list, a range, a fixed month, or both a
+ * day-of-month and a day-of-week (which cron ORs together) is refused, and the
+ * caller keeps the operator on the raw expression instead.
+ */
+export function builderFromCron(cron: string): CronBuilderValue | null {
+  // Normalised before validating, not after: the grammar is anchored, so it
+  // rejects the padding a text input routinely carries, and this is fed
+  // straight from one.
+  const normalized = cron.trim().replace(/\s+/g, ' ');
+  if (!isValidCronExpression(normalized)) return null;
+  const [minuteField, hourField, domField, monthField, dowField] = normalized.split(' ') as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+
+  // A schedule that fires every minute is not one of the offered frequencies.
+  const minute = exactField(minuteField);
+  if (minute === null) return null;
+  if (monthField !== '*') return null;
+
+  const hour = exactField(hourField);
+  const dayOfMonth = exactField(domField);
+  const dayOfWeek = exactField(dowField);
+
+  const hasDom = domField !== '*';
+  const hasDow = dowField !== '*';
+  // Cron ORs these two, so a schedule constraining both is neither weekly nor
+  // monthly — it is a union no single frequency names.
+  if (hasDom && hasDow) return null;
+
+  if (hourField === '*') {
+    return hasDom || hasDow ? null : { frequency: 'hourly', minute };
+  }
+  if (hour === null) return null;
+
+  if (hasDow) {
+    return dayOfWeek === null ? null : { frequency: 'weekly', dayOfWeek, hour, minute };
+  }
+  if (hasDom) {
+    return dayOfMonth === null ? null : { frequency: 'monthly', dayOfMonth, hour, minute };
+  }
+  return { frequency: 'daily', hour, minute };
 }
 
 export function isValidTimezone(timezone: string): boolean {
@@ -716,12 +839,20 @@ export const feedTemplatePreviewResponseSchema = dataEnvelope(
 // ---------------------------------------------------------------------------
 
 export const productFeedTokenSchema = z.object({
-  /** Non-secret display fragment. The plaintext is returned ONCE, on create/rotate. */
+  /** Non-secret display fragment. */
   prefix: z.string().max(12).nullable(),
   rotatedAt: isoDateTimeSchema.nullable(),
   revokedAt: isoDateTimeSchema.nullable(),
-  /** Fully-qualified public URL, or null when revoked (FR-047). */
+  /**
+   * Fully-qualified public URL, or null when revoked (FR-047).
+   *
+   * Carries the working link when {@link urlIsLive} is true. When it is false
+   * the token predates recoverable storage (or this deployment has no
+   * encryption key) and the URL is a masked, non-working display form.
+   */
   url: z.string().url().nullable(),
+  /** Whether `url` is the real link rather than the masked form. */
+  urlIsLive: z.boolean(),
 });
 
 export const productFeedRunSummarySchema = z.object({
@@ -871,7 +1002,7 @@ export const feedRunIssueSchema = z.object({
   reason: feedRunIssueReasonSchema,
   productId: uuidSchema.nullable(),
   variantId: uuidSchema.nullable(),
-  sku: z.string().max(64).nullable(),
+  sku: z.string().max(255).nullable(),
   outputName: z.string().max(128).nullable(),
   detail: z.string().max(255).nullable(),
 });
@@ -1271,6 +1402,14 @@ export const PRODUCT_FEED_ERROR_CODES = {
   IMPACT_CHANGED: 'impact_changed',
   /** The revision is already the one in force. */
   TAXONOMY_REVISION_ALREADY_CURRENT: 'taxonomy_revision_already_current',
+
+  // Feature 070 — delivery.
+  /** The target address is refused by the egress guard (SR-2, SR-4). */
+  DELIVERY_TARGET_REFUSED: 'delivery_target_refused',
+  /** `POST /delivery/test` on a feed that has no delivery configuration. */
+  DELIVERY_NOT_CONFIGURED: 'delivery_not_configured',
+  /** The connection test is rate-limited per feed (SR-5). */
+  DELIVERY_TEST_RATE_LIMITED: 'delivery_test_rate_limited',
 } as const;
 export type ProductFeedErrorCode =
   (typeof PRODUCT_FEED_ERROR_CODES)[keyof typeof PRODUCT_FEED_ERROR_CODES];
@@ -1280,6 +1419,13 @@ export type ProductFeedErrorCode =
 // ---------------------------------------------------------------------------
 
 export const PRODUCT_FEED_SETTING_CODES = {
+  /**
+   * Feature 074 — the operator-activation control (Constitution XVII), and the
+   * only one of these codes that decides whether the module exists. It is not
+   * the same switch as `TAXONOMY_FETCH_ENABLED` below, which governs one
+   * outbound refresh inside a module that is present.
+   */
+  ACTIVATION: 'product_feeds.enabled',
   ARTEFACT_RETENTION_COUNT: 'product_feeds.artefact_retention_count',
   MAX_CONCURRENT_RUNS: 'product_feeds.max_concurrent_runs',
   SKIP_SHARE_FAILURE_THRESHOLD: 'product_feeds.skip_share_failure_threshold',
@@ -1305,6 +1451,12 @@ export const PRODUCT_FEED_SETTING_CODES = {
   TAXONOMY_SOURCE_URL_META_PL: 'product_feeds.taxonomy_source_url_meta_pl',
   /** Retained revisions per provider; the three protected classes are never counted out (FR-097). */
   TAXONOMY_REVISION_RETENTION_COUNT: 'product_feeds.taxonomy_revision_retention_count',
+
+  // Feature 070 — delivery (group `product_feeds`).
+  /** Attempts per published artefact before the delivery is abandoned (FR-104). */
+  DELIVERY_MAX_ATTEMPTS: 'product_feeds.delivery_max_attempts',
+  /** Ceiling on `POST /delivery/test` per feed per hour (SR-5). */
+  DELIVERY_TEST_RATE_LIMIT_PER_HOUR: 'product_feeds.delivery_test_rate_limit_per_hour',
 } as const;
 
 /**
@@ -1325,4 +1477,278 @@ export const TAXONOMY_FETCH_LIMITS = {
   MIN_PLAUSIBLE_NODES: 500,
   /** Checks retained per provider — roughly five months of weekly history. */
   CHECK_HISTORY_PER_PROVIDER: 20,
+} as const;
+
+// ---------------------------------------------------------------------------
+// (12) Feed delivery — feature 070
+//
+// Where a successful run's artefact is PUSHED, and by what protocol. Delivery
+// runs after publication, never instead of it, so the pull URL keeps working
+// for a feed that uses both (spec § Scope).
+//
+// The operator request named five protocols; they are three mechanisms. `HTTP
+// Server`, `API` and `GraphQL` are the same two fields with the same help text
+// in the reference screenshots, so they are ONE stored protocol (`http`) with
+// an operator-visible label. Three code paths that must be kept byte-identical
+// forever is three ways to file the same bug.
+// ---------------------------------------------------------------------------
+
+/** The three mechanisms. Stored verbatim on `product_feed_deliveries.protocol`. */
+export const feedDeliveryProtocolSchema = z.enum(['sftp', 'ftp', 'http']);
+export type FeedDeliveryProtocol = z.infer<typeof feedDeliveryProtocolSchema>;
+
+/**
+ * The operator's vocabulary for the `http` protocol. Presentation only: it
+ * selects a label and nothing else, and every value behaves identically.
+ */
+export const feedDeliveryHttpLabelSchema = z.enum(['http_server', 'api', 'graphql']);
+export type FeedDeliveryHttpLabel = z.infer<typeof feedDeliveryHttpLabelSchema>;
+
+export const feedDeliveryStatusSchema = z.enum(['succeeded', 'failed']);
+export type FeedDeliveryStatus = z.infer<typeof feedDeliveryStatusSchema>;
+
+/**
+ * Why an attempt failed, as a closed set an operator can be told about in their
+ * own language. `failureDetail` carries the transport's own words, redacted
+ * (FR-108); this is what the admin renders.
+ */
+export const feedDeliveryFailureReasonSchema = z.enum([
+  /** The configuration is incomplete or its credential is gone. */
+  'not_configured',
+  /** The egress guard refused the address (SR-2, SR-4). */
+  'target_refused',
+  /** The host answered but rejected the credentials. */
+  'authentication_failed',
+  /** No usable connection — DNS, TCP, TLS or timeout. */
+  'connection_failed',
+  /** Connected and authenticated, but the transfer itself did not complete. */
+  'transfer_failed',
+  /** An HTTP target answered with a non-2xx status. */
+  'rejected_by_target',
+  /** The artefact's bytes could not be read back from storage. */
+  'artefact_unavailable',
+  'internal_error',
+]);
+export type FeedDeliveryFailureReason = z.infer<typeof feedDeliveryFailureReasonSchema>;
+
+/**
+ * The header names whose VALUE is treated as a secret and stored through the
+ * credentials module rather than in the configuration row (FR-107).
+ *
+ * A closed prefix/suffix rule rather than an operator toggle: an operator who
+ * has to remember to tick "this one is secret" will one day not, and the token
+ * lands in a jsonb column that every read returns. Matching is
+ * case-insensitive on the header name.
+ */
+export const FEED_DELIVERY_SECRET_HEADER_NAMES = [
+  'authorization',
+  'proxy-authorization',
+  'cookie',
+] as const;
+export const FEED_DELIVERY_SECRET_HEADER_SUFFIXES = [
+  '-key',
+  '-token',
+  '-secret',
+  '-password',
+  '-auth',
+] as const;
+
+/** True when this header's value must be stored as a secret (FR-107). */
+export function isSecretDeliveryHeader(name: string): boolean {
+  const lower = name.trim().toLowerCase();
+  if ((FEED_DELIVERY_SECRET_HEADER_NAMES as readonly string[]).includes(lower)) return true;
+  return FEED_DELIVERY_SECRET_HEADER_SUFFIXES.some((suffix) => lower.endsWith(suffix));
+}
+
+/**
+ * The sentinel a read returns in place of a stored secret, and which a write
+ * may send back to mean "keep what is there". The credentials module's own
+ * write-only semantics, applied rather than re-invented.
+ */
+export const FEED_DELIVERY_REDACTED = '[redacted]';
+
+/** RFC 7230 field-name grammar, minus the characters no real header uses. */
+const headerNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9!#$%&'*+\-.^_`|~]+$/, 'invalid_header_name');
+
+/** No CR/LF: a header value that can inject a second header is a request smuggler. */
+const headerValueSchema = z
+  .string()
+  .max(2048)
+  .regex(/^[^\r\n]*$/, 'invalid_header_value');
+
+export const feedDeliveryHeaderInputSchema = z.object({
+  name: headerNameSchema,
+  value: headerValueSchema,
+});
+export type FeedDeliveryHeaderInput = z.infer<typeof feedDeliveryHeaderInputSchema>;
+
+/**
+ * A header as read back. A secret one carries `value: null` and `isSet`, never
+ * the stored token — the same rule the credentials DTO applies to every secret
+ * field.
+ */
+export const feedDeliveryHeaderSchema = z.object({
+  name: z.string(),
+  value: z.string().nullable(),
+  secret: z.boolean(),
+  isSet: z.boolean(),
+});
+export type FeedDeliveryHeader = z.infer<typeof feedDeliveryHeaderSchema>;
+
+const MAX_DELIVERY_HEADERS = 25;
+
+/**
+ * The write body of `PUT /api/v1/admin/product-feeds/:id/delivery`.
+ *
+ * A discriminated union on `protocol`, so a body carrying an SFTP host and an
+ * HTTP request URL is unrepresentable at the API boundary even though the table
+ * is deliberately permissive (plan.md § Data model).
+ *
+ * `password` and `privateKey` are **write-only**: omitted, blank or
+ * `[redacted]` preserves the stored envelope, so editing a directory path can
+ * never silently erase a key.
+ */
+const deliveryCommonSchema = {
+  enabled: z.boolean(),
+  /** Optimistic lock. Absent on the first write, which is the create. */
+  expectedVersion: z.number().int().nonnegative().optional(),
+};
+
+const hostFieldSchema = z.string().trim().min(1).max(255);
+const portFieldSchema = z.number().int().min(1).max(65_535).nullable();
+
+export const upsertFeedDeliveryRequestSchema = z.discriminatedUnion('protocol', [
+  z.object({
+    ...deliveryCommonSchema,
+    protocol: z.literal('sftp'),
+    host: hostFieldSchema,
+    port: portFieldSchema.optional(),
+    username: z.string().trim().min(1).max(255),
+    password: z.string().max(1024).optional(),
+    privateKey: z.string().max(32_768).optional(),
+    directoryPath: z.string().trim().max(1024).optional(),
+  }),
+  z.object({
+    ...deliveryCommonSchema,
+    protocol: z.literal('ftp'),
+    host: hostFieldSchema,
+    port: portFieldSchema.optional(),
+    username: z.string().trim().min(1).max(255),
+    password: z.string().max(1024).optional(),
+    directoryPath: z.string().trim().max(1024).optional(),
+    /** FTP's own connection mode. Passive is the one that works behind NAT. */
+    passiveMode: z.boolean().optional(),
+  }),
+  z.object({
+    ...deliveryCommonSchema,
+    protocol: z.literal('http'),
+    /** Presentation only — HTTP Server / API / GraphQL all POST identically. */
+    httpLabel: feedDeliveryHttpLabelSchema.optional(),
+    /** `https` only (SR-4); validated again against the egress guard on write. */
+    requestUrl: z.string().trim().min(1).max(2048),
+    headers: z.array(feedDeliveryHeaderInputSchema).max(MAX_DELIVERY_HEADERS).optional(),
+  }),
+]);
+export type UpsertFeedDeliveryRequest = z.infer<typeof upsertFeedDeliveryRequestSchema>;
+
+/**
+ * The delivery configuration as read back. Every secret is a boolean; nothing
+ * on this shape can be replayed as a credential (FR-107).
+ */
+export const feedDeliveryConfigSchema = z.object({
+  id: uuidSchema,
+  productFeedId: uuidSchema,
+  enabled: z.boolean(),
+  protocol: feedDeliveryProtocolSchema,
+  httpLabel: feedDeliveryHttpLabelSchema.nullable(),
+  host: z.string().nullable(),
+  /** Null means "the protocol's own default" — 22 for SFTP, 21 for FTP. */
+  port: z.number().int().nullable(),
+  username: z.string().nullable(),
+  directoryPath: z.string().nullable(),
+  passiveMode: z.boolean(),
+  requestUrl: z.string().nullable(),
+  headers: z.array(feedDeliveryHeaderSchema),
+  passwordSet: z.boolean(),
+  privateKeySet: z.boolean(),
+  version: z.number().int(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type FeedDeliveryConfig = z.infer<typeof feedDeliveryConfigSchema>;
+
+/** `GET`/`PUT /api/v1/admin/product-feeds/:id/delivery`. `null` means unconfigured. */
+export const feedDeliveryConfigResponseSchema = dataEnvelope(feedDeliveryConfigSchema.nullable());
+
+/**
+ * One recorded attempt (FR-105). `target` is the **redacted display form** —
+ * `sftp://user@host:22/path`, never a password and never a header value.
+ */
+export const feedDeliveryAttemptSchema = z.object({
+  id: uuidSchema,
+  productFeedId: uuidSchema,
+  feedRunId: uuidSchema.nullable(),
+  feedArtefactId: uuidSchema.nullable(),
+  protocol: feedDeliveryProtocolSchema,
+  target: z.string(),
+  status: feedDeliveryStatusSchema,
+  failureReason: feedDeliveryFailureReasonSchema.nullable(),
+  failureDetail: z.string().nullable(),
+  /** 1-based, so "attempt 3 of 5" reads the way an operator counts. */
+  attempt: z.number().int().positive(),
+  /** A "Test Connection" attempt (FR-106) — it delivered no artefact. */
+  isTest: z.boolean(),
+  startedAt: isoDateTimeSchema,
+  finishedAt: isoDateTimeSchema.nullable(),
+  durationMs: z.number().int().nullable(),
+});
+export type FeedDeliveryAttempt = z.infer<typeof feedDeliveryAttemptSchema>;
+
+/** `GET /api/v1/admin/product-feeds/:id/delivery/attempts`. */
+export const feedDeliveryAttemptListResponseSchema = collectionEnvelope(
+  feedDeliveryAttemptSchema,
+);
+
+/** `POST /api/v1/admin/product-feeds/:id/delivery/test` (FR-106). */
+export const feedDeliveryTestResponseSchema = dataEnvelope(
+  z.object({
+    ok: z.boolean(),
+    failureReason: feedDeliveryFailureReasonSchema.nullable(),
+    failureDetail: z.string().nullable(),
+    attempt: feedDeliveryAttemptSchema,
+  }),
+);
+
+/**
+ * Egress and transport safety limits. Not settings, for the reason
+ * `TAXONOMY_FETCH_LIMITS` is not: an admin screen that can widen an SSRF guard
+ * or remove a timeout is an SSRF guard with an off switch.
+ */
+export const FEED_DELIVERY_LIMITS = {
+  /** Per-attempt ceiling on the whole transfer, whatever the protocol. */
+  TRANSFER_TIMEOUT_MS: 300_000,
+  /** Connect + authenticate. A host that cannot answer this fast is down. */
+  CONNECT_TIMEOUT_MS: 20_000,
+  /**
+   * One hop, re-validated, and the credential headers are re-attached only if
+   * the host is unchanged (SR-3).
+   */
+  MAX_REDIRECTS: 1,
+  /** Attempts retained per feed. */
+  ATTEMPT_HISTORY_PER_FEED: 50,
+  /** Delivery attempts per published artefact, unless the setting overrides it. */
+  DEFAULT_MAX_ATTEMPTS: 5,
+  /** Backoff base; the worker multiplies it exponentially per attempt. */
+  RETRY_BACKOFF_MS: 60_000,
+  /** `POST /delivery/test` per feed per hour, unless the setting overrides it. */
+  DEFAULT_TEST_RATE_LIMIT_PER_HOUR: 20,
+  /** The fixed, non-operator-controlled body a `http` connection test sends (SR-5). */
+  TEST_PAYLOAD: 'endora-commerce feed delivery connection test',
+  /** The filename a test writes and removes on an SFTP/FTP target. */
+  TEST_FILENAME: '.endora-delivery-test',
 } as const;

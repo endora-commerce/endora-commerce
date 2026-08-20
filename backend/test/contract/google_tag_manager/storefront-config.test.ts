@@ -8,7 +8,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { registryCache } from '../../../src/modules/_lifecycle/services/registry-cache.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 const C = GOOGLE_TAG_MANAGER_SETTING_CODES;

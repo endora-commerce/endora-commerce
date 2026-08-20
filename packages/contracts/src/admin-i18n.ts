@@ -6,18 +6,27 @@
 //
 // At GA the supported set is `en` and `pl`; English is the platform-wide
 // fallback (specs/019-admin-i18n/spec.md FR-013, FR-016).
+//
+// The set and the fallback themselves now live in `platform-language.ts`
+// (feature 083, D-136): a buyer is answered out of the same enum, so naming it
+// after the Admin UI was the thing that let `ADMIN_LANGUAGE_FALLBACK` sit on a
+// buyer's code path for a year without anybody reading it as wrong (#234).
 
 import { z } from 'zod';
+import { SupportedLanguageSchema, type SupportedLanguage } from './platform-language.js';
 
-/** Supported Admin UI languages — closed enum at GA, extensible by code change. */
-export const SupportedAdminLanguageSchema = z.enum(['en', 'pl']);
-export type SupportedAdminLanguage = z.infer<typeof SupportedAdminLanguageSchema>;
-
-/** Convenience: every supported value as a runtime array. */
-export const SUPPORTED_ADMIN_LANGUAGES = SupportedAdminLanguageSchema.options;
-
-/** Platform-wide fallback used by the resolver when the user's preferred bundle has no entry. */
-export const ADMIN_LANGUAGE_FALLBACK: SupportedAdminLanguage = 'en';
+/**
+ * @deprecated Use `SupportedLanguageSchema` from `platform-language.ts`. The set
+ * is the platform's, not the Admin UI's — a buyer is answered out of the same
+ * enum (feature 083, D-136). Draining task: `specs/083-buyer-language-resolution`
+ * T021.
+ */
+export const SupportedAdminLanguageSchema = SupportedLanguageSchema;
+/**
+ * @deprecated Use `SupportedLanguage` from `platform-language.ts`. Draining
+ * task: `specs/083-buyer-language-resolution` T021.
+ */
+export type SupportedAdminLanguage = SupportedLanguage;
 
 /**
  * On-disk bundle JSON shape and the row payload persisted to
@@ -87,3 +96,34 @@ export const I18nCoverageQuerySchema = z.object({
   includeKeys: z.enum(['missing', 'all']).default('missing').optional(),
 });
 export type I18nCoverageQuery = z.infer<typeof I18nCoverageQuerySchema>;
+
+// --- ports -------------------------------------------------------------------
+
+/**
+ * Container name: `adminI18nService`. Owner: `_i18n`.
+ *
+ * The backend-side string resolver: a module id, a key inside that module's
+ * bundle and the operator's language in, the rendered sentence out. The
+ * resolver falls back to English and, failing that, returns `moduleId.key`
+ * verbatim — a caller that wants to detect a missing key compares against that
+ * placeholder rather than against `null`.
+ *
+ * This is the one method the resolver's cross-module callers use. The bundle
+ * install, removal and coverage surfaces of `_i18n`'s service stay inside
+ * `_i18n`: they are the reconciler's business, not a consumer's.
+ *
+ * When `_i18n` is off the port fails closed. That is the right answer for a
+ * caller rendering an operator-facing string: a screen labelled with raw keys
+ * is worse than a screen that says the platform will not answer.
+ *
+ * Whether `_i18n` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface AdminI18nTranslatePort {
+  translate(
+    moduleId: string,
+    key: string,
+    language: SupportedAdminLanguage,
+    params?: Record<string, string | number>,
+  ): Promise<string>;
+}

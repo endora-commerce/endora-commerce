@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { ProductSummary } from '@b2b/contracts';
 import { tForLocale } from '../lib/i18n/messages';
+import { DEFAULT_VAT_RATE, grossFromNet } from '../lib/i18n/money';
 
 /**
  * List-view row for the catalog. Same data surface as `<ProductCard>`,
@@ -14,8 +15,15 @@ import { tForLocale } from '../lib/i18n/messages';
 export function ProductRow(props: {
   product: ProductSummary;
   locale: string;
+  /**
+   * Fractional VAT rate used to derive gross from net; defaults to the
+   * deployment assumption in `lib/i18n/money` (issue #132). This row used to
+   * multiply by a literal `1.23`, which is a gross figure no tax authority was
+   * consulted about and no caller could correct.
+   */
+  vatRate?: number;
 }): ReactNode {
-  const { product, locale } = props;
+  const { product, locale, vatRate = DEFAULT_VAT_RATE } = props;
   const t = tForLocale(locale);
 
   const fmtCurrency = (amount: number): string =>
@@ -26,9 +34,11 @@ export function ProductRow(props: {
     }).format(amount);
 
   const priceFmt = product.price ? fmtCurrency(product.price.amount) : null;
-  // Gross is derived the same way the grid card derives it (standard 23% VAT)
-  // so the list and grid views show consistent price detail.
-  const grossFmt = product.price ? fmtCurrency(product.price.amount * 1.23) : null;
+  // Derived through the shared seam, so the list and grid views agree and both
+  // are corrected in one place. `null` price and price `0` stay distinct: the
+  // first renders no figure at all, the second renders zero.
+  const gross = product.price ? grossFromNet(product.price.amount, vatRate) : null;
+  const grossFmt = gross === null ? null : fmtCurrency(gross);
 
   return (
     <article className="grid grid-cols-[88px_minmax(0,1fr)_170px_170px_130px] items-center gap-[20px] rounded-md border border-line bg-surface p-[16px] transition hover:border-[var(--ink-700)] hover:shadow-sm max-[920px]:grid-cols-[64px_minmax(0,1fr)]">

@@ -1,16 +1,28 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { DeliveryMethod } from '../entities/delivery-method.entity.js';
-import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 
 /**
  * DeliveryMethodReconciler (feature 035, FR-002).
  *
- * When a module registers a shipping adapter (from its lifecycle install hook),
- * it calls `ensureMethodForAdapter` to create a configurable `delivery_methods`
- * row bound to that adapter — so enabling a shipping-method module surfaces an
- * entry at `/delivery-methods` with no core change. Idempotent and prune-safe:
- * an existing row (matched by `code`) keeps its admin-edited configuration; the
- * reconciler only fills a missing `adapter` link.
+ * A module that must create its `delivery_methods` row from code calls
+ * `ensureMethodForAdapter` from its **install hook**, so installing a
+ * shipping-method module surfaces a configurable entry at `/delivery-methods`
+ * with no core change. Idempotent and prune-safe: an existing row (matched by
+ * `code`) keeps its admin-edited configuration; the reconciler only fills a
+ * missing `adapter` link.
+ *
+ * The row and the adapter are contributed at **different moments, on purpose**.
+ * This row is durable state and is written once, at install; the adapter is an
+ * in-memory entry in a per-process table and is pushed from the contributing
+ * module's boot hook, on every composition (see `shipping-adapter-registry.ts`).
+ * Neither waits for the other: a row whose `adapter` key nothing has contributed
+ * is simply not offered, and the registry is not read until a request reads it.
+ *
+ * **It no longer touches sales-channel membership (issue #96)** — see the
+ * payment twin (`payment_methods/services/payment-method-reconciler.ts`).
+ * The mechanism was identical here; only the exposure differed, because no
+ * carrier module contributes an adapter yet. Removing it before one does is
+ * the point.
  */
 export interface EnsureMethodDefaults {
   code: string;
@@ -23,10 +35,7 @@ export interface EnsureMethodDefaults {
 }
 
 export class DeliveryMethodReconciler {
-  constructor(
-    private readonly emFactory: () => EntityManager,
-    private readonly salesChannelMembership?: SalesChannelMembershipService,
-  ) {}
+  constructor(private readonly emFactory: () => EntityManager) {}
 
   async ensureMethodForAdapter(
     adapterKey: string,
@@ -57,12 +66,6 @@ export class DeliveryMethodReconciler {
       statusOnFailure: defaults.statusOnFailure ?? 'processing',
     });
     await em.persistAndFlush(row);
-
-    // Bind to the system-default sales channel when no membership exists yet,
-    // matching the behaviour of the existing admin upsert path.
-    if (this.salesChannelMembership) {
-      await this.salesChannelMembership.bindToDefaultIfEmpty('delivery-method', row.id);
-    }
     return row;
   }
 }

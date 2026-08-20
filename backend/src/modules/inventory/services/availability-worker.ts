@@ -1,12 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type {
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+  EmailMailerPort,
+} from '@b2b/contracts';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import type { Mailer } from '../../email/services/mailer.js';
-import type { EventBus } from '../../../events/bus.js';
 import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 
-interface AdjustedPayload {
+export interface AdjustedPayload {
   productId: string;
   warehouseId: string;
   variantId: string | null;
@@ -35,7 +36,11 @@ interface AdjustedPayload {
 export class AvailabilityWorker {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly mailer: Mailer,
+    private readonly mailer: EmailMailerPort,
+    /** `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C). */
+    private readonly catalogProducts: CatalogProductReadPort,
+    /** `customerAccountReadPort`, owned by `customer_accounts` (feature 075). */
+    private readonly customerAccounts: CustomerAccountReadPort,
   ) {}
 
   async dispatchForStockIncrease(input: {
@@ -48,7 +53,7 @@ export class AvailabilityWorker {
     // scope the AvailabilityNotification reads under a system context.
     return withSystemScope('availability stock-increase', async () => {
     const em = this.emFactory();
-    const product = await em.findOne(Product, { id: input.productId });
+    const product = await this.catalogProducts.findById(input.productId);
     if (!product) return { notified: 0 };
 
     const where: Record<string, unknown> = {
@@ -71,9 +76,7 @@ export class AvailabilityWorker {
       ),
     );
     const customers =
-      customerIds.length > 0
-        ? await em.find(CustomerAccount, { id: { $in: customerIds } })
-        : [];
+      customerIds.length > 0 ? await this.customerAccounts.findByIds(customerIds) : [];
     const emailById = new Map(customers.map((c) => [c.id, c.email]));
 
     const productName = product.name['en-US'] ?? Object.values(product.name)[0] ?? product.sku;
@@ -89,17 +92,28 @@ export class AvailabilityWorker {
         sub.notifiedAt = now;
         continue;
       }
-      await this.mailer.send({
+      const outcome = await this.mailer.send({
         messageId: `availability:${sub.id}`,
         to,
         subject: `Back in stock: ${productName}`,
         text: `Good news — "${productName}" is available again.`,
+        kind: 'availability_back_in_stock',
         meta: {
           productId: input.productId,
           variantId: input.variantId ?? null,
           notificationId: sub.id,
         },
       });
+      if (outcome.status !== 'sent') {
+        // The subscription is still consumed: the one suppression a transport
+        // performs is an already-accepted `messageId`, which means this
+        // subscriber was notified by an earlier run. Re-sending it is the
+        // duplicate the idempotency key exists to prevent.
+        console.warn('[inventory] the back-in-stock e-mail was not sent', {
+          notificationId: sub.id,
+          reason: outcome.reason,
+        });
+      }
       sub.notifiedAt = now;
     }
     await em.flush();
@@ -108,32 +122,30 @@ export class AvailabilityWorker {
   }
 
   /**
-   * Wire the worker to the event bus — fan out only when cumulative
-   * across all warehouses crossed from 0 to > 0 for the (product, variant)
-   * pair, not on every stock_levels row tweak.
+   * `inventory.adjusted.v1` — fan out only when cumulative on-hand across all
+   * warehouses crossed from 0 to > 0 for the (product, variant) pair, not on
+   * every `stock_levels` row tweak.
+   *
+   * The subscription lives in this module's `backend.ts` and goes through
+   * `ctx.subscribe`, so a switched-off `inventory` sends no back-in-stock mail
+   * (issue #107). It used to be a bare `eventBus.on` here.
    */
-  attach(eventBus: EventBus): void {
-    eventBus.on('inventory.adjusted.v1', (payload) => {
-      const cast = payload as unknown as AdjustedPayload;
-      void this.handleAdjusted(cast);
-    });
-  }
-
-  private async handleAdjusted(payload: AdjustedPayload): Promise<void> {
+  async handleAdjusted(payload: AdjustedPayload): Promise<void> {
     if (payload.after <= 0) return;
     const em = this.emFactory();
-    const knex = em.getKnex();
-    const where: Record<string, unknown> = { product_id: payload.productId };
-    if (payload.variantId === null) {
-      where['variant_id'] = null;
-    } else {
-      where['variant_id'] = payload.variantId;
-    }
-    const sumRow = await knex('stock_levels')
-      .where(where)
-      .sum<{ on_hand: string | null }[]>('on_hand as on_hand')
-      .first();
-    const cumulativeAfter = Number(sumRow?.on_hand ?? 0);
+    // `em.execute`, not `em.getKnex()`: a knex handle takes its own pooled
+    // connection, so a caller that raised this event from inside a transaction
+    // would have the sum answered from outside it (issue #207).
+    const variantClause =
+      payload.variantId === null ? 'variant_id is null' : 'variant_id = ?';
+    const variantParams = payload.variantId === null ? [] : [payload.variantId];
+    const sumRows = (await em.execute(
+      `select sum(on_hand) as on_hand
+         from stock_levels
+        where product_id = ? and ${variantClause}`,
+      [payload.productId, ...variantParams],
+    )) as Array<{ on_hand: string | null }>;
+    const cumulativeAfter = Number(sumRows[0]?.on_hand ?? 0);
     const cumulativeBefore = cumulativeAfter - (payload.after - payload.before);
     if (cumulativeBefore > 0 || cumulativeAfter <= 0) return;
 

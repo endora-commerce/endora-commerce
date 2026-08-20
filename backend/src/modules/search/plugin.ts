@@ -1,7 +1,16 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EventBus } from '../../events/bus.js';
 import { z } from 'zod';
+import type {
+  CatalogAttributeReadPort,
+  CatalogCategoryReadPort,
+  CatalogProductReadPort,
+  ListingPricePort,
+  OrganizationDetailsPort,
+  SettingsAdminAuditContext,
+  SettingsAdminPort,
+} from '@b2b/contracts';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { SearchIndexer } from './services/search-indexer.js';
 import { SearchEventSubscriber } from './services/search-event-subscriber.js';
 import { SearchQueryService } from './services/search-query.service.js';
@@ -20,14 +29,28 @@ import {
   type SuggestionPricingEnricher,
 } from './routes.public.js';
 import { registerSearchAdminRoutes } from './routes.admin.js';
-import type { RequireAdminFactory } from '../settings/plugin.js';
-import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
-import type {
-  AdminAuditContext,
-  SettingsAdminService,
-} from '../settings/services/settings-admin.service.js';
-import type { SettingsService } from '../settings/services/settings.service.js';
-import { SEARCH_SETTING_CODES } from './manifest.js';
+import {
+  SettingNotRegistered,
+  SettingOutOfScopeForChannel,
+  type SettingsService,
+} from '../../kernel/settings/settings.service.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
+import { enterSystemScope } from '../../kernel/scope.js';
+import { DEFAULT_REINDEX_INTERVAL_MINUTES, SEARCH_SETTING_CODES } from './manifest.js';
+import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+
+/**
+ * Conditions this module has already reported (D-43's warn-once). Module scope
+ * and never reset: an out-of-scope setting is a deployment fact, and the reindex
+ * timer would otherwise log it on every tick.
+ */
+const warnedSearchConditions = new Set<string>();
+
+function warnOnceForSearch(condition: string, message: string): void {
+  if (warnedSearchConditions.has(condition)) return;
+  warnedSearchConditions.add(condition);
+  console.warn(message);
+}
 
 /**
  * Composition root for the search module — feature 006.
@@ -51,56 +74,81 @@ import { SEARCH_SETTING_CODES } from './manifest.js';
 
 export interface SearchModuleOptions {
   emFactory: () => EntityManager;
-  eventBus: EventBus;
   /**
    * Feature 061 — the catalog's composed attribute read model (Principle I).
    * Backs the indexer's searchable/filterable settings + option-label
    * aggregation and the query service's filterable validation.
    */
-  catalogAttributeRead: CatalogAttributeReadService;
+  catalogAttributeRead: CatalogAttributeReadPort;
   /**
-   * Universal-getter for Settings. When provided, the suggest service
-   * resolves its per-channel popup-count + minimum-query-length from
-   * Settings, and the event subscriber attaches the `settings.value_changed`
-   * → embedder reactor. When absent, the module runs with manifest-time
-   * defaults and no LLM reactor — useful for foundation tests that
-   * predate Settings.
+   * Feature 075, Phase C — the product rows the indexer turns into Meilisearch
+   * documents, read over `catalog`'s published port instead of out of its
+   * table. The edge is the binding `catalog` dependency the manifest declares:
+   * with `catalog` off there is nothing to index and the call answers 503.
    */
-  settingsService?: SettingsService;
+  catalogProducts: CatalogProductReadPort;
+  /**
+   * Feature 075 / D-87 — the category assignments and the category subtree the
+   * indexer projects, read over `catalog`'s published port instead of out of
+   * its `product_categories` / `categories` tables. Same binding `catalog`
+   * dependency as `catalogProducts`, and the same answer when it is off.
+   */
+  catalogCategories: CatalogCategoryReadPort;
+  /**
+   * The `sales_channel_products` bridge, through the sanctioned accessor
+   * (Constitution XII). Kernel-composed, so it is present for as long as the
+   * platform is.
+   */
+  salesChannelMembership: SalesChannelMembershipPort;
+  /**
+   * Universal-getter for Settings. Backs the suggest service's per-channel
+   * popup-count + minimum-query-length, the `settings.value_changed` →
+   * embedder reactor, and the reindex interval.
+   *
+   * Required since feature 072 (T123). It was optional for "foundation tests
+   * that predate Settings", and no such caller was left: both composition
+   * roots passed it, and absence silently downgraded the module to manifest
+   * defaults with no LLM reactor — a state nothing asked for and nothing
+   * detected.
+   */
+  settingsService: SettingsService;
   /**
    * Feature 058 — resolves the `search.llm.embedder_credentials` reference into
    * the embedder config, falling back per field to the legacy embedder settings.
-   * Injected as a narrow port (Principle I); optional.
+   * Injected as a narrow port (Principle I).
    */
-  credentials?: CredentialResolvePort;
+  credentials: CredentialResolvePort;
+  /** Admin Settings write port — drives the `LlmToggleService.toggle` path. */
+  settingsAdminService: SettingsAdminPort;
+  /** Admin routes mount under `/api/v1/admin/search/*`. */
+  requireAdmin: RequireAdminFactory;
+  resolveAdminAuditContext: (req: FastifyRequest) => SettingsAdminAuditContext;
   /**
-   * Admin Settings service — required when admin routes are mounted.
-   * Drives the `LlmToggleService.toggle` write path. Without it, only
-   * the public routes register.
+   * Typeahead suggestions carry the per-customer price-list resolution (SKU +
+   * image already ride on the summary), so the popup shows the price the
+   * searching user would actually pay.
    */
-  settingsAdminService?: SettingsAdminService;
-  /** When provided, admin routes mount under `/api/v1/admin/search/*`. */
-  requireAdmin?: RequireAdminFactory;
-  resolveAdminAuditContext?: (req: FastifyRequest) => AdminAuditContext;
+  enrichSuggestionPricing: SuggestionPricingEnricher;
   /**
-   * When provided, typeahead suggestions are enriched with the per-customer
-   * price-list resolution (SKU + image already ride on the summary). Wired
-   * from the composition root where the price-lists `PricingService` lives.
+   * Issue #132 — the pricing engine behind the *result list* (the enricher
+   * above covers the typeahead popup). A search hit is a listing and prices
+   * through the same chain as the catalogue grid.
    */
-  enrichSuggestionPricing?: SuggestionPricingEnricher;
+  listingPrices: ListingPricePort;
   /**
-   * Resolves the current `search.reindex_interval_minutes` from settings.
-   * Implementation lives in the composition root so the module isn't coupled
-   * to the settings read API. A value `<= 0` disables the periodic sweep.
+   * `organizations`' read model — the customer group the pricing engine keys a
+   * group-targeted list on. The enricher above already resolves it for the
+   * popup; the result list needs the same row, so a buyer who stops at the
+   * suggestions and one who presses Enter are quoted the same figure.
    */
-  resolveReindexIntervalMinutes?: () => Promise<number>;
+  organizations: OrganizationDetailsPort;
   /**
-   * When `true` (and `resolveReindexIntervalMinutes` is wired), the module
-   * starts the periodic full-reindex sweep. The composition root passes the
-   * deployment-role gate (`runWorkers`) here so the sweep only runs in
-   * worker/all processes, never in a dedicated `BACKEND_ROLE=api` process.
+   * When `true`, the module starts the periodic full-reindex sweep. The
+   * composition passes its deployment-role gate (`runWorkers`) here so the
+   * sweep only runs in worker/all processes, never in a dedicated
+   * `BACKEND_ROLE=api` process — and never in a test harness.
    */
-  enableReindexScheduler?: boolean;
+  enableReindexScheduler: boolean;
 }
 
 export interface SearchModuleHandle {
@@ -108,9 +156,15 @@ export interface SearchModuleHandle {
   subscriber: SearchEventSubscriber;
   searchQueryService: SearchQueryService;
   suggestService: SearchSuggestService;
-  llmToggleService?: LlmToggleService;
+  llmToggleService: LlmToggleService;
   reindexWorker: SearchReindexWorker;
   phraseRecorder: SearchPhraseRecorder;
+  /**
+   * The cadence the reindex timer reschedules itself on. Exposed because the
+   * property worth pinning is "the configured interval is the one used", and a
+   * self-rescheduling timer is not a thing a test can ask that of.
+   */
+  resolveReindexIntervalMinutes: () => Promise<number>;
 }
 
 export interface SearchModuleResult {
@@ -121,9 +175,15 @@ export interface SearchModuleResult {
 const numberSchema = z.number();
 
 export function searchModule(options: SearchModuleOptions): SearchModuleResult {
-  const indexer = new SearchIndexer({ attributeRead: options.catalogAttributeRead });
+  const indexer = new SearchIndexer({
+    attributeRead: options.catalogAttributeRead,
+    products: options.catalogProducts,
+    categories: options.catalogCategories,
+    channelMembership: options.salesChannelMembership,
+  });
+  // Handlers only: `backend.ts` registers them through `ctx.subscribe`, which
+  // is what makes this module's effective state decide whether they run.
   const subscriber = new SearchEventSubscriber({
-    eventBus: options.eventBus as never,
     emFactory: options.emFactory,
     indexer,
     ...(options.settingsService !== undefined
@@ -132,16 +192,18 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
     ...(options.credentials !== undefined ? { credentials: options.credentials } : {}),
   });
   const searchQueryService = new SearchQueryService(
-    options.emFactory,
+    options.catalogProducts,
     options.catalogAttributeRead,
+    {},
+    options.listingPrices,
+    options.organizations,
   );
 
   // Settings-aware suggest config, with fallback to manifest defaults
   // when the resolver fails for any reason (e.g. Redis hiccup,
   // `SettingNotRegistered`). The popup must never 500 because of a
   // Settings glitch.
-  const resolveSuggestConfig = options.settingsService
-    ? async (ctx: {
+  const resolveSuggestConfig = async (ctx: {
         resolvedChannel: { id: string };
       }): Promise<SuggestionCountConfig> => {
         const fallback: SuggestionCountConfig = {
@@ -153,12 +215,12 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
           // resolved once upstream — no re-resolution here.
           const channelId = ctx.resolvedChannel.id;
           const [defaultLimit, minimumQueryLength] = await Promise.all([
-            options.settingsService!.get(
+            options.settingsService.get(
               SEARCH_SETTING_CODES.POPUP_SUGGESTION_COUNT,
               channelId,
               numberSchema,
             ),
-            options.settingsService!.get(
+            options.settingsService.get(
               SEARCH_SETTING_CODES.POPUP_MINIMUM_QUERY_LENGTH,
               channelId,
               numberSchema,
@@ -168,22 +230,53 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
         } catch {
           return fallback;
         }
+      };
+
+  const suggestService = new SearchSuggestService(searchQueryService, resolveSuggestConfig);
+
+  const llmToggleService = new LlmToggleService(
+    options.emFactory,
+    options.settingsService,
+    options.settingsAdminService,
+    options.credentials,
+  );
+
+  /**
+   * The sweep's cadence is this module's own setting, so it reads it itself
+   * rather than taking a resolver from a composition root — which is where the
+   * identical `try`/`catch`-to-the-manifest-default lived before T123.
+   *
+   * Read **platform-wide** (feature 072, D-41). A background reindex is one
+   * timer in one process covering every channel's index, so there is no channel
+   * whose value it could sensibly take; it used to pass the literal `'default'`,
+   * a channel **code** against a `uuid` column, so PostgreSQL rejected every
+   * read, the `catch` answered with the constant, and an operator changing the
+   * cadence changed nothing.
+   *
+   * Absorbs only what D-43 allows; a shape mismatch or a driver error
+   * propagates to the caller, which logs it and keeps polling.
+   */
+  const resolveReindexIntervalMinutes = async (): Promise<number> => {
+    try {
+      return await options.settingsService.get(
+        SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES,
+        null,
+        z.number().int().nonnegative(),
+      );
+    } catch (error) {
+      if (error instanceof SettingNotRegistered) return DEFAULT_REINDEX_INTERVAL_MINUTES;
+      if (error instanceof SettingOutOfScopeForChannel) {
+        warnOnceForSearch(
+          `out-of-scope:${SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES}`,
+          `[search] setting "${SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES}" is scoped ` +
+            `to specific sales channels, so it has no platform-wide value — falling back ` +
+            `to the manifest default (logged once per process).`,
+        );
+        return DEFAULT_REINDEX_INTERVAL_MINUTES;
       }
-    : undefined;
-
-  const suggestService = resolveSuggestConfig
-    ? new SearchSuggestService(searchQueryService, resolveSuggestConfig)
-    : new SearchSuggestService(searchQueryService);
-
-  const llmToggleService =
-    options.settingsService && options.settingsAdminService
-      ? new LlmToggleService(
-          options.emFactory,
-          options.settingsService,
-          options.settingsAdminService,
-          options.credentials,
-        )
-      : undefined;
+      throw error;
+    }
+  };
 
   const phraseRecorder = new SearchPhraseRecorder(
     options.emFactory,
@@ -203,32 +296,25 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
       suggestService,
       reindexWorker,
       phraseRecorder,
-      ...(llmToggleService !== undefined ? { llmToggleService } : {}),
+      llmToggleService,
+      resolveReindexIntervalMinutes,
     },
     plugin: async (app) => {
-      const teardown = subscriber.subscribe();
-      app.addHook('onClose', async () => teardown());
       // US1 — typeahead popup feed.
       // US3 — analytics ingest. Both live in routes.public.ts.
       await registerSearchPublicRoutes(app, {
         suggestService,
         phraseRecorder,
-        ...(options.enrichSuggestionPricing !== undefined
-          ? { enrichSuggestionPricing: options.enrichSuggestionPricing }
-          : {}),
+        enrichSuggestionPricing: options.enrichSuggestionPricing,
       });
       // US2 — LLM toggle wrapper. Mounts only when the admin gate +
       // settings admin service are both wired (test-server passes them).
-      if (llmToggleService && options.requireAdmin) {
-        await registerSearchAdminRoutes(app, {
-          llmToggleService,
-          reindexWorker,
-          requireAdmin: options.requireAdmin,
-          ...(options.resolveAdminAuditContext !== undefined
-            ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
-            : {}),
-        });
-      }
+      await registerSearchAdminRoutes(app, {
+        llmToggleService,
+        reindexWorker,
+        requireAdmin: options.requireAdmin,
+        resolveAdminAuditContext: options.resolveAdminAuditContext,
+      });
 
       // Periodic full Meilisearch reindex (FR — keep the catalogue in sync
       // even when an incremental event was missed). The interval is read
@@ -236,8 +322,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
       // operator changing `search.reindex_interval_minutes` takes effect on
       // the next cycle without a restart. A value <= 0 disables the sweep but
       // the timer keeps polling the setting so it can be re-enabled live.
-      const resolveIntervalMinutes = options.resolveReindexIntervalMinutes;
-      if (options.enableReindexScheduler && resolveIntervalMinutes) {
+      if (options.enableReindexScheduler) {
         const DISABLED_POLL_MS = 60_000;
         let timer: ReturnType<typeof setTimeout> | undefined;
         let stopped = false;
@@ -249,26 +334,57 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
         };
 
         const tick = (): void => {
-          void (async () => {
-            let minutes = 0;
-            try {
-              minutes = await resolveIntervalMinutes();
-            } catch (err) {
-              app.log.error({ err }, 'search reindex: failed to resolve interval setting');
-            }
-            if (Number.isFinite(minutes) && minutes > 0) {
+          // Presence is decided here, before any work and outside the `try`s
+          // below (issue #126). A timer callback has nowhere to throw to, so
+          // `ModuleDisabledError` cannot propagate from it and must be decided;
+          // asked from inside one of those `try`s, a switched-off module and a
+          // failed sweep would land in the same handler.
+          //
+          // The reschedule is deliberate and is not a leak: this timer *is* the
+          // loop, so returning without re-arming would stop the scheduler for
+          // the life of the process and no re-enable would bring it back. It is
+          // the same shape as the `minutes <= 0` branch below — keep polling,
+          // do nothing.
+          if (!effectiveState.isPresent('search')) {
+            scheduleNext(DISABLED_POLL_MS);
+            return;
+          }
+          // Feature 072 (FR-020), issue #128 — the timer is the entry point, so
+          // the scope opens here: the setting read and the sweep both query, and
+          // outside a scope they would run on whatever tenancy the ambient store
+          // happened to hold. It goes around the *work* and not around the guard
+          // above, and the reschedule stays outside it, because this timer is the
+          // loop — a tick that failed to re-arm would stop the scheduler for the
+          // life of the process. `reindex()` is also reachable from the admin
+          // route, where the request's scope is already open and a second one
+          // would be wrong; that is why the scope lives at the timer rather than
+          // inside the worker.
+          void enterSystemScope(
+            'search: periodic reindex sweep',
+            async (): Promise<number> => {
+              let minutes = 0;
+              try {
+                minutes = await resolveReindexIntervalMinutes();
+              } catch (err) {
+                app.log.error({ err }, 'search reindex: failed to resolve interval setting');
+              }
+              // Disabled — poll on, so a re-enable takes effect live.
+              if (!Number.isFinite(minutes) || minutes <= 0) return DISABLED_POLL_MS;
               try {
                 const result = await reindexWorker.reindex();
                 app.log.info({ result }, 'search reindex sweep completed');
               } catch (err) {
                 app.log.error({ err }, 'search reindex sweep failed');
               }
-              scheduleNext(minutes * 60_000);
-            } else {
-              // Disabled — keep polling so a re-enable takes effect live.
+              return minutes * 60_000;
+            },
+            { entryPoint: 'interval' },
+          )
+            .then(scheduleNext)
+            .catch((err: unknown) => {
+              app.log.error({ err }, 'search reindex tick failed');
               scheduleNext(DISABLED_POLL_MS);
-            }
-          })();
+            });
         };
 
         // Kick off the first poll without an immediate reindex at boot.

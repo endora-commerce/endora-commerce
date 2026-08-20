@@ -1,7 +1,6 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { adminLoginRequestSchema } from '@b2b/contracts';
+import { ADMIN_SESSION_COOKIE_NAME, adminLoginRequestSchema } from '@b2b/contracts';
 import type { AdminAuthService } from './services/admin-auth-service.js';
-import { ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
 
 /**

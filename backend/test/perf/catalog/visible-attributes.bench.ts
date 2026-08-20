@@ -9,6 +9,7 @@ import type { ProductAttribute } from '../../../src/modules/catalog/entities/pro
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { AttributeSetAttribute } from '../../../src/modules/catalog/entities/attribute-set-attribute.entity.js';
 import { createAttributeFixture } from '../../helpers/seed-catalog.js';
+import { ANONYMOUS_PRODUCT_AUDIENCE } from '@b2b/contracts';
 
 /**
  * Feature 012 / T067 — `visibleAttributes` projection p95 latency.
@@ -24,12 +25,31 @@ import { createAttributeFixture } from '../../helpers/seed-catalog.js';
  *     boolean rendering, scalar coercion, multiselect join).
  *   - 10 Products. Each carries a value for every one of the 50
  *     attributes so each PDP load drives the maximum projection size.
+ *   - A `sales_channel_products` row per product. `getProductByIdOrSlug`
+ *     narrows through `filterByChannel`, which fails closed to the empty
+ *     set (Principle XII) and answers 404 for a product the channel does
+ *     not carry — so without membership this harness measures nothing at
+ *     all. It has thrown since channel scoping landed, unseen because no
+ *     job sets `PERF_RUN` (issue #140).
+ *
+ * The run asserts the projection it built before it asserts how long that
+ * took: every timed read carries a value for every seeded attribute.
+ *
+ * ## The budget (issue #143, D-65)
+ *
+ * Measured 2026-08-17 over four runs on a 16-core / 64 GB Linux dev box, load
+ * average 1.7-3.6, Postgres 16 on localhost: p95 12.45 / 14.06 / 13.23 /
+ * 12.30 ms. Budget = worst observed × 3, rounded up: **45 ms**, down from 80.
+ * The multiplier is ×3 rather than D-65's ×2 for the reason stated in
+ * `test/perf/catalog-list.bench.ts`: ×2 is regression headroom, the extra
+ * ×1.5 covers this box against the 4 vCPU / 8 GB docker runner that enforces
+ * the number. Re-base from the first three scheduled `perf:backend` runs.
  *
  * Tuning knobs (env):
  *   PERF_ATTR_COUNT    — number of attributes (default 50)
  *   PERF_PRODUCT_COUNT — products per iteration (default 10)
  *   PERF_ITERATIONS    — iteration count (default 100)
- *   PERF_P95_BUDGET_MS — assertion budget (default 80)
+ *   PERF_VISIBLE_ATTRS_P95_MS — assertion budget (default 45, see above)
  *   PERF_RUN           — set to 'true' to actually run; otherwise the
  *                        suite skips so PR runs aren't blocked by
  *                        perf flake.
@@ -38,7 +58,7 @@ import { createAttributeFixture } from '../../helpers/seed-catalog.js';
 const attrCount = Number(process.env['PERF_ATTR_COUNT'] ?? '50');
 const productCount = Number(process.env['PERF_PRODUCT_COUNT'] ?? '10');
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '100');
-const p95Budget = Number(process.env['PERF_P95_BUDGET_MS'] ?? '80');
+const p95Budget = Number(process.env['PERF_VISIBLE_ATTRS_P95_MS'] ?? '45');
 const shouldRun = process.env['PERF_RUN'] === 'true';
 
 const DEFAULT_SET_ID = 'defa0017-0000-4000-8000-000000000000';
@@ -47,10 +67,19 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
   let h: BackendServerHandle;
   let svc: CatalogQueryService;
   const productSlugs: string[] = [];
+  const products: Product[] = [];
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    svc = new CatalogQueryService(h.em, undefined, undefined, h.catalogAttributeRead);
+    svc = new CatalogQueryService(
+      h.em,
+      undefined,
+      undefined,
+      h.catalogAttributeRead,
+      undefined,
+      h.assetRead,
+      h.salesChannels.membershipService,
+    );
     const em = h.em();
 
     // Seed 50 attributes — mix of value types so every code branch fires.
@@ -115,9 +144,19 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
         attributeSetId: DEFAULT_SET_ID,
       });
       productSlugs.push(p.slug);
+      products.push(p);
       em.persist(p);
     }
     await em.flush();
+
+    // Bind the fixture to the channel the timed reads resolve, or every read
+    // is a 404 rather than a projection.
+    const channelId = (await h.salesChannels.resolver.getSystemDefault()).id;
+    await em.getConnection().execute(
+      `insert into sales_channel_products (sales_channel_id, product_id) values ` +
+        products.map(() => '(?,?)').join(','),
+      products.flatMap((p) => [channelId, p.id]),
+    );
   }, 60_000);
 
   afterAll(async () => {
@@ -126,7 +165,6 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
 
   it(`p95 of visibleAttributes projection stays under ${p95Budget} ms`, async () => {
     const def = await h.salesChannels.resolver.getSystemDefault();
-    if (!def) throw new Error('system-default sales channel missing in test setup');
     const resolvedChannel = {
       id: def.id,
       code: def.code,
@@ -135,16 +173,27 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
       defaultLanguage: def.defaultLanguage,
     };
     const samples: number[] = [];
+    let minProjected = Number.POSITIVE_INFINITY;
     for (let i = 0; i < iterations; i++) {
       const slug = productSlugs[i % productSlugs.length]!;
       const t0 = performance.now();
-      await svc.getProductByIdOrSlug(slug, { resolvedChannel });
+      const detail = await svc.getProductByIdOrSlug(slug, {
+        resolvedChannel,
+        audience: ANONYMOUS_PRODUCT_AUDIENCE,
+      });
       samples.push(performance.now() - t0);
+      minProjected = Math.min(minProjected, detail.visibleAttributes?.length ?? 0);
     }
     samples.sort((a, b) => a - b);
     const p95 = samples[Math.floor(samples.length * 0.95)]!;
     // eslint-disable-next-line no-console
-    console.log(`visible-attributes p95 ms = ${p95.toFixed(2)} (samples=${samples.length})`);
+    console.log(
+      `visible-attributes p95 ms = ${p95.toFixed(2)} (samples=${samples.length}, ` +
+        `projected=${minProjected}/${attrCount})`,
+    );
+    // What was measured, before how long it took: the whole projection, on
+    // every read. A 404 or an empty tab is cheaper than any budget can catch.
+    expect(minProjected).toBe(attrCount);
     expect(p95).toBeLessThan(p95Budget);
   });
 });

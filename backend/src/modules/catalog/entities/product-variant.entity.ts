@@ -19,7 +19,7 @@ export class ProductVariant {
   @Index()
   parentProductId!: string;
 
-  @Property({ type: 'string', length: 64 })
+  @Property({ type: 'string', length: 255 })
   @Unique()
   sku!: string;
 

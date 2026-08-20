@@ -1,11 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { MfaSubjectRef } from '../../auth/services/mfa-login-port.js';
+import type { MfaSubjectRef } from '@b2b/contracts';
 import { MfaEnrolment } from '../entities/mfa-enrolment.entity.js';
 import { MfaRecoveryCode } from '../entities/mfa-recovery-code.entity.js';
 import type { SecretCipher } from './secret-cipher.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import {
   generateRecoveryCodes,
   hashRecoveryCode,

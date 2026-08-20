@@ -1,19 +1,54 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  listingPriceMoney,
+  type AssetReadPort,
+  type ListingPricePort,
+  type OrganizationDetailsPort,
+  type ProductAudience,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import type { CommandBus } from '../../../commands/index.js';
-import { Asset } from '../../assets_library/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink, type ProductLinkKind } from '../entities/product-link.entity.js';
+import { resolvePrimaryAssetUrls } from './primary-asset-url.js';
+import { viewerOrganizationFor } from './viewer-organization.js';
 interface StorefrontContext {
   /**
    * The request's resolved sales channel (feature 053 / FR-002). Always
    * present — the canonical resolver guarantees a concrete channel — so
    * cross/up-sell filtering is unconditional and fails closed (Principle XII).
-   * `isPublic` is the price-visibility flag.
+   * `isPublic` is the price-visibility flag, and `defaultCurrency` is the
+   * currency the link tiles quote in — it used to be the literal `'PLN'`, which
+   * mislabelled every amount on a channel trading in anything else.
    */
-  resolvedChannel: { id: string; code: string; isPublic: boolean };
+  resolvedChannel: {
+    id: string;
+    code: string;
+    isPublic: boolean;
+    defaultCurrency: string;
+  };
+  /**
+   * Who is asking. A cross-sell tile is a card with an Add-to-cart on it, and
+   * the cart line it leads to is priced for the buyer's organisation — so a
+   * strip quoting the channel price beside a listing quoting the buyer's would
+   * put two prices for two products on one page, arrived at two different ways.
+   *
+   * **Required, not defaulted**, for the reason `CatalogQueryContext` states:
+   * the safe default is the anonymous audience, and a caller that forgot to
+   * resolve its viewer would then quietly quote every buyer the channel price
+   * — a defect that reads as "the negotiated list does not work" and is found
+   * by nobody. Both call sites pass it; `tsc` names a third.
+   *
+   * It is read for the **price** and not, today, for the tile's visibility:
+   * `listForStorefront` filters by status and channel membership and has never
+   * applied `isProductVisibleTo`, which is issue #227 residue this change does
+   * not close. Do not read the presence of this field as the entitlement
+   * question having been answered here.
+   */
+  audience: ProductAudience;
   preferredLanguage?: string | undefined;
 }
 
@@ -76,7 +111,74 @@ export class ProductLinkService {
     private readonly emFactory: () => EntityManager,
     /** Feature 054 — audits product-link writes co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
+    /**
+     * Issue #132 — the pricing engine, through the `pricingService` port. A
+     * related-product tile is a listing: it prices through the same chain as the
+     * catalogue grid, not off the catalogue's legacy default-price attribute.
+     */
+    private readonly listingPrices?: ListingPricePort,
+    /**
+     * Feature 075 — `assets_library`'s read port. The two `join assets` clauses
+     * this service used to write are gone; the tile's image is resolved by the
+     * shared `resolvePrimaryAssetUrls` helper, which asks the owner for the
+     * asset row and keeps the bridge query on this module's own tables.
+     */
+    private readonly assets?: AssetReadPort,
+    /**
+     * Issue #185 — the kernel's channel-membership accessor. The storefront
+     * link read below asked `sales_channel_products` in raw SQL, which crosses
+     * the boundary while naming no import specifier and is the read
+     * Constitution XII reserves to this service.
+     *
+     * Optional only in the signature, like the two above; a link read that
+     * reaches it unwired fails loudly rather than quietly answering the
+     * cross-channel set.
+     */
+    private readonly channelMembership?: SalesChannelMembershipPort,
+    /**
+     * `organizations`' read model — the customer group a group-targeted price
+     * list is selected by, which lives on the organisation row. Optional only
+     * in the signature, and never reached by an anonymous strip.
+     */
+    private readonly organizationDetails?: OrganizationDetailsPort,
   ) {}
+
+  #requireOrganizationDetails(): OrganizationDetailsPort {
+    if (!this.organizationDetails) {
+      throw new Error(
+        'ProductLinkService: the organization read port is not wired — a signed-in buyer cannot be priced.',
+      );
+    }
+    return this.organizationDetails;
+  }
+
+  #requireChannelMembership(): SalesChannelMembershipPort {
+    if (!this.channelMembership) {
+      throw new Error(
+        'ProductLinkService: the channel-membership port is not wired — link tiles cannot be ' +
+          'scoped to a channel without leaking the cross-channel set.',
+      );
+    }
+    return this.channelMembership;
+  }
+
+  #requireAssets(): AssetReadPort {
+    if (!this.assets) {
+      throw new Error(
+        'ProductLinkService: the asset read port is not wired — link tiles cannot show an image.',
+      );
+    }
+    return this.assets;
+  }
+
+  #requireListingPrices(): ListingPricePort {
+    if (!this.listingPrices) {
+      throw new Error(
+        'ProductLinkService: the pricing port is not wired — link tiles cannot be priced.',
+      );
+    }
+    return this.listingPrices;
+  }
 
   /** Feature 054 — run a product-link write through the Command Bus. */
   async #audited<T>(
@@ -254,84 +356,58 @@ export class ProductLinkService {
     const byId = new Map(targets.map((p) => [p.id, p]));
 
     // Feature 053 (FR-006 / Principle XII) — sales-channel visibility. The
-    // channel is resolved once upstream (`request.salesChannel`) and handed in;
+    // channel is resolved once upstream (`getResolvedChannel()`) and handed in;
     // the membership filter is ALWAYS applied, failing closed to an empty
     // visible set rather than leaking the full cross-channel target set.
+    // Through the kernel's accessor since issue #185: this was a `select
+    // product_id from sales_channel_products` written here, which is the one
+    // read Principle XII names the membership service for.
     const channel = ctx.resolvedChannel;
-    let visibleIds: Set<string>;
-    if (targets.length > 0) {
-      const visibleRows = await em
-        .getConnection()
-        .execute<{ product_id: string }[]>(
-          `select product_id from sales_channel_products
-           where sales_channel_id = ? and product_id in (${targets
-             .map(() => '?')
-             .join(',')})`,
-          [channel.id, ...targets.map((t) => t.id)],
-        );
-      visibleIds = new Set(visibleRows.map((r) => r.product_id));
-    } else {
-      // No channel resolved (or no targets) → nothing is visible (fail closed).
-      visibleIds = new Set<string>();
-    }
+    const visibleIds =
+      targets.length > 0
+        ? new Set(
+            await this.#requireChannelMembership().filterEntityIdsInChannel(
+              channel.id,
+              'product',
+              targets.map((t) => t.id),
+            ),
+          )
+        : // No targets → nothing is visible (fail closed).
+          new Set<string>();
 
-    // Primary asset urls (gallery thumb chain reused via product_assets fallback)
-    const assetUrlByProductId = new Map<string, string | null>();
-    for (const id of targetIds) assetUrlByProductId.set(id, null);
-    if (targetIds.length > 0) {
-      const galleryRows = await em.getConnection().execute<{
-        product_id: string;
-        storage_url: string;
-        label: string | null;
-        position: number;
-      }[]>(
-        `select gi.product_id, a.storage_url, gil.label, gi.position
-           from gallery_items gi
-           join assets a on a.id = gi.asset_id
-           left join gallery_item_labels gil on gil.gallery_item_id = gi.id
-           where gi.product_id in (${targetIds.map(() => '?').join(',')})
-           order by gi.product_id, gi.position asc, gi.id asc`,
-        targetIds,
-      );
-      const byProduct = new Map<string, typeof galleryRows>();
-      for (const row of galleryRows) {
-        const list = byProduct.get(row.product_id) ?? [];
-        list.push(row);
-        byProduct.set(row.product_id, list);
-      }
-      for (const [pid, gallery] of byProduct.entries()) {
-        const findByLabel = (label: string): string | null =>
-          gallery.find((r) => r.label === label)?.storage_url ?? null;
-        const url =
-          findByLabel('thumbnail') ??
-          findByLabel('base_image') ??
-          gallery[0]?.storage_url ??
-          null;
-        assetUrlByProductId.set(pid, url);
-      }
-      // Legacy product_assets fallback for any product without gallery rows.
-      const missing = targetIds.filter((id) => !byProduct.has(id));
-      if (missing.length > 0) {
-        const legacy = await em.getConnection().execute<{
-          product_id: string;
-          storage_url: string;
-        }[]>(
-          `select pa.product_id, a.storage_url
-             from product_assets pa join assets a on a.id = pa.asset_id
-             where pa.product_id in (${missing.map(() => '?').join(',')})
-             order by pa.product_id, pa.position asc`,
-          missing,
-        );
-        const seen = new Set<string>();
-        for (const row of legacy) {
-          if (seen.has(row.product_id)) continue;
-          seen.add(row.product_id);
-          assetUrlByProductId.set(row.product_id, row.storage_url);
-        }
-      }
-    }
+    // Primary asset urls: the gallery thumb chain, with the legacy
+    // `product_assets` fallback. Shared with `CatalogQueryService` so the chain
+    // and the `assets_library` port call have one home.
+    const assetUrlByProductId = await resolvePrimaryAssetUrls(
+      em,
+      this.#requireAssets(),
+      targetIds,
+    );
 
-    void Asset; // imported for side-effect parity with other catalog services
+    // Sales-channel public flag controls price visibility (R-18), read off the
+    // resolved channel handed in by the route. A channel that withholds prices
+    // is not asked for them (issue #132).
+    const visibleTargets = rows
+      .filter((link) => visibleIds.has(link.targetProductId))
+      .map((link) => byId.get(link.targetProductId))
+      .filter((target): target is Product => target !== undefined);
+    const viewerOrganization =
+      ctx.audience.organizationId === null
+        ? null
+        : await viewerOrganizationFor(this.#requireOrganizationDetails(), ctx.audience);
+    const resolvedPrices =
+      ctx.resolvedChannel.isPublic && visibleTargets.length > 0
+        ? await this.#requireListingPrices().resolveListingPrices({
+            products: visibleTargets,
+            context: {
+              salesChannel: {
+                id: ctx.resolvedChannel.id,
+                defaultCurrency: ctx.resolvedChannel.defaultCurrency,
+              },
+              organization: viewerOrganization,
+            },
+          })
+        : new Map();
 
     const out: StorefrontLinkSummary[] = [];
     for (const link of rows) {
@@ -339,19 +415,8 @@ export class ProductLinkService {
       const target = byId.get(link.targetProductId);
       if (!target) continue;
       const name = pickLang(target.name, ctx.preferredLanguage);
-      const rawPrice = Number(
-        target.attributeValues['defaultPrice'] ??
-          target.attributeValues['price'] ??
-          Number.NaN,
-      );
-      // Sales-channel public flag controls price visibility (R-18), read off
-      // the resolved channel handed in by the route.
-      const isPublic = ctx.resolvedChannel.isPublic;
-      const currency = 'PLN';
-      const price =
-        isPublic && Number.isFinite(rawPrice)
-          ? { amount: rawPrice, currency }
-          : null;
+      const resolved = resolvedPrices.get(target.id);
+      const price = resolved === undefined ? null : listingPriceMoney(resolved);
       out.push({
         id: link.id,
         kind: link.kind,

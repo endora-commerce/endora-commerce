@@ -1,8 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type {
+  CatalogCategoryReadPort,
+  CatalogCategoryRecord,
+  CatalogProductReadPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { randomUUID } from 'crypto';
 import type { EventBus } from '../../../events/bus.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface InventoryAdjustedEvent {
@@ -17,8 +22,6 @@ export interface InventoryAdjustedEvent {
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../entities/warehouse.entity.js';
 import { InventoryThreshold } from '../entities/inventory-threshold.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { Category } from '../../catalog/entities/category.entity.js';
 import {
   resolveThresholds,
   type ResolveThresholdsInput,
@@ -90,37 +93,48 @@ export interface SetOnHandResult {
 export class StockLevelService {
   constructor(
     private readonly emFactory: () => EntityManager,
+    /**
+     * `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C).
+     * Every roster row, every KPI and every band this service computes joins a
+     * product it does not own; it used to load the entity, so an operator who
+     * switched `catalog` off still got a full stock roster out of it.
+     */
+    private readonly catalogProducts: CatalogProductReadPort,
+    /** `catalogCategoryReadPort`, owned by `catalog` — the threshold chain. */
+    private readonly catalogCategories: CatalogCategoryReadPort,
     private readonly eventBus?: EventBus,
     private readonly auditLog?: AuditLogService,
   ) {}
 
   async listLandingKpis(): Promise<InventoryLandingKpis> {
     const em = this.emFactory();
-    const knex = em.getKnex();
 
+    // `em.execute`, not `em.getKnex()`: a knex handle takes its own pooled
+    // connection, so every KPI here would answer from outside a transaction the
+    // caller holds open while the port reads below answer from inside it —
+    // one screen, two views of the same rows (issue #207).
     const [productsTracked, totalOnHandRow, perWarehouse] = await Promise.all([
-      knex('stock_levels').countDistinct<{ count: string }[]>('product_id as count'),
-      knex('stock_levels').sum<{ sum: string | null }[]>('on_hand as sum'),
-      knex('warehouses')
-        .leftJoin('stock_levels', 'stock_levels.warehouse_id', 'warehouses.id')
-        .select<Array<{ id: string; code: string; on_hand: string | null }>>(
-          'warehouses.id',
-          'warehouses.code',
-          knex.raw('coalesce(sum(stock_levels.on_hand), 0) as on_hand'),
-        )
-        .groupBy('warehouses.id', 'warehouses.code')
-        .orderBy('warehouses.code'),
+      em.execute(`select count(distinct product_id) as count from stock_levels`) as Promise<
+        Array<{ count: string }>
+      >,
+      em.execute(`select sum(on_hand) as sum from stock_levels`) as Promise<
+        Array<{ sum: string | null }>
+      >,
+      em.execute(
+        `select w.id, w.code, coalesce(sum(sl.on_hand), 0) as on_hand
+           from warehouses w
+           left join stock_levels sl on sl.warehouse_id = w.id
+          group by w.id, w.code
+          order by w.code`,
+      ) as Promise<Array<{ id: string; code: string; on_hand: string | null }>>,
     ]);
 
-    const productsByOnHand = (await knex('stock_levels')
-      .select('product_id')
-      .sum({ on_hand: 'on_hand' })
-      .groupBy('product_id')) as Array<{ product_id: string; on_hand: string | null }>;
+    const productsByOnHand = (await em.execute(
+      `select product_id, sum(on_hand) as on_hand from stock_levels group by product_id`,
+    )) as Array<{ product_id: string; on_hand: string | null }>;
 
-    const products = await em.find(
-      Product,
-      { id: { $in: productsByOnHand.map((r) => r.product_id) } },
-      { fields: ['id', 'manageStock', 'lowStockThreshold'] },
+    const products = await this.catalogProducts.findByIds(
+      productsByOnHand.map((r) => r.product_id),
     );
     const productById = new Map(products.map((p) => [p.id, p]));
     let outOfStock = 0;
@@ -131,7 +145,7 @@ export class StockLevelService {
       if (!p.manageStock) continue;
       const onHand = Number(row.on_hand ?? 0);
       if (onHand <= 0) outOfStock += 1;
-      else if (p.lowStockThreshold !== null && p.lowStockThreshold !== undefined && onHand <= p.lowStockThreshold) {
+      else if (p.lowStockThreshold !== null && onHand <= p.lowStockThreshold) {
         lowStock += 1;
       }
     }
@@ -205,19 +219,27 @@ export class StockLevelService {
 
     // Total count of matching products. We wrap the grouped query in a
     // subselect so `count(*)` counts groups, not rows.
-    const totalRow = (await knex
-      .from(baseQuery.clone().select('p.id'))
-      .as('grouped')
-      .count<{ count: string | number }>('* as count')
-      .first()) as { count: string | number } | undefined;
-    const total = Number(totalRow?.count ?? 0);
+    // Both pages run through `em.execute(builder)`, not by awaiting the builder:
+    // a knex handle takes its own pooled connection, so the roster a caller
+    // inside a transaction is shown would be computed from rows that
+    // transaction has not written yet (issue #207). The builder is kept rather
+    // than rewritten as a statement because the filters above are assembled at
+    // runtime; `execute` compiles it and runs it with the EntityManager's
+    // transaction context, so the SQL is byte-for-byte the one this method
+    // already sent.
+    const totalRows = (await em.execute(
+      knex.from(baseQuery.clone().select('p.id')).as('grouped').count('* as count'),
+    )) as Array<{ count: string | number }>;
+    const total = Number(totalRows[0]?.count ?? 0);
 
-    const idRows = (await baseQuery
-      .clone()
-      .select<Array<{ id: string }>>('p.id')
-      .orderByRaw('MAX("sl"."updated_at") DESC')
-      .offset(page * pageSize)
-      .limit(pageSize)) as Array<{ id: string }>;
+    const idRows = (await em.execute(
+      baseQuery
+        .clone()
+        .select('p.id')
+        .orderByRaw('MAX("sl"."updated_at") DESC')
+        .offset(page * pageSize)
+        .limit(pageSize),
+    )) as Array<{ id: string }>;
     const productIds = idRows.map((r) => r.id);
     if (productIds.length === 0) {
       return { items: [], page, pageSize, total };
@@ -226,24 +248,26 @@ export class StockLevelService {
     // Pull cumulative across ALL warehouses for the candidate products so the
     // band/threshold logic uses the right total even if the filter narrowed
     // the row set.
-    const cumulativeRows = await knex('stock_levels')
-      .whereIn('product_id', productIds)
-      .select<Array<{ product_id: string; warehouse_id: string; on_hand: string; reserved: string }>>(
-        'product_id',
-        'warehouse_id',
-        'on_hand',
-        'reserved',
-      );
+    const idPlaceholders = productIds.map(() => '?').join(', ');
+    const cumulativeRows = (await em.execute(
+      `select product_id, warehouse_id, on_hand, reserved
+         from stock_levels
+        where product_id in (${idPlaceholders})`,
+      [...productIds],
+    )) as Array<{ product_id: string; warehouse_id: string; on_hand: string; reserved: string }>;
 
-    const products = await em.find(Product, { id: { $in: productIds } });
+    const products = await this.catalogProducts.findByIds(productIds);
     const productById = new Map(products.map((p) => [p.id, p]));
 
     const warehouses = await em.find(Warehouse, {});
     const warehouseById = new Map(warehouses.map((w) => [w.id, w]));
 
-    const productCategoryRows = await knex('product_categories')
-      .whereIn('product_id', productIds)
-      .select<Array<{ product_id: string; category_id: string }>>('product_id', 'category_id');
+    const productCategoryRows = (await em.execute(
+      `select product_id, category_id
+         from product_categories
+        where product_id in (${idPlaceholders})`,
+      [...productIds],
+    )) as Array<{ product_id: string; category_id: string }>;
     const categoryIdsByProduct = new Map<string, string[]>();
     for (const row of productCategoryRows) {
       const list = categoryIdsByProduct.get(row.product_id) ?? [];
@@ -251,9 +275,7 @@ export class StockLevelService {
       categoryIdsByProduct.set(row.product_id, list);
     }
     const categoryIds = Array.from(new Set(productCategoryRows.map((r) => r.category_id)));
-    const categories = categoryIds.length
-      ? await em.find(Category, { id: { $in: categoryIds } })
-      : [];
+    const categories = await this.catalogCategories.findByIds(categoryIds);
     const categoryById = new Map(categories.map((c) => [c.id, c]));
 
     const globalThresholds = await this.loadGlobalThresholds(em);
@@ -261,11 +283,12 @@ export class StockLevelService {
     // Pull every per-(product, warehouse) low-stock threshold for the
     // candidate products in a single round-trip. `null` means there is
     // no explicit row; callers fall back to the warehouse default.
-    const perWarehouseThresholdRows = (await knex('product_warehouse_low_stock_thresholds')
-      .whereIn('product_id', productIds)
-      .select<
-        Array<{ product_id: string; warehouse_id: string; threshold: number | string }>
-      >('product_id', 'warehouse_id', 'threshold')) as Array<{
+    const perWarehouseThresholdRows = (await em.execute(
+      `select product_id, warehouse_id, threshold
+         from product_warehouse_low_stock_thresholds
+        where product_id in (${idPlaceholders})`,
+      [...productIds],
+    )) as Array<{
       product_id: string;
       warehouse_id: string;
       threshold: number | string;
@@ -291,11 +314,11 @@ export class StockLevelService {
       const productCategoryIds = categoryIdsByProduct.get(product.id) ?? [];
       const categoryThresholds = productCategoryIds
         .map((cid) => categoryById.get(cid))
-        .filter((c): c is Category => Boolean(c))
+        .filter((c): c is CatalogCategoryRecord => Boolean(c))
         .map((c) => ({
-          high: c.inventoryThresholdHigh ?? null,
-          medium: c.inventoryThresholdMedium ?? null,
-          low: c.inventoryThresholdLow ?? null,
+          high: c.inventoryThresholdHigh,
+          medium: c.inventoryThresholdMedium,
+          low: c.inventoryThresholdLow,
         }));
 
       const productThresholds = (await this.loadProductThresholds(em, product.id)) ?? null;
@@ -307,7 +330,7 @@ export class StockLevelService {
       } satisfies ResolveThresholdsInput);
 
       const displayBand = resolveDisplayBand({
-        manageStock: product.manageStock ?? true,
+        manageStock: product.manageStock,
         cumulativeOnHand,
         thresholds,
       });
@@ -317,7 +340,7 @@ export class StockLevelService {
           ? Object.values(product.name)[0]
           : product.sku) ?? product.sku;
 
-      const mode = product.lowStockThresholdMode ?? 'cumulative';
+      const mode = product.lowStockThresholdMode;
 
       // Resolve the effective low-stock threshold per warehouse:
       //   1. explicit row in `product_warehouse_low_stock_thresholds`
@@ -384,15 +407,15 @@ export class StockLevelService {
         productId,
         productSku: product.sku,
         productName: String(productName),
-        manageStock: product.manageStock ?? true,
-        backorderEnabled: product.backorderEnabled ?? false,
+        manageStock: product.manageStock,
+        backorderEnabled: product.backorderEnabled,
         lowStockThreshold: topLevelThreshold,
         lowStockThresholdMode: mode,
         perWarehouse: perWarehouseWithThreshold,
         cumulativeOnHand,
         displayBand,
-        isLowStock: (product.manageStock ?? true) && isLowStock,
-        isOutOfStock: (product.manageStock ?? true) && cumulativeOnHand <= 0,
+        isLowStock: product.manageStock && isLowStock,
+        isOutOfStock: product.manageStock && cumulativeOnHand <= 0,
       });
     }
 
@@ -411,7 +434,7 @@ export class StockLevelService {
     entries: Array<{ warehouseId: string; threshold: number | null }>;
   }): Promise<void> {
     const em = this.emFactory();
-    const product = await em.findOne(Product, { id: input.productId });
+    const product = await this.catalogProducts.findById(input.productId);
     if (!product) {
       throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
     }
@@ -467,7 +490,7 @@ export class StockLevelService {
     auditCtx?: InventoryAuditContext,
   ): Promise<SetOnHandResult> {
     const em = this.emFactory();
-    const product = await em.findOne(Product, { id: input.productId });
+    const product = await this.catalogProducts.findById(input.productId);
     if (!product) throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
 
     const warehouse = await em.findOne(Warehouse, { id: input.warehouseId });
@@ -556,24 +579,24 @@ export class StockLevelService {
     const out = new Map<string, { band: DisplayBand; inStock: boolean }>();
     if (productIds.length === 0) return out;
     const em = this.emFactory();
-    const knex = em.getKnex();
 
-    const products = await em.find(
-      Product,
-      { id: { $in: productIds } },
-      { fields: ['id', 'manageStock'] },
-    );
+    const products = await this.catalogProducts.findByIds(productIds);
 
-    const sumRows = (await knex('stock_levels')
-      .whereIn('product_id', productIds)
-      .modify((qb) => {
-        if (candidateWarehouseIds && candidateWarehouseIds.length > 0) {
-          qb.whereIn('warehouse_id', candidateWarehouseIds);
-        }
-      })
-      .select('product_id')
-      .sum({ on_hand: 'on_hand' })
-      .groupBy('product_id')) as Array<{ product_id: string; on_hand: string | null }>;
+    // `em.execute`, not `em.getKnex()`: a knex handle carries no transaction
+    // context, so the band a caller inside a transaction is shown would be
+    // computed from rows that transaction has not written yet (issue #207).
+    const productPlaceholders = productIds.map(() => '?').join(', ');
+    const warehouseFilter =
+      candidateWarehouseIds && candidateWarehouseIds.length > 0
+        ? ` and warehouse_id in (${candidateWarehouseIds.map(() => '?').join(', ')})`
+        : '';
+    const sumRows = (await em.execute(
+      `select product_id, sum(on_hand) as on_hand
+         from stock_levels
+        where product_id in (${productPlaceholders})${warehouseFilter}
+        group by product_id`,
+      [...productIds, ...(warehouseFilter === '' ? [] : (candidateWarehouseIds ?? []))],
+    )) as Array<{ product_id: string; on_hand: string | null }>;
     const onHandByProduct = new Map(sumRows.map((r) => [r.product_id, Number(r.on_hand ?? 0)]));
 
     const globalThresholds = await this.loadGlobalThresholds(em);
@@ -592,16 +615,17 @@ export class StockLevelService {
       ]),
     );
 
-    const productCategoryRows = (await knex('product_categories')
-      .whereIn('product_id', productIds)
-      .select('product_id', 'category_id')) as Array<{
+    const productCategoryRows = (await em.execute(
+      `select product_id, category_id
+         from product_categories
+        where product_id in (${productPlaceholders})`,
+      [...productIds],
+    )) as Array<{
       product_id: string;
       category_id: string;
     }>;
     const categoryIds = Array.from(new Set(productCategoryRows.map((r) => r.category_id)));
-    const categories = categoryIds.length
-      ? await em.find(Category, { id: { $in: categoryIds } })
-      : [];
+    const categories = await this.catalogCategories.findByIds(categoryIds);
     const categoryById = new Map(categories.map((c) => [c.id, c]));
 
     for (const product of products) {
@@ -609,18 +633,18 @@ export class StockLevelService {
       const categoryThresholds = productCategoryRows
         .filter((r) => r.product_id === product.id)
         .map((r) => categoryById.get(r.category_id))
-        .filter((c): c is Category => Boolean(c))
+        .filter((c): c is CatalogCategoryRecord => Boolean(c))
         .map((c) => ({
-          high: c.inventoryThresholdHigh ?? null,
-          medium: c.inventoryThresholdMedium ?? null,
-          low: c.inventoryThresholdLow ?? null,
+          high: c.inventoryThresholdHigh,
+          medium: c.inventoryThresholdMedium,
+          low: c.inventoryThresholdLow,
         }));
       const thresholds = resolveThresholds({
         productThresholds: productThresholdByProduct.get(product.id) ?? null,
         categoryThresholds,
         globalThresholds,
       });
-      const manageStock = product.manageStock ?? true;
+      const manageStock = product.manageStock;
       const band = resolveDisplayBand({ manageStock, cumulativeOnHand, thresholds });
       out.set(product.id, {
         band,

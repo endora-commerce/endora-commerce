@@ -1,8 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
-import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+
+import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { AddressService } from '../../../src/modules/addresses/services/address-service.js';
@@ -20,12 +21,12 @@ describe('Addresses dictionary boundary', () => {
     await conn.execute(`delete from "dictionary_translations"`);
     await conn.execute(`delete from "language_countries"`);
     await conn.execute(`delete from "countries"`);
-    await runDictionarySeedReconciler(() => db.orm.em);
+    await runDictionarySeedReconcilerFor(() => db.orm.em);
   });
 
   beforeEach(async () => {
     em = await db.beginTx();
-    validator = new DictionaryValidator(() => em);
+    validator = dictionaryValidatorFor(() => em);
     service = new AddressService(() => em, validator);
     const org = em.create(Organization, {
       name: 'Dictionary Boundary Org',

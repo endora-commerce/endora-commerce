@@ -6,25 +6,25 @@ import {
   type AdminPatchQuoteRequest,
   type QuoteRequest as RfqDto,
   type QuoteRequestSummary,
+  isCustomFieldValidationFailure,
+  type AdminUserReadPort,
+  type CatalogProductReadPort,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
+  type CustomFieldValuePort,
+  type OrganizationDetailsPort,
+  type SalesRepAssignmentPort,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
 import type { RfqService} from './rfq-service.js';
 import { type RfqEventBus } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
-import type { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
-import {
-  CustomFieldValidationError,
-  type CustomFieldValueService,
-} from '../../custom_fields/services/custom-field-value.service.js';
 
 /**
  * Admin-facing Quote Requests service — feature 008 workflow.
@@ -64,11 +64,21 @@ export interface RfqAdminServiceDeps {
   eventService: RfqEventService;
   revisionService: RfqRevisionService;
   notificationService: RfqNotificationService;
-  salesRepAssignment: SalesRepAssignmentService;
+  salesRepAssignment: SalesRepAssignmentPort;
   /** Feature 054 — audits RFQ admin writes co-transactionally when provided. */
   auditLog?: AuditLogService;
   /** Feature 055 — validates + merges custom-field values on RFQ edit. */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
+  /**
+   * Feature 075, Phase C — the three rows the admin list and detail read and
+   * none of which this module owns. They were `em.find` calls against
+   * `catalog`'s, `customer_accounts`' and `organizations`' tables; over their
+   * published ports the same reads fail closed with their owners.
+   */
+  catalogProducts: CatalogProductReadPort;
+  customerAccounts: CustomerAccountReadPort;
+  organizations: OrganizationDetailsPort;
+  adminUsers: AdminUserReadPort;
 }
 
 export class RfqAdminService {
@@ -134,12 +144,12 @@ export class RfqAdminService {
     });
     const itemsByRfq = groupBy(items, (i) => i.quoteRequestId);
 
-    const orgs = await em.find(Organization, { id: { $in: rfqs.map((r) => r.organizationId) } });
+    const orgs = await this.deps.organizations.findByIds(rfqs.map((r) => r.organizationId));
     const orgById = new Map(orgs.map((o) => [o.id, o]));
 
-    const customers = await em.find(CustomerAccount, {
-      id: { $in: rfqs.map((r) => r.customerAccountId) },
-    });
+    const customers = await this.deps.customerAccounts.findByIds(
+      rfqs.map((r) => r.customerAccountId),
+    );
     const customerById = new Map(customers.map((c) => [c.id, c]));
 
     // Resolve the VAT rate once per distinct Organization (mirrors Orders).
@@ -198,8 +208,8 @@ export class RfqAdminService {
     // Enrich with Organization + Customer display fields so the admin detail
     // can render them by name (parity with the Order detail view).
     const [org, customer] = await Promise.all([
-      em.findOne(Organization, { id: rfq.organizationId }),
-      em.findOne(CustomerAccount, { id: rfq.customerAccountId }),
+      this.deps.organizations.findById(rfq.organizationId),
+      this.deps.customerAccounts.findById(rfq.customerAccountId),
     ]);
     return {
       ...dto,
@@ -376,7 +386,7 @@ export class RfqAdminService {
           body.customFieldValues,
         );
       } catch (err) {
-        if (err instanceof CustomFieldValidationError) {
+        if (isCustomFieldValidationFailure(err)) {
           throw new HttpError(
             422,
             ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
@@ -389,7 +399,9 @@ export class RfqAdminService {
     }
 
     if (body.items) {
-      const products = await em.find(Product, { id: { $in: body.items.map((it) => it.productId) } });
+      const products = await this.deps.catalogProducts.findByIds(
+      body.items.map((it) => it.productId),
+    );
       const productById = new Map(products.map((p) => [p.id, p]));
       if (productById.size !== new Set(body.items.map((it) => it.productId)).size) {
         throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
@@ -496,11 +508,12 @@ export class RfqAdminService {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Not authorized for this organization.');
     }
 
-    const customer = await em.findOne(CustomerAccount, {
-      id: body.customerAccountId,
-      organizationId: body.organizationId,
-    });
-    if (!customer) {
+    // The membership half of the old `findOne(CustomerAccount, { id,
+    // organizationId })` is asserted here rather than in the query: the record
+    // carries `organizationId`, so the port does not need a second lookup shape
+    // and the two failures still answer with one message, as they did.
+    const customer = await this.deps.customerAccounts.findById(body.customerAccountId);
+    if (!customer || customer.organizationId !== body.organizationId) {
       throw new HttpError(
         404,
         ERROR_CODES.NOT_FOUND,
@@ -508,7 +521,9 @@ export class RfqAdminService {
       );
     }
 
-    const products = await em.find(Product, { id: { $in: body.items.map((it) => it.productId) } });
+    const products = await this.deps.catalogProducts.findByIds(
+      body.items.map((it) => it.productId),
+    );
     const productById = new Map(products.map((p) => [p.id, p]));
     if (productById.size !== new Set(body.items.map((it) => it.productId)).size) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
@@ -630,7 +645,7 @@ function anyLocaleValue(blob: Record<string, string>): string {
   return k ? (blob[k] ?? '') : '';
 }
 
-function customerDisplayName(c: CustomerAccount): string {
+function customerDisplayName(c: CustomerAccountRecord): string {
   return [c.firstName, c.lastName].filter(Boolean).join(' ') || c.email;
 }
 

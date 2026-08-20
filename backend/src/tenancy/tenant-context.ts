@@ -5,8 +5,11 @@ import { AsyncLocalStorage } from 'async_hooks';
  *
  * The ambient `TenantContext` is the single source of truth for "which tenant
  * is this async execution allowed to see?". It is derived server-side from the
- * authenticated actor (never from request inputs) and read by the scoped EM
- * factory to stamp MikroORM filter params.
+ * authenticated actor (never from request inputs) and read by the MikroORM
+ * filter's `cond` thunk **when a query is built** (`filters.ts`) — never stamped
+ * onto an EntityManager. `forkScopedEm` is a bare `orm.em.fork()`; a manager
+ * therefore carries no tenancy of its own, and the same fork yields different
+ * rows under different ambient contexts (feature 072, T038).
  *
  * Modes:
  *  - `single-org`   — a customer (or an org-pinned job); confined to one org.

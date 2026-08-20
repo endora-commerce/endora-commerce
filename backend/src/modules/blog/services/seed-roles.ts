@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'crypto';
-import { registerSystemRoleCode } from '../../admin_roles/services/admin-role-service.js';
+import type { SystemRoleCodePort } from '@b2b/contracts';
 
 /**
  * SeedBlogRoles — feature 016 / R8 / T025.
@@ -47,26 +47,34 @@ export interface BlogRoleSeedResult {
 
 export async function seedBlogRoles(
   emFactory: () => EntityManager,
+  systemRoleCodes: SystemRoleCodePort,
 ): Promise<BlogRoleSeedResult[]> {
   // Register the seeded codes as system-protected up-front. Idempotent,
   // and the registration must happen even when the rows already exist
   // (a fresh process boot starts with an empty in-memory registry).
+  //
+  // Through `systemRoleCodePort` since feature 075's Phase C, where this used
+  // to import `admin_roles`' module-level `registerSystemRoleCode`. The seam is
+  // the same one and its classification is unchanged: a contribution into an
+  // ungated registry, so a `blog` that is off registers nothing and its seeded
+  // roles are simply not protected — which is the right answer, because a
+  // module that is not there has no seeded role to protect.
   for (const def of SEED_DEFINITIONS) {
-    registerSystemRoleCode(def.code);
+    systemRoleCodes.register(def.code);
   }
 
-  const conn = emFactory().getConnection();
+  const em = emFactory();
   const results: BlogRoleSeedResult[] = [];
 
   for (const def of SEED_DEFINITIONS) {
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       'select id::text as id, permissions from admin_roles where code = ?',
       [def.code],
     )) as Array<{ id: string; permissions: string[] }>;
 
     if (rows.length === 0) {
       const id = randomUUID();
-      await conn.execute(
+      await em.execute(
         `insert into admin_roles (id, code, name, permissions, requires_two_factor, created_at, updated_at)
          values (?, ?, ?, ?::jsonb, false, now(), now())`,
         [id, def.code, def.defaultName, JSON.stringify(def.permissions)],
@@ -82,7 +90,7 @@ export async function seedBlogRoles(
       wantPerms.length !== havePerms.length ||
       wantPerms.some((p, i) => p !== havePerms[i]);
     if (drifted) {
-      await conn.execute(
+      await em.execute(
         `update admin_roles set permissions = ?::jsonb, updated_at = now() where id = ?`,
         [JSON.stringify(def.permissions), existing.id],
       );

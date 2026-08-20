@@ -130,6 +130,29 @@ export class SessionService {
   }
 
   /**
+   * Revoke every session an admin user holds — both the sessions they signed
+   * in with and the impersonations they started, which carry the admin id in
+   * `impersonatorAdminUserId` and a customer id in `customerAccountId`. Used
+   * when a peer resets their password (issue #252): a session that survives
+   * the reset is a credential the reset did not withdraw, which is exactly
+   * what the compromised-account case needs withdrawn.
+   */
+  async destroyAllForAdmin(adminUserId: string): Promise<void> {
+    // command-coverage-ignore: session lifecycle — revokes all sessions for an
+    // admin; auth infrastructure. The domain-state write that triggers it is
+    // audited by its own caller (`admin_user.change_password`).
+    const em = this.emFactory();
+    const sessions = await em.find(Session, {
+      $or: [{ adminUserId }, { impersonatorAdminUserId: adminUserId }],
+    });
+    if (sessions.length === 0) return;
+    for (const session of sessions) {
+      await this.redis.del(REDIS_KEY_PREFIX + session.id);
+    }
+    await em.removeAndFlush(sessions);
+  }
+
+  /**
    * Feature 040 — stamp activity, throttled to at most once per minute per
    * session (Redis marker) to avoid write amplification on every request.
    */

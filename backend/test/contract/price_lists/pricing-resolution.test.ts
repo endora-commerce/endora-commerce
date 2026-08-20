@@ -10,7 +10,8 @@ import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 011 / US5 — Storefront resolver endpoint contract (T058).
@@ -38,7 +39,7 @@ describe('Storefront resolver endpoint (feature 011 US5)', () => {
     await new DefaultPriceListMigrator(h.em).seedDefault();
 
     // Ensure SEED_PRODUCT_101 has a Default bracket.
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
     await svc.addProduct(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID);
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
       PLN: [{ minQuantity: 1, maxQuantity: null, amount: '199.0000' }],
@@ -110,7 +111,7 @@ describe('Storefront resolver endpoint (feature 011 US5)', () => {
 
   it('honours the quantity query param for bracket selection', async () => {
     const channel = await h.em().findOneOrFail(SalesChannel, { systemDefault: true });
-    const svc = new PriceListService(h.em);
+    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
     await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
       PLN: [
         { minQuantity: 1, maxQuantity: 9, amount: '100' },

@@ -7,6 +7,8 @@ import {
   applyCartCouponSchema,
   convertCartToQrSchema,
   ERROR_CODES,
+  OrganizationCannotTransactError,
+  type CatalogProductReadPort,
   type PromotionApplication,
 } from '@b2b/contracts';
 import type { CartService } from './services/cart-service.js';
@@ -17,10 +19,12 @@ import type { CartPricingRecompute } from './services/cart-pricing-recompute.js'
 import { derivePrimaryCta } from './services/cart-state-machine.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Cart } from './entities/cart.entity.js';
-import { Product } from '../catalog/entities/product.entity.js';
+
 import type { CartItem } from './entities/cart-item.entity.js';
-import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
+
 import { HttpError } from '../../http/error-envelope.js';
+import { productAudienceOf } from '../../http/product-audience.js';
+import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 
 const ANON_COOKIE = 'b2b_cart_anon';
 
@@ -84,6 +88,13 @@ export interface CartsDeps {
     anonymousToken?: string;
   };
   emFactory: () => EntityManager;
+  /**
+   * `catalog`'s product read model (feature 075, Phase C). The cart
+   * serializer resolves each line's display name, slug and sku from it; it
+   * used to `em.find(Product, …)` against `catalog`'s table, so a switched-off
+   * `catalog` still named the products on a cart it had stopped serving.
+   */
+  catalogProducts: CatalogProductReadPort;
   /**
    * Optional gate — when provided, signed-in customers whose Organization
    * is not `active` (pending_verification / blocked / rejected) cannot add
@@ -173,7 +184,11 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     // cart. Mirrors the recompute/coupon/promotion guards below.
     let productMeta: Map<string, ProductMeta>;
     try {
-      productMeta = await loadProductMeta(em, items.map((it) => it.productId), preferredLanguage);
+      productMeta = await loadProductMeta(
+        deps.catalogProducts,
+        items.map((it) => it.productId),
+        preferredLanguage,
+      );
     } catch (err) {
       request.log.warn({ err, cartId: cart.id }, 'cart product-meta lookup failed; rendering without names');
       productMeta = new Map();
@@ -202,9 +217,19 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
             .filter((r) => r.amount !== null)
             .map((r) => [r.cartItemId, { amount: r.amount as number, currency: r.currency }]),
         );
-      } catch {
-        // Never block a cart read on a resolver hiccup; fall back to the
-        // snapshotted unit price.
+      } catch (err) {
+        // The tolerance is narrow and stays: a resolver hiccup on one read must
+        // not take the whole cart down, and the snapshotted unit price is a
+        // figure the platform actually quoted.
+        //
+        // What it may not absorb is the presence answer (issue #124). `carts`
+        // declares `price_lists` a hard dependency, so an absent one fails
+        // closed — and this `catch` was quietly deciding the opposite: it
+        // rendered every line at its snapshot with `price_lists` switched off
+        // and said nothing, so the buyer read prices from a module the platform
+        // was refusing to serve and found out at checkout.
+        rethrowIfModuleDisabled(err);
+        request.log.warn({ err, cartId: cart.id }, 'cart repricing failed; rendering snapshots');
         recomputedPrices = null;
       }
     }
@@ -221,8 +246,11 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         if (result.dropped) {
           couponDroppedThisRead = result.dropped;
         }
-      } catch {
-        // Never block a cart read on a coupon-engine hiccup.
+      } catch (err) {
+        // Never block a cart read on a coupon-engine hiccup — but an absent
+        // `promotions` is not a hiccup (issue #124). Swallowing it charged the
+        // buyer the undiscounted total while the cart went on showing the code.
+        rethrowIfModuleDisabled(err);
         couponDroppedThisRead = null;
       }
     }
@@ -233,7 +261,10 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     if (deps.cartCouponService && items.length > 0) {
       try {
         application = await deps.cartCouponService.computeApplication(cart, items);
-      } catch {
+      } catch (err) {
+        // Same rule as the coupon re-evaluation above: a hiccup degrades to "no
+        // breakdown", an absent `promotions` does not degrade at all.
+        rethrowIfModuleDisabled(err);
         application = null;
       }
     }
@@ -390,7 +421,25 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
       const body = applyCartCouponSchema.parse(request.body);
       const result = await deps.cartCouponService.apply(cart, body.code);
       if (result.outcome === 'dropped') {
-        const detailsBody: Record<string, unknown> = { reason: result.reason };
+        // Issue #231 — the discriminator goes in **both** fields, and the
+        // duplication is the point.
+        //
+        // `reason` is what the published contract carries
+        // (`couponFailureBodySchema` in `packages/contracts/src/carts.ts`) and
+        // what the storefront branches on. `code` is what the envelope's
+        // `refusalToken` reads (`src/http/error-envelope.ts`) to build
+        // `errors.CART_COUPON_REJECTED.<token>` — the keys this module's bundle
+        // files the seven written reason sentences under. Spelling the
+        // discriminator only `reason` is why every one of them was dead: a
+        // buyer under the minimum spend was shown the generic refusal while a
+        // translated sentence telling them what to do about it sat unread.
+        //
+        // Additive on purpose. Renaming `reason` to `code` would be one field
+        // instead of two and would break a shape two schemas already publish.
+        const detailsBody: Record<string, unknown> = {
+          code: result.reason,
+          reason: result.reason,
+        };
         if ('shortfall' in result && result.shortfall) {
           detailsBody['shortfall'] = result.shortfall;
         }
@@ -540,7 +589,11 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     if (!cart) return { data: [] };
     const parsed = cartUpsellsQuerySchema.parse(request.query ?? {});
     const limit = parsed.limit ?? 12;
-    const candidates = await deps.cartUpsellService.forCart(cart.id, limit);
+    const candidates = await deps.cartUpsellService.forCart(
+      cart.id,
+      limit,
+      productAudienceOf(request),
+    );
     return { data: candidates };
   });
 }
@@ -737,7 +790,7 @@ function resolvePrimaryCta(cart: Cart) {
 /**
  * Resolves the storefront's preferred language from `Accept-Language`.
  * Falls back to undefined when the header is missing — the caller
- * then walks Product.name's locale chain in serializeCart's helper.
+ * then walks the product record's `name` locale chain in serializeCart's helper.
  */
 function parsePreferredLanguage(header: string | string[] | undefined): string | undefined {
   const raw = Array.isArray(header) ? header[0] : header;
@@ -747,27 +800,27 @@ function parsePreferredLanguage(header: string | string[] | undefined): string |
 }
 
 /**
- * Bulk-fetches Product metadata for every productId on the cart and
- * resolves a display name from `Product.name` (per-locale JSONB) using
+ * Bulk-fetches product metadata for every productId on the cart and
+ * resolves a display name from the record's `name` (per-locale JSONB) using
  * the `Accept-Language` tag with a `pl` → `pl-PL` → `en-US` → first
  * available fallback chain. Empty list returns an empty map (the
  * serializer treats `null` name as "unknown" and the storefront falls
  * back to the productId).
  */
 async function loadProductMeta(
-  em: EntityManager,
+  catalogProducts: CatalogProductReadPort,
   productIds: string[],
   preferredLanguage: string | undefined,
 ): Promise<Map<string, ProductMeta>> {
   const meta = new Map<string, ProductMeta>();
   if (productIds.length === 0) return meta;
   const unique = Array.from(new Set(productIds));
-  const products = await em.find(Product, { id: { $in: unique } });
+  const products = await catalogProducts.findByIds(unique);
   for (const p of products) {
     meta.set(p.id, {
-      name: pickLocalized(p.name as Record<string, string>, preferredLanguage),
+      name: pickLocalized(p.name, preferredLanguage),
       slug: p.slug,
-      sku: p.sku ?? null,
+      sku: p.sku,
     });
   }
   return meta;

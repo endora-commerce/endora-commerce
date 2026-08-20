@@ -1,10 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Organization } from '../entities/organization.entity.js';
-import { PriceList } from '../../price_lists/entities/price-list.entity.js';
 import {
   evaluateApplicationRule,
-  type ResolutionContext,
-} from '../../price_lists/services/application-rule-evaluator.js';
+  type PriceListReadPort,
+  type PriceListResolutionContext,
+} from '@b2b/contracts';
+import { Organization } from '../entities/organization.entity.js';
 
 /**
  * Maps the application-rule-evaluator's `RuleCriterionType` tags to the
@@ -39,6 +39,14 @@ export interface OrganizationEffectivePriceListsDeps {
    * an admin opens the relevant Sales Channel.
    */
   resolveDefaultSalesChannelId: () => Promise<string>;
+  /**
+   * `price_lists`' own answer to "which lists are active", rather than this
+   * module's copy of the status filter (feature 075, Phase C). With
+   * `price_lists` off the call fails closed and the panel refuses: an empty
+   * list here reads as "no price list applies to this organisation", which is
+   * a plausible answer and the wrong one.
+   */
+  priceListRead: PriceListReadPort;
 }
 
 /**
@@ -58,13 +66,9 @@ export class OrganizationEffectivePriceListsService {
     const salesChannelId = await this.deps.resolveDefaultSalesChannelId();
     const now = new Date();
 
-    const candidates = await em.find(
-      PriceList,
-      { status: 'active' },
-      { orderBy: { modifiedAt: 'desc', name: 'asc' } },
-    );
+    const candidates = await this.deps.priceListRead.listActive();
 
-    const ctx: ResolutionContext = {
+    const ctx: PriceListResolutionContext = {
       organizationId: org.id,
       customerGroupId: org.customerGroupId ?? null,
       salesChannelId,

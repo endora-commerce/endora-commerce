@@ -17,6 +17,11 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
  * applicationRule, not a column. A sales-rep assigned to Org A sees a price list
  * that targets Org B neither in the list nor by id; global (untargeted) lists
  * and Org-A-targeted lists remain visible. Platform admin sees everything.
+ *
+ * The sales-rep fixture holds `price_lists:read` since issue #219; it used to
+ * hold `catalog:write`, which was how these routes were gated then. The subject
+ * of the test is the org scoping, not the code — the rep needs whatever code
+ * opens the pricing list surface.
  */
 describe('Price lists — cross-tenant scoping (feature 050 US1)', () => {
   let h: BackendServerHandle;
@@ -62,10 +67,10 @@ describe('Price lists — cross-tenant scoping (feature 050 US1)', () => {
         role = em.create(AdminRole, {
           code: 'sales_representative',
           name: 'Sales Representative',
-          permissions: ['catalog:write'],
+          permissions: ['price_lists:read'],
         });
-      } else if (!role.permissions.includes('catalog:write')) {
-        role.permissions = [...role.permissions, 'catalog:write'];
+      } else if (!role.permissions.includes('price_lists:read')) {
+        role.permissions = [...role.permissions, 'price_lists:read'];
       }
       await em.persistAndFlush(role);
       const rep = em.create(AdminUser, {

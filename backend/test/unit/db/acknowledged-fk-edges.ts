@@ -13,6 +13,45 @@
  * fk-dependency-drift.test.ts: an entry survives only while it is *both* still
  * a real foreign key (M1) *and* still undeclared (M2). Adding a 16th entry is a
  * visible, reviewable act.
+ *
+ * ## Why feature 081 left all 13 exactly as they were (T022, D-113)
+ *
+ * Feature 081 replaced the old migration order — timestamps corrected by the
+ * module dependency graph — with a topological sort of that graph. Removing the
+ * correction removes the accident that used to make an undeclared cross-module
+ * foreign key work, so the obvious next thought is that these 13 undeclared
+ * edges now need something. They do not, and this paragraph exists because an
+ * unchanged file invites the next reader to "finish" it.
+ *
+ * Three measured facts, in the order they matter (research.md §3):
+ *
+ * 1. **All 13 are baseline-block facts.** Every one is created by a migration
+ *    stamped April or June 2026 — at or before `BASELINE_THROUGH`
+ *    (`20260801T000000`). The baseline block is emitted first, in ascending
+ *    timestamp order, and is never reordered by the dependency graph; it is
+ *    closed, and the scaffolder clamps every new core stamp past the boundary.
+ *    So no declaration could change where any of them runs.
+ * 2. **Promoting them into `dependencies` would close cycles — 11 of the 13.**
+ *    Added one at a time, 11 find the target already reaching the source; added
+ *    together they collapse 14 modules into one strongly connected component.
+ *    That is not a fixable oversight: `sales_channels`' junction tables must
+ *    follow `catalog`'s `products`, and `catalog`'s channel-scoping columns must
+ *    follow `sales_channels`' own table. Both are true, and no module-level edge
+ *    can express both.
+ * 3. **The field that could express it is ruled unspellable.** An ordering edge
+ *    that the migration order reads and the lifecycle does not is D-44 §5's
+ *    fourth quadrant — order without bind — kept deliberately unspellable in
+ *    `packages/contracts/src/modules.ts` (the doc block above
+ *    `ModuleNonBindingDependencySchema`). D-113 withdrew D-108, which had
+ *    proposed exactly that field. The per-*migration* escape that would work is
+ *    specified and deliberately not built:
+ *    `specs/081-per-module-migration-order/contracts/ordering-algorithm.md` §7.
+ *
+ * What replaced the accident is the position half of `fk-dependency-drift.test.ts`
+ * (FR-013), and its exemption (a) — "the referenced table is created in the
+ * baseline block" — is precisely fact 1. It reports zero findings on this tree,
+ * and the first post-baseline migration that needs one of these edges is what
+ * will say so, by name.
  */
 export type DroppedEdgeRule =
   /** Rule 1 — a platform-root module never depends on a domain module. */
@@ -47,20 +86,11 @@ export interface AcknowledgedFkEdge {
 
 export const ACKNOWLEDGED_FK_EDGES: readonly AcknowledgedFkEdge[] = [
   // ── Rule 3 — organizations is the tenancy root (Principle XI) ────────────
-  {
-    from: 'organizations',
-    to: 'admin_users',
-    via: ['organizations → admin_users', 'organization_tax_id_validations → admin_users'],
-    reason:
-      'Sales-rep assignment and tax-id validation attribution are optional admin ' +
-      'annotations on an organization; an organization exists and transacts ' +
-      'without either. The tenancy root must stay installable before the admin ' +
-      'domain.',
-    rule: 'tenancy-root',
-    cycle:
-      'no cycle on its own — dropped because a tenancy root that cannot install ' +
-      'before an optional admin module is not a root',
-  },
+  // `organizations → admin_users` used to sit here. Feature 072 (T138) retired
+  // it: converting the module made its dependency on `admin_notifications`
+  // explicit — the new-registration notice is an in-app admin notification —
+  // and that edge satisfies `admin_users` transitively. The exception became
+  // dead weight and M2 said so, which is the whole point of M2.
   {
     from: 'organizations',
     to: 'customer_accounts',
@@ -112,19 +142,29 @@ export const ACKNOWLEDGED_FK_EDGES: readonly AcknowledgedFkEdge[] = [
       'before an optional commercial module is not a root',
   },
 
-  // ── Rule 2 — sales_channels owns the membership bridges ─────────────────
+  // ── Rule 1 — the kernel is the platform root (feature 072, D-32) ─────────
   {
-    from: 'sales_channels',
+    from: 'kernel',
     to: 'assets_library',
     via: ['sales_channels → assets'],
     reason:
-      'A channel logo is presentation metadata on the channel row. The bridge ' +
-      'owner does not depend on the asset library; the library is a platform root.',
-    rule: 'bridge-owner',
+      'Feature 072 T019 moved the SalesChannel entity into the kernel, which ' +
+      'made the pre-existing `sales_channels.logo_asset_id → assets` foreign key ' +
+      'a kernel → module edge. It is a nullable presentation column with ' +
+      '`on delete set null`: dropping the assets_library module leaves the ' +
+      'channel row intact, so the kernel does not *depend* on the module in the ' +
+      'install-time sense the manifest graph models. D-32 counted ORM relations ' +
+      'only and did not see this edge, because `logoAssetId` is a scalar ' +
+      '@Property, not a @ManyToOne. Retiring it means dropping the constraint in ' +
+      'a core migration — a schema change, tracked separately from the ' +
+      'relocation.',
+    rule: 'platform-root',
     cycle:
-      'no cycle on its own — dropped because declaring it inverts the ' +
-      'bridge-ownership direction',
+      'no cycle — the kernel appears in no manifest and can never be named in a ' +
+      '`dependencies` array, so the edge is undeclarable rather than undeclared',
   },
+
+  // ── Rule 2 — sales_channels owns the membership bridges ─────────────────
   {
     from: 'sales_channels',
     to: 'catalog',
@@ -154,7 +194,12 @@ export const ACKNOWLEDGED_FK_EDGES: readonly AcknowledgedFkEdge[] = [
       'Per-channel customer visibility is a membership bridge; the customer ' +
       'domain is what needs channel scoping.',
     rule: 'bridge-owner',
-    cycle: 'sales_channels → customer_accounts → price_lists → catalog → sales_channels',
+    // Re-measured for feature 076 (D-79). The route through `price_lists` is
+    // gone — `customer_accounts` no longer declares it, because it owns
+    // `customer_groups` now — and the edge is still undeclarable, through a
+    // path that was there all along.
+    cycle:
+      'sales_channels → customer_accounts → organizations → transactional_emails → sales_channels',
   },
   {
     from: 'sales_channels',
@@ -216,20 +261,8 @@ export const ACKNOWLEDGED_FK_EDGES: readonly AcknowledgedFkEdge[] = [
       'bridge-ownership direction',
   },
 
-  // ── Rule 1 — settings is a platform root ────────────────────────────────
-  {
-    from: 'settings',
-    to: 'sales_channels',
-    via: [
-      'setting_group_sales_channels → sales_channels',
-      'setting_sales_channels → sales_channels',
-      'setting_values → sales_channels',
-    ],
-    reason:
-      'The per-channel scope columns are optional: a setting value with a null ' +
-      'sales_channel_id is the global value. settings is the platform root every ' +
-      'module — sales_channels included — installs on top of.',
-    rule: 'platform-root',
-    cycle: 'settings → sales_channels → settings',
-  },
+  // The `settings → sales_channels` entry that stood here until feature 072
+  // T019 is gone: `sales_channels` is a kernel-owned table now, so the three
+  // foreign keys it covered became settings → kernel, which needs no
+  // declaration at all (the kernel has no manifest to name).
 ];

@@ -1,4 +1,3 @@
-import type { EventBus } from '../../../events/bus.js';
 import type { PushMessageService } from './push-message-service.js';
 
 /**
@@ -14,7 +13,6 @@ export interface PushEventTarget {
 }
 
 export interface PushEventSubscriberDeps {
-  eventBus: EventBus;
   messageService: PushMessageService;
   /** Resolve an order-status event into a push target (channel + customer + copy). */
   resolveOrderTarget?: (payload: {
@@ -33,25 +31,33 @@ export interface PushEventSubscriberDeps {
 }
 
 /**
- * Wires auto-triggered push (FR-024). Subscribes to order-status and
- * quote-request events on the in-process EventBus and enqueues one push message
- * per event (idempotent on the event id). The subscriber is a producer only — it
- * never sends inline (Principle X). Every handler is wrapped so a push failure
- * never breaks the originating business transaction.
+ * The two auto-trigger handlers (FR-024). One push message per event,
+ * idempotent on the event id; producer only — nothing is sent inline
+ * (Principle X), and every handler absorbs its own failure so a push problem
+ * never breaks the business transaction that announced itself.
+ *
+ * The subscriptions live in this module's `backend.ts` and go through
+ * `ctx.subscribe` (issue #107). They were two bare `eventBus.on` calls here, so
+ * a switched-off `pwa` still wrote a `push_messages` row and still delivered a
+ * notification to a customer's device — the most visible of the writes that
+ * survived their module.
  */
-export function setupPushEventSubscriber(deps: PushEventSubscriberDeps): void {
-  const { eventBus, messageService } = deps;
+export function createPushEventHandlers(deps: PushEventSubscriberDeps): {
+  onOrderStatusChanged: (payload: unknown) => Promise<void>;
+  onQuoteRequestUpdated: (payload: unknown) => Promise<void>;
+} {
+  const { messageService } = deps;
 
-  // order.status_changed.v1 (orders, feature 038)
-  eventBus.on(
-    'order.status_changed.v1' as never,
-    (async (payload: {
-      eventId: string;
-      orderId: string;
-      salesChannelId: string;
-      from: string;
-      to: string;
-    }) => {
+  return {
+    // order.status_changed.v1 (orders, feature 038)
+    async onOrderStatusChanged(raw: unknown): Promise<void> {
+      const payload = raw as {
+        eventId: string;
+        orderId: string;
+        salesChannelId: string;
+        from: string;
+        to: string;
+      };
       try {
         if (!deps.resolveOrderTarget) return;
         if (!(await deps.isPushEnabled(payload.salesChannelId))) return;
@@ -69,13 +75,15 @@ export function setupPushEventSubscriber(deps: PushEventSubscriberDeps): void {
       } catch (err) {
         console.warn('[pwa] order-status push enqueue failed', err);
       }
-    }) as never,
-  );
+    },
 
-  // quote-request update events (quote_requests, feature 008)
-  eventBus.on(
-    'quote_request.updated.v1' as never,
-    (async (payload: { eventId: string; quoteRequestId: string; salesChannelId?: string }) => {
+    // quote-request update events (quote_requests, feature 008)
+    async onQuoteRequestUpdated(raw: unknown): Promise<void> {
+      const payload = raw as {
+        eventId: string;
+        quoteRequestId: string;
+        salesChannelId?: string;
+      };
       try {
         if (!deps.resolveQuoteTarget) return;
         const target = await deps.resolveQuoteTarget({
@@ -96,6 +104,6 @@ export function setupPushEventSubscriber(deps: PushEventSubscriberDeps): void {
       } catch (err) {
         console.warn('[pwa] quote-request push enqueue failed', err);
       }
-    }) as never,
-  );
+    },
+  };
 }

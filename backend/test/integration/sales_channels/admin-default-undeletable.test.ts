@@ -2,8 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { EventBus } from '../../../src/events/bus.js';
+import { SalesChannelAttributionRegistry } from '../../../src/modules/sales_channels/services/sales-channel-attribution-registry.js';
 import { SalesChannelsService } from '../../../src/modules/sales_channels/services/sales-channels.service.js';
-import { DefaultChannelReconciler } from '../../../src/modules/sales_channels/services/default-channel-reconciler.js';
+import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
+import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 
 /**
@@ -28,11 +30,28 @@ describe('Default channel is undeletable / undeactivatable (T023)', () => {
     await db.beginTx();
   });
 
+  /**
+   * Both arguments are required since feature 075 (D-87): the validator's
+   * absent branch used to be a raw `select` over `languages` and `currencies`,
+   * and the registry's absent form would be an open delete guard. Neither is
+   * exercised here — this suite never creates a channel, and its deletes are
+   * refused before the guard — but the service does not have an absent form of
+   * either any more, which is the point.
+   */
+  function serviceFor(): SalesChannelsService {
+    return new SalesChannelsService(
+      () => db.em(),
+      new EventBus(),
+      dictionaryValidatorFor(() => db.em()),
+      new SalesChannelAttributionRegistry(),
+    );
+  }
+
   async function ensureDefault(): Promise<string> {
     const em = db.em();
     await new DefaultChannelReconciler(() => em).run();
     const found = await em.findOneOrFail(
-      (await import('../../../src/modules/sales_channels/entities/sales-channel.entity.js'))
+      (await import('../../../src/kernel/sales-channels/sales-channel.entity.js'))
         .SalesChannel,
       { systemDefault: true },
     );
@@ -42,7 +61,7 @@ describe('Default channel is undeletable / undeactivatable (T023)', () => {
   it('refuses deactivate(systemDefaultCode) with CANNOT_MODIFY_SYSTEM_DEFAULT', async () => {
     try {
       const code = await ensureDefault();
-      const svc = new SalesChannelsService(() => db.em(), new EventBus());
+      const svc = serviceFor();
 
       let caught: unknown;
       try {
@@ -62,7 +81,7 @@ describe('Default channel is undeletable / undeactivatable (T023)', () => {
   it('refuses delete(systemDefaultCode) with CANNOT_MODIFY_SYSTEM_DEFAULT', async () => {
     try {
       const code = await ensureDefault();
-      const svc = new SalesChannelsService(() => db.em(), new EventBus());
+      const svc = serviceFor();
 
       let caught: unknown;
       try {
@@ -82,7 +101,7 @@ describe('Default channel is undeletable / undeactivatable (T023)', () => {
   it('refuses delete on a non-existent code with NOT_FOUND', async () => {
     try {
       await ensureDefault();
-      const svc = new SalesChannelsService(() => db.em(), new EventBus());
+      const svc = serviceFor();
 
       let caught: unknown;
       try {

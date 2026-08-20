@@ -1,9 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type DictionaryReference,
+  type DictionaryReferenceRegistryPort,
+} from '@b2b/contracts';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Currency } from '../entities/currency.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 
 /**
  * CurrencyService — admin CRUD over the currencies pool.
@@ -25,6 +30,12 @@ export class CurrencyService {
     private readonly emFactory: () => EntityManager,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
     private readonly auditLog?: AuditLogService,
+    /**
+     * Resolved per call rather than captured: the registry is a singleton this
+     * module owns, but the accessor keeps the constructor honest for the tests
+     * that build the service without one.
+     */
+    private readonly referenceRegistry?: () => DictionaryReferenceRegistryPort,
   ) {}
 
   #audit(
@@ -254,43 +265,54 @@ export class CurrencyService {
     return target;
   }
 
-  async countDependents(code: string): Promise<{
-    salesChannelDefaults: number;
-    salesChannelLists: number;
-    promotions: number;
-    priceLists: number;
-    countriesDefault: number;
-  }> {
-    const conn = this.emFactory().getConnection();
-    const [scDefault, scList, promo, pl, countries] = await Promise.all([
-      conn.execute(
-        `select count(*)::int as n from "sales_channels" where "default_currency" = ?`,
-        [code],
-      ) as Promise<Array<{ n: number }>>,
-      conn.execute(
-        `select count(*)::int as n from "sales_channels" where "currencies" @> ?::jsonb`,
-        [JSON.stringify([code])],
-      ) as Promise<Array<{ n: number }>>,
-      conn.execute(
-        `select count(*)::int as n from "promotions" where "currency" = ?`,
-        [code],
-      ) as Promise<Array<{ n: number }>>,
-      conn.execute(
-        `select count(*)::int as n from "price_lists" where "currency" = ?`,
-        [code],
-      ) as Promise<Array<{ n: number }>>,
-      conn.execute(
-        `select count(*)::int as n from "countries" where "default_currency_code" = ?`,
-        [code],
-      ) as Promise<Array<{ n: number }>>,
-    ]);
-    return {
-      salesChannelDefaults: scDefault[0]?.n ?? 0,
-      salesChannelLists: scList[0]?.n ?? 0,
-      promotions: promo[0]?.n ?? 0,
-      priceLists: pl[0]?.n ?? 0,
-      countriesDefault: countries[0]?.n ?? 0,
-    };
+  /**
+   * Every consumer reference to `code`, across the platform (feature 077, D-87).
+   *
+   * This used to be five hand-written `count(*)` statements naming
+   * `sales_channels`, `promotions`, `price_lists` and `countries` — four tables
+   * this module does not own, in strings no import-level boundary check can
+   * see. Three of them are contributed descriptors now
+   * (`currencyReferenceRegistry`); the fourth is the kernel's channel table,
+   * which this module may read through the ORM because the kernel is not a
+   * module (D-32).
+   *
+   * Channels are counted in memory rather than in SQL: a deployment has tens of
+   * them, both questions are about the same rows, and `currencies` is a JSON
+   * array whose containment test was the reason the statement existed at all.
+   */
+  async countDependents(code: string): Promise<DictionaryReference[]> {
+    const channels = await this.emFactory().find(SalesChannel, {});
+    const references: DictionaryReference[] = [];
+
+    const asDefault = channels.filter((channel) => channel.defaultCurrency === code).length;
+    if (asDefault > 0) {
+      references.push({
+        ownerModuleId: 'sales_channels',
+        consumer: 'sales_channels',
+        tableName: 'sales_channels',
+        columnName: 'default_currency',
+        code,
+        count: asDefault,
+        blocking: true,
+      });
+    }
+
+    const listed = channels.filter((channel) => channel.currencies.includes(code)).length;
+    if (listed > 0) {
+      references.push({
+        ownerModuleId: 'sales_channels',
+        consumer: 'sales_channels',
+        tableName: 'sales_channels',
+        columnName: 'currencies[]',
+        code,
+        count: listed,
+        blocking: true,
+      });
+    }
+
+    const registry = this.referenceRegistry?.();
+    if (registry) references.push(...(await registry.countReferences(code)));
+    return references;
   }
 
   async remove(code: string): Promise<void> {
@@ -305,13 +327,13 @@ export class CurrencyService {
       );
     }
     const dependents = await this.countDependents(code);
-    // `countriesDefault` is benign — countries.default_currency_code has
-    // ON DELETE SET NULL — but we still surface it for operator visibility.
-    const blocking =
-      dependents.salesChannelDefaults +
-      dependents.salesChannelLists +
-      dependents.promotions +
-      dependents.priceLists;
+    // A non-blocking reference is still reported — `countries.default_currency_code`
+    // has `on delete set null`, so it is a column an operator is about to blank
+    // rather than a delete to refuse. Which references are which is the
+    // contributing module's call, carried on the descriptor.
+    const blocking = dependents
+      .filter((reference) => reference.blocking)
+      .reduce((total, reference) => total + reference.count, 0);
     if (blocking > 0) {
       throw new HttpError(
         409,

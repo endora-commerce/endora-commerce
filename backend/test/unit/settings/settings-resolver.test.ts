@@ -2,17 +2,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineModuleSettingsManifest } from '@b2b/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
+import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { settingsManifest } from '../../../src/modules/settings/manifest.js';
 import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
   SettingValueShapeMismatch,
   SettingsService,
-} from '../../../src/modules/settings/services/settings.service.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+} from '../../../src/kernel/settings/settings.service.js';
+import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * T048 — Resolver semantics for the universal getter (no Redis cache; the

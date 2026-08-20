@@ -173,3 +173,72 @@ export const ResolveResultSchema = z.discriminatedUnion('status', [
   }),
 ]);
 export type ResolveResult = z.infer<typeof ResolveResultSchema>;
+
+// ---------------------------------------------------------------------------
+// --- ports -----------------------------------------------------------------
+//
+// The in-process surface `credentials` publishes to the two integration
+// modules that read it (feature 075, Phase P). Both already answer with the
+// DTOs above, so these two interfaces add a name rather than a shape — which
+// is the whole of what `pim_ergonode` and `product_feeds` were importing the
+// classes to get.
+// ---------------------------------------------------------------------------
+
+/**
+ * Container name: `credentialsService`. Owner: `credentials`.
+ *
+ * `resolve` is the one method that matters at run time: it decrypts a stored
+ * configuration's secrets for the integration about to use them. When
+ * `credentials` is off it fails closed, and it must — an integration that
+ * caught the refusal and proceeded would run against whatever it had cached,
+ * which for a credential means "the one the operator just revoked".
+ */
+export interface CredentialsPort {
+  list(typeFilter?: string): Promise<ConfigurationDto[]>;
+  getByCode(code: string): Promise<ConfigurationDto | null>;
+  create(data: CreateConfiguration): Promise<ConfigurationDto>;
+  update(code: string, data: UpdateConfiguration): Promise<ConfigurationDto>;
+  delete(code: string): Promise<void>;
+  resolve(configurationCode: string): Promise<ResolveResult>;
+}
+
+/**
+ * Container name: `configurationTypeRegistry`. Owner: `credentials`.
+ *
+ * A **contribution seam**: a module that needs a credential type describes it
+ * here from its boot hook, and the admin screen renders the form from the
+ * descriptor. Every edge into it classifies as `contributes`.
+ *
+ * `isAvailable` / `get` / `resolve` / `list` filter on the contributor's
+ * effective state; `entry`, `ownerOf` and `listAll` deliberately do not, so an
+ * admin screen can keep showing a stored configuration *and* the reason its
+ * type is unavailable — a credential row outlives the module that described
+ * its shape, and hiding the row would look like data loss.
+ *
+ * **Owner off:** nothing throws here. This is a **contribution seam**, a plain
+ * `di.register` rather than a `providePort`, so a push still lands and
+ * `credentials` filters by contributor when it enumerates. Converting it to
+ * `providePort` would move every edge into it from `contributes` to
+ * `fails-closed` in the deactivation-consequence ledger, and change the
+ * sentence the operator's confirmation dialog renders.
+ */
+export interface ConfigurationTypeRegistryPort {
+  register(descriptor: ConfigurationTypeDescriptor): void;
+  unregister(code: string): void;
+  /** Registered at all, presence-blind. */
+  isRegistered(code: string): boolean;
+  /** Registered **and** its contributing module effectively present. */
+  isAvailable(code: string): boolean;
+  /** The descriptor, presence-blind. */
+  entry(code: string): ConfigurationTypeDescriptor | undefined;
+  /** The descriptor, or `undefined` when unregistered or its owner is absent. */
+  get(code: string): ConfigurationTypeDescriptor | undefined;
+  /** Like {@link get}, but throws `ConfigurationTypeUnknown` instead. */
+  resolve(code: string): ConfigurationTypeDescriptor;
+  /** Descriptors whose contributor is present, in registration order. */
+  list(): ConfigurationTypeDescriptor[];
+  /** Every registered descriptor, presence-blind. */
+  listAll(): ConfigurationTypeDescriptor[];
+  /** Which module contributed the code, or `null` when nobody did. */
+  ownerOf(code: string): string | null;
+}

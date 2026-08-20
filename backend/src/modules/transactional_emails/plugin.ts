@@ -1,10 +1,14 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@b2b/contracts';
-import type { SettingsService } from '../settings/services/settings.service.js';
-import type { SettingsAdminService } from '../settings/services/settings-admin.service.js';
-import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
-import type { Mailer } from '../email/services/mailer.js';
+import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
+import type {
+  EmailDeliveryRecorder,
+  EmailMailerPort,
+  SettingsAdminPort,
+} from '@b2b/contracts';
 import { ContentResolver } from './services/content-resolver.js';
 import { BrandingService, type AssetUrlResolver } from './services/branding.service.js';
 import { EmbedResolver } from './services/embed-resolver.js';
@@ -12,7 +16,7 @@ import { TransactionalEmailService } from './services/transactional-email.servic
 import { EmailBlockService } from './services/email-block.service.js';
 import { EmailTemplateService } from './services/email-template.service.js';
 import { TransactionalEmailReconciler } from './services/manifest-reconciler.js';
-import { emailDefaultsRegistry } from './services/email-defaults-registry.js';
+import type { EmailDefaultsRegistry } from './services/email-defaults-registry.js';
 import { registerTransactionalEmailsAdminRoutes } from './routes.admin.js';
 
 export interface TransactionalEmailsModuleOptions {
@@ -22,11 +26,26 @@ export interface TransactionalEmailsModuleOptions {
   resolveAdminUserId: (req: FastifyRequest) => string | null;
   /** All registered module manifests — drives boot reconciliation of definitions. */
   manifests: ReadonlyArray<ModuleManifest>;
-  mailer?: Mailer;
+  /**
+   * The registry the owning modules pushed their defaults into (T143a).
+   *
+   * Supplied rather than imported, so it is **one per composition**. The
+   * module-level singleton this replaced was shared by every composition in the
+   * process.
+   */
+  defaultsRegistry: EmailDefaultsRegistry;
+  /** Audits the per-email activation flip (issue #89, Principle XIII). */
+  commandBus: CommandBus;
+  mailer?: EmailMailerPort;
+  /**
+   * Where a message this module suppresses — or cannot render — is recorded
+   * (D-59). The transport records the ones it is handed; these never reach it.
+   */
+  deliveryRecorder?: EmailDeliveryRecorder;
   auditLog?: AuditLogService;
   resolveAssetUrl?: AssetUrlResolver;
   /** Settings admin service used to persist branding values (US2). */
-  settingsAdmin?: SettingsAdminService;
+  settingsAdmin?: SettingsAdminPort;
   /** Exposes the sender back to composition so owning modules can send. */
   exposeSender?: (sender: TransactionalEmailService) => void;
   /** Exposes branding so newsletter (and others) can inject logoUrl/accent. */
@@ -55,7 +74,9 @@ export function transactionalEmailsModule(
       contentResolver,
       branding,
       embeds,
+      defaults: options.defaultsRegistry,
       ...(options.mailer ? { mailer: options.mailer } : {}),
+      ...(options.deliveryRecorder ? { deliveryRecorder: options.deliveryRecorder } : {}),
       ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     });
 
@@ -63,7 +84,10 @@ export function transactionalEmailsModule(
     const templates = new EmailTemplateService(options.emFactory, options.auditLog);
 
     // Boot reconciliation: upsert definitions from manifests + registered defaults.
-    const reconciler = new TransactionalEmailReconciler(options.emFactory, emailDefaultsRegistry);
+    const reconciler = new TransactionalEmailReconciler(
+      options.emFactory,
+      options.defaultsRegistry,
+    );
     try {
       await reconciler.reconcile(options.manifests);
     } catch (err) {
@@ -81,6 +105,8 @@ export function transactionalEmailsModule(
       templates,
       requireAdmin: options.requireAdmin,
       resolveAdminUserId: options.resolveAdminUserId,
+      commandBus: options.commandBus,
+      defaults: options.defaultsRegistry,
     });
   };
 }

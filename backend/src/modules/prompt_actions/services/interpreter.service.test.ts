@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import type { EntityManager } from '@mikro-orm/postgresql';
 import { InterpreterService } from './interpreter.service.js';
-import { PromptActionToolRegistry, type PromptActionTool, type ToolContext } from './tool-registry.js';
+import type { PromptActionTool, ToolContext } from '@b2b/contracts';
+import { PromptActionToolRegistry } from './tool-registry.js';
 import { LlmProviderError, type LlmCompletion, type LlmRequest } from './llm/provider.js';
 
 /**
@@ -13,7 +13,6 @@ import { LlmProviderError, type LlmCompletion, type LlmRequest } from './llm/pro
 const toolCtx: ToolContext = {
   adminUserId: 'admin-1',
   requestId: 'req-1',
-  em: {} as EntityManager,
   auditCtx: {},
 };
 

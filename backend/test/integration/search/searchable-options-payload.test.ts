@@ -5,8 +5,9 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Meilisearch } from 'meilisearch';
+import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';
 
 /**
  * Feature 012 / T050 — Search indexer payload widening (US7).
@@ -62,6 +63,7 @@ describe('SearchIndexer — feature 012 searchableOptions payload (T050)', () =>
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
       attributeRead: h.catalogAttributeRead,
+      ...searchIndexerNeighbourPorts(h),
     });
     const em = h.em();
     const channels = await em.find(SalesChannel, {});

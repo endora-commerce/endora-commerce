@@ -1,6 +1,9 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ProductSelectionRule } from '@b2b/contracts';
-import { Product } from '../../catalog/entities/product.entity.js';
+import type {
+  CatalogProductFilterPort,
+  CatalogProductReadPort,
+  CatalogProductRecord,
+  ProductSelectionRule,
+} from '@b2b/contracts';
 import {
   collectSelectionCategoryIds,
   compileSelectionRule,
@@ -16,10 +19,17 @@ import {
  * Three rules govern this file and none is negotiable.
  *
  * **1. The eligibility floor is server-side and cannot be widened.** Active,
- * publicly visible, not archived, not soft-deleted, and a member of the feed's
- * channel. An operator's `selectionRule` can only ever narrow that set. It is
- * applied here rather than in the rule compiler so no future rule node can
- * accidentally become an escape from it.
+ * not archived, not soft-deleted, a member of the feed's channel, and visible
+ * to the feed's reader — which is `ANONYMOUS_PRODUCT_AUDIENCE`, because a feed
+ * is fetched by Google with no session and no organisation (issue #259). An
+ * operator's `selectionRule` can only ever narrow that set.
+ *
+ * Since feature 075's cut the first four of those five live **inside**
+ * `catalogProductFilterPort`, where no caller can reach them, and the fifth —
+ * the channel's membership — is the id list this service hands the port. That
+ * is a stronger arrangement than the conjunction this file used to build: the
+ * floor, a category criterion and the keyset cursor all constrain `id`, so one
+ * object spread was all that stood between FR-026 and a feed carrying drafts.
  *
  * **2. Channel membership comes from the sanctioned accessor only**
  * (Principle XII). `SalesChannelMembershipService.listEntityIdsForChannel` is
@@ -31,15 +41,18 @@ import {
  * `ChannelUnavailableError`, which the run records as `channel_unavailable`; a
  * criterion naming a deleted attribute throws `UnknownSelectionFieldError`,
  * which the run records as a configuration error (FR-029). A feed that cannot
- * resolve its configuration must produce nothing, never everything.
+ * resolve its configuration must produce nothing, never everything. `catalog`
+ * being switched off joins that list: the scan answers 503 `MODULE_DISABLED`
+ * and the run stops, where the `em.find(Product, …)` it replaces went on
+ * reading rows a deactivation leaves exactly where they are.
  *
  * ## Why some criteria are evaluated in memory
  *
  * Stock availability and price do not live in a column this module may read —
  * they belong to `inventory` and `price_lists`, and are reached through
  * injected ports (Principle I). `selection-rule-compiler.ts` therefore returns
- * a SQL **superset** plus an exact `evaluate` for those rules; this service
- * runs both stages, page by page, and never the first alone.
+ * a query-stage **superset** plus an exact `evaluate` for those rules; this
+ * service runs both stages, page by page, and never the first alone.
  */
 
 /** Ids are resolved in pages so the cursor stays stable while the catalogue moves. */
@@ -107,9 +120,16 @@ export interface SelectionScope {
 }
 
 export interface ProductSelectionServiceDeps {
-  emFactory: () => EntityManager;
   membership: ChannelMembershipPort;
   catalog: CatalogSelectionPort;
+  /**
+   * The scan itself. `catalog` owns the floor, the keyset cursor and the
+   * translation of {@link CatalogProductFilter} into a query; this module owns
+   * the rule and what the rule means.
+   */
+  productFilter: CatalogProductFilterPort;
+  /** Resolving the sample rows a preview shows, once their ids are known. */
+  productReads: CatalogProductReadPort;
   resolveAvailability: SelectionAvailabilityPort;
   resolvePrices: SelectionPricePort;
 }
@@ -148,17 +168,16 @@ export class ProductSelectionService {
   }
 
   /**
-   * Compiles the rule onto a QueryBuilder-style filter object — never string
-   * SQL — and returns the matching ids in keyset order.
+   * Compiles the rule onto `catalog`'s published filter grammar and returns the
+   * matching ids in keyset order.
    *
    * `AsyncGenerator` rather than an array on purpose: the generation pipeline
    * consumes ids one page at a time, so a 100k-product channel never
    * materialises as one list of ids either.
    */
   async *iterateProductIds(scope: SelectionScope): AsyncGenerator<string[]> {
-    const em = this.deps.emFactory();
     // Bound as a local so the channel this query set is scoped by is visible in
-    // the same scope as the query itself (`no-unscoped-channel-query`).
+    // the same scope as the query itself (Principle XII's accessor clause).
     const { salesChannelId } = scope;
     const channelIds = await this.channelProductIds(salesChannelId);
     if (channelIds.length === 0) return;
@@ -166,22 +185,20 @@ export class ProductSelectionService {
     const compiled = await this.compile(scope.selectionRule);
     let cursor: string | null = null;
     for (;;) {
-      const where = this.conjunction(channelIds, compiled.predicate, cursor);
-      const rows = await em.find(Product, where as never, {
-        orderBy: { id: 'asc' },
+      // The floor and the cursor are the port's; what this module supplies is
+      // the channel's members and what the operator's rule means. Records come
+      // back rather than managed entities, so the identity-map clear this loop
+      // used to need has nothing left to clear.
+      const rows = await this.deps.productFilter.listSellable({
+        productIds: channelIds,
+        filter: compiled.filter,
+        afterId: cursor,
         limit: ID_PAGE_SIZE,
       });
       if (rows.length === 0) return;
       const matched = await this.refine(compiled, rows, scope);
       const lastId = rows[rows.length - 1]!.id;
       const exhausted = rows.length < ID_PAGE_SIZE;
-      // This manager's identity map IS ours to clear, and clearing it is not
-      // optional: `emFactory()` forks, so the manager opened above lives for the
-      // whole generator and would otherwise retain every `Product` row the run
-      // walked past — O(catalogue), inside the code path whose entire purpose is
-      // to be O(page). Nothing survives this call but ids: `refine` has already
-      // read every property it needs, and only ids are yielded.
-      em.clear();
       if (matched.length > 0) yield matched;
       if (exhausted) return;
       cursor = lastId;
@@ -200,10 +217,12 @@ export class ProductSelectionService {
     const { salesChannelId } = scope;
     const compiled = await this.compile(scope.selectionRule);
     if (compiled.evaluate === null) {
-      const em = this.deps.emFactory();
       const channelIds = await this.channelProductIds(salesChannelId);
       if (channelIds.length === 0) return 0;
-      return em.count(Product, this.conjunction(channelIds, compiled.predicate, null) as never);
+      return this.deps.productFilter.countSellable({
+        productIds: channelIds,
+        filter: compiled.filter,
+      });
     }
     let total = 0;
     for await (const page of this.iterateProductIds(scope)) total += page.length;
@@ -233,49 +252,16 @@ export class ProductSelectionService {
       if (ids.length >= limit) break;
     }
     if (ids.length === 0) return [];
-    const em = this.deps.emFactory();
-    const rows = await em.find(Product, { id: { $in: ids.slice(0, limit) } } as never, {
-      orderBy: { id: 'asc' },
+    // `ids` arrives from a keyset walk, so it is already ascending; the read
+    // port makes no ordering promise, and re-imposing the caller's order here
+    // is what keeps the preview stable between two identical requests.
+    const wanted = ids.slice(0, limit);
+    const rows = await this.deps.productReads.findByIds(wanted);
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return wanted.flatMap((id) => {
+      const row = byId.get(id);
+      return row === undefined ? [] : [{ id: row.id, sku: row.sku, name: row.name }];
     });
-    return rows.map((row) => ({
-      id: row.id,
-      sku: row.sku,
-      name: row.name as Record<string, string>,
-    }));
-  }
-
-  /**
-   * Floor AND rule AND cursor, as an explicit `$and`.
-   *
-   * Never an object spread. The floor constrains `id` (channel membership) and
-   * so do a category criterion and the keyset cursor; spreading them into one
-   * object silently keeps only the last `id` key, which for a category rule
-   * would drop channel scoping altogether — a fail-open the floor exists to
-   * make impossible (FR-026, Principle XII).
-   */
-  private conjunction(
-    channelProductIds: string[],
-    rulePredicate: Record<string, unknown>,
-    cursor: string | null,
-  ): Record<string, unknown> {
-    const clauses: Array<Record<string, unknown>> = [this.eligibilityFloor(channelProductIds)];
-    if (Object.keys(rulePredicate).length > 0) clauses.push(rulePredicate);
-    if (cursor) clauses.push({ id: { $gt: cursor } });
-    return { $and: clauses };
-  }
-
-  /**
-   * The non-overridable floor (FR-026). Kept as one private method so there is
-   * exactly one place a reviewer has to read to know what a feed can contain.
-   */
-  private eligibilityFloor(channelProductIds: string[]): Record<string, unknown> {
-    return {
-      id: { $in: channelProductIds },
-      status: 'active',
-      visibility: 'public',
-      archivedAt: null,
-      deletedAt: null,
-    };
   }
 
   /**
@@ -302,7 +288,7 @@ export class ProductSelectionService {
    */
   private async refine(
     compiled: CompiledSelection,
-    rows: Product[],
+    rows: CatalogProductRecord[],
     scope: SelectionScope,
   ): Promise<string[]> {
     if (compiled.evaluate === null) return rows.map((row) => row.id);

@@ -6,11 +6,20 @@ import {
 } from '../../helpers/test-server.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { MfaSocialIdentity } from '../../../src/modules/mfa/entities/mfa-social-identity.entity.js';
+import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
 /**
  * Feature 042 / US4 — storefront federated sign-in (Google), OIDC client faked.
- * Covers: match existing customer, auto-create standalone, unverified-email
- * refusal, and the disabled-provider gate.
+ * Covers: match existing customer, auto-create standalone, the org-less
+ * registration gate, unverified-email refusal, and the disabled-provider gate.
+ *
+ * The registration gate is asserted here for the first time (feature 072,
+ * T143a cluster 6). Auto-creation has always been gated on
+ * `customers.allow_registration_without_organization` in production and on
+ * nothing at all in the test harness, because each composition root wrote its
+ * own `autoCreateCustomer` closure over `customer_accounts`' table. One
+ * implementation serves both now — the module's — so this suite has to say
+ * which side of the gate it is testing, and it can finally test the other one.
  */
 const EXISTING_EMAIL = 'stub-customer@example.com';
 
@@ -18,6 +27,19 @@ async function setGoogleEnabled(h: BackendServerHandle, enabled: boolean): Promi
   await h.settings.adminService.setValueForAllChannels(
     'mfa.storefront.google_enabled',
     enabled,
+    null,
+    { actorAdminUserId: null },
+  );
+}
+
+/** The B2C gate. Ships **off**, so a suite that wants an auto-create says so. */
+async function setStandaloneRegistrationAllowed(
+  h: BackendServerHandle,
+  allowed: boolean,
+): Promise<void> {
+  await h.settings.adminService.setValueForAllChannels(
+    'customers.allow_registration_without_organization',
+    allowed,
     null,
     { actorAdminUserId: null },
   );
@@ -47,6 +69,7 @@ describe('MFA US4 — customer social login', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     await setGoogleEnabled(h, true);
+    await setStandaloneRegistrationAllowed(h, true);
   });
   afterAll(async () => {
     await teardownBackendServer(h);
@@ -75,6 +98,35 @@ describe('MFA US4 — customer social login', () => {
     const created = await h.em().findOne(CustomerAccount, { email });
     expect(created).not.toBeNull();
     expect(created!.organizationId ?? null).toBeNull(); // standalone (no org)
+
+    // Issue #122 — the other way an account appears without an admin
+    // (`customers`' standalone self-registration) has always recorded an entry
+    // with a null actor; this path recorded nothing, because the coverage scan
+    // never opened a `backend.ts`. An account arriving out of a federated
+    // sign-in is exactly what an operator later has to be able to explain.
+    const audit = await h
+      .em()
+      .find(AuditLogEntry, {
+        action: 'customer_account.register_social',
+        objectId: created!.id,
+      });
+    expect(audit).toHaveLength(1);
+    expect((audit[0]!.stateAfter as { email?: string } | null)?.email).toBe(email);
+  });
+
+  it('refuses to auto-create while org-less registration is off', async () => {
+    await setStandaloneRegistrationAllowed(h, false);
+    const email = 'refused-social-customer@example.com';
+    const state = await startAndGetState(h);
+    const res = await callback(h, email, state);
+
+    // `registration_required` — no session, and no account behind it.
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toContain('/login?error=');
+    expect(res.cookies.find((c) => c.name === 'b2b_session')).toBeUndefined();
+    expect(await h.em().findOne(CustomerAccount, { email })).toBeNull();
+
+    await setStandaloneRegistrationAllowed(h, true);
   });
 
   it('refuses an unverified provider email', async () => {

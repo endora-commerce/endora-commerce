@@ -1,9 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EventBase, EventBus } from '../../../events/bus.js';
+import type { EventBase } from '../../../events/bus.js';
 import type { SearchIndexer } from './search-indexer.js';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { z } from 'zod';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { SEARCH_SETTING_CODES } from '../manifest.js';
 import {
   resolveEmbedderConfig,
@@ -13,15 +13,25 @@ import {
 /**
  * SearchEventSubscriber (T067 — incremental upsert path).
  *
- * Wires the in-process event bus to the SearchIndexer so the per-channel
- * Meilisearch indexes stay in sync with Postgres without an offline
- * reindex on every catalog mutation:
+ * The handlers that keep the per-channel Meilisearch indexes in sync with
+ * Postgres, so a catalog mutation costs an incremental upsert rather than an
+ * offline reindex. **The class no longer subscribes to anything** — the
+ * registrations live in this module's `backend.ts`, where `ctx.subscribe` wraps
+ * each one in `subscribeForModule` and the module's effective state decides
+ * whether the handler runs (issue #107). What used to happen here was a bare
+ * `eventBus.on`, so a deployment with `search` switched off went on rewriting
+ * Meilisearch documents on every product write.
+ *
+ * The events `backend.ts` maps onto these methods:
  *
  *   - `product.created.v1`  → upsertProduct
  *   - `product.updated.v1`  → upsertProduct
  *   - `product.archived.v1` → deleteProduct
  *   - `product.deleted.v1`  → deleteProduct
  *   - `attribute.updated.v1` → refreshAttributeSettings
+ *   - `category.updated.v1` → reindexCategorySubtree (feature 068: the
+ *      category's slug and activation state are projected onto every product
+ *      document under it, so a rename or a deactivation has to reach the index)
  *
  * Feature 006 / T027 also attaches the LLM-augmented-search reactor:
  *
@@ -49,6 +59,7 @@ interface CatalogEvents extends Record<string, EventBase> {
     isSearchable: boolean;
     isFilterable: boolean;
   };
+  'category.updated.v1': EventBase & { categoryId: string };
   'settings.value_changed': EventBase & {
     settingCode: string;
     salesChannelIds: string[];
@@ -63,8 +74,10 @@ interface CatalogEvents extends Record<string, EventBase> {
   };
 }
 
+/** The `settings.value_changed` payload this module reacts to. */
+export type SettingChangedPayload = CatalogEvents['settings.value_changed'];
+
 export interface SearchEventSubscriberDeps {
-  eventBus: EventBus<CatalogEvents>;
   emFactory: () => EntityManager;
   indexer: SearchIndexer;
   /**
@@ -89,123 +102,109 @@ export interface SearchEventSubscriberDeps {
 const booleanSchema = z.boolean();
 
 export class SearchEventSubscriber {
-  private unsubscribers: Array<() => void> = [];
-
   constructor(private readonly deps: SearchEventSubscriberDeps) {}
 
-  subscribe(): () => void {
-    const { eventBus, emFactory, indexer, onError } = this.deps;
-    const log = onError ?? defaultLogger;
-
-    this.unsubscribers.push(
-      eventBus.on('product.created.v1', async (payload) => {
-        try {
-          await indexer.upsertProduct(emFactory(), payload.productId);
-        } catch (err) {
-          log(err, 'product.created.v1');
-        }
-      }),
-    );
-    this.unsubscribers.push(
-      eventBus.on('product.updated.v1', async (payload) => {
-        try {
-          await indexer.upsertProduct(emFactory(), payload.productId);
-        } catch (err) {
-          log(err, 'product.updated.v1');
-        }
-      }),
-    );
-    this.unsubscribers.push(
-      eventBus.on('product.archived.v1', async (payload) => {
-        try {
-          await indexer.deleteProduct(emFactory(), payload.productId);
-        } catch (err) {
-          log(err, 'product.archived.v1');
-        }
-      }),
-    );
-    this.unsubscribers.push(
-      eventBus.on('product.deleted.v1', async (payload) => {
-        try {
-          await indexer.deleteProduct(emFactory(), payload.productId);
-        } catch (err) {
-          log(err, 'product.deleted.v1');
-        }
-      }),
-    );
-    this.unsubscribers.push(
-      eventBus.on('attribute.updated.v1', async () => {
-        try {
-          await indexer.refreshAttributeSettings(emFactory());
-        } catch (err) {
-          log(err, 'attribute.updated.v1');
-        }
-      }),
-    );
-
-    if (this.deps.settingsService) {
-      const settingsService = this.deps.settingsService;
-      this.unsubscribers.push(
-        eventBus.on('settings.value_changed', async (payload) => {
-          if (payload.settingCode !== SEARCH_SETTING_CODES.LLM_ENABLED) return;
-          try {
-            const em = emFactory();
-            // Feature 042: a global-override change touches every channel
-            // that doesn't carry its own per-channel value — re-evaluate
-            // the lot. Per-channel writes still target only the listed ids.
-            const channels = payload.globalValueUpdated
-              ? await em.find(SalesChannel, {})
-              : await em.find(SalesChannel, {
-                  id: { $in: payload.salesChannelIds },
-                });
-            for (const channel of channels) {
-              const enabled = await settingsService.get(
-                SEARCH_SETTING_CODES.LLM_ENABLED,
-                channel.id,
-                booleanSchema,
-              );
-              if (enabled) {
-                // Feature 058 — prefer the credential reference, fall back per
-                // field to the legacy embedder settings.
-                const { url, apiKey, model } = await resolveEmbedderConfig(
-                  settingsService,
-                  channel.id,
-                  this.deps.credentials,
-                );
-                if (url && apiKey && model) {
-                  await indexer.attachEmbedderForChannel(channel.code, {
-                    url,
-                    apiKey,
-                    model,
-                  });
-                } else {
-                  // Direct generic-Settings write bypassed the toggle
-                  // validator; surface for ops, leave the index alone so
-                  // we don't poison Meilisearch with empty creds.
-                  log(
-                    new Error(
-                      `LLM enabled on channel ${channel.code} without complete embedder config; embedder NOT attached`,
-                    ),
-                    'settings.value_changed',
-                  );
-                }
-              } else {
-                await indexer.detachEmbedderForChannel(channel.code);
-              }
-            }
-          } catch (err) {
-            log(err, 'settings.value_changed');
-          }
-        }),
-      );
-    }
-
-    return () => this.teardown();
+  private get log(): NonNullable<SearchEventSubscriberDeps['onError']> {
+    return this.deps.onError ?? defaultLogger;
   }
 
-  teardown(): void {
-    for (const unsub of this.unsubscribers) unsub();
-    this.unsubscribers = [];
+  /** `product.created.v1` / `product.updated.v1`. */
+  async onProductUpserted(productId: string, eventName: string): Promise<void> {
+    try {
+      await this.deps.indexer.upsertProduct(this.deps.emFactory(), productId);
+    } catch (err) {
+      this.log(err, eventName);
+    }
+  }
+
+  /** `product.archived.v1` / `product.deleted.v1`. */
+  async onProductRemoved(productId: string, eventName: string): Promise<void> {
+    try {
+      await this.deps.indexer.deleteProduct(this.deps.emFactory(), productId);
+    } catch (err) {
+      this.log(err, eventName);
+    }
+  }
+
+  /**
+   * `category.updated.v1` — feature 068: a category's slug and activation state
+   * are projected onto every product document beneath it.
+   */
+  async onCategoryUpdated(categoryId: string): Promise<void> {
+    try {
+      await this.deps.indexer.reindexCategorySubtree(this.deps.emFactory(), categoryId);
+    } catch (err) {
+      this.log(err, 'category.updated.v1');
+    }
+  }
+
+  /** `attribute.updated.v1`. */
+  async onAttributeUpdated(): Promise<void> {
+    try {
+      await this.deps.indexer.refreshAttributeSettings(this.deps.emFactory());
+    } catch (err) {
+      this.log(err, 'attribute.updated.v1');
+    }
+  }
+
+  /**
+   * `settings.value_changed` — the LLM-augmented-search reactor (feature 006 /
+   * T027). A no-op unless a settings service was supplied.
+   */
+  async onSettingChanged(payload: SettingChangedPayload): Promise<void> {
+    const settingsService = this.deps.settingsService;
+    if (!settingsService) return;
+    if (payload.settingCode !== SEARCH_SETTING_CODES.LLM_ENABLED) return;
+    const { emFactory, indexer } = this.deps;
+    const log = this.log;
+    try {
+      const em = emFactory();
+      // Feature 042: a global-override change touches every channel
+      // that doesn't carry its own per-channel value — re-evaluate
+      // the lot. Per-channel writes still target only the listed ids.
+      const channels = payload.globalValueUpdated
+        ? await em.find(SalesChannel, {})
+        : await em.find(SalesChannel, {
+            id: { $in: payload.salesChannelIds },
+          });
+      for (const channel of channels) {
+        const enabled = await settingsService.get(
+          SEARCH_SETTING_CODES.LLM_ENABLED,
+          channel.id,
+          booleanSchema,
+        );
+        if (enabled) {
+          // Feature 058 — prefer the credential reference, fall back per
+          // field to the legacy embedder settings.
+          const { url, apiKey, model } = await resolveEmbedderConfig(
+            settingsService,
+            channel.id,
+            this.deps.credentials,
+          );
+          if (url && apiKey && model) {
+            await indexer.attachEmbedderForChannel(channel.code, {
+              url,
+              apiKey,
+              model,
+            });
+          } else {
+            // Direct generic-Settings write bypassed the toggle
+            // validator; surface for ops, leave the index alone so
+            // we don't poison Meilisearch with empty creds.
+            log(
+              new Error(
+                `LLM enabled on channel ${channel.code} without complete embedder config; embedder NOT attached`,
+              ),
+              'settings.value_changed',
+            );
+          }
+        } else {
+          await indexer.detachEmbedderForChannel(channel.code);
+        }
+      }
+    } catch (err) {
+      log(err, 'settings.value_changed');
+    }
   }
 }
 

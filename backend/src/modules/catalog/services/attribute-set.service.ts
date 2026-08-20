@@ -104,8 +104,7 @@ export class AttributeSetService {
 
   async listSets(): Promise<AttributeSetDto[]> {
     const em = this.emFactory();
-    const conn = em.getConnection();
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select
          s.id,
          s.code,
@@ -443,11 +442,10 @@ export class AttributeSetService {
     em: EntityManager,
     setId: string,
   ): Promise<AttributeSetAssignedAttributeDto[]> {
-    const conn = em.getConnection();
     // Membership is definition-keyed (feature 061); the attribute identity —
     // extension id + key + label + legacy valueType — comes from the composed
     // view so the API keeps returning attribute (extension) ids.
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select custom_field_definition_id, position
        from attribute_set_attributes
        where attribute_set_id = ?`,
@@ -467,6 +465,7 @@ export class AttributeSetService {
           label: view.label,
           valueType: view.valueType as AttributeSetAssignedAttributeDto['valueType'],
           position: r.position,
+          languageScoped: view.languageScoped,
         };
       })
       .filter((a): a is AttributeSetAssignedAttributeDto => a !== undefined);
@@ -474,12 +473,17 @@ export class AttributeSetService {
     return assigned;
   }
 
+  /**
+   * `em.execute`, not `em.getConnection().execute`: `deleteSet` calls this on
+   * the Command's `em` to decide whether the set is still in use, so read on a
+   * pooled connection the guard answered from outside the transaction it is
+   * guarding (issue #207).
+   */
   async #computeCounts(
     em: EntityManager,
     setId: string,
   ): Promise<{ attributeCount: number; productCount: number }> {
-    const conn = em.getConnection();
-    const [row] = (await conn.execute(
+    const [row] = (await em.execute(
       `select
          (select count(*)::int from attribute_set_attributes where attribute_set_id = ?) as attribute_count,
          (select count(*)::int from products where attribute_set_id = ?) as product_count`,

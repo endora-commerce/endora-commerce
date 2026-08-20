@@ -79,7 +79,7 @@ export class BlogPostService {
   }> {
     const page = Math.max(1, filters.page ?? 1);
     const perPage = Math.min(100, Math.max(1, filters.perPage ?? 20));
-    const conn = this.emFactory().getConnection();
+    const em = this.emFactory();
 
     const where: string[] = ['p.deleted_at is null'];
     const params: unknown[] = [];
@@ -117,14 +117,14 @@ export class BlogPostService {
     }
     const whereSql = where.length > 0 ? `where ${where.join(' and ')}` : '';
 
-    const totalRows = (await conn.execute(
+    const totalRows = (await em.execute(
       `select count(*)::int as n from blog_posts p ${whereSql}`,
       params,
     )) as Array<{ n: number }>;
     const totalItems = totalRows[0]?.n ?? 0;
 
     const offset = (page - 1) * perPage;
-    const rows = (await conn.execute(
+    const rows = (await em.execute(
       `select p.* from blog_posts p
         ${whereSql}
         order by p.updated_at desc
@@ -162,7 +162,7 @@ export class BlogPostService {
       // Auto-fill the seeded Default category when none supplied (FR-011).
       let categoryIds = input.categoryIds ?? [];
       if (categoryIds.length === 0) {
-        const defaultRows = (await tx.getConnection().execute(
+        const defaultRows = (await tx.execute(
           `select id::text as id from blog_categories where is_system = true and deleted_at is null limit 1`,
         )) as Array<{ id: string }>;
         if (defaultRows.length === 0) {
@@ -175,8 +175,7 @@ export class BlogPostService {
         categoryIds = [defaultRows[0]!.id];
       }
 
-      const conn = tx.getConnection();
-      await conn.execute(
+      await tx.execute(
         `insert into blog_posts
            (id, name, slug, active, status, published_at, description,
             meta_title, meta_description, meta_keywords, content,
@@ -198,7 +197,7 @@ export class BlogPostService {
       );
 
       for (const channelId of input.salesChannelIds) {
-        await conn.execute(
+        await tx.execute(
           `insert into blog_post_sales_channels (blog_post_id, sales_channel_id, slug)
              values (?, ?, ?)`,
           [id, channelId, input.slug],
@@ -206,21 +205,21 @@ export class BlogPostService {
       }
 
       for (const language of input.languages) {
-        await conn.execute(
+        await tx.execute(
           `insert into blog_post_languages (blog_post_id, language) values (?, ?)`,
           [id, language],
         );
       }
 
       for (const categoryId of categoryIds) {
-        await conn.execute(
+        await tx.execute(
           `insert into blog_post_categories (blog_post_id, blog_category_id) values (?, ?)`,
           [id, categoryId],
         );
       }
 
       for (let i = 0; i < (input.tagIds ?? []).length; i++) {
-        await conn.execute(
+        await tx.execute(
           `insert into blog_post_tags (blog_post_id, blog_tag_id, position) values (?, ?, ?)`,
           [id, input.tagIds![i], i],
         );
@@ -293,7 +292,7 @@ export class BlogPostService {
       if (sets.length > 2) {
         // there's at least one field beyond the two bookkeeping sets
         params.push(id);
-        await tx.getConnection().execute(
+        await tx.execute(
           `update blog_posts set ${sets.join(', ')} where id = ?`,
           params,
         );
@@ -301,7 +300,7 @@ export class BlogPostService {
 
       // Sync the slug mirror onto the scope rows whenever the slug changes.
       if (slugChange) {
-        await tx.getConnection().execute(
+        await tx.execute(
           `update blog_post_sales_channels set slug = ? where blog_post_id = ?`,
           [input.slug, id],
         );
@@ -346,7 +345,7 @@ export class BlogPostService {
         throw new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'Blog post not found.');
       }
       this.assertVersion(existing.version, input.version);
-      await tx.getConnection().execute(
+      await tx.execute(
         `update blog_posts
             set content = ?::jsonb,
                 version = version + 1,
@@ -369,7 +368,7 @@ export class BlogPostService {
       }
       this.assertVersion(existing.version, version);
       await this.replaceTags(tx, id, tagIds);
-      await tx.getConnection().execute(
+      await tx.execute(
         `update blog_posts set version = version + 1, updated_at = now() where id = ?`,
         [id],
       );
@@ -398,19 +397,18 @@ export class BlogPostService {
         throw new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'Blog post not found.');
       }
       this.assertVersion(existing.version, version);
-      const conn = tx.getConnection();
-      await conn.execute(
+      await tx.execute(
         `delete from blog_post_related_posts where parent_post_id = ?`,
         [id],
       );
       for (let i = 0; i < relatedPostIds.length; i++) {
-        await conn.execute(
+        await tx.execute(
           `insert into blog_post_related_posts (parent_post_id, related_post_id, position)
              values (?, ?, ?)`,
           [id, relatedPostIds[i], i],
         );
       }
-      await conn.execute(
+      await tx.execute(
         `update blog_posts set version = version + 1, updated_at = now() where id = ?`,
         [id],
       );
@@ -432,19 +430,18 @@ export class BlogPostService {
         throw new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'Blog post not found.');
       }
       this.assertVersion(existing.version, version);
-      const conn = tx.getConnection();
-      await conn.execute(
+      await tx.execute(
         `delete from blog_post_related_products where blog_post_id = ?`,
         [id],
       );
       for (let i = 0; i < productIds.length; i++) {
-        await conn.execute(
+        await tx.execute(
           `insert into blog_post_related_products (blog_post_id, product_id, position)
              values (?, ?, ?)`,
           [id, productIds[i], i],
         );
       }
-      await conn.execute(
+      await tx.execute(
         `update blog_posts set version = version + 1, updated_at = now() where id = ?`,
         [id],
       );
@@ -474,11 +471,10 @@ export class BlogPostService {
         throw new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'Blog post not found.');
       }
       this.assertVersion(existing.version, version);
-      const conn = tx.getConnection();
 
       // Capture parents that reference this post as related so the
       // response can list them (R5).
-      const parents = (await conn.execute(
+      const parents = (await tx.execute(
         `select parent_post_id::text as id from blog_post_related_posts where related_post_id = ?`,
         [id],
       )) as Array<{ id: string }>;
@@ -486,7 +482,7 @@ export class BlogPostService {
 
       // Detach the inbound related-post references atomically.
       if (parentIds.length > 0) {
-        await conn.execute(
+        await tx.execute(
           `delete from blog_post_related_posts where related_post_id = ?`,
           [id],
         );
@@ -494,11 +490,11 @@ export class BlogPostService {
 
       // Soft-delete the post + sync the deleted_at mirror onto the
       // scope rows so the partial-unique slug index releases the slug.
-      await conn.execute(
+      await tx.execute(
         `update blog_posts set deleted_at = now(), updated_at = now() where id = ?`,
         [id],
       );
-      await conn.execute(
+      await tx.execute(
         `update blog_post_sales_channels set deleted_at = now() where blog_post_id = ?`,
         [id],
       );
@@ -509,8 +505,8 @@ export class BlogPostService {
   }
 
   async getInboundReferences(id: string): Promise<BlogPostInboundReferencesResponse> {
-    const conn = this.emFactory().getConnection();
-    const rows = (await conn.execute(
+    const em = this.emFactory();
+    const rows = (await em.execute(
       `select p.id::text as id, p.name, p.slug
          from blog_post_related_posts r
          join blog_posts p on p.id = r.parent_post_id
@@ -547,7 +543,7 @@ export class BlogPostService {
         sets.push('published_at = now()');
       }
       params.push(id);
-      await tx.getConnection().execute(
+      await tx.execute(
         `update blog_posts set ${sets.join(', ')} where id = ?`,
         params,
       );
@@ -564,7 +560,7 @@ export class BlogPostService {
   }
 
   private async findRow(em: EntityManager, id: string): Promise<PostRow | null> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select * from blog_posts where id = ? and deleted_at is null limit 1`,
       [id],
     )) as PostRow[];
@@ -586,23 +582,22 @@ export class BlogPostService {
     if (!row) {
       throw new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'Blog post not found.');
     }
-    const conn = em.getConnection();
 
     const [channels, languages, categories, tags, relatedPosts, relatedProducts] =
       (await Promise.all([
-        conn.execute(
+        em.execute(
           `select sales_channel_id::text as id from blog_post_sales_channels where blog_post_id = ? and deleted_at is null`,
           [id],
         ),
-        conn.execute(
+        em.execute(
           `select language from blog_post_languages where blog_post_id = ?`,
           [id],
         ),
-        conn.execute(
+        em.execute(
           `select blog_category_id::text as id from blog_post_categories where blog_post_id = ?`,
           [id],
         ),
-        conn.execute(
+        em.execute(
           `select t.id::text as id, t.code, bpt.position
              from blog_post_tags bpt
              join blog_tags t on t.id = bpt.blog_tag_id and t.deleted_at is null
@@ -610,11 +605,11 @@ export class BlogPostService {
             order by bpt.position`,
           [id],
         ),
-        conn.execute(
+        em.execute(
           `select related_post_id::text as id from blog_post_related_posts where parent_post_id = ? order by position`,
           [id],
         ),
-        conn.execute(
+        em.execute(
           `select product_id::text as id from blog_post_related_products where blog_post_id = ? order by position`,
           [id],
         ),
@@ -655,21 +650,21 @@ export class BlogPostService {
   }
 
   private async toSummary(row: PostRow): Promise<BlogPostSummary> {
-    const conn = this.emFactory().getConnection();
+    const em = this.emFactory();
     const [channels, languages, categories, tags] = (await Promise.all([
-      conn.execute(
+      em.execute(
         `select sales_channel_id::text as id from blog_post_sales_channels where blog_post_id = ? and deleted_at is null`,
         [row.id],
       ),
-      conn.execute(
+      em.execute(
         `select language from blog_post_languages where blog_post_id = ?`,
         [row.id],
       ),
-      conn.execute(
+      em.execute(
         `select blog_category_id::text as id from blog_post_categories where blog_post_id = ?`,
         [row.id],
       ),
-      conn.execute(
+      em.execute(
         `select blog_tag_id::text as id from blog_post_tags where blog_post_id = ?`,
         [row.id],
       ),
@@ -719,7 +714,7 @@ export class BlogPostService {
   }
 
   private async loadChannelIds(em: EntityManager, postId: string): Promise<string[]> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select sales_channel_id::text as id from blog_post_sales_channels where blog_post_id = ? and deleted_at is null`,
       [postId],
     )) as Array<{ id: string }>;
@@ -727,7 +722,7 @@ export class BlogPostService {
   }
 
   private async loadLanguages(em: EntityManager, postId: string): Promise<string[]> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select language from blog_post_languages where blog_post_id = ?`,
       [postId],
     )) as Array<{ language: string }>;
@@ -768,10 +763,9 @@ export class BlogPostService {
     channelIds: string[],
     slug: string,
   ): Promise<void> {
-    const conn = em.getConnection();
-    await conn.execute(`delete from blog_post_sales_channels where blog_post_id = ?`, [postId]);
+    await em.execute(`delete from blog_post_sales_channels where blog_post_id = ?`, [postId]);
     for (const id of channelIds) {
-      await conn.execute(
+      await em.execute(
         `insert into blog_post_sales_channels (blog_post_id, sales_channel_id, slug) values (?, ?, ?)`,
         [postId, id, slug],
       );
@@ -783,10 +777,9 @@ export class BlogPostService {
     postId: string,
     languages: string[],
   ): Promise<void> {
-    const conn = em.getConnection();
-    await conn.execute(`delete from blog_post_languages where blog_post_id = ?`, [postId]);
+    await em.execute(`delete from blog_post_languages where blog_post_id = ?`, [postId]);
     for (const lang of languages) {
-      await conn.execute(
+      await em.execute(
         `insert into blog_post_languages (blog_post_id, language) values (?, ?)`,
         [postId, lang],
       );
@@ -798,10 +791,9 @@ export class BlogPostService {
     postId: string,
     categoryIds: string[],
   ): Promise<void> {
-    const conn = em.getConnection();
-    await conn.execute(`delete from blog_post_categories where blog_post_id = ?`, [postId]);
+    await em.execute(`delete from blog_post_categories where blog_post_id = ?`, [postId]);
     for (const id of categoryIds) {
-      await conn.execute(
+      await em.execute(
         `insert into blog_post_categories (blog_post_id, blog_category_id) values (?, ?)`,
         [postId, id],
       );
@@ -813,10 +805,9 @@ export class BlogPostService {
     postId: string,
     tagIds: string[],
   ): Promise<void> {
-    const conn = em.getConnection();
-    await conn.execute(`delete from blog_post_tags where blog_post_id = ?`, [postId]);
+    await em.execute(`delete from blog_post_tags where blog_post_id = ?`, [postId]);
     for (let i = 0; i < tagIds.length; i++) {
-      await conn.execute(
+      await em.execute(
         `insert into blog_post_tags (blog_post_id, blog_tag_id, position) values (?, ?, ?)`,
         [postId, tagIds[i], i],
       );
@@ -824,7 +815,7 @@ export class BlogPostService {
   }
 
   private async fallbackToDefaultCategory(em: EntityManager): Promise<string[]> {
-    const rows = (await em.getConnection().execute(
+    const rows = (await em.execute(
       `select id::text as id from blog_categories where is_system = true and deleted_at is null limit 1`,
     )) as Array<{ id: string }>;
     if (rows.length === 0) {

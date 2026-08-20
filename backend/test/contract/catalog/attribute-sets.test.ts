@@ -235,4 +235,67 @@ describe('Admin Attribute Sets contract (feature 002 / T009)', () => {
     });
     expect(unassign.statusCode).toBe(204);
   });
+
+  /**
+   * Feature 023's `languageScoped` on the assigned-attribute row.
+   *
+   * The set detail is what the product editor's Attributes tab renders from, and
+   * whether a value is keyed by language decides whether the tab shows one
+   * control or one per language — including feature 068's overwrite protection
+   * (FR-052). Without the flag on this payload the tab would have to guess, and
+   * a guess here means offering a per-language distinction the data model does
+   * not have.
+   */
+  it('GET /attribute-sets/:id reports whether each assigned attribute is language-scoped', async () => {
+    const list = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/catalog/attribute-sets',
+      cookies: adminCookie,
+    });
+    const defaultSet = (list.json() as { data: AttributeSet[] }).data.find(
+      (s) => s.code === 'default',
+    );
+    expect(defaultSet).toBeDefined();
+
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/catalog/attributes',
+      cookies: adminCookie,
+      payload: {
+        key: 'attr_set_lang_scoped',
+        label: { 'en-US': 'Language-scoped note' },
+        labelDefault: 'Language-scoped note',
+        type: 'input',
+        languageScoped: true,
+        isSearchable: false,
+        isFilterable: false,
+        isVariantAxis: false,
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const scopedId = (created.json() as { data: { id: string } }).data.id;
+
+    const assign = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/catalog/attribute-sets/${defaultSet!.id}/attributes`,
+      payload: { assignments: [{ attributeId: scopedId, position: 0 }] },
+      cookies: adminCookie,
+    });
+    expect(assign.statusCode, assign.body).toBe(200);
+    const detail = (assign.json() as { data: AttributeSetDetail }).data;
+    expect(() => attributeSetDetailSchema.parse(detail)).not.toThrow();
+    expect(detail.attributes.find((a) => a.id === scopedId)?.languageScoped).toBe(true);
+    // Every other assigned attribute answers the same question, and most answer
+    // it with `false` — the flag is a fact about each row, not a marker on one.
+    for (const attribute of detail.attributes) {
+      expect(typeof attribute.languageScoped).toBe('boolean');
+    }
+
+    const unassign = await h.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/catalog/attribute-sets/${defaultSet!.id}/attributes/${scopedId}`,
+      cookies: adminCookie,
+    });
+    expect(unassign.statusCode).toBe(204);
+  });
 });

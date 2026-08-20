@@ -3,7 +3,7 @@ import type { Queue } from 'bullmq';
 import { GOOGLE_TAG_MANAGER_SETTING_CODES, type GtmCollectRequest } from '@b2b/contracts';
 import { makeEnqueuer, makeProcessor } from './ss-relay.service.js';
 import type { GtmRelayJobData } from './ss-relay-queue.js';
-import type { SettingsService } from '../../settings/services/settings.service.js';
+import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import type { SgtmClient } from './sgtm-client.js';
 
 const C = GOOGLE_TAG_MANAGER_SETTING_CODES;

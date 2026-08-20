@@ -1,8 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'crypto';
 import { ERROR_CODES } from '@b2b/contracts';
-import { setupBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
  * End-to-end reference-protection smoke test (T106).
@@ -41,8 +45,8 @@ describe('blog reference-protection smoke (T106)', () => {
   });
 
   afterAll(async () => {
-    await h.app.close();
-    h.redis.disconnect();
+    // Clean up the seeded rows *before* teardown: `teardownBackendServer`
+    // closes the harness ORM, so a connection taken after it has no pool.
     if (seededAssets.length > 0) {
       const conn = h.orm.em.getConnection();
       await conn.execute(
@@ -53,7 +57,7 @@ describe('blog reference-protection smoke (T106)', () => {
         `{${seededAssets.join(',')}}`,
       ]);
     }
-    await h.orm.close(true);
+    await teardownBackendServer(h);
   });
 
   async function createPost(slug: string, overrides: Record<string, unknown> = {}): Promise<{

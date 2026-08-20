@@ -48,6 +48,7 @@ export class Cart {
     | 'rejectedByActor'
     | 'rejectedReason'
     | 'appliedPromotionCode'
+    | 'completedOrderId'
     | 'convertedToQuoteRequestId'
     | 'abandonmentNotifiedAt'
     | 'lastActivityAt'
@@ -108,6 +109,27 @@ export class Cart {
    */
   @Property({ type: 'string', length: 64, nullable: true })
   appliedPromotionCode?: string | null;
+
+  /**
+   * The order this cart produced, set by `placeOrder` beside
+   * `status = 'completed'` and inside the placement transaction (D-94.1).
+   *
+   * The twin of {@link convertedToQuoteRequestId}: the two terminal artefacts
+   * a cart can leave behind, and until D-94 only one of them was recorded —
+   * asked which order emptied a completed cart, the platform answered by
+   * correlating timestamps. `carts_completed_order_fk` holds it
+   * (`on delete set null`), for the reason the QR pointer's migration wrote
+   * down for its own: deleting the order does not invalidate the fact that
+   * the cart was once completed.
+   *
+   * Nullable, and it stays nullable. It cannot be backfilled — no surviving
+   * record says which order emptied which historical cart — and
+   * `status = 'completed'` does not imply it: `CartService.clearForCustomer`,
+   * the anonymous-merge source and the quote-request conversion all reach
+   * `completed` without an order.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  completedOrderId?: string | null;
 
   /** Set on Cart → Quote Request conversion (feature 027 US3). */
   @Property({ type: 'uuid', nullable: true })
