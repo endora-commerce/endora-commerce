@@ -33,6 +33,7 @@ import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService} from './rfq-notification-service.js';
 import { type NotificationRecipient } from './rfq-notification-service.js';
 import type { QuoteRequestBusinessIdGenerator } from './quote-request-business-id-generator.js';
+import { raisedOnChannelId } from './raised-on-channel.js';
 
 /**
  * Customer-facing Quote Requests service — feature 008 workflow.
@@ -239,6 +240,7 @@ export class RfqService {
       ...(businessId ? { businessId } : {}),
       organizationId: ctx.organizationId,
       customerAccountId: ctx.customerAccountId,
+      salesChannelId: raisedOnChannelId(),
       status: 'Pending' satisfies QuoteRequestStatus,
       headerNote: input.headerNote ?? null,
       submittedAt: new Date(),
@@ -279,6 +281,7 @@ export class RfqService {
     this.#audit(em, 'quote_request.create', rfq.id, null, {
       status: rfq.status,
       itemCount: items.length,
+      salesChannelId: rfq.salesChannelId ?? null,
     });
     await em.persistAndFlush(items);
 
@@ -452,6 +455,10 @@ export class RfqService {
     const newRfq = em.create(QuoteRequest, {
       organizationId: ctx.organizationId,
       customerAccountId: ctx.customerAccountId,
+      // The resubmit is its own request, so it is raised on the channel *this*
+      // request resolved to — not the one the source RFQ carries. A buyer who
+      // asks again from a different storefront asked from there.
+      salesChannelId: raisedOnChannelId(),
       status: 'Pending' satisfies QuoteRequestStatus,
       headerNote: body.headerNote ?? null,
       submittedAt: new Date(),
@@ -476,6 +483,7 @@ export class RfqService {
     this.#audit(em, 'quote_request.resubmit', newRfq.id, null, {
       status: newRfq.status,
       itemCount: newItems.length,
+      salesChannelId: newRfq.salesChannelId ?? null,
     });
     await em.persistAndFlush(newItems);
 

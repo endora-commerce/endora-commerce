@@ -116,24 +116,21 @@ describe('sales channel delete — the attribution guard asks the owners', () =>
 
   async function attributeQuoteRequestTo(salesChannelId: string): Promise<void> {
     const em = h.em();
+    // The attribution is set through the entity, which is what issue #266
+    // changed: `QuoteRequest` had no property for the column feature 005 /
+    // FR-012 added, so this used to be a raw `update "quote_requests" set
+    // "sales_channel_id"` — the only way to produce the row this case is about,
+    // and an admission that no request path could produce it either. The
+    // end-to-end version, an RFQ raised over HTTP on a named channel, lives in
+    // `test/integration/quote_requests/sales-channel-attribution.test.ts`; this
+    // file stays on a hand-built row so the off-state case below is about the
+    // registry and not about the RFQ request path.
     const quote = em.create(QuoteRequest, {
       organizationId: randomUUID(),
       customerAccountId: randomUUID(),
+      salesChannelId,
     });
     await em.persistAndFlush(quote);
-    // The attribution itself goes on with SQL, and that is the defect this
-    // drain moved rather than fixed: `quote_requests` records no channel at
-    // all — its entity has no property for the column feature 005 / FR-012
-    // added — so there is no supported way to produce the row this case is
-    // about. The counter is still right to exist: the column, its index and
-    // its `on delete restrict` foreign key are all in the schema, and a legacy
-    // backfill fills it.
-    await em
-      .getConnection()
-      .execute('update "quote_requests" set "sales_channel_id" = ? where "id" = ?', [
-        salesChannelId,
-        quote.id,
-      ]);
   }
 
   it('has every owner registered by its own boot hook', () => {

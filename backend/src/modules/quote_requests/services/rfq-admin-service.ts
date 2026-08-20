@@ -25,6 +25,7 @@ import { type RfqEventBus } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
+import { raisedOnChannelId } from './raised-on-channel.js';
 
 /**
  * Admin-facing Quote Requests service — feature 008 workflow.
@@ -534,6 +535,11 @@ export class RfqAdminService {
       ...(businessId ? { businessId } : {}),
       organizationId: body.organizationId,
       customerAccountId: body.customerAccountId,
+      // The channel the admin's own request resolved to. Admin paths take the
+      // resolver's step-4 fallback unless the SPA sends `X-Sales-Channel`, so
+      // this is the system default until it does — which is the honest answer
+      // for "where was this raised", not a channel this module picked.
+      salesChannelId: raisedOnChannelId(),
       createdByAdminUserId: ctx.adminUserId,
       assignedAdminUserId: ctx.adminUserId,
       status: 'Created from admin' satisfies QuoteRequestStatus,
@@ -572,6 +578,7 @@ export class RfqAdminService {
     this.#audit(em, 'quote_request.create_on_behalf', rfq.id, null, {
       status: rfq.status,
       itemCount: items.length,
+      salesChannelId: rfq.salesChannelId ?? null,
     });
     await em.persistAndFlush(items);
 
