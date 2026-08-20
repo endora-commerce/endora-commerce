@@ -11,6 +11,10 @@
  * fails it too. Delete this file when the last entry goes; an empty shard is refused,
  * because a done signal that says nothing is not one.
  *
+ * Where a file reaches one target more than once, the entry is `{ sites, reason }` and the
+ * number is checked both ways (issue #267); a plain string means one. The key does not
+ * change with the count — that is what keeps it stable across a move inside the file.
+ *
  * The shard exists because of issue #187: all four reaches below are knex query builders,
  * which name their table as a call argument, so neither the import predicate nor D-87's
  * statement path could see them. They are not new couplings — they are couplings the check
@@ -28,13 +32,16 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'declared in this module\'s manifest; what is missing is the first half of the ' +
     'question. Retired by: `catalogCategoryReadPort` answering "which categories does this ' +
     'product belong to?" itself, so the join table stays inside its owner.',
-  'modules/inventory/services/stock-level-service.ts:sql:catalog/product_categories':
-    'Issue #187 seed — the same read as the route\'s, twice: the stock list and the ' +
-    'low-stock report each page `catalog`\'s `product_categories` with ' +
-    '`knex(\'product_categories\').whereIn(\'product_id\', …)` and then resolve the ' +
-    'category rows through `catalogCategories.findByIds`. Retired by: the batch form of ' +
-    'the same port method the route needs — "the category ids of these products" — so both ' +
-    'sites lose the builder together.',
+  'modules/inventory/services/stock-level-service.ts:sql:catalog/product_categories': {
+    sites: 2,
+    reason:
+      'Issue #187 seed — the same read as the route\'s, twice: the stock list and the ' +
+      'low-stock report each page `catalog`\'s `product_categories` with ' +
+      '`knex(\'product_categories\').whereIn(\'product_id\', …)` and then resolve the ' +
+      'category rows through `catalogCategories.findByIds`. Retired by: the batch form of ' +
+      'the same port method the route needs — "the category ids of these products" — so both ' +
+      'sites lose the builder together.',
+  },
   'modules/inventory/services/stock-level-service.ts:sql:catalog/products':
     'Issue #187 seed — the stock list pages with `knex({ p: \'products\' }).innerJoin({ ' +
     'sl: \'stock_levels\' }, …)`, joining `catalog`\'s `products` to this module\'s ' +

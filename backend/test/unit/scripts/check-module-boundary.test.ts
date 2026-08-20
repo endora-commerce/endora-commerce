@@ -16,6 +16,8 @@ import {
   ledgerDirectory,
   loadLedgerShards,
   permanentEntryIssue,
+  reasonOf,
+  recordedSites,
   shardShapeIssue,
   sourcesOf,
   vacuousReason,
@@ -647,9 +649,10 @@ describe('the table→owner map — two sources, and the entity wins', () => {
   });
 });
 
-// Six of the seven. The seventh — a shard declaring an entry type of its own
-// (issue #217) — needs a file rather than a record, so it has its own block at
-// the end of this file.
+// Six of the eight. The count (issue #267) has its own block below, because its
+// fixtures need a file that reaches its target more than once; the eighth — a
+// shard declaring an entry type of its own (issue #217) — needs a file rather
+// than a record, so it has its own block at the end of this file.
 describe('checkModuleBoundary — the six ways the ledger fails', () => {
   const CROSS = "import { Product } from '../../catalog/entities/product.entity.js';";
   const key = `${ORDER_SERVICE}:${PRODUCT}`;
@@ -794,6 +797,144 @@ describe('checkModuleBoundary — the six ways the ledger fails', () => {
   });
 });
 
+/**
+ * The count on an entry (issue #267).
+ *
+ * The ledger key is `(file, target)`, which answers "is this file already known
+ * to reach that target" and not "how much" — so the **Nth** reach of a shape a
+ * file already carries lands against an unchanged ledger. MR !793 added two
+ * `product_categories` statements to two files that each already had an entry
+ * for that table: `sql` rose 52 -> 54, `stale` and `violations` stayed 0, and
+ * nothing asked anybody why.
+ *
+ * So the fixtures here are **files that reach one target twice**, entering as
+ * source text like every other proof in this file: a fixture handing the
+ * comparison a ready-made count would prove the arithmetic and nothing above it
+ * — the walk that produces the number is the part that has to be exercised.
+ */
+describe('checkModuleBoundary — the count on an entry (issue #267)', () => {
+  const key = `${ORDER_SERVICE}:${PRODUCT}`;
+  const REASON = 'F3 Phase C — orders reads the product entity directly.';
+
+  /** One file, one target, two reaches: a type import and a dynamic one. */
+  const TWICE = [
+    "import type { Product } from '../../catalog/entities/product.entity.js';",
+    'export class OrderService {',
+    "  async load() { return import('../../catalog/entities/product.entity.js'); }",
+    '}',
+  ].join('\n');
+
+  const ONCE = "import { Product } from '../../catalog/entities/product.entity.js';";
+
+  it('reads an omitted count as one, so the 60 single-reach entries stay sentences', () => {
+    const result = checkModuleBoundary({ sources: tree(ONCE) }, [shard('orders', { [key]: REASON })]);
+    expect(result.countIssues).toEqual([]);
+    expect(result.violations).toEqual([]);
+  });
+
+  it('fails an entry recording fewer reaches than the walk found', () => {
+    // The gap itself: the file grew a second reach and the entry did not move.
+    const result = checkModuleBoundary({ sources: tree(TWICE) }, [
+      shard('orders', { [key]: REASON }),
+    ]);
+    expect(result.violations).toEqual([]);
+    expect(result.stale).toEqual([]);
+    expect(result.countIssues).toHaveLength(1);
+    expect(result.countIssues[0]).toContain('records 1, the walk found 2 (+1)');
+  });
+
+  it('fails an entry recording more reaches than the walk found', () => {
+    // The stale direction, one granularity down: a number left standing after
+    // the reaches under it went. Every other ledger in this tree ratchets both
+    // ways, and a count that only ever rose would licence exactly that.
+    const result = checkModuleBoundary({ sources: tree(TWICE) }, [
+      shard('orders', { [key]: { sites: 3, reason: REASON } }),
+    ]);
+    expect(result.countIssues).toHaveLength(1);
+    expect(result.countIssues[0]).toContain('records 3, the walk found 2 (-1)');
+  });
+
+  it('passes when the recorded count is what the walk found', () => {
+    const result = checkModuleBoundary({ sources: tree(TWICE) }, [
+      shard('orders', { [key]: { sites: 2, reason: REASON } }),
+    ]);
+    expect(result.countIssues).toEqual([]);
+    expect(result.violations).toEqual([]);
+    expect(result.stale).toEqual([]);
+    expect(result.ledgered).toHaveLength(2);
+  });
+
+  it('refuses a count that is not a positive integer', () => {
+    // A shard is loaded through a dynamic import, so `tsc` never sees it — the
+    // same reason the permanence flag is checked structurally. A count that
+    // cannot be compared with the walk is worse than none: it reads as a
+    // recorded number and answers nothing.
+    for (const sites of [0, -1, 1.5, 'two' as unknown as number]) {
+      const result = checkModuleBoundary({ sources: tree(TWICE) }, [
+        shard('orders', { [key]: { sites, reason: REASON } }),
+      ]);
+      expect(result.countIssues, `sites: ${String(sites)}`).toHaveLength(1);
+      expect(result.countIssues[0]).toContain('a site count is a positive integer');
+    }
+  });
+
+  it('leaves an entry that describes no reach at all to the stale rule', () => {
+    // Reporting it twice would name one defect two ways, and the name it
+    // already has is the one the shards' own headers use.
+    const result = checkModuleBoundary({ sources: tree('export class OrderService {}') }, [
+      shard('orders', { [key]: { sites: 2, reason: REASON } }),
+    ]);
+    expect(result.stale).toEqual([key]);
+    expect(result.countIssues).toEqual([]);
+  });
+
+  it('holds a permanent entry to the count on the same terms', () => {
+    // Permanence answers "why does this edge stand", never "why does it stand
+    // twice": a co-transactional seam that grows a second statement is worth
+    // the question a draining one's growth gets.
+    const permanent = {
+      permanent: true,
+      reason: 'A foreign key makes the seam co-transactional.',
+      retiredBy: 'F4 gives `catalog` a package entry point that exports this seam.',
+    } as const;
+    const grown = checkModuleBoundary({ sources: tree(TWICE) }, [
+      shard('orders', { [key]: permanent }),
+    ]);
+    expect(grown.permanentIssues).toEqual([]);
+    expect(grown.countIssues).toHaveLength(1);
+    expect(grown.countIssues[0]).toContain('records 1, the walk found 2 (+1)');
+
+    const recorded = checkModuleBoundary({ sources: tree(TWICE) }, [
+      shard('orders', { [key]: { ...permanent, sites: 2 } }),
+    ]);
+    expect(recorded.countIssues).toEqual([]);
+    expect(recorded.permanentKeys).toEqual([key]);
+  });
+
+  it('counts the two predicates under one key, as the key already merged them', () => {
+    // A statement and a builder over one table in one file are one entry
+    // (issue #187) — and therefore two sites, which is the number the entry has
+    // to record.
+    const source = [
+      "await em.getConnection().execute(`select id from products where id = ?`, [id]);",
+      "await em.getKnex()('products').where('id', id);",
+    ].join('\n');
+    const sources = new Map([
+      ['modules/orders/backend.ts', 'export function registerModule(ctx) {}'],
+      ['modules/catalog/entities/product.entity.ts', "@Entity({ tableName: 'products' })\nexport class Product {}"],
+      ['modules/orders/services/order-service.ts', source],
+      ['db/migrations/20260101T000000_core_init.ts', 'this.addSql(`create table "order_items" ()`);'],
+    ]);
+    const sqlKey = `${ORDER_SERVICE}:sql:catalog/products`;
+    const result = checkModuleBoundary({ sources, schema: sources }, [
+      shard('orders', { [sqlKey]: { sites: 2, reason: REASON } }),
+    ]);
+    expect(result.violations).toEqual([]);
+    expect(result.countIssues).toEqual([]);
+    expect(result.ledgered).toHaveLength(2);
+  });
+});
+
 describe('checkModuleBoundary — refusing a vacuous pass (FR-021)', () => {
   const READ_SOMETHING = {
     moduleFiles: ['modules/orders/a.ts', 'modules/catalog/b.ts'],
@@ -889,6 +1030,7 @@ describe('the tree itself', () => {
     expect(result.orphanShards).toEqual([]);
     expect(result.misfiledEntries).toEqual([]);
     expect(result.permanentIssues).toEqual([]);
+    expect(result.countIssues).toEqual([]);
     expect(result.shardShapeIssues).toEqual([]);
   });
 
@@ -930,11 +1072,28 @@ describe('the ledger shards on disk', () => {
           // (D-77): it is not waiting for a merge request, so it has to name
           // what *would* retire it, and the sweep is not an answer.
           expect(permanentEntryIssue(key, entry), where).toBeNull();
-          continue;
         }
-        expect(entry.length, where).toBeGreaterThan(20);
+        // Whichever of the three forms it takes, an entry carries a sentence
+        // and a count that can be compared with the walk (issue #267).
+        expect(reasonOf(entry).length, where).toBeGreaterThan(20);
+        expect(recordedSites(entry), where).not.toBeNull();
       }
     }
+  });
+
+  it('records a count only where the file reaches its target more than once', async () => {
+    // The field is omittable, and the reason it may be is measured: 60 of the
+    // 68 keys standing when it landed cover exactly one reach. An entry
+    // spelling `sites: 1` says what omitting it says, so the two spellings
+    // would drift apart on their own.
+    const shards = await loadLedgerShards(ledgerDirectory());
+    const counted = shards.flatMap((loaded) =>
+      Object.entries(loaded.entries)
+        .filter(([, entry]) => typeof entry !== 'string' && entry.sites !== undefined)
+        .map(([key, entry]) => [key, recordedSites(entry)] as const),
+    );
+    expect(counted.length).toBeGreaterThan(0);
+    for (const [key, sites] of counted) expect(sites, key).toBeGreaterThan(1);
   });
 
   it('is a directory of module-named files and nothing else', () => {
