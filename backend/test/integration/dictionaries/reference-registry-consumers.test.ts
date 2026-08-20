@@ -110,11 +110,34 @@ describe('the contributed dictionary-reference descriptors', () => {
   it('reports a country’s default currency without blocking the delete', async () => {
     const registry = new CurrencyReferenceRegistry();
     registerCountryCurrencyReference(registry, () => em);
+    // The reference this asserts on is made here, like the tax rule above.
+    // `countries` is filled by the `dictionaries` seed reconciler at boot, and
+    // `setupTestDb` boots no server — so the version that updated `PL` matched
+    // zero rows and counted zero references unless some other file's
+    // `setupBackendServer` had run first in the same invocation (issue #272,
+    // the issue #159 family).
+    //
+    // The codes are outside ISO 3166-1 and ISO 4217, so the two inserts stand
+    // whether or not a booting file has already seeded the real catalogue: the
+    // fixture never collides with a seeded row, in either direction. The
+    // currency is inserted too, because `countries_default_currency_fk` refuses
+    // a reference to a currency that is not there.
     await em.execute(
-      `update "countries" set "default_currency_code" = 'PLN' where "code" = 'PL'`,
+      `insert into "currencies"
+         ("code","label","symbol","symbol_position","decimal_places",
+          "is_default","is_active","sort_order","created_at","updated_at")
+       values ('ZZD', 'Fixture dollar', 'Z$', 'suffix', 2, false, true, 0, now(), now())`,
+    );
+    await em.execute(
+      `insert into "countries"
+         ("code","alpha3_code","numeric_code","label","region","is_eu_member",
+          "default_currency_code","is_active","is_default","sort_order",
+          "created_at","updated_at")
+       values ('ZZ', 'ZZZ', '999', 'Fixtureland', 'Europe', false, 'ZZD',
+               true, false, 0, now(), now())`,
     );
 
-    const references = await registry.countReferences('PLN');
+    const references = await registry.countReferences('ZZD');
     // `countries.default_currency_code` is `on delete set null`, so the
     // reference is worth showing an operator and is not a reason to refuse —
     // the distinction the hand-written version made by leaving one number out
