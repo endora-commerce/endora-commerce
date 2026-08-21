@@ -308,6 +308,67 @@ quality:static:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 # ---------------------------------------------------------------------------
+# Release intent — a merge request that changes a workspace package under
+# `packages/` must say what it means for the people who consume that package
+# (D-107). `changeset status --since=<ref>` is the changesets CLI's own answer
+# to that question, so there is no script of ours here to keep correct.
+#
+# It is a merge-request gate only. On the default branch the comparison is the
+# branch against itself: no changed packages, so a pass there would measure
+# nothing.
+#
+# Two things this job has to get right, because both fail silently otherwise:
+#
+#   1. The base ref must exist. GitLab clones shallow, so `origin/master` is
+#      usually absent — and `changeset status` against a ref it cannot resolve
+#      is not a pass, it is a question nobody asked. GIT_DEPTH: 0 plus an
+#      explicit fetch gets the ref; the guard below exits 2 when it still is
+#      not there, matching the repository's rule that a green may never mean
+#      "did not look".
+#   2. `git` is load-bearing and node:22.17-slim does not ship it — same
+#      reasoning as quality:static above.
+#
+# What it does NOT check, stated so nobody reads more into a green: the CLI
+# asks "did any versionable package change while the branch carries zero
+# changesets", not "is there a changeset for each package that changed". A
+# branch touching two packages satisfies it with one file. Reviewers close
+# that gap; the gate closes the one that is mechanical.
+# ---------------------------------------------------------------------------
+release:changeset:
+  stage: quality
+  image: node:22.17-slim
+  variables:
+    # Full history: `changeset status` diffs against the merge base, which a
+    # shallow clone does not contain.
+    GIT_DEPTH: 0
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    - |
+      base="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-$CI_DEFAULT_BRANCH}"
+      git fetch --quiet --no-tags origin "+refs/heads/$base:refs/remotes/origin/$base" || true
+      if ! git rev-parse --verify --quiet "origin/$base^{commit}" > /dev/null; then
+        echo "release:changeset — cannot resolve origin/$base; refusing to report a pass measured against nothing." >&2
+        exit 2
+      fi
+      if ! git merge-base "origin/$base" HEAD > /dev/null 2>&1; then
+        echo "release:changeset — no merge base between HEAD and origin/$base; refusing to report a pass measured against nothing." >&2
+        exit 2
+      fi
+      pnpm exec changeset status --since="origin/$base"
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# ---------------------------------------------------------------------------
 # Test — split three ways, to keep MR wall-clock low while staying a required
 # gate: the DB-backed backend suite (sharded, `test:backend`), the service-less
 # backend unit run (`test:backend:unit`, issue #211) and the frontend/contract

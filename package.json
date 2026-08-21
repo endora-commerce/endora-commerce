@@ -14,6 +14,9 @@
     "lint": "pnpm -r run lint",
     "test": "pnpm -r run test",
     "build": "pnpm -r run build",
+    "changeset": "changeset",
+    "changeset:status": "changeset status",
+    "changeset:version": "changeset version",
     "dev:infra": "docker compose up -d",
     "dev:infra:down": "docker compose down",
     "dev": "node scripts/dev.mjs",
@@ -23,6 +26,7 @@
     "check:pdfmake-footprint": "bash scripts/check-pdfmake-footprint.sh"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.1",
     "@typescript-eslint/eslint-plugin": "^8.59.0",
     "@typescript-eslint/parser": "^8.59.0",
     "eslint": "^10.2.1",

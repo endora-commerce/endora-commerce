@@ -617,6 +617,7 @@ of this table: it enumerates every `check-*` script and fails on one it does not
 | `pnpm run check:naming` | `quality:static` | Principle VI, above. |
 | `pnpm run check:language` | `quality:static` | Principle VIII, above. |
 | `pnpm run check:pdfmake-footprint` | `quality` | A pdfmake font bundle over the single-VPS disk budget (Constitution IV). |
+| `pnpm changeset:status --since=…` | `release:changeset` | A merge request that changes a package under `packages/` and carries no changeset (D-107). Not a `check-*` script and deliberately not one: `changeset status` is the changesets CLI's own command for the question, so there is nothing of ours to keep correct and nothing for `check-inventory` to name — its `script` field must resolve to a file in this tree, and a vendored CLI is not one. See *Release intent — changesets* below. |
 
 Two more run in the same job with no npm script of their own, through
 `pnpm --filter backend exec tsx scripts/<name>.ts`: `check-entity-tenant-classification`
@@ -624,6 +625,65 @@ Two more run in the same job with no npm script of their own, through
 `check-channel-resolution --enforce` (no re-resolution of the sales channel outside the
 canonical resolver, and no settings read naming its channel with a string literal — feature
 053 FR-011, feature 072 D-42).
+
+## Release intent — changesets
+
+Release tooling is **Changesets** (`@changesets/cli`, a root devDependency), adopted by owner
+ruling **D-107**; **D-108** sets the versioning model. Both are in
+`specs/080-f4-real-scope/rulings.md` and are settled — do not re-open them, and in particular
+do not reach for Lerna, `semantic-release` or conventional-commit inference.
+
+**The rule: a merge request that changes a file under `packages/` carries a changeset.**
+That is the entire trigger. `backend`, `admin`, `storefront` and `docs` are in the config's
+`ignore` list and never need one — they are applications, and nobody consumes them by version.
+
+```bash
+pnpm changeset             # write one (interactive)
+pnpm changeset --empty     # record "this change carries no release meaning"
+pnpm changeset:status      # what would be bumped
+pnpm changeset:version     # consume the changesets: bump versions, write CHANGELOG.md
+```
+
+Where a change genuinely has no release meaning — a comment, a test, a rename crossing no
+export — write the empty changeset rather than looking for a way past the gate. It puts a
+human's "I looked, there is nothing to release" in the diff, where a reviewer can disagree
+with it.
+
+A good changeset is written **for the consumer of the package**, not for the reviewer of the
+branch: name the exported symbol, and for a `major` give the old call and the new one, because
+nothing else in this repository will tell an upgrader what to do. One file per meaning, not
+one per merge request. **The bump level is your judgement and cannot be delegated** — that is
+why D-107 chose this tool: a change to `@b2b/contracts` can be breaking for `@b2b/api-client`
+and inert for `@b2b/cms-components`, and no commit prefix knows which.
+
+**Versioning is independent, with one `linked` group** (D-108):
+`@b2b/page-builder-core`, `@b2b/cms-components` and `@b2b/email-components` take one version
+number whenever a release includes more than one of them. `page-builder-core` is a **peer**
+dependency of the other two and ships React contexts and hooks, so the consuming application
+resolves exactly one copy; ranges that disagree resolve two, and a provider in one copy against
+a consumer in the other is a `null` context at runtime, not a type error. A release of
+`page-builder-core` therefore always carries all three; a patch on `cms-components` alone moves
+only itself, which is correct — it carries no runtime the app resolves once.
+`@b2b/contracts` and `@b2b/api-client` version independently — Changesets patch-bumps a
+dependent on its own (`updateInternalDependencies: "patch"`).
+
+Two things about `.changeset/config.json` that are load-bearing and look like boilerplate:
+
+- **`privatePackages: { "version": true, "tag": false }`.** All five packages are
+  `"private": true` and stay that way in this repository. `@changesets/config@4` defaults
+  `privatePackages` to `false`, which makes every changesets command skip all five and report
+  a cheerful nothing — including the CI gate. `version: true` is what makes the tooling see
+  them; `tag: false` keeps it from tagging things nobody publishes.
+- **`ignore` matches package *names*, not paths.** It is glob-matched against
+  `backend` / `admin` / `storefront` / `docs`, the names in those manifests. The
+  `pnpm-workspace.yaml` globs decide only what is discovered as a workspace; they do not reach
+  `ignore`, and `packages/*` written there would match nothing. A typo fails safe — the app
+  stops being ignored and starts demanding changesets, loudly.
+
+Nothing is published yet: the five packages are `"private": true`, there is no `release`
+script, and `access` is `restricted`. Making a package public is a separate merge request,
+with the meta-package / supported-set question D-108 defers. The longer guide, for the moment
+you are writing the file, is `.changeset/README.md`.
 
 ## Overlay modules (per-deployment customization, feature 057)
 
