@@ -84,6 +84,28 @@ export type MessageKey =
   | 'checkout.failure.cartKept'
   | 'checkout.failure.tryAgain'
   | 'checkout.failure.backToCart'
+  // Issue #287 — the failure page's second reader: a buyer whose order exists
+  // and whose payment did not settle. The keys above stay for the buyer whose
+  // order was never created, whose cart really is intact.
+  | 'checkout.paymentFailure.title.failed'
+  | 'checkout.paymentFailure.title.cancelled'
+  | 'checkout.paymentFailure.orderPlacedPrefix'
+  | 'checkout.paymentFailure.orderPlacedSuffix'
+  | 'checkout.paymentFailure.failedBody'
+  | 'checkout.paymentFailure.cancelledBody'
+  | 'checkout.paymentFailure.payAgain'
+  | 'checkout.paymentFailure.retryHint'
+  | 'checkout.paymentFailure.noRetryHint'
+  | 'checkout.paymentFailure.viewOrder'
+  | 'checkout.paymentFailure.allOrders'
+  // Issue #287 — the webhook race: back from the gateway, confirmation not yet
+  // in. Neither success nor failure is true yet, so neither is said.
+  | 'checkout.paymentPending.title'
+  | 'checkout.paymentPending.orderNumberPrefix'
+  | 'checkout.paymentPending.placed'
+  | 'checkout.paymentPending.stillWaiting'
+  | 'checkout.paymentPending.checkAgain'
+  | 'checkout.paymentPending.viewOrder'
   // Issue #264 — paying an order again after the first attempt did not go
   // through. Shown on the order page, which is where a buyer looks for it.
   | 'order.payment.retry.cta'
@@ -315,6 +337,30 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Your cart is unchanged — nothing was charged and no order was created.',
     'checkout.failure.tryAgain': 'Try again',
     'checkout.failure.backToCart': 'Back to cart',
+    // Issue #287 — the buyer whose order exists.
+    'checkout.paymentFailure.title.failed': 'Your payment did not go through',
+    'checkout.paymentFailure.title.cancelled': 'Your payment was not completed',
+    'checkout.paymentFailure.orderPlacedPrefix': 'Your order ',
+    'checkout.paymentFailure.orderPlacedSuffix':
+      ' has been placed and is waiting to be paid. Nothing has been charged.',
+    'checkout.paymentFailure.failedBody': 'The payment provider did not accept this payment.',
+    'checkout.paymentFailure.cancelledBody':
+      'The payment was left before it was finished, so nothing was charged.',
+    'checkout.paymentFailure.payAgain': 'Pay for this order again',
+    'checkout.paymentFailure.retryHint':
+      'You can start the payment again for this same order.',
+    'checkout.paymentFailure.noRetryHint':
+      'This order cannot be paid online at the moment. Open it to see what to do next.',
+    'checkout.paymentFailure.viewOrder': 'View order details',
+    'checkout.paymentFailure.allOrders': 'All orders',
+    'checkout.paymentPending.title': 'We are confirming your payment',
+    'checkout.paymentPending.orderNumberPrefix': 'Your order number is ',
+    'checkout.paymentPending.placed':
+      'Your order is placed. Nothing more is needed from you — we are waiting for the payment provider to confirm the payment, which usually takes a few seconds.',
+    'checkout.paymentPending.stillWaiting':
+      'This is taking longer than usual. We will e-mail you as soon as the payment is confirmed, and the order page always shows where it stands.',
+    'checkout.paymentPending.checkAgain': 'Check again',
+    'checkout.paymentPending.viewOrder': 'View order details',
     'order.payment.retry.cta': 'Pay again',
     'order.payment.retry.hint':
       'Your payment did not go through. Nothing has been charged — you can pay for this order again.',
@@ -560,6 +606,30 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Twoj koszyk pozostal bez zmian — nic nie zostalo obciazone, zamowienie nie zostalo utworzone.',
     'checkout.failure.tryAgain': 'Sprobuj ponownie',
     'checkout.failure.backToCart': 'Wroc do koszyka',
+    // Issue #287 — the buyer whose order exists.
+    'checkout.paymentFailure.title.failed': 'Płatność nie doszła do skutku',
+    'checkout.paymentFailure.title.cancelled': 'Płatność nie została dokończona',
+    'checkout.paymentFailure.orderPlacedPrefix': 'Twoje zamówienie ',
+    'checkout.paymentFailure.orderPlacedSuffix':
+      ' zostało złożone i czeka na opłacenie. Nic nie zostało obciążone.',
+    'checkout.paymentFailure.failedBody': 'Operator płatności nie przyjął tej płatności.',
+    'checkout.paymentFailure.cancelledBody':
+      'Płatność została przerwana przed jej dokończeniem, więc nic nie zostało obciążone.',
+    'checkout.paymentFailure.payAgain': 'Zapłać ponownie za to zamówienie',
+    'checkout.paymentFailure.retryHint':
+      'Możesz ponownie rozpocząć płatność za to samo zamówienie.',
+    'checkout.paymentFailure.noRetryHint':
+      'Tego zamówienia nie można teraz opłacić online. Otwórz je, aby zobaczyć, co dalej.',
+    'checkout.paymentFailure.viewOrder': 'Zobacz szczegóły zamówienia',
+    'checkout.paymentFailure.allOrders': 'Wszystkie zamówienia',
+    'checkout.paymentPending.title': 'Potwierdzamy Twoją płatność',
+    'checkout.paymentPending.orderNumberPrefix': 'Numer Twojego zamówienia to ',
+    'checkout.paymentPending.placed':
+      'Twoje zamówienie zostało złożone. Nie musisz nic więcej robić — czekamy na potwierdzenie płatności od operatora, co zwykle trwa kilka sekund.',
+    'checkout.paymentPending.stillWaiting':
+      'Trwa to dłużej niż zwykle. Wyślemy e-mail, gdy tylko płatność zostanie potwierdzona; aktualny stan zawsze widać na stronie zamówienia.',
+    'checkout.paymentPending.checkAgain': 'Sprawdź ponownie',
+    'checkout.paymentPending.viewOrder': 'Zobacz szczegóły zamówienia',
     'order.payment.retry.cta': 'Zaplac ponownie',
     'order.payment.retry.hint':
       'Platnosc nie doszla do skutku. Nic nie zostalo obciazone — mozesz oplacic to zamowienie ponownie.',

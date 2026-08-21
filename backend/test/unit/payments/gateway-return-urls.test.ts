@@ -21,17 +21,25 @@ import type { TpayTransactionService } from '../../../src/modules/tpay/services/
 import type { TpayEligibility } from '../../../src/modules/tpay/services/tpay-eligibility.js';
 
 /**
- * Issue #274 — where each gateway returns the buyer once the order exists.
+ * Issue #287 — where each gateway hands the buyer back once the order exists.
  *
- * All four used to point at a `/checkout/*` route: a **placement** surface,
- * reached by a buyer whose order is already placed, whose primary call to
- * action is "place an order". Two of them (PayU, Autopay) pointed at the
- * *success* page whatever the outcome, so a declined buyer was told the
- * payment worked. Each landing is now the order's own page.
+ * The owner ruled that a correct payment lands on the success page and a
+ * failed one on the failure page, for every gateway. PayU's `continueUrl` and
+ * Autopay's `ReturnURL` are one URL for every outcome, so no gateway
+ * configuration can express that: **every** hook — including the two that do
+ * discriminate — points at `/checkout/return`, which reads the order's payment
+ * state and forwards. One behaviour, not two.
  *
  * These drive the real call sites rather than the shared URL helper, because
- * the defect was never the helper — it was which page each gateway named.
+ * the defect was never the helper — it was which page each gateway named, and
+ * two of the six hooks (Stripe's `success_url`, TPay's `successUrl`) were
+ * never covered here at all and went on naming the success page directly.
  */
+
+/** The one landing, as every hook must build it. */
+function landing(orderId: string, outcome: 'returned' | 'cancelled' | 'failed'): string {
+  return `${BASE}/checkout/return?id=${orderId}&outcome=${outcome}`;
+}
 
 const ORDER_ID = '11111111-2222-4333-8444-555555555555';
 const PAYMENT_ID = '99999999-8888-4777-8666-555555555555';
@@ -64,8 +72,8 @@ function fakeEmFactory(): () => EntityManager {
   return () => em as unknown as EntityManager;
 }
 
-describe('Autopay ReturnURL (issue #274)', () => {
-  it('returns the buyer to the order page, not to the checkout success page', async () => {
+describe('Autopay ReturnURL (issue #287)', () => {
+  it('hands every outcome to the resolving landing', async () => {
     let sentFields: Record<string, unknown> = {};
     const client = {
       preTransaction: async (input: { fields: Record<string, unknown> }) => {
@@ -92,14 +100,14 @@ describe('Autopay ReturnURL (issue #274)', () => {
     });
 
     // Autopay has a single ReturnURL and uses it whatever the outcome, so it
-    // may never claim success.
-    expect(sentFields.ReturnURL).toBe(`${BASE}/orders/${ORDER_ID}?payment=returned`);
-    expect(String(sentFields.ReturnURL)).not.toContain('/checkout');
+    // may never claim success — the landing reads the order and decides.
+    expect(sentFields.ReturnURL).toBe(landing(ORDER_ID, 'returned'));
+    expect(String(sentFields.ReturnURL)).not.toContain('/checkout/success');
   });
 });
 
-describe('Stripe cancel_url (issue #274)', () => {
-  it('returns a buyer who backed out to the order page, not to the failure page', async () => {
+describe('Stripe return URLs (issue #287)', () => {
+  it('sends both hooks to the resolving landing, so one rule decides both', async () => {
     let params: Record<string, unknown> = {};
     const stripe = {
       checkout: {
@@ -124,15 +132,18 @@ describe('Stripe cancel_url (issue #274)', () => {
       storefrontBaseUrl: BASE,
     });
 
-    // `cancel_url` fires when the buyer clicks *back*, not on a decline —
-    // nothing failed, so the old `/checkout/failure` was wrong twice over.
-    expect(params.cancel_url).toBe(`${BASE}/orders/${ORDER_ID}?payment=cancelled`);
-    expect(String(params.cancel_url)).not.toContain('/checkout');
+    // `cancel_url` fires when the buyer clicks *back*, not on a decline.
+    expect(params.cancel_url).toBe(landing(ORDER_ID, 'cancelled'));
+    // `success_url` is Stripe saying the session completed — a claim in a URL
+    // the buyer can replay, and the page it used to name fires the purchase
+    // conversion. The landing waits for the webhook instead.
+    expect(params.success_url).toBe(landing(ORDER_ID, 'returned'));
+    expect(String(params.success_url)).not.toContain('/checkout/success');
   });
 });
 
-describe('PayU continueUrl (issue #274)', () => {
-  it('returns the buyer to the order page, not to the checkout success page', async () => {
+describe('PayU continueUrl (issue #287)', () => {
+  it('hands every outcome to the resolving landing', async () => {
     let sent: Record<string, unknown> = {};
     const orders = {
       createRedirectOrder: async (input: Record<string, unknown>) => {
@@ -173,13 +184,13 @@ describe('PayU continueUrl (issue #274)', () => {
 
     // PayU sends the buyer to continueUrl whatever the outcome — a declined
     // buyer used to land on a page that told them the order was paid.
-    expect(sent.continueUrl).toBe(`${BASE}/orders/${ORDER_ID}?payment=returned`);
-    expect(String(sent.continueUrl)).not.toContain('/checkout');
+    expect(sent.continueUrl).toBe(landing(ORDER_ID, 'returned'));
+    expect(String(sent.continueUrl)).not.toContain('/checkout/success');
   });
 });
 
-describe('TPay errorUrl (issue #274)', () => {
-  it('sends a failed payment to the order page, not to the checkout form', async () => {
+describe('TPay return URLs (issue #287)', () => {
+  it('sends both hooks to the resolving landing, so one rule decides both', async () => {
     let sent: Record<string, unknown> = {};
     const transactions = {
       createTransaction: async (input: Record<string, unknown>) => {
@@ -218,9 +229,13 @@ describe('TPay errorUrl (issue #274)', () => {
       payerName: 'Buyer',
     });
 
-    // `/checkout/pay` read `id`, and TPay passed `orderId` — the page then did
-    // `if (!id) redirect('/checkout')` and dropped the buyer on the order form.
-    expect(sent.errorUrl).toBe(`${BASE}/orders/${ORDER_ID}?payment=failed`);
-    expect(String(sent.errorUrl)).not.toContain('/checkout');
+    // TPay does discriminate, and the landing still decides: a buyer who
+    // replays `errorUrl` after paying is forwarded to the success page.
+    expect(sent.errorUrl).toBe(landing(ORDER_ID, 'failed'));
+    // The success hook used to name the success page directly, so a TPay
+    // buyer whose notification had not landed was thanked for a payment
+    // nobody had confirmed.
+    expect(sent.successUrl).toBe(landing(ORDER_ID, 'returned'));
+    expect(String(sent.successUrl)).not.toContain('/checkout/success');
   });
 });
