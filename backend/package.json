@@ -31,6 +31,8 @@
     "migration:down": "tsx --env-file-if-exists=.env src/db/migrate.ts down",
     "migration:pending": "tsx --env-file-if-exists=.env src/db/migrate.ts pending",
     "migration:new": "tsx scripts/new-migration.ts",
+    "acceptance:package-schema": "tsx scripts/acceptance/package-schema.ts",
+    "acceptance:package-schema:ci": "tsx scripts/acceptance/package-schema.ts --against-expectation",
     "db:fresh": "tsx --env-file-if-exists=.env src/db/migrate.ts fresh",
     "db:reset": "pnpm run db:fresh && pnpm run seed:dev",
     "seed:dev": "pnpm run migration:up && tsx --env-file-if-exists=.env src/seeds/dev-catalog-seed.ts",

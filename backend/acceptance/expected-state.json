@@ -1,0 +1,51 @@
+{
+  "$comment": [
+    "What the package-schema acceptance criterion answers on this tree, per assertion (D-110).",
+    "A two-way ratchet: the CI job fails when a run disagrees with this file in either direction.",
+    "Seven of the nine are `fail` today and are supposed to be — a package genuinely cannot ship",
+    "schema until feature 080's Wave 3 lands. Recording that is what makes an accidental *green*",
+    "as visible as an accidental red: a change that quietly satisfied A4 without going through",
+    "the composition would show up here as drift, not as a pass nobody looked at.",
+    "Move an entry only in the merge request that earned the move, and never to make a pipeline",
+    "pass. When Wave 3 lands, every entry becomes `pass` and this file becomes the guard against",
+    "regressions rather than the record of a gap."
+  ],
+  "assertions": {
+    "A1": {
+      "status": "fail",
+      "reason": "The migration registry is emitted by a filesystem walk of `backend/src` (`generate-composer.ts`) and committed. A package contributes no entry, so its migration class is never handed to the migrator and never lands in `mikro_orm_migrations`. Closed by Wave 3 T033 (P3, merged `orderMigrations` inputs)."
+    },
+    "A2": {
+      "status": "fail",
+      "reason": "Follows A1: no migration ran, so the table does not exist."
+    },
+    "A3": {
+      "status": "fail",
+      "reason": "Follows A1. It is kept separate from A2 on purpose — when A2 first goes green it must be because the body ran, not because a row was written."
+    },
+    "A4": {
+      "status": "fail",
+      "reason": "The entity registry is emitted from a source-text probe for `@Entity(` under `backend/src` (`generate-composer.ts:603`), and compilation turns the decorator into `__decorate([...])`. A published package therefore contributes zero entities and the ORM metadata has no `AcceptanceProbeRow`. Closed by Wave 3 T033."
+    },
+    "A5": {
+      "status": "fail",
+      "reason": "`resolvedManifestEntries()` merges the generated core index with this deployment's overlay modules and nothing else, so an installed package has no identity, no grantable permission and no bundle path. Closed by Wave 3 T031/T032 (P1/P2)."
+    },
+    "A6": {
+      "status": "fail",
+      "reason": "Follows A5: with no manifest in the resolved set, the settings reconciler creates no activation row, so there is no operator control to flip and no gated route to answer 503."
+    },
+    "A7": {
+      "status": "fail",
+      "reason": "Follows A5: the lifecycle registry has no `acceptance_probe`, so a hard uninstall has no module to revert migrations for."
+    },
+    "A8": {
+      "status": "pass",
+      "reason": "Passes today, and must: it measures the harness, not the platform. The tarball install resolves entirely inside the throwaway instance. An A8 that could not pass before Wave 3 would be an assertion nobody could trust after it."
+    },
+    "A9": {
+      "status": "pass",
+      "reason": "Passes today, and must, for the same reason: A8 refuses the same package consumed by link from inside this repository. If A9 ever fails, A8 has stopped being able to say no and every other assertion is worth less."
+    }
+  }
+}

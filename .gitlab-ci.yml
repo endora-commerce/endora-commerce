@@ -607,6 +607,108 @@ test:backend:unit:
       - .pnpm-store
   rules: !reference [.backend-test-rules, rules]
 
+# ---------------------------------------------------------------------------
+# The acceptance criterion for "a package can ship schema" (feature 080, D-110).
+#
+# It builds a synthetic third-party module into a tarball, installs it into a
+# throwaway directory OUTSIDE the checkout, and asks this platform whether the
+# package's entity and migration reached a real PostgreSQL database. The whole
+# point is to leave the monorepo: a moved directory is still inside the walked
+# tree, still inside relative-specifier range, and pnpm links a workspace member
+# into `node_modules` — so every rehearsal that stays inside passes and proves
+# nothing (contract `specs/080-f4-real-scope/contracts/package-schema-acceptance.md`).
+#
+# **It exists as a job because a criterion nobody runs is the failure this file
+# already made once**: the `DEPLOYMENT` matrix was described in a comment for
+# two features and added by nobody, so a `backend.ts`-only overlay module could
+# crash composition with a green pipeline (see `test:backend:deployment`). The
+# trigger list below is therefore the set of inputs that can change the answer,
+# not a guess: the composer that emits both registries, the registries
+# themselves, the migration order, the packaging manifests, the criterion's own
+# sources, and the lockfile/workspace files that decide how anything resolves.
+#
+# **Red today, and enforced as a ratchet rather than as a failure.** A package
+# genuinely cannot ship schema until Wave 3 lands, so seven of the nine
+# assertions fail. `--against-expectation` compares the run to
+# `backend/acceptance/expected-state.json` and fails on drift in EITHER
+# direction — a newly-red A8 fails, and so does a newly-green A1 that nobody
+# recorded. Failing on the red instead would block every merge request that adds
+# a migration, and an `allow_failure: true` would be a job whose colour nobody
+# reads. When Wave 3 lands, that file becomes all-`pass` in the merge request
+# that earns it and this job becomes an ordinary regression gate.
+#
+# All three services are here although today's run only reaches PostgreSQL: the
+# two lifecycle assertions compose the whole application, and the first merge
+# request that makes them reachable must not also have to discover that this job
+# cannot boot one.
+# ---------------------------------------------------------------------------
+acceptance:package-schema:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    # The runner DROPS and re-creates this database on every run, so its name
+    # must satisfy the disposable-name convention `(^|_)test(_|$)` — the same
+    # judgement `test/global-setup.ts` and the dev-seed guard make. It refuses
+    # to touch anything else, which is what keeps a mistyped DSN from being a
+    # data-loss incident.
+    ACCEPTANCE_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_acceptance_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    PUBLIC_API_BASE_URL: http://localhost:3001
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm --filter backend run acceptance:package-schema:ci
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        # The composer emits both registries; a change to its walk, its
+        # `@Entity(` probe or its specifier rule is a change to the answer.
+        - backend/scripts/generate-composer.ts
+        - backend/src/db/migrations-registry.generated.ts
+        - backend/src/db/entities-registry.generated.ts
+        - backend/src/db/configured-migrations.ts
+        # Execution order (feature 081): a package's chain slots in at its
+        # module's topological position.
+        - backend/src/db/migration-order.ts
+        - backend/src/db/mikro-orm.config.ts
+        # Packaging manifests — every `package.json` in the tree, plus the two
+        # files that decide what pnpm considers a workspace member. A package
+        # accidentally becoming one is precisely the trap A8 refuses.
+        - '**/package.json'
+        - pnpm-workspace.yaml
+        - pnpm-lock.yaml
+        # Discovery and composition: the seam a package plugs into.
+        - backend/src/composition.ts
+        - backend/src/overlay/**/*
+        - backend/src/modules/_lifecycle/**/*
+        # The criterion itself.
+        - backend/acceptance/**/*
+        - backend/scripts/acceptance/**/*
+        - .gitlab-ci.yml
+
 # Frontend + contracts: jsdom / pure-node, no external services. Cheap enough to
 # run on every pipeline without sharding or scoping.
 test:frontend:
