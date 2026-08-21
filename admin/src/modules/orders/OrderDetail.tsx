@@ -37,6 +37,7 @@ import { OrderShipmentsTab } from './OrderShipmentsTab';
 import { Section } from './Section';
 import { orderStatusBadgeStyle } from './orderStatusColor';
 import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
+import { adminOrderPaymentStatusTransitionSchema } from '@b2b/contracts';
 import type { IssueInvoiceEmailOutcome } from '@b2b/contracts';
 
 type OrderTab = 'overview' | 'payment' | 'delivery' | 'comments';
@@ -133,7 +134,32 @@ function statusOptions(graph: StatusGraph | null, current: string): string[] {
   return [current, ...targets.filter((c, i) => targets.indexOf(c) === i)];
 }
 
-const PAYMENT_STATUSES = ['awaiting_payment', 'paid', 'deferred', 'refunded'] as const;
+/**
+ * The payment statuses an operator may **set**, derived from the contract the
+ * route parses rather than copied beside it (feature 085, FR-024).
+ *
+ * The control used to render one hand-written list of four and offer every
+ * member of it as an option, while `POST /api/v1/admin/orders/:id/payment-status`
+ * has only ever accepted `paid` and `refunded` — so two of the four were
+ * offered and refused. Reading the schema's own options is what stops the two
+ * lists drifting again.
+ */
+const SELECTABLE_PAYMENT_STATUSES: readonly string[] =
+  adminOrderPaymentStatusTransitionSchema.shape.to.options;
+
+/**
+ * What the control may **show**. The order's own value is always shown, even
+ * when it is not settable: `failed` is written by the settlement ingress alone
+ * (feature 085, FR-001) and an operator must be able to read it without being
+ * able to hand-set a payment to failed. A value outside the selectable set is
+ * rendered disabled, so the select displays the truth and offers only what the
+ * server will take.
+ */
+function paymentStatusOptions(current: string): string[] {
+  return SELECTABLE_PAYMENT_STATUSES.includes(current)
+    ? [...SELECTABLE_PAYMENT_STATUSES]
+    : [current, ...SELECTABLE_PAYMENT_STATUSES];
+}
 
 interface OrderCommentRow {
   id: string;
@@ -490,8 +516,12 @@ export function OrderDetail(): ReactNode {
                       value={order.paymentStatus}
                       onChange={(e): void => void handlePaymentStatus(e.target.value)}
                     >
-                      {PAYMENT_STATUSES.map((s) => (
-                        <option key={s} value={s}>
+                      {paymentStatusOptions(order.paymentStatus).map((s) => (
+                        <option
+                          key={s}
+                          value={s}
+                          disabled={!SELECTABLE_PAYMENT_STATUSES.includes(s)}
+                        >
                           {t(`orderDetail.paymentStatus.${s}`)}
                         </option>
                       ))}

@@ -1,6 +1,7 @@
 import {
   ERROR_CODES,
   type CustomerAccountReadPort,
+  type OrderPaymentStatus,
   type OrderReadPort,
   type PaymentAdapterRegistryPort,
   type PaymentRetryNextAction,
@@ -26,24 +27,45 @@ import type { PaymentService } from './payment-service.js';
  *
  * The refusals below are all on the **payment** axis — is this order paid, is
  * there an attempt, has it failed. The order's *lifecycle* status is not
- * consulted, and that is a decision rather than an oversight: every payment
- * method in the tree is seeded with `status_on_failure = 'cancelled'`
- * (`payment_methods/migrations/20260611T140353_…`, and the four gateway seed
- * migrations repeat it), so the settlement ingress moves an order to
- * `cancelled` on the first decline. Reading `order.status` here would therefore
- * refuse exactly the buyers this exists for. Whether a declined card should
- * cancel an order at all is a product question that outlives this seam — it is
- * recorded in the merge request rather than answered here, because changing a
- * seeded status is a migration and an owner's call.
+ * consulted here.
  *
- * The cost of that choice is stated plainly: an order an operator cancelled
- * *by hand* while its payment was still open is not distinguishable here from
- * one the ingress cancelled, because both write the bare status code. What
- * protects the first case is that a hand-cancelled order's latest attempt is
- * still `awaiting_payment`, so this path resumes rather than opens — no new
- * provider session is created for it, and no money can be taken that the buyer
- * did not initiate from the payment step itself.
+ * That used to be forced: every payment method in the tree was seeded
+ * `status_on_failure = 'cancelled'`, so the settlement ingress made an order
+ * terminal on the first decline and reading `order.status` would have refused
+ * exactly the buyers this exists for. Feature 085 answered the product question
+ * behind it — a declined payment now holds the order at the method's failure
+ * status, seeded `on_hold`, and records the decline on the money axis as
+ * `paymentStatus = 'failed'`. So a declined order is no longer terminal, and
+ * the cost this doc block used to state — that a hand-cancelled order was
+ * indistinguishable from an ingress-cancelled one — is retired with it: the
+ * ingress cancels nothing.
+ *
+ * The money term is an **allow-list of two**, `awaiting_payment` and `failed`,
+ * and not a negation of `paid`. `deferred` is a credit-limit order whose credit
+ * was drawn inside the placement transaction — the shop is already acting on
+ * it, and there is no buyer-initiated session to open — and `refunded` is
+ * settled in the other direction.
+ *
+ * Refusing a **terminal** lifecycle status is the remaining half and belongs to
+ * feature 085's Phase D, together with the transition seam that makes a
+ * cancellation release stock; after that phase a terminal order is always a
+ * deliberate human decision, and paying it again would silently override the
+ * person who made it.
  */
+/**
+ * The payment states in which the buyer still owes this money themselves
+ * (feature 085, R13's money term).
+ *
+ * An allow-list rather than `!== 'paid'`: `deferred` is a credit-limit order,
+ * unpaid by arrangement and already drawn, and `refunded` is settled the other
+ * way. Both would pass a negation and neither has a session for the buyer to
+ * open.
+ */
+const BUYER_STILL_OWES: ReadonlySet<OrderPaymentStatus> = new Set<OrderPaymentStatus>([
+  'awaiting_payment',
+  'failed',
+]);
+
 export interface PaymentRetryDeps {
   orderRead: OrderReadPort;
   customerAccountRead: CustomerAccountReadPort;
@@ -83,7 +105,7 @@ export class PaymentRetryService {
     if (order.placedByCustomerAccountId !== input.customerAccountId) {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'This order does not belong to you.');
     }
-    if (order.paymentStatus !== 'awaiting_payment') {
+    if (!BUYER_STILL_OWES.has(order.paymentStatus)) {
       throw new HttpError(
         409,
         ERROR_CODES.VALIDATION_FAILED,

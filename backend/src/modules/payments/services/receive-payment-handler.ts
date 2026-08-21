@@ -143,7 +143,15 @@ export class ReceivePaymentHandler {
         payment.status = 'failed';
         payment.failureReason = input.failureReason ?? null;
         if (input.providerDetails) payment.providerDetails = input.providerDetails;
-        if (order) this.applyOrderStatus(order, method?.statusOnFailure);
+        if (order) {
+          // Feature 085 (FR-001) — the decline is recorded on the money axis
+          // too. The lifecycle status alone could not say it: the method's
+          // `status_on_failure` is operator-configurable, so two orders sitting
+          // at the same status may have arrived there for opposite reasons, and
+          // the buyer's retry and the operator's list both need to know which.
+          order.paymentStatus = 'failed';
+          this.applyOrderStatus(order, method?.statusOnFailure);
+        }
       }
 
       await tx.flush();

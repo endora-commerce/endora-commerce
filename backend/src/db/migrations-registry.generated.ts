@@ -58,6 +58,7 @@ import { Migration20260505T102206AssetsLibraryInit } from '../modules/assets_lib
 // ── autopay ─────────────────────────────────────────────────────────────────
 import { Migration20260803T065409AutopayInit } from '../modules/autopay/migrations/20260803T065409_autopay_init.js';
 import { Migration20260816T053835AutopaySeedPaymentMethods } from '../modules/autopay/migrations/20260816T053835_autopay_seed_payment_methods.js';
+import { Migration20260821T084925AutopayFailureStatusOnHold } from '../modules/autopay/migrations/20260821T084925_autopay_failure_status_on_hold.js';
 
 // ── blog ────────────────────────────────────────────────────────────────────
 import { Migration20260506T081055BlogInit } from '../modules/blog/migrations/20260506T081055_blog_init.js';
@@ -204,10 +205,12 @@ import { Migration20260720T044254OrganizationsOrgHierarchy } from '../modules/or
 
 // ── payment_methods ─────────────────────────────────────────────────────────
 import { Migration20260611T140353PaymentMethodsAdapter } from '../modules/payment_methods/migrations/20260611T140353_payment_methods_adapter.js';
+import { Migration20260821T084920PaymentMethodsFailureStatusOnHold } from '../modules/payment_methods/migrations/20260821T084920_payment_methods_failure_status_on_hold.js';
 
 // ── payu ────────────────────────────────────────────────────────────────────
 import { Migration20260801T100943PayuInit } from '../modules/payu/migrations/20260801T100943_payu_init.js';
 import { Migration20260816T053830PayuSeedPaymentMethods } from '../modules/payu/migrations/20260816T053830_payu_seed_payment_methods.js';
+import { Migration20260821T084923PayuFailureStatusOnHold } from '../modules/payu/migrations/20260821T084923_payu_failure_status_on_hold.js';
 
 // ── pim_ergonode ────────────────────────────────────────────────────────────
 import { Migration20260804T190439PimErgonodeInit } from '../modules/pim_ergonode/migrations/20260804T190439_pim_ergonode_init.js';
@@ -271,6 +274,7 @@ import { Migration20260611T140418ShoppingListsDefault } from '../modules/shoppin
 import { Migration20260708T101135StripeInit } from '../modules/stripe/migrations/20260708T101135_stripe_init.js';
 import { Migration20260715T103358StripePaymentRefundedAmount } from '../modules/stripe/migrations/20260715T103358_stripe_payment_refunded_amount.js';
 import { Migration20260816T053826StripeSeedPaymentMethods } from '../modules/stripe/migrations/20260816T053826_stripe_seed_payment_methods.js';
+import { Migration20260821T084922StripeFailureStatusOnHold } from '../modules/stripe/migrations/20260821T084922_stripe_failure_status_on_hold.js';
 
 // ── taxes ───────────────────────────────────────────────────────────────────
 import { Migration20260426T081516TaxesPromotionsInit } from '../modules/taxes/migrations/20260426T081516_taxes_promotions_init.js';
@@ -278,6 +282,7 @@ import { Migration20260426T081516TaxesPromotionsInit } from '../modules/taxes/mi
 // ── tpay ────────────────────────────────────────────────────────────────────
 import { Migration20260729T132507TpayInit } from '../modules/tpay/migrations/20260729T132507_tpay_init.js';
 import { Migration20260816T053834TpaySeedPaymentMethods } from '../modules/tpay/migrations/20260816T053834_tpay_seed_payment_methods.js';
+import { Migration20260821T084924TpayFailureStatusOnHold } from '../modules/tpay/migrations/20260821T084924_tpay_failure_status_on_hold.js';
 
 // ── transactional_emails ────────────────────────────────────────────────────
 import { Migration20260629T113442TransactionalEmailsInit } from '../modules/transactional_emails/migrations/20260629T113442_transactional_emails_init.js';
@@ -321,6 +326,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── autopay ─────────────────────────────────────────────────────────────────
   migration('autopay', Migration20260803T065409AutopayInit),
   migration('autopay', Migration20260816T053835AutopaySeedPaymentMethods),
+  migration('autopay', Migration20260821T084925AutopayFailureStatusOnHold),
 
   // ── blog ────────────────────────────────────────────────────────────────────
   migration('blog', Migration20260506T081055BlogInit),
@@ -467,10 +473,12 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── payment_methods ─────────────────────────────────────────────────────────
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),
+  migration('payment_methods', Migration20260821T084920PaymentMethodsFailureStatusOnHold),
 
   // ── payu ────────────────────────────────────────────────────────────────────
   migration('payu', Migration20260801T100943PayuInit),
   migration('payu', Migration20260816T053830PayuSeedPaymentMethods),
+  migration('payu', Migration20260821T084923PayuFailureStatusOnHold),
 
   // ── pim_ergonode ────────────────────────────────────────────────────────────
   migration('pim_ergonode', Migration20260804T190439PimErgonodeInit),
@@ -534,6 +542,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('stripe', Migration20260708T101135StripeInit),
   migration('stripe', Migration20260715T103358StripePaymentRefundedAmount),
   migration('stripe', Migration20260816T053826StripeSeedPaymentMethods),
+  migration('stripe', Migration20260821T084922StripeFailureStatusOnHold),
 
   // ── taxes ───────────────────────────────────────────────────────────────────
   migration('taxes', Migration20260426T081516TaxesPromotionsInit),
@@ -541,6 +550,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── tpay ────────────────────────────────────────────────────────────────────
   migration('tpay', Migration20260729T132507TpayInit),
   migration('tpay', Migration20260816T053834TpaySeedPaymentMethods),
+  migration('tpay', Migration20260821T084924TpayFailureStatusOnHold),
 
   // ── transactional_emails ────────────────────────────────────────────────────
   migration('transactional_emails', Migration20260629T113442TransactionalEmailsInit),

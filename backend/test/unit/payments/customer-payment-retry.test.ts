@@ -43,8 +43,8 @@ function orderRecord(over: Partial<OrderRecord> = {}): OrderRecord {
     organizationId: ORG_ID,
     placedByCustomerAccountId: BUYER,
     salesChannelId: '55555555-5555-4555-8555-555555555555',
-    status: 'cancelled',
-    paymentStatus: 'awaiting_payment',
+    status: 'on_hold',
+    paymentStatus: 'failed',
     billingAddress: { recipientName: 'A Buyer', country: 'PL' },
     paymentMethodId: '66666666-6666-4666-8666-666666666666',
     paymentMethodSnapshot: { code: 'payu_blik', name: 'BLIK', kind: 'gateway', adapter: 'payu' },
@@ -149,6 +149,38 @@ describe('customer payment retry (#264)', () => {
   });
 
   /**
+   * The money term is an allow-list of two, never a negation of `paid`
+   * (research R13). A credit-limit order is `deferred`: unpaid, but drawn
+   * against the buyer's limit inside the placement transaction, so the shop is
+   * already acting on it and there is no buyer-initiated session to open. A
+   * `refunded` order is settled the other way. A negation would admit both.
+   */
+  it('refuses a payment settled by arrangement or already reversed', async () => {
+    for (const paymentStatus of ['deferred', 'refunded'] as const) {
+      const { service } = build({ order: orderRecord({ paymentStatus }) });
+      await expect(
+        service.retryForCustomer({ orderId: ORDER_ID, customerAccountId: BUYER }),
+      ).rejects.toMatchObject({ statusCode: 409 });
+    }
+  });
+
+  /**
+   * The other half of the allow-list. A bank-transfer or cash-on-pickup order
+   * never advances its own money axis, so it sits at `awaiting_payment`
+   * indefinitely and must stay retryable — the adapter check below is what
+   * decides whether there is a session to open, not this predicate.
+   */
+  it('still accepts an order that has simply not been paid yet', async () => {
+    const { service } = build({
+      order: orderRecord({ status: 'new', paymentStatus: 'awaiting_payment' }),
+      adapter: adapterReturning({ kind: 'redirect', url: 'https://psp.example/pay/2' }),
+    });
+    await expect(
+      service.retryForCustomer({ orderId: ORDER_ID, customerAccountId: BUYER }),
+    ).resolves.toMatchObject({ opened: true });
+  });
+
+  /**
    * The transact guard runs on this path exactly as it runs on placement: a
    * suspended Organization may not pay any more than it may buy. It is checked
    * *after* ownership, so a suspended organisation's status is not readable by
@@ -166,11 +198,16 @@ describe('customer payment retry (#264)', () => {
   });
 
   /**
-   * The lifecycle status is deliberately not consulted — every payment method
-   * in the tree is seeded `status_on_failure = 'cancelled'`, so the settlement
-   * ingress cancels an order on the first decline and a status check would
-   * refuse precisely the buyers this exists for. The fixture's order is
-   * `cancelled` for that reason.
+   * The buyer this endpoint exists for, in the state feature 085 leaves them
+   * in: the gateway declined, the ingress wrote `paymentStatus = 'failed'` and
+   * moved the order to the method's failure status, seeded `on_hold`. That is
+   * the fixture's order, and if the money-axis predicate is left at
+   * `=== 'awaiting_payment'` this is a 409 for every declined buyer on every
+   * gateway — the retry refusing precisely the population it was built for.
+   *
+   * The lifecycle status is still deliberately not consulted here; refusing a
+   * terminal one is feature 085's Phase D, together with the transition seam
+   * that makes a cancellation release stock.
    */
   it('opens the next attempt and starts its provider session', async () => {
     const adapter = adapterReturning({ kind: 'redirect', url: 'https://psp.example/pay/2' });

@@ -644,7 +644,23 @@ export const ORDER_STATUS_ON_HOLD = 'on_hold';
 export const ORDER_STATUS_CANCELLED = 'cancelled';
 export const ORDER_STATUS_INITIAL = 'new';
 
-export type OrderPaymentStatus = 'awaiting_payment' | 'paid' | 'deferred' | 'refunded';
+/**
+ * The money axis of an order.
+ *
+ * `failed` is set by the settlement ingress when a gateway declines a payment
+ * (feature 085, FR-001). The wire vocabulary — `paymentStatusSchema` in
+ * `common.ts` — has carried the value since feature 034, so nothing on the wire
+ * changes here; what changed is that the platform can now produce it. It is
+ * **system-written only**: `adminOrderPaymentStatusTransitionSchema` accepts
+ * `paid` and `refunded` and nothing else, so an operator can see a failed
+ * payment but never set one.
+ */
+export type OrderPaymentStatus =
+  | 'awaiting_payment'
+  | 'paid'
+  | 'failed'
+  | 'deferred'
+  | 'refunded';
 
 export interface OrderAddressSnapshot {
   recipientName: string;

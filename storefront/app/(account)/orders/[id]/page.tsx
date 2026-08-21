@@ -79,11 +79,20 @@ export default async function OrderConfirmationPage({
   const paymentNotice = resolvePaymentReturnNotice(paymentReturn, order.paymentStatus);
   // Terminal orders close commenting; a pending payment surfaces a Pay CTA.
   const isTerminal = order.status === 'completed' || order.status === 'cancelled';
+  // Deliberately narrow, and it stays narrow after feature 085 widened the two
+  // predicates below it: this is the "we are waiting for your money" hint, and
+  // an order whose payment was declined gets the stronger retry hint instead —
+  // `failed` is only ever written by the gateway settlement ingress, so such an
+  // order is always a gateway order and `canRetryPayment` is always true for
+  // it. Widening this would print both.
   const awaitingPayment = !isTerminal && order.paymentStatus === 'awaiting_payment';
-  // Issue #264 — deliberately not gated on `isTerminal`: the settlement ingress
-  // applies the method's `status_on_failure`, seeded `cancelled` everywhere, so
-  // a declined card leaves a terminal-looking order the buyer still owes money
-  // on. See `lib/payment-retry.ts`.
+  // Issue #264 — deliberately not gated on `isTerminal`. It was written when
+  // the settlement ingress applied a `status_on_failure` seeded `cancelled`
+  // everywhere, so a declined card left a terminal-looking order the buyer
+  // still owed money on. Feature 085 holds such an order at `on_hold` instead,
+  // which is not terminal — but the decision is unchanged, because the server
+  // owns it and the storefront must not re-derive a lifecycle rule. See
+  // `lib/payment-retry.ts`.
   const canRetryPayment = offersPaymentRetry(order);
 
   // Surface a return/complaint entry point directly on the order — only when the

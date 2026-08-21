@@ -101,7 +101,12 @@ export function makeUpsertPaymentMethodCommand(
           additionalPrice: (body.additionalPrice ?? 0).toFixed(2),
           statusOnPending: body.statusOnPending ?? 'new',
           statusOnSuccess: body.statusOnSuccess ?? 'paid',
-          statusOnFailure: body.statusOnFailure ?? 'cancelled',
+          // Feature 085 (FR-003) — a declined payment holds the order, it does
+          // not end it. `on_hold` is a system status: it is reachable from every
+          // non-terminal status and reaches every status, and an operator can
+          // neither delete it nor remove those edges. Still a default, not a
+          // constraint (FR-004).
+          statusOnFailure: body.statusOnFailure ?? 'on_hold',
         });
         em.persist(row);
       }
