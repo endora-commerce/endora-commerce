@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Pencil, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth';
 import {
   deliveryMethodsClient,
   type AdminDeliveryMethod,
@@ -29,12 +31,14 @@ import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
 
 export function DeliveryMethodsPage(): ReactNode {
   const t = useTranslation('core');
+  const { hasPermission } = useAuth();
   const [rows, setRows] = useState<AdminDeliveryMethod[]>([]);
   const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [editing, setEditing] = useState<AdminDeliveryMethod | null>(null);
+  const showInpost = hasPermission('inpost:manage');
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -128,6 +132,33 @@ export function DeliveryMethodsPage(): ReactNode {
         <Alert variant="success" className="mb-4">
           <AlertDescription>{info}</AlertDescription>
         </Alert>
+      ) : null}
+
+      {showInpost ? (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>{t('legacyMethods.integrations.title')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="mb-4 text-sm text-muted-foreground">
+              {t('legacyMethods.integrations.deliveryDescription')}
+            </p>
+            <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+              <div>
+                <div className="font-medium">{t('legacyMethods.integrations.inpost.name')}</div>
+                <div className="text-sm text-muted-foreground">
+                  {t('legacyMethods.integrations.inpost.description')}
+                </div>
+              </div>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/settings/inpost">
+                  {t('legacyMethods.integrations.configure')}
+                  <ArrowRight />
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       ) : null}
 
       <Card className="mb-4">

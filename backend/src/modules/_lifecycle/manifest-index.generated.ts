@@ -54,40 +54,41 @@ import { manifest as manifest27 } from '../google_analytics/manifest.js';
 import { manifest as manifest28 } from '../google_tag_manager/manifest.js';
 import { manifest as manifest29 } from '../health_checks/manifest.js';
 import { manifest as manifest30 } from '../import_export/manifest.js';
-import { manifest as manifest31 } from '../inventory/manifest.js';
-import { manifest as manifest32 } from '../invoices/manifest.js';
-import { manifest as manifest33 } from '../ksef/manifest.js';
-import { manifest as manifest34 } from '../languages/manifest.js';
-import { manifest as manifest35 } from '../linkedin_ads/manifest.js';
-import { manifest as manifest36 } from '../megamenu/manifest.js';
-import { manifest as manifest37 } from '../meta_ads/manifest.js';
-import { manifest as manifest38 } from '../mfa/manifest.js';
-import { manifest as manifest39 } from '../newsletter/manifest.js';
-import { manifest as manifest40 } from '../orders/manifest.js';
-import { manifest as manifest41 } from '../organizations/manifest.js';
-import { manifest as manifest42 } from '../payment_methods/manifest.js';
-import { manifest as manifest43 } from '../payments/manifest.js';
-import { manifest as manifest44 } from '../payu/manifest.js';
-import { manifest as manifest45 } from '../pim_ergonode/manifest.js';
-import { manifest as manifest46 } from '../price_lists/manifest.js';
-import { manifest as manifest47 } from '../product_feeds/manifest.js';
-import { manifest as manifest48 } from '../promotions/manifest.js';
-import { manifest as manifest49 } from '../prompt_actions/manifest.js';
-import { manifest as manifest50 } from '../pwa/manifest.js';
-import { manifest as manifest51 } from '../quick_order/manifest.js';
-import { manifest as manifest52 } from '../quote_requests/manifest.js';
-import { manifest as manifest53 } from '../returns/manifest.js';
-import { manifest as manifest54 } from '../sales_channels/manifest.js';
-import { manifest as manifest55 } from '../search/manifest.js';
-import { manifest as manifest56 } from '../seo/manifest.js';
-import { manifest as manifest57 } from '../settings/manifest.js';
-import { manifest as manifest58 } from '../shipments/manifest.js';
-import { manifest as manifest59 } from '../shopping_lists/manifest.js';
-import { manifest as manifest60 } from '../stripe/manifest.js';
-import { manifest as manifest61 } from '../taxes/manifest.js';
-import { manifest as manifest62 } from '../tpay/manifest.js';
-import { manifest as manifest63 } from '../transactional_emails/manifest.js';
-import { manifest as manifest64 } from '../webhooks/manifest.js';
+import { manifest as manifest31 } from '../inpost/manifest.js';
+import { manifest as manifest32 } from '../inventory/manifest.js';
+import { manifest as manifest33 } from '../invoices/manifest.js';
+import { manifest as manifest34 } from '../ksef/manifest.js';
+import { manifest as manifest35 } from '../languages/manifest.js';
+import { manifest as manifest36 } from '../linkedin_ads/manifest.js';
+import { manifest as manifest37 } from '../megamenu/manifest.js';
+import { manifest as manifest38 } from '../meta_ads/manifest.js';
+import { manifest as manifest39 } from '../mfa/manifest.js';
+import { manifest as manifest40 } from '../newsletter/manifest.js';
+import { manifest as manifest41 } from '../orders/manifest.js';
+import { manifest as manifest42 } from '../organizations/manifest.js';
+import { manifest as manifest43 } from '../payment_methods/manifest.js';
+import { manifest as manifest44 } from '../payments/manifest.js';
+import { manifest as manifest45 } from '../payu/manifest.js';
+import { manifest as manifest46 } from '../pim_ergonode/manifest.js';
+import { manifest as manifest47 } from '../price_lists/manifest.js';
+import { manifest as manifest48 } from '../product_feeds/manifest.js';
+import { manifest as manifest49 } from '../promotions/manifest.js';
+import { manifest as manifest50 } from '../prompt_actions/manifest.js';
+import { manifest as manifest51 } from '../pwa/manifest.js';
+import { manifest as manifest52 } from '../quick_order/manifest.js';
+import { manifest as manifest53 } from '../quote_requests/manifest.js';
+import { manifest as manifest54 } from '../returns/manifest.js';
+import { manifest as manifest55 } from '../sales_channels/manifest.js';
+import { manifest as manifest56 } from '../search/manifest.js';
+import { manifest as manifest57 } from '../seo/manifest.js';
+import { manifest as manifest58 } from '../settings/manifest.js';
+import { manifest as manifest59 } from '../shipments/manifest.js';
+import { manifest as manifest60 } from '../shopping_lists/manifest.js';
+import { manifest as manifest61 } from '../stripe/manifest.js';
+import { manifest as manifest62 } from '../taxes/manifest.js';
+import { manifest as manifest63 } from '../tpay/manifest.js';
+import { manifest as manifest64 } from '../transactional_emails/manifest.js';
+import { manifest as manifest65 } from '../webhooks/manifest.js';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -128,38 +129,39 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'google_tag_manager', manifest: manifest28 },
   { id: 'health_checks', manifest: manifest29 },
   { id: 'import_export', manifest: manifest30 },
-  { id: 'inventory', manifest: manifest31 },
-  { id: 'invoices', manifest: manifest32 },
-  { id: 'ksef', manifest: manifest33 },
-  { id: 'languages', manifest: manifest34 },
-  { id: 'linkedin_ads', manifest: manifest35 },
-  { id: 'megamenu', manifest: manifest36 },
-  { id: 'meta_ads', manifest: manifest37 },
-  { id: 'mfa', manifest: manifest38 },
-  { id: 'newsletter', manifest: manifest39 },
-  { id: 'orders', manifest: manifest40 },
-  { id: 'organizations', manifest: manifest41 },
-  { id: 'payment_methods', manifest: manifest42 },
-  { id: 'payments', manifest: manifest43 },
-  { id: 'payu', manifest: manifest44 },
-  { id: 'pim_ergonode', manifest: manifest45 },
-  { id: 'price_lists', manifest: manifest46 },
-  { id: 'product_feeds', manifest: manifest47 },
-  { id: 'promotions', manifest: manifest48 },
-  { id: 'prompt_actions', manifest: manifest49 },
-  { id: 'pwa', manifest: manifest50 },
-  { id: 'quick_order', manifest: manifest51 },
-  { id: 'quote_requests', manifest: manifest52 },
-  { id: 'returns', manifest: manifest53 },
-  { id: 'sales_channels', manifest: manifest54 },
-  { id: 'search', manifest: manifest55 },
-  { id: 'seo', manifest: manifest56 },
-  { id: 'settings', manifest: manifest57 },
-  { id: 'shipments', manifest: manifest58 },
-  { id: 'shopping_lists', manifest: manifest59 },
-  { id: 'stripe', manifest: manifest60 },
-  { id: 'taxes', manifest: manifest61 },
-  { id: 'tpay', manifest: manifest62 },
-  { id: 'transactional_emails', manifest: manifest63 },
-  { id: 'webhooks', manifest: manifest64 },
+  { id: 'inpost', manifest: manifest31 },
+  { id: 'inventory', manifest: manifest32 },
+  { id: 'invoices', manifest: manifest33 },
+  { id: 'ksef', manifest: manifest34 },
+  { id: 'languages', manifest: manifest35 },
+  { id: 'linkedin_ads', manifest: manifest36 },
+  { id: 'megamenu', manifest: manifest37 },
+  { id: 'meta_ads', manifest: manifest38 },
+  { id: 'mfa', manifest: manifest39 },
+  { id: 'newsletter', manifest: manifest40 },
+  { id: 'orders', manifest: manifest41 },
+  { id: 'organizations', manifest: manifest42 },
+  { id: 'payment_methods', manifest: manifest43 },
+  { id: 'payments', manifest: manifest44 },
+  { id: 'payu', manifest: manifest45 },
+  { id: 'pim_ergonode', manifest: manifest46 },
+  { id: 'price_lists', manifest: manifest47 },
+  { id: 'product_feeds', manifest: manifest48 },
+  { id: 'promotions', manifest: manifest49 },
+  { id: 'prompt_actions', manifest: manifest50 },
+  { id: 'pwa', manifest: manifest51 },
+  { id: 'quick_order', manifest: manifest52 },
+  { id: 'quote_requests', manifest: manifest53 },
+  { id: 'returns', manifest: manifest54 },
+  { id: 'sales_channels', manifest: manifest55 },
+  { id: 'search', manifest: manifest56 },
+  { id: 'seo', manifest: manifest57 },
+  { id: 'settings', manifest: manifest58 },
+  { id: 'shipments', manifest: manifest59 },
+  { id: 'shopping_lists', manifest: manifest60 },
+  { id: 'stripe', manifest: manifest61 },
+  { id: 'taxes', manifest: manifest62 },
+  { id: 'tpay', manifest: manifest63 },
+  { id: 'transactional_emails', manifest: manifest64 },
+  { id: 'webhooks', manifest: manifest65 },
 ];

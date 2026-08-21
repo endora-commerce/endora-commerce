@@ -122,15 +122,31 @@ export class ShipmentService {
         });
         await tx.persistAndFlush(shipment);
 
-        // Invoke the adapter's shipment_created hook. The returned next-action
-        // is informational; the Shipment stays pending until receive_shipment.
+        // Invoke the adapter's shipment_created hook. Carrier references
+        // (ShipX id, etc.) must be applied on *this* transactional EM — a
+        // forked emFactory inside the adapter cannot see the uncommitted row
+        // and would silently skip the write.
         if (adapter) {
-          await adapter.onShipmentCreated({
+          const started = await adapter.onShipmentCreated({
             orderId,
             shipmentId: shipment.id,
             deliveryMethodId: order.deliveryMethodId,
             attemptNo: shipment.attemptNo,
           });
+          if (started.kind === 'pending' || started.kind === 'generated') {
+            if (started.externalReference !== undefined) {
+              shipment.externalReference = started.externalReference ?? null;
+            }
+            if (started.providerDetails) {
+              shipment.providerDetails = started.providerDetails;
+            }
+            if (
+              started.externalReference !== undefined ||
+              started.providerDetails !== undefined
+            ) {
+              await tx.flush();
+            }
+          }
         } else if (absentCarrierModule) {
           // Co-transactional with the row it describes (Principle XIII): the
           // shipment and the record of why it is unfinished commit together or

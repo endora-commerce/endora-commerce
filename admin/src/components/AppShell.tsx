@@ -208,8 +208,8 @@ const NAV: NavSection[] = [
       { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt, requiredPermission: 'catalog:write', module: 'taxes' },
       { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck, requiredPermission: 'catalog:read', module: 'delivery_methods' },
       { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard, requiredPermission: 'catalog:read', module: 'payment_methods' },
-      // Stripe settings are no longer a top-level sidebar entry — they are
-      // reached as an "integration" from the Payment methods page (below).
+      // Carrier / payment gateway settings are reached as integrations from the
+      // Delivery methods / Payment methods pages (not top-level sidebar).
     ],
   },
   {
@@ -702,6 +702,11 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/delivery-methods\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.deliveryMethods', href: null },
+  ] },
+  { test: /^\/settings\/inpost\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },
+    { labelKey: 'appShell.nav.inpost', href: null },
   ] },
   { test: /^\/payment-methods\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },

@@ -189,6 +189,20 @@ export type MessageKey =
   | 'payu.wallet.appleUnavailable'
   // Feature 067 — Autopay checkout (redirect paywall).
   | 'autopay.redirect.notice'
+  // Feature 068 — InPost Parcel Locker Geowidget at checkout.
+  | 'inpost.locker.free'
+  | 'inpost.locker.regionLabel'
+  | 'inpost.locker.widgetLabel'
+  | 'inpost.locker.pickHint'
+  | 'inpost.locker.selectedPrefix'
+  | 'inpost.locker.required'
+  | 'inpost.locker.loading'
+  | 'inpost.locker.configError'
+  | 'inpost.locker.inactive'
+  | 'inpost.locker.showMap'
+  | 'inpost.locker.hideMap'
+  | 'inpost.locker.changeLocker'
+  | 'inpost.phone.required'
   // Feature 008 — Quote Request success page (parallel to checkout success).
   | 'quoteRequest.success.title'
   | 'quoteRequest.success.numberPrefix'
@@ -417,6 +431,23 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     // Feature 067 — Autopay.
     'autopay.redirect.notice':
       'After you click “Place order”, you’ll be redirected to Autopay to complete your payment securely.',
+    // Feature 068 — InPost locker Geowidget.
+    'inpost.locker.free': 'free',
+    'inpost.locker.regionLabel': 'InPost Parcel Locker selection',
+    'inpost.locker.widgetLabel': 'InPost Parcel Locker map',
+    'inpost.locker.pickHint': 'Select a Parcel Locker on the map to continue.',
+    'inpost.locker.selectedPrefix': 'Selected locker:',
+    'inpost.locker.required': 'Select a Parcel Locker before placing your order.',
+    'inpost.locker.loading': 'Loading the locker map…',
+    'inpost.locker.configError':
+      'We could not load the InPost locker map. Try again, or choose another delivery method.',
+    'inpost.locker.inactive':
+      'InPost locker delivery is temporarily unavailable. Choose another delivery method.',
+    'inpost.locker.showMap': 'Show locker map',
+    'inpost.locker.hideMap': 'Hide locker map',
+    'inpost.locker.changeLocker': 'Change Parcel Locker',
+    'inpost.phone.required':
+      'InPost requires a Polish mobile phone (9 digits) on the delivery address before placing the order.',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Thank you — your quote request is submitted',
     'quoteRequest.success.numberPrefix': 'Your quote request number is ',
@@ -645,6 +676,23 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     // Feature 067 — Autopay.
     'autopay.redirect.notice':
       'Po kliknięciu „Złóż zamówienie” zostaniesz przekierowany do Autopay, aby bezpiecznie dokończyć płatność.',
+    // Feature 068 — InPost Paczkomat Geowidget.
+    'inpost.locker.free': 'bezpłatnie',
+    'inpost.locker.regionLabel': 'Wybór Paczkomatu InPost',
+    'inpost.locker.widgetLabel': 'Mapa Paczkomatów InPost',
+    'inpost.locker.pickHint': 'Wybierz Paczkomat na mapie, aby kontynuować.',
+    'inpost.locker.selectedPrefix': 'Wybrany Paczkomat:',
+    'inpost.locker.required': 'Wybierz Paczkomat przed złożeniem zamówienia.',
+    'inpost.locker.loading': 'Ładowanie mapy Paczkomatów…',
+    'inpost.locker.configError':
+      'Nie udało się wczytać mapy Paczkomatów InPost. Spróbuj ponownie albo wybierz inną metodę dostawy.',
+    'inpost.locker.inactive':
+      'Dostawa do Paczkomatu InPost jest chwilowo niedostępna. Wybierz inną metodę dostawy.',
+    'inpost.locker.showMap': 'Pokaż mapę Paczkomatów',
+    'inpost.locker.hideMap': 'Ukryj mapę Paczkomatów',
+    'inpost.locker.changeLocker': 'Zmień Paczkomat',
+    'inpost.phone.required':
+      'InPost wymaga polskiego numeru telefonu komórkowego (9 cyfr) w adresie dostawy przed złożeniem zamówienia.',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Dziekujemy — Twoje zapytanie ofertowe zostalo zlozone',
     'quoteRequest.success.numberPrefix': 'Numer Twojego zapytania ofertowego: ',

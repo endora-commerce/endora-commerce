@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { PackageX } from 'lucide-react';
-import { apiClient } from '@/lib/api-client';
+import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -14,12 +14,17 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useAuth } from '@/lib/auth';
 import { Section } from './Section';
+import { inpostAdminClient } from '../inpost/api/inpost-client';
+
+const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
 
 interface ShipmentRow {
   id: string;
   status: 'pending' | 'pending_manual' | 'success' | 'failure';
   externalReference: string | null;
+  providerDetails: Record<string, unknown> | null;
   failureReason: string | null;
   attemptNo: number;
   createdAt: string;
@@ -27,10 +32,6 @@ interface ShipmentRow {
 
 const STATUS_VARIANT: Record<ShipmentRow['status'], BadgeProps['variant']> = {
   pending: 'warning',
-  // Its own variant, not `warning`: a `pending` shipment is waiting for a
-  // carrier that knows about it, and a `pending_manual` one is waiting for a
-  // person. Two rows that read the same are the defect this state exists to
-  // remove (issue #250).
   pending_manual: 'destructive',
   success: 'success',
   failure: 'destructive',
@@ -45,63 +46,108 @@ function latestAttempt(rows: readonly ShipmentRow[]): ShipmentRow | undefined {
 }
 
 /**
- * Delivery tab — lists the shipment generation attempts tied to an order
- * (`GET /api/v1/admin/orders/:id/shipments`). A new attempt is appended on
- * each retry, so the most recent attempt has the highest `attemptNo`.
+ * Delivery tab — lists shipment generation attempts for an order
+ * (`GET /api/v1/admin/orders/:id/shipments`). Generate and retry both call
+ * `POST .../shipments` (issue #257); InPost label download stays on success rows.
  */
 export function OrderShipmentsTab(props: { orderId: string }): ReactNode {
   const t = useTranslation('core');
+  const tinpost = useTranslation('inpost');
+  const { hasPermission } = useAuth();
   const [rows, setRows] = useState<ShipmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
+  const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(false);
-    void apiClient
-      .get<{ data: ShipmentRow[] }>(`/api/v1/admin/orders/${props.orderId}/shipments`)
-      .then((res) => {
-        if (alive) setRows(res.data);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setError(true);
-        setRows([]);
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return (): void => {
-      alive = false;
-    };
-  }, [props.orderId, reloadToken]);
-
-  /**
-   * The recovery path, and it is the *generate* endpoint rather than the retry
-   * one on purpose: opening a retry attempt does not contact the carrier, and
-   * a second row nobody asked for would be the same silence again. Generating
-   * appends a new attempt and asks the adapter, which is exactly what has to
-   * happen once the operator has switched the module back on.
-   */
-  const generateAgain = useCallback(() => {
-    setRegenerating(true);
-    void apiClient
-      .post(`/api/v1/admin/orders/${props.orderId}/shipments`, {})
-      .catch(() => setError(true))
-      .finally(() => {
-        setRegenerating(false);
-        setReloadToken((token) => token + 1);
-      });
+    try {
+      const res = await apiClient.get<{ data: ShipmentRow[] }>(
+        `/api/v1/admin/orders/${props.orderId}/shipments`,
+      );
+      setRows(res.data);
+    } catch {
+      setError(true);
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
   }, [props.orderId]);
 
-  const stalled =
-    latestAttempt(rows)?.status === 'pending_manual' ? latestAttempt(rows) : undefined;
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const generatePath = `/api/v1/admin/orders/${props.orderId}/shipments`;
+
+  const runGenerate = async (): Promise<void> => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await apiClient.post(generatePath, {});
+      await refresh();
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.envelope.error.message : t('orderDetail.shipments.actionError'),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const canWrite = hasPermission('orders:write');
+  const canDownloadLabel = hasPermission('inpost:manage');
+  const latest = latestAttempt(rows);
+  const hasSuccess = rows.some((r) => r.status === 'success');
+  const hasPending = rows.some((r) => r.status === 'pending');
+  const showGenerate = canWrite && !hasSuccess && !hasPending && rows.length === 0;
+  const showRetry =
+    canWrite && latest?.status === 'failure' && !hasSuccess && !hasPending && latest !== undefined;
+  const stalled = latest?.status === 'pending_manual' ? latest : undefined;
+
+  const downloadLabel = async (shipmentId: string): Promise<void> => {
+    const res = await fetch(
+      `${API_BASE.replace(/\/+$/, '')}${inpostAdminClient.labelUrl(shipmentId)}`,
+      {
+        credentials: 'include',
+        headers: { Accept: 'application/pdf' },
+      },
+    );
+    if (!res.ok) {
+      window.alert(tinpost('label.notReady'));
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
 
   return (
     <Section title={t('orderDetail.shipments.title')}>
+      {(showGenerate || showRetry) && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {showGenerate ? (
+            <Button type="button" size="sm" disabled={busy} onClick={() => void runGenerate()}>
+              {t('orderDetail.shipments.generate')}
+            </Button>
+          ) : null}
+          {showRetry ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => void runGenerate()}
+            >
+              {t('orderDetail.shipments.retry')}
+            </Button>
+          ) : null}
+        </div>
+      )}
+      {actionError ? <p className="mb-3 text-sm text-destructive">{actionError}</p> : null}
       {loading ? (
         <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
       ) : error ? (
@@ -123,10 +169,10 @@ export function OrderShipmentsTab(props: { orderId: string }): ReactNode {
                   variant="outline"
                   size="sm"
                   className="mt-3"
-                  disabled={regenerating}
-                  onClick={generateAgain}
+                  disabled={busy}
+                  onClick={() => void runGenerate()}
                 >
-                  {regenerating
+                  {busy
                     ? t('orderDetail.shipments.carrierNotContacted.actionBusy')
                     : t('orderDetail.shipments.carrierNotContacted.action')}
                 </Button>
@@ -141,22 +187,40 @@ export function OrderShipmentsTab(props: { orderId: string }): ReactNode {
                 <TableHead>{t('orderDetail.shipments.columns.tracking')}</TableHead>
                 <TableHead>{t('orderDetail.shipments.columns.createdAt')}</TableHead>
                 <TableHead>{t('orderDetail.shipments.columns.failure')}</TableHead>
+                {canDownloadLabel ? <TableHead /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell>#{s.attemptNo}</TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[s.status]}>
-                      {t(`orderDetail.shipments.status.${s.status}`)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{s.externalReference ?? '—'}</TableCell>
-                  <TableCell>{formatDateTime(s.createdAt)}</TableCell>
-                  <TableCell className="text-destructive">{s.failureReason ?? ''}</TableCell>
-                </TableRow>
-              ))}
+              {rows.map((s) => {
+                const isInpost = s.providerDetails?.provider === 'inpost';
+                return (
+                  <TableRow key={s.id}>
+                    <TableCell>#{s.attemptNo}</TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[s.status]}>
+                        {t(`orderDetail.shipments.status.${s.status}`)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{s.externalReference ?? '—'}</TableCell>
+                    <TableCell>{formatDateTime(s.createdAt)}</TableCell>
+                    <TableCell className="text-destructive">{s.failureReason ?? ''}</TableCell>
+                    {canDownloadLabel ? (
+                      <TableCell>
+                        {isInpost && s.status === 'success' ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() => void downloadLabel(s.id)}
+                          >
+                            {tinpost('label.download')}
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </>

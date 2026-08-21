@@ -29,7 +29,8 @@ export class Order {
     | 'sourceQuoteRequestId'
     | 'customerNote'
     | 'promotionCode'
-    | 'discountTotal';
+    | 'discountTotal'
+    | 'shippingAdapterData';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -158,6 +159,13 @@ export class Order {
 
   @Property({ type: 'text', nullable: true })
   customerNote?: string | null;
+
+  /**
+   * Feature 068 — optional adapter-specific shipping envelope from place-order
+   * (e.g. InPost locker `{ targetPoint }`). Null when unused.
+   */
+  @Property({ type: 'json', nullable: true })
+  shippingAdapterData?: Record<string, unknown> | null;
 
   @Property({ type: 'datetime' })
   @Index()

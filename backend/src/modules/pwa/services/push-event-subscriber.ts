@@ -1,3 +1,4 @@
+import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { PushMessageService } from './push-message-service.js';
 
 /**
@@ -73,6 +74,7 @@ export function createPushEventHandlers(deps: PushEventSubscriberDeps): {
           sourceEventId: payload.eventId,
         });
       } catch (err) {
+        rethrowIfModuleDisabled(err);
         console.warn('[pwa] order-status push enqueue failed', err);
       }
     },
@@ -102,6 +104,7 @@ export function createPushEventHandlers(deps: PushEventSubscriberDeps): {
           sourceEventId: payload.eventId,
         });
       } catch (err) {
+        rethrowIfModuleDisabled(err);
         console.warn('[pwa] quote-request push enqueue failed', err);
       }
     },

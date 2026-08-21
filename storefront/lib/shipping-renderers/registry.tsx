@@ -13,6 +13,8 @@ import type { DeliveryMethodSummary } from '../api/methods';
 export interface ShippingMethodRenderProps {
   method: DeliveryMethodSummary;
   defaultChecked: boolean;
+  /** Active storefront locale (PL/EN) for adapter-specific copy. */
+  locale?: string | undefined;
 }
 
 export type ShippingMethodRenderer = (props: ShippingMethodRenderProps) => ReactNode;
@@ -28,6 +30,7 @@ export const DefaultShippingMethodRenderer: ShippingMethodRenderer = ({ method, 
       name="deliveryMethodId"
       value={method.id}
       defaultChecked={defaultChecked}
+      data-adapter={method.adapter}
     />{' '}
     {pickName(method.name)}
     {method.cost.amount > 0 ? (

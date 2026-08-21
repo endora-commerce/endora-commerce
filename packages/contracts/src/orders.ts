@@ -150,6 +150,12 @@ export const placeOrderRequestSchema = z.object({
    * otherwise the snapshot defaults to the Organization's tax-id.
    */
   billingTaxId: z.string().max(32).optional(),
+  /**
+   * Optional adapter-specific shipping payload persisted on the order
+   * (feature 068). Shape is interpreted by the selected delivery method's
+   * ShippingAdapter. InPost locker: `{ targetPoint: string }`.
+   */
+  shippingAdapterData: z.record(z.string(), z.unknown()).optional(),
 });
 export type PlaceOrderRequest = z.infer<typeof placeOrderRequestSchema>;
 

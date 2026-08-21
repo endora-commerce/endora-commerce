@@ -190,6 +190,7 @@ import { Migration20260611T140414OrdersOrderItemPackaging } from '../modules/ord
 import { Migration20260618T130459OrdersOrderAppliedPromotions } from '../modules/orders/migrations/20260618T130459_orders_order_applied_promotions.js';
 import { Migration20260718T200339OrdersOrderCustomFieldValues } from '../modules/orders/migrations/20260718T200339_orders_order_custom_field_values.js';
 import { Migration20260724T193611OrdersOrderPlacementIntents } from '../modules/orders/migrations/20260724T193611_orders_order_placement_intents.js';
+import { Migration20260804T114814OrdersShippingAdapterData } from '../modules/orders/migrations/20260804T114814_orders_shipping_adapter_data.js';
 
 // ── organizations ───────────────────────────────────────────────────────────
 import { Migration20260424T205317OrganizationsInit } from '../modules/organizations/migrations/20260424T205317_organizations_init.js';
@@ -452,6 +453,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('orders', Migration20260618T130459OrdersOrderAppliedPromotions),
   migration('orders', Migration20260718T200339OrdersOrderCustomFieldValues),
   migration('orders', Migration20260724T193611OrdersOrderPlacementIntents),
+  migration('orders', Migration20260804T114814OrdersShippingAdapterData),
 
   // ── organizations ───────────────────────────────────────────────────────────
   migration('organizations', Migration20260424T205317OrganizationsInit),

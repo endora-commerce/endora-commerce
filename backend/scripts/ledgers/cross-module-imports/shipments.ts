@@ -41,4 +41,13 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
       '`shipments_order_fk` would retire it too, and would cost the invariant the constraint ' +
       'buys — a shipment row pointing at no order.',
   },
+  'modules/shipments/services/auto-shipment-on-paid.ts:orders/entities/order.entity':
+    'Feature 068 — `payment.received.v1` subscriber loads the paid order to decide whether ' +
+    'to auto-start a carrier shipment. Retired by: `orders` publishing a read port for the ' +
+    'shipping fields auto-create needs (`shippingMethodId`, adapter key, paid state), with ' +
+    '`orders` already in this module\'s manifest dependencies.',
+  'modules/shipments/services/auto-shipment-on-paid.ts:delivery_methods/entities/delivery-method.entity':
+    'Feature 068 — auto-create resolves the order\'s delivery method to pick the shipping ' +
+    'adapter key. Retired by: `delivery_methods` publishing a read port for method-by-id ' +
+    '(adapter key + code), with `delivery_methods` declared in this module\'s dependencies.',
 };

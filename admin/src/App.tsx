@@ -122,6 +122,7 @@ import { StripeSettingsPage } from './modules/stripe/StripeSettingsPage.js';
 import { TpaySettingsPage } from './modules/tpay/TpaySettingsPage.js';
 import { PayuSettingsPage } from './modules/payu/PayuSettingsPage.js';
 import { AutopaySettingsPage } from './modules/autopay/AutopaySettingsPage.js';
+import { InpostSettingsPage } from './modules/inpost/InpostSettingsPage.js';
 import { CredentialsPage } from './modules/credentials/pages/CredentialsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { LowStockPage } from './modules/inventory/LowStockPage.js';
@@ -291,6 +292,7 @@ export function App(): ReactNode {
         <Route path="/settings/tpay" element={<TpaySettingsPage />} />
         <Route path="/settings/payu" element={<PayuSettingsPage />} />
         <Route path="/settings/autopay" element={<AutopaySettingsPage />} />
+        <Route path="/settings/inpost" element={<InpostSettingsPage />} />
         <Route path="/credentials" element={<CredentialsPage />} />
         <Route path="/credentials/new" element={<CredentialsPage initialMode="new" />} />
         <Route path="/inventory" element={<InventoryPage />} />

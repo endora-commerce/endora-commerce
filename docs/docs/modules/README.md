@@ -58,6 +58,7 @@ how to consume it.
 | [tpay](./tpay) | TPay payment gateway (BLIK, cards, transfers) | yes |
 | [payu](./payu) | PayU payment gateway (BLIK, cards, pay-by-link) | yes |
 | [autopay](./autopay) | Autopay payment gateway (BLIK, cards, pay-by-link, wallets) | yes |
+| [inpost](./inpost) | InPost ShipX shipping (locker Geowidget + courier, PDF labels) | yes |
 | [payments](./payments) | Payment driver dispatch + settlement events | yes |
 | [pim_ergonode](./pim_ergonode) | Read-only inbound connector for the Ergonode PIM — products, attribute values, category placement, media and optional prices, on demand or on a schedule | yes (admin) |
 | [price_lists](./price_lists) | Customer / group / default pricing with volume tiers + per-category adjustments | yes |
