@@ -167,6 +167,17 @@ export interface ProvisionInput {
     readonly digest: string;
     readonly migrations: readonly string[];
     readonly migrationFiles: number;
+    /**
+     * What each producer contributed and what the walk found of it. Printed
+     * rather than merely floored: a shortfall stops the run by name, but only
+     * this line says an origin was read at all, and "the walk saw 7% of itself"
+     * is the failure a number with no population behind it cannot report.
+     */
+    readonly origins: readonly {
+      readonly origin: string;
+      readonly registered: number;
+      readonly migrationFiles: number;
+    }[];
   };
   /** Applies pending migrations to the template and establishes the platform invariants. */
   readonly migrateTemplate: (templateUrl: string) => Promise<void>;
@@ -213,9 +224,14 @@ export async function provisionRunDatabase(input: ProvisionInput): Promise<RunDa
   const name = runDatabaseName(base);
   const lockKey = advisoryLockKey(templateFamilyName(base));
 
+  const byOrigin = input.identity.origins
+    .map(
+      (population) => `${population.origin}:${population.migrationFiles}/${population.registered}`,
+    )
+    .join(' ');
   log(
     `[test-setup] migration set ${digest}: ${expected.length} migration(s), read from ` +
-      `${input.identity.migrationFiles} source file(s) — template ${template}`,
+      `${input.identity.migrationFiles} source file(s) — ${byOrigin} — template ${template}`,
   );
 
   const admin = await connectAdmin(input.baseUrl);

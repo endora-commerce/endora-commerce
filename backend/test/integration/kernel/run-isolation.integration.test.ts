@@ -46,6 +46,7 @@ function identityOf(migrations: readonly string[], content: string) {
     digest: templateDigest({ migrations, sources }),
     migrations,
     migrationFiles: sources.length,
+    origins: [{ origin: 'core', registered: migrations.length, migrationFiles: sources.length }],
   };
 }
 
@@ -86,9 +87,10 @@ function seedTemplate(marker: string, names: readonly string[] = []) {
     await client.connect();
     try {
       await client.query('create table if not exists isolation_probe (marker text primary key)');
-      await client.query('insert into isolation_probe (marker) values ($1) on conflict do nothing', [
-        marker,
-      ]);
+      await client.query(
+        'insert into isolation_probe (marker) values ($1) on conflict do nothing',
+        [marker],
+      );
       await client.query(
         'create table if not exists mikro_orm_migrations ' +
           '(id serial primary key, name varchar(255), executed_at timestamptz default now())',
@@ -198,7 +200,10 @@ describe("the template a run is cloned from is this run's migration set (issue #
     provisioned.push(branchA.name, branchB.name);
 
     expect(branchA.template).not.toBe(branchB.template);
-    const rows = await query<{ marker: string }>(branchB.name, 'select marker from isolation_probe');
+    const rows = await query<{ marker: string }>(
+      branchB.name,
+      'select marker from isolation_probe',
+    );
     expect(rows.map((r) => r.marker)).toEqual(['seeded-by-branch-b']);
   }, 60_000);
 

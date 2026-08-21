@@ -115,6 +115,21 @@ seed a template (`test/template-identity.ts` holds the list). Two trees that agr
 it share one template and pay one migration pass between them; two that disagree anywhere
 cannot collide, because they are not looking at the same database at all.
 
+**That population is floored per producer, never in total.** The walk that hashes the sources
+and the registry that lists the migrations are independent derivations of one population, so
+they are reconciled before a digest is computed — per **origin** (`core` today; an extension
+package may ship migrations of its own, D-106.2, and until the mechanism that discovers them
+lands there is no root for that origin to be read from). One comparison against one total was
+not that reconciliation: the tree carries a file of slack — §4 of the naming convention allows
+a non-migration helper beside migrations and there is one,
+`quote_requests/migrations/status-mapping.ts` — so 159 files answered for 158 registered
+migrations, and a producer whose file the walk could not reach was paid for out of that
+surplus. One registered migration outside the digest, two platforms, one template: #289 again,
+one layer out. Each origin now clears its own floor or the run stops, naming the origin and
+the shortfall. A helper settles no floor, because §1's recognizer — the same one the composer
+uses — says it is not a migration, and it is hashed all the same, because a migration may
+import it.
+
 That is not a refinement of the old check, it is the defect it could not see. Until #289 there
 was one `<base>_tpl` for the machine, and provisioning compared the *names* of the migrations
 applied to it against the order this run configures. Names catch a branch that **added** a
