@@ -1,4 +1,7 @@
 import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -34,13 +37,20 @@ import { readSizeBounds, READ_SIZE_SLACK } from '../../helpers/check-read-sizes.
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
-/** Runs a snippet against the sourced shell helper; returns status + output. */
-function bash(snippet: string): { status: number; output: string } {
+/**
+ * Runs a snippet against the sourced shell helper; returns status + output.
+ *
+ * `cwd` is the repository root because that is where both callers run it from:
+ * `check-naming.sh` and `check-language.sh` `cd "$REPO_ROOT"` before sourcing
+ * anything, and the module coverage below relates an index path to a listing
+ * that `git ls-files` emits relative to that directory.
+ */
+function bash(snippet: string, cwd: string = REPO_ROOT): { status: number; output: string } {
   try {
     const output = execFileSync(
       'bash',
       ['-c', `source "${REPO_ROOT}scripts/lib/read-size.sh"\n${snippet}`],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd },
     );
     return { status: 0, output };
   } catch (error: unknown) {
@@ -243,6 +253,33 @@ describe('the shell half refuses the same three shapes', () => {
     const [covered, expected] = output.trim().split('/').map(Number);
     expect(covered).toBe(1);
     expect(expected).toBeGreaterThan(60);
+  });
+
+  it('reads the module root off the index rather than a path written into it', () => {
+    // Feature 080, T012. The coverage used to `grep` for `backend/src/modules/`
+    // and would have answered `0/1` for the tree below — a refusal, on a
+    // repository whose only fault was that its modules had moved. The root is
+    // the index's own grandparent, so the expectation moves with the tree.
+    const moved = mkdtempSync(join(tmpdir(), 'read-size-root-'));
+    try {
+      const index = join(moved, 'backend/src/domain_modules/_lifecycle/manifest-index.generated.ts');
+      mkdirSync(dirname(index), { recursive: true });
+      writeFileSync(
+        index,
+        "import { manifest as manifest0 } from '../orders/manifest.js';\n",
+        'utf8',
+      );
+
+      const { output } = bash(
+        `printf 'backend/src/domain_modules/orders/x.ts\\nbackend/src/kernel/x.ts\\n' | ` +
+          `read_size_module_coverage '${index}'`,
+        moved,
+      );
+
+      expect(output.trim()).toBe('1/1');
+    } finally {
+      rmSync(moved, { recursive: true, force: true });
+    }
   });
 
   it('fails rather than answering when the index is not there', () => {

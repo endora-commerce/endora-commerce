@@ -4,6 +4,7 @@ import {
   copyFileSync,
   mkdirSync,
   mkdtempSync,
+  renameSync,
   rmSync,
   truncateSync,
   writeFileSync,
@@ -94,6 +95,16 @@ export interface ShellCheckFixture {
    * the module tree having moved, with the residue behind it (issue #215).
    */
   removeModuleTree: () => void;
+  /**
+   * Moves the module tree, index and all, to `backend/src/<name>` — the layout
+   * change F4 performs, rather than the loss #215 measured. Returns the new
+   * root, so a caller can write into it and list from it.
+   *
+   * The difference between this and `removeModuleTree` is the whole of T012: a
+   * check that spells its root reports a clean tree here, and one that resolves
+   * it goes on judging.
+   */
+  moveModuleTree: (name: string) => string;
   run: (
     script: string,
     args?: readonly string[],
@@ -128,9 +139,13 @@ export function createShellCheckFixture(): ShellCheckFixture {
   for (const name of ['check-naming.sh', 'check-language.sh', 'check-pdfmake-footprint.sh']) {
     copyFileSync(join(SCRIPTS_DIR, name), join(root, 'scripts', name));
   }
-  // Each script sources the shared read-size reporter from beside itself
-  // (issue #244), so the copy needs it or every run dies before its first rule.
-  copyFileSync(join(SCRIPTS_DIR, 'lib', 'read-size.sh'), join(root, 'scripts', 'lib', 'read-size.sh'));
+  // Each script sources its shared libraries from beside itself — the read-size
+  // reporter (issue #244) and the module-root resolver (feature 080, T012) — so
+  // the copy needs both or the run dies before its first rule, with a status
+  // that looks like an ordinary red.
+  for (const library of ['read-size.sh', 'module-root.sh']) {
+    copyFileSync(join(SCRIPTS_DIR, 'lib', library), join(root, 'scripts', 'lib', library));
+  }
 
   const write = (path: string, content: string): void => {
     const full = join(root, path);
@@ -193,6 +208,10 @@ export function createShellCheckFixture(): ShellCheckFixture {
     listsExactly,
     removeManifestIndex: () => rmSync(join(root, MANIFEST_INDEX), { force: true }),
     removeModuleTree: () => rmSync(join(root, 'backend/src/modules'), { recursive: true, force: true }),
+    moveModuleTree: (name) => {
+      renameSync(join(root, 'backend/src/modules'), join(root, 'backend/src', name));
+      return `backend/src/${name}`;
+    },
     installPdfmake,
     run: (script, args = [], env = {}) => {
       const result = spawnSync('bash', [join(root, 'scripts', script), ...args], {

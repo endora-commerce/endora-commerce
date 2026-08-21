@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 
+import type { MigrationOrigin } from '../../src/db/migration-order.js';
+
 /**
  * Static derivation of the cross-module foreign-key graph from migration SQL.
  *
@@ -17,6 +19,24 @@ import { basename, join, relative, resolve } from 'node:path';
  * research §R12.
  *
  * node:fs + regex only — no new dependency, no ORM import, no database.
+ *
+ * ## Where it looks (feature 080, T013)
+ *
+ * The scan used to spell `join(sourceRoot, 'modules')` in four places and to
+ * treat a directory that was not there as an empty listing. Both are the same
+ * defect from opposite ends, and issue #215 is the measurement: a module tree
+ * that moves does not empty the walk, it leaves the residue — so every derived
+ * map comes back small, every cross-module edge comes back unattributed, and
+ * the consumer reports a clean tree.
+ *
+ * So the roots are a **parameter**, they must resolve, and each one says where
+ * the modules under it come from. The origin is not decoration: baseline-block
+ * membership is `origin === 'core'` **and** the stamp (`migration-order.ts`,
+ * Step 2), and until this scan could express an origin it tested the stamp
+ * alone — which D-105 justified and D-106 overruled. A package migration
+ * stamped inside the baseline window is placed in the *open* block by
+ * `orderMigrations` and was skipped outright by the position check reading this
+ * graph: a false negative on precisely the input that check exists for (D-154).
  */
 
 /** One cross-module foreign-key edge, aggregated over every table pair. */
@@ -29,6 +49,46 @@ export interface FkEdge {
   count: number;
   /** `"<referencing_table> → <referenced_table>"` pairs, for diagnostics. */
   via: readonly string[];
+}
+
+/**
+ * A directory whose immediate subdirectories are module directories.
+ *
+ * `origin` is the same vocabulary `MigrationRegistryEntry.origin` uses, and the
+ * type is imported from it rather than restated, so the scan and the ordering
+ * algorithm cannot come to disagree about what "core" means.
+ */
+export interface ModuleRoot {
+  /** Absolute or `sourceRoot`-relative directory holding `<id>/` per module. */
+  readonly directory: string;
+  /** Where every module under this root comes from. */
+  readonly origin: MigrationOrigin;
+}
+
+/** The one root a bare core checkout has: `<src>/modules`, origin `core`. */
+export function coreModuleRoot(sourceRoot: string): ModuleRoot {
+  return { directory: join(sourceRoot, 'modules'), origin: 'core' };
+}
+
+/** A module directory the walk resolved, and how much of it it read. */
+export interface ScannedModule {
+  readonly id: string;
+  /** Absolute path to the module directory. */
+  readonly directory: string;
+  readonly origin: MigrationOrigin;
+  /** Entity and migration files opened under it — 0 for a module with neither. */
+  readonly files: number;
+}
+
+/**
+ * Raised when the scan cannot read the population it was pointed at.
+ *
+ * A throw rather than an empty result, for the reason the `check-*` scripts
+ * exit 2 rather than 0: "there is nothing here" and "I could not look" produce
+ * the same clean report, and only one of them is good news.
+ */
+export class FkGraphRootError extends Error {
+  override readonly name = 'FkGraphRootError';
 }
 
 /**
@@ -49,6 +109,16 @@ export interface MigrationSource {
   timestamp: string | undefined;
   /** Owning module id — `'core'` for `db/migrations/`. */
   moduleId: string;
+  /**
+   * The origin of the root this file was found under. `db/migrations/` is
+   * `'core'` by definition — it is the committed registry's own group.
+   *
+   * Carried because baseline membership needs it: `isBaseline` in
+   * `migration-order.ts` is `origin === 'core' && stamp <= BASELINE_THROUGH`,
+   * and a reader of this graph that tests the stamp alone agrees with it on
+   * every core file and disagrees on exactly the one it is guarding against.
+   */
+  origin: MigrationOrigin;
 }
 
 /**
@@ -93,11 +163,27 @@ export interface FkGraph {
   unownedTables: readonly string[];
   /** `"<referencing_table> → <referenced_table>"` where the target has no owner. */
   unresolvedReferences: readonly string[];
+  /**
+   * Every module directory the walk resolved, by id, with the file count it
+   * produced. This is what lets a consumer hold the scan to the population its
+   * registry claims — "no **module** files" rather than "no files at all" —
+   * instead of asserting that a directory exists and calling that a floor.
+   */
+  modules: ReadonlyMap<string, ScannedModule>;
 }
 
 export interface DeriveFkGraphOptions {
   /** Explicit owners for tables no entity claims (bridge/junction tables). */
   overrides?: Readonly<Record<string, string>>;
+  /**
+   * Where module directories live. Defaults to the single core root.
+   *
+   * Every root must resolve: one that is not there is a `FkGraphRootError`,
+   * never an empty listing. A root that resolves and holds no module is *not*
+   * refused here — that is a population, and whether it is the expected one is
+   * a question only the caller's registry can answer.
+   */
+  moduleRoots?: readonly ModuleRoot[];
 }
 
 /** `tableName: 'products'` in an @Entity decorator. */
@@ -140,13 +226,67 @@ function listTsFilesRecursive(path: string): string[] {
  */
 export const KERNEL_OWNER = 'kernel';
 
-function collectEntityOwners(sourceRoot: string): Map<string, string> {
+/**
+ * The module directories under every configured root, keyed by id.
+ *
+ * Two roots claiming one id is refused rather than resolved last-wins: the id
+ * is what the manifest graph, the migration group and this scan's ownership map
+ * are all keyed by, so a silent winner would move a module's origin — and with
+ * it its baseline membership — with nothing saying so.
+ */
+export function resolveModuleDirectories(
+  roots: readonly ModuleRoot[],
+): Map<string, ScannedModule> {
+  const missing = roots.filter(
+    (root) => !existsSync(root.directory) || !statSync(root.directory).isDirectory(),
+  );
+  if (missing.length > 0) {
+    throw new FkGraphRootError(
+      `these module roots do not resolve: ${missing.map((root) => root.directory).join(', ')} — ` +
+        'the scan would read a residue of the module tree and report a clean graph, which is ' +
+        'issue #215; refusing to derive one',
+    );
+  }
+
+  const resolved = new Map<string, ScannedModule>();
+  for (const root of roots) {
+    for (const id of listDirectories(root.directory)) {
+      const already = resolved.get(id);
+      if (already !== undefined) {
+        throw new FkGraphRootError(
+          `module "${id}" is claimed by two roots (${already.directory} and ` +
+            `${join(root.directory, id)}) — one of them would silently win, taking its ` +
+            'origin with it',
+        );
+      }
+      resolved.set(id, {
+        id,
+        directory: join(root.directory, id),
+        origin: root.origin,
+        files: 0,
+      });
+    }
+  }
+  return resolved;
+}
+
+/** One more file read under a module — the count its floor is asserted on. */
+function countFile(modules: Map<string, ScannedModule>, id: string): void {
+  const scanned = modules.get(id);
+  if (scanned !== undefined) modules.set(id, { ...scanned, files: scanned.files + 1 });
+}
+
+function collectEntityOwners(
+  sourceRoot: string,
+  modules: Map<string, ScannedModule>,
+): Map<string, string> {
   const owners = new Map<string, string>();
-  for (const moduleId of listDirectories(join(sourceRoot, 'modules'))) {
-    for (const file of listTsFilesRecursive(join(sourceRoot, 'modules', moduleId, 'entities'))) {
+  for (const scanned of [...modules.values()]) {
+    for (const file of listTsFilesRecursive(join(scanned.directory, 'entities'))) {
+      countFile(modules, scanned.id);
       const source = readFileSync(file, 'utf8');
       for (const match of source.matchAll(ENTITY_TABLE_RE)) {
-        owners.set(match[1]!, moduleId);
+        owners.set(match[1]!, scanned.id);
       }
     }
   }
@@ -167,21 +307,29 @@ function collectEntityOwners(sourceRoot: string): Map<string, string> {
 const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_[a-z0-9_]+\.ts$/;
 
 /** Every migration source file: module-scoped directories plus src/db/migrations/. */
-function collectMigrationFiles(sourceRoot: string): MigrationSource[] {
-  const found: { path: string; moduleId: string }[] = listTsFilesRecursive(
-    join(sourceRoot, 'db', 'migrations'),
-  ).map((path) => ({ path, moduleId: 'core' }));
-  for (const moduleId of listDirectories(join(sourceRoot, 'modules'))) {
-    for (const path of listTsFilesRecursive(join(sourceRoot, 'modules', moduleId, 'migrations'))) {
-      found.push({ path, moduleId });
+function collectMigrationFiles(
+  sourceRoot: string,
+  modules: Map<string, ScannedModule>,
+): MigrationSource[] {
+  const found: { path: string; moduleId: string; origin: MigrationOrigin }[] =
+    listTsFilesRecursive(join(sourceRoot, 'db', 'migrations')).map((path) => ({
+      path,
+      moduleId: 'core',
+      origin: 'core' as const,
+    }));
+  for (const scanned of [...modules.values()]) {
+    for (const path of listTsFilesRecursive(join(scanned.directory, 'migrations'))) {
+      countFile(modules, scanned.id);
+      found.push({ path, moduleId: scanned.id, origin: scanned.origin });
     }
   }
   return found
     .sort((left, right) => left.path.localeCompare(right.path))
-    .map(({ path, moduleId }) => ({
+    .map(({ path, moduleId, origin }) => ({
       file: relative(sourceRoot, path).split('\\').join('/'),
       timestamp: MIGRATION_FILE_RE.exec(basename(path))?.[1],
       moduleId,
+      origin,
     }));
 }
 
@@ -237,8 +385,14 @@ function isEarlier(candidate: MigrationSource, incumbent: MigrationSource): bool
 export function deriveFkGraph(sourceRoot: string, options: DeriveFkGraphOptions = {}): FkGraph {
   const root = resolve(sourceRoot);
   const overrides = options.overrides ?? {};
+  const modules = resolveModuleDirectories(
+    (options.moduleRoots ?? [coreModuleRoot(root)]).map((moduleRoot) => ({
+      ...moduleRoot,
+      directory: resolve(root, moduleRoot.directory),
+    })),
+  );
 
-  const entityOwners = collectEntityOwners(root);
+  const entityOwners = collectEntityOwners(root, modules);
   const owners = new Map(entityOwners);
   for (const [table, moduleId] of Object.entries(overrides)) {
     if (!owners.has(table)) owners.set(table, moduleId);
@@ -248,7 +402,7 @@ export function deriveFkGraph(sourceRoot: string, options: DeriveFkGraphOptions 
   const tableCreators = new Map<string, MigrationSource>();
   const rawReferences: { fromTable: string; toTable: string; declaredIn: MigrationSource }[] = [];
 
-  for (const migration of collectMigrationFiles(root)) {
+  for (const migration of collectMigrationFiles(root, modules)) {
     const source = readFileSync(join(root, migration.file), 'utf8');
     for (const statement of tableStatements(source)) {
       for (const match of statement.body.matchAll(REFERENCE_RE)) {
@@ -318,5 +472,6 @@ export function deriveFkGraph(sourceRoot: string, options: DeriveFkGraphOptions 
     references,
     unownedTables,
     unresolvedReferences: unresolvedReferences.sort(),
+    modules,
   };
 }

@@ -189,19 +189,83 @@ describe('check-naming.sh', () => {
   });
 
   it('exits 2 when the module tree is gone but the listing is not (issue #215)', () => {
-    // Two of the four rules read `backend/src/modules` off the filesystem
-    // rather than off the listing, so a moved module tree left them iterating
-    // nothing while the other two reported on the residue — and the script
-    // printed "✓ Naming conventions OK (full mode)". Measured on the real tree:
-    // with `src/modules` moved out of `src`, it exited 0.
+    // Three of the five rules read the module tree off the filesystem rather
+    // than off the listing, so a moved module tree left them iterating nothing
+    // while the other two reported on the residue — and the script printed
+    // "✓ Naming conventions OK (full mode)". Measured on the real tree: with
+    // `src/modules` moved out of `src`, it exited 0.
     //
     // The listing is deliberately non-empty here, so the empty-listing guard
-    // above cannot be what fires.
+    // above cannot be what fires. Since T012 the root is resolved from the
+    // generated index, so a tree that is *gone* is refused at the resolution,
+    // before any rule runs.
     fixture.removeModuleTree();
     fixture.lists(['backend/src/kernel/thing.ts']);
     const result = fixture.run('check-naming.sh');
     expect(result.status, result.output).toBe(2);
-    expect(result.output).toContain('no module under backend/src/modules');
+    expect(result.output).toContain('no generated manifest index');
+  });
+
+  it('exits 2 when the module root resolves twice, rather than picking one', () => {
+    // Feature 080, T012. Two indexes is two candidate roots, and a scan
+    // narrowed to whichever sorted first would report on one tree while
+    // claiming the repository. It is the same refusal `check-port-shape` makes
+    // when its input has two answers: guessing is the thing that cannot be
+    // detected afterwards.
+    fixture.write(
+      'backend/src/legacy-modules/_lifecycle/manifest-index.generated.ts',
+      "import { manifest as manifest0 } from '../orders/manifest.js';\n",
+    );
+    const result = fixture.run('check-naming.sh');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain('more than one generated manifest index');
+  });
+
+  it('follows the module tree when it moves, instead of reporting a clean repository', () => {
+    // The one T012 is for, and the discrimination against the two refusals
+    // above: the tree has *moved*, not gone, and the check must go on judging
+    // it. Measured against the script this replaced, which spelled
+    // `backend/src/modules` in eight places: this fixture exited **2** — the
+    // #215 floor firing, correctly, on a check that could no longer find
+    // anything to judge. That is the right answer for a tree that is gone and
+    // the wrong one for a tree that moved, and until the root was resolved the
+    // two were the same event. The finding below is what a resolved root buys:
+    // the module folder rule still ran, and it still found `BadName`.
+    const moved = fixture.moveModuleTree('domain_modules');
+    fixture.write(`${moved}/BadName/thing.ts`, 'export const a = 1;\n');
+    fixture.listsExactly([`${moved}/orders/order-service.ts`, `${moved}/BadName/thing.ts`]);
+
+    const result = fixture.run('check-naming.sh');
+
+    expect(result.status, result.output).toBe(1);
+    expect(result.output).toContain('BadName');
+    // Named at its new address, not the old one: a message that still said
+    // `backend/src/modules` would be an instruction to look where the file is
+    // not.
+    expect(result.output).toContain(`${moved}/BadName`);
+    // And the population it reconciled against moved with it.
+    expect(result.output).toMatch(/\[naming] read: files=2 sources=manifest-index:1\/1/);
+  });
+
+  it('goes on enforcing the migration class scope at the moved root', () => {
+    // The fifth rule derives the owning module id by stripping the root off the
+    // path, which is the one place a re-rooting can be half-done: strip the old
+    // literal off a path that no longer starts with it and the id comes out as
+    // `src/domain_modules/orders`, so every class name reads unscoped and the
+    // rule fails on everything at once. The second assertion is that shape,
+    // named rather than left to a passing exit code.
+    const moved = fixture.moveModuleTree('domain_modules');
+    fixture.write(
+      `${moved}/orders/migrations/20270101T000000_orders_probe.ts`,
+      'export class Migration20270101T000000CatalogProbe extends Migration {}\n',
+    );
+    fixture.listsExactly([`${moved}/orders/order-service.ts`]);
+
+    const result = fixture.run('check-naming.sh');
+
+    expect(result.status, result.output).toBe(1);
+    expect(result.output).toContain('Migration<STAMP>Orders');
+    expect(result.output).not.toContain('Migration<STAMP>SrcDomainModules');
   });
 });
 

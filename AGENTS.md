@@ -582,6 +582,18 @@ column default, an external vendor's wire format) is marked with `naming:allow-s
 plus a reason in a comment directly above the field — see `cmsContentEnvelopeSchema` in
 `packages/contracts/src/cms.ts`. Do not use it to skip a genuine API-shape fix.
 
+**Its module root is resolved, never spelled** (feature 080, T012). Three of the five rules
+walk the module tree, and the path used to be written into the script eight times, so a tree
+that moved took them with it: the rules iterated nothing, the other two reported on what was
+left, and the script printed a green tick. The root is now the **generated manifest index's
+own grandparent** — `scripts/lib/module-root.sh`, the bash twin of
+`backend/scripts/lib/module-population.ts` — so a layout move is *followed*, a repository with
+no index is exit 2, and one with two indexes is exit 2 as well rather than a scan silently
+narrowed to whichever sorted first. If you are writing a shell check that walks modules, take
+the root from that helper; do not add a ninth literal. `read_size_module_coverage` derives the
+same root from the index path it is already given, so its `manifest-index:<covered>/<expected>`
+token moves with the tree too.
+
 ### The full inventory
 
 Every check that runs in CI, so a rule cited nowhere here stops being a rule nobody knew about
