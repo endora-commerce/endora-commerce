@@ -986,11 +986,11 @@ export class PriceListService {
     // 2. Category-level override — the candidates the chain ranks.
     let categoryCandidates: DisplayModeCategoryCandidate[] = [];
     if (!productOverride) {
-      const categoryRows = await em.execute<
-        Array<{ category_id: string }>
-      >(`select category_id from product_categories where product_id = ?`, [input.productId]);
-      if (categoryRows.length > 0) {
-        const categoryIds = categoryRows.map((r) => r.category_id);
+      const assignments = await this.targets().catalogCategoryRead.listAssignmentsForProducts([
+        input.productId,
+      ]);
+      if (assignments.length > 0) {
+        const categoryIds = assignments.map((a) => a.categoryId);
         const overrides = await em.find(PriceDisplayModeOverride, {
           scope: 'category',
           targetId: { $in: categoryIds },
@@ -1114,7 +1114,7 @@ export class PriceListService {
     //    union — one lookup for the page rather than one per card.
     const undecided = productIds.filter((id) => !productOverrides.has(id));
     const categoryIdsByProduct =
-      input.categoryIdsByProduct ?? (await this.loadCategoryMemberships(em, undecided));
+      input.categoryIdsByProduct ?? (await this.loadCategoryMemberships(undecided));
     const categoryUnion = new Set<string>();
     for (const productId of undecided) {
       for (const categoryId of categoryIdsByProduct.get(productId) ?? []) {
@@ -1169,25 +1169,33 @@ export class PriceListService {
   }
 
   /**
-   * `(product_id, category_id)` memberships for a set of products.
+   * `(product, category)` memberships for a set of products, read through
+   * `catalog`'s port (feature 075 / D-87).
    *
-   * The single-product path reads the same table one product at a time; this
-   * is the `in (…)` form, and every product asked about gets an entry so an
-   * uncategorised product is an empty set rather than a missing key.
+   * One call for the whole set, not one per product: the port takes the array
+   * for exactly this reason, and a page turning into a round trip per card is
+   * the regression this shape exists to prevent.
+   *
+   * **Structural, deliberately** — no `activeOnly`. The single-product path
+   * ranks the same memberships, and `evaluateApplicationRule`'s `category`
+   * criterion tests the raw membership, so narrowing to live categories here
+   * would make the display-mode chain and the rule that prices the product
+   * disagree about which categories a product is in.
+   *
+   * Every product asked about gets an entry, so an uncategorised product is an
+   * empty set rather than a missing key.
    */
   private async loadCategoryMemberships(
-    em: EntityManager,
     productIds: readonly string[],
   ): Promise<Map<string, Set<string>>> {
     const out = new Map<string, Set<string>>();
     for (const id of productIds) out.set(id, new Set());
     if (productIds.length === 0) return out;
-    const placeholders = productIds.map(() => '?').join(',');
-    const rows = await em.execute<Array<{ product_id: string; category_id: string }>>(
-      `select product_id, category_id from product_categories where product_id in (${placeholders})`,
-      [...productIds],
-    );
-    for (const row of rows) out.get(row.product_id)?.add(row.category_id);
+    for (const assignment of await this.targets().catalogCategoryRead.listAssignmentsForProducts(
+      productIds,
+    )) {
+      out.get(assignment.productId)?.add(assignment.categoryId);
+    }
     return out;
   }
 

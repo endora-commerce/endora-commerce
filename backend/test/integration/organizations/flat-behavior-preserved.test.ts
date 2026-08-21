@@ -155,7 +155,17 @@ describe('flat-behavior preservation (feature 056, FR-001/FR-013)', () => {
     await svc.activate(orgList.id);
 
     const flatPricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
-    const wiredPricing = new PricingService(h.em, undefined, (id) => inheritance.priceListOrgChain(id));
+    // Both engines get the neighbour ports: the org-chain resolver is the one
+    // difference this case is about, and a real composition always supplies
+    // them. The wired one went without until `price_lists` stopped reading
+    // `product_categories` in its own SQL (feature 075 / D-87), which is when
+    // the omission stopped being invisible.
+    const wiredPricing = new PricingService(
+      h.em,
+      undefined,
+      (id) => inheritance.priceListOrgChain(id),
+      neighbourReadPorts(h.em),
+    );
 
     const flatOut = await flatPricing.resolveEngine({
       product,

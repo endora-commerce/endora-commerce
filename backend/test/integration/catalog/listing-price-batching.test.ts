@@ -152,7 +152,17 @@ describe('catalogue listing prices its page in one resolution', () => {
     // The legacy fallback runs at most once, for whatever the gallery read did
     // not answer — the whole page here, since the fixture seeds no gallery.
     expect(raw('from product_assets pa')).toBe(1);
-    expect(raw('from product_categories pc')).toBe(1);
+    // **Two** set reads of the bridge, and both are the port's one statement:
+    // the cards' category slugs, and the memberships `price_lists` evaluates a
+    // category rule against. The second used to be `price_lists`' own
+    // un-aliased `select … from product_categories`, so this count read 1 while
+    // the page made the same two round trips — the read was there, it just did
+    // not match the fragment. Feature 075 / D-87 moved it onto
+    // `catalogCategoryReadPort` and it became visible here.
+    //
+    // The claim this file makes is unchanged and is what the number has to
+    // show: a constant, on a 33-card page. Once per card would be 33.
+    expect(raw('from product_categories pc')).toBe(2);
   });
 
   async function countStatements(
