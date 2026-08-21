@@ -498,11 +498,17 @@ describe('T055 — the remaining module set still composes', () => {
       // The host values the surviving converted modules resolve. `orm` is
       // `health_checks`' only kernel dependency and is deliberately absent —
       // nothing left may reach for it.
+      //
+      // D-156.6 — `requireAdmin`, `assetReferenceRegistry` and
+      // `dictionaryValidator` used to be in this list and are **not** host
+      // values: `auth`, `assets_library` and `dictionaries` own them, and all
+      // three survive the removal and register them themselves. Standing them
+      // up here put a root's value under a name a module owns, which is the
+      // wrong side of D-45's window — earlier than the module, so the module's
+      // registration overwrites it and the stand-in was doing nothing. The
+      // guard refuses it now, which is how the fixture was found.
       redis: undefined,
-      requireAdmin: undefined,
       settingsReadPort: undefined,
-      assetReferenceRegistry: undefined,
-      dictionaryValidator: undefined,
       blogStorefrontDeps: undefined,
       emFactory: () => undefined,
     });

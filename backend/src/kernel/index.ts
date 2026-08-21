@@ -25,6 +25,7 @@ export {
   createRegistrationOwnership,
   DuplicateRegistrationError,
   EagerResolutionError,
+  ForeignRegistrationError,
   type ModuleBootHook,
   type ModuleContext,
   type ModuleContextOptions,

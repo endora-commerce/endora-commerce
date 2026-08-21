@@ -169,6 +169,21 @@ has no `dependencies` array that could record the edge, so a root contribution
 is the one write that cannot be expressed as a port. A module↔module edge always
 can be, and therefore must be.
 
+**The seam runs one way, and since D-156.6 the kernel says so.** A module may
+not write a name a composition **root** supplies either: `ctx.di.register` and
+`ctx.di.providePort` throw `ForeignRegistrationError` for a name the container
+already holds that no module claimed. That set is derived on every composition
+and written down nowhere — a name with no module owner is a name a root
+registered — so a root that starts or stops supplying one changes the answer in
+the same run. Until it landed, `registerValues` claimed no ownership and `claim`
+threw only for a *different module*, so any module could register `commandBus`,
+become its owner, and thereafter decorate it legally: the decoration rule was a
+lock on the front door of a house whose side door was open. There is no overlay
+exemption, deliberately. A deployment changes what a root-supplied name resolves
+to with `ctx.di.decorate` from its own overlay module, which keeps core
+delegating through the wrap; taking the name outright severs that for every
+consumer at once, and D-28 requires replacement to be the *more* explicit act.
+
 ### `lazyPort<T>(ctx, 'name')` — reading someone else's port
 
 **Never read another module's port into a singleton.** `providePort` returns a

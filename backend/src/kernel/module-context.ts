@@ -104,6 +104,57 @@ export class DuplicateRegistrationError extends Error {
   }
 }
 
+/**
+ * A module registered over a name a composition root supplies (D-156.6).
+ *
+ * This is the door beside the one {@link ForeignDecorationError} guards, and it
+ * stood open while that one was locked. `registerValues` claims no ownership,
+ * and `claim` threw only when a *different module* already owned the name — so for a
+ * root-registered name there was no prior owner, the claim succeeded, and
+ * awilix's `register` overwrote the entry. Any module could take `commandBus`,
+ * become its owner, and thereafter decorate it legally, because
+ * `ForeignDecorationError` fires only for a name someone else owns.
+ *
+ * Refusing the **wrap** while permitting the **replacement** is not a boundary:
+ * it reads as one and is not, and D-28 is explicit that replacement must be *a
+ * distinct, more explicit act* than decoration. Today it is the less explicit
+ * one, which is what this closes.
+ *
+ * The refused set is derived, never listed (D-100, D-156.5): a name the
+ * container already holds that no module claimed is exactly a name a
+ * composition root supplied — `registerValues` above the compose call, or
+ * `contribute()` in D-45's window. A root that starts or stops supplying a name
+ * changes the answer in the same run, and nothing has to be kept true by hand.
+ *
+ * There is no overlay exemption here, and that is not an oversight. A
+ * deployment's way to change what a root-supplied name resolves to is
+ * `ctx.di.decorate`, which it may do and which keeps core delegating; taking
+ * the name outright severs that, for every consumer at once, with nothing
+ * declared and nothing reported.
+ */
+export class ForeignRegistrationError extends Error {
+  constructor(
+    readonly registrationName: string,
+    readonly moduleId: string,
+  ) {
+    super(
+      `[kernel] module '${moduleId}' cannot register '${registrationName}': a composition ` +
+        `root supplies it, so no module owns it. Registering over it replaces what every ` +
+        `consumer of that name resolves — for the platform's own names that is the audit ` +
+        `path, the transaction boundary, the event bus and the tenant-scoped EntityManager ` +
+        `factory — and it does so with nothing declared in any manifest and nothing in the ` +
+        `override report. Reach for a seam that exists instead: subscribe to the events the ` +
+        `owner emits (ctx.subscribe), run before or after another module's endpoint ` +
+        `(ctx.interceptors), or ask the owner to publish a strategy port with a default and ` +
+        `register your implementation behind it (ctx.di.providePort, resolved through ` +
+        `lazyPort). If this is a per-deployment customisation, write it as an overlay module ` +
+        `under backend/src/apps/<deployment>/modules/ and wrap the registration with ` +
+        `ctx.di.decorate('${registrationName}', …), which keeps core delegating through it.`,
+    );
+    this.name = 'ForeignRegistrationError';
+  }
+}
+
 /** A module resolved something while it was still registering (T043). */
 export class EagerResolutionError extends Error {
   constructor(
@@ -551,6 +602,42 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
   const decorations = options.decorations ?? createDecorationLedger();
 
   /**
+   * Who owns `name` right now, as `decorate` has always asked it.
+   *
+   * `undefined` has two readings and only one of them is a hole: the name is
+   * not in the container at all (nobody owns it, and registering it is the
+   * ordinary case), or the container holds it and no module claimed it — which
+   * happens exactly when a composition root registered it. The callers below
+   * discriminate; this function does not, because the two questions share this
+   * one answer and duplicating it is how they would drift.
+   */
+  const ownerOf = (name: string): string | undefined =>
+    ownership?.ownerOf(name) ?? (ownRegistrations.has(name) ? module.id : undefined);
+
+  /**
+   * The registration half of the ownership rule (D-156.6).
+   *
+   * Three outcomes, and the order is the point:
+   *
+   *  - another **module** owns the name — untouched, `claim` still throws
+   *    `DuplicateRegistrationError`, which names both modules and tells the
+   *    loser to decorate. That error can say things this one cannot;
+   *  - a composition **root** supplies it — refused here, because there is no
+   *    owner to ask for a seam and the names in that set are the platform's own;
+   *  - nobody holds it — the ordinary case, and the one every registration in a
+   *    bare-core composition takes: all 291 of them, against 17 root-supplied
+   *    names, with an empty intersection measured in both roots.
+   *
+   * Asked before anything is claimed or written, so a refused batch leaves the
+   * container and the ownership ledger exactly as they were.
+   */
+  const assertRegistrable = (name: string): void => {
+    if (ownerOf(name) === undefined && container.hasRegistration(name)) {
+      throw new ForeignRegistrationError(name, module.id);
+    }
+  };
+
+  /**
    * One proxy per context, over this module's own container. It is stable
    * across calls so a module that captures `ctx.cradle()` during registration
    * still hits the phase guard when it later reads a name off the captured
@@ -574,6 +661,9 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
 
     di: {
       register(registrations) {
+        // Two passes: every name is checked before any is claimed, so a batch
+        // holding one refused name registers none of the others.
+        for (const name of Object.keys(registrations)) assertRegistrable(name);
         for (const name of Object.keys(registrations)) {
           ownership?.claim(name, module.id);
           ownRegistrations.add(name);
@@ -582,6 +672,9 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
       },
 
       providePort(name, registration) {
+        // The same claim, so the same guard: a port registration that skipped
+        // it would be the side door beside the side door.
+        assertRegistrable(name);
         ownership?.claim(name, module.id);
         ownRegistrations.add(name);
         registerPort(container, module.id, name, registration);
@@ -604,8 +697,7 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
         // `redis`) — and that is refused like any other foreign registration.
         // Reading "unowned" as "fair game" would leave the highest-value
         // targets in the platform the only undefended ones.
-        const owner =
-          ownership?.ownerOf(name) ?? (ownRegistrations.has(name) ? module.id : undefined);
+        const owner = ownerOf(name);
         if (owner !== module.id && !isDeploymentOverlay) {
           throw new ForeignDecorationError(name, module.id, owner);
         }
