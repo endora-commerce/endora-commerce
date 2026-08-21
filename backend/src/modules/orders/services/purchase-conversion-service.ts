@@ -1,73 +1,73 @@
-import type Redis from 'ioredis';
+import type { EntityManager } from '@mikro-orm/postgresql';
 
 /**
  * Whether an order still owes a GA4 `purchase` conversion (issue #277).
  *
- * The storefront counts an order's conversion on the first page the buyer
+ * The storefront reports an order's conversion on the first page the buyer
  * actually sees it on, and never again. That is one fact about one order, and
- * neither of the two surfaces that may count it can hold it:
+ * neither of the surfaces that may report it can hold it:
  *
- * - `/checkout/success` is where an offline placement lands, along with
+ * - the checkout Success Page is where an offline placement lands, along with
  *   Stripe's `success_url`, TPay's `successUrl` and every inline
  *   `/checkout/pay` form that succeeds;
- * - `/orders/:id` is where a PayU or Autopay redirect, a Stripe cancel and a
- *   TPay failure land, and where the buyer comes back to when they closed the
- *   tab or paid a second time.
+ * - the order page is where a gateway redirect return lands, and where the
+ *   buyer comes back to when they closed the tab or paid a second time.
  *
- * A marker in the browser answers neither, because it is gone with the cache
- * and never reaches the buyer's second device. So the platform holds it.
+ * Which of the two a given gateway buyer arrives on is a routing decision that
+ * has already changed once and is changing again; nothing here depends on it.
+ * Both pages spend the same claim, so the answer is the same whichever one
+ * they land on and whichever one they land on *second*.
  *
- * **It is not a column on the order.** This is an analytics fact, not a
- * business one: nothing in the order's lifecycle, its invoicing or its
- * fulfilment depends on whether a tag fired, no operator screen shows it, and
- * losing it costs one conversion rather than one order. Redis is what that
- * buys — no schema, no migration, and an expiry, which the order table has no
- * way to express.
+ * A marker in the browser answers none of it, because it is gone with the
+ * cache and never reaches the buyer's second device. So the order carries it,
+ * in a column: an expiring key would have made the answer depend on how long
+ * the buyer took, and a cache flush would have let one order be counted twice.
  *
- * **The claim is opened at placement, not at the first view.** The difference
- * decides what happens to every order placed before this existed: those were
- * counted already, by the Success Page that counted unconditionally, and they
- * have no claim — so a buyer opening a two-month-old order today reports
- * nothing. Had the marker instead recorded "already counted", their absence
- * would have read as "not yet counted" and the fix would have backfilled last
- * quarter's revenue onto this morning.
+ * **The sense is inverted**, and that is what keeps this fix off the orders
+ * that predate it. `purchase_conversion_owed` says a conversion is *owed*, not
+ * that one was reported, and it defaults to `false` — so every historical row
+ * says "owes nothing", which is right, because the old unconditional Success
+ * Page counted them all already. A column meaning "already counted" would have
+ * defaulted to `false` as well and read as "not yet counted", turning the
+ * first view of a two-month-old order into a report of last quarter's revenue
+ * against today's date.
+ *
+ * **Not a Command.** Principle XIII covers admin and domain writes, so that
+ * auditing and undo stay uniform; this is neither. It changes nothing about
+ * the order's lifecycle, money or fulfilment, no operator performs it, and it
+ * has no undo worth the name — a GA4 conversion cannot be recalled. Running it
+ * through the Command Bus would put an audit row in the operator's log for
+ * every buyer who opened a fresh order, which is noise standing between them
+ * and the writes that do matter.
  */
-
-/** Key prefix for the per-order claim. */
-const KEY_PREFIX = 'orders:purchase-conversion:';
-
-/**
- * How long a conversion stays owed.
- *
- * A conversion is owed until the buyer sees the order, and a buyer who has not
- * opened it within a month is not going to produce a session GA4 would
- * usefully attribute. Bounded on purpose: an unclaimed key that never expires
- * is an unbounded key space keyed by order id.
- */
-export const PURCHASE_CONVERSION_TTL_SECONDS = 30 * 24 * 60 * 60;
-
 export class PurchaseConversionService {
-  constructor(private readonly redis: Redis) {}
-
-  /**
-   * Record that `orderId` owes a conversion. Called once per placed order.
-   *
-   * Deliberately not `NX`: re-opening an existing claim is a no-op with the
-   * expiry refreshed, and an order is placed once, so there is no case where
-   * the difference is observable.
-   */
-  async open(orderId: string): Promise<void> {
-    await this.redis.set(KEY_PREFIX + orderId, '1', 'EX', PURCHASE_CONVERSION_TTL_SECONDS);
-  }
+  constructor(private readonly emFactory: () => EntityManager) {}
 
   /**
    * Spend the claim on `orderId`: `true` for the caller that had it, `false`
-   * for everyone after, and `false` for an order that never owed one.
+   * for every caller after it, and `false` for an order that never owed one.
    *
-   * `DEL` reports how many keys it removed and is atomic, so two devices
-   * loading the order at the same instant cannot both win.
+   * One conditional `UPDATE`, so the decision and the write are the same
+   * statement: PostgreSQL takes the row lock before it re-evaluates the
+   * `where`, so of two devices loading the order in the same instant exactly
+   * one sees a row come back. A read followed by a write would let both pass
+   * the read.
+   *
+   * `em.execute` rather than `em.getKnex()`: knex takes its own pooled
+   * connection and commits on its own, outside whatever transaction the caller
+   * is in (issue #200). Nothing here runs in one today, and the day something
+   * does, this must roll back with it.
    */
   async claim(orderId: string): Promise<boolean> {
-    return (await this.redis.del(KEY_PREFIX + orderId)) === 1;
+    const rows = await this.emFactory().execute<Array<{ id: string }>>(
+      `update "orders"
+          set "purchase_conversion_owed" = false,
+              "purchase_conversion_reported_at" = now()
+        where "id" = ?
+          and "purchase_conversion_owed" = true
+        returning "id"`,
+      [orderId],
+    );
+    return rows.length === 1;
   }
 }

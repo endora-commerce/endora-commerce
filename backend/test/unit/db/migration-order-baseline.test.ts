@@ -31,16 +31,17 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * position must be in the open block.
  *
  * Note on the counts. `specs/081-per-module-migration-order/` measured 141
- * migrations (112 baseline, 29 open) against `master@4186aec0`. Eleven
+ * migrations (112 baseline, 29 open) against `master@4186aec0`. Twelve
  * migrations have landed since —
  * `Migration20260819T074816CustomerAccountsPasswordSetAt`,
  * `Migration20260819T142837CustomerAccountsFoldEmailCase`,
  * `Migration20260819T155150AdminUsersFoldEmailCase`,
  * `Migration20260819T171006ShipmentsStatusPendingManual`,
  * `Migration20260819T193653PimErgonodeFoldDerivedKeys`,
- * `Migration20260820T100201OrdersNewToPaidTransition` and feature 085 Phase C's
- * five `…FailureStatusOnHold` entries, all open-block entries — so the numbers
- * here are 152/112/40. The frozen prefix, which is the claim the feature rests
+ * `Migration20260820T100201OrdersNewToPaidTransition`, feature 085 Phase C's
+ * five `…FailureStatusOnHold` entries and issue #277's
+ * `Migration20260821T131145OrdersPurchaseConversionMarker`, all open-block
+ * entries — so the numbers here are 153/112/41. The frozen prefix, which is the claim the feature rests
  * on, is the spec's 112 unchanged.
  *
  * A new migration is added to `PRE_081_ORDER` in the position feature 065's
@@ -156,8 +157,31 @@ const FROZEN_PREFIX_LENGTH = 112;
  * above: 065's `orderMigrations` from `master@a139e1b7^` run over today's
  * registry, emitted side by side with the current one, and the differing
  * positions counted.
+ *
+ * **29 -> 36, and the literal moved twenty-four entries**, which is now the
+ * largest exception. Issue #277's
+ * `Migration20260821T131145OrdersPurchaseConversionMarker` is the newest stamp
+ * in the registry, so 065's chronology emits it **last**, at 125 — inside the
+ * 45-day correction horizon, where a new `orders` migration is exactly the
+ * thing that drags a dependency-corrected block with it.
+ * `PaymentMethodsFailureStatusOnHold` and the six
+ * `payu`/`autopay`/`…SeedPaymentMethods` entries come forward from 141-147 to
+ * 124 and 130-135; `InventoryStockAllocationOrderItemFk`, the seven
+ * `product_feeds` entries, `PromotionsPromotionUsageOrderFk`,
+ * `CreditLimitsCreditLimitReservationOrderFk`, `CartsCartCompletedOrderFk` and
+ * `ShipmentsStatusPendingManual` go back from 129-140 to 136-147, and five more
+ * (`InvoicesGenericTemplateReseed`, `ShipmentsOrderFk`,
+ * `InvoicesCorrectionIdempotencyKey`, `CreditLimitsReturnTopups`,
+ * `ReturnsRefundCorrectiveInvoiceOutcome`) shift by one. All twenty-four are in
+ * the open block; the frozen 112 are untouched, which is the claim this file
+ * exists to keep. 081 emits the new entry at 123, two earlier, inside `orders`'
+ * own contiguous block. The size of the churn is the 065 horizon behaving as it
+ * always did — it is the reason 081 replaced it — and it costs a live database
+ * nothing: no class was renamed, so `mikro_orm_migrations` still filters every
+ * applied entry out of `pending` whatever its list position. Measured the
+ * prescribed way, with and without the new registry entry.
  */
-const EXPECTED_MOVED_POSITIONS = 29;
+const EXPECTED_MOVED_POSITIONS = 36;
 
 const MODULE_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map<
   string,
@@ -301,11 +325,19 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260804T190439PimErgonodeInit',
   'Migration20260819T193653PimErgonodeFoldDerivedKeys',
   'Migration20260820T100201OrdersNewToPaidTransition',
+  'Migration20260821T084920PaymentMethodsFailureStatusOnHold',
+  'Migration20260821T131145OrdersPurchaseConversionMarker',
   'Migration20260801T111000InvoicesGenericTemplateReseed',
   'Migration20260817T194652ShipmentsOrderFk',
   'Migration20260817T201110InvoicesCorrectionIdempotencyKey',
   'Migration20260817T201111CreditLimitsReturnTopups',
   'Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome',
+  'Migration20260801T100943PayuInit',
+  'Migration20260803T065409AutopayInit',
+  'Migration20260816T053826StripeSeedPaymentMethods',
+  'Migration20260816T053830PayuSeedPaymentMethods',
+  'Migration20260816T053834TpaySeedPaymentMethods',
+  'Migration20260816T053835AutopaySeedPaymentMethods',
   'Migration20260818T081243InventoryStockAllocationOrderItemFk',
   'Migration20260802T073547ProductFeedsInit',
   'Migration20260802T073627ProductFeedsRuns',
@@ -318,13 +350,6 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk',
   'Migration20260818T081253CartsCartCompletedOrderFk',
   'Migration20260819T171006ShipmentsStatusPendingManual',
-  'Migration20260821T084920PaymentMethodsFailureStatusOnHold',
-  'Migration20260801T100943PayuInit',
-  'Migration20260803T065409AutopayInit',
-  'Migration20260816T053826StripeSeedPaymentMethods',
-  'Migration20260816T053830PayuSeedPaymentMethods',
-  'Migration20260816T053834TpaySeedPaymentMethods',
-  'Migration20260816T053835AutopaySeedPaymentMethods',
   'Migration20260821T084922StripeFailureStatusOnHold',
   'Migration20260821T084923PayuFailureStatusOnHold',
   'Migration20260821T084924TpayFailureStatusOnHold',

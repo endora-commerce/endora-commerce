@@ -307,30 +307,16 @@ export function registerModule(ctx: ModuleContext): void {
   /**
    * The per-order claim on a GA4 `purchase` conversion (issue #277).
    *
-   * Registered on its own because two seams share it: the subscriber below
-   * opens a claim when an order is placed, and the buyer-facing route spends
-   * it when the storefront reports the conversion. One instance, so the two
-   * cannot disagree about the key.
+   * Registered on its own so the module has one instance of it, and built
+   * over the EntityManager factory rather than over Redis: the claim is a
+   * column on the order, which is what makes it survive a restart and never
+   * expire. Nothing opens a claim here — `placeOrder` sets the column inside
+   * the placement transaction, which is where an order first exists.
    */
   ctx.di.register({
     orderPurchaseConversion: ctx
-      .asFunction(({ redis }: OrdersCradle) => new PurchaseConversionService(redis))
+      .asFunction(({ emFactory }: OrdersCradle) => new PurchaseConversionService(emFactory))
       .singleton(),
-  });
-
-  /**
-   * Every placed order owes exactly one conversion, from the moment it exists.
-   *
-   * A subscriber rather than a line in `placeOrder`: the marker is an
-   * analytics fact held in Redis, and Redis is not in the placement
-   * transaction. Emitted inside the request scope, `order.created.v1` is
-   * dispatched only after that transaction commits and dropped if it does not,
-   * so a rolled-back placement leaves no claim behind and a Redis hiccup
-   * cannot fail an order.
-   */
-  ctx.subscribe('order.created.v1', async (payload) => {
-    const { orderId } = payload as { orderId: string };
-    await cradle().orderPurchaseConversion.open(orderId);
   });
 
   ctx.di.register({

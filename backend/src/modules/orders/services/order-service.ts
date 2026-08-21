@@ -1485,6 +1485,14 @@ export class OrderService {
           ? { placedOnBehalfByAdminUserId: ctx.impersonatorAdminUserId }
           : {}),
         placedAt: new Date(),
+        // Issue #277 — this order owes exactly one GA4 `purchase` conversion,
+        // from the moment it exists. Set inside the placement transaction
+        // rather than from a listener afterwards, so a placement that rolls
+        // back leaves no order owing a conversion nobody can report, and so
+        // the flag cannot be lost to a failure between the commit and a
+        // second write. The column's `false` default is the opposite answer
+        // on purpose, and only for rows that predate it — see the migration.
+        purchaseConversionOwed: true,
       });
       await tx.persistAndFlush(order);
 
