@@ -167,6 +167,25 @@ export interface PaymentReadPort {
   findLatestForOrder(orderId: string): Promise<PaymentRecord | null>;
   /** Resolve by the provider's own reference (a PaymentIntent id, an order id at the PSP). */
   findByExternalReference(externalReference: string): Promise<PaymentRecord | null>;
+  /**
+   * How many attempts reference a payment method — the delete-guard
+   * `payment_methods` runs before removing one (feature 034 FR-003, feature
+   * 075).
+   *
+   * A count rather than the rows: the guard needs "is this method still spoken
+   * for", and the figure goes into the operator's 409 message. Handing back
+   * every attempt for a method a busy shop has used for a year would be a read
+   * of unbounded size for a yes/no question.
+   *
+   * It runs on this port's own `EntityManager`, so it does **not** join the
+   * caller's transaction. That costs nothing here and is worth saying: the
+   * deleting transaction writes no `payments` row, and under `read committed`
+   * an in-transaction count took a fresh snapshot per statement anyway — it
+   * never held a concurrent attempt off. What guarantees no orphan is the
+   * guard plus this module refusing to record an attempt against a method that
+   * is gone, not the instant the count was taken.
+   */
+  countByPaymentMethod(paymentMethodId: string): Promise<number>;
 }
 
 /**

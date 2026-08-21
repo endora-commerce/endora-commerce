@@ -119,6 +119,7 @@ import { Migration20260721T011509CredentialsInit } from '../modules/credentials/
 import { Migration20260425T063333CreditLimitsInit } from '../modules/credit_limits/migrations/20260425T063333_credit_limits_init.js';
 import { Migration20260817T201111CreditLimitsReturnTopups } from '../modules/credit_limits/migrations/20260817T201111_credit_limits_return_topups.js';
 import { Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk } from '../modules/credit_limits/migrations/20260818T081252_credit_limits_credit_limit_reservation_order_fk.js';
+import { Migration20260821T140323CreditLimitsReservationReservingOrganization } from '../modules/credit_limits/migrations/20260821T140323_credit_limits_reservation_reserving_organization.js';
 
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '../modules/custom_fields/migrations/20260718T200338_custom_fields_init.js';
@@ -392,6 +393,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('credit_limits', Migration20260425T063333CreditLimitsInit),
   migration('credit_limits', Migration20260817T201111CreditLimitsReturnTopups),
   migration('credit_limits', Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk),
+  migration('credit_limits', Migration20260821T140323CreditLimitsReservationReservingOrganization),
 
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),

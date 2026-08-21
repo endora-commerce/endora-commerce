@@ -42,8 +42,9 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * five `…FailureStatusOnHold` entries and issue #277's
  * `Migration20260821T131145OrdersPurchaseConversionMarker` and feature 086's
  * `Migration20260821T110651PaypalInit` +
- * `Migration20260821T110652PaypalSeedPaymentMethods`, all open-block
- * entries — so the numbers here are 155/112/43. The frozen prefix, which is the claim the feature rests
+ * `Migration20260821T110652PaypalSeedPaymentMethods` and feature 075's
+ * `Migration20260821T140323CreditLimitsReservationReservingOrganization`, all
+ * open-block entries — so the numbers here are 156/112/44. The frozen prefix, which is the claim the feature rests
  * on, is the spec's 112 unchanged.
  *
  * A new migration is added to `PRE_081_ORDER` in the position feature 065's
@@ -211,8 +212,36 @@ const FROZEN_PREFIX_LENGTH = 112;
  * merged registry, emitted side by side with the current one and the differing
  * positions counted — and the method was checked first by reproducing master's
  * committed literal and its 36 exactly before the two entries were added.
+ *
+ * **39 -> 41, by two**, and this is that saying. Feature 075's
+ * `Migration20260821T140323CreditLimitsReservationReservingOrganization` — the
+ * `reserving_organization_id` column that lets `credit_limits` stop joining
+ * `orders` to sum a branch's own draws — is the newest stamp in the registry,
+ * and `credit_limits` already declares `orders`, so 065 has no dependency
+ * inversion to correct and emits it in plain chronological order, which for
+ * this stamp means **last**, at 155. 081 emits it at 126, immediately after
+ * `CreditLimitsCreditLimitReservationOrderFk`, because a module's migrations
+ * are contiguous and `credit_limits` precedes `inventory` in the topological
+ * order. The 155 positions the literal already held are untouched: 065's
+ * emission over the rebased registry is master's committed literal with one
+ * name appended and nothing else moved.
+ *
+ * Two positions change status. One is the new entry's own, at 155. The other is
+ * 128, where `Migration20260817T201110InvoicesCorrectionIdempotencyKey` had
+ * been agreeing with the baseline **by coincidence** — the same shape as the
+ * `ShipmentsStatusPendingManual` case the paragraph above had to spell out,
+ * one entry further along the same list of accidental agreements. Inserting an
+ * entry at 126 shifts the rest of the 081 stream by one, `InvoicesGenericTemplateReseed`
+ * lands on 128 where the baseline still holds `InvoicesCorrectionIdempotencyKey`,
+ * and the coincidence is destroyed. Every other entry after 126 that shifts by
+ * one was already moved, so it costs the count nothing. All 41 are in the open
+ * block; the frozen 112 are untouched. Measured the prescribed way, and the
+ * method was checked first the same way the paragraph above checked it: 065
+ * over the rebased registry **with this entry removed** reproduces master's
+ * committed literal entry for entry, and recomputing the differing positions
+ * over master's own state gives back its committed 39.
  */
-const EXPECTED_MOVED_POSITIONS = 39;
+const EXPECTED_MOVED_POSITIONS = 41;
 
 const MODULE_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map<
   string,
@@ -387,6 +416,7 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260821T084925AutopayFailureStatusOnHold',
   'Migration20260821T110651PaypalInit',
   'Migration20260821T110652PaypalSeedPaymentMethods',
+  'Migration20260821T140323CreditLimitsReservationReservingOrganization',
 ];
 
 describe('migration order — the pre-081 baseline (T001)', () => {

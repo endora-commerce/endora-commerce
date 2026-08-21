@@ -485,6 +485,7 @@ export class CreditLimitService {
     const reservation = em.create(CreditLimitReservation, {
       creditLimitId: limit.id,
       orderId: input.orderId,
+      reservingOrganizationId: input.organizationId,
       amount: input.amount.toFixed(2),
       currency: input.currency,
       status: 'active',
@@ -502,8 +503,9 @@ export class CreditLimitService {
    *     references the owner row, so this sums the whole subtree). Concurrent
    *     draws serialize on the one owner row → zero double-spend (SC-004).
    *   - independent_default: lock the owner's row but sum only THIS descendant's
-   *     active reservations (via `orders.organization_id`), so each branch draws
-   *     its full inherited amount without affecting siblings.
+   *     active reservations (via `reserving_organization_id`, this module's own
+   *     record of who drew each one), so each branch draws its full inherited
+   *     amount without affecting siblings.
    *
    * A root org with its own limit is its own owner (shared_pool default), which
    * collapses to the flat behavior byte-for-byte.
@@ -548,6 +550,7 @@ export class CreditLimitService {
     const reservation = em.create(CreditLimitReservation, {
       creditLimitId: owner.id,
       orderId: input.orderId,
+      reservingOrganizationId: input.organizationId,
       amount: input.amount.toFixed(2),
       currency: input.currency,
       status: 'active',
@@ -581,15 +584,20 @@ export class CreditLimitService {
   }
 
   /**
-   * Σ active reservations consumed by a specific organization (via the reserving
-   * order), for the independent_default mode. Transaction-scoped.
+   * Σ active reservations consumed by a specific organization, for the
+   * independent_default mode. Transaction-scoped.
+   *
+   * Reads `reserving_organization_id`, this module's own record of who drew the
+   * credit. Until feature 075 it joined `orders` for the same value — a read
+   * of another module's table, taken on the money path with a
+   * `PESSIMISTIC_WRITE` held on the owner's credit row, for a figure `reserve`
+   * is handed by its caller and writes onto the reservation row itself.
    */
   async #sumReservationsForOrg(em: EntityManager, organizationId: string): Promise<number> {
     const rows = (await em.getConnection().execute(
-      `select coalesce(sum(r.amount), 0) as total
-         from credit_limit_reservations r
-         join orders o on o.id = r.order_id
-         where r.status = 'active' and o.organization_id = ?`,
+      `select coalesce(sum(amount), 0) as total
+         from credit_limit_reservations
+         where status = 'active' and reserving_organization_id = ?`,
       [organizationId],
       'all',
       em.getTransactionContext(),

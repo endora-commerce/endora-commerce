@@ -106,6 +106,7 @@ describe('credit-limit release reads its own transaction (issue #207)', () => {
     const reservation = em.create(CreditLimitReservation, {
       creditLimitId,
       orderId,
+      reservingOrganizationId: organizationId,
       amount: '400.00',
       currency: 'PLN',
       status: 'active',
@@ -128,6 +129,7 @@ describe('credit-limit release reads its own transaction (issue #207)', () => {
     em.create(CreditLimitReservation, {
       creditLimitId,
       orderId: keptOrderId,
+      reservingOrganizationId: organizationId,
       amount: '250.00',
       currency: 'PLN',
       status: 'active',
@@ -135,6 +137,7 @@ describe('credit-limit release reads its own transaction (issue #207)', () => {
     em.create(CreditLimitReservation, {
       creditLimitId,
       orderId: releasedOrderId,
+      reservingOrganizationId: organizationId,
       amount: '100.00',
       currency: 'PLN',
       status: 'active',

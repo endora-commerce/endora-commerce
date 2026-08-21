@@ -6,6 +6,7 @@ import {
   paymentMethodUpsertSchema,
   type PaymentMethodAdminListItem,
   type PaymentMethodAvailability,
+  type PaymentReadPort,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -59,6 +60,13 @@ export interface PaymentMethodsAdminDeps {
   registry?: PaymentAdapterRegistry;
   /** Feature 034 — validates `statusOn*` references + powers /admin/order-statuses. */
   orderStatusRegistry?: OrderStatusRegistry;
+  /**
+   * Feature 075 — the delete-guard's read of `payments`, or `null` when that
+   * module is not effectively present. Required, unlike the optional deps
+   * above: a missing guard would silently delete a method attempts still point
+   * at, which is the one failure FR-003 exists to prevent.
+   */
+  paymentRead: () => PaymentReadPort | null;
 }
 
 function rendererKeyFor(deps: { registry?: PaymentAdapterRegistry }, adapter: string): string | null {
@@ -220,10 +228,14 @@ export async function registerPaymentMethodsAdminRoutes(
     '/api/v1/admin/payment-methods/:id',
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
-      // The 404 and the T017b delete-guard (FR-003) live inside the Command, on
-      // its transaction: the guard's answer and the delete are then the same
-      // moment rather than two.
-      await deps.commandBus.run(makeDeletePaymentMethodCommand(request.params.id));
+      // The 404 and the T017b delete-guard (FR-003) live inside the Command.
+      // The guard's count runs on `paymentReadPort`, so it is `payments`
+      // answering for its own table rather than this module reading it; with
+      // that module switched off the guard has no answer and the delete is
+      // refused rather than taken on trust.
+      await deps.commandBus.run(
+        makeDeletePaymentMethodCommand(request.params.id, { paymentRead: deps.paymentRead }),
+      );
       return reply.status(204).send();
     },
   );

@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type PaymentMethodUpsert } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type PaymentMethodUpsert,
+  type PaymentReadPort,
+} from '@b2b/contracts';
 import type { Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { PaymentMethod } from '../entities/payment-method.entity.js';
@@ -167,23 +170,32 @@ export function makeSetPaymentMethodStatusCommand(
 }
 
 /**
- * Delete-guard (feature 034, FR-003): never orphan a Payment's method reference.
- * Counted on the Command's own transaction, so the guard and the delete answer
- * the same moment.
+ * What the delete-guard needs from `payments` (feature 034 FR-003, feature 075).
+ *
+ * Until the ledger drained, the guard was
+ * `select count(*) from "payments" where "payment_method_id" = ?` written here
+ * — another module's table read straight out of this module's Command, which
+ * compiles and returns rows and so crossed a boundary nothing could see until
+ * `check:module-boundary` learned to read SQL (D-87).
  */
-async function countPaymentsForMethod(em: EntityManager, methodId: string): Promise<number> {
-  const rows = await em
-    .getConnection()
-    .execute<Array<{ count: string }>>(
-      `select count(*)::text as count from "payments" where "payment_method_id" = ?`,
-      [methodId],
-      'all',
-      em.getTransactionContext(),
-    );
-  return Number(rows[0]?.count ?? '0');
+export interface PaymentMethodDeleteGuard {
+  /**
+   * The payment read model, or `null` when `payments` is not effectively
+   * present.
+   *
+   * An accessor rather than the port itself: `payments` is deactivatable, the
+   * answer changes while the process runs, and a port captured once would keep
+   * answering after an operator switched it off. The `null` is what the
+   * deactivation-consequence ledger renders — see this module's manifest
+   * `nonBindingDependencies`.
+   */
+  readonly paymentRead: () => PaymentReadPort | null;
 }
 
-export function makeDeletePaymentMethodCommand(id: string): Command<void> {
+export function makeDeletePaymentMethodCommand(
+  id: string,
+  guard: PaymentMethodDeleteGuard,
+): Command<void> {
   return {
     action: 'payment_method.delete',
     objectType: 'payment_method',
@@ -193,7 +205,22 @@ export function makeDeletePaymentMethodCommand(id: string): Command<void> {
       if (!row) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Payment method not found.');
       }
-      const referencing = await countPaymentsForMethod(em, row.id);
+      const paymentRead = guard.paymentRead();
+      // Decided before the read, not caught after it: with `payments` off there
+      // is no way to tell whether an attempt still points at this method, and
+      // deleting on an unanswered question is exactly the orphan FR-003 exists
+      // to prevent. Refusing leaves the operator the reversible half — set the
+      // method inactive — and leaves every other payment-method write working.
+      if (paymentRead === null) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.VALIDATION_FAILED,
+          'Cannot delete payment method: the payments module is switched off, so the payments ' +
+            'that may reference it cannot be counted. Switch payments back on, or set this ' +
+            'method\'s status to "inactive" instead.',
+        );
+      }
+      const referencing = await paymentRead.countByPaymentMethod(row.id);
       if (referencing > 0) {
         throw new HttpError(
           409,

@@ -1,7 +1,8 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PaymentMethodReadPort } from '@b2b/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
+import type { PaymentMethodReadPort, PaymentReadPort } from '@b2b/contracts';
+import { lazyPort, type ModuleContext } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
@@ -149,12 +150,32 @@ export function registerModule(ctx: ModuleContext): void {
       resolveOrganizationPaymentMethodAllowList: resolveAllowList,
     });
 
+    /**
+     * The delete-guard's one question for `payments`: how many attempts point
+     * at the method an operator is deleting (FR-003).
+     *
+     * Resolved per call and never captured — `payments` is deactivatable, so a
+     * port taken once at registration would go on answering after an operator
+     * switched it off. `null` while it is absent, which the Command turns into
+     * a 409 that says so; the alternative, deleting a method whose references
+     * nobody could count, is the orphan the guard exists to prevent. Declared
+     * in this module's manifest as `degrades-without` rather than in
+     * `dependencies`, because `payments` already declares this module and the
+     * reverse would close a cycle — and acknowledging it would keep the bind
+     * and make `payments.enabled` unusable.
+     */
+    const paymentRead = (): PaymentReadPort | null =>
+      effectiveState.isPresent('payments')
+        ? lazyPort<PaymentReadPort>(ctx, 'paymentReadPort')
+        : null;
+
     await registerPaymentMethodsAdminRoutes(app, {
       emFactory,
       requireAdmin,
       commandBus: ctx.cradle<PaymentMethodsCradle>().commandBus,
       registry,
       orderStatusRegistry: paymentOrderStatusRegistry,
+      paymentRead,
       ...(membership === undefined ? {} : { salesChannelMembership: membership }),
     });
   });
