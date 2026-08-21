@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DictionaryReferenceRegistryPort } from '@b2b/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { CountryReferenceRegistry } from '../../../src/modules/dictionaries/services/country-reference-registry.js';
 import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
 import { CurrencyReferenceRegistry } from '../../../src/modules/currencies/services/currency-reference-registry.js';
@@ -177,10 +178,12 @@ describe('the channel half of the same guard', () => {
     const languages = new LanguageService(() => em, undefined, undefined, () =>
       new LanguageReferenceRegistry(),
     );
-    const [channel] = await em.execute(
-      `select "default_language" as code from "sales_channels" where "system_default" = true`,
-    ) as Array<{ code: string }>;
-    const code = channel?.code ?? 'en-US';
+    // `findOneOrFail`, not a `??` over a raw-SQL read (issue #275): a
+    // system-default channel always exists (D-47…D-51), so an absent row is a
+    // broken platform and has to say so here rather than turn into `'en-US'`
+    // and fail twenty lines down as "the language is not the default".
+    const channel = await em.findOneOrFail(SalesChannel, { systemDefault: true });
+    const code = channel.defaultLanguage;
     // Demote it first, so the refusal under test is the dependent one rather
     // than "you cannot delete the default language".
     await em.execute(`update "languages" set "is_default" = false where "code" = ?`, [code]);
@@ -197,10 +200,8 @@ describe('the channel half of the same guard', () => {
     const currencies = new CurrencyService(() => em, undefined, undefined, () =>
       new CurrencyReferenceRegistry(),
     );
-    const [channel] = await em.execute(
-      `select "default_currency" as code from "sales_channels" where "system_default" = true`,
-    ) as Array<{ code: string }>;
-    const code = channel?.code ?? 'PLN';
+    const channel = await em.findOneOrFail(SalesChannel, { systemDefault: true });
+    const code = channel.defaultCurrency;
     await em.execute(`update "currencies" set "is_default" = false where "code" = ?`, [code]);
 
     const references = await currencies.countDependents(code);

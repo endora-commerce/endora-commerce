@@ -205,8 +205,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-fixture-substitution.ts': {
     prefix: '[fixture-substitution]',
     run: { kind: 'tsx', path: 'scripts/check-fixture-substitution.ts', args: [] },
-    files: 1237,
-    sites: 405,
+    // Re-recorded for issue #275, which widened the read detection to
+    // destructuring bindings and `getKnex()` builder chains. Measured rather
+    // than inferred: on this tree the unwidened check read 427 and the widened
+    // one 443, so **17 files** are ones it had been opening and reporting clean
+    // because it recognised no read in them (one net, after the two repaired
+    // sites stopped reading at all). The other 22 of the 405 → 443 move is the
+    // tree growing since 2026-08-19, which `files` shows at 1237 → 1302. Both
+    // numbers were inside the band; this is the MR that changed the population,
+    // so this is where they get re-recorded.
+    files: 1302,
+    sites: 443,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {

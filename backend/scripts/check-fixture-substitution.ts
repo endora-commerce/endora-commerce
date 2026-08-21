@@ -35,7 +35,8 @@
  *
  *   1. **two-step** — the read is bound to a name, and the name is defaulted
  *      later: `const ch = await em.findOne(…)` … `ch?.id ?? ''`. The binding may
- *      be a `const`/`let` declaration or a plain assignment, and the read may be
+ *      be a `const`/`let` declaration or a plain assignment, it may **destructure**
+ *      (`const [channel] = …`, `const { code } = …`), and the read may be
  *      reached through an index (`rows[0]?.id ?? ''`);
  *   2. **inline** — the read is defaulted where it stands:
  *      `(await em.findOne(…))?.id ?? ''`.
@@ -43,6 +44,27 @@
  * `findOneOrFail` is deliberately **not** a database read for this purpose. It
  * throws on absence, which is the behaviour the check is asking for; a `??` after
  * one is dead code, not a substitution.
+ *
+ * ## The read is not always an ORM call (issue #275)
+ *
+ * The binding pass matched an `Identifier` name only, so **`const [channel] =
+ * await em.execute(…)`** bound nothing: the name never entered the read-bound
+ * set, the `channel?.code ?? 'en-US'` below it was rooted in nothing this check
+ * recognised, and the file reported clean. Two live sites in
+ * `integration/dictionaries/reference-registry-consumers.test.ts` defaulted the
+ * system-default sales channel's language and currency that way, on a row
+ * D-47…D-51 says can never be absent — which is exactly the ledger reason issue
+ * #159 refused to accept. The gap was the **binding shape**, not the dialect:
+ * `em.execute` and `getConnection().execute` were in the vocabulary from the
+ * start, and the same destructuring hid an ORM `find` just as completely.
+ *
+ * The dialect had one real hole beside it, and it is closed here too: a read
+ * issued through the **query builder**. `em.getKnex().select('*').from('t')`
+ * names no read at its tail — the chain ends in `from` — and
+ * `const knex = em.getKnex()` … `await knex('t').where(…)` names none anywhere,
+ * the receiver being a plain identifier. Both are now read by rooting the chain
+ * at `getKnex()`, in the three spellings `check-transaction-context`
+ * enumerates.
  *
  * *A placeholder literal* is a string, a number, `null`, `undefined`, a boolean,
  * a substitution-free template, or a fresh identifier (`randomUUID()`). A
@@ -64,6 +86,20 @@
  *   - **`src/`.** A service defaulting a lookup is a domain decision with its own
  *     reviewers; this check is about a test's setup silently depending on another
  *     file's.
+ *   - **A read the value does not come back from.** The chain walk follows
+ *     receivers and callees, never **arguments**, so a read handed to something
+ *     else — `Promise.all([em.find(…)])`, `expectRow(await em.findOne(…))` — does
+ *     not make the surrounding expression a read. That is deliberate: the
+ *     defect is a fixture value travelling as data, and the value there is the
+ *     wrapper's, not the row's. The cost is that a destructured
+ *     `const [a, b] = await Promise.all([em.find(…), em.find(…)])` is invisible,
+ *     stated here rather than discovered later.
+ *   - **A read reached through a helper.** `const id = await readChannelId(em)`
+ *     followed by `id ?? ''` names no read in this file. Answering it needs
+ *     cross-file dataflow, which this check does not do and does not pretend to.
+ *   - **A knex chain whose builder came from somewhere else** — a `knex`
+ *     imported from a helper module, or passed in as a parameter. The binding
+ *     pass is one file wide, in the idiom of `check-transaction-context`.
  *
  * Usage: `tsx scripts/check-fixture-substitution.ts [--list]`
  * Exit 0 = no test defaults a database read (or the ones that do are ledgered);
@@ -87,6 +123,15 @@ const TEST_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'test
  * `findOneOrFail` is absent on purpose — see the header. `execute` and `query`
  * cover the raw-SQL path, which is how the harness itself reads and how several
  * integration tests check a row landed.
+ *
+ * `getKnex` is the **entry** to a read rather than a read itself: nothing comes
+ * back from it, the statement is assembled by the builder calls after it, and
+ * the value is awaited at the end of the chain. It is in the set because the
+ * chain walk below roots there, and because a test that reads a row through
+ * knex and then defaults it is issue #159 in a different dialect. The three
+ * spellings are the ones `check-transaction-context` enumerates:
+ * `em.getKnex()`, `em.getConnection().getKnex()` and a `const knex = …` binding
+ * of either, called as `knex('table')`.
  */
 const DB_READS: ReadonlySet<string> = new Set([
   'findOne',
@@ -97,6 +142,7 @@ const DB_READS: ReadonlySet<string> = new Set([
   'query',
   'getSingleResult',
   'getResult',
+  'getKnex',
 ]);
 
 /**
@@ -145,6 +191,17 @@ export const DEFAULTED_FIXTURE_READS: Readonly<Record<string, string>> = {
   // resolved channel rather than from a bridge.
   'helpers/test-server.ts:(inline)':
     'harness bridge default mirroring production, not a fixture the test depends on',
+  // Surfaced by issue #275's destructuring widening — `const { rowCount } =
+  // await client.query(…)` — and both are the `count(*)` family above rather
+  // than a fixture read. `pg` types `rowCount` as `number | null` (it is `null`
+  // for a command that returns no rows), the query is an existence probe over
+  // `pg_database`, and `0` is that probe's honest "no such database": the value
+  // is compared with `> 0` and reaches nothing else. Retire the entries if
+  // either function ever returns the count rather than a boolean.
+  'integration/kernel/run-isolation.integration.test.ts:rowCount':
+    "`pg` types rowCount as number | null; 0 is the existence probe's \"no such database\", not a missing fixture",
+  'run-isolation-provision.ts:rowCount':
+    "`pg` types rowCount as number | null; 0 is the existence probe's \"no such database\", not a missing fixture",
 };
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -215,20 +272,128 @@ function tailName(node: ts.Node): string | null {
   return null;
 }
 
-/** Whether an expression is (or awaits, or casts) one of the reads above. */
-export function isDatabaseRead(node: ts.Expression | undefined): boolean {
+/** No file binds a query builder until the pass below says it does. */
+const NO_BUILDERS: ReadonlySet<string> = new Set<string>();
+
+/**
+ * Whether an expression is (or awaits, or casts) one of the reads above.
+ *
+ * `builders` are the identifiers the file bound to a knex instance. They are
+ * needed because a knex read names no read: `knex('sales_channels').where(…)`
+ * is a call on a plain identifier, and the only thing that makes it a database
+ * read is the `getKnex()` three statements above it.
+ */
+export function isDatabaseRead(
+  node: ts.Expression | undefined,
+  builders: ReadonlySet<string> = NO_BUILDERS,
+): boolean {
   if (node === undefined) return false;
-  if (ts.isAwaitExpression(node)) return isDatabaseRead(node.expression);
+  if (ts.isAwaitExpression(node)) return isDatabaseRead(node.expression, builders);
   const bare = unwrap(node);
-  if (bare !== node) return isDatabaseRead(bare);
+  if (bare !== node) return isDatabaseRead(bare, builders);
   if (ts.isCallExpression(node)) {
     const name = tailName(node.expression);
-    return name !== null && DB_READS.has(name);
+    if (name !== null && DB_READS.has(name)) return true;
+    // A query-builder chain keeps the read at its **root**, not at its tail:
+    // `em.getKnex().select('*').from('sales_channels')` ends in `from`, and
+    // every call after `getKnex()` only adds to the statement. Walking the
+    // callee reaches it. The arguments are deliberately not walked, so
+    // `Promise.all([em.find(…)])` and `expectRow(await em.findOne(…))` stay
+    // out: the read they contain is not the value this expression yields.
+    return isDatabaseRead(node.expression, builders);
   }
   // `(await em.find(...))[0]` and `rows[0]` both keep the read in the chain.
-  if (ts.isElementAccessExpression(node)) return isDatabaseRead(node.expression);
-  if (ts.isPropertyAccessExpression(node)) return isDatabaseRead(node.expression);
+  if (ts.isElementAccessExpression(node)) return isDatabaseRead(node.expression, builders);
+  if (ts.isPropertyAccessExpression(node)) return isDatabaseRead(node.expression, builders);
+  // `knex('sales_channels')` — the callee is a bare name this file bound above.
+  if (ts.isIdentifier(node)) return builders.has(node.text);
   return false;
+}
+
+/**
+ * Every identifier a declaration's binding name introduces.
+ *
+ * Destructuring is why this exists. `const [channel] = await em.execute(…)` and
+ * `const { code } = await em.findOne(…)` are the same read as
+ * `const rows = await em.execute(…)`, and the binding pass matched an
+ * `Identifier` name only — so the name never entered the bound set, the `??`
+ * below it had no read to be rooted in, and two live sites in
+ * `integration/dictionaries/reference-registry-consumers.test.ts` defaulted a
+ * system-default sales channel to `'en-US'` and `'PLN'` while this check
+ * reported the file clean (issue #275).
+ */
+export function boundIdentifiers(name: ts.BindingName): string[] {
+  if (ts.isIdentifier(name)) return [name.text];
+  const out: string[] = [];
+  for (const element of name.elements) {
+    if (ts.isOmittedExpression(element)) continue;
+    out.push(...boundIdentifiers(element.name));
+  }
+  return out;
+}
+
+/**
+ * Every identifier an **assignment** target introduces — the same three shapes
+ * as {@link boundIdentifiers}, spelled as expressions rather than as a binding
+ * name, which is what a `let` declared in the file body and assigned inside a
+ * `beforeAll` looks like: `[channel] = await em.execute(…)`.
+ */
+export function assignedIdentifiers(target: ts.Expression): string[] {
+  const bare = unwrap(target);
+  if (ts.isIdentifier(bare)) return [bare.text];
+  if (ts.isArrayLiteralExpression(bare)) {
+    return bare.elements.flatMap((element) => assignedIdentifiers(element));
+  }
+  if (ts.isObjectLiteralExpression(bare)) {
+    const out: string[] = [];
+    for (const property of bare.properties) {
+      if (ts.isShorthandPropertyAssignment(property)) out.push(property.name.text);
+      else if (ts.isPropertyAssignment(property)) {
+        out.push(...assignedIdentifiers(property.initializer));
+      }
+    }
+    return out;
+  }
+  if (ts.isSpreadElement(bare)) return assignedIdentifiers(bare.expression);
+  // `[a = fallback]` and `{ a: b = fallback }` — the target is the left side.
+  if (ts.isBinaryExpression(bare) && bare.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+    return assignedIdentifiers(bare.left);
+  }
+  return [];
+}
+
+/**
+ * The identifiers a file binds to a knex instance.
+ *
+ * Mirrors `check-transaction-context`'s `getConnection()` binding pass, and for
+ * the same reason: `em.getKnex()`, `em.getConnection().getKnex()` and
+ * `const knex = h.em().getKnex()` all produce a builder whose later calls name
+ * nothing this check would otherwise recognise as a read.
+ */
+export function knexBoundNames(sf: ts.SourceFile): Set<string> {
+  const names = new Set<string>();
+  const isBuilderSource = (expr: ts.Expression | undefined): boolean => {
+    if (expr === undefined) return false;
+    if (ts.isAwaitExpression(expr)) return isBuilderSource(expr.expression);
+    const bare = unwrap(expr);
+    if (bare !== expr) return isBuilderSource(bare);
+    return ts.isCallExpression(bare) && tailName(bare.expression) === 'getKnex';
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && isBuilderSource(node.initializer)) {
+      for (const name of boundIdentifiers(node.name)) names.add(name);
+    }
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      isBuilderSource(node.right)
+    ) {
+      for (const name of assignedIdentifiers(node.left)) names.add(name);
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return names;
 }
 
 /**
@@ -308,31 +473,33 @@ function rootIdentifier(node: ts.Expression): string | null {
 }
 
 /** Whether a chain contains a database read anywhere along it (the inline shape). */
-function chainContainsRead(node: ts.Expression): boolean {
+function chainContainsRead(node: ts.Expression, builders: ReadonlySet<string>): boolean {
   const bare = unwrap(node);
-  if (isDatabaseRead(bare)) return true;
-  if (ts.isPropertyAccessExpression(bare)) return chainContainsRead(bare.expression);
-  if (ts.isElementAccessExpression(bare)) return chainContainsRead(bare.expression);
-  if (ts.isAwaitExpression(bare)) return chainContainsRead(bare.expression);
+  if (isDatabaseRead(bare, builders)) return true;
+  if (ts.isPropertyAccessExpression(bare)) return chainContainsRead(bare.expression, builders);
+  if (ts.isElementAccessExpression(bare)) return chainContainsRead(bare.expression, builders);
+  if (ts.isAwaitExpression(bare)) return chainContainsRead(bare.expression, builders);
   return false;
 }
 
-/** Names bound to a database read anywhere in one file. */
+/** Names bound to a database read anywhere in one file, destructuring included. */
 export function readBoundNames(sf: ts.SourceFile): Set<string> {
+  const builders = knexBoundNames(sf);
   const bound = new Set<string>();
   const visit = (node: ts.Node): void => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
-      if (node.initializer !== undefined && chainContainsRead(node.initializer)) {
-        bound.add(node.name.text);
-      }
+    if (
+      ts.isVariableDeclaration(node) &&
+      node.initializer !== undefined &&
+      chainContainsRead(node.initializer, builders)
+    ) {
+      for (const name of boundIdentifiers(node.name)) bound.add(name);
     }
     if (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-      ts.isIdentifier(node.left) &&
-      chainContainsRead(node.right)
+      chainContainsRead(node.right, builders)
     ) {
-      bound.add(node.left.text);
+      for (const name of assignedIdentifiers(node.left)) bound.add(name);
     }
     node.forEachChild(visit);
   };
@@ -347,6 +514,7 @@ export function findDefaultedReads(input: FixtureSubstitutionInput): DefaultedRe
   for (const [file, text] of input.sources) {
     if (SEAM_FILES.has(file)) continue;
     const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+    const builders = knexBoundNames(sf);
     const bound = readBoundNames(sf);
 
     const visit = (node: ts.Node): void => {
@@ -358,7 +526,7 @@ export function findDefaultedReads(input: FixtureSubstitutionInput): DefaultedRe
               ? '||'
               : null;
         if (operator !== null && isPlaceholder(node.right) && !insideAssertion(node)) {
-          const inline = chainContainsRead(node.left);
+          const inline = chainContainsRead(node.left, builders);
           const root = rootIdentifier(node.left);
           const twoStep = !inline && root !== null && bound.has(root);
           if (inline || twoStep) {
