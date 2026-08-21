@@ -359,7 +359,6 @@ export const SalesChannelMembershipOpSchema = z.enum(['add', 'remove']);
 export type SalesChannelMembershipOp = z.infer<typeof SalesChannelMembershipOpSchema>;
 
 // ---------------------------------------------------------------------------
-<<<<<<< HEAD
 // (7) Attribution registry — "who still points at this sales channel?"
 //     (feature 075, D-87 drain).
 // ---------------------------------------------------------------------------
@@ -478,6 +477,8 @@ export interface SalesChannelRecord {
  */
 export interface SalesChannelResolutionPort {
   getByCode(code: string): Promise<SalesChannelRecord | null>;
+  /** Every channel, ordered by code. Used by connector target lookups. */
+  listAll(): Promise<SalesChannelRecord[]>;
   resolveActive(
     code: string,
   ): Promise<

@@ -25,6 +25,9 @@ export interface SalesChannelResolutionPort {
   /** Lookup by code; `null` when the code is unknown. */
   getByCode(code: string): Promise<CachedChannel | null>;
 
+  /** Every channel, ordered by code. */
+  listAll(): Promise<CachedChannel[]>;
+
   /** Lookup by id — a bound API key pins its channel by id, not code. */
   getById(id: string): Promise<CachedChannel | null>;
 
