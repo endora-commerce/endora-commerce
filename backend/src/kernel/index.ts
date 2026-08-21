@@ -64,6 +64,14 @@ export {
 } from './scope.js';
 
 export {
+  attachPlatformLogger,
+  currentPlatformLogger,
+  moduleLogger,
+  platformLogger,
+  type PlatformLogger,
+} from './logging.js';
+
+export {
   registerRequestScopeHook,
   type RequestScopeHookOptions,
 } from './request-scope-hook.js';

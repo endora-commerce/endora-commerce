@@ -41,6 +41,7 @@ import {
   configuredPublicApiBaseUrl,
   createRootContainer,
   createRegistrationOwnership,
+  platformLogger,
   registerOrm,
   registerValues,
   requiredModulesFrom,
@@ -403,8 +404,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const composedModules = composeModules([...MODULES, ...overlayModuleEntries], {
     container,
     eventBus,
-    // Composition runs before `buildServer`, so there is no `app.log` yet.
-    log: console,
+    // Issue #269 — composition runs before `buildServer`, so there is no
+    // `app.log` yet. This is late-bound rather than a snapshot: `buildServer`
+    // attaches the application's own pino instance the moment it exists, and
+    // every line written after that lands there. It used to be the bare global
+    // `console` — unstructured, uncorrelated, and outside the stream a
+    // deployment ships.
+    log: platformLogger(),
     interceptorRegistry: apiInterceptors,
     ownership: registrationOwnership,
     // Issue #258 — the modules this deployment is required to have, derived

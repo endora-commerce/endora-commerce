@@ -542,6 +542,50 @@ request behind it — boot reconciles, CLI entry points, workers. It exists so
 that tenant-scoped queries have an explicit, auditable escape hatch instead of
 an implicit one.
 
+## `ctx.log` — where a module's log line goes
+
+`ctx.log` is the platform's own logger, bound to the module. Every line it
+writes carries `module: '<your module id>'`, and carries `reqId` when it is
+written during a request, and the author names neither.
+
+It used to be neither of those things. The destination is chosen by the
+composition root, composition runs before `buildServer`, and so each root passed
+what it could name that early: `composition.ts` passed the global `console` and
+the test harness passed a no-op. A module's warning was therefore unstructured,
+uncorrelated with the request that caused it, outside the pino stream a
+deployment ships — and the two roots disagreed about which of those two nothings
+it was, which is exactly the class of drift `harness-parity.test.ts` exists for
+(issue #269).
+
+Both roots now pass `platformLogger()`, which is **late-bound**: it reads the
+destination per line rather than capturing it. `buildServer` attaches the
+application's own pino instance the moment one exists and detaches it on
+`onClose`. That is one attach site for all four entry points — `index.ts`,
+`worker.ts` (which builds a server it never listens on, precisely so the module
+plugins register), the test harness and the overlay runtime — so neither root
+can forget it and the two cannot drift apart on it again.
+
+The request id is read out of the platform scope's `requestMeta`, not out of
+`request.log`. Fastify's `request.log` is `app.log.child({ reqId })` and nothing
+more, so a line carrying `reqId` joins up with Fastify's own `req`/`res` lines
+identically; reading the id from the scope buys correlation at any depth without
+threading `request`, and — the load-bearing half — it **retains nothing**, where
+capturing the request into the scope would pin it for as long as any async
+resource created inside that scope lives (see the retention notes in `scope.ts`).
+
+**Outside a request there is no request id, and the line is still written.** A
+boot hook runs before `buildServer` in both roots, so it reaches a console
+fallback — which is where a boot line has always gone, and where a boot failure
+is read. A worker, a timer or an EventBus subscriber runs after the app was
+built, so it reaches the app's pino instance. A process that composes modules and
+builds no server reaches the fallback too. The fallback is a real write and never
+a no-op: turning an unstructured line into a dropped one would be a worse
+platform than the one this replaced.
+
+`ctx.log` is therefore safe to keep. Four modules hand it to a service that holds
+it for the life of the process (`invoices`, `payments`, `pwa`, `shipments`), and
+both the destination and the request correlation are read per line.
+
 ## Composition order — read this before writing a boot hook
 
 Composition runs in **one pass** over the generated module list, and every boot
