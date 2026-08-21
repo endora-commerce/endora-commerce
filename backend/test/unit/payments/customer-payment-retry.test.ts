@@ -5,6 +5,7 @@ import {
   type CustomerAccountRecord,
   type OrderReadPort,
   type OrderRecord,
+  type OrderTransitionPort,
   type PaymentAdapter,
   type PaymentAdapterRegistryPort,
   type StartPaymentResult,
@@ -106,6 +107,8 @@ function build(over: {
   failAttempt?: PaymentService['failAttempt'];
   adapter?: PaymentAdapter | undefined;
   assertCanTransact?: (organizationId: string) => Promise<void>;
+  /** What the configured graph says about the order's status (feature 085 D). */
+  terminal?: boolean | null;
 }) {
   const failAttempt = over.failAttempt ?? vi.fn(async () => undefined);
   const paymentService = {
@@ -119,6 +122,14 @@ function build(over: {
     } as unknown as OrderReadPort,
     customerAccountRead: buyerRead,
     paymentService,
+    orderTransition: {
+      // The read half only. A retry moves money, never the lifecycle, and a
+      // fixture that quietly allowed the write would let one grow here.
+      applyStatus: async () => {
+        throw new Error('the retry path does not write the order lifecycle');
+      },
+      isTerminal: async () => ('terminal' in over ? (over.terminal ?? null) : false),
+    } satisfies OrderTransitionPort,
     paymentAdapterRegistry: () =>
       registryWith('adapter' in over ? over.adapter : adapterReturning({ kind: 'none' })),
     assertOrganizationCanTransact: over.assertCanTransact ?? (async () => undefined),
@@ -181,6 +192,47 @@ describe('customer payment retry (#264)', () => {
   });
 
   /**
+   * The lifecycle term (feature 085 Phase D). After Phase D the ingress writes
+   * no terminal status at all, so a terminal order is always a deliberate human
+   * decision — and the cancellation that produced it has already released the
+   * stock, so paying again would buy goods the order no longer holds.
+   *
+   * The refusal is on **terminality**, asked of the graph, and never on the
+   * string `cancelled`: the status set is operator-configurable and a
+   * deployment may add ends of its own. The order below sits at a status this
+   * test does not name, precisely so a check against a code could not pass it.
+   */
+  it('refuses an order whose lifecycle status the graph calls terminal', async () => {
+    const { service, failAttempt } = build({
+      order: orderRecord({ status: 'archived_by_this_shop', paymentStatus: 'failed' }),
+      terminal: true,
+    });
+
+    await expect(
+      service.retryForCustomer({ orderId: ORDER_ID, customerAccountId: BUYER }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    // Refused before anything was opened: no attempt row, no provider session.
+    expect(failAttempt).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The same status the ingress leaves a declined order in is *not* terminal,
+   * and this is the case that says the refusal above is a lifecycle answer
+   * rather than a blanket one.
+   */
+  it('accepts a held order, which is where a decline leaves it', async () => {
+    const { service } = build({
+      order: orderRecord({ status: 'on_hold', paymentStatus: 'failed' }),
+      terminal: false,
+      adapter: adapterReturning({ kind: 'redirect', url: 'https://psp.example/pay/2' }),
+    });
+
+    await expect(
+      service.retryForCustomer({ orderId: ORDER_ID, customerAccountId: BUYER }),
+    ).resolves.toMatchObject({ opened: true });
+  });
+
+  /**
    * The transact guard runs on this path exactly as it runs on placement: a
    * suspended Organization may not pay any more than it may buy. It is checked
    * *after* ownership, so a suspended organisation's status is not readable by
@@ -205,9 +257,6 @@ describe('customer payment retry (#264)', () => {
    * `=== 'awaiting_payment'` this is a 409 for every declined buyer on every
    * gateway — the retry refusing precisely the population it was built for.
    *
-   * The lifecycle status is still deliberately not consulted here; refusing a
-   * terminal one is feature 085's Phase D, together with the transition seam
-   * that makes a cancellation release stock.
    */
   it('opens the next attempt and starts its provider session', async () => {
     const adapter = adapterReturning({ kind: 'redirect', url: 'https://psp.example/pay/2' });

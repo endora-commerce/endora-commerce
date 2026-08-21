@@ -5,8 +5,7 @@ import type {
   DeliveryMethodReadPort,
   EmailDefaultsRegistryPort,
   OrderReadPort,
-  OrderStatusAnnouncePort,
-  OrderStatusRegistry,
+  OrderTransitionPort,
   ShipmentStatus,
   ShippingAdapterRegistryPort,
   ShippingEmailRendererPort,
@@ -63,7 +62,6 @@ export interface ShipmentsCradle {
   readonly auditLogService: AuditLogService;
   readonly requireAdmin: RequireAdminFactory;
   readonly shippingAdapterRegistry: ShippingAdapterRegistryPort;
-  readonly shippingOrderStatusRegistry: OrderStatusRegistry;
   readonly shipmentService: ShipmentService;
   readonly receiveShipmentHandler: ReceiveShipmentHandler;
   /** Contribution point: absent means a shipment-created e-mail is not sent. */
@@ -135,6 +133,17 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  /**
+   * The carrier callback ingress.
+   *
+   * **`orderTransitionPort` replaces two of the names this took** (feature 085
+   * Phase D). `orderStatusAnnouncePort` goes because the transition seam emits
+   * the templated `.after` events itself, so announcing beside it would double
+   * every subscriber's reaction; `shippingOrderStatusRegistry` goes because "is
+   * this a status code" was never the question a carrier callback needed
+   * answered, and the port answers the real one — may this order go there —
+   * against the configured graph.
+   */
   ctx.di.providePort(
     'receiveShipmentHandler',
     ctx
@@ -142,9 +151,9 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory, eventBus }: ShipmentsCradle) =>
           new ReceiveShipmentHandler(
             emFactory,
-            lazyPort<OrderStatusRegistry>(ctx, 'shippingOrderStatusRegistry'),
             lazyPort<DeliveryMethodReadPort>(ctx, 'deliveryMethodReadPort'),
-            lazyPort<OrderStatusAnnouncePort>(ctx, 'orderStatusAnnouncePort'),
+            lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
+            ctx.log,
             eventBus as ShippingEventBus,
           ),
       )

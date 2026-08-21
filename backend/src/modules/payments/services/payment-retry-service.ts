@@ -3,6 +3,7 @@ import {
   type CustomerAccountReadPort,
   type OrderPaymentStatus,
   type OrderReadPort,
+  type OrderTransitionPort,
   type PaymentAdapterRegistryPort,
   type PaymentRetryNextAction,
   type PaymentRetryResult,
@@ -25,11 +26,12 @@ import type { PaymentService } from './payment-service.js';
  *
  * ### What this decides on, and what it deliberately does not
  *
- * The refusals below are all on the **payment** axis — is this order paid, is
- * there an attempt, has it failed. The order's *lifecycle* status is not
- * consulted here.
+ * The refusals below take **two** terms: the payment axis — is this order paid,
+ * is there an attempt, has it failed — and, since feature 085's Phase D,
+ * whether the order's lifecycle status is terminal.
  *
- * That used to be forced: every payment method in the tree was seeded
+ * Reading the lifecycle at all used to be unsafe: every payment method in the
+ * tree was seeded
  * `status_on_failure = 'cancelled'`, so the settlement ingress made an order
  * terminal on the first decline and reading `order.status` would have refused
  * exactly the buyers this exists for. Feature 085 answered the product question
@@ -46,11 +48,14 @@ import type { PaymentService } from './payment-service.js';
  * it, and there is no buyer-initiated session to open — and `refunded` is
  * settled in the other direction.
  *
- * Refusing a **terminal** lifecycle status is the remaining half and belongs to
- * feature 085's Phase D, together with the transition seam that makes a
- * cancellation release stock; after that phase a terminal order is always a
- * deliberate human decision, and paying it again would silently override the
- * person who made it.
+ * The lifecycle term is **terminality, not the string `cancelled`**. The status
+ * set is operator-configurable and a deployment may add terminal statuses of
+ * its own, so the question goes to the graph through
+ * `orderTransitionPort.isTerminal`. And the reason it is asked at all is Phase
+ * D's: the ingress no longer writes a terminal status, so a terminal order is
+ * always a deliberate human decision — an administrator's, or the buyer's own —
+ * and paying it again would silently override the person who made it, on stock
+ * the cancellation has already released.
  */
 /**
  * The payment states in which the buyer still owes this money themselves
@@ -71,6 +76,12 @@ export interface PaymentRetryDeps {
   customerAccountRead: CustomerAccountReadPort;
   paymentService: PaymentService;
   /**
+   * The lifecycle read, for the terminality term. `orders` owns the graph and
+   * the graph is what decides which statuses are ends — this module may not
+   * name one.
+   */
+  orderTransition: OrderTransitionPort;
+  /**
    * Read per call rather than captured: the registry is contributed at boot by
    * whichever gateway modules are present, and an operator can switch one off
    * between two requests.
@@ -87,8 +98,9 @@ export class PaymentRetryService {
    *
    * @throws 404 when the order does not exist or carries no payment attempt.
    * @throws 403 when the caller did not place the order.
-   * @throws 409 when the order is already settled, or when the method it was
-   *         placed with has no adapter registered any more.
+   * @throws 409 when the order is already settled, when its lifecycle status is
+   *         terminal, or when the method it was placed with has no adapter
+   *         registered any more.
    * @throws whatever `assertOrganizationCanTransact` throws for a suspended or
    *         blocked organisation — the route maps it, exactly as placement does.
    */
@@ -110,6 +122,19 @@ export class PaymentRetryService {
         409,
         ERROR_CODES.VALIDATION_FAILED,
         'This order is not awaiting payment.',
+      );
+    }
+    // The lifecycle term (feature 085 Phase D). Asked of the graph, because the
+    // terminal set is operator-configurable — and asked after the money term so
+    // the two refusals stay in the order the buyer's own page explains them in.
+    // `null` is "no such order", which the read above says otherwise; it means
+    // the order was deleted between the two reads, and the attempt this would
+    // open is the one that then answers.
+    if ((await this.deps.orderTransition.isTerminal(order.id)) === true) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.VALIDATION_FAILED,
+        'This order is closed and can no longer be paid.',
       );
     }
     await this.deps.assertOrganizationCanTransact(order.organizationId);

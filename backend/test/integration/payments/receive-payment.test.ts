@@ -1,19 +1,17 @@
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type {
-  OrderStatusAnnouncePort,
-  OrderStatusRegistry,
-  PaymentMethodReadPort,
-} from '@b2b/contracts';
+import type { OrderTransitionPort, PaymentMethodReadPort } from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ReceivePaymentHandler } from '../../../src/modules/payments/services/receive-payment-handler.js';
+import {
+  ReceivePaymentHandler,
+  type SettlementLogger,
+} from '../../../src/modules/payments/services/receive-payment-handler.js';
 import { PaymentService } from '../../../src/modules/payments/services/payment-service.js';
-import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
 import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
@@ -35,7 +33,12 @@ async function seedOrderWithPayment(
     adapter: opts.adapter ?? 'bank_transfer',
     status: 'active',
     statusOnPending: 'new',
-    statusOnSuccess: opts.statusOnSuccess ?? 'completed',
+    // The shipped seeds, both of them: `paid` is where a first success takes an
+    // order (the edge feature 085 Phase A added) and `on_hold` is where a
+    // decline leaves it (Phase C). A fixture naming a target the configured
+    // graph cannot reach would assert the ingress forcing it, which is the
+    // defect Phase D removed.
+    statusOnSuccess: opts.statusOnSuccess ?? 'paid',
     statusOnFailure: opts.statusOnFailure ?? 'on_hold',
   });
   await em.persistAndFlush(method);
@@ -72,17 +75,20 @@ async function seedOrderWithPayment(
 
 describe('ReceivePaymentHandler', () => {
   let h: BackendServerHandle;
-  const registry = new EnumOrderStatusRegistry();
+  /** Refusals the cases below do not assert on; the ones that do are elsewhere. */
+  const quiet: SettlementLogger = { warn: () => undefined };
   /**
-   * The two cross-module reads the handler makes, resolved off the composed
-   * container rather than stubbed (feature 075, C-W3). They are gated ports, so
-   * resolving them here is what the four gateways do through
-   * `receivePaymentPort`, and a test that stubbed them would stop exercising the
-   * seam it is here to keep honest.
+   * The two cross-module seams the handler uses, resolved off the composed
+   * container rather than stubbed (feature 075 C-W3; feature 085 Phase D). Both
+   * are gated ports, so resolving them here is what the four gateways do
+   * through `receivePaymentPort`, and a test that stubbed them would stop
+   * exercising the seam it is here to keep honest — the lifecycle one above
+   * all, since the whole point of Phase D is that the graph now answers.
    */
-  const handlerPorts = (): [PaymentMethodReadPort, OrderStatusAnnouncePort] => [
+  const handlerPorts = (): [PaymentMethodReadPort, OrderTransitionPort, SettlementLogger] => [
     h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
-    h.container.resolve<OrderStatusAnnouncePort>('orderStatusAnnouncePort'),
+    h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+    quiet,
   ];
 
   beforeAll(async () => {
@@ -94,7 +100,7 @@ describe('ReceivePaymentHandler', () => {
 
   it('marks the Payment paid and applies statusOnSuccess (T034)', async () => {
     const { order, payment } = await seedOrderWithPayment(h.em());
-    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts());
 
     const res = await handler.receive({
       paymentId: payment.id,
@@ -110,7 +116,7 @@ describe('ReceivePaymentHandler', () => {
     expect(reloadedPayment!.externalReference).toBe('psp-123');
     expect(reloadedPayment!.providerDetails).toMatchObject({ gatewayTxn: 'abc' });
     const reloadedOrder = await em.findOne(Order, { id: order.id });
-    expect(reloadedOrder!.status).toBe('completed');
+    expect(reloadedOrder!.status).toBe('paid');
     expect(reloadedOrder!.paymentStatus).toBe('paid');
   });
 
@@ -127,7 +133,7 @@ describe('ReceivePaymentHandler', () => {
    */
   it('marks the Payment failed, holds the order and records the decline (T034 / 085)', async () => {
     const { order, payment } = await seedOrderWithPayment(h.em());
-    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts());
 
     const res = await handler.receive({
       paymentId: payment.id,
@@ -152,7 +158,7 @@ describe('ReceivePaymentHandler', () => {
    */
   it('leaves a second decline where the first one put the order (085 FR-006)', async () => {
     const { order, payment } = await seedOrderWithPayment(h.em());
-    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts());
 
     await handler.receive({ paymentId: payment.id, outcome: 'failure', failureReason: 'first' });
     const second = await handler.receive({
@@ -179,19 +185,19 @@ describe('ReceivePaymentHandler', () => {
    */
   it('lets a success after a failure settle the order (085 edge case)', async () => {
     const { order, payment } = await seedOrderWithPayment(h.em());
-    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts());
 
     await handler.receive({ paymentId: payment.id, outcome: 'failure', failureReason: 'declined' });
     await handler.receive({ paymentId: payment.id, outcome: 'success' });
 
     const reloadedOrder = await h.em().findOne(Order, { id: order.id }, { refresh: true });
-    expect(reloadedOrder!.status).toBe('completed');
+    expect(reloadedOrder!.status).toBe('paid');
     expect(reloadedOrder!.paymentStatus).toBe('paid');
   });
 
   it('is idempotent on repeated success and rejects failure after paid (T035)', async () => {
     const { payment } = await seedOrderWithPayment(h.em());
-    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts());
 
     await handler.receive({ paymentId: payment.id, outcome: 'success' });
     const again = await handler.receive({ paymentId: payment.id, outcome: 'success' });
@@ -204,7 +210,7 @@ describe('ReceivePaymentHandler', () => {
 
   it('opens a retry Payment after a failure, preserving prior attempts (T035)', async () => {
     const { order, payment } = await seedOrderWithPayment(h.em());
-    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts());
     const service = new PaymentService(h.em);
 
     await handler.receive({ paymentId: payment.id, outcome: 'failure', failureReason: 'x' });
@@ -282,62 +288,47 @@ describe('ReceivePaymentHandler', () => {
   });
 
   /**
-   * Feature 075, C-W3 — the payment row and the order status still commit or
-   * roll back together after the payment-method read moved onto a port.
+   * Feature 075 C-W3, narrowed by feature 085 Phase D — the payment row and the
+   * order's **payment status** commit or roll back together, which is the pair
+   * `payments_order_fk` holds and the whole of what D-78 point 2 rules
+   * co-transactional.
    *
-   * The failure is placed at the **flush**, after `receive()` has already
-   * stamped `payment.status = 'paid'` / `paidAt` and moved `order.status`: a
-   * `statusOnSuccess` longer than `orders.status` (`varchar(64)`) is refused by
-   * Postgres when the unit of work writes it. Nothing else in the handler can
-   * fail that late, and a failure earlier than the mutations would prove only
-   * that a write that never happened did not happen.
-   *
-   * The port is stubbed for exactly that one oversized field — the real
-   * `paymentMethodReadPort` is what every other case here resolves — because
-   * `payment_methods.status_on_success` is `varchar(64)` too, so the row cannot
-   * be seeded with it.
+   * The lifecycle status is no longer in that pair, and this case says so from
+   * both sides: it is not written inside the transaction, and it is therefore
+   * unmoved when the transaction rolls back. The oversized value that used to
+   * force the failure was a `statusOnSuccess` too long for `orders.status`,
+   * which cannot fail a flush any more for exactly that reason — the handler
+   * never writes that column. An `externalReference` longer than
+   * `payments.external_reference` (`varchar(255)`) puts the failure back at the
+   * flush, after `receive()` has stamped `payment.status = 'paid'` / `paidAt`
+   * and `order.paymentStatus`.
    */
-  it('rolls the payment back with the order when the settlement flush fails (C-W3)', async () => {
-    const { method, order, payment } = await seedOrderWithPayment(h.em());
-    const [, announce] = handlerPorts();
-    const tooLongForTheColumn = 'x'.repeat(80);
-    const oversized: PaymentMethodReadPort = {
-      findById: async () => ({
-        id: method.id,
-        code: method.code,
-        name: method.name,
-        kind: method.kind,
-        adapter: method.adapter,
-        status: method.status,
-        additionalPrice: method.additionalPrice,
-        statusOnPending: method.statusOnPending,
-        statusOnSuccess: tooLongForTheColumn,
-        statusOnFailure: method.statusOnFailure,
-        createdAt: method.createdAt,
-        updatedAt: method.updatedAt,
-      }),
-      findByIds: async () => [],
-      findByCode: async () => null,
-      listAll: async () => [],
-      listActive: async () => [],
-    };
-    // `has` is the guard the handler asks before it applies a status; saying yes
-    // is what lets the oversized code reach the flush.
-    const permissive = { has: () => true } as unknown as OrderStatusRegistry;
-    const handler = new ReceivePaymentHandler(h.em, oversized, announce, permissive);
+  it('rolls the payment back with the order payment status when the flush fails (C-W3)', async () => {
+    const { order, payment } = await seedOrderWithPayment(h.em());
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts());
+    const tooLongForTheColumn = 'x'.repeat(300);
 
     // Asserted on the message, so the test cannot pass by failing *earlier*
     // than the writes it is here to roll back: this is Postgres refusing the
     // write, which only happens once the unit of work flushes both rows.
-    await expect(handler.receive({ paymentId: payment.id, outcome: 'success' })).rejects.toThrow(
-      /value too long for type character varying\(64\)/i,
-    );
+    await expect(
+      handler.receive({
+        paymentId: payment.id,
+        outcome: 'success',
+        externalReference: tooLongForTheColumn,
+      }),
+    ).rejects.toThrow(/value too long for type character varying\(255\)/i);
 
     const em = h.em();
     const reloadedPayment = await em.findOne(Payment, { id: payment.id }, { refresh: true });
     expect(reloadedPayment!.status).toBe('awaiting_payment');
     expect(reloadedPayment!.paidAt ?? null).toBeNull();
     const reloadedOrder = await em.findOne(Order, { id: order.id }, { refresh: true });
+    // Unmoved because the transition is asked for after the commit and the
+    // commit never happened — not because a rollback reached it. A port call
+    // made from inside the transaction would have written this column on a
+    // second connection that the rollback could not reach, and this line would
+    // read `paid` (issue #200).
     expect(reloadedOrder!.status).toBe('new');
     expect(reloadedOrder!.paymentStatus).toBe('awaiting_payment');
   });
@@ -346,11 +337,11 @@ describe('ReceivePaymentHandler', () => {
     // The method references an adapter key that is NOT in any registry; the
     // handler keys on the persisted Payment, so the late event still settles.
     const { order, payment } = await seedOrderWithPayment(h.em(), { adapter: 'removed_adapter' });
-    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts());
 
     const res = await handler.receive({ paymentId: payment.id, outcome: 'success' });
     expect(res.status).toBe('paid');
     const reloadedOrder = await h.em().findOne(Order, { id: order.id });
-    expect(reloadedOrder!.status).toBe('completed');
+    expect(reloadedOrder!.status).toBe('paid');
   });
 });

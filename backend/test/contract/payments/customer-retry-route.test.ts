@@ -57,7 +57,13 @@ describe('customer payment retry route (#264)', () => {
    * hand back.
    */
   async function seedFailedOrder(
-    over: { customerAccountId?: string; organizationId?: string; paymentStatus?: 'paid' } = {},
+    over: {
+      customerAccountId?: string;
+      organizationId?: string;
+      paymentStatus?: 'paid';
+      /** Overrides where the decline left the order — see the seed below. */
+      status?: string;
+    } = {},
   ): Promise<{ orderId: string; paymentId: string }> {
     const em = h.em();
     const method = em.create(PaymentMethod, {
@@ -67,8 +73,8 @@ describe('customer payment retry route (#264)', () => {
       adapter: 'bank_transfer',
       status: 'active',
       statusOnPending: 'new',
-      statusOnSuccess: 'confirmed',
-      statusOnFailure: 'cancelled',
+      statusOnSuccess: 'paid',
+      statusOnFailure: 'on_hold',
     });
     await em.persistAndFlush(method);
     const order = em.create(Order, {
@@ -103,9 +109,12 @@ describe('customer payment retry route (#264)', () => {
       deliveryTotal: '0.00',
       total: '12.30',
       currency: 'PLN',
-      // The status the settlement ingress leaves behind after a decline: the
-      // seeded `status_on_failure` is `cancelled` for every method in the tree.
-      status: 'cancelled',
+      // The status the settlement ingress leaves behind after a decline. It
+      // was `cancelled` for every method in the tree until feature 085 Phase C
+      // made `on_hold` the shipped default — which is the whole point of the
+      // feature, since `cancelled` is terminal and this route now refuses a
+      // terminal order (Phase D).
+      status: over.status ?? 'on_hold',
       ...(over.paymentStatus ? { paymentStatus: over.paymentStatus } : {}),
       placedAt: new Date(),
     });
@@ -217,6 +226,32 @@ describe('customer payment retry route (#264)', () => {
       ...buyer,
     });
     expect(res.statusCode).toBe(409);
+  });
+
+  /**
+   * Feature 085 Phase D — the lifecycle term. A terminal order is always a
+   * deliberate human decision now that the ingress writes no terminal status,
+   * and the cancellation that produced it has already released the order's
+   * stock, so paying again would be paying for goods the order no longer holds.
+   *
+   * The money axis says `failed` here, exactly as it does in the case that
+   * succeeds; the lifecycle is what differs, which is what makes this a test of
+   * the term rather than of the fixture.
+   */
+  it('refuses an order the lifecycle has ended', async () => {
+    const { orderId } = await seedFailedOrder({ status: 'cancelled' });
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/orders/${orderId}/payments/retry`,
+      ...buyer,
+    });
+
+    expect(res.statusCode).toBe(409);
+    // And nothing was opened on the way to being refused: a cancelled order
+    // must not acquire an attempt row a later click would resume.
+    const attempts = await h.em().find(Payment, { orderId });
+    expect(attempts).toHaveLength(1);
   });
 
   /**
