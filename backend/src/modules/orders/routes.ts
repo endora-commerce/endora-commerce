@@ -49,6 +49,7 @@ import type { OrderComment } from './entities/order-comment.entity.js';
 import type { OrderReorderService } from './services/order-reorder-service.js';
 import type { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
 import type { OrderCreationAdminService } from './services/order-creation-admin-service.js';
+import type { CustomerOrderCancellationService } from './services/order-cancellation-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { OrderAppliedPromotion } from './entities/order-applied-promotion.entity.js';
@@ -72,6 +73,11 @@ export interface OrdersDeps {
   orderCloneToQuoteService: OrderCloneToQuoteService;
   /** Feature 038 US3 — create an order on behalf of a customer. */
   orderCreationAdminService: OrderCreationAdminService;
+  /**
+   * Feature 085 (US3) — the buyer cancelling an order they placed, and the
+   * capability the buyer's surface renders that control from.
+   */
+  customerOrderCancellation: CustomerOrderCancellationService;
   /**
    * Feature 038 US3 — pricing engine, used by the read-only create-order
    * preview to resolve per-line prices for the chosen customer/channel.
@@ -157,6 +163,26 @@ export async function registerOrderRoutes(
   const customFieldValues = deps.customFieldValues;
   const commandBus = deps.commandBus;
 
+  /**
+   * An order as the buyer who is reading it sees it (feature 085, FR-018).
+   *
+   * Every buyer-facing read goes through here so the cancel capability is
+   * carried on all of them and computed in one place. It is scoped to the
+   * asking account, not to the order: an Organization Admin may read a
+   * colleague's order and may not cancel it, and a control offered on that read
+   * would disagree with the 404 the cancel route gives.
+   */
+  const serializeForBuyer = async (
+    order: Order,
+    customerAccountId: string,
+  ): Promise<Record<string, unknown>> =>
+    serializeOrder(emFactory(), order, {
+      customerCancellable: await deps.customerOrderCancellation.isCancellableByCustomer(
+        order,
+        customerAccountId,
+      ),
+    });
+
   // --- Custom fields (feature 055) -------------------------------------
   // Narrow admin write for Order custom-field values. The write runs through
   // the Command Bus (audited by construction, Principle XIII); validation may
@@ -229,7 +255,7 @@ export async function registerOrderRoutes(
       }
       const order = await orderService.placeOrder(ctx, body);
       reply.status(201);
-      return { data: await serializeOrder(emFactory(), order) };
+      return { data: await serializeForBuyer(order, ctx.customerAccountId) };
     },
   );
 
@@ -252,8 +278,14 @@ export async function registerOrderRoutes(
     const ctx = resolveCustomerContext(request);
     const orders = await orderService.listForCustomer(ctx);
     const em = emFactory();
+    const cancellable = await deps.customerOrderCancellation.cancellableOrderIds(
+      orders,
+      ctx.customerAccountId,
+    );
     return {
-      data: await Promise.all(orders.map((o) => serializeOrder(em, o))),
+      data: await Promise.all(
+        orders.map((o) => serializeOrder(em, o, { customerCancellable: cancellable.has(o.id) })),
+      ),
       pagination: { cursor: null, hasMore: false, limit: 50 },
     };
   });
@@ -264,7 +296,30 @@ export async function registerOrderRoutes(
     async (request) => {
       const ctx = resolveCustomerContext(request);
       const order = await orderService.getById(request.params.id, ctx);
-      return { data: await serializeOrder(emFactory(), order) };
+      return { data: await serializeForBuyer(order, ctx.customerAccountId) };
+    },
+  );
+
+  /**
+   * The buyer cancels an order they placed (feature 085, US3 / FR-013).
+   *
+   * `POST`, and immediate: the owner's wording is that the customer cancels,
+   * so there is no approval step, no pending-cancellation state and no staff
+   * queue. Everything the refusal rules and the ownership scope are lives in
+   * the service; the route is the seam.
+   *
+   * There is no request body — the target status is not the buyer's to choose.
+   */
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/orders/:id/cancel',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const ctx = resolveCustomerContext(request);
+      const order = await deps.customerOrderCancellation.cancelByCustomer(
+        request.params.id,
+        ctx.customerAccountId,
+      );
+      return { data: await serializeForBuyer(order, ctx.customerAccountId) };
     },
   );
 
@@ -430,6 +485,10 @@ export async function registerOrderRoutes(
         data: result.rows,
         pagination: { page: query.page, pageSize: query.pageSize, total: result.total },
         counts: result.counts,
+        // Feature 085 (FR-021) — the money axis, as its own map. `paid` is a
+        // shipped order status code as well as a payment status, so folding the
+        // two axes into `counts` would add two populations under one key.
+        paymentStatusCounts: result.paymentStatusCounts,
       };
     },
   );
@@ -1095,7 +1154,17 @@ function resolveAdminUserId(req: FastifyRequest): string | null {
   return null;
 }
 
-async function serializeOrder(em: EntityManager, order: Order): Promise<Record<string, unknown>> {
+/**
+ * @param capabilities what *this reader* may do with the order — computed by
+ *   the platform and carried to the surface (feature 085, FR-018). Buyer-facing
+ *   reads pass it; the admin reads do not, because an administrator's power to
+ *   cancel has no per-order condition to report.
+ */
+async function serializeOrder(
+  em: EntityManager,
+  order: Order,
+  capabilities?: { customerCancellable: boolean },
+): Promise<Record<string, unknown>> {
   const items = await em.find(OrderItem, { orderId: order.id });
   // Status label payload (feature 039 follow-up): the localized name map + the
   // language-independent default name, so any client resolves
@@ -1159,5 +1228,6 @@ async function serializeOrder(em: EntityManager, order: Order): Promise<Record<s
     // details / gateway redirect / none). Order reads (GET/list) load it as
     // undefined → null.
     nextAction: order.nextAction ?? null,
+    ...(capabilities ? { customerCancellable: capabilities.customerCancellable } : {}),
   };
 }

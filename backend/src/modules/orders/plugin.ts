@@ -25,6 +25,7 @@ import { OrderReorderService } from './services/order-reorder-service.js';
 import { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
 import { OrderConfirmationService } from './services/order-confirmation-service.js';
 import { OrderCreationAdminService } from './services/order-creation-admin-service.js';
+import { CustomerOrderCancellationService } from './services/order-cancellation-service.js';
 import { OrderApiIntakeService } from './services/order-api-intake-service.js';
 import { registerOrdersExternalRoutes } from './routes.external.js';
 import type { OrganizationConfirmationEmailsPort } from './ports/organization-confirmation-emails.port.js';
@@ -44,6 +45,7 @@ import type {
   InvoiceReadPort,
   LinePricePort,
   OrderStatusRegistry,
+  OrderTransitionPort,
   OrganizationDetailsPort,
   PaymentAdapterRegistryPort,
   PaymentMethodReadPort,
@@ -148,6 +150,15 @@ export interface OrdersModuleOptions {
   /** Accessors: both owners are deactivatable `degrades-without` edges. */
   deliveryMethodRead: () => DeliveryMethodReadPort | null;
   paymentMethodRead: () => PaymentMethodReadPort | null;
+  /**
+   * This module's own lifecycle-write port (feature 085).
+   *
+   * Handed in rather than reached for: the port is registered in `backend.ts`,
+   * which is where every gate in this module is applied, and the buyer's
+   * cancellation is a caller of the seam like any other. Resolving it here
+   * would need the container, which a module does not see.
+   */
+  orderTransitionPort: OrderTransitionPort;
   /**
    * The two `inventory` ports the stock reservation runs on, as one accessor
    * (D-94.4, issue #188). `null` ⇒ `inventory` is not effectively present, and
@@ -450,6 +461,18 @@ export function commerceModule(options: OrdersModuleOptions) {
     if (options.exposeOrderStatusGraphService) {
       options.exposeOrderStatusGraphService(orderStatusGraphService);
     }
+    // Feature 085 (US3) — the buyer's own cancellation. It writes through
+    // `orderTransitionPort` rather than through the service beside it: the port
+    // is the seam as this module publishes it, it answers a refusal as a value,
+    // and going through it means the buyer's cancellation gets the stock and
+    // credit release and the audit entry by exactly the path every other
+    // cancellation now takes.
+    const customerOrderCancellation = new CustomerOrderCancellationService({
+      emFactory: options.emFactory,
+      transitions: options.orderTransitionPort,
+      graphService: orderStatusGraphService,
+      paymentMethodRead: options.paymentMethodRead,
+    });
     // Feature 038 US2 — orders list query, saved views, CSV export.
     const orderListService = new OrderListService(
       options.emFactory,
@@ -503,6 +526,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderReorderService,
       orderCloneToQuoteService,
       orderCreationAdminService,
+      customerOrderCancellation,
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,

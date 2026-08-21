@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { orderStatusBadgeStyle } from './orderStatusColor';
+import { DISPLAYABLE_PAYMENT_STATUSES, paymentStatusLabelKey } from './paymentStatus';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
@@ -63,6 +64,8 @@ interface ListResponse {
   data: AdminOrderRow[];
   pagination: { page: number; pageSize: number; total: number };
   counts?: Record<string, number>;
+  /** Feature 085 — the money axis, counted separately from the lifecycle one. */
+  paymentStatusCounts?: Record<string, number>;
 }
 
 const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
@@ -86,6 +89,12 @@ const COLUMN_IDS = [
 type ColumnId = (typeof COLUMN_IDS)[number];
 
 // Default-visible set (the rest start hidden, toggled via the column picker).
+//
+// `payment` joined it with feature 085 (FR-023): `on_hold` now carries two
+// different situations — a payment that failed and an order fully refunded —
+// and the money axis is the only thing that tells them apart. A column an
+// operator has to go and enable does not satisfy "distinguishable without
+// opening either".
 const DEFAULT_VISIBLE: ColumnId[] = [
   'order',
   'placedAt',
@@ -93,6 +102,7 @@ const DEFAULT_VISIBLE: ColumnId[] = [
   'customer',
   'org',
   'status',
+  'payment',
   'total',
 ];
 
@@ -120,6 +130,7 @@ export function OrdersList(): ReactNode {
   const [rows, setRows] = useState<AdminOrderRow[]>([]);
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [paymentStatusCounts, setPaymentStatusCounts] = useState<Record<string, number>>({});
   const [statuses, setStatuses] = useState<StatusDef[]>([]);
   const [channels, setChannels] = useState<MethodOption[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<MethodOption[]>([]);
@@ -128,6 +139,11 @@ export function OrdersList(): ReactNode {
 
   // Filters.
   const [statusCodes, setStatusCodes] = useState<string[]>(() => searchParams.getAll('status'));
+  // Feature 085 (FR-021) — deep-linkable like the status filter, so a saved
+  // link or a dashboard tile can point an operator straight at the held orders.
+  const [paymentStatuses, setPaymentStatuses] = useState<string[]>(() =>
+    searchParams.getAll('paymentStatus'),
+  );
   const [salesChannelIds, setSalesChannelIds] = useState<string[]>([]);
   const [paymentMethodIds, setPaymentMethodIds] = useState<string[]>([]);
   const [deliveryMethodIds, setDeliveryMethodIds] = useState<string[]>([]);
@@ -179,6 +195,7 @@ export function OrdersList(): ReactNode {
     params.set('pageSize', String(Math.min(pageSize, 200)));
     params.set('sort', sort);
     for (const s of statusCodes) params.append('status', s);
+    for (const s of paymentStatuses) params.append('paymentStatus', s);
     for (const id of salesChannelIds) params.append('salesChannelId', id);
     for (const id of paymentMethodIds) params.append('paymentMethodId', id);
     for (const id of deliveryMethodIds) params.append('deliveryMethodId', id);
@@ -196,6 +213,7 @@ export function OrdersList(): ReactNode {
     pageSize,
     sort,
     statusCodes,
+    paymentStatuses,
     salesChannelIds,
     paymentMethodIds,
     deliveryMethodIds,
@@ -212,6 +230,7 @@ export function OrdersList(): ReactNode {
       setRows(res.data);
       setTotal(res.pagination.total);
       setCounts(res.counts ?? {});
+      setPaymentStatusCounts(res.paymentStatusCounts ?? {});
       setSelected(new Set());
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('orders.error.load'));
@@ -229,6 +248,7 @@ export function OrdersList(): ReactNode {
     setPage(0);
   }, [
     statusCodes,
+    paymentStatuses,
     salesChannelIds,
     paymentMethodIds,
     deliveryMethodIds,
@@ -281,6 +301,7 @@ export function OrdersList(): ReactNode {
   const applyView = (view: SavedViewState): void => {
     const f = view.filters;
     setStatusCodes(asStringArray(f['status']));
+    setPaymentStatuses(asStringArray(f['paymentStatus']));
     setSalesChannelIds(asStringArray(f['salesChannelId']));
     setPaymentMethodIds(asStringArray(f['paymentMethodId']));
     setDeliveryMethodIds(asStringArray(f['deliveryMethodId']));
@@ -304,6 +325,7 @@ export function OrdersList(): ReactNode {
   const currentView: SavedViewState = {
     filters: {
       ...(statusCodes.length ? { status: statusCodes } : {}),
+      ...(paymentStatuses.length ? { paymentStatus: paymentStatuses } : {}),
       ...(salesChannelIds.length ? { salesChannelId: salesChannelIds } : {}),
       ...(paymentMethodIds.length ? { paymentMethodId: paymentMethodIds } : {}),
       ...(deliveryMethodIds.length ? { deliveryMethodId: deliveryMethodIds } : {}),
@@ -330,6 +352,20 @@ export function OrdersList(): ReactNode {
     label: `${statusLabel(s.code)}${counts[s.code] !== undefined ? ` (${counts[s.code]})` : ''}`,
   }));
 
+  // The money axis (feature 085). The option set is the contract's own
+  // vocabulary rather than the values present on this page: an operator looking
+  // for failed payments must be able to pick `failed` on a page that has none.
+  const paymentStatusLabel = useCallback(
+    (code: string): string => t(paymentStatusLabelKey(code)),
+    [t],
+  );
+  const paymentStatusOptions: MultiSelectOption[] = DISPLAYABLE_PAYMENT_STATUSES.map((code) => ({
+    value: code,
+    label: `${paymentStatusLabel(code)}${
+      paymentStatusCounts[code] !== undefined ? ` (${paymentStatusCounts[code]})` : ''
+    }`,
+  }));
+
   const columnOptions: MultiSelectOption[] = COLUMN_IDS.map((id) => ({
     value: id,
     label: t(`orders.column.${id}`),
@@ -338,6 +374,7 @@ export function OrdersList(): ReactNode {
   // Filters that live in the collapsible "advanced" panel — used to badge the
   // toggle and decide whether to auto-open it.
   const advancedActiveCount =
+    paymentStatuses.length +
     paymentMethodIds.length +
     deliveryMethodIds.length +
     (dateFrom ? 1 : 0) +
@@ -358,6 +395,11 @@ export function OrdersList(): ReactNode {
       key: `status:${code}`,
       label: `${t('orders.field.status')}: ${statusLabel(code)}`,
       onRemove: (): void => setStatusCodes((p) => p.filter((c) => c !== code)),
+    })),
+    ...paymentStatuses.map((code) => ({
+      key: `pstat:${code}`,
+      label: `${t('orders.field.paymentStatus')}: ${paymentStatusLabel(code)}`,
+      onRemove: (): void => setPaymentStatuses((p) => p.filter((c) => c !== code)),
     })),
     ...salesChannelIds.map((id) => ({
       key: `ch:${id}`,
@@ -396,6 +438,7 @@ export function OrdersList(): ReactNode {
 
   const clearAllFilters = (): void => {
     setStatusCodes([]);
+    setPaymentStatuses([]);
     setSalesChannelIds([]);
     setPaymentMethodIds([]);
     setDeliveryMethodIds([]);
@@ -448,7 +491,10 @@ export function OrdersList(): ReactNode {
       id: 'payment',
       header: t('orders.column.payment'),
       hideOnMobile: true,
-      render: (o) => o.paymentStatus,
+      // Feature 085 (FR-022). This printed the raw code — `awaiting_payment` —
+      // in a screen that is otherwise entirely in the operator's language, and
+      // the value it most needs to print now is `failed`.
+      render: (o) => paymentStatusLabel(o.paymentStatus),
     },
     paymentMethod: {
       id: 'paymentMethod',
@@ -628,6 +674,16 @@ export function OrdersList(): ReactNode {
           {/* Collapsible advanced filters. */}
           {filtersOpen ? (
             <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="space-y-1">
+                <Label htmlFor="opaystat">{t('orders.field.paymentStatus')}</Label>
+                <MultiSelect
+                  ariaLabel={t('orders.field.paymentStatus')}
+                  placeholder={t('orders.filter.all')}
+                  options={paymentStatusOptions}
+                  selected={paymentStatuses}
+                  onChange={setPaymentStatuses}
+                />
+              </div>
               <div className="space-y-1">
                 <Label htmlFor="opay">{t('orders.field.paymentMethod')}</Label>
                 <MultiSelect

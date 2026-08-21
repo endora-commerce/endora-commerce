@@ -325,6 +325,11 @@ export function registerModule(ctx: ModuleContext): void {
               effectiveState.isPresent('payment_methods')
                 ? lazyPort<PaymentMethodReadPort>(ctx, 'paymentMethodReadPort')
                 : null,
+            // This module's own lifecycle write (feature 085, Phase F), for the
+            // buyer's cancellation. Resolved lazily like every other port and
+            // for the same reason: the registration below is a singleton and a
+            // gate may not be frozen inside one.
+            orderTransitionPort: lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
             assetRead: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
             invoiceRead: () =>
               effectiveState.isPresent('invoices')
