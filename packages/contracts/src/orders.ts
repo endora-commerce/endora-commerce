@@ -957,3 +957,91 @@ export interface OrderStatusChange {
 export interface OrderStatusAnnouncePort {
   announceStatusChanged(change: OrderStatusChange): void;
 }
+
+/** Why a requested transition did not happen. */
+export type OrderTransitionRefusal =
+  /** No order with that id. */
+  | 'not_found'
+  /** `to` is not a configured status code. */
+  | 'unknown_status'
+  /** The configured lifecycle has no edge, or the source status is terminal. */
+  | 'not_permitted'
+  /** A registered before-guard vetoed it. */
+  | 'vetoed';
+
+/**
+ * What became of a requested transition.
+ *
+ * `already_there` is separated from the refusals because it is not one: the
+ * order is where the caller wanted it, nothing moved, and nothing was
+ * recorded. It is the normal outcome of a second declined payment attempt on
+ * an order already held.
+ */
+export type OrderTransitionOutcome =
+  | { applied: true; from: string; to: string }
+  | { applied: false; reason: 'already_there'; from: string }
+  | { applied: false; reason: OrderTransitionRefusal; from: string | null; detail: string };
+
+/**
+ * Container name: `orderTransitionPort`. Owner: `orders`.
+ *
+ * The write twin of `orderStatusAnnouncePort`: that one publishes the
+ * *announcement* half of a status change, this one performs the change. Three
+ * sites in `payments` and `shipments` write `order.status` directly, and in
+ * doing so skip graph validation, the veto guards, the audit entry and the
+ * side-effects that release stock allocations and free a credit-limit
+ * reservation. This port is the seam that lets them stop (feature 085).
+ *
+ * It is not `orderTransitionServiceAccessor`, which hands out the
+ * `OrderTransitionService` class: a published port's type argument must be a
+ * contract type, and that accessor also answers `null` until the plugin body
+ * has run.
+ *
+ * **Call this after your own commit, never inside your transaction.** The
+ * implementation obtains its own EntityManager, so a caller running inside
+ * `em.transactional` would have the order written on a *different* pooled
+ * connection that commits independently — the caller's rollback cannot reach
+ * it, which is the shape `check:transaction-context` refuses (issue #200).
+ * Both settlement handlers therefore write their payment or shipment row,
+ * commit, and only then call this. The failure mode of that ordering lands on
+ * the safe side: a crash in between leaves the payment recorded and the
+ * lifecycle unmoved, which the buyer can retry, where the opposite ordering
+ * would hold an order against a payment nobody recorded.
+ *
+ * **Refusals are outcomes, not exceptions**, because both settlement callers
+ * are answering a payment service provider: a thrown refusal becomes a non-2xx
+ * callback response, which every PSP retries indefinitely. The refusal has to
+ * be visible to the caller and invisible to the provider.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. A consumer must not wrap the call in a bare `catch`, which
+ * would turn that into fail-open. Whether `orders` has an off state at all is
+ * its manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface OrderTransitionPort {
+  /**
+   * Move an order to status `to`, applying the configured lifecycle: graph
+   * validation, the before-guards, the audit entry and the status's
+   * side-effects. The caller invokes none of those and needs to know about
+   * none of them.
+   */
+  applyStatus(input: {
+    orderId: string;
+    to: string;
+    actor: OrderStatusActor;
+    reason?: string | null;
+  }): Promise<OrderTransitionOutcome>;
+
+  /**
+   * Whether an order's current status is terminal, per the configured graph.
+   *
+   * A caller that has to refuse acting on a finished order asks this rather
+   * than comparing against the string `'cancelled'`: the status set is
+   * operator-configurable and a deployment may add terminal statuses of its
+   * own. `null` when there is no such order, so the caller answers 404 in its
+   * own words instead of guessing.
+   */
+  isTerminal(orderId: string): Promise<boolean | null>;
+}

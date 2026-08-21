@@ -79,9 +79,19 @@ export const DEFAULT_ORDER_STATUSES: OrderStatusDef[] = [
   { code: 'cancelled', name: { en: 'Cancelled', pl: 'Anulowane' }, defaultName: 'Cancelled', isInitial: false, isTerminal: true, isSystem: true, weight: 90, color: '#ef4444' },
 ];
 
-/** The explicit (non-universal) default transitions (User Story 1). */
+/**
+ * The explicit (non-universal) default transitions (User Story 1).
+ *
+ * `new → paid` is the happy path of every gateway payment (feature 085,
+ * FR-010): a payment method is seeded `status_on_pending = 'new'` and
+ * `status_on_success = 'paid'`, so a first successful payment asks for exactly
+ * this move. It was missing here, and the settlement ingress got away with it
+ * only because it writes `order.status` directly without asking the graph —
+ * while an operator making the same move by hand was refused with a 409.
+ */
 export const DEFAULT_EXPLICIT_TRANSITIONS: ReadonlyArray<readonly [string, string]> = [
   ['new', 'pending'],
+  ['new', 'paid'],
   ['pending', 'processing'],
   ['pending', 'paid'],
   ['paid', 'processing'],

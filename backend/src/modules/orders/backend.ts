@@ -19,6 +19,7 @@ import type {
   OrderPlacementPort,
   OrderReadPort,
   OrderStatusAnnouncePort,
+  OrderTransitionPort,
   OrganizationDetailsPort,
   OrganizationRestrictionPort,
   PaymentEmailRendererPort,
@@ -47,6 +48,8 @@ import { registerOrderSalesChannelAttributions } from './services/sales-channel-
 import type { OrderService } from './services/order-service.js';
 import type { OrderListService } from './services/order-list-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
+import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
+import { OrderTransitionPortService } from './services/order-transition-port.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './email-templates/order-confirmation.default.js';
 import { ADMIN_CREATED_ORDER_DEFAULT, ORDER_COMMENT_DEFAULT, REORDER_CREATED_DEFAULT } from './email-templates/secondary-defaults.js';
 import { ordersPromptTools } from './prompt-tools.js';
@@ -187,16 +190,27 @@ export function registerModule(ctx: ModuleContext): void {
   const cradle = (): OrdersCradle => ctx.cradle<OrdersCradle>();
 
   /**
-   * The three services `commerceModule` hands out at route-registration time.
+   * The four services `commerceModule` hands out at route-registration time.
    * Held here rather than in a root variable — the binding is this module's
    * property, and the modules that read it should not depend on a composition
    * having remembered to wire a sink.
+   *
+   * The graph service joined them for `orderTransitionPort` (feature 085): the
+   * port has to know whether an edge exists and whether a status is terminal,
+   * and the graph is cached in-process and invalidated only by the instance
+   * that writes it — so it is this instance or a stale one.
    */
   const exposed: {
     orderService: OrderService | null;
     orderListService: OrderListService | null;
     orderTransitionService: OrderTransitionService | null;
-  } = { orderService: null, orderListService: null, orderTransitionService: null };
+    orderStatusGraphService: OrderStatusGraphService | null;
+  } = {
+    orderService: null,
+    orderListService: null,
+    orderTransitionService: null,
+    orderStatusGraphService: null,
+  };
 
   /**
    * A published port answers a caller, so "the plugin has not registered yet"
@@ -452,6 +466,9 @@ export function registerModule(ctx: ModuleContext): void {
             exposeOrderTransitionService: (service) => {
               exposed.orderTransitionService = service;
             },
+            exposeOrderStatusGraphService: (service) => {
+              exposed.orderStatusGraphService = service;
+            },
           }),
       )
       .singleton(),
@@ -561,6 +578,34 @@ export function registerModule(ctx: ModuleContext): void {
           emitOrderStatusAfter(eventBus, change);
         },
       }))
+      .singleton(),
+  );
+
+  /**
+   * The lifecycle write (feature 085, Phase B).
+   *
+   * `payments` and `shipments` move an order's status by assigning
+   * `order.status` on an entity they imported, which skips graph validation,
+   * the veto guards, the audit entry and the side-effects that release stock
+   * and free a credit-limit reservation. This is the seam that lets them stop,
+   * and the write twin of `orderStatusAnnouncePort` above — the two are called
+   * in sequence by the same handlers, which is why both take the same
+   * `OrderStatusActor` rather than each carrying an actor shape of its own.
+   *
+   * No consumer resolves it yet: it is published here so the three bypasses
+   * have somewhere to go.
+   */
+  ctx.di.providePort<OrderTransitionPort>(
+    'orderTransitionPort',
+    ctx
+      .asFunction(
+        ({ emFactory }: OrdersCradle) =>
+          new OrderTransitionPortService(
+            emFactory,
+            () => requireExposed(exposed.orderTransitionService, 'order transitions'),
+            () => requireExposed(exposed.orderStatusGraphService, 'the order status graph'),
+          ),
+      )
       .singleton(),
   );
 

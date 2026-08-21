@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDefaultGraph,
   computeDefaultTransitions,
+  DEFAULT_EXPLICIT_TRANSITIONS,
   materializeUniversalTransitions,
   OrderStatusConfigError,
   OrderStatusGraph,
@@ -39,6 +40,20 @@ describe('OrderStatusGraph — default seed', () => {
     expect(graph.canTransition('pending', 'processing')).toBe(true);
     expect(graph.canTransition('paid', 'completed')).toBe(true);
     expect(graph.canTransition('shipment_ready', 'shipment_sent')).toBe(true);
+  });
+
+  /**
+   * Feature 085 (Phase A) — the happy path of every gateway payment.
+   *
+   * A payment method is seeded `status_on_pending = 'new'` and
+   * `status_on_success = 'paid'`, so a first successful payment moves an order
+   * `new -> paid`. The pair was in neither the explicit nor the universal
+   * default set: the settlement ingress got away with it only because it writes
+   * `order.status` directly and never asks the graph, while an operator making
+   * the same move by hand was refused with a 409.
+   */
+  it('allows the first successful payment to move an order new -> paid (085 FR-010)', () => {
+    expect(graph.canTransition('new', 'paid')).toBe(true);
   });
 
   it('rejects a transition with no configured edge (Scenario 3)', () => {
@@ -91,6 +106,15 @@ describe('materializeUniversalTransitions', () => {
 });
 
 describe('computeDefaultTransitions', () => {
+  it('carries the new -> paid edge as an explicit (non-system) default (085 FR-010)', () => {
+    expect(DEFAULT_EXPLICIT_TRANSITIONS).toContainEqual(['new', 'paid']);
+    expect(computeDefaultTransitions()).toContainEqual({
+      fromStatusCode: 'new',
+      toStatusCode: 'paid',
+      isSystem: false,
+    });
+  });
+
   it('has no duplicate edges', () => {
     const edges = computeDefaultTransitions();
     const keys = edges.map((e) => `${e.fromStatusCode} ${e.toStatusCode}`);

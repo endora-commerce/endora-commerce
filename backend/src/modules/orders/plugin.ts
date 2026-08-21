@@ -249,6 +249,14 @@ export interface OrdersModuleOptions {
    */
   exposeOrderTransitionService?: (service: OrderTransitionService) => void;
   /**
+   * Feature 085 — exposes the configured OrderStatusGraphService, so
+   * `orderTransitionPort` reads terminality and edge existence from the same
+   * instance the routes and the transition engine use. It caches the graph
+   * in-process and invalidates only on its own writes, so a second instance
+   * built beside it would answer from a cache no admin edit ever clears.
+   */
+  exposeOrderStatusGraphService?: (service: OrderStatusGraphService) => void;
+  /**
    * Feature 027 §R5 — Redis client used by the cart-pricing-recompute
    * cache. When provided alongside `pricingService`, every full-cart
    * read re-resolves unit prices through PricingService with a 30 s
@@ -438,6 +446,9 @@ export function commerceModule(options: OrdersModuleOptions) {
     // orders prompt-action tools reuse it (guards + cancel side-effects).
     if (options.exposeOrderTransitionService) {
       options.exposeOrderTransitionService(orderTransitionService);
+    }
+    if (options.exposeOrderStatusGraphService) {
+      options.exposeOrderStatusGraphService(orderStatusGraphService);
     }
     // Feature 038 US2 — orders list query, saved views, CSV export.
     const orderListService = new OrderListService(
