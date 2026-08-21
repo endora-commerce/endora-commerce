@@ -7,11 +7,25 @@ import { StorefrontApiError } from '../../../../lib/api/client';
 import { SuccessPanel } from '../../../../components/checkout/SuccessPanel';
 import { PurchaseTracker } from '../../../../components/analytics/EcommerceTrackers';
 import { purchaseTrackingPayload } from '../../../../lib/analytics/purchase-eligibility';
+import {
+  paymentFailureUrl,
+  resolvePostPaymentLanding,
+} from '../../../../lib/payments/post-payment-landing';
 
 /**
- * Checkout Success Page (feature 036, US1). Reached after a successful
- * placement. Shows the customer-facing business Order ID (not the UUID) and a
- * payment-method next-step hint. Authenticated, transactional → noindex.
+ * Checkout Success Page (feature 036, US1). Shows the customer-facing business
+ * Order ID (not the UUID) and a payment-method next-step hint.
+ *
+ * Two readers reach it. An **offline placement** — bank transfer, cash on
+ * pickup, a credit-limit draw — arrives straight from `submitAction`, because
+ * its settlement is arranged out of band and there is nothing to wait for. A
+ * **gateway payment** arrives from `/checkout/return`, which only forwards
+ * here once the order's own payment state says the money landed (issue #287).
+ *
+ * It is also a URL the buyer can bookmark and replay, so it re-applies the
+ * landing rule with no gateway hint: an order whose payment has since been
+ * recorded as failed is forwarded to the failure page rather than thanked
+ * again. Authenticated, transactional → noindex.
  */
 export const metadata = { robots: { index: false, follow: false } };
 
@@ -49,6 +63,18 @@ export default async function CheckoutSuccessPage({
     }
     throw err;
   }
+
+  // Issue #287 — no gateway hint, so this only fires on the order's own
+  // `paymentStatus`: a payment recorded as failed, whose buyer is holding a
+  // success URL. The pending state is deliberately *not* redirected — a
+  // gateway adapter that opens no provider session lands its buyer here at
+  // placement, and that buyer has an order and no wait to sit through.
+  const landing = resolvePostPaymentLanding({
+    paymentStatus: order.paymentStatus,
+    paymentKind: order.paymentMethod.kind,
+    outcome: undefined,
+  });
+  if (landing.kind === 'failure') redirect(paymentFailureUrl(order.id, landing.reason));
 
   const { locale } = await getServerContext();
   // Issue #274 — the tracker used to fire for whatever order this page was

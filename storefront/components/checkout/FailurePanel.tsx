@@ -4,8 +4,15 @@ import { tForLocale } from '../../lib/i18n/messages';
 
 /**
  * Checkout Failure Page panel (feature 036, US4). Presentational + pure so it
- * can be unit-tested with `renderToString`. Shown when order placement fails;
- * the cart is preserved, so the buyer can adjust and retry.
+ * can be unit-tested with `renderToString`. Shown when order **placement**
+ * fails: the transaction rolled back, so the cart really is preserved and the
+ * buyer can adjust and retry.
+ *
+ * Issue #287 — that is the whole population for this panel. A buyer whose
+ * order exists and whose payment did not settle reaches the same route and
+ * gets `PaymentFailurePanel`, because both sentences below are false for them:
+ * the placement completed their cart, and "Try again" here leads to
+ * `/checkout`, which would place a second order for the same goods.
  */
 export interface FailurePanelProps {
   reason?: string | null;
