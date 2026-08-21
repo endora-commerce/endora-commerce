@@ -23,8 +23,26 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'to keep actions whose module is not installed out of the result, and it does so with ' +
     'a knex `.join(\'module_registrations as r\', …)`. The builder names the table as an ' +
     'argument, so the reach compiles and returns rows while naming no import specifier and ' +
-    'no SQL statement. Retired by: filtering the actions against the kernel\'s ' +
-    '`ModuleRegistryCache` (or the effective-state combiner, if the palette should also ' +
-    'drop the actions of a module the operator has switched off) instead of joining the ' +
-    'registry table — the in-memory answer the kernel already keeps for every other gate.',
+    'no SQL statement.\n\n' +
+    'Two facts the seed did not have, measured while draining the `customers`, ' +
+    '`organizations`, `admin_users`, `admin_actions` and `api_keys` shards.\n\n' +
+    '(1) **This join is the one presence gate `withModuleOff` cannot move.** That helper ' +
+    'flips `registryCache.__setEnabledForTesting` and touches neither Redis nor the ' +
+    'database (`test/helpers/off-state.ts`, and deliberately — 555 files boot a server in ' +
+    'one fork), so a `platform-unavailable` flip is invisible to a read that goes to SQL ' +
+    'for the platform axis. Every other surface in the tree answers the same question out ' +
+    'of `effectiveState`; the palette answers it out of a table.\n\n' +
+    '(2) **The cut is a behaviour change four test files encode as the contract, not a ' +
+    'specifier swap.** `operator-visibility`, `seeded-set`, `i18n-resolution` and ' +
+    '`http-admin-actions` each insert `module_registrations` rows and assert the palette ' +
+    'against them without warming the cache, and ' +
+    '`presence-refresh-window.integration.test.ts` exists *because* the two axes come from ' +
+    'different sources with different timing — it measures the window between an ' +
+    'in-memory activation read and an asynchronous `refreshFromDb`, which is issue #225\'s ' +
+    'repair. Unifying both axes onto `effectiveState.isPresent` deletes that window rather ' +
+    'than closing it.\n\n' +
+    'Retired by: filtering the actions against the kernel\'s effective-state combiner — the ' +
+    'in-memory answer every other gate already uses — taken together with a decision on ' +
+    'what issue #225\'s refresh window means once the platform axis stops being read ' +
+    'freshly per call. That is this module\'s owner\'s call, not a boundary sweep\'s.',
 };

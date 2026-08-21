@@ -2,7 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { OptimisticLockError } from '@mikro-orm/core';
 import { Organization, type OrganizationStatus } from '../entities/organization.entity.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import type { EmailMailerPort } from '@b2b/contracts';
+import type { CustomerAccountReadPort, EmailMailerPort } from '@b2b/contracts';
+import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 import type { OrganizationEventBus } from './registration-service.js';
 
 /**
@@ -30,9 +31,8 @@ import type { OrganizationEventBus } from './registration-service.js';
  *
  * Customer email notifications (approval, rejection) are sent via the
  * injected `mailer`. The recipient is the Organization's first
- * `organization_admin` Customer account — discovered by a small EM
- * lookup (kept inline to avoid pulling in the CustomerAccountService
- * dependency surface).
+ * `organization_admin` Customer account, read through
+ * `customer_accounts`' published port (feature 075, D-87).
  */
 export interface ModerationActorContext {
   actorAdminUserId?: string | null;
@@ -64,6 +64,11 @@ export class OrganizationModerationService {
     private readonly auditLogService: AuditLogService,
     private readonly events: OrganizationEventBus,
     private readonly mailer: EmailMailerPort,
+    /**
+     * `customer_accounts`' published read, for the one question this service
+     * asks it: who receives the approval or rejection message.
+     */
+    private readonly customerAccounts: CustomerAccountReadPort,
     /** Resolver for the moderation-mode setting. Returns 'auto' or 'manual'. */
     private readonly resolveModerationMode: () => Promise<'auto' | 'manual'>,
   ) {}
@@ -253,21 +258,31 @@ export class OrganizationModerationService {
     org: Organization,
     input: { subject: string; text: string; messageIdSuffix: string },
   ): Promise<void> {
-    const em = this.emFactory();
-    const knex = em.getConnection().getKnex();
-    const rows = (await knex.raw(
-      `
-      select "email"
-        from "customer_accounts"
-       where "organization_id" = ?
-         and "role" = 'organization_admin'
-         and "deleted_at" is null
-       order by "created_at" asc
-       limit 1;
-    `,
-      [org.id],
-    )) as { rows: Array<{ email: string }> };
-    const recipient = rows.rows[0]?.email;
+    /**
+     * Feature 075 (D-87) — `customer_accounts`' port, where this was a
+     * `getConnection().getKnex().raw('select "email" from "customer_accounts" …')`.
+     * Raw SQL names no import specifier, so the reach compiled and returned
+     * rows while every boundary check read clean.
+     *
+     * **The system scope is load-bearing and is not incidental to the port.**
+     * `CustomerAccount` is `@OrgScoped`, so the read carries the acting
+     * admin's tenant filter, and a moderator with an `allowed-set` context has
+     * by definition not been assigned the organisation they are approving —
+     * it is still `pending_verification`. Filtered, the lookup would find no
+     * recipient and the approval mail would silently not go out. The raw
+     * statement crossed organisations by bypassing the filter entirely and
+     * telling nobody; `withSystemScope` crosses them the sanctioned way
+     * (Constitution XI, FR-005), with a reason and one audit record.
+     *
+     * `listByOrganization` orders by role then creation date, so the first
+     * `organization_admin` in the result is the row the `order by
+     * "created_at" asc limit 1` picked.
+     */
+    const members = await withSystemScope(
+      'organizations: notify the moderated organisation of its status change',
+      () => this.customerAccounts.listByOrganization(org.id, { activeOnly: true }),
+    );
+    const recipient = members.find((m) => m.role === 'organization_admin')?.email;
     if (!recipient) return;
     const outcome = await this.mailer.send({
       messageId: `organization.${input.messageIdSuffix}.${org.id}.${org.version}`,

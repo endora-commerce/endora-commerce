@@ -1,6 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { ApiKeyService } from './services/api-key-service.js';
 import { integrationsModule } from './plugin.js';
@@ -66,6 +68,18 @@ export function registerModule(ctx: ModuleContext): void {
             // after `auth` is switched off.
             requireAdmin: (permission) => async (req, reply) =>
               ctx.cradle<ApiKeysCradle>().requireAdmin(permission)(req, reply),
+            // Feature 075 (D-87) — the two owners the binding rules ask about.
+            // Both were `em.getKnex().raw('select … from "organizations"')` and
+            // `… from "customer_accounts"` inside the service: raw SQL naming
+            // no specifier, so the boundary compiled and returned rows. Gated
+            // ports, so a singleton may not hold one directly.
+            bindingPorts: {
+              organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+              customerAccounts: lazyPort<CustomerAccountReadPort>(
+                ctx,
+                'customerAccountReadPort',
+              ),
+            },
           }),
       )
       .singleton(),

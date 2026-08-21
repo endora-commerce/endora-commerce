@@ -2,7 +2,11 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { ApiKeyService, type AuthenticatedApiKey } from './services/api-key-service.js';
+import {
+  ApiKeyService,
+  type ApiKeyBindingPorts,
+  type AuthenticatedApiKey,
+} from './services/api-key-service.js';
 import { registerApiKeysAdminRoutes } from './routes.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -17,6 +21,12 @@ export interface IntegrationsModuleOptions {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
   auditLogService: AuditLogService;
+  /**
+   * `organizations`' and `customer_accounts`' published reads, which the
+   * binding rules B3 and B4 decide on (feature 075, D-87). Both were raw SQL
+   * against those modules' tables inside the service.
+   */
+  bindingPorts: ApiKeyBindingPorts;
 }
 
 /**
@@ -63,7 +73,11 @@ export function integrationsModule(options: IntegrationsModuleOptions): {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: IntegrationsModuleHandle;
 } {
-  const apiKeyService = new ApiKeyService(options.emFactory, options.auditLogService);
+  const apiKeyService = new ApiKeyService(
+    options.emFactory,
+    options.bindingPorts,
+    options.auditLogService,
+  );
 
   // Shared authenticate + scope assertion used by both gates.
   const resolveScopedKey = async (

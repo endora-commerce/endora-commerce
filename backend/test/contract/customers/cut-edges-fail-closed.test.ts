@@ -11,8 +11,9 @@ import { Organization } from '../../../src/modules/organizations/entities/organi
 /**
  * Feature 075, Phase C — the `customers` customer-side cut fails closed.
  *
- * Nineteen import sites became port resolutions, and the point of the exercise
- * is not the specifier: it is that a read whose owner is absent now **refuses**
+ * Nineteen import sites became port resolutions in the customer-side cut and
+ * seventeen more in the module-side one, and the point of the exercise is not
+ * the specifier: it is that a read whose owner is absent now **refuses**
  * where it used to answer. `em.find(CustomerAccount, …)` cheerfully returned
  * rows from a table that is still there; `customerAccountAdminSearchPort.search()`
  * answers 503 `MODULE_DISABLED`.
@@ -28,6 +29,15 @@ import { Organization } from '../../../src/modules/organizations/entities/organi
  *    belongs to nobody" is a plausible answer and the wrong one.
  *  - **`addresses`** — the org-shared half of the address panel, which used to
  *    be an `em.find(Address, …)` over that module's table.
+ *  - **`carts`** — the customer-detail cart panel. This module used to build a
+ *    **second** `CartQueryService` from an import of that module's directory,
+ *    so the panel queried the cart tables whether `carts` was there or not.
+ *  - **`orders`** — the customer-detail order history. It used to read a
+ *    late-bound accessor typed `Pick<OrderListService, 'list'>`, behind a
+ *    presence probe that answered an empty page. The probe could not fire —
+ *    `orders` has never had an activation control — so the empty page was a
+ *    degrade nobody could reach, and the platform axis got a `null` accessor
+ *    and a bare `Error` instead of the envelope.
  *
  * All three providers declare themselves `nonDeactivatable`, so the operator
  * axis has no off state for any of them; the platform axis is the one a
@@ -111,6 +121,34 @@ describe('customers — the cut edges fail closed (feature 075, Phase C)', () =>
     });
 
     const restored = await get(`/api/v1/admin/customers/${customerId}`);
+    expect(restored.statusCode).toBe(200);
+  });
+
+  it('refuses the cart panel while `carts` is unavailable', async () => {
+    const before = await get(`/api/v1/admin/customers/${customerId}/carts`);
+    expect(before.statusCode).toBe(200);
+
+    await withModuleOff('carts', 'platform-unavailable', async () => {
+      const res = await get(`/api/v1/admin/customers/${customerId}/carts`);
+      expect(res.statusCode).toBe(503);
+      expect(errorCode(res)).toBe('MODULE_DISABLED');
+    });
+
+    const restored = await get(`/api/v1/admin/customers/${customerId}/carts`);
+    expect(restored.statusCode).toBe(200);
+  });
+
+  it('refuses the order-history panel while `orders` is unavailable', async () => {
+    const before = await get(`/api/v1/admin/customers/${customerId}/orders`);
+    expect(before.statusCode).toBe(200);
+
+    await withModuleOff('orders', 'platform-unavailable', async () => {
+      const res = await get(`/api/v1/admin/customers/${customerId}/orders`);
+      expect(res.statusCode).toBe(503);
+      expect(errorCode(res)).toBe('MODULE_DISABLED');
+    });
+
+    const restored = await get(`/api/v1/admin/customers/${customerId}/orders`);
     expect(restored.statusCode).toBe(200);
   });
 

@@ -27,6 +27,7 @@ import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.
 const ADMIN_COOKIE = { b2b_session: 'stub-admin-session' };
 
 const FOREIGN_ORG_ID = '00000000-0000-4000-8000-00000000b0b0';
+const DELETED_ORG_ID = '00000000-0000-4000-8000-00000000b0b3';
 const FOREIGN_CUSTOMER_ID = '00000000-0000-4000-8000-00000000b0b1';
 const BLOCKED_CUSTOMER_ID = '00000000-0000-4000-8000-00000000b0b2';
 
@@ -98,6 +99,27 @@ describe('API key binding validation (062 / B1–B5)', () => {
       blockedAt: new Date(),
     });
     await em.persistAndFlush([foreignCustomer, blockedCustomer]);
+
+    // Feature 075 (D-87) — a soft-deleted organisation. B4's read was
+    // `select 1 from "organizations" where "id" = ? and "deleted_at" is null`
+    // and is `organizationDetailsPort.findById` now; that port answers with the
+    // row rather than filtering, so the `deletedAt` half of the predicate is
+    // the module's to keep and this case is what says it kept it.
+    const deletedOrg = em.create(Organization, {
+      id: DELETED_ORG_ID,
+      name: 'Struck Off Distributor Co',
+      taxId: 'PL0000000075',
+      status: 'active',
+      vatStatus: 'vat_payer',
+      registeredAddress: {
+        street: 'ul. Skreślona 1',
+        city: 'Warszawa',
+        postalCode: '00-075',
+        country: 'PL',
+      },
+      deletedAt: new Date(),
+    });
+    await em.persistAndFlush(deletedOrg);
   });
 
   afterAll(async () => {
@@ -176,6 +198,20 @@ describe('API key binding validation (062 / B1–B5)', () => {
       expect.arrayContaining([
         expect.objectContaining({ path: 'binding.organizationId' }),
       ]),
+    );
+  });
+
+  it('B4 — soft-deleted organization → 422 naming binding.organizationId', async () => {
+    const res = await createKey({
+      name: 'B4 deleted org key',
+      scopes: ['orders:write'],
+      binding: { ...validBinding(), organizationId: DELETED_ORG_ID },
+    });
+    expect(res.statusCode).toBe(422);
+    const body = res.json() as ErrorBody;
+    expect(body.error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+    expect(body.error.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: 'binding.organizationId' })]),
     );
   });
 

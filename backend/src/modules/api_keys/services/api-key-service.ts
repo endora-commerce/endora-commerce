@@ -1,6 +1,11 @@
 import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type ApiKeyBinding } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type ApiKeyBinding,
+  type CustomerAccountReadPort,
+  type OrganizationDetailsPort,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ApiKey } from '../entities/api-key.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
@@ -39,9 +44,32 @@ const TOKEN_PREFIX = 'sk_live_';
 
 type ValidationIssue = { path: string; issue: string };
 
+/**
+ * The two owners this module asks about a binding it is being handed
+ * (feature 075, D-87).
+ *
+ * Both reads were `em.getKnex().raw('select … from "organizations" / …
+ * "customer_accounts" …')`. Raw SQL names no import specifier, so those two
+ * boundary crossings compiled, returned rows and were invisible to the import
+ * predicate until feature 077 taught the check to read table identifiers.
+ *
+ * Nothing about the isolation changes by resolving them as ports: `getKnex()`
+ * is `getConnection().getKnex()`, which takes its own pooled connection, so
+ * neither read could ever see the enclosing transaction's writes either. What
+ * changes is that an absent owner now refuses instead of answering — B3 and B4
+ * decide whether a distributor key may be minted, and a validation that
+ * silently found no organisation because the module holding organisations was
+ * gone would mint nothing and blame the operator's input.
+ */
+export interface ApiKeyBindingPorts {
+  organizations: OrganizationDetailsPort;
+  customerAccounts: CustomerAccountReadPort;
+}
+
 export class ApiKeyService {
   constructor(
     private readonly emFactory: () => EntityManager,
+    private readonly bindingPorts: ApiKeyBindingPorts,
     private readonly auditLog?: AuditLogService,
   ) {}
 
@@ -98,11 +126,10 @@ export class ApiKeyService {
   }
 
   /**
-   * Creation rules B1–B5 (contracts/api-key-binding.md §2). Cross-row checks
-   * are raw single-row lookups by primary key — the referenced rows are
-   * admin-managed platform configuration, and the caller is a platform admin
-   * (`integrations:manage`); the same wiring-level pattern is used by e.g. the
-   * promotions org-status resolver.
+   * Creation rules B1–B5 (contracts/api-key-binding.md §2). The two foreign
+   * rows are read through their owners' published ports (see
+   * {@link ApiKeyBindingPorts}); the sales channel is the kernel's own entity
+   * and stays an ORM read on the caller's `em`.
    */
   async #validateCreate(
     em: EntityManager,
@@ -127,13 +154,13 @@ export class ApiKeyService {
     }
 
     if (input.binding) {
-      const knex = em.getKnex();
-      const orgRes = (await knex.raw(
-        `select 1 from "organizations" where "id" = ? and "deleted_at" is null`,
-        [input.binding.organizationId],
-      )) as { rows: unknown[] };
-      if (orgRes.rows.length === 0) {
-        // B4
+      const organization = await this.bindingPorts.organizations.findById(
+        input.binding.organizationId,
+      );
+      // B4. `deletedAt` is checked here rather than assumed of the port: the
+      // statement this replaced spelled `and "deleted_at" is null`, and a
+      // soft-deleted organisation is a binding target that must not resolve.
+      if (organization === null || organization.deletedAt !== null) {
         issues.push({
           path: 'binding.organizationId',
           issue: 'Organization does not exist.',
@@ -159,25 +186,20 @@ export class ApiKeyService {
           issue: 'Sales channel does not exist.',
         });
       }
-      const accountRes = (await knex.raw(
-        `select "organization_id", "blocked_at", "deleted_at", "anonymized_at"
-           from "customer_accounts" where "id" = ?`,
-        [input.binding.customerAccountId],
-      )) as {
-        rows: Array<{
-          organization_id: string | null;
-          blocked_at: Date | null;
-          deleted_at: Date | null;
-          anonymized_at: Date | null;
-        }>;
-      };
-      const account = accountRes.rows[0];
+      // The wider read on purpose: the four columns the statement selected are
+      // all on the record, and the three-way "active" predicate below is this
+      // module's rule to state, not the port's `activeOnly` shorthand — that
+      // one excludes soft-deleted accounts and says nothing about blocked or
+      // anonymized ones.
+      const account = await this.bindingPorts.customerAccounts.findById(
+        input.binding.customerAccountId,
+      );
       const accountActive =
-        account !== undefined &&
-        account.blocked_at === null &&
-        account.deleted_at === null &&
-        account.anonymized_at === null;
-      if (!account || !accountActive || account.organization_id !== input.binding.organizationId) {
+        account !== null &&
+        account.blockedAt === null &&
+        account.deletedAt === null &&
+        account.anonymizedAt === null;
+      if (!account || !accountActive || account.organizationId !== input.binding.organizationId) {
         // B3
         issues.push({
           path: 'binding.customerAccountId',

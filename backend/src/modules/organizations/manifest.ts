@@ -163,7 +163,10 @@ export const manifest = defineModuleManifest({
         'Feature 075 Phase C. Every route file and three services in this module read ' +
         "that module's `CustomerAccount` entity directly — the member panel, the " +
         'Org-Admin gate, `GET /me`, registration, invitation and the personal-organization ' +
-        'provisioner. Same mutual pair as `customerAuthPort` above, so the same trade.',
+        'provisioner. D-87 adds a fourth service: the moderation notifier resolved its ' +
+        'recipient in raw SQL against that table, which named no specifier and so was ' +
+        'invisible to the import predicate. Same mutual pair as `customerAuthPort` above, ' +
+        'so the same trade.',
     },
     {
       moduleId: 'customer_accounts',
