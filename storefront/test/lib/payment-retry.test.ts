@@ -99,6 +99,9 @@ describe('paymentRetryDestination', () => {
     expect(paymentRetryDestination('o1', result(), 'payu_card')).toBe(
       '/checkout/pay?id=o1&gateway=payu',
     );
+    expect(paymentRetryDestination('o1', result(), 'paypal_checkout')).toBe(
+      '/checkout/pay?id=o1&gateway=paypal',
+    );
   });
 
   /**

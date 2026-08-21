@@ -154,6 +154,10 @@ import { OrganizationWarehouseLink } from '../modules/organizations/entities/org
 import { Organization } from '../modules/organizations/entities/organization.entity.js';
 import { PaymentMethod } from '../modules/payment_methods/entities/payment-method.entity.js';
 import { Payment } from '../modules/payments/entities/payment.entity.js';
+import { PaypalPaymentMethodOrgDisable } from '../modules/paypal/entities/paypal-payment-method-org-disable.entity.js';
+import { PaypalPaymentMethodRule } from '../modules/paypal/entities/paypal-payment-method-rule.entity.js';
+import { PaypalTransaction } from '../modules/paypal/entities/paypal-transaction.entity.js';
+import { PaypalWebhookEvent } from '../modules/paypal/entities/paypal-webhook-event.entity.js';
 import { PayuBlikAlias } from '../modules/payu/entities/payu-blik-alias.entity.js';
 import { PayuNotificationEvent } from '../modules/payu/entities/payu-notification-event.entity.js';
 import { PayuOrder } from '../modules/payu/entities/payu-order.entity.js';
@@ -377,6 +381,10 @@ export const ALL_ENTITIES = [
   Organization,
   PaymentMethod,
   Payment,
+  PaypalPaymentMethodOrgDisable,
+  PaypalPaymentMethodRule,
+  PaypalTransaction,
+  PaypalWebhookEvent,
   PayuBlikAlias,
   PayuNotificationEvent,
   PayuOrder,

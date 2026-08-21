@@ -169,6 +169,7 @@ export function PaymentMethodsPage(): ReactNode {
   const showTpay = hasPermission('tpay:read');
   const showPayu = hasPermission('payu:read');
   const showAutopay = hasPermission('autopay:read');
+  const showPaypal = hasPermission('paypal:read');
 
   return (
     <>
@@ -188,7 +189,7 @@ export function PaymentMethodsPage(): ReactNode {
         </Alert>
       ) : null}
 
-      {showStripe || showTpay || showPayu || showAutopay ? (
+      {showStripe || showTpay || showPayu || showAutopay || showPaypal ? (
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>{t('legacyMethods.integrations.title')}</CardTitle>
@@ -255,6 +256,22 @@ export function PaymentMethodsPage(): ReactNode {
                 </div>
                 <Button asChild variant="outline" size="sm">
                   <Link to="/settings/autopay">
+                    {t('legacyMethods.integrations.configure')}
+                    <ArrowRight />
+                  </Link>
+                </Button>
+              </div>
+            ) : null}
+            {showPaypal ? (
+              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+                <div>
+                  <div className="font-medium">{t('legacyMethods.integrations.paypal.name')}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {t('legacyMethods.integrations.paypal.description')}
+                  </div>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/settings/paypal">
                     {t('legacyMethods.integrations.configure')}
                     <ArrowRight />
                   </Link>

@@ -223,6 +223,8 @@ function iconFor(method: Pick<PaymentMethodSummary, 'code' | 'kind'>): ReactNode
       return <ApplePayMark />;
     case 'autopay_google_pay':
       return <GooglePayMark />;
+    case 'paypal_checkout':
+      return <WalletIcon />;
     default:
       break;
   }

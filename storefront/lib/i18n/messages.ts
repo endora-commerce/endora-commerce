@@ -222,6 +222,14 @@ export type MessageKey =
   | 'payu.wallet.appleUnavailable'
   // Feature 067 — Autopay checkout (redirect paywall).
   | 'autopay.redirect.notice'
+  // Feature 086 — PayPal checkout / pay step.
+  | 'paypal.redirect.notice'
+  | 'paypal.pay.title'
+  | 'paypal.pay.subtitle'
+  | 'paypal.pay.loading'
+  | 'paypal.pay.processing'
+  | 'paypal.pay.failure'
+  | 'paypal.pay.missingClientId'
   // Feature 008 — Quote Request success page (parallel to checkout success).
   | 'quoteRequest.success.title'
   | 'quoteRequest.success.numberPrefix'
@@ -491,6 +499,15 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     // Feature 067 — Autopay.
     'autopay.redirect.notice':
       'After you click “Place order”, you’ll be redirected to Autopay to complete your payment securely.',
+    // Feature 086 — PayPal.
+    'paypal.redirect.notice':
+      'After you click “Place order”, you’ll be redirected to PayPal to complete your payment securely.',
+    'paypal.pay.title': 'Complete your payment',
+    'paypal.pay.subtitle': 'Pay with PayPal to finish the order.',
+    'paypal.pay.loading': 'Loading PayPal…',
+    'paypal.pay.processing': 'Processing payment…',
+    'paypal.pay.failure': 'Payment failed. Please try again.',
+    'paypal.pay.missingClientId': 'PayPal is not configured for this store.',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Thank you — your quote request is submitted',
     'quoteRequest.success.numberPrefix': 'Your quote request number is ',
@@ -760,6 +777,15 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     // Feature 067 — Autopay.
     'autopay.redirect.notice':
       'Po kliknięciu „Złóż zamówienie” zostaniesz przekierowany do Autopay, aby bezpiecznie dokończyć płatność.',
+    // Feature 086 — PayPal.
+    'paypal.redirect.notice':
+      'Po kliknięciu „Złóż zamówienie” zostaniesz przekierowany do PayPal, aby bezpiecznie dokończyć płatność.',
+    'paypal.pay.title': 'Dokończ płatność',
+    'paypal.pay.subtitle': 'Zapłać przez PayPal, aby zakończyć zamówienie.',
+    'paypal.pay.loading': 'Ładowanie PayPal…',
+    'paypal.pay.processing': 'Przetwarzanie płatności…',
+    'paypal.pay.failure': 'Płatność nie powiodła się. Spróbuj ponownie.',
+    'paypal.pay.missingClientId': 'PayPal nie jest skonfigurowany dla tego sklepu.',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Dziekujemy — Twoje zapytanie ofertowe zostalo zlozone',
     'quoteRequest.success.numberPrefix': 'Numer Twojego zapytania ofertowego: ',
