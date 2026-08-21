@@ -25,9 +25,11 @@ import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entit
  * fresh so the cut-over is a single-line change in the read path.
  *
  * The indexer is intentionally idempotent: each call upserts every
- * product into the channel index and reapplies the searchable / filterable
- * settings derived from the live `product_attributes` rows. Re-running it
- * after a schema change is the right way to reindex.
+ * product into the channel index and reapplies the searchable / filterable /
+ * sortable settings — the first two derived from the live `product_attributes`
+ * rows, the third fixed by {@link SORTABLE_ATTRIBUTES}. Re-running it after a
+ * shape change is the right way to reindex, and the only way to add a document
+ * field that was not written before.
  */
 
 const FALLBACK_LOCALE = 'en-US';
@@ -39,6 +41,34 @@ const FALLBACK_LOCALE = 'en-US';
  * generator settled on for the same read.
  */
 const MEMBERSHIP_PAGE_SIZE = 500;
+
+/**
+ * The document fields a channel index may be sorted on — issue #287.
+ *
+ * Meilisearch refuses a sort on any field outside `sortableAttributes`, and
+ * this indexer never called `updateSortableAttributes`, so the setting was `[]`
+ * on all five live indexes and `name:asc` came back as `invalid_search_sort`.
+ * Three of the four sorts the listing contract offers were therefore answered
+ * by the unreachable-index fallback — correct results, re-read from the very
+ * Postgres query the index exists to spare, under a log line that called a
+ * healthy engine unavailable.
+ *
+ * The declaration is single on purpose: this constant is what the indexer
+ * applies to every index **and** the alphabet `buildSort` may emit (its return
+ * type is built from it). A sort token cannot be added on the query side
+ * without appearing here, which is the only structural guarantee that stops
+ * the two halves drifting apart again.
+ *
+ * Every entry costs index size and settings-update time, so this is the sorts
+ * the contract actually offers, not a list of fields that might one day be
+ * sorted on. `updatedAt` is deliberately absent: no sort token names it, it is
+ * the freshness marker rather than an ordering, and it is what `-createdAt`
+ * used to be mistranslated into.
+ */
+export const SORTABLE_ATTRIBUTES = ['createdAt', 'name'] as const;
+
+/** One field of {@link SORTABLE_ATTRIBUTES}. */
+export type SortableAttribute = (typeof SORTABLE_ATTRIBUTES)[number];
 
 export interface SearchIndexerOptions {
   meilisearchHost?: string;
@@ -86,6 +116,25 @@ export interface SearchIndexerOptions {
   channelMembership: SalesChannelMembershipPort;
 }
 
+/**
+ * A document carries **no price**, and the omission is deliberate (issue #287).
+ *
+ * It used to carry `price: number | null`, copied from the legacy
+ * `attributes.defaultPrice` — a catalogue attribute, not any price list's
+ * figure. Nothing on the query path read it: `listProducts` never asked for it
+ * in `attributesToRetrieve`, and hydrates the viewer's price from
+ * `price_lists` through the pricing port precisely so the index cannot decide
+ * what a buyer pays. What the field did do was sit in every document, already
+ * numeric and already called `price`, waiting for the first "sort by price"
+ * implementation to reach for it and quietly order a negotiated-price buyer's
+ * listing by a legacy attribute.
+ *
+ * A per-buyer price cannot live here in any case: there is one index per sales
+ * channel and one document per product, so pricing the document would multiply
+ * the corpus by the customer base. Feature 086 sorts by price without
+ * Meilisearch for that reason. The legacy attribute itself is untouched and
+ * still indexed under `attributes.defaultPrice`, where its name says what it is.
+ */
 export interface IndexedDocument {
   id: string;
   sku: string;
@@ -96,7 +145,6 @@ export interface IndexedDocument {
   visibility: string;
   slug: string;
   primaryAssetUrl: string | null;
-  price: number | null;
   categoryIds: string[];
   categorySlugs: string[];
   // Flattened attribute values. Meilisearch's filtering is type-tolerant
@@ -114,6 +162,12 @@ export interface IndexedDocument {
    * (when enabled) semantic search alongside `name` / `description`.
    */
   searchableOptions: string[];
+  /**
+   * Epoch milliseconds. Sortable — it is what `-createdAt` means, on both
+   * backends of the listing route (issue #287).
+   */
+  createdAt: number;
+  /** Epoch milliseconds. The freshness marker; no sort token names it. */
   updatedAt: number;
 }
 
@@ -143,8 +197,8 @@ export class SearchIndexer {
   }
 
   /**
-   * Drop + recreate the channel index, push every product visible in that
-   * channel, then reapply the searchable + filterable attribute settings.
+   * Drop + recreate the channel index, reapply the searchable / filterable /
+   * sortable settings, then push every product visible in that channel.
    * Returns counts so callers can log a summary.
    */
   async reindexChannel(em: EntityManager, channel: SalesChannel): Promise<{
@@ -152,6 +206,7 @@ export class SearchIndexer {
     documentCount: number;
     searchableAttributes: string[];
     filterableAttributes: string[];
+    sortableAttributes: string[];
   }> {
     const indexUid = indexUidFor(channel);
     const index = await this.ensureIndex(indexUid);
@@ -207,6 +262,25 @@ export class SearchIndexer {
     const wipeTask = await index.deleteAllDocuments();
     await this.client.tasks.waitForTask(wipeTask.taskUid);
 
+    // The settings go in while the index is empty, and that ordering is the
+    // whole reason they moved here from after the document push (issue #287).
+    // A settings update re-indexes the corpus it lands on, so on an empty
+    // index it is instant and can be awaited without risking the task-wait
+    // timeout a large channel would blow through — and awaiting it is what
+    // makes this method's postcondition true on return. Applied afterwards,
+    // every sorted query in the window between the document task settling and
+    // the settings task settling was answered `invalid_search_sort` and
+    // degraded to Postgres.
+    const { searchable, filterable } = await this.attributeSettings();
+    const settingsTasks = await Promise.all([
+      index.updateSearchableAttributes(searchable),
+      index.updateFilterableAttributes(filterable),
+      index.updateSortableAttributes([...SORTABLE_ATTRIBUTES]),
+    ]);
+    for (const task of settingsTasks) {
+      await this.client.tasks.waitForTask(task.taskUid);
+    }
+
     if (documents.length > 0) {
       const task = await index.addDocuments(documents, { primaryKey: 'id' });
       // Wait for the task to settle so the documents are queryable when
@@ -216,15 +290,12 @@ export class SearchIndexer {
       await this.client.tasks.waitForTask(task.taskUid);
     }
 
-    const { searchable, filterable } = await this.attributeSettings();
-    await index.updateSearchableAttributes(searchable);
-    await index.updateFilterableAttributes(filterable);
-
     return {
       indexUid,
       documentCount: documents.length,
       searchableAttributes: searchable,
       filterableAttributes: filterable,
+      sortableAttributes: [...SORTABLE_ATTRIBUTES],
     };
   }
 
@@ -324,6 +395,11 @@ export class SearchIndexer {
    * index, derived from the live `product_attributes` rows. Called on
    * `attribute.updated.v1` so a flipped `isFilterable` / `isSearchable`
    * propagates without a full reindex.
+   *
+   * It reapplies {@link SORTABLE_ATTRIBUTES} too, which is what lets an index
+   * built before issue #287 regain `name` sorting without waiting for a full
+   * reindex — the documents already carry the field. `createdAt` does not: a
+   * field that was never written has to be reindexed in.
    */
   async refreshAttributeSettings(em: EntityManager): Promise<string[]> {
     const channels = await em.find(SalesChannel, {});
@@ -339,10 +415,12 @@ export class SearchIndexer {
       const index = await this.ensureIndex(indexUid);
       const searchableTask = await index.updateSearchableAttributes(searchable);
       const filterableTask = await index.updateFilterableAttributes(filterable);
+      const sortableTask = await index.updateSortableAttributes([...SORTABLE_ATTRIBUTES]);
       // Settings updates are async tasks; wait so callers reading the
       // settings immediately after see the new values.
       await this.client.tasks.waitForTask(searchableTask.taskUid);
       await this.client.tasks.waitForTask(filterableTask.taskUid);
+      await this.client.tasks.waitForTask(sortableTask.taskUid);
       touched.push(channel.code);
     }
     return touched;
@@ -613,7 +691,6 @@ function buildDocument(
     // document still upserts. The query layer can ignore these.
     attrs[key] = JSON.stringify(value);
   }
-  const price = typeof attrs['defaultPrice'] === 'number' ? attrs['defaultPrice'] : null;
   // We also surface `categorySlugs` so the typed contract layer can filter
   // by `categorySlug` without a join.
   return {
@@ -626,11 +703,11 @@ function buildDocument(
     visibility: product.visibility,
     slug: product.slug,
     primaryAssetUrl: null,
-    price,
     categoryIds: categories.map((c) => c.id),
     categorySlugs: categories.map((c) => c.slug),
     attributes: attrs,
     searchableOptions,
+    createdAt: product.createdAt.getTime(),
     updatedAt: product.updatedAt.getTime(),
   };
 }
