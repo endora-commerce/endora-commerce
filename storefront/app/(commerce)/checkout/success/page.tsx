@@ -57,11 +57,20 @@ export default async function CheckoutSuccessPage({
   // to be confirmed; an order settled out of band (bank transfer, cash on
   // pickup, credit limit) still counts at placement, because its payment
   // never arrives while the buyer is on this page.
+  //
+  // Issue #277 — this page is no longer the only one that may count an order.
+  // A PayU or Autopay redirect, a Stripe cancel and a TPay failure now return
+  // the buyer to `/orders/:id`, which counts them there. Plenty still lands
+  // here: an offline placement, Stripe's `success_url`, TPay's `successUrl`,
+  // and every inline `/checkout/pay` form (PayU, TPay, Stripe) on success. The
+  // two pages do not need to know about each other, because the conversion is
+  // a claim the platform hands out once — see
+  // `lib/analytics/purchase-conversion.ts`.
   const purchase = purchaseTrackingPayload(order);
   return (
     <>
       {/* Feature 049 — GA4 purchase (no-op unless Enhanced Ecommerce is on). */}
-      {purchase ? <PurchaseTracker order={purchase} /> : null}
+      {purchase ? <PurchaseTracker order={purchase} orderId={order.id} /> : null}
       <SuccessPanel
         businessId={order.businessId}
         orderId={order.id}

@@ -55,6 +55,7 @@ import type {
 } from '@b2b/contracts';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerOrderRoutes } from './routes.js';
+import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import type { OrderConfirmationRenderers } from './email-templates/order-confirmation.js';
 // Feature 035 — shipping-method adapter framework + shipment lifecycle.
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -274,6 +275,12 @@ export interface OrdersModuleOptions {
    * Redis cache. Without it, the snapshotted unit_price is returned.
    */
   redis?: Redis;
+  /**
+   * Issue #277 — the per-order claim on the GA4 `purchase` conversion. Built
+   * by this module's `backend.ts` so that the placement subscriber and the
+   * buyer-facing route spend the same one.
+   */
+  purchaseConversion: PurchaseConversionService;
   /**
    * Feature 036 — resolves the channel-scoped `orders.business_id.prefix`
    * setting for the business Order ID. Wired by composition through
@@ -532,6 +539,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderCloneToQuoteService,
       orderCreationAdminService,
       customerOrderCancellation,
+      purchaseConversion: options.purchaseConversion,
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,

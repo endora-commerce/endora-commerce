@@ -41,6 +41,7 @@ import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { commerceModule, type OrdersModuleOptions } from './plugin.js';
+import { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { emitOrderStatusAfter } from './events/order-status-events.js';
 import { OrderReadService, toOrderRecord } from './services/order-read-port.js';
 import { OrderReturnContextProvider } from './services/order-return-context.js';
@@ -171,6 +172,8 @@ export interface OrdersCradle {
   readonly orderServiceAccessor: () => OrderService | null;
   readonly orderListServiceAccessor: () => OrderListService | null;
   readonly orderTransitionServiceAccessor: () => OrderTransitionService | null;
+  /** Issue #277 — the per-order claim on the GA4 `purchase` conversion. */
+  readonly orderPurchaseConversion: PurchaseConversionService;
   readonly orders: ReturnType<typeof commerceModule>;
   /**
    * Owned by `prompt_actions`: the assistant's tool catalogue. An ungated
@@ -301,16 +304,39 @@ export function registerModule(ctx: ModuleContext): void {
       : noCarrierShippingLineRenderer,
   });
 
+  /**
+   * The per-order claim on a GA4 `purchase` conversion (issue #277).
+   *
+   * Registered on its own so the module has one instance of it, and built
+   * over the EntityManager factory rather than over Redis: the claim is a
+   * column on the order, which is what makes it survive a restart and never
+   * expire. Nothing opens a claim here — `placeOrder` sets the column inside
+   * the placement transaction, which is where an order first exists.
+   */
+  ctx.di.register({
+    orderPurchaseConversion: ctx
+      .asFunction(({ emFactory }: OrdersCradle) => new PurchaseConversionService(emFactory))
+      .singleton(),
+  });
+
   ctx.di.register({
     orders: ctx
       .asFunction(
-        ({ emFactory, eventBus, commandBus, auditLogService, redis }: OrdersCradle) =>
+        ({
+          emFactory,
+          eventBus,
+          commandBus,
+          auditLogService,
+          redis,
+          orderPurchaseConversion,
+        }: OrdersCradle) =>
           commerceModule({
             emFactory,
             eventBus,
             commandBus,
             auditLogService,
             redis,
+            purchaseConversion: orderPurchaseConversion,
             // Ports, every one of them read lazily: this registration is a
             // singleton and a gate may not be frozen inside one.
             cartWritePort: lazyPort<CartWritePort>(ctx, 'cartWritePort'),

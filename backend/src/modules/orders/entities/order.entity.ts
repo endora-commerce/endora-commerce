@@ -29,7 +29,9 @@ export class Order {
     | 'sourceQuoteRequestId'
     | 'customerNote'
     | 'promotionCode'
-    | 'discountTotal';
+    | 'discountTotal'
+    | 'purchaseConversionOwed'
+    | 'purchaseConversionReportedAt';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -177,6 +179,33 @@ export class Order {
 
   @Property({ type: 'datetime', onUpdate: () => new Date() })
   updatedAt: Date = new Date();
+
+  /**
+   * Whether this order still owes a GA4 `purchase` conversion (issue #277).
+   *
+   * Inverted on purpose, and the default is the load-bearing half: `false`
+   * means *owes nothing*, which is what every row predating the column should
+   * say — those were all counted by the Success Page that counted
+   * unconditionally. `placeOrder` sets it to `true`, so an order this platform
+   * places from now on owes one until a storefront page reports it.
+   *
+   * Never read as a business fact: it decides whether a tag fires and nothing
+   * else. No lifecycle rule, invoice or fulfilment step may consult it.
+   */
+  @Property({ type: 'boolean', default: false })
+  purchaseConversionOwed: boolean = false;
+
+  /**
+   * When the conversion was reported, if it ever was.
+   *
+   * This is what keeps the two falses apart: `owed = false` with no timestamp
+   * is an order that never owed a conversion, and `owed = false` with one is
+   * an order whose conversion was reported at that moment. Without it the flag
+   * could say "do not report" and could not say why, which is exactly the
+   * question someone reconciling GA4 against the orders table asks.
+   */
+  @Property({ type: 'datetime', nullable: true })
+  purchaseConversionReportedAt?: Date | null;
 
   // Feature 055 — Custom Fields Layer value bag (inherits host tenant scope).
   @Property({ type: 'json' })

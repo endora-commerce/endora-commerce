@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { claimPurchaseConversionAction } from '../../lib/actions/purchase-conversion';
+import { reportPurchaseOnce } from '../../lib/analytics/purchase-conversion';
 import {
   trackViewItem,
   trackBeginCheckout,
@@ -45,13 +47,35 @@ export function BeginCheckoutTracker({
   return null;
 }
 
-export function PurchaseTracker({ order }: { order: GaPurchase }): null {
+/**
+ * The GA4 `purchase` conversion for `orderId` (feature 049; issue #277).
+ *
+ * The `fired` ref only stops a remount of *this* component from firing twice.
+ * It says nothing about the buyer reloading the page, coming back to the order
+ * tomorrow, or opening it on their phone — and the page this renders on is one
+ * of two that may count the same order, since a gateway returns the buyer to
+ * `/orders/:id` while an offline placement lands on `/checkout/success`. So the
+ * platform holds the claim and the tag fires only for the view that wins it;
+ * `lib/analytics/purchase-conversion.ts` is the rule, kept out of the effect so
+ * it can be exercised without a browser.
+ */
+export function PurchaseTracker({
+  order,
+  orderId,
+}: {
+  order: GaPurchase;
+  orderId: string;
+}): null {
   const fired = useRef(false);
   useEffect(() => {
     if (fired.current) return;
     fired.current = true;
-    trackPurchase(order);
-    // Guard against re-fire on remount for the same transaction.
+    void reportPurchaseOnce({
+      orderId,
+      payload: order,
+      claim: claimPurchaseConversionAction,
+      fire: trackPurchase,
+    });
 
   }, [order.transactionId]);
   return null;
