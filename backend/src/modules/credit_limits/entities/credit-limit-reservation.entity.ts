@@ -24,6 +24,23 @@ export class CreditLimitReservation {
   @Index()
   orderId!: string;
 
+  /**
+   * The organization that drew the credit — the reserving descendant, which in
+   * `independent_default` mode is not the organization the limit row belongs
+   * to. Recorded here rather than read back off the order, so the
+   * `independent_default` sum is a query over this module's own table (feature
+   * 075).
+   *
+   * Deliberately **not** called `organizationId`, and this entity stays
+   * `@GlobalEntity`: the column is a record of who consumed the credit, not the
+   * row's tenant key. `@OrgScoped` over it would confine the sums to the
+   * ambient tenant, and the `shared_pool` sum has to see the whole subtree —
+   * including branches outside the reserving descendant's own scope.
+   */
+  @Property({ type: 'uuid' })
+  @Index()
+  reservingOrganizationId!: string;
+
   @Property({ type: 'decimal', precision: 14, scale: 2 })
   amount!: string;
 

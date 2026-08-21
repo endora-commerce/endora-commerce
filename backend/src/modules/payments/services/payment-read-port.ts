@@ -14,6 +14,12 @@ import { Payment } from '../entities/payment.entity.js';
  *
  * The money columns stay strings: they are `decimal(14,2)`, and every consumer
  * forwards the figure to a payment provider.
+ *
+ * `countByPaymentMethod` joined it for feature 075. It answers the one question
+ * `payment_methods` had been asking of this module's table directly, in raw SQL
+ * inside its delete Command — a boundary crossing that named no import
+ * specifier and so compiled, returned rows and went unseen until
+ * `check:module-boundary` learned to read a SQL statement.
  */
 export class PaymentReadService implements PaymentReadPort {
   constructor(private readonly emFactory: () => EntityManager) {}
@@ -48,6 +54,10 @@ export class PaymentReadService implements PaymentReadPort {
       { orderBy: { attemptNo: 'desc', createdAt: 'desc' } },
     );
     return payment ? toPaymentRecord(payment) : null;
+  }
+
+  async countByPaymentMethod(paymentMethodId: string): Promise<number> {
+    return this.emFactory().count(Payment, { paymentMethodId });
   }
 }
 

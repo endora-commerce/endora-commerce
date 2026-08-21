@@ -177,6 +177,7 @@ export async function seedCreditLimitWithActiveReservation(em: EntityManager): P
   const reservation = em.create(CreditLimitReservation, {
     creditLimitId: limit.id,
     orderId: order.id,
+    reservingOrganizationId: TEST_ORGANIZATION_ID,
     amount: '5000.00',
     currency: 'PLN',
     status: 'active',

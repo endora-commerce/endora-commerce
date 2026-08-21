@@ -21,6 +21,28 @@ export const manifest = defineModuleManifest({
   // reads through `organizationRestrictionPort`. The edge existed before as a
   // root-supplied closure and was therefore invisible to the manifest.
   dependencies: ['auth', 'organizations'],
+  /**
+   * D-44 — a real port edge deliberately kept out of `dependencies`, because
+   * the owner disappearing is a state this module handles.
+   */
+  nonBindingDependencies: [
+    {
+      moduleId: 'payments',
+      name: 'paymentReadPort',
+      kind: 'degrades-without',
+      whenAbsent: 'a payment method cannot be deleted, only set inactive',
+      reason:
+        'The delete-guard (feature 034, FR-003) asks how many payment attempts still point at ' +
+        'the method an operator is deleting. Until feature 075 it asked in raw SQL against ' +
+        '`payments`\' own table, which named no import specifier and so crossed the boundary ' +
+        'invisibly (D-87). `degrades-without` rather than `dependencies`: `payments` declares ' +
+        'this module, so declaring it back would close a cycle, and acknowledging the edge ' +
+        'would keep the bind and make `payments.enabled` unusable in every shop that takes ' +
+        'money. `backend.ts` asks `effectiveState.isPresent` before resolving the port, and ' +
+        'the Command refuses the delete with a 409 naming the reason rather than deleting a ' +
+        'method whose references nobody could count.',
+    },
+  ],
   settings: {
     moduleCode: 'payment_methods',
     groups: [{ code: 'payment_methods', name: 'Payment methods' }],
