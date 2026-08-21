@@ -86,15 +86,23 @@ describe('T075 — a converted module costs no test-helper edit', () => {
     // wants to name a subset has to write the filter itself — and this is where
     // that shows up.
     //
-    // The spelling is pinned including the **append** D-104 requires: a
-    // deployment's overlay modules are discovered at runtime and go into this
-    // same single call, after the frozen core list, which is what makes
-    // "overlay last, so a deployment's decoration wins" structural rather than
-    // a property of a generator's sort. Extending the array is allowed and
-    // spelled identically in both roots; narrowing it is what this refuses, and
-    // any `MODULES.filter(` would fail the exact-match below.
+    // The spelling is pinned including both **appends**: D-104's, a
+    // deployment's overlay modules discovered at runtime, and T031's, the
+    // instance's installed packages. Both go into this same single call, after
+    // the frozen core list, which is what makes "overlay last, so a
+    // deployment's decoration wins" structural rather than a property of a
+    // generator's sort. Extending the array is allowed and must be spelled
+    // identically in both roots; narrowing it is what this refuses, and any
+    // `MODULES.filter(` would fail the exact-match below.
+    //
+    // The **array literal** is pinned rather than the whole call, because the
+    // call is now long enough that the formatter wraps it and a pin including
+    // `, {` would be a pin on prettier's line-breaking rather than on the two
+    // roots agreeing.
     for (const source of [harness, production]) {
-      expect(source).toContain('composeModules([...MODULES, ...overlayModuleEntries], {');
+      expect(source).toContain(
+        'composeModules(\n    [...MODULES, ...overlayModuleEntries, ...packageModuleEntries],',
+      );
       expect(source).not.toContain('MODULES.filter(');
       expect(source).not.toContain('MODULES.slice(');
     }

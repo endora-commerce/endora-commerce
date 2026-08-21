@@ -41,11 +41,18 @@ Three exit codes, and the third is the point: **0** the criterion is met, **1** 
 could not be measured (no PostgreSQL, no `pnpm`, a database name the guard refuses, a phase that
 threw). "The services were missing" is not spellable as either colour.
 
-Today the run prints seven `FAIL` and two `PASS`, and CI is green. That is not a contradiction:
-the criterion is *supposed* to be red until feature 080's Wave 3 lands, so what CI enforces is
+Today the run prints six `FAIL` and three `PASS`, and CI is green. That is not a contradiction:
+the criterion is *supposed* to be red until feature 080's Wave 3 finishes, so what CI enforces is
 drift against `expected-state.json` in **both** directions. A8 or A9 going red fails the job; A1
 going green fails it too, and the remedy is to record the green in the merge request that earned
 it. Never edit that file to make a pipeline pass.
+
+**A5 was the first to move**, in the merge request that landed T031: an installed package now
+reaches `resolvedManifestEntries()` and both composition roots, so its identity, its grantable
+permission and its `en`/`pl` palette bundles travel with it. A6's and A7's recorded reasons moved
+with it, because both had read *"follows A5"* and stopped being true the moment A5 did — A7 in
+particular now runs the hard uninstall for real and fails only on the migration count. What is
+still red is the **schema** half, A1 … A4, which is what T033 closes.
 
 **A8 and A9 carry the contract.** A1 … A7 are satisfiable by a moved directory, which is the trap.
 A8 says the installed package's resolution path stays inside the instance; A9 runs A8's own

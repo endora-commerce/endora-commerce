@@ -107,6 +107,8 @@ import {
   loadOverlayDecorations,
   loadOverlayModuleEntries,
 } from './overlay/overlay-runtime.js';
+// Feature 080 — installed extension packages, discovered at runtime (D-155).
+import { loadPackageModuleEntries } from './packages/package-runtime.js';
 import type { PricingServiceContract } from './modules/price_lists/services/pricing-service.interface.js';
 import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 // D-54 — the error envelope takes this map by injection: `src/http` is a
@@ -249,6 +251,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // one that ran.
   const resolvedRegistry = await resolvedManifestEntries();
   const overlayModuleEntries = await loadOverlayModuleEntries();
+  // Feature 080 (T031, D-119/D-155) — the same shape, one axis out: every
+  // Endora module package installed in this instance's `node_modules`. The
+  // committed registries stay bare core for D-104's reason, so this is the only
+  // thing that knows a package is here.
+  const packageModuleEntries = await loadPackageModuleEntries();
 
   // Feature 072 (D-38) — module presence is a **composition input**, so it is
   // loaded here: before the first module registers, and therefore before any
@@ -401,25 +408,34 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // makes "overlay last, so a deployment's decoration wins" structural: the
   // core list is frozen and the deployment's entries come after it, rather than
   // the ordering being a property of a generator's sort.
-  const composedModules = composeModules([...MODULES, ...overlayModuleEntries], {
-    container,
-    eventBus,
-    // Issue #269 — composition runs before `buildServer`, so there is no
-    // `app.log` yet. This is late-bound rather than a snapshot: `buildServer`
-    // attaches the application's own pino instance the moment it exists, and
-    // every line written after that lands there. It used to be the bare global
-    // `console` — unstructured, uncorrelated, and outside the stream a
-    // deployment ships.
-    log: platformLogger(),
-    interceptorRegistry: apiInterceptors,
-    ownership: registrationOwnership,
-    // Issue #258 — the modules this deployment is required to have, derived
-    // from the manifest set it resolved above rather than written down (D-100).
-    // The composer refuses before the first module registers when one of them
-    // is missing, which is what stops a first boot from dying in whichever
-    // module's boot hook happened to need it first.
-    requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
-  });
+  //
+  // T031 — and the instance's installed packages after them, in the same one
+  // list and for the same reasons. Order is not a privilege here: registration
+  // resolves nothing (the `registering` guard), and a package gets no
+  // decoration exemption, so "last" buys it nothing a core module does not
+  // have.
+  const composedModules = composeModules(
+    [...MODULES, ...overlayModuleEntries, ...packageModuleEntries],
+    {
+      container,
+      eventBus,
+      // Issue #269 — composition runs before `buildServer`, so there is no
+      // `app.log` yet. This is late-bound rather than a snapshot: `buildServer`
+      // attaches the application's own pino instance the moment it exists, and
+      // every line written after that lands there. It used to be the bare global
+      // `console` — unstructured, uncorrelated, and outside the stream a
+      // deployment ships.
+      log: platformLogger(),
+      interceptorRegistry: apiInterceptors,
+      ownership: registrationOwnership,
+      // Issue #258 — the modules this deployment is required to have, derived
+      // from the manifest set it resolved above rather than written down (D-100).
+      // The composer refuses before the first module registers when one of them
+      // is missing, which is what stops a first boot from dying in whichever
+      // module's boot hook happened to need it first.
+      requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
+    },
+  );
 
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument

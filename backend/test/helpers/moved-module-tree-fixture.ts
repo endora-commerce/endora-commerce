@@ -53,6 +53,11 @@ const RESIDUE_ROOTS: readonly string[] = [
   'http',
   'kernel',
   'overlay',
+  // Feature 080, T031. `_lifecycle/registered-manifests.ts` — kept by
+  // `KEPT_MODULE` — imports the package discovery, so a fixture without this
+  // root dies at module resolution and every proof under it fails for a reason
+  // that has nothing to do with a moved module tree.
+  'packages',
   'seeds',
   'tenancy',
 ];

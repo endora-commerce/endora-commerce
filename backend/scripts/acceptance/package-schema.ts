@@ -375,6 +375,22 @@ async function main(): Promise<void> {
     const probeEnv: NodeJS.ProcessEnv = {
       DATABASE_URL: target.databaseUrl,
       ACCEPTANCE_INSTANCE_ROOT: instance,
+      // The platform's own name for the same directory (feature 080, T031).
+      //
+      // In a real deployment the platform *is* the instance — its
+      // `node_modules` is where an operator's packages are installed — so
+      // nothing sets this and package discovery reads the chain above the
+      // running code. Here the two are deliberately not the same: the probe
+      // boots this repository's backend against a package installed somewhere
+      // else, which is the whole procedure. So the harness has to say where
+      // "somewhere else" is, exactly as it already does for its own
+      // `createRequire` (`ACCEPTANCE_INSTANCE_ROOT`, two lines up).
+      //
+      // It is plumbing, not the mechanism, and the difference is testable:
+      // setting this variable against a platform that cannot discover a package
+      // changes no assertion. It is what made A5 red before T031 and it is not
+      // what makes it green.
+      ENDORA_INSTANCE_ROOT: instance,
       ACCEPTANCE_PACKAGE_NAME: PACKAGE_NAME,
       NODE_ENV: 'test',
       SESSION_COOKIE_SECRET: 'acceptance-secret',

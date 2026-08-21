@@ -71,6 +71,7 @@ import {
   resolvedManifestEntries,
 } from '../../src/modules/_lifecycle/registered-manifests.js';
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
+import { loadPackageModuleEntries } from '../../src/packages/package-runtime.js';
 import { buildStaticRegistry } from '../../src/modules/_lifecycle/services/static-registry.js';
 import type { LoadedManifestRegistry } from '../../src/modules/_lifecycle/services/manifest-loader.js';
 import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@b2b/contracts';
@@ -870,6 +871,14 @@ export async function setupBackendServer(
   ) as NodeJS.ProcessEnv;
   const resolvedRegistry = await resolvedManifestEntries(overlayEnv);
   const overlayModuleEntries = await loadOverlayModuleEntries(overlayEnv);
+  // Feature 080 (T031) — mirrors `composition.ts`. Empty in every test run,
+  // because a checkout installs no Endora module package; it is here so the two
+  // roots compose the same list, which `harness-parity.test.ts` is the ledger
+  // for. `overlayEnv` carries no `ENDORA_INSTANCE_ROOT`, so discovery reads the
+  // chain above the running platform and finds this repository's own
+  // `packages/*` linked out of `node_modules` — which is exactly what it
+  // refuses.
+  const packageModuleEntries = await loadPackageModuleEntries(overlayEnv);
 
   registryCache.setActivationDeclarations(
     activationDeclarationsFrom(resolvedRegistry.map((e) => e.manifest)),
@@ -957,23 +966,28 @@ export async function setupBackendServer(
   // D-103/D-104 — mirrors `composition.ts`: the deployment's overlay modules
   // are appended to this one list rather than composed by a second path, so
   // "overlay last" is structural and D-45's single pass is preserved.
-  const composedModules = composeModules([...MODULES, ...overlayModuleEntries], {
-    container,
-    eventBus,
-    // Issue #269 — mirrors `composition.ts`. This root used to pass a no-op
-    // while production passed the global `console`, so the two disagreed on
-    // where a module's log line went and no test could see either. Both pass
-    // the late-bound platform logger now, which `buildServer` points at the
-    // app's pino instance below.
-    log: platformLogger(),
-    interceptorRegistry: apiInterceptors,
-    ownership: registrationOwnership,
-    // Issue #258 — mirrors `composition.ts`: derived from the same resolved
-    // manifest set this harness seeded presence from, so a test that withdraws
-    // a required module meets the refusal production would meet, at the point
-    // production meets it.
-    requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
-  });
+  // T031 — and the instance's installed packages after them, same list, same
+  // reason.
+  const composedModules = composeModules(
+    [...MODULES, ...overlayModuleEntries, ...packageModuleEntries],
+    {
+      container,
+      eventBus,
+      // Issue #269 — mirrors `composition.ts`. This root used to pass a no-op
+      // while production passed the global `console`, so the two disagreed on
+      // where a module's log line went and no test could see either. Both pass
+      // the late-bound platform logger now, which `buildServer` points at the
+      // app's pino instance below.
+      log: platformLogger(),
+      interceptorRegistry: apiInterceptors,
+      ownership: registrationOwnership,
+      // Issue #258 — mirrors `composition.ts`: derived from the same resolved
+      // manifest set this harness seeded presence from, so a test that withdraws
+      // a required module meets the refusal production would meet, at the point
+      // production meets it.
+      requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
+    },
+  );
 
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
