@@ -9,6 +9,7 @@ import type {
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { ComparisonService } from './services/comparison-service.js';
 import { ComparisonAdminService } from './services/comparison-admin.service.js';
@@ -75,6 +76,10 @@ export function registerModule(ctx: ModuleContext): void {
             // same read answers 503 when `catalog` is off, which is the
             // binding dependency this manifest declares.
             lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            // Issue #259 — the channel assortment gate on the add seam. A
+            // kernel registration, so there is no module edge to declare and
+            // nothing to switch off underneath it.
+            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
             lazyPort<SettingsService>(ctx, 'settingsReadPort'),
             // The attribute read model, now `catalog`'s published port rather
             // than a hand-made adapter over a name a root registered.

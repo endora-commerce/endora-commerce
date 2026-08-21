@@ -22,6 +22,7 @@ import {
   SettingOutOfScopeForChannel,
 } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from './manifest.js';
 import { quoteRequestsModule, type QuoteRequestsModuleOptions } from './plugin.js';
@@ -226,6 +227,12 @@ export function registerModule(ctx: ModuleContext): void {
           // `carts.replaceItemsForCustomer` moves the quote-to-cart conversion
           // inside the module that owns the tables (D-78 rule 1).
           catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+          // Issue #259 — the channel assortment gate on the three quote-line
+          // seams. A kernel registration, so there is no seventh module edge.
+          channelMembership: lazyPort<SalesChannelMembershipPort>(
+            ctx,
+            'salesChannelMembershipPort',
+          ),
           customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
           organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
           adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),

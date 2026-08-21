@@ -6,6 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
@@ -241,6 +242,20 @@ async function seedRestrictedProduct(h: BackendServerHandle): Promise<string> {
     attributeValues: { defaultPrice: 5 },
   });
   await em.persistAndFlush(product);
+  // Publish it on the channel this file shops (issue #259). A comparison
+  // column is an acquisition and is refused on a channel that does not sell
+  // the row, so a probe bound to no channel could not be added at all — and
+  // this file is about the *visibility* axis, which presupposes the product is
+  // on the channel to begin with.
+  const retail = await em.findOne(SalesChannel, { code: 'pl_retail' });
+  if (!retail) throw new Error('the harness seeds pl_retail');
+  await em
+    .getConnection()
+    .execute(
+      `insert into sales_channel_products (sales_channel_id, product_id) values (?, ?) ` +
+        `on conflict (sales_channel_id, product_id) do nothing`,
+      [retail.id, product.id],
+    );
   return product.id;
 }
 

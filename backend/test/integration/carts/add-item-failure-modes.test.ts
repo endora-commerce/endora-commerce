@@ -14,10 +14,16 @@ import {
  * the compare page depends on most: a refusal MUST come back with the
  * standard error envelope, never a 500 / generic crash.
  *
- * Out-of-channel and archived-product behaviour is enforced by carts
- * separately and is not regressed here — the spec's only behavioural
- * promise to the comparison page is that the cart's response makes the
- * refusal reason visible (FR-016).
+ * Archived-product behaviour is enforced by carts separately and is not
+ * regressed here — the spec's only behavioural promise to the comparison page
+ * is that the cart's response makes the refusal reason visible (FR-016).
+ *
+ * This sentence used to say "out-of-channel and archived-product", and the
+ * first half of it was not true: until issue #259 `CartService.addItem`
+ * applied `isProductVisibleTo` and no channel test at all, so a product
+ * published on another storefront went into the cart by id. It is enforced now,
+ * and `add-item-channel-assortment.test.ts` next to this file is what enforces
+ * the claim rather than a comment asserting it.
  */
 
 const SALES_CHANNEL_HEADER = { 'x-sales-channel': 'pl_retail' };

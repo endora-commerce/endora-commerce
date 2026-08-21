@@ -30,6 +30,7 @@ import {
   type AdminContextResolver,
 } from './routes.admin.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { ModuleDisabledError } from '../../kernel/lifecycle/plugin-helpers.js';
 
 /**
@@ -85,6 +86,12 @@ export interface QuoteRequestsModuleOptions {
    * manifest, so every one of them fails closed.
    */
   catalogProducts: CatalogProductReadPort;
+  /**
+   * The sanctioned bridge accessor (Constitution XII), for the assortment gate
+   * a quote line owes (issue #259). Kernel-registered, so it is not one of the
+   * six module edges above.
+   */
+  channelMembership: SalesChannelMembershipPort;
   customerAccounts: CustomerAccountReadPort;
   organizations: OrganizationDetailsPort;
   adminUsers: AdminUserReadPort;
@@ -141,6 +148,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     notificationService,
     salesRepAssignment,
     catalogProducts: options.catalogProducts,
+    channelMembership: options.channelMembership,
     customerAccounts: options.customerAccounts,
     adminUsers: options.adminUsers,
     carts: options.carts,

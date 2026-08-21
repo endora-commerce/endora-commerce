@@ -13,6 +13,7 @@ import {
   type AdminUserReadPort,
   type CartWritePort,
   type CatalogProductReadPort,
+  type CatalogProductRecord,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type SalesRepAssignmentPort,
@@ -33,6 +34,8 @@ import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService} from './rfq-notification-service.js';
 import { type NotificationRecipient } from './rfq-notification-service.js';
 import type { QuoteRequestBusinessIdGenerator } from './quote-request-business-id-generator.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
+import { productIdsInRequestChannel } from '../../../kernel/sales-channels/request-channel-assortment.js';
 import { raisedOnChannelId } from './raised-on-channel.js';
 
 /**
@@ -94,6 +97,12 @@ export interface RfqServiceDeps {
    * is owned end to end by the module that owns the tables (D-78 rule 1).
    */
   catalogProducts: CatalogProductReadPort;
+  /**
+   * The sanctioned bridge accessor (Constitution XII), for the assortment gate
+   * a quote line owes (issue #259). A kernel registration rather than a
+   * module's, so it is not one of the four edges the block above declares.
+   */
+  channelMembership: SalesChannelMembershipPort;
   customerAccounts: CustomerAccountReadPort;
   adminUsers: AdminUserReadPort;
   carts: CartWritePort;
@@ -116,6 +125,42 @@ export interface RfqServiceDeps {
 
 export class RfqService {
   constructor(private readonly deps: RfqServiceDeps) {}
+
+  /**
+   * The products a quote line may name, keyed by id — the two scoping axes a
+   * buyer-facing product read owes, applied together.
+   *
+   * `isProductVisibleTo` is issue #227's: may this buyer see the row at all.
+   * The channel narrowing is issue #259's, and the predicate says in writing
+   * that it is *not* that answer — the channel belongs to the request, so it is
+   * read off the request scope (the same slot `raisedOnChannelId` stamps on the
+   * quote) and never re-resolved here. `null` from the narrowing means there is
+   * no request at all — a worker, a CLI script, a fixture calling this service
+   * directly — and then there is no channel for a line to be outside of.
+   *
+   * The admin's own create path is `RfqAdminService.createOnBehalf` and does
+   * not come through here. It applies neither axis, deliberately and as issue
+   * #227 left it: the operator is naming both the organisation and the lines,
+   * and the `quote_requests:write` permission is the enforcement.
+   *
+   * Both callers compare `size` against the requested set and answer one 404
+   * for any shortfall, so a line that is restricted, a line sold on another
+   * channel and a line naming a product that never existed are one response.
+   */
+  async #acquirableProductsById(
+    productIds: readonly string[],
+    ctx: CustomerContext,
+  ): Promise<Map<string, CatalogProductRecord>> {
+    const visible = (await this.deps.catalogProducts.findByIds(productIds)).filter((p) =>
+      isProductVisibleTo(p, rfqAudience(ctx)),
+    );
+    const publishedHere = await productIdsInRequestChannel(
+      this.deps.channelMembership,
+      visible.map((p) => p.id),
+    );
+    const acquirable = publishedHere ? visible.filter((p) => publishedHere.has(p.id)) : visible;
+    return new Map(acquirable.map((p) => [p.id, p]));
+  }
 
   /** Feature 054 — co-transactional RFQ audit on `em` (actor from context). */
   #audit(
@@ -224,14 +269,15 @@ export class RfqService {
       throw new HttpError(400, ERROR_CODES.RFQ_EMPTY, 'Quote Request must have at least one line item.');
     }
     const em = this.deps.emFactory();
-    const products = (
-      await this.deps.catalogProducts.findByIds(input.items.map((it) => it.productId))
-    ).filter((p) => isProductVisibleTo(p, rfqAudience(ctx)));
-    const productById = new Map(products.map((p) => [p.id, p]));
+    const productById = await this.#acquirableProductsById(
+      input.items.map((it) => it.productId),
+      ctx,
+    );
     if (productById.size !== new Set(input.items.map((it) => it.productId)).size) {
-      // Issue #227 — a line the buyer may not see is refused the same way a
-      // line naming a product that does not exist is. One message for both, so
-      // the response cannot be used to tell "restricted" from "absent".
+      // Issues #227 and #259 — a line the buyer may not see, and a line the
+      // request's channel does not publish, are both refused the same way a
+      // line naming a product that does not exist is. One message for all
+      // three, so the response cannot be used to tell them apart.
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
     }
 
@@ -359,13 +405,14 @@ export class RfqService {
     if (body.headerNote !== undefined) rfq.headerNote = body.headerNote ?? null;
 
     if (body.items) {
-      const products = (
-        await this.deps.catalogProducts.findByIds(body.items.map((it) => it.productId))
-      ).filter((p) => isProductVisibleTo(p, rfqAudience(ctx)));
-      const productById = new Map(products.map((p) => [p.id, p]));
+      const productById = await this.#acquirableProductsById(
+        body.items.map((it) => it.productId),
+        ctx,
+      );
       if (productById.size !== new Set(body.items.map((it) => it.productId)).size) {
-        // Issue #227 — see `createForCustomer`. A revision may not add a line
-        // the original submission could not have carried.
+        // Issues #227 and #259 — see `createForCustomer`. A revision may not
+        // add a line the original submission could not have carried, on either
+        // axis.
         throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
       }
       const existingItems = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
@@ -450,6 +497,24 @@ export class RfqService {
     const sourceItems = await em.find(QuoteRequestItem, { quoteRequestId: sourceRfq.id });
     if (sourceItems.length === 0) {
       throw new HttpError(400, ERROR_CODES.RFQ_EMPTY, 'Source RFQ has no items.');
+    }
+
+    // Issue #259 — a resubmit is raised on *this* request's channel, not the
+    // source RFQ's (see `salesChannelId` below), so without this it is the
+    // one-hop bypass of every other seam on this list: raise a quote on the
+    // channel that publishes the product, resubmit it with another channel's
+    // header, and the line arrives in a pipeline that does not sell it. Copying
+    // the lines is what makes it invisible — nothing here names a product id
+    // the caller supplied.
+    //
+    // Whole-request 404, the same answer `createForCustomer` gives, because a
+    // resubmit *is* a create over lines the buyer already chose.
+    const publishedHere = await productIdsInRequestChannel(
+      this.deps.channelMembership,
+      sourceItems.map((it) => it.productId),
+    );
+    if (publishedHere && sourceItems.some((it) => !publishedHere.has(it.productId))) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
     }
 
     const newRfq = em.create(QuoteRequest, {

@@ -13,6 +13,7 @@ import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helper
 import { ANONYMOUS_PRODUCT_AUDIENCE, ERROR_CODES } from '@b2b/contracts';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
+import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
 import { CartConversionService } from '../../../src/modules/carts/services/cart-conversion-service.js';
 import { CartUpsellService } from '../../../src/modules/carts/services/cart-upsell-service.js';
 import { CartOrganizationVisibilityService } from '../../../src/modules/carts/services/cart-organization-visibility-service.js';
@@ -168,6 +169,20 @@ describe('carts — quote-to-cart conversion reads quote_requests through its po
   const rfq = {} as unknown as RfqCustomerPort;
   const ctx = { customerAccountId: 'cust-1', organizationId: 'org-1' };
 
+  /**
+   * Issue #259 — the conversion narrows to the request's channel, and these
+   * cases run outside a request. So the gate has nothing to ask, and a port
+   * that throws on every method proves it asks nothing rather than assuming it.
+   */
+  const refusingChannelMembership = new Proxy(
+    {},
+    {
+      get: (_target, property) => () => {
+        throw new Error(`carts asked the channel bridge (${String(property)}) with no request`);
+      },
+    },
+  ) as SalesChannelMembershipPort;
+
   it('drops a line whose product catalog no longer has, by name', async () => {
     const catalog = { findByIds: async () => [] } as unknown as CatalogProductReadPort;
     const cartService = {
@@ -180,6 +195,7 @@ describe('carts — quote-to-cart conversion reads quote_requests through its po
       rfq,
       quoteRequests,
       catalog,
+      refusingChannelMembership,
     );
     const result = await service.createCartFromQuoteRequest('qr-1', ctx);
 
@@ -213,6 +229,7 @@ describe('carts — quote-to-cart conversion reads quote_requests through its po
       rfq,
       quoteRequests,
       catalog,
+      refusingChannelMembership,
     );
 
     await expect(service.createCartFromQuoteRequest('qr-1', ctx)).rejects.toMatchObject({
@@ -238,6 +255,7 @@ describe('carts — quote-to-cart conversion reads quote_requests through its po
       rfq,
       quoteRequests,
       catalog,
+      refusingChannelMembership,
     );
     const result = await service.createCartFromQuoteRequest('qr-1', ctx);
 

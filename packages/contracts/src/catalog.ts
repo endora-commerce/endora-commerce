@@ -1746,6 +1746,18 @@ export const ANONYMOUS_PRODUCT_AUDIENCE: ProductAudience = {
  * Principle XII's, travels through `sales_channel_products` and the sanctioned
  * bridge accessors, and is a second filter every buyer-facing path owes on top
  * of this one.
+ *
+ * That second filter has two spellings and neither is here, by an owner ruling
+ * of 2026-08-21 (issue #259): the channel is a property of the **request**, not
+ * of the viewer's relationship to the product, so folding it in would merge two
+ * questions and make this predicate asynchronous. The **view** side spells it
+ * as `CatalogQueryService.filterByChannel`; the **acquisition** side — cart
+ * add, comparison add, a quote line, a saved list, a pasted quick-order SKU —
+ * spells it as `productIdsInRequestChannel` in
+ * `backend/src/kernel/sales-channels/request-channel-assortment.ts`. Every one
+ * of those refuses out-of-assortment with the *same* answer it gives a
+ * restricted row and an absent one, so the pair cannot be used to enumerate an
+ * operator's private assortment.
  */
 export function isProductVisibleTo(
   product: Pick<CatalogProductRecord, 'visibility' | 'allowedOrganizationIds'>,

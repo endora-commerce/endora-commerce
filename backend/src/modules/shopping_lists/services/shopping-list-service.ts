@@ -2,6 +2,11 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, isProductVisibleTo } from '@b2b/contracts';
 import type { CartWritePort, CatalogProductReadPort, RfqCustomerPort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
+import {
+  outOfRequestChannel,
+  productIdsInRequestChannel,
+} from '../../../kernel/sales-channels/request-channel-assortment.js';
 import { ShoppingList } from '../entities/shopping-list.entity.js';
 import { ShoppingListItem } from '../entities/shopping-list-item.entity.js';
 
@@ -59,6 +64,11 @@ export class ShoppingListService {
      * legitimate answer and is not one.
      */
     private readonly catalogProducts: CatalogProductReadPort,
+    /**
+     * The sanctioned bridge accessor (Constitution XII), for the assortment
+     * gate `addItem` owes (issue #259).
+     */
+    private readonly channelMembership: SalesChannelMembershipPort,
   ) {}
 
   async list(ctx: CustomerContext): Promise<ShoppingList[]> {
@@ -228,6 +238,14 @@ export class ShoppingListService {
     ) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
+    // Issue #259 — the channel axis, read off the request scope rather than
+    // re-resolved. A saved list is read back on later visits and priced then,
+    // so what may be saved is what the channel the buyer is shopping on
+    // publishes; the refusal is the same 404 the visibility half above throws,
+    // so the two cannot be told apart.
+    if (await outOfRequestChannel(this.channelMembership, product.id)) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
     const item = em.create(ShoppingListItem, {
       shoppingListId: list.id,
       productId: product.id,
@@ -378,6 +396,24 @@ export class ShoppingListService {
     return em.find(ShoppingListItem, { shoppingListId: listId });
   }
 
+  /**
+   * Split the selected lines into the ones a conversion may carry and the ones
+   * it reports as skipped.
+   *
+   * The channel narrowing (issue #259) belongs **here** rather than at the two
+   * conversion targets, and that is the whole reason it is here: both targets
+   * already refuse an unacquirable line — `cartService.addItem` with a 404 per
+   * call, `rfqService.createForCustomer` with a whole-request 404 — so leaving
+   * the question to them would turn a conversion of twenty saved lines into one
+   * refusal because of the twenty-first. This seam has a vocabulary for exactly
+   * that case and has had it since T201: the line is skipped, reported, and the
+   * rest of the conversion goes through.
+   *
+   * It is asked **before** the status test, so an out-of-channel line reads as
+   * `product_not_found` rather than as `product_archived` — the same "it is not
+   * here" every other surface gives it, and not a second answer a reader could
+   * tell the two apart by.
+   */
   async #partitionByProductStatus(
     items: ShoppingListItem[],
   ): Promise<{ kept: ShoppingListItem[]; skipped: ConversionSkip[] }> {
@@ -385,11 +421,12 @@ export class ShoppingListService {
     const productIds = Array.from(new Set(items.map((i) => i.productId)));
     const products = await this.catalogProducts.findByIds(productIds);
     const byId = new Map(products.map((p) => [p.id, p]));
+    const publishedHere = await productIdsInRequestChannel(this.channelMembership, productIds);
     const skipped: ConversionSkip[] = [];
     const kept: ShoppingListItem[] = [];
     for (const item of items) {
       const product = byId.get(item.productId);
-      if (!product) {
+      if (!product || (publishedHere !== null && !publishedHere.has(item.productId))) {
         skipped.push({ itemId: item.id, productId: item.productId, reason: 'product_not_found' });
         continue;
       }

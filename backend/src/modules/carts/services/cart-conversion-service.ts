@@ -10,6 +10,8 @@ import type {
   RfqCustomerPort,
 } from '@b2b/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
+import { productIdsInRequestChannel } from '../../../kernel/sales-channels/request-channel-assortment.js';
 import type { CartService, CustomerContext as CartCustomerContext } from './cart-service.js';
 
 /**
@@ -71,6 +73,17 @@ export class CartConversionService {
     private readonly quoteRequests: QuoteRequestReadPort,
     /** `catalog`'s product read model — is the quoted product still there? */
     private readonly catalogProducts: CatalogProductReadPort,
+    /**
+     * The sanctioned bridge accessor (Constitution XII) — and on this seam it
+     * is what keeps the *reason* honest (issue #259). `CartService.addItem`
+     * refuses an out-of-channel line by itself, but this method catches every
+     * `HttpError` from it and reports one dropped-line reason,
+     * `no_price_in_customer_list`. A line the channel does not sell has nothing
+     * to do with the buyer's price list, so it is narrowed here instead and
+     * falls into the `not_purchasable` branch — where a line whose product has
+     * gone already lands.
+     */
+    private readonly channelMembership: SalesChannelMembershipPort,
   ) {}
 
   /**
@@ -163,7 +176,12 @@ export class CartConversionService {
 
     const productIds = Array.from(new Set(qrItems.map((it) => it.productId)));
     const products = await this.catalogProducts.findByIds(productIds);
-    const productById = new Map(products.map((p) => [p.id, p]));
+    const publishedHere = await productIdsInRequestChannel(this.channelMembership, productIds);
+    const productById = new Map(
+      products
+        .filter((p) => publishedHere === null || publishedHere.has(p.id))
+        .map((p) => [p.id, p]),
+    );
 
     const droppedLines: CartDroppedLine[] = [];
     let appendedLineCount = 0;
