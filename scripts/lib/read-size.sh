@@ -39,14 +39,34 @@ read_size_registered_modules() {
 # — the module tree half-moved, a glob that stopped matching one subtree — is
 # invisible to an emptiness test and visible to this one, without anybody
 # choosing a number.
+#
+# The module root is the index's own grandparent rather than a path written here
+# (feature 080, T012): the index lives inside the module tree, so one resolution
+# answers both halves and a tree that moves takes the expectation with it. The
+# id is matched with POSIX awk's `index()`, which is literal — a `grep -E`
+# pattern built from a path would need the caller's separators escaped, and the
+# one that got away would match more than it was asked to.
 read_size_module_coverage() {
   local index="$1"
-  local ids expected covered
+  local ids expected covered modules_root
   ids="$(read_size_registered_modules "$index")" || return 1
+  modules_root="$(dirname "$(dirname "$index")")"
+  # The listing is repository-relative (`git ls-files` emits nothing else), so
+  # an index given as an absolute path has to lose the working directory or the
+  # two never meet. Both callers `cd` to the repository root first.
+  modules_root="${modules_root#"$PWD"/}"
+  modules_root="${modules_root#./}"
   expected=$(printf '%s\n' "$ids" | grep -c '[^[:space:]]' || true)
   covered=$(
-    grep -oE 'backend/src/modules/[A-Za-z0-9_]+/' \
-      | perl -pe 's{.*/([A-Za-z0-9_]+)/$}{$1}' \
+    awk -v root="$modules_root/" '
+      {
+        at = index($0, root)
+        if (at == 0) next
+        rest = substr($0, at + length(root))
+        slash = index(rest, "/")
+        if (slash > 1) print substr(rest, 1, slash - 1)
+      }
+    ' \
       | sort -u \
       | grep -Fx -f <(printf '%s\n' "$ids") \
       | grep -c '[^[:space:]]' || true

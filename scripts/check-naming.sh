@@ -15,6 +15,10 @@
 #   --diff          scan only files changed against $BASE_REF (defaults to origin/master).
 #                   Used by CI on merge requests; faster + actionable.
 #   (no flag)       full-tree scan. Used locally and by the `master` branch CI.
+#
+# Where the module tree is: **resolved, not spelled** (feature 080, T012). See
+# `lib/module-root.sh`; the root is the generated manifest index's grandparent,
+# a repository without one is exit 2, and every rule below reads `$modules_root`.
 
 set -euo pipefail
 
@@ -23,9 +27,8 @@ cd "$REPO_ROOT"
 
 # shellcheck source=scripts/lib/read-size.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/read-size.sh"
-
-# Where the expected population comes from in full mode (issue #244).
-manifest_index="backend/src/modules/_lifecycle/manifest-index.generated.ts"
+# shellcheck source=scripts/lib/module-root.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/module-root.sh"
 
 red() { printf '\033[31m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
@@ -73,19 +76,47 @@ if [[ "$listing" == "full" ]] && [ "${#changed_files[@]}" -eq 0 ]; then
   exit 2
 fi
 
-# ...and a listing that is merely non-empty is not enough (issue #215). Rules 1
-# and 2 read `backend/src/modules` off the filesystem rather than off the
-# listing, and 93% of the tree lives there: with that directory moved the two
-# rules iterate nothing, the other two report on the remaining 105 files, and
-# the script exits 0 having judged no module at all. So in full mode the
-# directory is a path that must resolve, and hold modules.
+# ...and a listing that is merely non-empty is not enough (issue #215). Three of
+# the five rules read the module tree off the **filesystem** rather than off the
+# listing, and 93% of this repository lives there: with that directory moved the
+# three iterate nothing, the other two report on the remaining files, and the
+# script exits 0 having judged no module at all. Measured: it did exactly that.
+#
+# So the root is resolved rather than spelled (feature 080, T012). It is the
+# generated manifest index's own grandparent — the index lives inside the module
+# tree, so a layout move takes it along and this check follows it there instead
+# of reporting a clean tree at the old address. A repository where it does not
+# resolve is refused; one where it resolves twice is refused as well, because
+# picking a root would narrow the scan to it in silence.
+index_status=0
+manifest_index="$(module_root_manifest_index)" || index_status=$?
+if [ "$index_status" -ne 0 ]; then
+  case "$index_status" in
+    2)
+      red "✗ check-naming found more than one generated manifest index:"
+      printf '%s\n' "$manifest_index" | sed 's/^/    /'
+      red "  The module root is whichever one it picked, so the five rules below would judge"
+      red "  one tree and report on the repository. Refusing to guess."
+      ;;
+    *)
+      red "✗ check-naming found no generated manifest index in this repository, so it cannot"
+      red "  tell where the backend modules live. Three of its five rules walk that tree and"
+      red "  would judge nothing while the other two reported clean."
+      red "  Refusing to report a vacuous pass."
+      ;;
+  esac
+  exit 2
+fi
+modules_root="$(module_root_of_index "$manifest_index")"
+
+# The root resolves; it must also hold modules. This is the weaker of the two
+# floors — the listing reconciliation below passes on nothing a half-moved tree
+# can hide — but it fires before any rule runs, and its message names the tree
+# rather than the listing.
 if [[ "$listing" == "full" ]]; then
-  module_dir_count=0
-  if [ -d backend/src/modules ]; then
-    module_dir_count=$(find backend/src/modules -mindepth 1 -maxdepth 1 -type d | wc -l)
-  fi
+  module_dir_count=$(find "$modules_root" -mindepth 1 -maxdepth 1 -type d | wc -l)
   if [ "$module_dir_count" -eq 0 ]; then
-    red "✗ check-naming found no module under backend/src/modules — the module folder and"
+    red "✗ check-naming found no module under $modules_root — the module folder and"
     red "  migration-identifier rules would judge nothing while the rest reported clean."
     red "  Refusing to report a vacuous pass."
     exit 2
@@ -140,30 +171,28 @@ fail=0
 allowed_singular="^(auth|catalog|email|example|import_export|inventory|quick_order|search|seo|assets_library|blog|megamenu|newsletter)$"
 allowed_proper_noun="^(autopay|google_tag_manager|ksef|mfa|paypal|payu|pim_ergonode|pwa|stripe|tpay)$"
 
-if [ -d backend/src/modules ]; then
-  while IFS= read -r -d '' dir; do
-    name="$(basename "$dir")"
-    [ -d "$dir" ] || continue
-    if [[ ! "$name" =~ ^_?[a-z][a-z0-9_]*$ ]]; then
-      red "✗ Invalid backend module folder casing: backend/src/modules/$name (must be snake_case)"
-      fail=1
-      continue
-    fi
-    # Cross-cutting infrastructure module — exempt from the plural rule.
-    if [[ "$name" == _* ]]; then
-      continue
-    fi
-    if [[ "$name" =~ $allowed_singular ]] || [[ "$name" =~ $allowed_proper_noun ]]; then
-      continue
-    fi
-    if [[ ! "$name" =~ (s|ies|ches|shes|xes|zes)$ ]]; then
-      red "✗ Backend module folder looks singular: backend/src/modules/$name"
-      red "  Principle VI requires plural snake_case. Allowed singular exceptions: ${allowed_singular//[()^$]/}"
-      red "  Allowed proper nouns: ${allowed_proper_noun//[()^$]/}"
-      fail=1
-    fi
-  done < <(find backend/src/modules -mindepth 1 -maxdepth 1 -type d -print0)
-fi
+while IFS= read -r -d '' dir; do
+  name="$(basename "$dir")"
+  [ -d "$dir" ] || continue
+  if [[ ! "$name" =~ ^_?[a-z][a-z0-9_]*$ ]]; then
+    red "✗ Invalid backend module folder casing: $modules_root/$name (must be snake_case)"
+    fail=1
+    continue
+  fi
+  # Cross-cutting infrastructure module — exempt from the plural rule.
+  if [[ "$name" == _* ]]; then
+    continue
+  fi
+  if [[ "$name" =~ $allowed_singular ]] || [[ "$name" =~ $allowed_proper_noun ]]; then
+    continue
+  fi
+  if [[ ! "$name" =~ (s|ies|ches|shes|xes|zes)$ ]]; then
+    red "✗ Backend module folder looks singular: $modules_root/$name"
+    red "  Principle VI requires plural snake_case. Allowed singular exceptions: ${allowed_singular//[()^$]/}"
+    red "  Allowed proper nouns: ${allowed_proper_noun//[()^$]/}"
+    fail=1
+  fi
+done < <(find "$modules_root" -mindepth 1 -maxdepth 1 -type d -print0)
 
 # ──────────────────────────────────────────────────────────────────────────
 # 2. Migration files — flag PascalCase/camelCase table or column literals.
@@ -172,7 +201,7 @@ fi
 # ──────────────────────────────────────────────────────────────────────────
 migration_files=()
 for f in "${changed_files[@]}"; do
-  if [[ "$f" == backend/src/modules/*/migrations/*.ts ]]; then
+  if [[ "$f" == "$modules_root"/*/migrations/*.ts ]]; then
     migration_files+=("$f")
   fi
 done
@@ -180,7 +209,7 @@ done
 # silent regression on `main` is caught.
 if [[ "$mode" == "full" ]]; then
   while IFS= read -r f; do migration_files+=("$f"); done < <(
-    find backend/src/modules -path '*/migrations/*.ts' 2>/dev/null
+    find "$modules_root" -path '*/migrations/*.ts' 2>/dev/null
   )
 fi
 # de-duplicate
@@ -268,7 +297,7 @@ done
 # ──────────────────────────────────────────────────────────────────────────
 route_files=()
 for f in "${changed_files[@]}"; do
-  if [[ "$f" == backend/src/modules/*/routes*.ts ]] || [[ "$f" == backend/src/**/routes.ts ]]; then
+  if [[ "$f" == "$modules_root"/*/routes*.ts ]] || [[ "$f" == backend/src/**/routes.ts ]]; then
     route_files+=("$f")
   fi
 done
@@ -337,14 +366,14 @@ pascal_segment() {
 
 class_files=()
 for f in "${changed_files[@]}"; do
-  if [[ "$f" == backend/src/modules/*/migrations/*.ts ]] ||
+  if [[ "$f" == "$modules_root"/*/migrations/*.ts ]] ||
      [[ "$f" == backend/src/db/migrations/*.ts ]]; then
     class_files+=("$f")
   fi
 done
 if [[ "$mode" == "full" ]]; then
   while IFS= read -r f; do class_files+=("$f"); done < <(
-    { find backend/src/modules -path '*/migrations/*.ts' 2>/dev/null
+    { find "$modules_root" -path '*/migrations/*.ts' 2>/dev/null
       find backend/src/db/migrations -name '*.ts' 2>/dev/null; }
   )
 fi
@@ -366,7 +395,7 @@ for f in "${class_files[@]}"; do
   if [[ "$f" == backend/src/db/migrations/* ]]; then
     module_id="core"
   else
-    module_id="${f#backend/src/modules/}"
+    module_id="${f#"$modules_root"/}"
     module_id="${module_id%%/*}"
   fi
   prefix="$(pascal_segment "$module_id")"

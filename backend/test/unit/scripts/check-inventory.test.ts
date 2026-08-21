@@ -4306,10 +4306,15 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality:static',
     companionTest: 'backend/test/unit/scripts/shell-checks.test.ts',
     vacuousGuard: 'exit-2',
-    // Rules 1 and 2 do read `backend/src/modules`, and the script refuses a
-    // full-mode run that finds no module there (issue #215) — but it is a
-    // shell script, so it cannot share the TypeScript floor and is proven in
-    // `shell-checks.test.ts` instead.
+    // Three of the five rules do walk the module tree, and since feature 080's
+    // T012 the script **resolves** that root from the generated manifest index
+    // rather than spelling it: a tree that moved is followed, one that is gone
+    // is exit 2, and one that resolves twice is exit 2 as well. It stays
+    // `not-a-module-walk` here for the reason the read-size sweep below states
+    // in full — `moved-module-tree.test.ts` spawns tsx scripts over a fixture
+    // backend and a shell check needs a git work tree, which the backend image
+    // has not got. Its residue proofs are in `shell-checks.test.ts`, over a
+    // fixture whose git is faked.
     readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
@@ -4361,6 +4366,37 @@ const CHECKS: readonly CheckEntry[] = [
       'short-listing': top(() =>
         shellRefusal('check-naming.sh', (fixture) => {
           fixture.listsExactly(['backend/src/kernel/thing.ts']);
+        }),
+      ),
+      // Feature 080, T012 — the two shapes the resolved root refuses. Both
+      // fixtures are trees, entering above the resolution: it runs before the
+      // first rule, so a proof that handed the script a root would be proving
+      // the rules and not the resolution.
+      'module-root-unresolvable': top(() =>
+        shellRefusal('check-naming.sh', (fixture) => {
+          fixture.removeModuleTree();
+          fixture.lists(['backend/src/kernel/thing.ts']);
+        }),
+      ),
+      'module-root-ambiguous': top(() =>
+        shellRefusal('check-naming.sh', (fixture) => {
+          fixture.write(
+            'backend/src/legacy-modules/_lifecycle/manifest-index.generated.ts',
+            "import { manifest as manifest0 } from '../orders/manifest.js';\n",
+          );
+        }),
+      ),
+      // And the direction a refusal cannot prove: the tree **moved**, and every
+      // rule went on judging it there. Without this one, a resolution that
+      // refused everything would pass the two above.
+      'module-root-followed': top(() =>
+        shellRed('check-naming.sh', (fixture) => {
+          const moved = fixture.moveModuleTree('domain_modules');
+          fixture.write(`${moved}/BadName/thing.ts`, 'export const a = 1;\n');
+          fixture.listsExactly([
+            `${moved}/orders/order-service.ts`,
+            `${moved}/BadName/thing.ts`,
+          ]);
         }),
       ),
     },
@@ -4632,8 +4668,10 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/i18n-hardcoded-strings.ts': 2,
       // Four rules, the fifth (migration class scope) that reads the
       // filesystem, and issue #244's short listing — the shape every one of
-      // this script's other floors is green on.
-      'scripts/check-naming.sh': 6,
+      // this script's other floors is green on. Plus feature 080's three for
+      // the resolved module root: the two shapes it refuses, and the moved tree
+      // it follows, which is the one a pair of refusals cannot prove.
+      'scripts/check-naming.sh': 9,
       // Two scopes, plus the short listing both of them are read out of.
       'scripts/check-language.sh': 3,
       'scripts/check-pdfmake-footprint.sh': 2,
