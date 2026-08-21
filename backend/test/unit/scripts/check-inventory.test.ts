@@ -935,6 +935,103 @@ const PORT_CATCH_FREE_FUNCTION_TREE = new Map([
  * above it went red for a reason nobody could act on. The control is the same
  * class's real hop.
  */
+const PORT_CATCH_PROVIDER_ONLY: readonly [string, string] = [
+  'modules/promotions/backend.ts',
+  "export function registerModule(ctx) { ctx.di.providePort('promotionService', x); }",
+];
+
+/**
+ * A constructor parameter aliased **module-wide** from the call site, and an
+ * unrelated local of the same spelling one file away (issue #278).
+ *
+ * Measured on the tree: building `orderTransitionPort`, an author named a
+ * constructor parameter `transitionService`, and a pre-existing `catch` in
+ * `orders/prompt-tools.ts` became a violation with no code change of its own.
+ * The author cleared it by renaming the parameter — and the rename hid a
+ * `catch` that is a genuine fail-open. The control is the parameter read where
+ * it really is in scope, so the proof reads 1 when the scoping holds and 2 the
+ * moment the alias escapes its declaring file again.
+ */
+const PORT_CATCH_PARAMETER_SCOPE_TREE = new Map([
+  PORT_CATCH_PROVIDER_ONLY,
+  [
+    'modules/carts/backend.ts',
+    "import { lazyPort } from '../../kernel/index.js';\n" +
+      "const pricing = new CartPricing(lazyPort(ctx, 'promotionService'));",
+  ],
+  [
+    'modules/carts/services/cart-pricing.ts',
+    'export class CartPricing {\n' +
+      '  constructor(private readonly transitionService) {}\n' +
+      '  async price() {\n' +
+      '    try { return await this.transitionService.applyToCart({}); } catch { return 0; }\n' +
+      '  }\n}',
+  ],
+  [
+    'modules/carts/prompt-tools.ts',
+    'export function bulk(make) {\n' +
+      '  const transitionService = make();\n' +
+      '  try { transitionService.apply(); } catch { return 0; }\n' +
+      '  return 1;\n}',
+  ],
+]);
+
+/**
+ * A module-scoped deps key claimed by an unrelated local — the general form of
+ * the same rule, and the collision `catalog` really holds: a bulk-operation
+ * service renamed to `queue` in one file, a BullMQ queue under that spelling in
+ * another. The control is the deps key read as `this.deps.queue`, which no
+ * lexical binding can shadow.
+ */
+const PORT_CATCH_LOCAL_SHADOW_TREE = new Map([
+  PORT_CATCH_PROVIDER_ONLY,
+  [
+    'modules/carts/backend.ts',
+    "import { lazyPort } from '../../kernel/index.js';\n" +
+      "const deps = { queue: lazyPort(ctx, 'promotionService') };",
+  ],
+  [
+    'modules/carts/services/cart-bulk.ts',
+    'export class CartBulk {\n' +
+      '  async enqueue() {\n' +
+      "    const queue = new BullQueue('carts-bulk', { connection: 1 });\n" +
+      '    try { await queue.add({}); } catch { return 0; }\n' +
+      '    return 1;\n' +
+      '  }\n' +
+      '  async reprice() {\n' +
+      '    try { return await this.deps.queue.applyToCart({}); } catch { return 0; }\n' +
+      '  }\n}',
+  ],
+]);
+
+/**
+ * The direction the narrowing may not fail in: a local bound to a **call**,
+ * which the carriage analysis does not follow and therefore cannot judge.
+ *
+ * `catalog` binds `const customFields = this.#requireCustomFields()`, holding
+ * `custom_fields`' gated definition port through exactly that shape. Reading
+ * "carries says no" as "not a port" took six `catch` sites in
+ * `attribute-commands.ts` out of the population, so this tree is the one that
+ * has to stay red.
+ */
+const PORT_CATCH_CALL_BOUND_LOCAL_TREE = new Map([
+  PORT_CATCH_PROVIDER_ONLY,
+  [
+    'modules/carts/backend.ts',
+    "import { lazyPort } from '../../kernel/index.js';\n" +
+      "const deps = { customFields: lazyPort(ctx, 'promotionService') };",
+  ],
+  [
+    'modules/carts/services/cart-attributes.ts',
+    'export class CartAttributes {\n' +
+      '  #require() { return this.deps.customFields; }\n' +
+      '  async apply() {\n' +
+      '    const customFields = this.#require();\n' +
+      '    try { return await customFields.applyToCart({}); } catch { return 0; }\n' +
+      '  }\n}',
+  ],
+]);
+
 const PORT_CATCH_SHADOWED_METHOD_TREE = new Map([
   [
     'modules/promotions/backend.ts',
@@ -2681,6 +2778,14 @@ const CHECKS: readonly CheckEntry[] = [
     // exists to avoid. Both halves enter at the top — source text plus the
     // manifests — so the derivation itself runs rather than a locked-id set the
     // fixture hands in.
+    //
+    // Every proof here enters at `checkPortCatches({ sources })`, which is the
+    // top of the whole analysis: the alias table, the fixpoint, the scoping
+    // rules, the `catch` classifier and the ledger comparison all run on the
+    // fixture's own text. That is why issue #278's scoping change needed no
+    // fixture repositioning — the existing proofs already sat above the thing it
+    // moved, unlike `check-entry-scope`'s, which handed a pre-classified record
+    // to the last function in the chain and so protected nothing (issue #130).
     script: 'backend/scripts/check-port-catches.ts',
     npmScript: 'check:port-catches',
     job: 'quality',
@@ -2737,6 +2842,34 @@ const CHECKS: readonly CheckEntry[] = [
         const violations = checkPortCatches({ sources: PORT_CATCH_SHADOWED_METHOD_TREE }, {})
           .violations;
         return violations.length === 1 && violations[0]?.port === 'settlePaid' ? 1 : 0;
+      }),
+      // --- an alias is visible where its binding is (issue #278) ------------
+      //
+      // Three discriminations, and the third points the other way: it is the
+      // shape that has to stay **red**, because a narrowing that reads "the
+      // analysis cannot follow this" as "this is not a port" removes findings
+      // instead of noise. Each tree carries its own control, so a proof reading
+      // 0 says the check stopped seeing rather than started being precise.
+      'parameter-alias-does-not-escape-its-declaring-file': top(() => {
+        const violations = checkPortCatches({ sources: PORT_CATCH_PARAMETER_SCOPE_TREE }, {})
+          .violations;
+        return violations.length === 1 &&
+          violations[0]?.file === 'modules/carts/services/cart-pricing.ts'
+          ? 1
+          : 0;
+      }),
+      'local-that-manifestly-holds-no-port-shadows-a-module-alias': top(() => {
+        const violations = checkPortCatches({ sources: PORT_CATCH_LOCAL_SHADOW_TREE }, {})
+          .violations;
+        return violations.length === 1 &&
+          violations[0]?.file === 'modules/carts/services/cart-bulk.ts'
+          ? 1
+          : 0;
+      }),
+      'local-bound-to-a-call-shadows-nothing': top(() => {
+        const violations = checkPortCatches({ sources: PORT_CATCH_CALL_BOUND_LOCAL_TREE }, {})
+          .violations;
+        return violations.length === 1 && violations[0]?.port === 'customFields' ? 1 : 0;
       }),
     },
   },
@@ -4391,8 +4524,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // Five, plus D-88's four: two shapes the backward hop now refuses and two
       // it must not follow. The last two are the limit — a free function in
       // another file, and a class method shadowing a module-scoped alias — and
-      // a limit nothing proves is a limit that quietly moves.
-      'backend/scripts/check-port-catches.ts': 9,
+      // a limit nothing proves is a limit that quietly moves. Plus issue #278's
+      // three, which are about *visibility* rather than reach: the two
+      // collisions the scoping rules now refuse, and — pointing the other way —
+      // the call-bound local that must go on being a finding, because "the
+      // analysis cannot follow this" is not "this is not a port".
+      'backend/scripts/check-port-catches.ts': 12,
       'backend/scripts/check-port-dependencies.ts': 19,
       // Two for the optional-method rule: the published port and the interface
       // widening one, which is exactly where it bites. Plus issue #192's three

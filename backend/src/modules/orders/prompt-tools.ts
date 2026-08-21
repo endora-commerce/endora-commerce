@@ -12,6 +12,7 @@ import {
 } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
+import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 import { Order } from './entities/order.entity.js';
 import { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderListService } from './services/order-list-service.js';
@@ -177,6 +178,21 @@ export function ordersPromptTools(deps: OrdersPromptToolsDeps): PromptActionTool
           await transitionService.apply(orderId, params.toStatusCode, actor, params.reason ?? null);
           succeeded += 1;
         } catch (err) {
+          // Issue #278 — first, and unconditionally. The tolerance below is
+          // right for a refusal that is *about this order*: an unknown status,
+          // a terminal one, or a before-guard's veto, each of which the operator
+          // reads next to the orders that did move. A switched-off module is
+          // none of those. It is the same answer for every remaining order, so
+          // absorbing it turns one fixable cause into N identical `failed` rows
+          // — and `OrderTransitionService.apply` flushes the status change
+          // *before* it runs the side-effects hook that reaches
+          // `credit_limits`' release port, so those rows would report `failed`
+          // for orders whose status had in fact already moved. Re-throwing
+          // stops the batch and hands the operator the 503 `MODULE_DISABLED`
+          // envelope, which names the module they have to switch on; re-running
+          // afterwards is safe, because an order already at the target status
+          // is a no-op transition.
+          rethrowIfModuleDisabled(err);
           failures.push({
             id: orderId,
             reason: err instanceof HttpError ? err.message : 'failed',

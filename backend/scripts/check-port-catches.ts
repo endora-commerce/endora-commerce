@@ -120,16 +120,70 @@
  * dominant integration skeleton in this tree, which makes it the worst possible
  * place for a check to stop looking.
  *
- * Aliases are **scoped**, and by the scope the binding actually has. A `const`
- * is file-scoped, because it is: `catalog` renames its bulk-operation service to
- * `queue` in one file and holds a BullMQ queue under the same spelling in
- * another. A deps-object key or a constructor parameter is module-scoped,
- * because the receiving class reads it from another file. A root's container
+ * ## Aliases are scoped, and by the scope the binding actually has (issue #278)
+ *
+ * A `const` is file-scoped, because it is: `catalog` renames its bulk-operation
+ * service to `queue` in one file and holds a BullMQ queue under the same
+ * spelling in another. A **deps-object key** is module-scoped, because the
+ * receiving class reads it as `this.deps.<key>` from another file and a property
+ * name is not a lexical binding anybody can shadow. A root's container
  * registration is visible everywhere, because a container name is global by
  * construction. A gated port's own name is global too, *except inside the module
  * that owns it*, where the same identifier normally denotes the module's own
  * instance — `invoices` holds a real `invoiceService` and never resolves its own
  * port.
+ *
+ * A **constructor or function parameter** is scoped to the file that *declares*
+ * it, and this is the correction issue #278 is about. It used to be scoped to
+ * the module of the **call site** — which is neither where the parameter is in
+ * scope nor, when the callee lives in another module, a place the parameter can
+ * be read at all. The cost was measured for real: building `orderTransitionPort`
+ * (feature 085, Phase B), an author named a constructor parameter
+ * `transitionService`, and an **unrelated local variable of that spelling** in
+ * `orders/prompt-tools.ts` became a reported violation with no code change of
+ * its own. The author renamed the parameter to clear it, and the rename hid a
+ * `catch` that is a genuine fail-open (issue #278) — so the over-approximation
+ * did not merely add noise, it *removed* a finding by making an author route
+ * around it. A parameter binding is in scope inside its own function or class
+ * body, both of which are in the declaring file; scoping it there is strictly
+ * more accurate in **both** directions, and it also reaches the class in another
+ * module that the call-site rule could never see.
+ *
+ * On top of that, a **bare identifier is resolved lexically**: when the nearest
+ * enclosing binding of that spelling manifestly holds no port, the wider alias
+ * does not apply there. That is the general form of the same rule — a name binds
+ * a port only where the binding is in scope — and it is what stops a
+ * module-scoped deps key from claiming an unrelated local in a sibling file.
+ *
+ * **"Manifestly" is the load-bearing word**, and getting it wrong costs
+ * findings. The carriage analysis under-approximates on purpose (a call's
+ * *result* is data), so `carries` answering "no" means either "not a port" or
+ * "cannot follow this" — and only the first may shadow. Reading the second as a
+ * shadow was tried and measured: `catalog`'s
+ * `const customFields = this.#requireCustomFields()` holds `custom_fields`'
+ * gated port through a call the analysis cannot follow, and shadowing on it took
+ * six `catch` sites in `attribute-commands.ts` out of the population. So
+ * {@link manifestlyNotAPort} is a syntactic allow-list — a literal, an object or
+ * array of non-ports, a `new` whose arguments are those, a primitive-valued
+ * operator — and a call, an identifier, a property access, a closure, a
+ * destructuring binding, an import, a `catch` variable and a parameter with no
+ * default all leave the wider alias standing. The direction of the doubt is
+ * "report it".
+ *
+ * The shadowing applies to bare identifiers **only**: `x.promotion` reads a
+ * property, and a property name has no lexical binding to shadow it, so the
+ * receiver shapes (`this.deps.promotion`, `cradle().taxService`) are untouched.
+ * A binding the alias table *did* introduce — a `const` bound to a proxy, a
+ * parameter the port was passed as — is a carrier and is never a shadow.
+ *
+ * **The old over-approximation had a safety argument, and it survives where it
+ * was actually made.** It was made about {@link Analysis.gatesOf} — merging
+ * *gates* by name, which can only add owners and so can only make `OWNER LOCKED`
+ * harder to satisfy. `gatesOf` is untouched here, and {@link gatesIn} stays
+ * shadow-blind for exactly that reason. The argument was never made about alias
+ * **visibility**, and does not transfer to it: a wider alias does not add owners
+ * to a site, it invents a site — and a site invented in one module is a site an
+ * author deletes by renaming something in another.
  *
  * `PORT_CATCH_WHY=1` prints every alias with the site that introduced it, which
  * is the first question a newly-red site raises.
@@ -206,6 +260,159 @@ const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src')
 /** A file that belongs to no module — a composition root, `http/`, `db/`. */
 const ROOT = '(root)';
 
+/**
+ * The bindings a lexical scope declares **directly**, by the name a bare
+ * identifier inside it would resolve to (issue #278).
+ *
+ * Only the shapes the check can *judge* are collected: a `const`/`let`/`var`
+ * with an identifier name, and a function or constructor parameter with one.
+ * A destructuring binding (`const { promotion } = deps`), an import binding and
+ * a `catch` variable are deliberately absent — the check cannot tell what they
+ * hold, and treating one as a shadow would silence a real finding, which is the
+ * one direction a narrowing may not fail in. A nested `function` declaration is
+ * absent for the same reason: it binds a name, but not to anything this analysis
+ * has an opinion about.
+ */
+const SCOPE_BINDINGS = new WeakMap<ts.Node, ReadonlyMap<string, ts.Node>>();
+
+function directBindings(scope: ts.Node): ReadonlyMap<string, ts.Node> {
+  const cached = SCOPE_BINDINGS.get(scope);
+  if (cached !== undefined) return cached;
+  const found = new Map<string, ts.Node>();
+  const addList = (list: ts.VariableDeclarationList): void => {
+    for (const declaration of list.declarations) {
+      if (ts.isIdentifier(declaration.name)) found.set(declaration.name.text, declaration);
+    }
+  };
+  const addStatements = (statements: readonly ts.Statement[]): void => {
+    for (const statement of statements) {
+      if (ts.isVariableStatement(statement)) addList(statement.declarationList);
+    }
+  };
+  if (ts.isSourceFile(scope) || ts.isBlock(scope) || ts.isModuleBlock(scope)) {
+    addStatements(scope.statements);
+  } else if (ts.isCaseBlock(scope)) {
+    for (const clause of scope.clauses) addStatements(clause.statements);
+  } else if (ts.isForStatement(scope) || ts.isForInStatement(scope) || ts.isForOfStatement(scope)) {
+    const { initializer } = scope;
+    if (initializer !== undefined && ts.isVariableDeclarationList(initializer)) addList(initializer);
+  } else if (ts.isFunctionLike(scope)) {
+    for (const parameter of scope.parameters) {
+      if (ts.isIdentifier(parameter.name)) found.set(parameter.name.text, parameter);
+    }
+  }
+  SCOPE_BINDINGS.set(scope, found);
+  return found;
+}
+
+/**
+ * The declaration a bare identifier `name`, written at `at`, resolves to — or
+ * `null` when nothing in scope binds it and the alias table therefore answers.
+ *
+ * Walks the parent chain, so an inner block wins over an outer one and a
+ * parameter wins over a file-level `const` of the same spelling. That ordering
+ * is the whole point: `catalog`'s `queue` case, which the file-scoping rule
+ * already handles across files, is the same collision one level down.
+ */
+function nearestBinding(at: ts.Node, name: string): ts.Node | null {
+  for (let node: ts.Node | undefined = at.parent; node !== undefined; node = node.parent) {
+    const binding = directBindings(node).get(name);
+    if (binding !== undefined) return binding;
+  }
+  return null;
+}
+
+/**
+ * Can the check say **positively** that this expression is not a port?
+ *
+ * The distinction this function exists to keep is the one a narrowing gets
+ * wrong: {@link Analysis.readsAsPort}'s carriage analysis deliberately
+ * under-approximates — a call's *result* is data, so `carries` answers "no" both
+ * for a value that is genuinely not a port and for one it simply cannot follow.
+ * "Cannot tell" is not "not a port", and using the first as a shadow silences a
+ * real finding. It was measured: `catalog` binds
+ * `const customFields = this.#requireCustomFields()` — a call the analysis
+ * cannot follow, holding `custom_fields`' gated definition port — and treating
+ * that binding as a shadow took six `catch` sites in `attribute-commands.ts` out
+ * of the population.
+ *
+ * So this is a small, syntactic allow-list of values that cannot be a port
+ * however the analysis is extended: a literal, an object or array of
+ * non-ports, a `new` whose every argument is one of those, a primitive-valued
+ * operator. A **call**, an **identifier**, a **property access**, a **closure**
+ * and a parameter with no default are all "cannot tell", and none of them
+ * shadows anything. `catalog`'s `const queue = new Queue('catalog-bulk', {…})`,
+ * the collision the file-scoping rule was originally written for, is on the
+ * allow-list; `const transitionService = requireTransitionService()` is not, and
+ * does not need to be — issue #278's own case is fixed by scoping the parameter
+ * to its declaring file, which is where the binding actually is.
+ */
+function manifestlyNotAPort(node: ts.Node): boolean {
+  if (
+    ts.isStringLiteralLike(node) ||
+    ts.isNumericLiteral(node) ||
+    ts.isBigIntLiteral(node) ||
+    ts.isRegularExpressionLiteral(node) ||
+    ts.isTemplateExpression(node) ||
+    node.kind === ts.SyntaxKind.TrueKeyword ||
+    node.kind === ts.SyntaxKind.FalseKeyword ||
+    node.kind === ts.SyntaxKind.NullKeyword ||
+    ts.isObjectLiteralExpression(node) ||
+    ts.isTypeOfExpression(node) ||
+    ts.isVoidExpression(node) ||
+    ts.isPrefixUnaryExpression(node)
+  ) {
+    return true;
+  }
+  if (ts.isArrayLiteralExpression(node)) return node.elements.every(manifestlyNotAPort);
+  if (ts.isNewExpression(node)) return (node.arguments ?? []).every(manifestlyNotAPort);
+  if (
+    ts.isParenthesizedExpression(node) ||
+    ts.isAwaitExpression(node) ||
+    ts.isNonNullExpression(node) ||
+    ts.isAsExpression(node) ||
+    ts.isSatisfiesExpression(node)
+  ) {
+    return manifestlyNotAPort(node.expression);
+  }
+  if (ts.isConditionalExpression(node)) {
+    return manifestlyNotAPort(node.whenTrue) && manifestlyNotAPort(node.whenFalse);
+  }
+  if (ts.isBinaryExpression(node)) {
+    const operator = node.operatorToken.kind;
+    // `??`, `||` and `&&` yield one of their operands; every other operator
+    // yields a primitive, whatever its operands were.
+    if (
+      operator !== ts.SyntaxKind.QuestionQuestionToken &&
+      operator !== ts.SyntaxKind.BarBarToken &&
+      operator !== ts.SyntaxKind.AmpersandAmpersandToken
+    ) {
+      return true;
+    }
+    return manifestlyNotAPort(node.left) && manifestlyNotAPort(node.right);
+  }
+  return false;
+}
+
+/**
+ * Does the binding `name` resolves to here hide a wider alias of that spelling?
+ *
+ * Three answers, and only the third is a shadow: no binding at all (the alias
+ * table answers), a binding the alias table itself introduced (it **is** the
+ * alias), or a binding whose value is manifestly not a port.
+ */
+function shadowsAlias(at: ts.Node, name: string, carriers: ReadonlySet<ts.Node>): boolean {
+  const binding = nearestBinding(at, name);
+  if (binding === null || carriers.has(binding)) return false;
+  // A parameter with no default is "cannot tell": a caller this analysis did
+  // not walk may hand it a port, and the alias table is how that is found out.
+  if (ts.isParameter(binding)) {
+    return binding.initializer !== undefined && manifestlyNotAPort(binding.initializer);
+  }
+  if (!ts.isVariableDeclaration(binding) || binding.initializer === undefined) return false;
+  return manifestlyNotAPort(binding.initializer);
+}
+
 /** Every alias is visible here: a gated port's own name, outside its owner. */
 const EVERYWHERE = '*';
 
@@ -239,6 +446,16 @@ const EVERYWHERE = '*';
  *   - **Boot hook** — the presence answer is decided at the top of the hook
  *     (D-62), so what the `catch` absorbs is an ordinary failure with no caller
  *     to report to. These entries are not drainable and say so.
+ *
+ * A fourth entry stood here until issue #278 and was **deleted rather than
+ * drained**: `modules/pim_ergonode/backend.ts:handle` described a boot hook
+ * whose `catch` reached no gated port at all. The site was in the population
+ * only because a **function parameter** named `handle`, declared in
+ * `services/import/import-context.ts`, was aliased across the whole module, and
+ * `backend.ts` reads an unrelated cradle property of that spelling. Scoping the
+ * parameter to its declaring file took the site out, which is what makes the
+ * entry stale. Its neighbour under `product_feeds` is unaffected and stays:
+ * that one reaches a real port.
  */
 export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
   'modules/organizations/routes.public.ts:onLogin':
@@ -291,11 +508,6 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'with the reason stated: the presence question this entry used to hold has been ' +
     'moved out of the `catch` and is pinned by ' +
     '`test/unit/product_feeds/boot-reconcile-presence.test.ts`.',
-  'modules/pim_ergonode/backend.ts:handle':
-    'BOOT HOOK, and not drainable (D-62). The import twin of the `product_feeds` ' +
-    'reconcile above — same presence probe at the top of the hook, same ' +
-    'log-and-continue for what is left, and the same measurement that re-throwing ' +
-    'is the wrong fix for both.',
 };
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -374,10 +586,25 @@ interface Analysis {
    * gates, which can only make the `OWNER LOCKED` test *harder* to satisfy. The
    * error this cannot make is the one that matters — retiring a site whose gate
    * an operator can still close.
+   *
+   * This is where the over-approximation argument was made and it still holds —
+   * see the header. It is a claim about **which gates a site carries**, not
+   * about **which sites exist**; issue #278 narrowed the second and left this
+   * one exactly as it was.
    */
   readonly gatesOf: ReadonlyMap<string, ReadonlySet<string>>;
-  /** Does `name`, read inside `moduleId`, stand for a gated port? */
-  readsAsPort(name: string, moduleId: string, file: string): boolean;
+  /**
+   * Does `name`, read inside `moduleId`, stand for a gated port?
+   *
+   * `at` is the **bare identifier** the name was read as, when there is one.
+   * Supplying it resolves the name lexically first: a nearer binding the alias
+   * table did not introduce shadows the wider alias (issue #278). Omit it for a
+   * property name (`x.promotion`), which no lexical binding can shadow, and
+   * inside {@link gatesIn}, which is documented to over-collect.
+   */
+  readsAsPort(name: string, moduleId: string, file: string, at?: ts.Node): boolean;
+  /** The parsed sources, so the caller need not re-parse and node identity holds. */
+  readonly parsed: ReadonlyMap<string, ts.SourceFile>;
 }
 
 /**
@@ -442,8 +669,26 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
   const aliases = new Map<string, Set<string>>();
   /** Alias → the gated port names it carries; see {@link Analysis.gatesOf}. */
   const gatesOf = new Map<string, Set<string>>();
+  /**
+   * The declarations the alias table itself introduced — a `const` bound to a
+   * carrying value, a parameter the port was passed as (issue #278).
+   *
+   * A binding in here is the alias rather than a shadow of one, which is what
+   * keeps `const cartService = lazyPort(…)` readable as a port in the very file
+   * that binds it while an unrelated `const transitionService = …` two modules
+   * away is not.
+   */
+  const carrierBindings = new Set<ts.Node>();
   /** True when the alias is new — which is what keeps the fixpoint running. */
   let grew = false;
+  const markCarrier = (binding: ts.Node): void => {
+    if (carrierBindings.has(binding)) return;
+    carrierBindings.add(binding);
+    // A lifted shadow is as much a change as a new alias: the round that lifts
+    // it may add nothing else, and the next round is where the reads it unblocks
+    // are seen.
+    grew = true;
+  };
   const addAlias = (
     name: string,
     scope: string,
@@ -473,9 +718,13 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
   // where the identical identifier is normally the module's own instance.
   for (const name of portOwners.keys()) addAlias(name, EVERYWHERE, undefined, new Set([name]));
 
-  const readsAsPort = (name: string, moduleId: string, file: string): boolean => {
+  const readsAsPort = (name: string, moduleId: string, file: string, at?: ts.Node): boolean => {
     const scopes = aliases.get(name);
     if (scopes === undefined) return false;
+    // Lexical resolution first (issue #278): a nearer binding that manifestly
+    // holds no port is what the identifier denotes here, whatever a wider alias
+    // of the same spelling says.
+    if (at !== undefined && shadowsAlias(at, name, carrierBindings)) return false;
     if (scopes.has(moduleId) || scopes.has(file)) return true;
     return scopes.has(EVERYWHERE) && portOwners.get(name) !== moduleId;
   };
@@ -498,20 +747,30 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
   };
 
   // Declarations, so an argument's position can be turned into the parameter
-  // name the receiving code reads it by.
-  const classes = new Map<string, ts.ClassDeclaration>();
-  const functions = new Map<string, ts.FunctionDeclaration | ts.ArrowFunction>();
-  for (const sf of parsed.values()) {
+  // name the receiving code reads it by — and, since issue #278, into the file
+  // that file is read *in*, which is the file that declares it rather than the
+  // one the call happens to sit in.
+  interface Declared<T> {
+    readonly file: string;
+    readonly declaration: T;
+  }
+  const classes = new Map<string, Declared<ts.ClassDeclaration>>();
+  const functions = new Map<string, Declared<ts.FunctionDeclaration | ts.ArrowFunction>>();
+  for (const [file, sf] of parsed) {
     const collect = (node: ts.Node): void => {
-      if (ts.isClassDeclaration(node) && node.name) classes.set(node.name.text, node);
-      if (ts.isFunctionDeclaration(node) && node.name) functions.set(node.name.text, node);
+      if (ts.isClassDeclaration(node) && node.name) {
+        classes.set(node.name.text, { file, declaration: node });
+      }
+      if (ts.isFunctionDeclaration(node) && node.name) {
+        functions.set(node.name.text, { file, declaration: node });
+      }
       if (
         ts.isVariableDeclaration(node) &&
         ts.isIdentifier(node.name) &&
         node.initializer &&
         ts.isArrowFunction(node.initializer)
       ) {
-        functions.set(node.name.text, node.initializer);
+        functions.set(node.name.text, { file, declaration: node.initializer });
       }
       node.forEachChild(collect);
     };
@@ -525,7 +784,7 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
   const round = (): void => {
     for (const [file, sf] of parsed) {
       const scope = moduleOf(`/src/${file}`) ?? ROOT;
-      const reads = (name: string): boolean => readsAsPort(name, scope, file);
+      const reads = (name: string, at?: ts.Node): boolean => readsAsPort(name, scope, file, at);
       const at = (node: ts.Node): string =>
         `${file}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`;
 
@@ -540,7 +799,9 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
        */
       const carries = (node: ts.Node): boolean => {
         if (isProxyCall(node)) return true;
-        if (ts.isIdentifier(node)) return reads(node.text);
+        // A bare identifier resolves lexically first (issue #278); a property
+        // name below does not, having no lexical binding to resolve against.
+        if (ts.isIdentifier(node)) return reads(node.text, node);
         // `cradle().promotionService`, `this.deps.promotion` — the **trailing**
         // name is what the gate answers for. A field read *off* a port
         // (`proxy.rows`, `p.attributeValues[k]`) is data, and treating it as a
@@ -609,6 +870,11 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
        * the "every owner is locked" test harder to pass. Under-collecting is
        * the error that would matter, because it retires a site whose gate an
        * operator can still close.
+       *
+       * Which is why the lexical narrowing of issue #278 stops here: `reads` is
+       * called **without** a node, so a shadowed local still contributes its
+       * gates. Shadowing decides whether a site *exists*; it may not decide
+       * which owners a site that does exist rests on.
        */
       const gatesIn = (node: ts.Node): Set<string> => {
         const found = new Set<string>();
@@ -650,6 +916,8 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
           carries(node.initializer)
         ) {
           addAlias(node.name.text, file, at(node), gatesIn(node.initializer));
+          // This binding *is* the alias, so it must not read as a shadow of one.
+          markCarrier(node);
         }
         // `{ promotion: lazyPort(ctx, 'promotionService') }` — a deps-object key.
         if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name)) {
@@ -666,12 +934,27 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
           if (callee !== null && node.arguments) {
             node.arguments.forEach((argument, index) => {
               if (!carries(argument)) return;
-              const declaration = ts.isNewExpression(node)
-                ? classes.get(callee)?.members.find(ts.isConstructorDeclaration)
-                : functions.get(callee);
-              const parameter = declaration?.parameters[index];
+              // The two lookups are kept apart rather than merged into one
+              // ternary: `classes` and `functions` hold different declaration
+              // shapes, and merging them costs two casts for no gain.
+              let declared: Declared<ts.SignatureDeclarationBase> | undefined;
+              if (ts.isNewExpression(node)) {
+                const owner = classes.get(callee);
+                const constructor = owner?.declaration.members.find(ts.isConstructorDeclaration);
+                if (owner !== undefined && constructor !== undefined) {
+                  declared = { file: owner.file, declaration: constructor };
+                }
+              } else {
+                declared = functions.get(callee);
+              }
+              if (declared === undefined) return;
+              const parameter = declared.declaration.parameters[index];
               if (parameter && ts.isIdentifier(parameter.name)) {
-                addAlias(parameter.name.text, scope, at(node), gatesIn(argument));
+                // Issue #278 — the **declaring** file, which is where the
+                // parameter is in scope, rather than the module the `new`
+                // happens to sit in, where it is not in scope at all.
+                addAlias(parameter.name.text, declared.file, at(node), gatesIn(argument));
+                markCarrier(parameter);
               }
             });
           }
@@ -719,7 +1002,7 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
     if (!grew) break;
   }
 
-  return { portOwners, aliases, gatesOf, readsAsPort };
+  return { portOwners, aliases, gatesOf, readsAsPort, parsed };
 }
 
 /**
@@ -732,7 +1015,7 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
  */
 function bodyReads(
   fn: ts.ArrowFunction | ts.FunctionExpression,
-  reads: (name: string) => boolean,
+  reads: (name: string, at?: ts.Node) => boolean,
 ): boolean {
   let hit = false;
   const scan = (node: ts.Node): void => {
@@ -753,7 +1036,9 @@ function bodyReads(
       if (node.initializer) scan(node.initializer);
       return;
     }
-    if (ts.isIdentifier(node) && reads(node.text)) {
+    // Issue #278 — a bare identifier inside the closure resolves lexically, so
+    // a `const` the closure binds itself does not make the closure a carrier.
+    if (ts.isIdentifier(node) && reads(node.text, node)) {
       hit = true;
       return;
     }
@@ -915,7 +1200,7 @@ function methodKey(file: string, className: string, method: string): string {
  */
 function collectCarryingMethods(
   parsed: ReadonlyMap<string, ts.SourceFile>,
-  readsAsPortIn: (file: string, name: string) => boolean,
+  readsAsPortIn: (file: string, name: string, at?: ts.Node) => boolean,
   declaresMember: (file: string, className: string, name: string) => boolean,
 ): Map<string, Set<string>> {
   /** method key → the port/alias names its body reaches. */
@@ -924,7 +1209,7 @@ function collectCarryingMethods(
   const edges = new Map<string, Set<string>>();
 
   for (const [file, sf] of parsed) {
-    const reads = (name: string): boolean => readsAsPortIn(file, name);
+    const reads = (name: string, at?: ts.Node): boolean => readsAsPortIn(file, name, at);
 
     const record = (className: string, method: string, body: ts.Node): void => {
       const key = methodKey(file, className, method);
@@ -937,13 +1222,19 @@ function collectCarryingMethods(
             calls.add(methodKey(file, className, hop));
           } else if (ts.isPropertyAccessExpression(inner.expression)) {
             const receiver = tailName(inner.expression.expression);
-            if (receiver !== null && reads(receiver)) ports.add(receiver);
+            // Issue #278 — the receiver resolves lexically when it is a bare
+            // identifier (`transitionService.apply(…)`); `this.deps.promotion`
+            // is a property chain and has no lexical binding to resolve.
+            const receiverNode = ts.isIdentifier(inner.expression.expression)
+              ? inner.expression.expression
+              : undefined;
+            if (receiver !== null && reads(receiver, receiverNode)) ports.add(receiver);
             else if (reads(inner.expression.name.text)) ports.add(inner.expression.name.text);
           }
           if (
             ts.isIdentifier(inner.expression) &&
             inner.expression.text !== 'lazyPort' &&
-            reads(inner.expression.text)
+            reads(inner.expression.text, inner.expression)
           ) {
             ports.add(inner.expression.text);
           }
@@ -1029,10 +1320,10 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
       return owner !== undefined && locked.has(owner);
     });
   const found: PortCatch[] = [];
-  const parsed = new Map<string, ts.SourceFile>();
-  for (const [file, text] of input.sources) {
-    parsed.set(file, ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true));
-  }
+  // The analysis's own ASTs, not a second parse of the same text: the shadowing
+  // rule (issue #278) records **declaration nodes** as carriers, and node
+  // identity only holds across one parse.
+  const { parsed } = analysis;
   const delegates = collectRethrowDelegates(parsed.values());
   /**
    * The classes each file declares, by member name.
@@ -1055,7 +1346,7 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
     declaredMembers.get(file)?.get(className)?.has(name) === true;
   const carryingMethods = collectCarryingMethods(
     parsed,
-    (file, name) => analysis.readsAsPort(name, moduleOf(`/src/${file}`) ?? ROOT, file),
+    (file, name, at) => analysis.readsAsPort(name, moduleOf(`/src/${file}`) ?? ROOT, file, at),
     declaresMember,
   );
 
@@ -1063,7 +1354,8 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
     const moduleId = moduleOf(`/src/${file}`) ?? ROOT;
     const sf = parsed.get(file) as ts.SourceFile;
 
-    const readsAsPort = (name: string): boolean => analysis.readsAsPort(name, moduleId, file);
+    const readsAsPort = (name: string, at?: ts.Node): boolean =>
+      analysis.readsAsPort(name, moduleId, file, at);
 
     const visit = (node: ts.Node): void => {
       if (ts.isTryStatement(node) && node.catchClause) {
@@ -1094,7 +1386,12 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
             ownMethod(inner) === null
           ) {
             const receiver = tailName(inner.expression.expression);
-            if (receiver !== null && readsAsPort(receiver)) {
+            // Issue #278 — see the twin in `collectCarryingMethods`: a bare
+            // identifier receiver resolves lexically, a property chain cannot.
+            const receiverNode = ts.isIdentifier(inner.expression.expression)
+              ? inner.expression.expression
+              : undefined;
+            if (receiver !== null && readsAsPort(receiver, receiverNode)) {
               add(receiver, [receiver]);
             } else if (readsAsPort(inner.expression.name.text)) {
               // `this.deps.getTransactionalEmailSender()` — the alias is the
@@ -1106,7 +1403,7 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
             ts.isCallExpression(inner) &&
             ts.isIdentifier(inner.expression) &&
             inner.expression.text !== 'lazyPort' &&
-            readsAsPort(inner.expression.text)
+            readsAsPort(inner.expression.text, inner.expression)
           ) {
             add(inner.expression.text, [inner.expression.text]);
           }

@@ -36,11 +36,14 @@ export class OrderTransitionPortService implements OrderTransitionPort {
      * nothing to call, and the accessors answer that with a 503.
      *
      * Named for what they hand back rather than `transitionService` /
-     * `graphService`: `check:port-catches` aliases a constructor argument by
-     * its parameter name across the owning module, so a generic name here
-     * makes every unrelated local of the same spelling read as this port —
-     * `prompt-tools.ts` has one, and it reaches its gates by a different
-     * route entirely.
+     * `graphService` — a choice this file makes on its own merits now. It
+     * used to be forced: `check:port-catches` aliased a constructor argument
+     * by its parameter name across the whole owning module, so `transitionService`
+     * here made an unrelated local of that spelling in `prompt-tools.ts` read
+     * as this port. Issue #278 scoped a parameter alias to the file that
+     * declares it, which is where the binding actually is, so a generic name
+     * costs nothing any more. Do not re-derive that constraint from this
+     * comment; it is history.
      */
     private readonly orderTransitions: () => OrderTransitionService,
     private readonly orderStatusGraph: () => OrderStatusGraphService,
