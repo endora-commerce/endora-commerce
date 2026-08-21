@@ -110,6 +110,7 @@ import {
   type ProofEntry,
   type ProvenCheck,
 } from '../../helpers/check-proof-entry.js';
+import { reportsClaimInAPublishedContract } from '../../helpers/lock-claims-check-fixture.js';
 import { reportsOnlyTheSourceFile } from '../../helpers/nul-bytes-check-fixture.js';
 import { createShellCheckFixture } from '../../helpers/shell-check-fixture.js';
 import { RECORDED_READ_SIZES } from '../../helpers/check-read-sizes.js';
@@ -3417,6 +3418,17 @@ const CHECKS: readonly CheckEntry[] = [
     // classification has to move when the *manifests* move, in the same run,
     // which is why every proof enters as source text plus a manifest list and
     // none of them is handed a locked set.
+    //
+    // Issue #279 — and then the population turned out to be the part nothing
+    // proved. The five above enter at `checkLockClaims`, which takes the source
+    // map `collectArtifacts` produced, so every one of them is green whether or
+    // not `packages/contracts/src` is in that map — and it was not, while a
+    // published port's doc block is exactly where a module writes "when the
+    // owner is switched off". The sixth proof therefore enters as a **tree on
+    // disk**, spawned: a synthetic repository whose contracts package carries a
+    // switchability claim about a module its manifests lock. Revert the
+    // widening and it goes green, which is what a proof of a population has to
+    // be able to do.
     script: 'backend/scripts/check-lock-claims.ts',
     npmScript: 'check:lock-claims',
     job: 'quality',
@@ -3432,7 +3444,9 @@ const CHECKS: readonly CheckEntry[] = [
     // complete, and all three of this check's own vacuity conditions pass while
     // half the manifests go unread. Every registered module ships a
     // `manifest.ts` by construction, so the floor is exact and needs no
-    // `excluded` list.
+    // `excluded` list. The contracts half (issue #279) carries the same kind of
+    // floor from its own declared source, the package barrel, printed beside it
+    // as `contracts-barrel:<covered>/<expected>`.
     readSize: 'reported',
     residueGuard: 'derived-population',
     red: {
@@ -3491,6 +3505,23 @@ const CHECKS: readonly CheckEntry[] = [
         }).findings.length;
         return before === 0 ? after : 0;
       }),
+      // Issue #279 — the source the population did not hold. It enters as a
+      // repository on disk because that is the only entry above
+      // `collectArtifacts`, and it asserts the finding names the *contract*:
+      // the count alone is green on a run that found the same claim in the
+      // ledger shard beside it, which is the population that already existed.
+      'lock-claim-in-a-published-contract': top(() =>
+        reportsClaimInAPublishedContract(
+          '/**\n' +
+            ' * The orders read port.\n' +
+            ' *\n' +
+            ' * Owner off: `fixture_locked` is switchable, so every caller has to handle\n' +
+            ' * the 503 `MODULE_DISABLED` envelope.\n' +
+            ' */\n' +
+            'export interface OrdersReadPort { read(): Promise<string> }\n',
+          'stale-switchable-claim',
+        ),
+      ),
     },
   },
   {
@@ -4258,7 +4289,10 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-kernel-boundary.ts': 3,
       // Two spellings of the lock claim, the one that never writes the word,
       // the converse, and the derivation that has to move with the manifests.
-      'backend/scripts/check-lock-claims.ts': 5,
+      // Plus issue #279's one for the source the population was missing: a
+      // claim in a published contract, entering as a tree because the other
+      // five enter below the walk that decides which files are read at all.
+      'backend/scripts/check-lock-claims.ts': 6,
       // Thirteen, plus D-77's three permanence shapes: the flag removes an
       // entry from `ledger-size`, so a check that stopped refusing an
       // unjustified one would let the residue be lowered by declaration. Plus
