@@ -168,6 +168,12 @@ was written and applied in a hand-maintained array order its manifests do not de
 fresh database cannot apply. It is closed, it never grows (the scaffolder clamps every
 new core stamp past the watermark), and nothing should try to drain it.
 
+Its 112 names are pinned as a committed literal in
+`backend/test/unit/db/migration-order-baseline.test.ts`, in the order a database applied
+them. That literal is never regenerated — a baseline recomputed from the code it guards
+measures nothing — and because the watermark is closed, adding a migration never touches
+it.
+
 Membership takes **both** conditions. A stamp-only test lets a migration that arrived
 from outside the committed registry join a prefix whose order is historical fact:
 measured, a package migration stamped `20250101T000000` was emitted at index 0, ahead
