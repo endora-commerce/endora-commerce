@@ -14,6 +14,17 @@ import {
   type OrderStatusEvent,
 } from '../events/order-status-events.js';
 
+/**
+ * The audit action every applied status transition is recorded under.
+ *
+ * Exported since issue #284, which gave the entries a **reader**: the buyer's
+ * cancellability predicate asks who wrote an order's current status, and a
+ * reader looking for one spelling of this string while the writer used another
+ * would find no history and refuse every held order — silently, and in the
+ * safe direction, which is the worst way for a defect like that to fail.
+ */
+export const ORDER_STATUS_TRANSITION_ACTION = 'order.status_transition';
+
 /** A registered guard fires before a matching transition and may veto it. */
 type TransitionGuard = (e: OrderStatusEvent) => void | Promise<void>;
 interface GuardEntry {
@@ -124,7 +135,7 @@ export class OrderTransitionService {
     order.status = to;
     if (this.auditLog) {
       this.auditLog.recordWithin(em, {
-        action: 'order.status_transition',
+        action: ORDER_STATUS_TRANSITION_ACTION,
         objectType: 'order',
         objectId: order.id,
         actorAdminUserId: actor.kind === 'admin' ? (actor.adminUserId ?? null) : null,

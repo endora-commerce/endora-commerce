@@ -8,7 +8,37 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import { Order } from '../entities/order.entity.js';
 import { isBuyerCancellable } from '../domain/customer-cancellation.js';
+import {
+  currentStatusAuthors,
+  type StatusAuthor,
+  type StatusTransitionRecord,
+} from '../domain/status-authorship.js';
+import { ORDER_STATUS_TRANSITION_ACTION } from './order-transition-service.js';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
+
+/**
+ * The audit read this service needs, narrowed to the one call (issue #284).
+ *
+ * `audit_log_entries` is a kernel table and a module may relate into the
+ * kernel, so this is the kernel's own `AuditLogService` seen through the single
+ * method that is used — structural, so nothing here depends on the writer half
+ * and a unit test can hand over a list of rows without an EntityManager.
+ */
+export interface OrderTransitionHistoryReader {
+  findByObjectIds(input: {
+    action: string;
+    objectType: string;
+    objectIds: readonly string[];
+  }): Promise<
+    ReadonlyArray<{
+      objectId: string;
+      actedAt: Date;
+      stateAfter?: Record<string, unknown> | null;
+      actorAdminUserId?: string | null;
+      impersonatedCustomerAccountId?: string | null;
+    }>
+  >;
+}
 
 export interface CustomerOrderCancellationDeps {
   emFactory: () => EntityManager;
@@ -32,6 +62,13 @@ export interface CustomerOrderCancellationDeps {
    * status alone (see `shopHasNotStarted`).
    */
   paymentMethodRead: () => PaymentMethodReadPort | null;
+  /**
+   * The order's transition history, for who wrote the status it is at now
+   * (issue #284). `null` when no audit writer is wired — every composition root
+   * wires one, and a composition that does not gets the same answer as an order
+   * with no history: refused rather than guessed.
+   */
+  transitionHistory: OrderTransitionHistoryReader | null;
 }
 
 /**
@@ -118,9 +155,18 @@ export class CustomerOrderCancellationService {
   }
 
   /**
-   * The same answer for a page of orders, with one catalogue read for all of
-   * them. The graph is cached in-process; the method rows are fetched by id in
-   * one call rather than per row.
+   * The same answer for a page of orders, with one read of each thing the page
+   * needs. The graph is cached in-process; the method rows are fetched by id in
+   * one call rather than per row; and since issue #284 the transition history
+   * is one more such read, made **above** the loop.
+   *
+   * That placement is the requirement, not an optimisation. The buyer's order
+   * *list* renders a control per order, so a history read inside the loop is an
+   * N+1 across the page — the class of defect MR !822 spent a day pinning out
+   * of the catalogue listing, and re-opening it here for a per-order audit
+   * lookup would be worse, not better. The per-order decision is therefore
+   * handed a boolean and stays synchronous: `isBuyerCancellable` holds no
+   * EntityManager, so it *cannot* issue a query.
    */
   async cancellableOrderIds(orders: Order[], customerAccountId: string): Promise<Set<string>> {
     const own = orders.filter((o) => o.placedByCustomerAccountId === customerAccountId);
@@ -136,13 +182,18 @@ export class CustomerOrderCancellationService {
       for (const m of methods) failureStatusById.set(m.id, m.statusOnFailure);
     }
 
+    const failureStatusOf = (order: Order): string | null =>
+      failureStatusById.get(order.paymentMethodId) ?? null;
+    const authors = await this.statusAuthorsForPage(own, initialStatusCode, failureStatusOf);
+
     const cancellable = new Set<string>();
     for (const order of own) {
       const permitted = isBuyerCancellable({
         paymentStatus: order.paymentStatus,
         status: order.status,
         initialStatusCode,
-        statusOnFailure: failureStatusById.get(order.paymentMethodId) ?? null,
+        statusOnFailure: failureStatusOf(order),
+        currentStatusWrittenBySystem: authors.get(order.id) === 'system',
       });
       // The graph has the last word on whether the move is possible at all, so
       // the control is never offered for an order the seam would refuse. The
@@ -155,4 +206,58 @@ export class CustomerOrderCancellationService {
     }
     return cancellable;
   }
+
+  /**
+   * Who wrote the current status of each order on the page — **one** statement
+   * for all of them, or none at all (issue #284).
+   *
+   * Only the orders the answer can change are asked about: an order at the
+   * graph's initial status satisfies the lifecycle term outright, and an order
+   * whose status is not its method's configured failure status fails it
+   * outright. So the ordinary page — every order freshly placed and unpaid —
+   * costs no read at all, and a page full of held orders costs one. Neither
+   * count moves with the number of orders, which is the property the guard in
+   * `test/integration/orders/cancellability-batching.test.ts` measures.
+   *
+   * A missing reader answers `unknown` for everything, which the predicate
+   * refuses. That is the same answer an order with no history gets, and it is
+   * the right direction: the two ways of being wrong are not symmetric, and
+   * guessing "a decline held it" releases stock the shop may have committed.
+   */
+  private async statusAuthorsForPage(
+    orders: Order[],
+    initialStatusCode: string,
+    failureStatusOf: (order: Order) => string | null,
+  ): Promise<Map<string, StatusAuthor>> {
+    const currentStatusByOrder = new Map<string, string>();
+    for (const order of orders) {
+      if (order.status === initialStatusCode) continue;
+      if (failureStatusOf(order) !== order.status) continue;
+      currentStatusByOrder.set(order.id, order.status);
+    }
+    if (currentStatusByOrder.size === 0) return new Map();
+
+    const history = this.deps.transitionHistory;
+    if (!history) return currentStatusAuthors([], currentStatusByOrder);
+
+    const entries = await history.findByObjectIds({
+      action: ORDER_STATUS_TRANSITION_ACTION,
+      objectType: 'order',
+      objectIds: [...currentStatusByOrder.keys()],
+    });
+    const records: StatusTransitionRecord[] = entries.map((entry) => ({
+      orderId: entry.objectId,
+      actedAt: entry.actedAt,
+      statusAfter: readStatus(entry.stateAfter),
+      actorAdminUserId: entry.actorAdminUserId ?? null,
+      impersonatedCustomerAccountId: entry.impersonatedCustomerAccountId ?? null,
+    }));
+    return currentStatusAuthors(records, currentStatusByOrder);
+  }
+}
+
+/** `stateAfter.status` when the entry carries a readable one, else `null`. */
+function readStatus(state: Record<string, unknown> | null | undefined): string | null {
+  const status = state?.['status'];
+  return typeof status === 'string' ? status : null;
 }

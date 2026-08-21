@@ -472,6 +472,11 @@ export function commerceModule(options: OrdersModuleOptions) {
       transitions: options.orderTransitionPort,
       graphService: orderStatusGraphService,
       paymentMethodRead: options.paymentMethodRead,
+      // Issue #284 — the kernel audit log, read back. The transition entries
+      // this same module writes are what say whether a hold was the settlement
+      // ingress's or an operator's, which on the shipped `status_on_failure`
+      // default is the only thing that does.
+      transitionHistory: options.auditLogService ?? null,
     });
     // Feature 038 US2 — orders list query, saved views, CSV export.
     const orderListService = new OrderListService(
