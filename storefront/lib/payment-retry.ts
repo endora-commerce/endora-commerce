@@ -7,24 +7,41 @@ import type { PaymentRetryResult } from './api/payments';
  */
 
 /**
+ * The payment states in which the buyer still owes this money themselves — the
+ * mirror of `BUYER_STILL_OWES` in the backend's `PaymentRetryService`, so the
+ * control is never shown to a buyer the server will refuse (feature 085,
+ * FR-012).
+ *
+ * An allow-list of two rather than a negation of `paid`: `deferred` is a
+ * credit-limit order whose credit was drawn inside the placement transaction,
+ * and `refunded` is settled the other way. Neither has a session for the buyer
+ * to open.
+ */
+const BUYER_STILL_OWES = new Set(['awaiting_payment', 'failed']);
+
+/**
  * Whether the order page offers the buyer a way to pay again.
  *
- * The **payment** axis decides, not the lifecycle status. Every payment method
- * in the tree is seeded `status_on_failure = 'cancelled'`, so the settlement
- * ingress moves an order to `cancelled` on the first decline — reading
- * `order.status` here would hide the button from exactly the buyers it exists
- * for. The backend refuses anything this lets through, and says why.
+ * The **payment** axis decides, not the lifecycle status. That used to be
+ * forced: every payment method in the tree was seeded
+ * `status_on_failure = 'cancelled'`, so a declined card left the order terminal
+ * and reading `order.status` would have hidden the button from exactly the
+ * buyers it exists for. Feature 085 changed the shipped default to `on_hold`
+ * and made the ingress record the decline on the money axis as `failed`, so
+ * `failed` is now the ordinary state of a buyer who has to try again — and it
+ * is the state this control most exists for. The backend refuses anything this
+ * lets through, and says why.
  *
  * Only gateway methods qualify. A bank transfer, a cash-on-delivery order and a
- * credit-limit order are all `awaiting_payment` too, and for none of them is
- * there a payment session for the buyer to open — the first two are settled out
- * of band and the third is already drawn.
+ * credit-limit order are all unpaid too, and for none of them is there a
+ * payment session for the buyer to open — the first two are settled out of band
+ * and the third is already drawn.
  */
 export function offersPaymentRetry(order: {
   paymentStatus: string;
   paymentMethod: { kind: string };
 }): boolean {
-  return order.paymentStatus === 'awaiting_payment' && order.paymentMethod.kind === 'gateway';
+  return BUYER_STILL_OWES.has(order.paymentStatus) && order.paymentMethod.kind === 'gateway';
 }
 
 /**

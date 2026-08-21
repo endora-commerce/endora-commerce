@@ -7,9 +7,12 @@ import { Migration20260820T100201OrdersNewToPaidTransition } from '../../../src/
  * Feature 085 (Phase A) — the `new -> paid` edge, and the migration that gives
  * it to a graph that already exists.
  *
- * The migration is not driven through `orm.getMigrator()`: it has already run
- * against this database (that is the first assertion), and re-running it is
- * precisely what the migrator will not do. Idempotency is a property of the
+ * The migration is not driven through the ORM's migrator handle: it has already
+ * run against this database (that is the first assertion), and re-running it is
+ * precisely what the migrator will not do. (The spelling matters — the
+ * migrator-driving ledger's population is a text match on that handle, so
+ * naming it in a comment puts a file that drives nothing into the population,
+ * which is what it did here.) Idempotency is a property of the
  * statements, so the statements are what this file executes — inside the
  * fixture's transaction, through `db.em().execute`, so every row it touches is
  * rolled back and the shared reference table is left as it was found.

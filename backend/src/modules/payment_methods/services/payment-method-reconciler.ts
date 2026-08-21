@@ -63,7 +63,9 @@ export class PaymentMethodReconciler {
       additionalPrice: defaults.additionalPrice ?? '0',
       statusOnPending: defaults.statusOnPending ?? 'new',
       statusOnSuccess: defaults.statusOnSuccess ?? 'paid',
-      statusOnFailure: defaults.statusOnFailure ?? 'cancelled',
+      // Feature 085 (FR-003) — see the twin default in
+      // `commands/payment-method.commands.ts`.
+      statusOnFailure: defaults.statusOnFailure ?? 'on_hold',
     });
     await em.persistAndFlush(row);
     return row;

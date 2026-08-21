@@ -36,7 +36,7 @@ async function seedOrderWithPayment(
     status: 'active',
     statusOnPending: 'new',
     statusOnSuccess: opts.statusOnSuccess ?? 'completed',
-    statusOnFailure: opts.statusOnFailure ?? 'cancelled',
+    statusOnFailure: opts.statusOnFailure ?? 'on_hold',
   });
   await em.persistAndFlush(method);
 
@@ -114,7 +114,18 @@ describe('ReceivePaymentHandler', () => {
     expect(reloadedOrder!.paymentStatus).toBe('paid');
   });
 
-  it('marks the Payment failed and applies statusOnFailure (T034)', async () => {
+  /**
+   * Feature 085 (FR-001/FR-002/FR-003) — a declined payment holds the order and
+   * says so on the money axis.
+   *
+   * Both halves matter and they used to be one. Before this feature the failure
+   * outcome wrote the lifecycle status alone, `paymentStatus` stayed
+   * `awaiting_payment`, and the shipped `status_on_failure` was `cancelled` —
+   * terminal, unreachable from anywhere, so the buyer's most recoverable
+   * mistake destroyed the order they were trying to pay for. The fixture's
+   * default is the shipped default, so this test fails if either half regresses.
+   */
+  it('marks the Payment failed, holds the order and records the decline (T034 / 085)', async () => {
     const { order, payment } = await seedOrderWithPayment(h.em());
     const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
 
@@ -129,8 +140,53 @@ describe('ReceivePaymentHandler', () => {
     const reloadedPayment = await em.findOne(Payment, { id: payment.id });
     expect(reloadedPayment!.status).toBe('failed');
     expect(reloadedPayment!.failureReason).toBe('card declined');
-    const reloadedOrder = await em.findOne(Order, { id: order.id });
-    expect(reloadedOrder!.status).toBe('cancelled');
+    const reloadedOrder = await em.findOne(Order, { id: order.id }, { refresh: true });
+    expect(reloadedOrder!.status).toBe('on_hold');
+    expect(reloadedOrder!.paymentStatus).toBe('failed');
+  });
+
+  /**
+   * FR-006 — a second decline on an order already at the failure status is a
+   * no-op on the lifecycle and still records the attempt. The buyer may keep
+   * trying, and each attempt is its own row.
+   */
+  it('leaves a second decline where the first one put the order (085 FR-006)', async () => {
+    const { order, payment } = await seedOrderWithPayment(h.em());
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
+
+    await handler.receive({ paymentId: payment.id, outcome: 'failure', failureReason: 'first' });
+    const second = await handler.receive({
+      paymentId: payment.id,
+      outcome: 'failure',
+      failureReason: 'second',
+    });
+
+    expect(second.status).toBe('failed');
+    const em = h.em();
+    const reloadedPayment = await em.findOne(Payment, { id: payment.id }, { refresh: true });
+    expect(reloadedPayment!.failureReason).toBe('second');
+    const reloadedOrder = await em.findOne(Order, { id: order.id }, { refresh: true });
+    expect(reloadedOrder!.status).toBe('on_hold');
+    expect(reloadedOrder!.paymentStatus).toBe('failed');
+  });
+
+  /**
+   * The late success feature 085's edge cases name: the decline held the order
+   * rather than ending it, so the success that follows it reaches the method's
+   * success status and the money axis returns to `paid`. `on_hold` is a
+   * universal transition *source*, which is what makes the second half of this
+   * reachable at all.
+   */
+  it('lets a success after a failure settle the order (085 edge case)', async () => {
+    const { order, payment } = await seedOrderWithPayment(h.em());
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts(), registry);
+
+    await handler.receive({ paymentId: payment.id, outcome: 'failure', failureReason: 'declined' });
+    await handler.receive({ paymentId: payment.id, outcome: 'success' });
+
+    const reloadedOrder = await h.em().findOne(Order, { id: order.id }, { refresh: true });
+    expect(reloadedOrder!.status).toBe('completed');
+    expect(reloadedOrder!.paymentStatus).toBe('paid');
   });
 
   it('is idempotent on repeated success and rejects failure after paid (T035)', async () => {

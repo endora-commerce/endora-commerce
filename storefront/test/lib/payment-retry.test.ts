@@ -8,10 +8,17 @@ import type { PaymentRetryResult } from '../../lib/api/payments';
  * Two rules, and the first is the one that was actually missing. The order page
  * already knew an order was `awaiting_payment` and said so — "This order is
  * awaiting payment. Complete payment to proceed." — with no way to proceed, and
- * hid even that sentence once the order looked terminal. Since every payment
- * method in the tree is seeded `status_on_failure = 'cancelled'`, a declined
+ * hid even that sentence once the order looked terminal. Every payment method
+ * in the tree was then seeded `status_on_failure = 'cancelled'`, so a declined
  * card produced exactly that: a cancelled-looking order the buyer still owed
  * money on, with no control anywhere.
+ *
+ * Feature 085 changed both halves of that sentence — the shipped default is
+ * `on_hold`, and a decline is recorded on the money axis as
+ * `paymentStatus = 'failed'` — which is why the first case below is now
+ * `failed` rather than a footnote. A predicate left at `=== 'awaiting_payment'`
+ * would hide the control from every buyer whose card was actually declined,
+ * which is the whole population it was built for.
  */
 
 const result = (over: Partial<PaymentRetryResult> = {}): PaymentRetryResult => ({
@@ -23,6 +30,18 @@ const result = (over: Partial<PaymentRetryResult> = {}): PaymentRetryResult => (
 });
 
 describe('offersPaymentRetry', () => {
+  /**
+   * The buyer this control exists for: their card was declined, the ingress
+   * wrote `failed`, and the order is sitting at the method's failure status
+   * waiting for them. If this is red the "Pay again" button is invisible to
+   * every declined buyer on every gateway.
+   */
+  it('offers a retry on a gateway order whose payment failed', () => {
+    expect(
+      offersPaymentRetry({ paymentStatus: 'failed', paymentMethod: { kind: 'gateway' } }),
+    ).toBe(true);
+  });
+
   it('offers a retry on a gateway order that is still awaiting payment', () => {
     expect(
       offersPaymentRetry({ paymentStatus: 'awaiting_payment', paymentMethod: { kind: 'gateway' } }),
@@ -36,15 +55,28 @@ describe('offersPaymentRetry', () => {
   });
 
   /**
+   * The money term is an allow-list of two, not a negation of `paid`. A
+   * credit-limit order is `deferred` — unpaid, and drawn against the buyer's
+   * limit inside the placement transaction, so the shop is already acting on
+   * it — and a `refunded` order is settled in the other direction. A negation
+   * would offer both a payment session that does not exist.
+   */
+  it('offers nothing for a payment settled by arrangement or reversed', () => {
+    for (const paymentStatus of ['deferred', 'refunded']) {
+      expect(offersPaymentRetry({ paymentStatus, paymentMethod: { kind: 'gateway' } })).toBe(false);
+    }
+  });
+
+  /**
    * The three offline kinds are `awaiting_payment` too, and for none of them is
    * there a session the buyer can open: a transfer and a cash-on-delivery order
    * settle out of band, and a credit-limit order is already drawn.
    */
   it('offers nothing for a method the buyer cannot pay online', () => {
     for (const kind of ['bank_transfer', 'pickup', 'credit_limit']) {
-      expect(offersPaymentRetry({ paymentStatus: 'awaiting_payment', paymentMethod: { kind } })).toBe(
-        false,
-      );
+      for (const paymentStatus of ['awaiting_payment', 'failed']) {
+        expect(offersPaymentRetry({ paymentStatus, paymentMethod: { kind } })).toBe(false);
+      }
     }
   });
 });

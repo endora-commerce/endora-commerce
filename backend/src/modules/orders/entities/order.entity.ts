@@ -78,9 +78,18 @@ export class Order {
   @Index()
   status: string = 'new';
 
+  /**
+   * The money axis, widened with `failed` by feature 085 (FR-001). A declined
+   * gateway payment used to be recorded on the lifecycle axis alone — the
+   * method's `status_on_failure` — which said nothing about the money and, with
+   * the seeded default of the day, made the order terminal. The column is a
+   * plain `varchar(32)` with no check constraint and the wire schema has
+   * allowed the value since feature 034, so this widening needs no DDL.
+   */
   @Property({ type: 'string', length: 32 })
   @Index()
-  paymentStatus: 'awaiting_payment' | 'paid' | 'deferred' | 'refunded' = 'awaiting_payment';
+  paymentStatus: 'awaiting_payment' | 'paid' | 'failed' | 'deferred' | 'refunded' =
+    'awaiting_payment';
 
   @Property({ type: 'json' })
   deliveryAddress!: {

@@ -29,6 +29,22 @@ describe('resolvePaymentReturnNotice', () => {
     );
   });
 
+  /**
+   * The case the notice was written for, and the one the original guard could
+   * not reach. TPay redirects a declined buyer to `?payment=failed`, and from
+   * feature 085 the settlement ingress has already written
+   * `paymentStatus = 'failed'` on the order by the time that page renders. A
+   * guard reading `!== 'awaiting_payment'` as *settled* suppresses the message
+   * for exactly that buyer.
+   */
+  it('still speaks when the decline has already landed on the order', () => {
+    expect(resolvePaymentReturnNotice('failed', 'failed')).toBe('orders.paymentReturn.failed');
+    expect(resolvePaymentReturnNotice('returned', 'failed')).toBe('orders.paymentReturn.returned');
+    expect(resolvePaymentReturnNotice('cancelled', 'failed')).toBe(
+      'orders.paymentReturn.cancelled',
+    );
+  });
+
   it('tells a buyer returned with no outcome that the result is still coming', () => {
     // PayU and Autopay redirect here whatever happened; the notification decides.
     expect(resolvePaymentReturnNotice('returned', 'awaiting_payment')).toBe(
@@ -36,11 +52,12 @@ describe('resolvePaymentReturnNotice', () => {
     );
   });
 
-  it('says nothing once the payment has actually landed', () => {
+  it('says nothing once the payment is settled either way', () => {
     // A replayed return URL, or a notification that beat the browser back.
     expect(resolvePaymentReturnNotice('failed', 'paid')).toBeNull();
     expect(resolvePaymentReturnNotice('returned', 'paid')).toBeNull();
     expect(resolvePaymentReturnNotice('cancelled', 'deferred')).toBeNull();
+    expect(resolvePaymentReturnNotice('failed', 'refunded')).toBeNull();
   });
 
   it('ignores a marker it does not recognise', () => {

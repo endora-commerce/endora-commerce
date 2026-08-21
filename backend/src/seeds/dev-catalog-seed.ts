@@ -852,7 +852,9 @@ async function main(): Promise<void> {
     adapter: 'bank_transfer',
     statusOnPending: 'new',
     statusOnSuccess: 'paid',
-    statusOnFailure: 'cancelled',
+    // Feature 085 (FR-003) — the shipped default; a declined payment holds the
+    // order rather than ending it.
+    statusOnFailure: 'on_hold',
   });
   await em.persistAndFlush(bankTransfer);
 
