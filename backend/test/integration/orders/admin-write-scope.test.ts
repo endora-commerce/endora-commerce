@@ -13,7 +13,9 @@ import { Organization } from '../../../src/modules/organizations/entities/organi
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { OrderComment } from '../../../src/modules/orders/entities/order-comment.entity.js';
 import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
+import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 /**
  * Feature 085 Phase E — the assignment scope on the admin order routes.
@@ -51,6 +53,8 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
   let foreignOrgId: string;
 
   const orders: Record<string, string> = {};
+  /** A customer account inside the rep's assigned organization. */
+  let assignedCustomerId: string;
   const invoiceNumbers: Record<string, string> = {};
 
   const salesChannelId = '00000000-0000-4000-8000-0000000000c1';
@@ -192,6 +196,16 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
       );
     }
 
+    const assignedCustomer = em.create(CustomerAccount, {
+      organizationId: assignedOrgId,
+      email: `phase-e-customer-${stamp}@085.local`,
+      passwordHash: 'x'.repeat(60),
+      firstName: 'Assigned',
+      lastName: 'Buyer',
+    });
+    await em.persistAndFlush(assignedCustomer);
+    assignedCustomerId = assignedCustomer.id;
+
     repCookie = `stub-phase-e-rep-${stamp}`;
     ADMIN_COOKIES[repCookie] = { adminUserId: rep.id };
   });
@@ -332,6 +346,121 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
     const pdf = printed.rawPayload.toString('latin1');
     expect(pdf).toContain(invoiceNumbers['ownInvoice']!);
     expect(pdf).toContain(invoiceNumbers['foreignInvoice']!);
+  });
+
+  /**
+   * The two routes that name no order. Both were already refused — through the
+   * customer rather than the order, `CustomerAccount` being `@OrgScoped` too —
+   * so what these assert is that the refusal is now the route's own decision
+   * against `resolveAdminOrdersScope` and survives the customer read below it
+   * changing, and that it says 403 with a reason instead of "customer not
+   * found". There is no order here whose existence a status code could
+   * disclose, which is why the answer differs from the order-keyed routes'.
+   */
+  it('refuses creating an order for a customer outside the scope, and lets the platform admin through', async () => {
+    const refused = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/orders',
+      cookies: { b2b_session: repCookie },
+      payload: {
+        customerAccountId: TEST_CUSTOMER_ID,
+        salesChannelId,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }],
+        deliveryMethodId: '00000000-0000-4000-8000-0000000000e1',
+        paymentMethodId: '00000000-0000-4000-8000-0000000000f1',
+        deliveryAddressId: '00000000-0000-4000-8000-0000000000d1',
+        billingAddressId: '00000000-0000-4000-8000-0000000000d2',
+      },
+    });
+    expect(refused.statusCode).toBe(403);
+    const body = refused.json() as { error: { code: string; details?: { code?: string } } };
+    expect(body.error.code).toBe(ERROR_CODES.FORBIDDEN);
+    expect(body.error.details?.code).toBe('customer_outside_assignment_scope');
+
+    const allowed = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/orders',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {
+        customerAccountId: TEST_CUSTOMER_ID,
+        salesChannelId,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }],
+        deliveryMethodId: '00000000-0000-4000-8000-0000000000e1',
+        paymentMethodId: '00000000-0000-4000-8000-0000000000f1',
+        deliveryAddressId: '00000000-0000-4000-8000-0000000000d1',
+        billingAddressId: '00000000-0000-4000-8000-0000000000d2',
+      },
+    });
+    expect(allowed.statusCode).toBe(201);
+  });
+
+  it('lets the scoped rep create for a customer inside the scope', async () => {
+    // The order itself cannot complete on this fixture — the seeded addresses
+    // belong to another organization — so what is asserted is that the guard
+    // is keyed on the customer's organization and not on being scoped at all.
+    // A guard that refused everybody would pass the test above on its own.
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/orders',
+      cookies: { b2b_session: repCookie },
+      payload: {
+        customerAccountId: assignedCustomerId,
+        salesChannelId,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }],
+        deliveryMethodId: '00000000-0000-4000-8000-0000000000e1',
+        paymentMethodId: '00000000-0000-4000-8000-0000000000f1',
+        deliveryAddressId: '00000000-0000-4000-8000-0000000000d1',
+        billingAddressId: '00000000-0000-4000-8000-0000000000d2',
+      },
+    });
+    const body = res.json() as { error?: { details?: { code?: string } } };
+    expect(body.error?.details?.code).not.toBe('customer_outside_assignment_scope');
+  });
+
+  it('refuses pricing a basket for a customer outside the scope, and prices one inside it', async () => {
+    const refused = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/orders/preview',
+      cookies: { b2b_session: repCookie },
+      payload: {
+        customerAccountId: TEST_CUSTOMER_ID,
+        salesChannelId,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }],
+      },
+    });
+    expect(refused.statusCode).toBe(403);
+    const body = refused.json() as { error: { code: string; details?: { code?: string } } };
+    expect(body.error.code).toBe(ERROR_CODES.FORBIDDEN);
+    expect(body.error.details?.code).toBe('customer_outside_assignment_scope');
+    // The refusal happens before any price is resolved, so no figure from the
+    // other organization's price list is on the wire at all.
+    expect(refused.body).not.toContain('unitPrice');
+
+    const priced = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/orders/preview',
+      cookies: { b2b_session: repCookie },
+      payload: {
+        customerAccountId: assignedCustomerId,
+        salesChannelId,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }],
+      },
+    });
+    expect(priced.statusCode).toBe(200);
+    const quote = priced.json() as { data: { lines: Array<{ productId: string }> } };
+    expect(quote.data.lines).toHaveLength(1);
+
+    const platformAdmin = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/orders/preview',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {
+        customerAccountId: TEST_CUSTOMER_ID,
+        salesChannelId,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }],
+      },
+    });
+    expect(platformAdmin.statusCode).toBe(200);
   });
 
   it('keeps the two organizations distinct in the fixture', () => {

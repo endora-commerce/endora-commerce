@@ -356,6 +356,69 @@ export async function registerOrderRoutes(
     return order;
   };
 
+  /**
+   * Refuse an admin action taken *for a customer* when the caller's assignment
+   * scope does not reach that customer's organization.
+   *
+   * Neither route this guards names an order, which is why the route sweep
+   * flagged them: an INSERT is not filtered by MikroORM, and the preview reads
+   * a **price** rather than a row. Measured, both are nonetheless refused
+   * today — through the *customer* rather than the order, because
+   * `CustomerAccount` is `@OrgScoped` as well, so `customerAccountRead.findById`
+   * comes back empty for a scoped caller and each route raises its own 404. The
+   * door was shut; what was missing was anyone deciding to shut it.
+   *
+   * That is not the redundant restatement a route-level compare would be on the
+   * order-keyed routes, where it would re-read the very row the transition
+   * service reads, through the very filter that already answered. This compares
+   * against `resolveAdminOrdersScope` **independently of how the read below it
+   * is implemented**: `customerAccountRead` is a port another module owns, and
+   * on the day that implementation resolves a customer through raw SQL or under
+   * a widened scope, this is the line still standing.
+   *
+   * Which matters most on the preview. It resolves the same negotiated,
+   * per-organization, per-customer-group price list a real order would, and it
+   * persists nothing — so it is the cheapest possible read of terms the caller
+   * may not read. In B2B those terms are among the most sensitive figures the
+   * platform holds: a rival distributor's discount curve outlives the order
+   * that would have followed it.
+   *
+   * The refusal is **403, not the 404** the order-keyed routes give, and not
+   * the 404 these two gave by accident. There is no order here whose existence
+   * a status code could disclose; the subject is the caller's authority over an
+   * organization they named themselves, in the body of their own request. A 403
+   * says that and is actionable — the operator learns to ask for the
+   * assignment — where "Customer account not found." sends them looking for a
+   * typo in an id they are reading off their own screen.
+   *
+   * It discloses nothing the 404 did not: for a scoped caller an absent
+   * customer, a customer with no organization, and a customer in an
+   * organization they are not assigned to all get that one answer, so the
+   * status code is no probe for which account ids exist. A platform
+   * administrator keeps each route's own 404/422, and the branch deciding which
+   * applies is `allowAll` — the shape `resolveAdminOrdersScope` returns — never
+   * a role code read here.
+   */
+  const assertCustomerInScope = async (
+    request: FastifyRequest,
+    customerAccountId: string,
+  ): Promise<void> => {
+    const scope = await resolveListScope(request);
+    if (!scope) return;
+    const customer = await deps.customerAccountRead.findById(customerAccountId);
+    if (
+      !customer?.organizationId ||
+      !scope.allowedOrganizationIds.includes(customer.organizationId)
+    ) {
+      throw new HttpError(
+        403,
+        ERROR_CODES.FORBIDDEN,
+        'You may only act for customers in the organizations assigned to you.',
+        { code: 'customer_outside_assignment_scope' },
+      );
+    }
+  };
+
   app.get(
     '/api/v1/admin/orders',
     { preHandler: requireAdmin('orders:read'), schema: { querystring: adminOrdersListQuerySchema } },
@@ -529,6 +592,10 @@ export async function registerOrderRoutes(
     { preHandler: requireAdmin('orders:write'), schema: { body: adminCreateOrderRequestSchema } },
     async (request, reply) => {
       const body = adminCreateOrderRequestSchema.parse(request.body);
+      // Decided here rather than left to whatever the creation service happens
+      // to read: the row this route writes carries its organization inward, and
+      // an INSERT passes through no filter on the way.
+      await assertCustomerInScope(request, body.customerAccountId);
       const order = await deps.orderCreationAdminService.create(resolveAdminUserId(request), body);
       reply.code(201);
       return { data: await serializeOrder(emFactory(), order) };
@@ -543,6 +610,11 @@ export async function registerOrderRoutes(
     { preHandler: requireAdmin('orders:write'), schema: { body: adminOrderPreviewRequestSchema } },
     async (request) => {
       const body = adminOrderPreviewRequestSchema.parse(request.body);
+      // Before any price is resolved, and before the customer read below that
+      // currently refuses first. See `assertCustomerInScope`: this route quotes
+      // negotiated terms and persists nothing, which makes it the cheapest read
+      // of a price list the caller may not read.
+      await assertCustomerInScope(request, body.customerAccountId);
       const em = emFactory();
 
       const customer = await deps.customerAccountRead.findById(body.customerAccountId);
