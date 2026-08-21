@@ -22,6 +22,8 @@ import { analyzeSource as containerAnalyze } from '../../../scripts/check-contai
 import {
   checkDocument,
   discoverCitingDocuments,
+  markdownDocuments,
+  vacuousDocumentPopulation,
 } from '../../../scripts/check-doc-snippets.js';
 import {
   analyzeSource as classificationAnalyze,
@@ -37,8 +39,10 @@ import {
 import {
   findUnreachableSentences,
   findUntranslatedErrorCodes,
+  unroutedModules,
   type TranslationInput,
 } from '../../../scripts/check-error-translations.js';
+import { vacuousModulePopulation } from '../../../scripts/lib/module-population.js';
 import { checkFixtureSubstitution } from '../../../scripts/check-fixture-substitution.js';
 import {
   checkSharedTableWipes,
@@ -278,6 +282,57 @@ function errorSentenceTree(bundles: Record<string, Record<string, string>>): Tra
         }));
       }),
   };
+}
+
+/**
+ * `check-error-translations`' population floor, entered where a real run enters
+ * it (feature 080, T010).
+ *
+ * The registered ids, the routing table and the walk's own file list go in; the
+ * refusal comes out. Nothing is pre-computed: the exclusion — every registered
+ * module the table does not route a code to — is derived here by the same
+ * function the CLI calls, because that derivation *is* the floor. A proof handed
+ * a ready-made `excluded` list would leave it unproven, and an exclusion that
+ * silently covered everything would switch the floor off while looking like a
+ * normal run.
+ */
+function bundleResidueRefusal(bundleFiles: readonly string[]): number {
+  const keys = {
+    BLOG_POST_NOT_FOUND: { moduleId: 'blog', key: 'errors.BLOG_POST_NOT_FOUND' },
+  } as const;
+  const registered = ['blog', 'catalog', 'orders'];
+  const reason = vacuousModulePopulation({
+    registered,
+    files: bundleFiles,
+    excluded: unroutedModules(keys, registered),
+  });
+  // Named, not counted: a refusal that listed `catalog` and `orders` would mean
+  // the exclusion derived nothing, and would be just as non-zero.
+  return reason !== null && reason.includes('blog') && !reason.includes('catalog') ? 1 : 0;
+}
+
+/**
+ * `check-doc-snippets`' root floor, over a document tree on disk.
+ *
+ * The fixture is a tree because the shortfall this check can suffer is a *root*
+ * that stopped contributing, and only the walk can say which root a file came
+ * from. `specs` is populated and `docs/docs` is not — the measured shape: 92 of
+ * 943 markdown files, one of seven citing documents, and a survivor count well
+ * inside the read-size band.
+ */
+function emptyDocumentRoot(): number {
+  const root = mkdtempSync(join(tmpdir(), 'endora-doc-roots-'));
+  try {
+    mkdirSync(join(root, 'specs/080-f4-real-scope'), { recursive: true });
+    writeFileSync(join(root, 'specs/080-f4-real-scope/tasks.md'), '# Tasks\n', 'utf8');
+    const walked = markdownDocuments(root);
+    const reason = vacuousDocumentPopulation(walked);
+    // Non-empty walk *and* a refusal: the old guard, `documents.length === 0`,
+    // is green on exactly this tree.
+    return walked.length > 0 && reason !== null && reason.includes('docs/docs') ? 1 : 0;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -1854,7 +1909,11 @@ const CHECKS: readonly CheckEntry[] = [
     companionTest: 'backend/test/unit/docs/check-doc-snippets.test.ts',
     vacuousGuard: 'exit-2',
     // Its population is the citing documents, not the tree they cite; a moved
-    // target is a citation that no longer matches, which is a finding.
+    // target is a citation that no longer matches, which is a finding. Feature
+    // 080's T010 re-examined it and left the root where it is for that reason —
+    // the module tree cannot make this check go silently green. Its own
+    // document roots can, and since T010 a root that contributes no markdown
+    // file exits 2 rather than being covered by the other one.
     readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
@@ -1868,6 +1927,9 @@ const CHECKS: readonly CheckEntry[] = [
       // Not a violation count: the population. A discovery that stops matching
       // reports zero documents and every one of them reads as checked.
       discovery: top(discoveredCitingDocuments),
+      // The population one level up: a declared root that contributed nothing,
+      // which the total-loss guard cannot see because the other root is full.
+      'empty-document-root': top(emptyDocumentRoot),
     },
   },
   {
@@ -1979,12 +2041,18 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-error-translations.test.ts',
     vacuousGuard: 'exit-2',
-    // Its population is `ERROR_TRANSLATION_KEYS` for P1 and a walk of the
-    // bundles for P2. A module whose bundle is not where it looks turns every
-    // one of its codes into a finding, so a residue reads as 208 violations
-    // rather than as a clean tree.
+    // Its bundle half **is** a module walk (feature 080, T010). It used to be
+    // marked otherwise on the ground that a residue "reads as 208 violations
+    // rather than as a clean tree" — true, and the wrong half of the question:
+    // loud is not the same as right, and those violations say "write nineteen
+    // sentences" about sentences that already exist. The floor now reconciles
+    // the walk against the modules the routing table names, so a residue exits
+    // 2. The walk itself deliberately stays a listing of `src/modules` rather
+    // than a resolution of the index — P2 asks whether every sentence written
+    // *anywhere* is reachable, and a bundle left behind by a dropped
+    // registration is exactly that question.
     readSize: 'reported',
-    residueGuard: 'not-a-module-walk',
+    residueGuard: 'derived-population',
     // Two predicates, and the second (feature 082, D-127) has **no ledger** —
     // not an empty one. Every P2 repair is a JSON line moved or deleted plus at
     // most one routing line, so there is nothing a ledger could schedule. Four
@@ -2047,6 +2115,12 @@ const CHECKS: readonly CheckEntry[] = [
       // correctly-filed sentence, token keys included", and it is what stops a
       // predicate that reports every `errors.*` key it sees from passing the
       // three above.
+      //
+      // T010's shape: a bundle walk that came back short of the modules the
+      // routing table names. It is not a translation finding at all — it is the
+      // refusal that has to fire *before* P1 turns a residue into nineteen
+      // pieces of writing nobody needs to do.
+      'bundle-residue': top(() => bundleResidueRefusal(['modules/catalog/i18n/en.json'])),
     },
   },
   {
@@ -4464,7 +4538,9 @@ describe('every red proof enters at the top of the analysis', () => {
       // four: this predicate's whole claim is that its ledger is not a list of
       // exceptions, and that claim is only worth what its negative proofs are.
       'backend/scripts/check-diacritic-folds.ts': 25,
-      'backend/scripts/check-doc-snippets.ts': 4,
+      // Three snippet shapes, the discovery that enrols a document, and
+      // T010's root floor — the population one level above the discovery.
+      'backend/scripts/check-doc-snippets.ts': 5,
       'backend/scripts/check-entity-tenant-classification.ts': 2,
       // Three timer shapes plus D-68's four boot-hook ones. The count is the
       // point: the check grew a construct, so its proof had to grow with it.
@@ -4480,7 +4556,9 @@ describe('every red proof enters at the top of the analysis', () => {
       // three kinds (feature 082, D-127). The fourth fixture D-127 requires is
       // the discrimination one, which asserts **zero** findings and therefore
       // cannot be a red proof; it is in the companion test.
-      'backend/scripts/check-error-translations.ts': 5,
+      // Plus T010's one: the population floor under the bundle walk, which is
+      // a refusal rather than a finding and fires before either predicate runs.
+      'backend/scripts/check-error-translations.ts': 6,
       // Three shapes the read reaches the fallback through, four fabrications
       // the fallback performs; the two axes are independent, so the count is
       // their union rather than their product. Plus issue #275's five: three

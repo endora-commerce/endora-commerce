@@ -200,7 +200,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 287 routed codes P1 judges plus the 468 written `errors.*` keys P2 walks.
     files: 88,
     sites: 755,
-    sources: [],
+    // Feature 080's T010. The expectation is the module directories
+    // `ERROR_TRANSLATION_KEYS` routes a code to — 18 of the registered 66 —
+    // and both halves of that intersection are static imports, so neither is
+    // the filesystem walk being reconciled.
+    sources: ['manifest-index'],
   },
   'backend/scripts/check-fixture-substitution.ts': {
     prefix: '[fixture-substitution]',
@@ -361,13 +365,10 @@ export const READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE: Readonly<Record<string, st
     'of issues #240 and #244.',
   'backend/scripts/check-doc-snippets.ts':
     'the population is the markdown under `docs/docs` and `specs`. A document enrols by ' +
-    'carrying a marker, and no registry lists which documents ought to cite a source.',
-  'backend/scripts/check-error-translations.ts':
-    'the codes come from `ERROR_TRANSLATION_KEYS`, which is the routing table this check ' +
-    'judges — reconciling it against itself would be the same value twice. The bundle ' +
-    'walk is the other half and is a directory listing of `src/modules`, but a module ' +
-    'is not required to ship an i18n bundle, so the manifest index gives no expectation ' +
-    'a shortfall could be measured against.',
+    'carrying a marker, and no registry lists which documents ought to cite a source. ' +
+    'Feature 080 T010 looked again and found no second author: the floor it added — every ' +
+    'declared root contributes a file — is derived from the check\'s own constant, which ' +
+    'is why it is a guard rather than a `sources=` entry.',
   'backend/scripts/check-fixture-substitution.ts':
     'the population is `backend/test`, which no manifest, registry or package script ' +
     'enumerates — a test file enrols by existing.',

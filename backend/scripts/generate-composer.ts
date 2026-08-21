@@ -614,15 +614,15 @@ export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
     if (file.startsWith('apps/')) {
       throw new Error(
         `[composer] ${file} declares an @Entity() class under a deployment overlay. ` +
-          `Out-of-core code contributes registrations, routes, decorations, interceptors, ` +
-          `permissions, i18n and a manifest — and no schema (D-105). That is not a v1 ` +
-          `limitation: the migration registry is a committed, ordered artefact whose ` +
-          `execution order is computed from timestamps and then corrected by the module ` +
-          `dependency graph, and that correction is only meaningful over a fixed set. A set ` +
-          `that varies per deployment has no single correct order to commit, and a ` +
-          `per-deployment order is a per-deployment schema history. Delete this file's ` +
-          `directory and ship the table from a core module; the overlay module keeps its ` +
-          `services, routes and decorations and reads the core module's port.`,
+          `A per-deployment overlay contributes registrations, routes, decorations, ` +
+          `interceptors, permissions, i18n and a manifest — and no schema (D-106, narrowing ` +
+          `D-105). The reason is not migration ordering: that argument was measured false ` +
+          `and is retired. It is that an overlay lives in the same repository and the same ` +
+          `build as core, so the remedy is always available and costs nothing but a ` +
+          `directory. Delete this file's directory and ship the table from a core module; ` +
+          `the overlay module keeps its services, routes and decorations and reads the core ` +
+          `module's port. An extension package is the opposite case and may ship schema — a ` +
+          `third-party author has no core module to ship it from.`,
       );
     }
     let cursor = source.indexOf('@Entity(');
@@ -754,14 +754,16 @@ export function collectMigrations(sources: SourceTree): DiscoveredMigration[] {
   for (const [file, source] of [...sources].sort(([a], [b]) => a.localeCompare(b))) {
     if (OVERLAY_MIGRATION_RE.test(file)) {
       throw new Error(
-        `[composer] ${file} is a migration under a deployment overlay. Out-of-core code ` +
-          `contributes registrations, routes, decorations, interceptors, permissions, i18n ` +
-          `and a manifest — and no schema (D-105). The migration registry is a committed, ` +
-          `ordered artefact whose execution order is corrected by the module dependency ` +
-          `graph, and that correction is only meaningful over a fixed set; a set that varies ` +
-          `per deployment has no single correct order to commit. Registering this file here ` +
-          `would be a new capability, not a side effect of generating the list. Move the ` +
-          `schema into a core module.`,
+        `[composer] ${file} is a migration under a deployment overlay. A per-deployment ` +
+          `overlay contributes registrations, routes, decorations, interceptors, ` +
+          `permissions, i18n and a manifest — and no schema (D-106, narrowing D-105). The ` +
+          `reason is not migration ordering: that argument was measured false and is ` +
+          `retired. It is that an overlay lives in the same repository and the same build ` +
+          `as core, so the remedy is always available and costs nothing but a directory — ` +
+          `move the schema into a core module. Registering this file here would be a new ` +
+          `capability, not a side effect of generating the list. An extension package is ` +
+          `the opposite case and may ship migrations — a third-party author has no core ` +
+          `module to ship them from.`,
       );
     }
     const core = CORE_MIGRATION_RE.exec(file);

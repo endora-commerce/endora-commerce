@@ -78,7 +78,29 @@ const RESIDUE_ROOTS: readonly string[] = [
 export const KEPT_MODULE = '_lifecycle';
 
 /** Single files of other modules a spawned check imports as code. */
-const KEPT_MODULE_FILES: readonly string[] = ['admin_roles/permission-inventory.ts'];
+const KEPT_MODULE_FILES: readonly string[] = [
+  'admin_roles/permission-inventory.ts',
+  // `check-error-translations` imports the routing table as *code*; without it
+  // that spawn dies at module resolution and its proof would pass for the wrong
+  // reason. The table is also what its floor is derived from, so a fixture
+  // without it could not stage the shortfall at all.
+  '_i18n/services/error-translation.ts',
+];
+
+/**
+ * The one i18n bundle the fixture keeps, and the reason it keeps exactly one.
+ *
+ * `check-error-translations` walks each module's `i18n/en.json` and
+ * `i18n/pl.json`. With no bundle
+ * at all the walk yields no `errors.*` key, and the check's *pre-existing*
+ * guard already exits 2 on that — so the fixture would prove nothing about the
+ * floor T010 added. With one routed module's bundle present, the old guard is
+ * green (keys were written, findings can be computed) while seventeen of the
+ * eighteen routed modules contributed nothing, which is the residue only a
+ * per-module floor sees. `blog` is a routed module and its bundle carries
+ * `errors.*` keys, which are both required for the discrimination.
+ */
+const KEPT_BUNDLE_MODULE = 'blog';
 
 export interface MovedModuleTreeOptions {
   /**
@@ -206,6 +228,11 @@ export function createMovedModuleTreeFixture(
     mkdirSync(join(backend, 'src', 'modules', dirname(file)), { recursive: true });
     cpSync(join(BACKEND_ROOT, 'src', 'modules', file), join(backend, 'src', 'modules', file));
   }
+  cpSync(
+    join(BACKEND_ROOT, 'src', 'modules', KEPT_BUNDLE_MODULE, 'i18n'),
+    join(backend, 'src', 'modules', KEPT_BUNDLE_MODULE, 'i18n'),
+    { recursive: true },
+  );
   writeFileSync(
     join(backend, 'src', 'modules', KEPT_MODULE, 'manifest-index.generated.ts'),
     stubManifestIndex(options.registeredIds ?? DISCOVERED_MANIFESTS.map((entry) => entry.id)),

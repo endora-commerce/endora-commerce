@@ -42,15 +42,48 @@
  * has since been translated fails too, so the list cannot quietly describe a
  * problem that no longer exists. It is meant to shrink. Do not add to it to make
  * a build pass — add the sentence.
+ *
+ * ## The population, and the floor under it (issue #215, feature 080 T010)
+ *
+ * The bundle half **is** a module-tree walk, and it walks the tree by listing
+ * `src/modules` rather than by resolving the registered module ids. That is
+ * deliberate and it is P2's question: "is every sentence written *anywhere*
+ * reachable?" A directory whose registration was dropped while its bundle
+ * stayed on disk is precisely a sentence nothing reads, and re-rooting the walk
+ * onto the manifest index would hide it — the index would no longer name it, so
+ * the walk would stop opening it and the finding would disappear.
+ *
+ * The floor is what the index is for instead. Without one, a residue is not a
+ * clean tree but it is the **wrong sentence**: move `blog`'s bundle and P1
+ * reports nineteen untranslated codes, which sends an author to write nineteen
+ * sentences that already exist somewhere else in the repository. Measured on the
+ * tree this floor landed against, emptying any one of the eighteen routed
+ * modules' bundles produces between 2 and 41 such findings and never zero — so
+ * the old behaviour was loud, and loudly wrong.
+ *
+ * So the walk is reconciled against a population **two static imports** derive
+ * and the filesystem does not: the module ids the generated manifest index
+ * registers, intersected with the module directories `ERROR_TRANSLATION_KEYS`
+ * routes a code to. Every one of those must contribute a bundle file, or the
+ * run exits 2 rather than reporting on a residue. A registered module the
+ * routing table does **not** name is outside the floor by design — nothing
+ * requires a module to ship an i18n bundle at all, and 45 of the 66 registered
+ * modules ship one — which is the claim {@link unroutedModules} makes and the
+ * only exclusion the floor takes.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ERROR_TRANSLATION_KEYS } from '../src/modules/_i18n/services/error-translation.js';
+import {
+  loadRegisteredModuleIds,
+  refuseVacuousModulePopulation,
+} from './lib/module-population.js';
 import { reportReadSize } from './lib/read-size.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const modulesRoot = resolve(here, '../src/modules');
+const srcRoot = resolve(here, '../src');
+const modulesRoot = join(srcRoot, 'modules');
 
 /** The languages every user-facing string ships in (Principle VIII). */
 const LANGUAGES = ['en', 'pl'] as const;
@@ -182,6 +215,43 @@ export interface SentenceFinding extends BundleKey {
   /** The directory the routing table points at, or `null` for `no-code`. */
   readonly routedModuleId: string | null;
   readonly repair: string;
+}
+
+/**
+ * The module **directories** the routing table names — `core` resolved to the
+ * bundle that actually holds it.
+ *
+ * These are the bundles P1 reads, so they are the ones a run has to have
+ * opened. Derived on every run from the table itself, never written down: a
+ * module that stops routing a code leaves this set in the same run (D-100).
+ */
+export function routedBundleDirectories(
+  keys: Readonly<Record<string, ErrorTranslationTarget>> = ERROR_TRANSLATION_KEYS,
+): string[] {
+  const directories = new Set(
+    Object.values(keys).map((target) =>
+      target.moduleId === 'core' ? CORE_BUNDLE_MODULE : target.moduleId,
+    ),
+  );
+  return [...directories].sort();
+}
+
+/**
+ * Registered modules the population floor does not ask for — the complement of
+ * {@link routedBundleDirectories} inside the registered set.
+ *
+ * This is the check's one exclusion claim, and it is a claim rather than a
+ * convenience: a module that routes no error code is not required to ship an
+ * i18n bundle, and most do not carry an `errors.*` key even when they ship one.
+ * Asking every registered module for a bundle would make the floor a list of
+ * twenty exceptions, which is a floor nobody can read.
+ */
+export function unroutedModules(
+  keys: Readonly<Record<string, ErrorTranslationTarget>>,
+  registered: readonly string[],
+): string[] {
+  const routed = new Set(routedBundleDirectories(keys));
+  return registered.filter((id) => !routed.has(id));
 }
 
 function bundlePath(moduleId: string, language: string): string {
@@ -400,6 +470,9 @@ export function analyseErrorTranslations(
  * all. Built from the same root and the same path shape as
  * {@link diskBundleKeyWalker}, so the two cannot disagree about where a bundle
  * lives.
+ *
+ * The paths are absolute and keep their `modules/<id>/` segment, which is what
+ * the population floor reads them by.
  */
 function bundleFilesOnDisk(): string[] {
   return readdirSync(modulesRoot, { withFileTypes: true })
@@ -410,7 +483,31 @@ function bundleFilesOnDisk(): string[] {
     .filter((path) => existsSync(path));
 }
 
-function main(): void {
+async function main(): Promise<void> {
+  const files = bundleFilesOnDisk();
+
+  // The floor, before any finding is printed (issue #215). `refuseVacuous…`
+  // loads the index itself, so the pair below is one read done twice rather
+  // than two derivations: the ids are needed *here* to compute the exclusion,
+  // and the shared guard is the only place the refusal is written.
+  let registered: readonly string[];
+  try {
+    registered = await loadRegisteredModuleIds(srcRoot);
+  } catch (error: unknown) {
+    console.error(
+      `[error-translations] the module index under ${srcRoot} could not be read ` +
+        `(${String(error)}) — the routed bundles are derived from it, so there is nothing ` +
+        'to compare the walk against; refusing to report a vacuous pass',
+    );
+    process.exit(2);
+  }
+  const coverage = await refuseVacuousModulePopulation({
+    prefix: '[error-translations]',
+    srcRoot,
+    files,
+    excluded: unroutedModules(ERROR_TRANSLATION_KEYS, registered),
+  });
+
   const result = analyseErrorTranslations();
   if (result.exitCode === 2) {
     console.error(result.summary);
@@ -420,11 +517,13 @@ function main(): void {
   // the two predicates' units — the routed codes P1 judges and the written
   // `errors.*` keys P2 walks — because either population can empty while the
   // other is full, which is the reason the two vacuity guards above are
-  // independent in the first place.
+  // independent in the first place. `sources` is the reconciliation the floor
+  // just enforced: the routed modules, out of the registered set.
   reportReadSize({
     prefix: '[error-translations]',
-    files: bundleFilesOnDisk().length,
+    files: files.length,
     sites: Object.keys(ERROR_TRANSLATION_KEYS).length + result.keysWalked.length,
+    coverage: [coverage],
   });
   console.log(result.summary);
 
@@ -469,5 +568,5 @@ function main(): void {
 // the previous `endsWith(basename)` test answers true for an argv[1] ending in
 // a slash, which would have run the whole check on import.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }

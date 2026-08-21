@@ -13,14 +13,15 @@
 // capability a deployment wanted had to be added to that context by a core
 // change, which is the coupling the overlay pattern exists to avoid.
 //
-// **It ships no `entities/` and no `migrations/`.** Out-of-core code
+// **It ships no `entities/` and no `migrations/`.** A per-deployment overlay
 // contributes registrations, routes, decorations, interceptors, permissions,
-// i18n and a manifest, and no schema (D-105). The migration order is computed
-// over a fixed, committed set and corrected by the manifest dependency graph; a
-// set that varies per deployment has no single correct order to commit. The
+// i18n and a manifest, and no schema (D-106, narrowing D-105). The reason is not
+// migration ordering — that argument was measured false and is retired. It is
+// that an overlay lives in the same repository and the same build as core, so
+// the remedy is always available and costs nothing but a directory: ship the
+// table from a core module and read it through that module's port. The
 // generator refuses both directories rather than emitting metadata for a table
-// nothing creates — see `scripts/generate-composer.ts`. Client-specific tables
-// are shipped from a core module.
+// nothing creates — see `scripts/generate-composer.ts`.
 //
 // **It registers nothing twice.** Everything below is registered here, once.
 

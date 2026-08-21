@@ -37,29 +37,42 @@ core stays deployment-agnostic and the bare-core build keeps working unchanged.
 | Route / plugin | ✅ | Same route mechanism as core. |
 | Config / manifest | ✅ | |
 | Whole new module | ✅ (no schema — see below) | Registered without editing the core registry. Ships `backend.ts`, never `plugin.ts`. |
-| Entity / migration | ❌ | Out-of-core code contributes no schema — see below. Ship new schema from a **core** module. |
+| Entity / migration | ❌ | An overlay module contributes no schema — see below. Ship new schema from a **core** module. |
 
-## Out-of-core code contributes no schema
+## An overlay module contributes no schema
 
-Code composed into the platform from outside the core module tree — a
-per-deployment overlay module or an extension package — contributes
-registrations, routes, decorations, interceptors, permissions, i18n bundles and a
-manifest. It contributes **no schema**: no `@Entity()` class and no migration.
+A per-deployment overlay module contributes registrations, routes, decorations,
+interceptors, permissions, i18n bundles and a manifest. It contributes **no
+schema**: no `@Entity()` class and no migration.
 
 This page used to say the opposite ("ship new schema as a client-only overlay
 module that owns its own tables"), and the generator has refused it the whole
-time. The reason is not v1 scope. The migration registry is a committed, ordered
-artifact whose execution order is computed from timestamps and then corrected by
-the module-manifest dependency graph, and that correction is only meaningful over
-a **fixed** set. A set that varies per deployment or per installed package has no
-single correct order to commit — and a per-deployment order is a per-deployment
-schema history, which is the thing "one codebase, many installations" exists to
-avoid. One sentence covers both out-of-core paths because one fact causes both.
+time.
 
-So a deployment that wants client-specific tables ships them from a core module
-and reads them from the overlay module through that module's port. The overlay
-module keeps everything else: its own services, its routes, its decorations and
-its permissions.
+**The reason is not migration ordering.** This page used to give one — that the
+registry's execution order is "only meaningful over a fixed set", so a set that
+varies per deployment has no single correct order to commit. That argument was
+measured and is false: adding a leaf module's migrations leaves the relative
+order of every existing migration exactly unchanged, because a leaf contributes
+dependency edges only out of itself. It is retired (ruling D-106,
+`specs/080-f4-real-scope/README.md` §2); do not repeat it.
+
+The real reason is smaller and holds regardless: **an overlay lives in the same
+repository and the same build as core**, so the remedy is always available and
+costs nothing but a directory. A deployment that wants client-specific tables
+ships them from a core module and reads them from the overlay module through that
+module's port — the overlay module keeps everything else: its own services, its
+routes, its decorations and its permissions. Allowing overlay schema would add a
+second schema-owning mechanism and buy no capability, and that is not worth its
+weight.
+
+**An extension package is the opposite case.** A third-party package author has
+no core module to ship a table from, so the same rule would not be a constraint
+to design around but a prohibition on the whole extension-package programme,
+every family of which persists state. D-106 therefore allows a package its own
+entities and migrations. That mechanism is not built yet — today the only schema
+a running platform executes is core's — so nothing on this page changes for a
+deployment.
 
 ## Service overrides are decorations
 

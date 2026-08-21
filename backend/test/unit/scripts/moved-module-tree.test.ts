@@ -66,6 +66,14 @@ const CHECKS: readonly MovedTreeCheck[] = [
     prefix: '[tenant-classification]',
   },
   { script: 'check-entry-presence.ts', args: [], prefix: '[entry-presence]' },
+  // Feature 080, T010. The trap here is the *other* direction from
+  // `check-lock-claims`': this check was loud over a residue rather than green,
+  // and loud was mistaken for right. Emptying any one of the eighteen routed
+  // modules' bundles produces between 2 and 41 "untranslated" codes — an
+  // instruction to write sentences that already exist somewhere in the tree.
+  // The fixture keeps `blog`'s bundle precisely so the pre-existing guard ("the
+  // walk read no errors.* key") is green and the floor is what refuses.
+  { script: 'check-error-translations.ts', args: [], prefix: '[error-translations]' },
   { script: 'check-entry-scope.ts', args: [], prefix: '[entry-scope]' },
   { script: 'check-kernel-boundary.ts', args: [], prefix: '[kernel-boundary]' },
   // Issue #216. Only *part* of its population is the module tree — the
