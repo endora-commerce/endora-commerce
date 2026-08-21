@@ -4,8 +4,7 @@ import type {
   EmailDefaultsRegistryPort,
   GatewayRefundRegistryPort,
   OrderReadPort,
-  OrderStatusAnnouncePort,
-  OrderStatusRegistry,
+  OrderTransitionPort,
   PaymentAdapterRegistryPort,
   PaymentEmailRendererPort,
   PaymentMethodReadPort,
@@ -77,7 +76,6 @@ export interface PaymentsCradle {
   readonly customerAccountIdResolver: (req: FastifyRequest) => string;
   /** The tenancy read: a suspended Organization may not pay, as it may not place. */
   readonly organizationReadPort: OrganizationReadPort;
-  readonly paymentOrderStatusRegistry: OrderStatusRegistry;
   /** Owned by `payment_methods`: the table this module's adapters are listed in. */
   readonly paymentAdapterRegistry: PaymentAdapterRegistryPort;
   /** Contribution point: absent means a payment-status e-mail is not sent. */
@@ -171,6 +169,9 @@ export function registerModule(ctx: ModuleContext): void {
             // singleton is a gate that keeps answering after an operator
             // switches the owner off.
             paymentService: lazyPort<PaymentService>(ctx, 'paymentService'),
+            // The terminality read (feature 085 Phase D): the same port the
+            // settlement handler writes through, resolved for its read half.
+            orderTransition: lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
             paymentAdapterRegistry: () =>
               ctx.cradle<PaymentsCradle>().paymentAdapterRegistry,
             // No `catch` around the port call, for the reason `orders` and
@@ -282,10 +283,19 @@ export function registerModule(ctx: ModuleContext): void {
    * built their own handler, so it could take no port they could not build.
    * They resolve `receivePaymentPort` since the C-W3 gateway cuts, so this is
    * the only construction left and `ctx` is in hand. The `Order` entity import
-   * inside the handler stays and stays permanent — `payments_order_fk` holds it
-   * co-transactional (D-78 point 2) — and neither of these two shares that:
-   * `paymentMethodReadPort` is a read of a row the settlement never writes, and
-   * `orderStatusAnnouncePort` is called after the commit.
+   * inside the handler stays and stays permanent — `payments_order_fk` holds
+   * the payment row and the order's payment status co-transactional (D-78 point
+   * 2) — and neither port shares that: `paymentMethodReadPort` is a read of a
+   * row the settlement never writes, and `orderTransitionPort` is called after
+   * the commit.
+   *
+   * **`orderTransitionPort` replaces two of the three names this used to take**
+   * (feature 085 Phase D). `orderStatusAnnouncePort` goes because the transition
+   * seam emits the templated `.after` events itself, so announcing beside it
+   * would double every subscriber's reaction; `paymentOrderStatusRegistry` goes
+   * because "is this a status code" was never the question the ingress needed
+   * answered, and the port answers the real one — may this order go there —
+   * against the configured graph.
    */
   ctx.di.providePort(
     'receivePaymentHandler',
@@ -295,8 +305,8 @@ export function registerModule(ctx: ModuleContext): void {
           new ReceivePaymentHandler(
             emFactory,
             lazyPort<PaymentMethodReadPort>(ctx, 'paymentMethodReadPort'),
-            lazyPort<OrderStatusAnnouncePort>(ctx, 'orderStatusAnnouncePort'),
-            lazyPort<OrderStatusRegistry>(ctx, 'paymentOrderStatusRegistry'),
+            lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
+            ctx.log,
             eventBus as PaymentEventBus,
           ),
       )
