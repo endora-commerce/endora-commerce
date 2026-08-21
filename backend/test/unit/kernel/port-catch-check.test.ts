@@ -626,6 +626,119 @@ export class CartGatewayService {
   });
 });
 
+/**
+ * Aliases are visible where the binding is (issue #278).
+ *
+ * The defect was measured on the tree: building `orderTransitionPort`, an author
+ * named a constructor parameter `transitionService`, and an unrelated local of
+ * that spelling in `orders/prompt-tools.ts` became a reported violation with no
+ * code change of its own — so the author renamed the parameter, and the rename
+ * hid a `catch` that is a genuine fail-open. A false positive an author can only
+ * clear by renaming something else is not noise; it moves code.
+ *
+ * Each tree below carries the **control** — the same alias reached where it
+ * really is in scope — beside the shape that must not be a finding, so a proof
+ * reading 1 says the limit holds and a proof reading 0 says the check went
+ * blind instead of getting precise.
+ */
+describe('findPortCatches — an alias is visible where its binding is (issue #278)', () => {
+  const PROVIDER_ONLY = [
+    'modules/promotions/backend.ts',
+    "export function registerModule(ctx: ModuleContext): void {\n" +
+      "  ctx.di.providePort('promotionService', ctx.asFunction(() => x).singleton());\n}",
+  ] as const;
+
+  it('scopes a constructor parameter to the file that declares it, not the module that calls it', () => {
+    const found = findPortCatches({
+      sources: new Map([
+        PROVIDER_ONLY,
+        [
+          'modules/carts/backend.ts',
+          "import { lazyPort } from '../../kernel/index.js';\n" +
+            'export function registerModule(ctx: ModuleContext): void {\n' +
+            "  const pricing = new CartPricing(lazyPort<Promo>(ctx, 'promotionService'));\n}",
+        ],
+        [
+          // The control: the parameter, read where it is in scope.
+          'modules/carts/services/cart-pricing.ts',
+          'export class CartPricing {\n' +
+            '  constructor(private readonly transitionService: Promo) {}\n' +
+            '  async price(): Promise<number> {\n' +
+            '    try { return await this.transitionService.applyToCart({}); } catch { return 0; }\n' +
+            '  }\n}',
+        ],
+        [
+          // An unrelated local of the same spelling, one file away.
+          'modules/carts/prompt-tools.ts',
+          'export function bulk(make: () => Engine): number {\n' +
+            '  const transitionService = make();\n' +
+            '  try { transitionService.apply(); } catch { return 0; }\n' +
+            '  return 1;\n}',
+        ],
+      ]),
+    });
+    expect(found.map((entry) => `${entry.file}:${entry.port}`)).toEqual([
+      'modules/carts/services/cart-pricing.ts:transitionService',
+    ]);
+  });
+
+  it('lets a local that manifestly holds no port shadow a module-scoped alias', () => {
+    const found = findPortCatches({
+      sources: new Map([
+        PROVIDER_ONLY,
+        [
+          'modules/carts/backend.ts',
+          "import { lazyPort } from '../../kernel/index.js';\n" +
+            "const deps = { queue: lazyPort<Promo>(ctx, 'promotionService') };",
+        ],
+        [
+          'modules/carts/services/cart-bulk.ts',
+          'export class CartBulk {\n' +
+            '  async enqueue(): Promise<number> {\n' +
+            "    const queue = new BullQueue('carts-bulk', { connection: 1 });\n" +
+            '    try { await queue.add({}); } catch { return 0; }\n' +
+            '    return 1;\n' +
+            '  }\n' +
+            '  async reprice(): Promise<number> {\n' +
+            '    try { return await this.deps.queue.applyToCart({}); } catch { return 0; }\n' +
+            '  }\n}',
+        ],
+      ]),
+    });
+    expect(found.map((entry) => entry.line)).toHaveLength(1);
+    expect(found[0]).toMatchObject({ file: 'modules/carts/services/cart-bulk.ts', port: 'queue' });
+  });
+
+  it('does not let a local bound to a call shadow one — "cannot tell" is not "not a port"', () => {
+    // `catalog` binds `const customFields = this.#requireCustomFields()`, which
+    // holds `custom_fields`' gated port through a call the carriage analysis
+    // does not follow. Reading that binding as a shadow took six `catch` sites
+    // in `attribute-commands.ts` out of the population.
+    const found = findPortCatches({
+      sources: new Map([
+        PROVIDER_ONLY,
+        [
+          'modules/carts/backend.ts',
+          "import { lazyPort } from '../../kernel/index.js';\n" +
+            "const deps = { customFields: lazyPort<Promo>(ctx, 'promotionService') };",
+        ],
+        [
+          'modules/carts/services/cart-attributes.ts',
+          'export class CartAttributes {\n' +
+            '  #require(): Promo { return this.deps.customFields; }\n' +
+            '  async apply(): Promise<number> {\n' +
+            '    const customFields = this.#require();\n' +
+            '    try { return await customFields.applyToCart({}); } catch { return 0; }\n' +
+            '  }\n}',
+        ],
+      ]),
+    });
+    expect(found.map((entry) => `${entry.file}:${entry.port}`)).toEqual([
+      'modules/carts/services/cart-attributes.ts:customFields',
+    ]);
+  });
+});
+
 describe('checkPortCatches — the two-way ratchet', () => {
   it('fails on an unledgered bare catch', () => {
     const result = checkPortCatches({ sources: tree(BARE) }, {});

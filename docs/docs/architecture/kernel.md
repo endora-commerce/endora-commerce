@@ -474,11 +474,53 @@ What does **not** carry is equally load-bearing, and each exclusion was paid for
 in false positives: a call's **result** (`proxy.applyToCart(…)` is the gated
 call, the discount it returns is data), an **object literal** (a deps bag is a
 record — tainting it made `this.deps.<anything>()` a port call, 39 of them in one
-run), and a **field read off a port**. Scope follows the binding: a `const` is
-file-scoped because it is, a deps key or constructor parameter is module-scoped
-because the receiving class reads it from another file, and a root's container
-registration is visible everywhere because a container name is global. Run with
-`PORT_CATCH_WHY=1` to see every alias with the site that introduced it.
+run), and a **field read off a port**. Run with `PORT_CATCH_WHY=1` to see every
+alias with the site that introduced it.
+
+**An alias is visible where its binding is, and nowhere else** (issue #278).
+A `const` is file-scoped because it is. A **deps-object key** is module-scoped,
+because the receiving class reads it as `this.deps.<key>` from another file and a
+property name is not a lexical binding anybody can shadow. A **constructor or
+function parameter** is scoped to the file that *declares* it — it used to be
+scoped to the module the call site sat in, which is neither where the parameter
+is in scope nor, when the callee lives in another module, a place it can be read
+at all. A root's container registration is visible everywhere, because a
+container name is global by construction.
+
+The cost of getting that wrong was measured, and it is not noise. Building
+`orderTransitionPort` (feature 085, Phase B), an author named a constructor
+parameter `transitionService`; an unrelated local of that spelling in
+`orders/prompt-tools.ts` became a reported violation with no code change of its
+own, and the author cleared it by renaming the parameter. The rename hid a
+`catch` that is a genuine fail-open — `OrderTransitionService.apply` flushes the
+status change and then runs a side-effects hook that reaches `credit_limits`'
+release port, so a bulk status change reported `failed` for orders whose status
+had already moved. **A false positive an author can only clear by renaming
+something else does not merely add noise; it moves code.** Two more of exactly
+that shape were standing in `pim_ergonode` and went with the fix: a
+`walkStream(…, handle)` parameter claiming an unrelated cradle property in
+`backend.ts`, and a `categoryPathOf(id, byId)` parameter claiming a local
+`new Map(…)` in the schedule reconciler. The second was carrying a ledger entry.
+
+On top of the scoping, a **bare identifier resolves lexically**: a nearer binding
+that *manifestly* holds no port — a literal, an object or array of non-ports, a
+`new` whose arguments are those — hides the wider alias. "Manifestly" is the
+load-bearing word. The carriage analysis under-approximates on purpose, so
+`carries` answering "no" means either "not a port" or "cannot follow this", and
+only the first may shadow: `catalog` binds
+`const customFields = this.#requireCustomFields()`, which holds `custom_fields`'
+gated port through a call the analysis does not follow, and reading that as a
+shadow took six `catch` sites out of the population. A call, an identifier, a
+property access, a closure, a destructuring binding, an import, a `catch`
+variable and a parameter with no default therefore shadow nothing — the
+direction of the doubt is "report it".
+
+**The old rule had a safety argument and it survives where it was actually
+made.** It was made about the `gatesOf` table — merging *gates* by name, which
+can only add owners and so can only make `OWNER LOCKED` harder to satisfy. That
+table is untouched, and `gatesIn` stays deliberately shadow-blind for the same
+reason. The argument was never made about alias **visibility** and does not
+transfer to it: a wider alias does not add owners to a site, it invents a site.
 
 `PORT_CATCHES_TO_DRAIN` holds the sites where absorbing the answer is still the
 least-wrong behaviour, each with its reason, in three shapes the entries name:

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@b2b/contracts';
+import { HttpError } from '../../../src/http/error-envelope.js';
+import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { PromptActionToolRegistry } from '../../../src/modules/prompt_actions/services/tool-registry.js';
 import { ordersPromptTools } from '../../../src/modules/orders/prompt-tools.js';
+import type { OrderTransitionService } from '../../../src/modules/orders/services/order-transition-service.js';
 
 /**
  * Per-module tool-contribution contract (feature 043): the orders module
@@ -26,6 +29,27 @@ const deps = {
   organizationDetails: refusing<OrganizationDetailsPort>('organizationDetailsPort'),
   customerAccountRead: refusing<CustomerAccountReadPort>('customerAccountReadPort'),
 };
+
+const ORDER_A = '11111111-1111-4111-8111-111111111111';
+const ORDER_B = '22222222-2222-4222-8222-222222222222';
+const ACTOR = { adminUserId: 'a', requestId: 'r', auditCtx: {} };
+
+/**
+ * The bulk tool wired to a transition engine that refuses every order the same
+ * way — the only thing these two cases differ on is *how* it refuses.
+ */
+function bulkTool(refuse: () => never) {
+  const tools = ordersPromptTools({
+    ...deps,
+    getTransitionService: () =>
+      ({
+        apply: async () => refuse(),
+      }) as unknown as OrderTransitionService,
+  });
+  const bulk = tools.find((tool) => tool.id === 'orders.bulk_set_order_status');
+  if (!bulk) throw new Error('orders.bulk_set_order_status is not contributed');
+  return bulk;
+}
 
 function refusing<T>(name: string): T {
   return new Proxy(
@@ -69,6 +93,34 @@ describe('ordersPromptTools — per-module registration', () => {
       expect(typeof tool.preview).toBe('function');
       expect(tool.requiredPermission).toBe('orders:write');
     }
+  });
+
+  it('bulk_set_order_status keeps reporting an ordinary per-item refusal', async () => {
+    const bulk = bulkTool(() => {
+      throw new HttpError(409, 'INVALID_TRANSITION', 'Cannot transition from "new" to "shipped".');
+    });
+    const result = (await bulk.execute(
+      { orderIds: [ORDER_A, ORDER_B], toStatusCode: 'shipped' },
+      ACTOR,
+    )) as { summary: { total: number; succeeded: number; failed: number } };
+    // Both items are refused and the tool still answers — that tolerance is the
+    // requirement, and narrowing it for `ModuleDisabledError` must not touch it.
+    expect(result.summary).toMatchObject({ total: 2, succeeded: 0, failed: 2 });
+  });
+
+  it('bulk_set_order_status surfaces a switched-off module instead of counting it as a failed item', async () => {
+    // Issue #278. `OrderTransitionService.apply` flushes the status change and
+    // *then* runs the side-effects hook, which calls `credit_limits`' gated
+    // release port. With that module off, the swallowed 503 became a per-item
+    // `failed` row for an order whose status had in fact already moved, and the
+    // loop went on doing it to every remaining order in the batch.
+    const disabled = new ModuleDisabledError('credit_limits');
+    const bulk = bulkTool(() => {
+      throw disabled;
+    });
+    await expect(
+      bulk.execute({ orderIds: [ORDER_A, ORDER_B], toStatusCode: 'cancelled' }, ACTOR),
+    ).rejects.toBe(disabled);
   });
 
   it('set_order_status fails clearly at execute time when the engine is unavailable', async () => {
