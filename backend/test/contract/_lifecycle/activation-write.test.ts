@@ -54,6 +54,36 @@ const NEW_CONTROLS = ['blog', 'credentials', 'mfa', 'product_feeds', 'prompt_act
 /** The four of those five that nothing present depends on, so a flip goes through. */
 const FREELY_FLIPPABLE = ['blog', 'mfa', 'product_feeds', 'prompt_actions'] as const;
 
+/**
+ * Every registered module whose manifest names `moduleId` in `dependencies` —
+ * i.e. exactly what the refusal below is computed from.
+ *
+ * Derived rather than written down (D-100). The two T045 cases used to carry a
+ * hand-copied `['autopay', 'payu', 'stripe', 'tpay']`, which was correct until
+ * `paypal` declared the same dependency and turned the pair red on `master`:
+ * the switch-off case deactivated four of the five dependants and the fifth
+ * went on blocking the flip. A hand-copied derived fact goes stale in silence,
+ * and the gateway family is the part of this tree most likely to grow, so the
+ * list is read from the manifests the endpoint itself reads.
+ */
+function dependantsOf(moduleId: string): string[] {
+  const dependants = REGISTERED_MANIFESTS.filter((e) =>
+    (e.manifest.dependencies ?? []).includes(moduleId),
+  ).map((e) => e.manifest.id);
+
+  // The floor, not decoration: with no dependants the switch-off case would
+  // deactivate nothing and pass for the wrong reason, and the refusal case
+  // would assert `arrayContaining([])`, which every array satisfies. Both
+  // would be green over a manifest index that had stopped resolving.
+  expect(
+    dependants.length,
+    `no registered manifest declares a dependency on ${moduleId}: both T045 cases ` +
+      'would pass vacuously',
+  ).toBeGreaterThan(0);
+
+  return dependants;
+}
+
 /** Every activation code this file writes to, reset between cases. */
 const WRITTEN_CODES = [
   PIM_ERGONODE_SETTING_CODES.ACTIVATION,
@@ -301,8 +331,8 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     //
     // Re-pointed by feature 074 from `price_lists`, which is now core, onto the
     // spec's own example: a client selling on 30-day credit terms who takes no
-    // online payment, with the four gateway modules that resolve `payments`.
-    const dependents = ['autopay', 'payu', 'stripe', 'tpay'];
+    // online payment, with the gateway modules that resolve `payments`.
+    const dependents = dependantsOf('payments');
     registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => !dependents.includes(id)));
 
     const res = await flip('payments', false);
@@ -317,8 +347,12 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     const res = await flip('payments', false);
     expect(res.statusCode).toBe(409);
     expect(res.json().error.code).toBe('MODULE_DEPENDENTS_PRESENT');
+    // The same derivation as the case above, and the second copy of the list
+    // that went stale: this one survived `paypal` only because
+    // `arrayContaining` is a subset check, so it asserted four fifths of the
+    // property and reported nothing about the fifth.
     expect(res.json().error.details.blockedBy).toEqual(
-      expect.arrayContaining(['autopay', 'payu', 'stripe', 'tpay']),
+      expect.arrayContaining(dependantsOf('payments')),
     );
   });
 

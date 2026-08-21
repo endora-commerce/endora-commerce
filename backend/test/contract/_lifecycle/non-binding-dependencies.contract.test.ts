@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { ModuleManifest } from '@b2b/contracts';
@@ -39,9 +40,9 @@ function entry(moduleId: string, stamp: string, tail: string): MigrationRegistry
 }
 
 /**
- * The production derivation, spelled exactly as `src/db/mikro-orm.config.ts`
- * spells it. A test that built the graph its own way would pass while the real
- * one drifted.
+ * The production derivation, spelled exactly as the one site below spells it.
+ * A test that built the graph its own way would pass while the real one
+ * drifted.
  */
 function orderingGraph(
   manifests: readonly ModuleManifest[],
@@ -100,6 +101,84 @@ const readerWithdrawing = defineModuleManifest({
   ],
 });
 
+const SRC_ROOT = fileURLToPath(new URL('../../../src', import.meta.url));
+
+function walkSources(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules' || name === 'dist') continue;
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) walkSources(full, out);
+    else if (full.endsWith('.ts')) out.push(full);
+  }
+  return out;
+}
+
+/**
+ * Every place in `backend/src` that *builds* the ordering graph, with the
+ * `new Map(...)` argument list of each.
+ *
+ * This used to name `src/db/mikro-orm.config.ts` and match
+ * `/moduleDependencies\s*=\s*new Map[\s\S]*?\n\]\);/`, and issue #289 broke it
+ * three ways at once: the map moved to `configured-migrations.ts`, the `=`
+ * became a `:` as it turned into an inline property, and the `\n]);` terminator
+ * became `\n  ]),`. Any one of those alone would have been enough. Two things
+ * follow, and they pull in the same direction.
+ *
+ * The first is that a path is the wrong handle. The property D-44 asks about is
+ * *"nowhere in this platform's sources is the ordering graph built from
+ * anything but `dependencies`"*, which is a claim about the tree and not about
+ * a filename, so the guard resolves the site instead of being told where it is.
+ * A benign move now stays green — that is deliberate, and it is what cost this
+ * repository a red `master` for the property's sake without the property ever
+ * having been violated.
+ *
+ * The second is that resolving is only safe if *not finding it* is a failure,
+ * so the caller asserts **exactly one** site. Zero means renamed, deleted, or
+ * moved out of `src` — the cases where a path-based guard was genuinely
+ * earning its keep, all still red. More than one means a second derivation
+ * appeared, which the old single-file guard could not see at all and which is
+ * precisely how the field would be unioned in without this test noticing.
+ *
+ * The argument list is taken by bracket counting rather than by a terminator
+ * pattern, so the reformatting half of #289 cannot break it again.
+ */
+function orderingGraphSites(): { file: string; expression: string }[] {
+  const files = walkSources(SRC_ROOT);
+
+  // The vacuous-pass floor: a walk that read nothing would report no sites,
+  // and "no sites" is this test's loudest failure — it must mean the map is
+  // gone, never that the walk was blind.
+  expect(files.length, `no TypeScript sources under ${SRC_ROOT}`).toBeGreaterThan(0);
+
+  const sites: { file: string; expression: string }[] = [];
+  for (const file of files) {
+    const source = readFileSync(file, 'utf8');
+    // Both binding shapes: a `const … = new Map` and an inline `…: new Map`
+    // property. #289 turned the first into the second.
+    const pattern = /moduleDependencies\s*[:=]\s*new Map\s*(?:<[^>]*>)?\s*\(/g;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(source)) !== null) {
+      const open = match.index + match[0].length - 1;
+      let depth = 0;
+      let end = -1;
+      for (let i = open; i < source.length; i += 1) {
+        const ch = source[i];
+        if (ch === '(') depth += 1;
+        else if (ch === ')') {
+          depth -= 1;
+          if (depth === 0) {
+            end = i;
+            break;
+          }
+        }
+      }
+      expect(end, `unbalanced parentheses after the map in ${file}`).toBeGreaterThan(open);
+      sites.push({ file, expression: source.slice(match.index, end + 1) });
+    }
+  }
+  return sites;
+}
+
 describe('nonBindingDependencies — invisible to the migration order', () => {
   it('a declared dependency does order the pair', () => {
     // The control. Without it the assertion below would pass on a graph that
@@ -120,16 +199,19 @@ describe('nonBindingDependencies — invisible to the migration order', () => {
   it('the ordering graph is built from `dependencies` and from nothing else', () => {
     // The derivation, at its one production site. `orderMigrations` takes a map
     // and cannot defend this itself, so the guard has to read the expression
-    // that builds the map.
-    const source = readFileSync(
-      fileURLToPath(new URL('../../../src/db/mikro-orm.config.ts', import.meta.url)),
-      'utf8',
-    );
-    const graphExpression = /moduleDependencies\s*=\s*new Map[\s\S]*?\n\]\);/.exec(source);
+    // that builds the map — wherever in `src` that expression lives.
+    const sites = orderingGraphSites();
 
-    expect(graphExpression, 'the moduleDependencies map moved or was renamed').not.toBeNull();
-    expect(graphExpression?.[0]).toContain('manifest.dependencies');
-    expect(graphExpression?.[0]).not.toContain('nonBindingDependencies');
-    expect(graphExpression?.[0]).not.toContain('acknowledgedDependencies');
+    expect(
+      sites.map((site) => site.file),
+      'the moduleDependencies map was renamed, deleted or moved out of backend/src — ' +
+        'or a second derivation of the ordering graph appeared, which is the change ' +
+        'this test exists to refuse',
+    ).toHaveLength(1);
+
+    const expression = sites[0]!.expression;
+    expect(expression).toContain('manifest.dependencies');
+    expect(expression).not.toContain('nonBindingDependencies');
+    expect(expression).not.toContain('acknowledgedDependencies');
   });
 });
