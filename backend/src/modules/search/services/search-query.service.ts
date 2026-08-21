@@ -1,4 +1,4 @@
-import { Meilisearch, type SearchResponse } from 'meilisearch';
+import { Meilisearch, MeilisearchApiError, type SearchResponse } from 'meilisearch';
 import {
   ERROR_CODES,
   isProductVisibleTo,
@@ -15,7 +15,11 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { encodeCursor, decodeCursor } from '../../../http/cursor.js';
-import { indexUidFor, type IndexedDocument } from './search-indexer.js';
+import {
+  indexUidFor,
+  type IndexedDocument,
+  type SortableAttribute,
+} from './search-indexer.js';
 
 /**
  * SearchQueryService (T068).
@@ -197,12 +201,20 @@ export class SearchQueryService {
         ],
       });
     } catch (err) {
-      // Reserved-fallback (R-08): the dispatcher in routes.public.ts catches
-      // this and re-runs the request through the Postgres path. Re-throw so
-      // the caller can decide.
-      throw new SearchBackendUnavailable(
-        err instanceof Error ? err.message : String(err),
-      );
+      // Reserved-fallback (R-08): `searchQueryPort` converts this into the
+      // `index-unavailable` arm and `catalog`'s listing re-runs the request
+      // through the Postgres path. Re-throw so the owner's port can decide.
+      //
+      // Issue #287 — but say *which* failure it was. Every failure of this
+      // call used to be wrapped as "unavailable", so a healthy engine
+      // refusing the query (`invalid_search_sort`, because the index carried
+      // no sortable attributes; `index_not_found`; a bad API key) was filed
+      // under the one heading an operator reads as transient. The degrade is
+      // still a degrade — a public catalogue must not 503 because search is
+      // unhappy — but a refusal is a defect on this side of the wire, so it
+      // names the engine's own error code and gets reported by this module
+      // rather than only by whoever happened to call it.
+      throw searchBackendFailure(err, indexUid);
     }
 
     const hits = response.hits.slice(0, params.limit);
@@ -310,11 +322,73 @@ export class SearchQueryService {
   }
 }
 
+/**
+ * Why the index did not answer this query — issue #287.
+ *
+ * `unreachable` is the engine being down, unroutable or timing out: transient,
+ * nobody's mistake, and the Postgres fallback is the whole answer.
+ *
+ * `refused` is the engine answering, in milliseconds, that it will not run
+ * *this* query — an unsortable attribute, a missing index, a rejected API key.
+ * It is deterministic, it will not pass on its own, and it is a defect in this
+ * module's configuration of the index. Both still degrade to Postgres; only
+ * one of them is worth waking somebody for.
+ */
+export type SearchBackendFailureKind = 'unreachable' | 'refused';
+
 export class SearchBackendUnavailable extends Error {
-  constructor(message: string) {
-    super(`Meilisearch unavailable: ${message}`);
+  constructor(
+    message: string,
+    /** Which of the two facts this is. */
+    readonly kind: SearchBackendFailureKind = 'unreachable',
+    /** Meilisearch's own error code for a refusal; `null` when unreachable. */
+    readonly code: string | null = null,
+  ) {
+    super(message);
     this.name = 'SearchBackendUnavailable';
   }
+}
+
+/**
+ * Conditions this module has already reported. Module scope and never reset —
+ * the same shape `plugin.ts` uses for an out-of-scope setting (D-43), and for
+ * the same reason: an index setting is a deployment fact, and a public listing
+ * would otherwise report it on every request of every page.
+ */
+const reportedSearchRefusals = new Set<string>();
+
+/**
+ * Classify a failed Meilisearch call, and report a refusal once per code.
+ *
+ * The report is `console.error` rather than a request logger because the
+ * failure belongs to the module, not to the request that happened to hit it —
+ * the same call fails identically for the reindex sweep and the typeahead —
+ * and because the consumer's own line (`meilisearch unavailable; falling back
+ * to postgres`, at `warn`) is the line this exists to contradict.
+ */
+function searchBackendFailure(err: unknown, indexUid: string): SearchBackendUnavailable {
+  const message = err instanceof Error ? err.message : String(err);
+  const status = err instanceof MeilisearchApiError ? err.response.status : null;
+  // A 4xx is the engine declining the request. 429 is not: it is the engine
+  // saying "not now", which is an availability answer.
+  const refused = status !== null && status >= 400 && status < 500 && status !== 429;
+  if (!refused) return new SearchBackendUnavailable(`Meilisearch unavailable: ${message}`);
+
+  const code =
+    (err instanceof MeilisearchApiError ? err.cause?.code : undefined) ?? `http_${status}`;
+  if (!reportedSearchRefusals.has(code)) {
+    reportedSearchRefusals.add(code);
+    console.error(
+      `search: Meilisearch refused a query on "${indexUid}" with "${code}" — this is a ` +
+        `configuration defect, not an outage, and every affected listing is silently ` +
+        `falling back to Postgres until it is fixed. ${message}`,
+    );
+  }
+  return new SearchBackendUnavailable(
+    `Meilisearch refused the query (${code}): ${message}`,
+    'refused',
+    code,
+  );
 }
 
 export function buildFilterExpression(
@@ -336,11 +410,25 @@ export function buildFilterExpression(
   return out;
 }
 
+/**
+ * A Meilisearch sort expression this module is allowed to build — issue #287.
+ *
+ * The field half is {@link SortableAttribute}, so a sort naming something the
+ * indexer never declared sortable does not compile. That is the compile-time
+ * half of the guarantee; `SORTABLE_ATTRIBUTES` being the indexer's own input is
+ * the other half. Before the two were tied together, `buildSort` returned
+ * plain `string[]` and cheerfully asked five live indexes to sort on fields
+ * they had never been told about.
+ */
+export type SearchSortExpression = `${SortableAttribute}:${'asc' | 'desc'}`;
+
 export function buildSort(
   sort: SearchListProductsParams['sort'],
-): string[] {
+): SearchSortExpression[] {
+  // `relevance` and the absent sort both leave the ordering to the engine's
+  // ranking rules, which need no sortable attribute.
   if (sort === undefined || sort === 'relevance') return [];
-  if (sort === '-createdAt') return ['updatedAt:desc'];
+  if (sort === '-createdAt') return ['createdAt:desc'];
   if (sort === 'name') return ['name:asc'];
   if (sort === '-name') return ['name:desc'];
   return [];

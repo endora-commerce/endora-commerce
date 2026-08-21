@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { ANONYMOUS_PRODUCT_AUDIENCE, type CatalogProductReadPort } from '@b2b/contracts';
 import {
   buildFilterExpression,
-  buildSort,
   SearchBackendUnavailable,
   SearchQueryService,
 } from '../../../src/modules/search/services/search-query.service.js';
@@ -47,18 +46,14 @@ describe('buildFilterExpression', () => {
   });
 });
 
-describe('buildSort', () => {
-  it('returns [] for relevance/undefined (Meilisearch picks ranking rules)', () => {
-    expect(buildSort(undefined)).toEqual([]);
-    expect(buildSort('relevance')).toEqual([]);
-  });
-
-  it('translates the catalog sort tokens', () => {
-    expect(buildSort('-createdAt')).toEqual(['updatedAt:desc']);
-    expect(buildSort('name')).toEqual(['name:asc']);
-    expect(buildSort('-name')).toEqual(['name:desc']);
-  });
-});
+/**
+ * `buildSort` is covered by `search-sort-attributes.test.ts` (issue #287),
+ * where the translation is asserted against the `SORTABLE_ATTRIBUTES`
+ * declaration it has to agree with. The block that lived here asserted the
+ * translation alone — including `-createdAt` → `updatedAt:desc`, a field no
+ * index had ever been told it could sort on — which is how three sorts that
+ * failed on the live engine kept a green unit test.
+ */
 
 describe('SearchQueryService — reserved-fallback contract', () => {
   it('throws SearchBackendUnavailable when Meilisearch is unreachable', async () => {
