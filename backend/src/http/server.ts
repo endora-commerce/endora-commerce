@@ -9,6 +9,7 @@ import {
   type ZodTypeProvider,
 } from '@fastify/type-provider-zod';
 
+import { attachPlatformLogger } from '../kernel/logging.js';
 import { registerErrorEnvelope } from './error-envelope.js';
 import {
   attachOpenApiAutoRegistration,
@@ -108,6 +109,23 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     // the hop it trusts.
     trustProxy: options.trustedProxy ?? false,
     disableRequestLogging: false,
+  });
+
+  // Issue #269 — this is the moment the log the platform actually collects
+  // comes into existence, so it is where every module's `ctx.log` is pointed at
+  // it. Doing it here rather than in a composition root is what stops the two
+  // roots from drifting on it (they already had: `composition.ts` passed the
+  // global `console` and the harness passed a no-op) and covers all four entry
+  // points with one call — `index.ts`, `worker.ts`, the test harness and the
+  // overlay runtime all reach the platform's logger through `buildServer`.
+  //
+  // Detached on close, and the detach is a no-op once a later server has
+  // attached, so a suite that closes an earlier app does not silence the
+  // current one. See `kernel/logging.ts` for what a line emitted while nothing
+  // is attached does instead.
+  const detachPlatformLogger = attachPlatformLogger(app.log);
+  app.addHook('onClose', () => {
+    detachPlatformLogger();
   });
 
   app.setValidatorCompiler(validatorCompiler);

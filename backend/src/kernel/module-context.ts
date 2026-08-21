@@ -22,6 +22,7 @@ import {
   type WorkerLogger,
 } from './lifecycle/plugin-helpers.js';
 import type { KernelContainer, KernelCradle } from './container.js';
+import { moduleLogger } from './logging.js';
 import { registerPort } from './ports/provide.js';
 
 /**
@@ -445,6 +446,20 @@ export interface ModuleContext {
    */
   onBoot(hook: ModuleBootHook): void;
 
+  /**
+   * The platform's logger, bound to this module (issue #269).
+   *
+   * Every line it writes carries `module: '<this module's id>'`, and carries
+   * `reqId` when it is written during a request — neither of which the author
+   * names. The destination is whatever the composition root passed, which for
+   * every root that builds a server is the application's own pino instance from
+   * the moment `buildServer` returns; see `kernel/logging.ts` for what a line
+   * emitted before that, or from a process that builds no server, reaches.
+   *
+   * It is safe to keep: four modules hand it to a service that holds it for the
+   * life of the process, and both the destination and the request correlation
+   * are read per line rather than captured.
+   */
   readonly log: ModuleLifecycleLogger;
 }
 
@@ -685,6 +700,11 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
       sink.bootHooks.push(hook);
     },
 
-    log,
+    // Issue #269 — attribution and request correlation are applied here, over
+    // whatever destination the root passed, so they hold for every root and for
+    // a context built by hand in a test. The composer's own lines (the
+    // decoration report) are the composition's, not a module's, and go to the
+    // unwrapped `log`.
+    log: moduleLogger(module.id, log),
   };
 }

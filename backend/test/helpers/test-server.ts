@@ -45,6 +45,7 @@ import {
   composeModules,
   createRegistrationOwnership,
   createRootContainer,
+  platformLogger,
   registerOrm,
   registerValues,
   requiredModulesFrom,
@@ -959,7 +960,12 @@ export async function setupBackendServer(
   const composedModules = composeModules([...MODULES, ...overlayModuleEntries], {
     container,
     eventBus,
-    log: { info: () => {}, warn: () => {}, error: () => {} },
+    // Issue #269 — mirrors `composition.ts`. This root used to pass a no-op
+    // while production passed the global `console`, so the two disagreed on
+    // where a module's log line went and no test could see either. Both pass
+    // the late-bound platform logger now, which `buildServer` points at the
+    // app's pino instance below.
+    log: platformLogger(),
     interceptorRegistry: apiInterceptors,
     ownership: registrationOwnership,
     // Issue #258 — mirrors `composition.ts`: derived from the same resolved
