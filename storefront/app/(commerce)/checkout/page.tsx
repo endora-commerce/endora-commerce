@@ -15,11 +15,13 @@ import { getStripeStorefrontConfig, getStripeClientSecret } from '../../../lib/a
 import { getTpayStorefrontConfig } from '../../../lib/api/tpay';
 import { getPayuStorefrontConfig } from '../../../lib/api/payu';
 import { getAutopayStorefrontConfig } from '../../../lib/api/autopay';
+import { getPaypalStorefrontConfig } from '../../../lib/api/paypal';
 import {
   STRIPE_REDIRECT_RENDERER_KEY,
   TPAY_REDIRECT_RENDERER_KEY,
   PAYU_REDIRECT_RENDERER_KEY,
   AUTOPAY_REDIRECT_RENDERER_KEY,
+  PAYPAL_REDIRECT_RENDERER_KEY,
 } from '../../../lib/payment-renderers/registry';
 import {
   StripeInlinePaymentMethods,
@@ -80,6 +82,7 @@ export default async function CheckoutPage({
     Awaited<ReturnType<typeof getTpayStorefrontConfig>> | null,
     Awaited<ReturnType<typeof getPayuStorefrontConfig>> | null,
     Awaited<ReturnType<typeof getAutopayStorefrontConfig>> | null,
+    Awaited<ReturnType<typeof getPaypalStorefrontConfig>> | null,
   ];
   try {
     loaded = await Promise.all([
@@ -102,6 +105,7 @@ export default async function CheckoutPage({
       getTpayStorefrontConfig().catch(() => null),
       getPayuStorefrontConfig().catch(() => null),
       getAutopayStorefrontConfig().catch(() => null),
+      getPaypalStorefrontConfig().catch(() => null),
     ]);
   } catch (err) {
     // A stale/expired `b2b_session` cookie is still truthy, so it slips past
@@ -126,6 +130,7 @@ export default async function CheckoutPage({
     tpayConfig,
     payuConfig,
     autopayConfig,
+    paypalConfig,
   ] = loaded;
   // `carts` is not present (issue #132). There is nothing to check out, and the
   // cart page owns the copy that says so — sending the buyer there is one
@@ -210,6 +215,21 @@ export default async function CheckoutPage({
         rendererKey: AUTOPAY_REDIRECT_RENDERER_KEY,
       };
       paymentMethods = [...nonAutopay, collapsed];
+    }
+  }
+
+  if (paypalConfig?.active && paypalConfig.displayMode === 'redirect') {
+    const paypalMethods = paymentMethods.filter((m) => m.adapter === 'paypal');
+    if (paypalMethods.length > 0) {
+      const nonPaypal = paymentMethods.filter((m) => m.adapter !== 'paypal');
+      const primary =
+        paypalMethods.find((m) => m.code === 'paypal_checkout') ?? paypalMethods[0]!;
+      const collapsed = {
+        ...primary,
+        name: { default: 'PayPal', 'en-US': 'PayPal', 'pl-PL': 'PayPal' },
+        rendererKey: PAYPAL_REDIRECT_RENDERER_KEY,
+      };
+      paymentMethods = [...nonPaypal, collapsed];
     }
   }
 
@@ -505,6 +525,9 @@ async function submitAction(formData: FormData): Promise<void> {
   }
   if (order.paymentMethod?.code?.startsWith('payu_')) {
     redirect(`/checkout/pay?id=${order.id}&gateway=payu`);
+  }
+  if (order.paymentMethod?.code?.startsWith('paypal_')) {
+    redirect(`/checkout/pay?id=${order.id}&gateway=paypal`);
   }
   redirect(`/checkout/success?id=${order.id}`);
 }

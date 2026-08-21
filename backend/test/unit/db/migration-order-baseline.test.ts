@@ -354,6 +354,8 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260821T084923PayuFailureStatusOnHold',
   'Migration20260821T084924TpayFailureStatusOnHold',
   'Migration20260821T084925AutopayFailureStatusOnHold',
+  'Migration20260821T110651PaypalInit',
+  'Migration20260821T110652PaypalSeedPaymentMethods',
 ];
 
 describe('migration order — the pre-081 baseline (T001)', () => {

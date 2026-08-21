@@ -208,6 +208,10 @@ import { Migration20260720T044254OrganizationsOrgHierarchy } from '../modules/or
 import { Migration20260611T140353PaymentMethodsAdapter } from '../modules/payment_methods/migrations/20260611T140353_payment_methods_adapter.js';
 import { Migration20260821T084920PaymentMethodsFailureStatusOnHold } from '../modules/payment_methods/migrations/20260821T084920_payment_methods_failure_status_on_hold.js';
 
+// ── paypal ──────────────────────────────────────────────────────────────────
+import { Migration20260821T110651PaypalInit } from '../modules/paypal/migrations/20260821T110651_paypal_init.js';
+import { Migration20260821T110652PaypalSeedPaymentMethods } from '../modules/paypal/migrations/20260821T110652_paypal_seed_payment_methods.js';
+
 // ── payu ────────────────────────────────────────────────────────────────────
 import { Migration20260801T100943PayuInit } from '../modules/payu/migrations/20260801T100943_payu_init.js';
 import { Migration20260816T053830PayuSeedPaymentMethods } from '../modules/payu/migrations/20260816T053830_payu_seed_payment_methods.js';
@@ -476,6 +480,10 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── payment_methods ─────────────────────────────────────────────────────────
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),
   migration('payment_methods', Migration20260821T084920PaymentMethodsFailureStatusOnHold),
+
+  // ── paypal ──────────────────────────────────────────────────────────────────
+  migration('paypal', Migration20260821T110651PaypalInit),
+  migration('paypal', Migration20260821T110652PaypalSeedPaymentMethods),
 
   // ── payu ────────────────────────────────────────────────────────────────────
   migration('payu', Migration20260801T100943PayuInit),

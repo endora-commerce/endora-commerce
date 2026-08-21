@@ -66,7 +66,7 @@ export function paymentRetryDestination(
   // The same three prefixes `/checkout` routes on after placement. A code from
   // any other adapter has no inline step and belongs back on the order page.
   if (gateway === 'stripe') return `/checkout/pay?id=${encodeURIComponent(orderId)}`;
-  if (gateway === 'tpay' || gateway === 'payu') {
+  if (gateway === 'tpay' || gateway === 'payu' || gateway === 'paypal') {
     return `/checkout/pay?id=${encodeURIComponent(orderId)}&gateway=${gateway}`;
   }
   return null;
