@@ -1953,12 +1953,17 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
-    // Two axes, and a proof for each value of each: the shape the read reaches
-    // the fallback through (two-step, inline, plain assignment) and the
-    // fabrication the fallback performs (string, `||` string, `randomUUID()`,
-    // number). Both matter and neither implies the other — a check that saw only
-    // `?? ''` after a `const` would have reported zero over the `randomUUID()`
-    // site this MR fixed, and zero reads exactly like a clean tree.
+    // Three axes, and a proof for each value of each: the shape the read reaches
+    // the fallback through (two-step, inline, plain assignment), the **binding**
+    // the read lands in (plain name, array pattern, object pattern,
+    // destructuring assignment) and the fabrication the fallback performs
+    // (string, `||` string, `randomUUID()`, number). None implies another — a
+    // check that saw only `?? ''` after a `const` would have reported zero over
+    // the `randomUUID()` site the first MR fixed, and one that saw every
+    // fallback but only a plain-name binding reported zero over the two live
+    // sites of issue #275. Zero reads exactly like a clean tree in both cases.
+    // The dialect the read is written in is a fourth: `getKnex()` chains name
+    // no read at the tail the walk was reading.
     //
     // The negatives are the companion test's, not this file's: an inventory
     // entry proves a check can still go red, and a proof that a check stays
@@ -2026,6 +2031,68 @@ const CHECKS: readonly CheckEntry[] = [
           [
             'const stockBefore = await em.findOne(StockLevel, { productId });',
             'const reservedBefore = stockBefore?.reserved ?? 0;',
+          ].join('\n'),
+        ),
+      ),
+      // Issue #275's five, and the first three are one axis the check did not
+      // have: the **binding shape**. `const [channel] = await em.execute(…)`
+      // bound no name, so the `??` under it was rooted in nothing and the file
+      // reported clean for a year — the dialect was never the problem
+      // (`execute` was in the vocabulary from the start) and the same
+      // destructuring hid an ORM read just as completely, which is why the
+      // object shape is proven separately from the array one.
+      'array-destructured-read': top(() =>
+        defaultedReads(
+          'integration/dictionaries/reference-registry-consumers.test.ts',
+          [
+            'const [channel] = await em.execute(',
+            '  `select "default_language" as code from "sales_channels"`,',
+            ') as Array<{ code: string }>;',
+            "const code = channel?.code ?? 'en-US';",
+          ].join('\n'),
+        ),
+      ),
+      'object-destructured-read': top(() =>
+        defaultedReads(
+          'integration/x.test.ts',
+          [
+            'const { defaultCurrency } = (await em.findOne(SalesChannel, {})) as SalesChannel;',
+            "const code = defaultCurrency ?? 'PLN';",
+          ].join('\n'),
+        ),
+      ),
+      // A `let` in the file body assigned inside a `beforeAll` — an expression
+      // target rather than a binding name, and a separate code path from both.
+      'destructuring-assignment': top(() =>
+        defaultedReads(
+          'integration/x.test.ts',
+          [
+            'let channel;',
+            "[channel] = await em.execute('select code from sales_channels');",
+            "const code = channel?.code ?? 'en-US';",
+          ].join('\n'),
+        ),
+      ),
+      // The other two are the query-builder dialect, and they fail differently:
+      // a chain whose **tail** names no read, and a chain that names no read
+      // **anywhere** because its receiver is a bare identifier. A proof of the
+      // first alone would stay green with the binding pass deleted.
+      'builder-chain': top(() =>
+        defaultedReads(
+          'integration/x.test.ts',
+          [
+            "const rows = await em.getKnex().select('*').from('sales_channels');",
+            "const code = rows[0]?.code ?? 'en-US';",
+          ].join('\n'),
+        ),
+      ),
+      'bound-builder': top(() =>
+        defaultedReads(
+          'integration/x.test.ts',
+          [
+            'const knex = h.em().getConnection().getKnex();',
+            "const rows = await knex('sales_channels').where('system_default', true);",
+            "const code = rows[0]?.code ?? 'en-US';",
           ].join('\n'),
         ),
       ),
@@ -4283,8 +4350,13 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-error-translations.ts': 5,
       // Three shapes the read reaches the fallback through, four fabrications
       // the fallback performs; the two axes are independent, so the count is
-      // their union rather than their product.
-      'backend/scripts/check-fixture-substitution.ts': 6,
+      // their union rather than their product. Plus issue #275's five: three
+      // binding shapes the pass could not see (array, object, destructuring
+      // assignment) and two builder dialects that name no read where the walk
+      // was looking. The binding axis is a third one, orthogonal to both the
+      // others — the two live sites it hid were `execute` reads, in a dialect
+      // the check had recognised since the day it landed.
+      'backend/scripts/check-fixture-substitution.ts': 11,
       'backend/scripts/check-harness-teardown.ts': 8,
       'backend/scripts/check-kernel-boundary.ts': 3,
       // Two spellings of the lock claim, the one that never writes the word,
