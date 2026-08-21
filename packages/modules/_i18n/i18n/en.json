@@ -321,6 +321,8 @@
   "appShell.palette.sub.categoryTree": "Tree of catalog categories",
   "appShell.palette.sub.compareAudit": "Compare-feature audit",
   "appShell.palette.sub.credentials": "Reusable provider credential configurations",
+  "appShell.palette.sub.pimPimcore": "Pimcore complete-record ingress",
+  "appShell.palette.sub.pimPimcoreRuns": "Pimcore delivery history",
   "appShell.palette.sub.creditLimits": "Customer credit limits & balances",
   "appShell.palette.sub.customerAccounts": "Customer accounts",
   "appShell.palette.sub.customerRfqs": "Customer RFQs",

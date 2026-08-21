@@ -321,6 +321,8 @@
   "appShell.palette.sub.categoryTree": "Drzewo kategorii katalogu",
   "appShell.palette.sub.compareAudit": "Audyt porównań",
   "appShell.palette.sub.credentials": "Konfiguracje poświadczeń do wielokrotnego użytku",
+  "appShell.palette.sub.pimPimcore": "Odbiór pełnych rekordów z Pimcore",
+  "appShell.palette.sub.pimPimcoreRuns": "Historia dostaw Pimcore",
   "appShell.palette.sub.creditLimits": "Limity kredytowe i salda klientów",
   "appShell.palette.sub.customerAccounts": "Konta klientów",
   "appShell.palette.sub.customerRfqs": "Zapytania ofertowe klientów",
