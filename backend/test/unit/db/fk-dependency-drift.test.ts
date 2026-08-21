@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +17,7 @@ import {
   type FkEdge,
   type FkGraph,
   type FkReference,
+  type ModuleRoot,
   type MigrationSource,
 } from '../../helpers/fk-graph.js';
 import { TABLE_OWNER_OVERRIDES } from './table-owner-overrides.js';
@@ -89,6 +98,70 @@ function findViolations(
   return messages;
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * The population floor (issue #215; feature 080, T013).
+ *
+ * The two floors here used to be the numbers 50 and 150. A hand-written count
+ * is a copy of a derived fact — it says nothing about *which* modules were
+ * read, so a walk that lost half the tree still cleared it, and D-100 is the
+ * standing warning about exactly that copy. They are derived from
+ * `DISCOVERED_MANIFESTS`, a committed artefact this file already imports: it
+ * moves when the tree moves, and it names the modules rather than counting them.
+ *
+ * Both are pure functions of the graph and the registry, so the proofs below
+ * drive them from a fixture tree on disk read by the same `deriveFkGraph` —
+ * a floor that only ever ran against the real tree is a floor nothing shows
+ * moving (issue #130).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const REGISTERED_IDS: readonly string[] = DISCOVERED_MANIFESTS.map((entry) => entry.id);
+
+/** Registered modules the scan resolved no directory for, under any root. */
+function modulesWithoutDirectories(graph: FkGraph, registered: readonly string[]): string[] {
+  return registered.filter((id) => !graph.modules.has(id));
+}
+
+/** Does the module's resolved directory hold TypeScript directly under `folder`? */
+function shipsTypeScriptIn(graph: FkGraph, moduleId: string, folder: string): boolean {
+  const scanned = graph.modules.get(moduleId);
+  if (scanned === undefined) return false;
+  const directory = join(scanned.directory, folder);
+  return existsSync(directory) && readdirSync(directory).some((f) => f.endsWith('.ts'));
+}
+
+/**
+ * Module ids the committed migration registry attributes a migration to, read
+ * out of its import specifiers.
+ *
+ * Text rather than an import: the registry pulls in 250 migration classes, and
+ * the question here is which modules it *names*, which the specifiers answer
+ * without loading anything. It is the same recognizer `read-size.sh` uses on
+ * the manifest index, and for the same reason — the generator cannot emit those
+ * paths differently without moving every migration.
+ */
+function modulesWithMigrationsInRegistry(registrySource: string): string[] {
+  const found = new Set<string>();
+  for (const match of registrySource.matchAll(/from '\.\.\/modules\/([A-Za-z0-9_]+)\/migrations\//g)) {
+    found.add(match[1]!);
+  }
+  return [...found].sort();
+}
+
+/**
+ * Modules a second committed artefact says ship migrations, out of which this
+ * walk opened no file at all.
+ *
+ * This is the "no **module** files" half, and it needs an *independent* source
+ * or it is the same walk asked twice: a module whose directory resolved and
+ * whose migrations the scan never read attributes no table, contributes no
+ * reference, and is indistinguishable from a module that ships no schema. A
+ * count would not do — 44 of the registered modules legitimately ship no
+ * migration at all, so the floor has to name which ones it expects.
+ */
+function modulesWithoutSources(graph: FkGraph, expected: readonly string[]): string[] {
+  return expected.filter((id) => (graph.modules.get(id)?.files ?? 0) === 0);
+}
+
 describe('fk drift — V1 zero violations against the real tree (SC-011)', () => {
   it('every cross-module foreign key is declared or acknowledged', () => {
     const violations = findViolations(
@@ -99,40 +172,45 @@ describe('fk drift — V1 zero violations against the real tree (SC-011)', () =>
     expect(violations, violations.join('\n\n')).toEqual([]);
   });
 
-  // The scan is a filesystem walk over `src/modules`, and its two floors used
-  // to be the numbers 50 and 150 (issue #215). A hand-written count is a copy of
-  // a derived fact — it says nothing about *which* modules were read, so a walk
-  // that lost half the tree still cleared it, and D-100 is the standing warning
-  // about exactly that copy. Both floors below are derived from
-  // `DISCOVERED_MANIFESTS`, a committed artefact this file already imports: it
-  // moves when the tree moves, and it names the modules rather than counting
-  // them.
-  const registeredIds = DISCOVERED_MANIFESTS.map((entry) => entry.id);
-
-  const shipsTypeScriptIn = (moduleId: string, folder: string): boolean => {
-    const directory = join(backendSrc, 'modules', moduleId, folder);
-    return existsSync(directory) && readdirSync(directory).some((f) => f.endsWith('.ts'));
-  };
-
   it('resolves a directory for every registered module (the tree is where it looks)', () => {
     // A moved module tree makes the walk read a residue and report on it. This
     // is the "path that must resolve" half: the registry says the module is
     // there, so a scan that cannot find it is an error, never an empty result.
-    const missing = registeredIds.filter(
-      (id) => !existsSync(join(backendSrc, 'modules', id)),
+    const missing = modulesWithoutDirectories(graph, REGISTERED_IDS);
+    expect(missing, `registered, and no directory under any scanned root: ${missing.join(', ')}`)
+      .toEqual([]);
+  });
+
+  it('reads a source for every module the migration registry names', () => {
+    // The "no **module** files" half (feature 080, T013). The directory
+    // resolving is not enough: a *partial* move — the one a package split
+    // performs — leaves the walk short rather than empty, and a scan that
+    // opened none of a module's files attributes none of its tables, which
+    // reads as a clean graph and not as a broken scan.
+    const expected = modulesWithMigrationsInRegistry(
+      readFileSync(join(backendSrc, 'db', 'migrations-registry.generated.ts'), 'utf8'),
     );
-    expect(missing, `registered but absent under src/modules: ${missing.join(', ')}`).toEqual([]);
+    expect(
+      expected.length,
+      'the migration registry named no module at all — the recognizer, not the tree',
+    ).toBeGreaterThan(0);
+    const unread = modulesWithoutSources(graph, expected);
+    expect(
+      unread,
+      `the migration registry files migrations under these modules and the scan opened ` +
+        `no file in them: ${unread.join(', ')}`,
+    ).toEqual([]);
   });
 
   it('resolves an owner for every registered module that ships entities', () => {
-    // The second half: the directory is there and the entity pass still matched
-    // inside it. A `tableName:` regex that stopped matching would leave every
-    // table unowned and every cross-module edge unattributed, which reads as a
-    // clean tree rather than as a broken scan.
+    // The third: the files were opened and the `tableName:` regex still matched
+    // inside them. A regex that stopped matching would leave every table
+    // unowned and every cross-module edge unattributed, with both floors above
+    // still green.
     const owners = new Set(graph.entityOwners.values());
-    const unread = registeredIds
-      .filter((id) => shipsTypeScriptIn(id, 'entities'))
-      .filter((id) => !owners.has(id));
+    const unread = REGISTERED_IDS.filter((id) => shipsTypeScriptIn(graph, id, 'entities')).filter(
+      (id) => !owners.has(id),
+    );
     expect(
       unread,
       `these modules ship an entities/ directory the scan read no table out of: ${unread.join(', ')}`,
@@ -541,11 +619,32 @@ interface PositionFinding {
  *   is emitted first, so that shape has no instance; if it acquires one, this
  *   comment is where to start.
  *
- * Baseline membership is tested on the stamp alone. The full rule is stamp
- * **and** `origin === 'core'` (`migration-order.ts`), but this scan walks
- * `backend/src` and out-of-core code contributes no schema (D-105), so every
- * file it can read is core.
+ * Baseline membership takes **both** conditions, `origin === 'core'` and the
+ * stamp, exactly as `isBaseline` in `migration-order.ts` does (D-154). It used
+ * to test the stamp alone, justified here by D-105 — *"out-of-core code
+ * contributes no schema"* — and **D-106 overruled that premise**: a package may
+ * ship migrations. A package migration stamped inside the baseline window is
+ * placed by `orderMigrations` in the open block, where nothing but a declared
+ * dependency orders it, and was skipped outright by the predicate below. That
+ * is a false negative on precisely the input this check exists for, and it was
+ * unreachable until T013 gave the scan roots it could tag (feature 080).
  */
+/**
+ * `isBaseline` from `migration-order.ts`, over a scanned file rather than a
+ * registry entry: **both** conditions, in one place, so the two readers below
+ * cannot drift apart from each other or from the algorithm.
+ *
+ * An unparsable stamp is not baseline — the callers report it as
+ * `unclassifiable-position` rather than letting it fall either way.
+ */
+function isBaselineBlock(migration: MigrationSource, baselineThrough: string): boolean {
+  return (
+    migration.origin === 'core' &&
+    migration.timestamp !== undefined &&
+    migration.timestamp <= baselineThrough
+  );
+}
+
 function findPositionViolations(
   graph: FkGraph,
   dependencies: ReadonlyMap<string, readonly string[]>,
@@ -570,8 +669,10 @@ function findPositionViolations(
 
     // The baseline block is closed, never reordered, and cannot grow: the
     // scaffolder clamps every new core stamp past the boundary. A foreign key
-    // created inside it is history, and history already applied.
-    if (declaring.timestamp <= baselineThrough) continue;
+    // created inside it is history, and history already applied — and only a
+    // *core* file's history is in that prefix, which is why the origin is half
+    // the test.
+    if (isBaselineBlock(declaring, baselineThrough)) continue;
 
     const creator = graph.tableCreators.get(reference.toTable);
     if (creator === undefined || creator.timestamp === undefined) {
@@ -589,7 +690,7 @@ function findPositionViolations(
       continue;
     }
 
-    if (creator.timestamp <= baselineThrough) continue;
+    if (isBaselineBlock(creator, baselineThrough)) continue;
     if (creator.moduleId === 'core') continue;
     if (creator.moduleId === declaring.moduleId) continue;
     if (closureOf(declaring.moduleId, dependencies).has(creator.moduleId)) continue;
@@ -648,9 +749,7 @@ function unclassifiableMessage(reference: FkReference, why: string): string {
  */
 function openBlockReferencesOf(graph: FkGraph, baselineThrough: string): FkReference[] {
   return graph.references.filter(
-    (reference) =>
-      reference.declaredIn.timestamp === undefined ||
-      reference.declaredIn.timestamp > baselineThrough,
+    (reference) => !isBaselineBlock(reference.declaredIn, baselineThrough),
   );
 }
 
@@ -713,15 +812,45 @@ describe('fk position — T021 proofs', () => {
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'fk-position-'));
+    // Both roots exist from the start: `deriveFkGraph` refuses a root that does
+    // not resolve, and a proof whose package root happened to be missing would
+    // fail on that refusal rather than on the shape it is about.
+    mkdirSync(join(root, 'modules'), { recursive: true });
+    mkdirSync(join(root, 'packages'), { recursive: true });
   });
 
   afterEach(() => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  /** `src/modules/<moduleId>/entities/<table>.entity.ts` — the ownership claim. */
-  function entity(moduleId: string, table: string): void {
-    const dir = join(root, 'modules', moduleId, 'entities');
+  /**
+   * The two roots every fixture below is read through: the core module tree,
+   * and one installed package's (D-106). The package root is created empty by
+   * `beforeEach`, so a proof that does not use it is read exactly as it was
+   * before T013 — the discrimination the origin proofs rest on is *which root a
+   * module was written under*, and nothing else.
+   */
+  function fixtureRoots(): ModuleRoot[] {
+    return [
+      { directory: join(root, 'modules'), origin: 'core' },
+      { directory: join(root, 'packages'), origin: 'external' },
+    ];
+  }
+
+  function graphOf(): FkGraph {
+    return deriveFkGraph(root, { moduleRoots: fixtureRoots() });
+  }
+
+  /** Where a fixture module's directory is written. */
+  type Where = 'core' | 'package';
+
+  function moduleDir(moduleId: string, where: Where): string {
+    return join(root, where === 'core' ? 'modules' : 'packages', moduleId);
+  }
+
+  /** `<root>/entities/<table>.entity.ts` — the ownership claim. */
+  function entity(moduleId: string, table: string, where: Where = 'core'): void {
+    const dir = join(moduleDir(moduleId, where), 'entities');
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, `${table}.entity.ts`),
@@ -736,11 +865,16 @@ describe('fk position — T021 proofs', () => {
    * A migration file carrying `sql`. `moduleId: 'core'` writes into
    * `src/db/migrations/`, which is how the scan recognizes the core chain.
    */
-  function migration(moduleId: string, filename: string, sql: string): void {
+  function migration(
+    moduleId: string,
+    filename: string,
+    sql: string,
+    where: Where = 'core',
+  ): void {
     const dir =
       moduleId === 'core'
         ? join(root, 'db', 'migrations')
-        : join(root, 'modules', moduleId, 'migrations');
+        : join(moduleDir(moduleId, where), 'migrations');
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, filename),
@@ -768,11 +902,7 @@ describe('fk position — T021 proofs', () => {
   }
 
   function findings(dependencies: Record<string, readonly string[]>): PositionFinding[] {
-    return findPositionViolations(
-      deriveFkGraph(root),
-      new Map(Object.entries(dependencies)),
-      BASELINE_THROUGH,
-    );
+    return findPositionViolations(graphOf(), new Map(Object.entries(dependencies)), BASELINE_THROUGH);
   }
 
   /** The one shape FR-013 exists for. */
@@ -914,14 +1044,78 @@ describe('fk position — T021 proofs', () => {
    * "no findings" as a clean tree.
    */
   it('G7 an empty tree yields an empty population, which is what the floor refuses', () => {
-    expect(openBlockReferencesOf(deriveFkGraph(root), BASELINE_THROUGH)).toEqual([]);
+    expect(openBlockReferencesOf(graphOf(), BASELINE_THROUGH)).toEqual([]);
 
     entity('a', 'a_table');
     entity('b', 'b_table');
     migration('b', '20260901T000000_b_init.ts', creates('b_table'));
     migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
 
-    expect(openBlockReferencesOf(deriveFkGraph(root), BASELINE_THROUGH)).toHaveLength(1);
+    expect(openBlockReferencesOf(graphOf(), BASELINE_THROUGH)).toHaveLength(1);
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * D-154 — baseline membership takes the origin, and only a scan with roots
+   * can tell one. Every proof below differs from its control by **one thing**:
+   * which root the module was written under.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  /**
+   * The false negative D-154 names, red. Under the stamp-alone rule this
+   * fixture produced no finding at all: `20260501T000000` is inside the
+   * baseline window, so the declaring migration was skipped before anything
+   * about its chain was examined — while `orderMigrations` puts it in the open
+   * block, where nothing orders it against `b`.
+   */
+  it('P4 refuses a package migration stamped inside the baseline window', () => {
+    entity('b', 'b_table');
+    entity('p', 'p_table', 'package');
+    migration('b', '20260901T000000_b_init.ts', creates('b_table'));
+    migration('p', '20260501T000000_p_init.ts', createsReferencing('p_table', 'b_table'), 'package');
+
+    const found = findings({ b: [], p: [] });
+
+    expect(found.map((finding) => finding.kind)).toEqual(['undeclared-open-edge']);
+    expect(found[0]!.message).toContain('p_table');
+    expect(found[0]!.message).toContain('b_table');
+  });
+
+  /** The same for the other end of the edge: the creator's origin counts too. */
+  it('P5 refuses an edge into a package table stamped inside the baseline window', () => {
+    entity('a', 'a_table');
+    entity('p', 'p_table', 'package');
+    migration('p', '20260501T000000_p_init.ts', creates('p_table'), 'package');
+    migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'p_table'));
+
+    const found = findings({ a: [], p: [] });
+
+    expect(found.map((finding) => finding.kind)).toEqual(['undeclared-open-edge']);
+    expect(found[0]!.message).toContain('a_table');
+    expect(found[0]!.message).toContain('p_table');
+  });
+
+  /**
+   * The discrimination for both: the same stamp, the same SQL, under the core
+   * root. Its order *is* history and it stays exempt — a check that reported
+   * this one would be refusing the frozen prefix itself.
+   */
+  it('G8 still ignores the same stamp when the module is core', () => {
+    entity('b', 'b_table');
+    entity('p', 'p_table');
+    migration('b', '20260901T000000_b_init.ts', creates('b_table'));
+    migration('p', '20260501T000000_p_init.ts', createsReferencing('p_table', 'b_table'));
+
+    expect(findings({ b: [], p: [] })).toEqual([]);
+  });
+
+  /** The declared dependency still exempts a package edge — (d) is origin-blind. */
+  it('G9 accepts a package edge once the dependency is declared', () => {
+    entity('b', 'b_table');
+    entity('p', 'p_table', 'package');
+    migration('b', '20260901T000000_b_init.ts', creates('b_table'));
+    migration('p', '20260501T000000_p_init.ts', createsReferencing('p_table', 'b_table'), 'package');
+
+    expect(findings({ b: [], p: ['b'] })).toEqual([]);
   });
 
   it('G0 the fixture tree is actually read', () => {
@@ -930,11 +1124,69 @@ describe('fk position — T021 proofs', () => {
     migration('b', '20260901T000000_b_init.ts', creates('b_table'));
     migration('a', '20260902T000000_a_init.ts', createsReferencing('a_table', 'b_table'));
 
-    const derived = deriveFkGraph(root);
+    const derived = graphOf();
     expect(derived.references.map((reference) => `${reference.from}→${reference.to}`)).toEqual([
       'a→b',
     ]);
     expect(derived.references[0]!.declaredIn.timestamp).toBe('20260902T000000');
     expect(derived.tableCreators.get('b_table')?.moduleId).toBe('b');
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * T013 — the population floor, shown moving.
+   *
+   * The floors above run against the real tree, where they are green by
+   * construction; a floor nothing has ever seen fire is a floor nobody knows
+   * the shape of (issue #130). Both proofs below drive the same functions the
+   * real-tree assertions call, from a fixture tree read by the same
+   * `deriveFkGraph` — the registry is the only thing supplied by hand, because
+   * the registry *is* the independent source and a fixture that derived it from
+   * the same walk would be asking one walk twice.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  it('F1 names a registered module no root holds a directory for', () => {
+    entity('a', 'a_table');
+
+    const derived = graphOf();
+
+    expect(modulesWithoutDirectories(derived, ['a', 'b', 'c'])).toEqual(['b', 'c']);
+    // The control: a registry that agrees with the tree refuses nothing, so the
+    // finding above is the missing modules rather than anything else the
+    // fixture did.
+    expect(modulesWithoutDirectories(derived, ['a'])).toEqual([]);
+  });
+
+  it('F2 names a module the migration registry files migrations under and the walk missed', () => {
+    entity('a', 'a_table');
+    migration('a', '20260901T000000_a_init.ts', creates('a_table'));
+    // `b` is a module directory with nothing in it — the partial move, which is
+    // what a package split performs: the walk is short, not empty, and every
+    // emptiness test is green on it.
+    mkdirSync(moduleDir('b', 'core'), { recursive: true });
+
+    const registry =
+      `import { M1 } from '../modules/a/migrations/20260901T000000_a_init.js';\n` +
+      `import { M2 } from '../modules/b/migrations/20260902T000000_b_init.js';\n`;
+    const expected = modulesWithMigrationsInRegistry(registry);
+
+    expect(expected).toEqual(['a', 'b']);
+    expect(modulesWithoutSources(graphOf(), expected)).toEqual(['b']);
+    // The control, one variable away: the registry that names only what the
+    // tree holds.
+    expect(modulesWithoutSources(graphOf(), ['a'])).toEqual([]);
+  });
+
+  it('G0b a package fixture is read, and read as a package', () => {
+    // The control under all four origin proofs: without it, `P4` and `P5` could
+    // be red because the scan never saw the package module at all — the failure
+    // mode that would make an origin test pass while proving nothing.
+    entity('p', 'p_table', 'package');
+    migration('p', '20260501T000000_p_init.ts', creates('p_table'), 'package');
+
+    const derived = graphOf();
+    expect(derived.modules.get('p')?.origin).toBe('external');
+    expect(derived.modules.get('p')?.files).toBe(2);
+    expect(derived.owners.get('p_table')).toBe('p');
+    expect(derived.tableCreators.get('p_table')?.origin).toBe('external');
   });
 });
