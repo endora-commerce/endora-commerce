@@ -21,6 +21,7 @@ import { resolvePrimaryAssetUrls } from './primary-asset-url.js';
 import { viewerOrganizationFor } from './viewer-organization.js';
 import {
   ERROR_CODES,
+  isPriceSort,
   isProductVisibleTo,
   listingPriceMoney,
   type AssetReadPort,
@@ -29,10 +30,14 @@ import {
   type CustomFieldDefinitionReadPort,
   type FilterDefinition,
   type ListingPrice,
+  type ListingPriceOrderCursor,
+  type ListingPriceOrderPort,
   type ListingPricePort,
+  type ListingPriceViewerContext,
   type OrganizationDetailsPort,
   type ProductAudience,
   type ProductDetail,
+  type ProductListSort,
   type ProductSummary,
   type ProductVariant as VariantDto,
 } from '@b2b/contracts';
@@ -128,11 +133,39 @@ export interface ListProductsParams {
   q?: string | undefined;
   limit: number;
   cursor?: string | undefined;
-  sort?: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+  sort?: ProductListSort | undefined;
   categorySlug?: string | undefined;
   attributeFilters?: Record<string, string[]> | undefined;
   changedSince?: string | undefined;
+  /** Feature 086 — inclusive bounds on the viewer's own resolved unit price. */
+  minPrice?: number | undefined;
+  maxPrice?: number | undefined;
 }
+
+/**
+ * How many source rows a price-ordered or price-filtered page may read before it
+ * returns short — FR-019, stated as the specification requires and **not** as a
+ * setting (research §R13).
+ *
+ * Eight times the page size. On the reference corpus it never bound: the first
+ * page of 50 cost 213 source rows against a budget of 400. It binds only where
+ * an operator restricts most of a catalogue from most viewers, and the answer
+ * there is a short page — which is this listing's existing behaviour, since the
+ * channel and audience filters already narrow a fetched page — rather than an
+ * unbounded scan.
+ *
+ * A setting was rejected because nobody has the number yet: the value it should
+ * take is a function of how much of a catalogue a deployment hides, and shipping
+ * an operator knob for a guess is the shape Constitution IV refuses. The `warn`
+ * below is what turns the question into evidence; adding the setting afterwards
+ * is additive.
+ */
+export const PRICE_PAGE_SCAN_BUDGET_MULTIPLE = 8;
+
+/** The cursor a price-ordered listing issues. Opaque to every caller. */
+type PriceListingCursor =
+  | { stream: 'priced'; amount: string; productId: string }
+  | { stream: 'tail'; createdAt: string; id: string };
 
 export interface ListResult<T> {
   data: T[];
@@ -213,6 +246,34 @@ export class CatalogQueryService {
      * organisation wiring working unchanged.
      */
     private readonly organizationDetails?: OrganizationDetailsPort,
+    /**
+     * Feature 086 — the `ListingPriceOrderPort` slice of the same
+     * `pricingService` container {@link listingPrices} resolves.
+     *
+     * A separate constructor argument rather than a widened type on that one,
+     * because every fixture that builds this service with a listing-price stub
+     * would otherwise stop compiling for a capability it does not exercise. It
+     * is the same container, the same gate and the same declared edge — the port
+     * doc block says so, and `check:port-shape` compares it against the
+     * registration.
+     *
+     * Optional only in the signature, and unwiring it is not a fallback: a
+     * price-ordered listing asked for without it fails loudly rather than
+     * silently serving the default ordering under a `sort=price` the buyer
+     * chose.
+     */
+    private readonly listingPriceOrder?: ListingPriceOrderPort,
+    /**
+     * Feature 086 — where the scan budget says it bound.
+     *
+     * The budget is a constant rather than a setting because nobody has the
+     * number yet (research §R13), and this line is what turns the question into
+     * evidence instead of leaving it a guess: a deployment whose pages come back
+     * short says so in its own log, and the setting can be added afterwards
+     * without changing anything else. Optional, because a fixture that never
+     * binds never reaches it.
+     */
+    private readonly log?: { warn(obj: object, msg: string): void },
   ) {}
 
   #requireChannelMembership(): SalesChannelMembershipPort {
@@ -252,6 +313,17 @@ export class CatalogQueryService {
     return this.listingPrices;
   }
 
+  #requireListingPriceOrder(): ListingPriceOrderPort {
+    if (!this.listingPriceOrder) {
+      throw new Error(
+        'CatalogQueryService: the pricing ordering port is not wired — a price sort or a ' +
+          'price range cannot be answered, and answering it with another ordering would be ' +
+          'a sort control that silently does nothing.',
+      );
+    }
+    return this.listingPriceOrder;
+  }
+
   #requireOrganizationDetails(): OrganizationDetailsPort {
     if (!this.organizationDetails) {
       throw new Error(
@@ -283,20 +355,37 @@ export class CatalogQueryService {
   ): Promise<Map<string, ListingPrice>> {
     if (products.length === 0) return new Map();
     if (!(channel?.isPublic ?? true)) return new Map();
+    return this.#requireListingPrices().resolveListingPrices({
+      products,
+      context: await this.#viewerPricingContext(channel, audience),
+    });
+  }
+
+  /**
+   * The viewer, as every pricing seam on this service reads them: the resolved
+   * channel and the buying organisation, or no organisation at all.
+   *
+   * Extracted so the page's prices and the page's **ordering** are resolved for
+   * one viewer rather than two — a card priced for the buyer and an order
+   * computed for somebody else is the exact failure feature 086 exists to
+   * prevent, and it would be one forgotten argument away if each seam built its
+   * own context.
+   */
+  async #viewerPricingContext(
+    channel: CatalogResolvedChannel | undefined,
+    audience: ProductAudience,
+  ): Promise<ListingPriceViewerContext> {
     const organization =
       audience.organizationId === null
         ? null
         : await viewerOrganizationFor(this.#requireOrganizationDetails(), audience);
-    return this.#requireListingPrices().resolveListingPrices({
-      products,
-      context: {
-        salesChannel: {
-          id: channel?.id ?? '',
-          defaultCurrency: channel?.defaultCurrency ?? 'PLN',
-        },
-        organization,
+    return {
+      salesChannel: {
+        id: channel?.id ?? '',
+        defaultCurrency: channel?.defaultCurrency ?? 'PLN',
       },
-    });
+      organization,
+    };
   }
 
   /**
@@ -421,6 +510,16 @@ export class CatalogQueryService {
       where['updatedAt'] = { $gt: new Date(params.changedSince) };
     }
 
+    // Feature 086 — the two paths that read the viewer's own price. Both are
+    // chunked and both are bounded; everything else takes the single fetch it
+    // always took.
+    if (isPriceSort(params.sort)) {
+      return this.#listByViewerPrice(em, params, ctx, where, params.sort);
+    }
+    if (params.minPrice !== undefined || params.maxPrice !== undefined) {
+      return this.#listWithPriceRange(em, params, ctx, where);
+    }
+
     // Cursor decoding — encoded as `{ createdAt, id }` in the default sort.
     let cursorClause: Record<string, unknown> | null = null;
     if (params.cursor) {
@@ -458,26 +557,7 @@ export class CatalogQueryService {
     );
 
     // Attribute filter post-filtering (simple equality on attributeValues JSONB).
-    const filtered = page.filter((p) => {
-      if (!visibleIds.has(p.id)) return false;
-      // Issue #227 — the second scoping axis, alongside the channel one above.
-      // It is applied here, on the page, rather than in the `where` for the
-      // same reason the channel filter is: the allow-list test is a JSONB
-      // containment the ORM query object cannot spell, and splitting the two
-      // axes across the query and the page would leave the `limit` accounting
-      // to reason about twice instead of once. The known cost is this path's
-      // existing one — a page narrowed after the fetch can come back shorter
-      // than `limit` — and it is bounded by how much of a catalogue an
-      // operator restricts.
-      if (!isProductVisibleTo(p, ctx.audience)) return false;
-      if (!params.attributeFilters) return true;
-      for (const [k, values] of Object.entries(params.attributeFilters)) {
-        const av = p.attributeValues[k];
-        if (av === undefined) return false;
-        if (!values.map((v) => String(v)).includes(String(av))) return false;
-      }
-      return true;
-    });
+    const filtered = page.filter((p) => visibleIds.has(p.id) && this.#passesPageFilters(p, params, ctx));
 
     // Category filter
     let categoryFilteredIds: Set<string> | null = null;
@@ -508,6 +588,401 @@ export class CatalogQueryService {
       data: summaries,
       pagination: { cursor: nextCursor, hasMore, limit: params.limit },
     };
+  }
+
+  /**
+   * The channel/audience/attribute predicates a fetched page is narrowed by,
+   * for one product.
+   *
+   * The channel test is the caller's, because it is one `in (…)` for the whole
+   * chunk; the other two are per row and were already written inline. They are
+   * collected here so the price paths below apply **exactly** the same
+   * narrowing as the default path — a price ordering that filtered differently
+   * would make a hidden row observable through a position or a page boundary,
+   * which is the disclosure FR-014 forbids and which neither the relevance sort
+   * nor the name sort could have had.
+   */
+  #passesPageFilters(
+    product: Product,
+    params: ListProductsParams,
+    ctx: CatalogQueryContext,
+  ): boolean {
+    // Issue #227 — the second scoping axis, alongside the channel one. It is
+    // applied on the page rather than in the `where` because the allow-list
+    // test is a JSONB containment the ORM query object cannot spell, and
+    // splitting the two axes across the query and the page would leave the
+    // `limit` accounting to reason about twice instead of once. The known cost
+    // is a page narrowed after the fetch coming back shorter than `limit`, and
+    // it is bounded by how much of a catalogue an operator restricts.
+    if (!isProductVisibleTo(product, ctx.audience)) return false;
+    if (!params.attributeFilters) return true;
+    for (const [k, values] of Object.entries(params.attributeFilters)) {
+      const av = product.attributeValues[k];
+      if (av === undefined) return false;
+      if (!values.map((v) => String(v)).includes(String(av))) return false;
+    }
+    return true;
+  }
+
+  /** The two range bounds as decimal strings — the comparison happens in `numeric`. */
+  #amountRange(params: ListProductsParams): { min?: string; max?: string } | undefined {
+    if (params.minPrice === undefined && params.maxPrice === undefined) return undefined;
+    return {
+      ...(params.minPrice !== undefined ? { min: params.minPrice.toFixed(4) } : {}),
+      ...(params.maxPrice !== undefined ? { max: params.maxPrice.toFixed(4) } : {}),
+    };
+  }
+
+  /**
+   * The listing ordered by **the viewer's own** resolved unit price (feature
+   * 086, US1/US2/US4).
+   *
+   * Two streams, in this order and never the other way round:
+   *
+   *  1. the **priced** stream, which `price_lists` answers in resolved-price
+   *     order over its own tables. This service intersects every chunk with
+   *     channel membership, `isProductVisibleTo` and the attribute filters
+   *     before a row can reach the page, the cursor or a count — the port
+   *     cannot do it, says so in its own contract, and a chunk from it may name
+   *     products the viewer must never see;
+   *  2. the **tail**: visible products no applicable price list prices. They
+   *     appear, at the end, **in both directions**, ordered among themselves by
+   *     the listing's default ordering. "No price" is not a large number or a
+   *     small one — it is the absence of the value being ordered by — so a tail
+   *     that flipped with the direction would lead "most expensive first" with
+   *     the products nobody has priced, which reads as a bug on every shop that
+   *     has one.
+   *
+   * **The tail is excluded by a price range** (FR-012): a range is a claim about
+   * a number, and a product with no number does not satisfy it. That is the one
+   * place the answer is exclusion, and it is exclusion from a filter the buyer
+   * typed rather than from the catalogue.
+   *
+   * **The legacy product price attribute joins the tail rather than
+   * interleaving** (spec 086, clarification 1). `listingPriceFrom`'s second arm
+   * — the price assigned directly to the Product — is not part of the ordering:
+   * the priced stream is the price-list relation, and everything else is the
+   * tail. Measured incidence of a product carrying that attribute *and* priced
+   * by no active list: zero. Interleaving it would mean ordering across
+   * `price_list_price_brackets` and `products.attribute_values` in one
+   * statement — two modules' tables, which `check:module-boundary` refuses — and
+   * the operator's remedy is one action: price the product on the default list.
+   * The decision is expressed here, in which set feeds which stream, and
+   * nowhere else.
+   */
+  async #listByViewerPrice(
+    em: EntityManager,
+    params: ListProductsParams,
+    ctx: CatalogQueryContext,
+    where: Record<string, unknown>,
+    sort: 'price' | '-price',
+  ): Promise<ListResult<ProductSummary>> {
+    const channel = ctx.resolvedChannel;
+    const direction = sort === 'price' ? 'asc' : 'desc';
+    const context = await this.#viewerPricingContext(channel, ctx.audience);
+    const amountRange = this.#amountRange(params);
+    const restrictToProductIds = params.categorySlug
+      ? [...(await this.productIdsInCategoryTree(em, params.categorySlug))]
+      : undefined;
+
+    const decoded = params.cursor ? decodeObjectCursor<PriceListingCursor>(params.cursor) : null;
+    // A cursor issued under another sort is discarded rather than
+    // reinterpreted: the existing behaviour for a cursor that does not parse.
+    const startInTail = decoded?.stream === 'tail';
+    let priceCursor: ListingPriceOrderCursor | null =
+      decoded?.stream === 'priced' ? { amount: decoded.amount, productId: decoded.productId } : null;
+    let tailCursor: { createdAt: string; id: string } | null =
+      decoded?.stream === 'tail' ? { createdAt: decoded.createdAt, id: decoded.id } : null;
+
+    const budget = PRICE_PAGE_SCAN_BUDGET_MULTIPLE * params.limit;
+    // Over-fetch by one, exactly as the default path does, so a full page and
+    // its `hasMore` come out of **one** chunk. Asking for `limit` instead costs
+    // a second round trip on every full page — measured at four extra
+    // statements, and invisible to a ceiling expressed as an absolute number.
+    const target = params.limit + 1;
+    const chunkSize = params.limit + 1;
+    let spent = 0;
+    let bound = false;
+
+    const collected: Product[] = [];
+    const cursors: PriceListingCursor[] = [];
+    let pricedExhausted = startInTail;
+
+    // --- the priced stream -------------------------------------------------
+    while (!pricedExhausted && collected.length < target) {
+      if (spent >= budget) {
+        bound = true;
+        break;
+      }
+      const chunk = await this.#requireListingPriceOrder().orderByUnitPrice({
+        context,
+        direction,
+        after: priceCursor,
+        limit: chunkSize,
+        ...(restrictToProductIds !== undefined ? { restrictToProductIds } : {}),
+        ...(amountRange ? { amountRange } : {}),
+      });
+      spent += Math.max(chunk.sourceRowsRead, chunk.rows.length);
+      pricedExhausted = chunk.exhausted;
+      if (chunk.rows.length === 0) {
+        if (!chunk.exhausted) continue;
+        break;
+      }
+      const last = chunk.rows[chunk.rows.length - 1]!;
+      priceCursor = { amount: last.amount, productId: last.productId };
+
+      const byId = await this.#visibleProductsInOrder(
+        em,
+        chunk.rows.map((row) => row.productId),
+        where,
+        params,
+        ctx,
+      );
+      for (const row of chunk.rows) {
+        const product = byId.get(row.productId);
+        if (!product) continue;
+        collected.push(product);
+        cursors.push({ stream: 'priced', amount: row.amount, productId: row.productId });
+        if (collected.length >= target) break;
+      }
+    }
+
+    // --- the unpriced tail -------------------------------------------------
+    // Skipped entirely under a range filter (FR-012), and only entered once the
+    // priced stream is genuinely over — `exhausted`, which a short chunk does
+    // not imply, because the provider may have stopped on its own bound.
+    const wantsTail = amountRange === undefined && pricedExhausted && !bound;
+    if (wantsTail) {
+      const categoryIds = params.categorySlug
+        ? new Set(restrictToProductIds ?? [])
+        : null;
+      while (collected.length < target) {
+        if (spent >= budget) {
+          bound = true;
+          break;
+        }
+        const chunkWhere = tailCursor
+          ? {
+              $and: [
+                where,
+                {
+                  $or: [
+                    { createdAt: { $lt: new Date(tailCursor.createdAt) } },
+                    { createdAt: new Date(tailCursor.createdAt), id: { $lt: tailCursor.id } },
+                  ],
+                },
+              ],
+            }
+          : where;
+        const rows = await em.find(Product, chunkWhere, {
+          limit: chunkSize,
+          // The listing's own default ordering, in both directions: the tail is
+          // not ordered by a price it does not have.
+          orderBy: { createdAt: 'desc', id: 'desc' },
+        });
+        spent += rows.length;
+        if (rows.length === 0) break;
+        const lastRow = rows[rows.length - 1]!;
+        tailCursor = { createdAt: lastRow.createdAt.toISOString(), id: lastRow.id };
+
+        const priced = await this.#requireListingPriceOrder().pricedProductIds({
+          context,
+          productIds: rows.map((r) => r.id),
+        });
+        const candidates = rows.filter(
+          (r) => !priced.has(r.id) && (categoryIds === null || categoryIds.has(r.id)),
+        );
+        const visibleIds = await this.filterByChannel(
+          candidates.map((r) => r.id),
+          channel,
+        );
+        for (const product of candidates) {
+          if (!visibleIds.has(product.id)) continue;
+          if (!this.#passesPageFilters(product, params, ctx)) continue;
+          collected.push(product);
+          cursors.push({
+            stream: 'tail',
+            createdAt: product.createdAt.toISOString(),
+            id: product.id,
+          });
+          if (collected.length >= target) break;
+        }
+        if (rows.length < chunkSize) break;
+      }
+    }
+
+    if (bound) {
+      this.log?.warn(
+        { budget, spent, limit: params.limit, sort },
+        'catalog: price-ordered page hit its scan budget and is returning short',
+      );
+    }
+
+    const hasMore = collected.length > params.limit;
+    const page = collected.slice(0, params.limit);
+    const nextCursor =
+      hasMore && page.length > 0 ? encodeObjectCursor(cursors[params.limit - 1]!) : null;
+
+    const resolvedPrices = await this.#listingPricesFor(page, channel, ctx.audience);
+    const cardReads = await this.#listingCardReadsFor(em, page.map((p) => p.id));
+    return {
+      data: page.map((p) =>
+        this.toSummary(p, channel, ctx.preferredLanguage, resolvedPrices, cardReads),
+      ),
+      // No total count, no rank, no "showing 51–100 of 4 213" (FR-015): an
+      // aggregate over the priced set is an aggregate over rows the viewer may
+      // not be allowed to see.
+      pagination: { cursor: nextCursor, hasMore, limit: params.limit },
+    };
+  }
+
+  /**
+   * A price **range** under an ordering that is not a price ordering (research
+   * §R12).
+   *
+   * The ordering is this module's own and the price is a predicate it cannot
+   * spell, so the page is walked in chunks and each chunk is narrowed by the
+   * prices it was **already going to resolve** — `resolveListingPrices` is
+   * called for the page whatever the sort, so in the common case this costs no
+   * additional query at all. The failure mode is a short page under a highly
+   * selective range, which is this listing's existing behaviour rather than a
+   * new one, and it is bounded by the same scan budget.
+   *
+   * A product no applicable list prices is excluded, exactly as it is under a
+   * price ordering: the chain's `none` and `product` arms are both absences of
+   * a price-list figure, and a range is a claim about one.
+   */
+  async #listWithPriceRange(
+    em: EntityManager,
+    params: ListProductsParams,
+    ctx: CatalogQueryContext,
+    where: Record<string, unknown>,
+  ): Promise<ListResult<ProductSummary>> {
+    const channel = ctx.resolvedChannel;
+    const min = params.minPrice;
+    const max = params.maxPrice;
+    const categoryFilteredIds = params.categorySlug
+      ? await this.productIdsInCategoryTree(em, params.categorySlug)
+      : null;
+
+    const decoded = params.cursor
+      ? decodeObjectCursor<{ createdAt: string; id: string }>(params.cursor)
+      : null;
+    let cursor = decoded;
+    const budget = PRICE_PAGE_SCAN_BUDGET_MULTIPLE * params.limit;
+    const target = params.limit + 1;
+    // Over-fetch by one, for the same reason the price path does: a full page
+    // and its `hasMore` should come out of one chunk.
+    const chunkSize = params.limit + 1;
+    let spent = 0;
+    let bound = false;
+
+    const collected: Product[] = [];
+    const prices = new Map<string, ListingPrice>();
+
+    while (collected.length < target) {
+      if (spent >= budget) {
+        bound = true;
+        break;
+      }
+      const chunkWhere = cursor
+        ? {
+            $and: [
+              where,
+              {
+                $or: [
+                  { createdAt: { $lt: new Date(cursor.createdAt) } },
+                  { createdAt: new Date(cursor.createdAt), id: { $lt: cursor.id } },
+                ],
+              },
+            ],
+          }
+        : where;
+      const rows = await em.find(Product, chunkWhere, {
+        limit: chunkSize,
+        orderBy: this.orderForSort(params.sort),
+      });
+      spent += rows.length;
+      if (rows.length === 0) break;
+      const lastRow = rows[rows.length - 1]!;
+      cursor = { createdAt: lastRow.createdAt.toISOString(), id: lastRow.id };
+
+      const visibleIds = await this.filterByChannel(
+        rows.map((r) => r.id),
+        channel,
+      );
+      const candidates = rows.filter(
+        (r) =>
+          visibleIds.has(r.id) &&
+          this.#passesPageFilters(r, params, ctx) &&
+          (categoryFilteredIds === null || categoryFilteredIds.has(r.id)),
+      );
+      const chunkPrices = await this.#listingPricesFor(candidates, channel, ctx.audience);
+      for (const product of candidates) {
+        const price = chunkPrices.get(product.id);
+        if (price === undefined || price.source !== 'price_list') continue;
+        const amount = Number(price.amount);
+        if (!Number.isFinite(amount)) continue;
+        if (min !== undefined && amount < min) continue;
+        if (max !== undefined && amount > max) continue;
+        collected.push(product);
+        prices.set(product.id, price);
+        if (collected.length >= target) break;
+      }
+      if (rows.length < chunkSize) break;
+    }
+
+    if (bound) {
+      this.log?.warn(
+        { budget, spent, limit: params.limit, sort: params.sort ?? 'relevance' },
+        'catalog: price-filtered page hit its scan budget and is returning short',
+      );
+    }
+
+    const hasMore = collected.length > params.limit;
+    const page = collected.slice(0, params.limit);
+    const last = page[page.length - 1];
+    const nextCursor =
+      hasMore && last
+        ? encodeObjectCursor({ createdAt: last.createdAt.toISOString(), id: last.id })
+        : null;
+    const cardReads = await this.#listingCardReadsFor(em, page.map((p) => p.id));
+    return {
+      data: page.map((p) =>
+        this.toSummary(p, channel, ctx.preferredLanguage, prices, cardReads),
+      ),
+      pagination: { cursor: nextCursor, hasMore, limit: params.limit },
+    };
+  }
+
+  /**
+   * The products behind an ordered chunk of ids, narrowed by everything this
+   * module narrows a page by, keyed by id.
+   *
+   * The order comes from the caller, not from here: `em.find` with an `in (…)`
+   * answers in whatever order it likes, and the ordering being reproduced is the
+   * price one.
+   */
+  async #visibleProductsInOrder(
+    em: EntityManager,
+    productIds: readonly string[],
+    where: Record<string, unknown>,
+    params: ListProductsParams,
+    ctx: CatalogQueryContext,
+  ): Promise<Map<string, Product>> {
+    const out = new Map<string, Product>();
+    if (productIds.length === 0) return out;
+    const rows = await em.find(Product, { $and: [where, { id: { $in: [...productIds] } }] });
+    const visibleIds = await this.filterByChannel(
+      rows.map((r) => r.id),
+      ctx.resolvedChannel,
+    );
+    for (const product of rows) {
+      if (!visibleIds.has(product.id)) continue;
+      if (!this.#passesPageFilters(product, params, ctx)) continue;
+      out.set(product.id, product);
+    }
+    return out;
   }
 
   async getProductByIdOrSlug(idOrSlug: string, ctx: CatalogQueryContext): Promise<ProductDetail> {

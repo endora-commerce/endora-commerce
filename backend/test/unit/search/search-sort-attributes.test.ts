@@ -25,6 +25,13 @@ const EVERY_SORT_TOKEN: Array<SearchListProductsParams['sort']> = [
   '-createdAt',
   'name',
   '-name',
+  // Feature 086. Neither reaches this backend — the route sends a price
+  // ordering to Postgres before it chooses Meilisearch — but the array claims
+  // to be *every* token the listing contract offers, and a token missing from
+  // it is a token nothing checks. Both answer `[]`, which is what a field the
+  // document does not carry must answer.
+  'price',
+  '-price',
 ];
 
 describe('buildSort ⇄ SORTABLE_ATTRIBUTES', () => {

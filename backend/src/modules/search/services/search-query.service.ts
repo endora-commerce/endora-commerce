@@ -11,6 +11,7 @@ import {
   type OrganizationDetailsPort,
   type PriceOrganization,
   type ProductAudience,
+  type ProductListSort,
   type ProductSummary,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
@@ -64,7 +65,21 @@ export interface SearchListProductsParams {
   q?: string | undefined;
   limit: number;
   cursor?: string | undefined;
-  sort?: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+  /**
+   * The catalogue's own sort union, so this backend and the Postgres one keep
+   * sharing one input type — the published `SearchListProductsParams` names the
+   * same type and the two would otherwise disagree the moment the contract
+   * grew a member.
+   *
+   * Feature 086 added `price` / `-price`, and neither can reach this backend:
+   * `catalog/routes.public.ts` routes a price ordering to Postgres before it
+   * chooses Meilisearch, because the index has never carried a price and its
+   * `sort` is a tie-break sequence that cannot express the resolution chain's
+   * coalesce. {@link buildSort} answers `[]` for both — issue #287 made that
+   * answer safe rather than silent, since a field outside
+   * `SORTABLE_ATTRIBUTES` no longer compiles.
+   */
+  sort?: ProductListSort | undefined;
   categorySlug?: string | undefined;
   attributeFilters?: Record<string, string[]> | undefined;
 }

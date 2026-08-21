@@ -23,6 +23,14 @@ export type MessageKey =
   | 'catalog.filters'
   | 'catalog.empty'
   | 'catalog.loadMore'
+  | 'catalog.sort.priceAsc'
+  | 'catalog.sort.priceDesc'
+  | 'catalog.price.heading'
+  | 'catalog.price.min'
+  | 'catalog.price.max'
+  | 'catalog.price.apply'
+  | 'catalog.price.clear'
+  | 'catalog.price.unitNote'
   | 'product.outOfStock'
   | 'product.requestQuote'
   | 'product.addToCart'
@@ -280,6 +288,15 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'catalog.filters': 'Filters',
     'catalog.empty': 'No products match your filters.',
     'catalog.loadMore': 'Load more',
+    'catalog.sort.priceAsc': 'Price: lowest first',
+    'catalog.sort.priceDesc': 'Price: highest first',
+    'catalog.price.heading': 'Price',
+    'catalog.price.min': 'From',
+    'catalog.price.max': 'To',
+    'catalog.price.apply': 'Apply price range',
+    'catalog.price.clear': 'Clear price range',
+    'catalog.price.unitNote':
+      'Prices shown are your unit prices. Quantity discounts and promotions are applied in the cart.',
     'product.outOfStock': 'Out of stock',
     'product.requestQuote': 'Request a quote',
     'product.addToCart': 'Add to cart',
@@ -558,6 +575,15 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'catalog.filters': 'Filtry',
     'catalog.empty': 'Zaden produkt nie pasuje do filtrow.',
     'catalog.loadMore': 'Pokaz wiecej',
+    'catalog.sort.priceAsc': 'Cena: od najniższej',
+    'catalog.sort.priceDesc': 'Cena: od najwyższej',
+    'catalog.price.heading': 'Cena',
+    'catalog.price.min': 'Od',
+    'catalog.price.max': 'Do',
+    'catalog.price.apply': 'Zastosuj zakres cen',
+    'catalog.price.clear': 'Wyczyść zakres cen',
+    'catalog.price.unitNote':
+      'Pokazane ceny to Twoje ceny jednostkowe. Rabaty ilościowe i promocje naliczamy w koszyku.',
     'product.outOfStock': 'Brak w magazynie',
     'product.requestQuote': 'Zapytaj o oferte',
     'product.addToCart': 'Dodaj do koszyka',

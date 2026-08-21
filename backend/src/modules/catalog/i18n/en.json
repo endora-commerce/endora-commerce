@@ -529,6 +529,8 @@
   "productEditor.bundle.field.max": "Max",
   "productEditor.bundle.field.optionPlaceholder": "UUID of a non-composite product",
   "errors.FILTER_NOT_ALLOWED": "Filter Not Allowed.",
+  "errors.PRICE_ORDERING_UNAVAILABLE": "This page does not display prices, so it cannot be sorted or filtered by price.",
+  "errors.PRICE_RANGE_INVALID": "The minimum price must not exceed the maximum price.",
   "errors.PRODUCT_NOT_FOUND": "Product Not Found.",
   "errors.PRODUCT_ARCHIVED": "Product is inactive.",
   "errors.PRODUCT_DELETE_BLOCKED": "This product cannot be deleted because it is still referenced.",

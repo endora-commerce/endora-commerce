@@ -7,7 +7,13 @@
 // `implements` this interface, so if the interface changes, a stale overlay
 // stops being assignable and the build fails (contract drift = build error).
 
-import type { DisplayMode, ListingPrice } from '@b2b/contracts';
+import type {
+  DisplayMode,
+  ListingPrice,
+  ListingPriceOrderChunk,
+  ListingPriceOrderQuery,
+  ListingPriceViewerContext,
+} from '@b2b/contracts';
 import type { PriceBracketRow } from './price-bracket-resolver.js';
 
 /**
@@ -131,4 +137,20 @@ export interface PricingServiceContract {
    * org's effective tier ladder without re-implementing resolution.
    */
   listBracketMinQuantities(productId: string, currencyCode: string): Promise<number[]>;
+  /**
+   * Feature 086 — the catalogue in resolved-unit-price order, for one viewer,
+   * one chunk at a time. Published as the `ListingPriceOrderPort` slice of the
+   * `pricingService` container, so an overlay decoration has to satisfy it in
+   * order to stay assignable here.
+   *
+   * The three methods below are the whole of the listing-ordering surface. They
+   * read this module's own tables and know nothing about visibility, channels
+   * or the buyer's category filter; the caller intersects.
+   */
+  orderByUnitPrice(input: ListingPriceOrderQuery): Promise<ListingPriceOrderChunk>;
+  pricedProductIds(input: {
+    context: ListingPriceViewerContext;
+    productIds: readonly string[];
+  }): Promise<ReadonlySet<string>>;
+  pageDisplayMode(input: { context: ListingPriceViewerContext }): Promise<DisplayMode>;
 }

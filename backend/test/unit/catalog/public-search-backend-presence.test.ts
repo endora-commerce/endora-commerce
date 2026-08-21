@@ -168,6 +168,108 @@ describe('catalog public listing — the Meilisearch read decides `search` prese
     expect(postgresListProducts).toHaveBeenCalledTimes(1);
   });
 
+  it('routes a price ordering to Postgres while `search` is on, and never queries the index', async () => {
+    // Feature 086 / FR-027 — the price orderings behave identically whether
+    // `search` is switched on or off, because they never went through the
+    // index. Meilisearch has never carried a price (one document per product
+    // per channel; per-buyer pricing would multiply the corpus by the customer
+    // base) and its `sort` is a tie-break sequence, which cannot express the
+    // fall-through the chain implements.
+    expect(effectiveState.isPresent('search'), 'the fixture never switched it on').toBe(true);
+
+    for (const query of ['sort=price', 'sort=-price', 'minPrice=10', 'maxPrice=10']) {
+      meilisearchListProducts.mockClear();
+      postgresListProducts.mockClear();
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/catalog/products?limit=50&${query}`,
+      });
+      expect(res.statusCode, query).toBe(200);
+      expect(res.headers['x-search-backend'], query).toBe('postgres');
+      expect(meilisearchListProducts, query).not.toHaveBeenCalled();
+      expect(postgresListProducts, query).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('answers a price ordering the same way with `search` off', async () => {
+    // The other half of FR-027: the same route, the same backend, the same
+    // parameters reaching the query service.
+    const withSearch = await app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/products?limit=50&sort=price',
+    });
+    const paramsWithSearch = postgresListProducts.mock.calls[0]?.[0];
+
+    postgresListProducts.mockClear();
+    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['search'] });
+    expect(effectiveState.isPresent('search'), 'the fixture did not switch it off').toBe(false);
+    const withoutSearch = await app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/products?limit=50&sort=price',
+    });
+
+    expect(withoutSearch.statusCode).toBe(withSearch.statusCode);
+    expect(withoutSearch.headers['x-search-backend']).toBe(
+      withSearch.headers['x-search-backend'],
+    );
+    expect(withoutSearch.json()).toEqual(withSearch.json());
+    expect(postgresListProducts.mock.calls[0]?.[0]).toEqual(paramsWithSearch);
+  });
+
+  it('advertises the price controls on the listing response', async () => {
+    // FR-023 — the storefront gates its toolbar on this, rather than guessing
+    // the display mode it cannot see.
+    const res = await app.inject({ method: 'GET', url: '/api/v1/catalog/products?limit=50' });
+    expect((res.json() as { capabilities?: { priceOrdering?: boolean } }).capabilities).toEqual({
+      priceOrdering: true,
+    });
+  });
+
+  it('refuses the price controls on a channel that publishes no prices', async () => {
+    // FR-016's first condition, which needs no pricing port to decide: a
+    // non-public channel withholds prices wholesale, so there is nothing to
+    // order by.
+    const nonPublic = Fastify();
+    nonPublic.addHook('onRequest', (_request, reply, done) => {
+      void enterPlatformScope(
+        systemTenantContext('catalog public listing presence test'),
+        () =>
+          new Promise<void>((resolve) => {
+            reply.raw.once('close', resolve);
+            done();
+          }),
+        { channel: { ...FAKE_CHANNEL, isPublic: false }, container: createRootContainer() },
+      );
+    });
+    await registerCatalogPublicRoutes(nonPublic, {
+      queryService: { listProducts: postgresListProducts } as unknown as CatalogQueryService,
+    });
+    await nonPublic.ready();
+    postgresListProducts.mockClear();
+    try {
+      const refused = await nonPublic.inject({
+        method: 'GET',
+        url: '/api/v1/catalog/products?limit=50&sort=price',
+      });
+      // The status, not the envelope: this fixture mounts a bare Fastify with
+      // no error-envelope plugin, so the code is asserted in
+      // `test/integration/catalog/price-sort-withheld.test.ts`, where the whole
+      // server is up.
+      expect(refused.statusCode).toBe(400);
+      expect(postgresListProducts).not.toHaveBeenCalled();
+      const served = await nonPublic.inject({
+        method: 'GET',
+        url: '/api/v1/catalog/products?limit=50',
+      });
+      expect(served.statusCode).toBe(200);
+      expect(
+        (served.json() as { capabilities?: { priceOrdering?: boolean } }).capabilities,
+      ).toEqual({ priceOrdering: false });
+    } finally {
+      await nonPublic.close();
+    }
+  });
+
   it('restores the search backend when `search` comes back', async () => {
     registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['search'] });
     await app.inject({ method: 'GET', url: '/api/v1/catalog/products?limit=50' });

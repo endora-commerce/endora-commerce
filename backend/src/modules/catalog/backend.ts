@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
-import { ERROR_CODES, type ListingPricePort } from '@b2b/contracts';
+import { ERROR_CODES, type ListingPriceOrderPort, type ListingPricePort } from '@b2b/contracts';
 import type { AuditReferenceRegistryPort } from '@b2b/contracts';
 import type {
   AssetReadPort,
@@ -566,6 +566,12 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
             lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
             lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            // Feature 086 — the ordering slice, off the same container and the
+            // same declared edge. Two `lazyPort` calls rather than one widened
+            // type, because a captured gate keeps answering after its owner is
+            // switched off and both of these are handed to a singleton.
+            lazyPort<ListingPriceOrderPort>(ctx, 'pricingService'),
+            ctx.log,
           ),
       )
       .singleton(),

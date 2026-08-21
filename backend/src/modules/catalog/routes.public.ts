@@ -4,11 +4,18 @@ import type { CatalogQueryService } from './services/catalog-query.service.js';
 import type { ProductLinkService } from './services/product-link.service.js';
 import type { BundleService } from './services/bundle.service.js';
 import {
+  ERROR_CODES,
+  isPriceSort,
   productLinkKindSchema,
+  productListSortSchema,
   validateBundleConfigurationRequestSchema,
+  type ListingPriceOrderPort,
   type ProductAudience,
+  type ProductListCapabilities,
+  type ProductListSort,
   type SearchQueryPort,
 } from '@b2b/contracts';
+import { HttpError } from '../../http/error-envelope.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import { markPersonalisedPricing, productAudienceOf } from '../../http/product-audience.js';
@@ -60,6 +67,18 @@ export interface CatalogPublicDeps {
   resolveProductImagePlaceholderUrl?: (
     salesChannelCode: string | undefined,
   ) => Promise<string | null>;
+  /**
+   * Feature 086 — the ordering slice of `pricingService`, for the one thing
+   * this route decides before the query runs: whether the page may show prices
+   * at all (FR-016).
+   *
+   * A non-public sales channel is this module's own fact and is read off the
+   * resolved channel; a page-level display mode of `none` is `price_lists`'
+   * fact and is asked of it. Optional in the signature only — a composition
+   * that wires no pricing at all cannot be asked for a price ordering either,
+   * and the query service refuses loudly when it is.
+   */
+  listingPriceOrder?: ListingPriceOrderPort;
 }
 
 export async function registerCatalogPublicRoutes(
@@ -87,14 +106,95 @@ export async function registerCatalogPublicRoutes(
     };
   }
 
+  /**
+   * Feature 086 / FR-016 — may this page order or filter by price at all?
+   *
+   * Two conditions, and both are refusals rather than degradations: an ordering
+   * by a number the page may not show discloses that number's rank, which is
+   * most of what a competitor wants, and it is cheap to get right and expensive
+   * to retrofit.
+   *
+   *  - a **non-public sales channel** withholds prices wholesale — `CatalogQueryService`
+   *    resolves none at all on one — so there is nothing to order by;
+   *  - a **page-level display mode of `none`** is the supported "hide prices
+   *    until login" configuration. Page-level, deliberately: a single product
+   *    overridden to `none` keeps its position (spec clarification 2), because
+   *    a per-product override reads as "ask us for a quote" rather than "this
+   *    price is secret", and withdrawing the control for it would make the sort
+   *    appear and disappear as a buyer walks the catalogue.
+   *
+   * The mode is resolved for **this viewer**, so the same shop refuses an
+   * anonymous visitor and serves a signed-in buyer where the two `pricing.*`
+   * settings keys differ, which is exactly what the configuration means.
+   */
+  async function priceControlsAvailable(
+    ctx: ReturnType<typeof readContext>,
+  ): Promise<{ available: boolean; reason?: string }> {
+    if (!ctx.resolvedChannel.isPublic) {
+      return {
+        available: false,
+        reason:
+          'This sales channel does not publish prices, so the catalogue cannot be ordered or filtered by price.',
+      };
+    }
+    if (!deps.listingPriceOrder) return { available: true };
+    const organization =
+      ctx.audience.organizationId === null ? null : { id: ctx.audience.organizationId };
+    const mode = await deps.listingPriceOrder.pageDisplayMode({
+      context: {
+        salesChannel: {
+          id: ctx.resolvedChannel.id,
+          defaultCurrency: ctx.resolvedChannel.defaultCurrency,
+        },
+        organization,
+      },
+    });
+    if (mode === 'none') {
+      return {
+        available: false,
+        reason:
+          'Prices are not displayed on this page, so the catalogue cannot be ordered or filtered by price.',
+      };
+    }
+    return { available: true };
+  }
+
   // GET /api/v1/catalog/products
   app.get('/api/v1/catalog/products', async (request, reply) => {
-    const { q, limit, cursor, sort, categorySlug, attributeFilters, changedSince } =
+    const { q, limit, cursor, sort, categorySlug, attributeFilters, changedSince, minPrice, maxPrice } =
       parseListQuery(request);
     const ctx = readContext(request);
     // The page's prices are resolved for this caller, so a page resolved for a
     // buying organisation must not enter a shared cache.
     markPersonalisedPricing(reply, ctx.audience);
+
+    // FR-008 — a minimum above a maximum is a 400 naming both parameters, not
+    // an empty page. An empty page for a contradictory range is
+    // indistinguishable from an empty page for a genuine one.
+    if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.PRICE_RANGE_INVALID,
+        'The minimum price must not exceed the maximum price.',
+        [
+          { path: 'minPrice', issue: 'must not exceed maxPrice' },
+          { path: 'maxPrice', issue: 'must not be below minPrice' },
+        ],
+      );
+    }
+    // Resolved once and used twice: to refuse the request, and to tell the
+    // storefront whether to render the controls at all (FR-023). One answer, so
+    // a page cannot advertise a control the next request refuses.
+    const priceControls = await priceControlsAvailable(ctx);
+    const wantsPrice = isPriceSort(sort) || minPrice !== undefined || maxPrice !== undefined;
+    if (wantsPrice && !priceControls.available) {
+      request.log.info(
+        { channel: ctx.resolvedChannel.code },
+        'catalog: price ordering refused — this page does not display prices',
+      );
+      throw new HttpError(400, ERROR_CODES.PRICE_ORDERING_UNAVAILABLE, priceControls.reason!);
+    }
+    const capabilities: ProductListCapabilities = { priceOrdering: priceControls.available };
 
     // Issue #144 — the presence answer is *decided* here, before the query, and
     // never caught after it. Constitution XVII: a module that is off behaves as
@@ -122,11 +222,27 @@ export async function registerCatalogPublicRoutes(
     //    refuses around a port call, and refuses because a status test lets a
     //    switched-off module through by accident. `SearchListOutcome` states
     //    the two answers, and the conversion happens inside `search`.
+    //
+    // Feature 086 adds one conjunct: **and no price ordering or price range was
+    // requested.** Not because Meilisearch cannot sort — issue #287 repaired
+    // that, and `name` and `-createdAt` are answered by the index now — but
+    // because the index has never carried a price, deliberately: one document
+    // per product per channel, and per-buyer pricing would multiply the corpus
+    // by the customer base. Nor could it express the resolution even if the
+    // fields were there: its `sort` is a tie-break *sequence*, not a coalesce,
+    // so `[priceOnListA, priceOnListB]` orders every product A prices above
+    // every product it does not and only then consults B — a different relation
+    // from "A's price if A prices it, else B's".
+    //
+    // `IndexedDocument.price` is not the exception it looks like. It carries
+    // the legacy `defaultPrice` attribute, is read by nothing on the query
+    // path, and is not any price list's figure.
     const useMeili =
       process.env['CATALOG_SEARCH_BACKEND'] === 'meilisearch' &&
       searchQueryService !== undefined &&
       effectiveState.isPresent('search') &&
-      changedSince === undefined;
+      changedSince === undefined &&
+      !wantsPrice;
     if (useMeili) {
       const outcome = await searchQueryService.listProducts(
         {
@@ -141,7 +257,10 @@ export async function registerCatalogPublicRoutes(
       );
       if (outcome.status === 'ok') {
         reply.header('x-search-backend', 'meilisearch');
-        return await withListPlaceholder(outcome.result, ctx.resolvedChannel.code);
+        return {
+          ...(await withListPlaceholder(outcome.result, ctx.resolvedChannel.code)),
+          capabilities,
+        };
       }
       request.log.warn(
         { err: outcome.reason },
@@ -150,11 +269,11 @@ export async function registerCatalogPublicRoutes(
     }
 
     const result = await queryService.listProducts(
-      { q, limit, cursor, sort, categorySlug, attributeFilters, changedSince },
+      { q, limit, cursor, sort, categorySlug, attributeFilters, changedSince, minPrice, maxPrice },
       ctx,
     );
     reply.header('x-search-backend', 'postgres');
-    return await withListPlaceholder(result, ctx.resolvedChannel.code);
+    return { ...(await withListPlaceholder(result, ctx.resolvedChannel.code)), capabilities };
   });
 
   // GET /api/v1/catalog/products/:idOrSlug
@@ -277,10 +396,12 @@ function parseListQuery(request: FastifyRequest): {
   q?: string | undefined;
   limit: number;
   cursor?: string | undefined;
-  sort?: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+  sort?: ProductListSort | undefined;
   categorySlug?: string | undefined;
   attributeFilters?: Record<string, string[]>;
   changedSince?: string | undefined;
+  minPrice?: number | undefined;
+  maxPrice?: number | undefined;
 } {
   const raw = (request.query ?? {}) as Record<string, unknown>;
 
@@ -290,11 +411,23 @@ function parseListQuery(request: FastifyRequest): {
   const cursor = typeof raw['cursor'] === 'string' ? raw['cursor'] : undefined;
   const changedSince = typeof raw['changedSince'] === 'string' ? raw['changedSince'] : undefined;
 
-  let sort: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+  // The enum is the contract's, read once, so a member added there reaches this
+  // route without a second list to keep in step (feature 086 added two).
   const sortRaw = typeof raw['sort'] === 'string' ? raw['sort'] : undefined;
-  if (sortRaw === 'relevance' || sortRaw === '-createdAt' || sortRaw === 'name' || sortRaw === '-name') {
-    sort = sortRaw;
-  }
+  const sortParsed = productListSortSchema.safeParse(sortRaw);
+  const sort: ProductListSort | undefined = sortParsed.success ? sortParsed.data : undefined;
+
+  // Feature 086 — the range bounds. A non-numeric or negative bound is dropped
+  // rather than refused, which is what every other malformed parameter on this
+  // hand-parsed surface does; `minPrice > maxPrice` is the one the buyer is
+  // told about, because it is the one they typed on purpose.
+  const parseBound = (value: unknown): number | undefined => {
+    if (typeof value !== 'string' || value.trim() === '') return undefined;
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? n : undefined;
+  };
+  const minPrice = parseBound(raw['minPrice']);
+  const maxPrice = parseBound(raw['maxPrice']);
 
   const attributeFilters: Record<string, string[]> = {};
   let categorySlug: string | undefined;
@@ -319,5 +452,7 @@ function parseListQuery(request: FastifyRequest): {
     categorySlug,
     ...(Object.keys(attributeFilters).length > 0 ? { attributeFilters } : {}),
     changedSince,
+    minPrice,
+    maxPrice,
   };
 }

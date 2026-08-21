@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ListingPrice } from '@b2b/contracts';
+import type {
+  DisplayMode,
+  ListingPrice,
+  ListingPriceOrderChunk,
+  ListingPriceOrderQuery,
+  ListingPriceViewerContext,
+} from '@b2b/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import {
   AmbiguousDecorationError,
@@ -76,6 +82,18 @@ class CorePricingService implements PricingServiceContract {
   async namedListPrices(): Promise<Map<string, string>> {
     return new Map();
   }
+
+  async orderByUnitPrice(): Promise<ListingPriceOrderChunk> {
+    return { rows: [], exhausted: true, sourceRowsRead: 0 };
+  }
+
+  async pricedProductIds(): Promise<ReadonlySet<string>> {
+    return new Set();
+  }
+
+  async pageDisplayMode(): Promise<DisplayMode> {
+    return 'net_only';
+  }
 }
 
 /**
@@ -115,6 +133,21 @@ class TaggingPricingService implements PricingServiceContract {
     productIds: readonly string[];
   }): Promise<Map<string, string>> {
     return this.inner.namedListPrices(input);
+  }
+
+  async orderByUnitPrice(input: ListingPriceOrderQuery): Promise<ListingPriceOrderChunk> {
+    return this.inner.orderByUnitPrice(input);
+  }
+
+  async pricedProductIds(input: {
+    context: ListingPriceViewerContext;
+    productIds: readonly string[];
+  }): Promise<ReadonlySet<string>> {
+    return this.inner.pricedProductIds(input);
+  }
+
+  async pageDisplayMode(input: { context: ListingPriceViewerContext }): Promise<DisplayMode> {
+    return this.inner.pageDisplayMode(input);
   }
 }
 

@@ -529,6 +529,8 @@
   "productEditor.bundle.field.max": "Maks",
   "productEditor.bundle.field.optionPlaceholder": "UUID produktu niekompozytowego",
   "errors.FILTER_NOT_ALLOWED": "Błąd: filter not allowed.",
+  "errors.PRICE_ORDERING_UNAVAILABLE": "Ta strona nie prezentuje cen, więc nie można jej sortować ani filtrować po cenie.",
+  "errors.PRICE_RANGE_INVALID": "Cena minimalna nie może być wyższa niż maksymalna.",
   "errors.PRODUCT_NOT_FOUND": "Błąd: product not found.",
   "errors.PRODUCT_ARCHIVED": "Produkt jest nieaktywny.",
   "errors.PRODUCT_DELETE_BLOCKED": "Nie można usunąć produktu — jest nadal powiązany z innymi rekordami.",

@@ -100,6 +100,9 @@ describe('US1 — the example deployment decorates the pricing engine', () => {
       listBracketMinQuantities: async () => [1, 5],
       resolveListingPrices: async () => new Map(),
       namedListPrices: async () => new Map(),
+      orderByUnitPrice: async () => ({ rows: [], exhausted: true, sourceRowsRead: 0 }),
+      pricedProductIds: async () => new Set<string>(),
+      pageDisplayMode: async () => 'gross_only' as const,
     };
 
     const decorated = decorate(core);

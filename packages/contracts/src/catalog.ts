@@ -1119,14 +1119,84 @@ export type UpdateCategoryRequest = z.infer<typeof updateCategoryRequestSchema>;
 
 // --- Storefront list/query ---------------------------------------------------
 
-export const productListQuerySchema = z.object({
-  q: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).default(50),
-  cursor: z.string().optional(),
-  sort: z.enum(['relevance', '-createdAt', 'name', '-name']).optional(),
-  changedSince: isoDateTimeSchema.optional(),
-});
+/**
+ * The orderings the storefront listing accepts.
+ *
+ * Feature 086 adds `price` / `-price`, following the convention the two `name`
+ * members set: the bare member ascends, the `-` prefix descends. "Price" is the
+ * **viewer's own** resolved unit price at quantity 1 — the figure the card
+ * renders — never a stored base price, a channel price or anything a search
+ * index carries.
+ */
+export const productListSortSchema = z.enum([
+  'relevance',
+  '-createdAt',
+  'name',
+  '-name',
+  'price',
+  '-price',
+]);
+export type ProductListSort = z.infer<typeof productListSortSchema>;
+
+/** The two orderings feature 086 added, as a narrowing a consumer can reuse. */
+export function isPriceSort(sort: ProductListSort | undefined): sort is 'price' | '-price' {
+  return sort === 'price' || sort === '-price';
+}
+
+export const productListQuerySchema = z
+  .object({
+    q: z.string().optional(),
+    limit: z.coerce.number().int().positive().max(200).default(50),
+    cursor: z.string().optional(),
+    sort: productListSortSchema.optional(),
+    changedSince: isoDateTimeSchema.optional(),
+
+    /**
+     * Feature 086 — inclusive bounds on the **viewer's own** resolved unit
+     * price, in the currency the response quotes. Both optional and
+     * independent, and both compose with every ordering rather than only with
+     * the two price ones (FR-009).
+     *
+     * Numbers on the wire, decimal strings by the time they reach the pricing
+     * relation: the comparison happens in `numeric`, never in a float.
+     */
+    minPrice: z.coerce.number().nonnegative().finite().optional(),
+    maxPrice: z.coerce.number().nonnegative().finite().optional(),
+  })
+  .refine(
+    (v) => v.minPrice === undefined || v.maxPrice === undefined || v.minPrice <= v.maxPrice,
+    {
+      // FR-008 — a minimum above a maximum is a 400, not an empty page. An
+      // empty page for a contradictory range is indistinguishable from an empty
+      // page for a genuine one, and a buyer who typed the bounds the wrong way
+      // round should be told which two they were.
+      message: 'minPrice must not exceed maxPrice',
+      path: ['minPrice'],
+    },
+  );
 export type ProductListQuery = z.infer<typeof productListQuerySchema>;
+
+/**
+ * What the listing surface may offer this viewer on this page — feature 086 /
+ * FR-023.
+ *
+ * It rides on the listing response because the storefront has to decide whether
+ * to *render* the price controls, and the answer depends on the viewer and the
+ * channel: a non-public channel publishes no prices, and
+ * `pricing.unauthenticated_display_mode = none` hides them until login. A
+ * storefront that guessed would guess wrong on exactly the deployments that
+ * care, and a control that offers an ordering the API refuses is a worse defect
+ * than no control.
+ *
+ * It is **not** on the filter-definitions endpoint, which is anonymous and
+ * shared (FR-010): a per-viewer answer may not travel on a response whose cache
+ * key omits the viewer.
+ */
+export const productListCapabilitiesSchema = z.object({
+  /** May this page be ordered by price, and narrowed to a price range? */
+  priceOrdering: z.boolean(),
+});
+export type ProductListCapabilities = z.infer<typeof productListCapabilitiesSchema>;
 
 // --- Notify-when-available --------------------------------------------------
 

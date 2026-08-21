@@ -1027,6 +1027,51 @@ export class PriceListService {
   }
 
   /**
+   * The chain's answer with **no product in hand** — feature 086 / FR-016.
+   *
+   * A price ordering and a price range are refused where the page may not show
+   * prices at all, and `pricing.unauthenticated_display_mode = none` is the
+   * supported "hide prices until login" configuration. Deciding that needs the
+   * mode a *page* resolves to, which is the Organization → Settings tail of the
+   * FR-039 chain with the product and category steps deliberately absent.
+   *
+   * **The absence is the ruling, not a shortcut** (spec 086, clarification 2).
+   * A single product overridden to `none` keeps its position in a price
+   * ordering: a per-product override reads as "ask us for a quote" rather than
+   * "this price is secret", and withdrawing the whole control because one
+   * product opts out would make the sort appear and disappear as a buyer walks
+   * the catalogue. Moving those products to the tail instead is a change to
+   * this method's two omitted steps and to nothing else.
+   *
+   * The decision itself still goes through `decideDisplayMode`, so a page and a
+   * card cannot rank the organisation tier differently.
+   */
+  async resolvePageDisplayMode(input: {
+    organizationId: string | null;
+    salesChannelId: string;
+    customerKind: 'guest' | 'signed_in';
+  }): Promise<DisplayMode> {
+    const em = this.emFactory();
+    const organizationOverride =
+      input.customerKind === 'signed_in' && input.organizationId !== null
+        ? await em.findOne(PriceDisplayModeOverride, {
+            scope: 'organization',
+            targetId: input.organizationId,
+          })
+        : null;
+    const decision = decideDisplayMode({
+      productOverride: null,
+      categoryCandidates: [],
+      organizationOverride: (organizationOverride?.mode as DisplayMode | undefined) ?? null,
+    });
+    if (decision.source !== 'settings') return decision.mode;
+    return this.readSettingsDisplayMode(
+      settingsDisplayModeKey(input.customerKind),
+      input.salesChannelId,
+    );
+  }
+
+  /**
    * The same chain for a **set** of products (issue #132 follow-up).
    *
    * A catalogue listing asked this question once per product, which cost four

@@ -1,5 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DisplayMode, ListingPrice } from '@b2b/contracts';
+import type {
+  DisplayMode,
+  ListingPrice,
+  ListingPriceOrderChunk,
+  ListingPriceOrderQuery,
+  ListingPriceOrderRow,
+  ListingPriceViewerContext,
+} from '@b2b/contracts';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
 import {
@@ -15,6 +22,17 @@ import {
   type PriceBracketRow,
 } from './price-bracket-resolver.js';
 import { listingPriceFrom } from './listing-price-chain.js';
+import {
+  buildCandidateVector,
+  type CandidateViewerContext,
+  type OrderedCandidate,
+} from './price-list-candidate-vector.js';
+import {
+  buildUnitPriceMergeQuery,
+  compareOrderRows,
+  uuidArrayLiteral,
+  type UnitPriceStream,
+} from './unit-price-ordering.js';
 import type { PriceListTargetReads } from './price-list-service.js';
 import type {
   ListingPricesInput,
@@ -475,6 +493,305 @@ export class PricingService implements PricingServiceContract {
       };
       this.cache?.set(cacheKeyFor(product.id), engine);
       out.set(product.id, listingPriceFrom(lineFromEngine(engine), product, currencyCode));
+    }
+    return out;
+  }
+
+
+  // ---- Feature 086 — the listing ordering slice ----------------------------
+
+  /**
+   * The catalogue in resolved-unit-price order, for one viewer, one chunk at a
+   * time — {@link ListingPriceOrderPort}.
+   *
+   * ## Identity with the card, which is the whole point
+   *
+   * The rows this answers are the rows `resolveListingPrices` would answer for
+   * the same viewer, sorted. Not "approximately": the candidates come from
+   * {@link buildCandidateVector}, which produces its order by running
+   * `pickPriorityChain` to exhaustion, and the sale partition leads the base one
+   * because `lineFromEngine` charges the sale price whenever the sale partition
+   * resolves anything. `test/integration/price_lists/unit-price-ordering.test.ts`
+   * asserts it product by product against the batch, the way
+   * `listing-prices-batch.test.ts` asserts the batch against the per-product
+   * path.
+   *
+   * ## What it does not know
+   *
+   * Visibility, channel membership, product status, archival, categories the
+   * *buyer* filtered by. Those are `catalog`'s facts about `catalog`'s rows, and
+   * a chunk from here may name products the viewer must never see — the caller
+   * intersects before anything reaches a page, a cursor or a count.
+   *
+   * ## Two statements, whatever the page size
+   *
+   * One probe of the leading stream, which fixes the watermark, and one merge of
+   * the rest. A single-candidate viewer costs one. The leading stream's rows are
+   * reused rather than re-read.
+   */
+  async orderByUnitPrice(input: ListingPriceOrderQuery): Promise<ListingPriceOrderChunk> {
+    const empty: ListingPriceOrderChunk = { rows: [], exhausted: true, sourceRowsRead: 0 };
+    if (input.limit <= 0) return { rows: [], exhausted: false, sourceRowsRead: 0 };
+    // An empty restriction means "nothing", which is a different answer from
+    // `undefined` meaning "the whole catalogue".
+    if (input.restrictToProductIds !== undefined && input.restrictToProductIds.length === 0) {
+      return empty;
+    }
+
+    const em = this.emFactory();
+    const currencyCode = this.#listingCurrency(input.context);
+    const streams = await this.#candidateStreams(em, input.context, currencyCode, input.restrictToProductIds);
+    if (streams.length === 0) return empty;
+
+    const limit = input.limit;
+    const direction = input.direction;
+    const after = input.after;
+    const range = input.amountRange;
+
+    // Pass 1 — the leading stream alone. It carries no exclusion (nothing
+    // outranks it), so its window is exactly the cheapest `limit` rows any
+    // candidate can contribute below the watermark it defines.
+    const lead = buildUnitPriceMergeQuery({
+      streams: [streams[0]!],
+      currencyCode,
+      direction,
+      after: after ?? null,
+      ...(range ? { amountRange: range } : {}),
+      perStreamLimit: limit,
+      watermark: null,
+    });
+    const leadRows = await em.execute<Array<{ product_id: string; amount: string; stream_index: number }>>(
+      lead.sql,
+      lead.params,
+    );
+    let sourceRowsRead = leadRows.length;
+
+    // The bound, and the one line that makes it exact: the leading stream has
+    // no exclusion, so a full window of `limit` rows at or below this amount
+    // means every row above it sorts after all of them and cannot be on this
+    // page. A short window is no bound at all.
+    const watermark = leadRows.length >= limit ? leadRows[leadRows.length - 1]!.amount : null;
+
+    const merged = leadRows.map((row) => ({
+      productId: row.product_id,
+      amount: row.amount,
+      streamIndex: 0,
+    }));
+
+    let everyOtherStreamShort = true;
+    if (streams.length > 1) {
+      const rest = buildUnitPriceMergeQuery({
+        streams,
+        currencyCode,
+        direction,
+        after: after ?? null,
+        ...(range ? { amountRange: range } : {}),
+        perStreamLimit: limit,
+        watermark,
+        skipStreams: 1,
+      });
+      const restRows = await em.execute<
+        Array<{ product_id: string; amount: string; stream_index: number }>
+      >(rest.sql, rest.params);
+      sourceRowsRead += restRows.length;
+      const perStream = new Map<number, number>();
+      for (const row of restRows) {
+        perStream.set(row.stream_index, (perStream.get(row.stream_index) ?? 0) + 1);
+        merged.push({
+          productId: row.product_id,
+          amount: row.amount,
+          streamIndex: Number(row.stream_index),
+        });
+      }
+      for (const count of perStream.values()) if (count >= limit) everyOtherStreamShort = false;
+    }
+
+    merged.sort((a, b) => compareOrderRows(a, b, direction));
+    const page = merged.slice(0, limit);
+    const rows: ListingPriceOrderRow[] = page.map((row) => ({
+      productId: row.productId,
+      amount: row.amount,
+      currency: currencyCode,
+      priceListId: streams[row.streamIndex]!.priceListId,
+      isSale: streams[row.streamIndex]!.isSale,
+    }));
+
+    // `exhausted` is not "a short chunk". It is "there is provably nothing
+    // left": no watermark cut anything off, no stream filled its own window,
+    // and the merge fitted inside the page.
+    const exhausted = watermark === null && everyOtherStreamShort && merged.length <= limit;
+    return { rows, exhausted, sourceRowsRead };
+  }
+
+  /**
+   * Which of `productIds` the viewer's candidate lists price at quantity 1.
+   *
+   * `catalog` composes the unpriced tail out of the complement, so this is a set
+   * membership answer and deliberately not a price: it says nothing about which
+   * list won or what it charges.
+   */
+  async pricedProductIds(input: {
+    context: ListingPriceViewerContext;
+    productIds: readonly string[];
+  }): Promise<ReadonlySet<string>> {
+    const out = new Set<string>();
+    if (input.productIds.length === 0) return out;
+    const em = this.emFactory();
+    const currencyCode = this.#listingCurrency(input.context);
+    const streams = await this.#candidateStreams(em, input.context, currencyCode, input.productIds);
+    if (streams.length === 0) return out;
+
+    const params: unknown[] = [currencyCode, uuidArrayLiteral([...new Set(input.productIds)])];
+    const perStream = streams.map((stream) => {
+      if (stream.productIds === null) {
+        params.push(stream.priceListId);
+        return `b."price_list_id" = ?`;
+      }
+      params.push(stream.priceListId, uuidArrayLiteral(stream.productIds));
+      return `(b."price_list_id" = ? and b."product_id" = any(?::uuid[]))`;
+    });
+    const rows = await em.execute<Array<{ product_id: string }>>(
+      `select distinct b."product_id"::text as product_id
+         from "price_list_price_brackets" b
+        where b."currency_code" = ?
+          and b."min_quantity" = 1
+          and b."product_id" = any(?::uuid[])
+          and (${perStream.join(' or ')})`,
+      params,
+    );
+    for (const row of rows) out.add(row.product_id);
+    return out;
+  }
+
+  /**
+   * The display mode a *page* resolves to for this viewer — feature 086 /
+   * FR-016. See `PriceListService.resolvePageDisplayMode` for why the
+   * per-product and per-category steps are absent.
+   */
+  async pageDisplayMode(input: { context: ListingPriceViewerContext }): Promise<DisplayMode> {
+    const { PriceListService } = await import('./price-list-service.js');
+    const priceListService = new PriceListService(
+      this.emFactory,
+      undefined,
+      undefined,
+      undefined,
+      this.targetReads,
+    );
+    return priceListService.resolvePageDisplayMode({
+      organizationId: input.context.organization?.id ?? null,
+      salesChannelId: input.context.salesChannel.id,
+      customerKind: input.context.organization ? 'signed_in' : 'guest',
+    });
+  }
+
+  #listingCurrency(context: ListingPriceViewerContext): string {
+    return (context.currencyCode ?? context.salesChannel.defaultCurrency).toUpperCase();
+  }
+
+  /**
+   * The viewer's candidate vector, resolved to streams: a price list, and the
+   * product ids the stream is restricted to.
+   *
+   * Two things restrict a stream, and they are intersected rather than chosen
+   * between: the caller's opaque id set, and the categories a candidate's own
+   * rule requires. The second is read through `catalog`'s category port — this
+   * module does not name `product_categories` in a new statement, and could not
+   * express the membership as a join into the merge anyway without putting
+   * another module's table in this module's SQL (D-87).
+   */
+  async #candidateStreams(
+    em: EntityManager,
+    context: ListingPriceViewerContext,
+    currencyCode: string,
+    restrictToProductIds: readonly string[] | undefined,
+  ): Promise<UnitPriceStream[]> {
+    const organization = context.organization ?? null;
+    const orgId = organization?.id ?? null;
+    const organizationChain =
+      orgId !== null && this.resolveOrgChain
+        ? await this.resolveOrgChain(orgId)
+        : orgId !== null
+          ? [orgId]
+          : [];
+    const viewer: CandidateViewerContext = {
+      organizationId: orgId,
+      organizationChain,
+      customerGroupId: context.customerGroupId ?? organization?.customerGroupId ?? null,
+      salesChannelId: context.salesChannel.id,
+      currencyCode,
+    };
+    const activeLists = await em.find(PriceList, { status: 'active' });
+    const candidates = buildCandidateVector(
+      activeLists.map((list) => ({
+        id: list.id,
+        type: list.type,
+        applicationRule: list.applicationRule,
+        modifiedAt: list.modifiedAt,
+        name: list.name,
+        isSystem: list.isSystem,
+      })),
+      viewer,
+    );
+
+    const restriction = restrictToProductIds ? new Set(restrictToProductIds) : null;
+    const categoryProducts = await this.#categoryProductIds(candidates);
+
+    const streams: UnitPriceStream[] = [];
+    for (const candidate of candidates) {
+      let ids: Set<string> | null = restriction;
+      for (const group of candidate.requireAnyOf) {
+        const inGroup = new Set<string>();
+        for (const categoryId of group) {
+          for (const productId of categoryProducts.get(categoryId) ?? []) inGroup.add(productId);
+        }
+        ids = ids === null ? inGroup : new Set([...ids].filter((id) => inGroup.has(id)));
+      }
+      // A candidate whose categories hold nothing prices nothing: dropping it
+      // is not an optimisation, it is the empty stream written down.
+      if (ids !== null && ids.size === 0) continue;
+      streams.push({
+        priceListId: candidate.priceListId,
+        isSale: candidate.isSale,
+        productIds: ids === null ? null : [...ids],
+      });
+    }
+    return streams;
+  }
+
+  /**
+   * Product ids per category id, for every category any candidate's rule names.
+   *
+   * Read through `catalog`'s port, structurally — `listProductIdsInCategory`
+   * filters neither `isActive` nor `deletedAt`, and neither does
+   * `evaluateApplicationRule`'s `category` criterion, which tests the raw
+   * membership. The two have to agree, so the read that agrees is the one to
+   * make.
+   *
+   * Nothing is read at all in the ordinary case: a rule that names no category
+   * produces no group, and the reference catalogue's rules name none.
+   */
+  async #categoryProductIds(
+    candidates: readonly OrderedCandidate[],
+  ): Promise<Map<string, string[]>> {
+    const wanted = new Set<string>();
+    for (const candidate of candidates) {
+      for (const group of candidate.requireAnyOf) for (const id of group) wanted.add(id);
+    }
+    const out = new Map<string, string[]>();
+    if (wanted.size === 0) return out;
+    const categoryRead = this.targetReads?.catalogCategoryRead;
+    if (!categoryRead) {
+      // The same refusal `PriceListService.targets()` makes, for the same
+      // reason: skipping the membership would turn "this composition cannot
+      // reach `catalog`" into "this category rule applies to everything", which
+      // would price products the rule excludes.
+      throw new Error(
+        'PricingService: a candidate price list is scoped to a category and this composition ' +
+          "constructed the engine without `catalog`'s category read port.",
+      );
+    }
+    for (const categoryId of wanted) {
+      out.set(categoryId, await categoryRead.listProductIdsInCategory(categoryId));
     }
     return out;
   }
