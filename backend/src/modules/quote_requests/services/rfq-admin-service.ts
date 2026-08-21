@@ -522,6 +522,22 @@ export class RfqAdminService {
       );
     }
 
+    // **Neither scoping axis is applied to these lines, and that is the
+    // decision rather than the gap.** `RfqService.createForCustomer` filters by
+    // `isProductVisibleTo` (issue #227) and by the request's channel assortment
+    // (issue #259); this path filters by neither.
+    //
+    // It is an operator surface. The admin names the organisation, the customer
+    // and the lines, having chosen them from an admin catalogue that shows the
+    // whole assortment — so there is no buyer whose audience could answer, and
+    // the channel the admin's own request happens to have resolved (the
+    // resolver's step-4 default, unless the SPA sent `X-Sales-Channel`) is not
+    // a statement about where this quote should be sellable. The
+    // `quote_requests:write` permission is the enforcement, exactly as
+    // `quick_order`'s `'unrestricted'` import arm says of itself.
+    //
+    // The channel this quote *is* raised on is recorded below and is the
+    // honest answer to "where did this come from", not a filter.
     const products = await this.deps.catalogProducts.findByIds(
       body.items.map((it) => it.productId),
     );

@@ -709,6 +709,28 @@ export class RfqService {
     // Validate every line's product is still resolvable. The spec edge
     // case "product archived between approve and convert" maps to a 409
     // here so the customer is forced to contact the rep.
+    //
+    // **No sales-channel filter here, by an owner ruling of 2026-08-21**
+    // (issue #259) — a decision, not the seam that was missed. The other three
+    // write paths in this service grew one in that issue and this one did not,
+    // for two reasons:
+    //
+    //  1. A conversion names **no product the caller supplied**. It re-acquires
+    //     the lines of a quote an operator *approved*, at the unit prices they
+    //     agreed — a commitment the seller has already made. `createForCustomer`
+    //     and `patchDraft` filter because they take ids from the buyer;
+    //     `resubmit` filters because it raises a **new** quote on the current
+    //     request's channel. This raises nothing: it hands the agreed lines to
+    //     `carts.replaceItemsForCustomer`.
+    //  2. Refusing would strand the buyer. An approved quote they cannot act on
+    //     is worse than one converted on a storefront that does not list the
+    //     line, and the only channel this operation could honestly be judged
+    //     against is the one the quote was raised on (`rfq.salesChannelId`),
+    //     which the buyer has no way to switch back to from here.
+    //
+    // The sibling ruling covers `orders`' reorder, which re-acquires a placed
+    // order's lines through the same port; its comment carries the second-order
+    // consequence that makes the obvious fix wrong there.
     const productIds = items.map((it) => it.productId);
     const products = await this.deps.catalogProducts.findByIds(productIds);
     if (products.length !== new Set(productIds).size) {

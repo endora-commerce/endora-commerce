@@ -36,6 +36,16 @@ export interface VariantBySku {
  * there is no buyer to answer for and the permission is the enforcement. It is
  * spelled as a literal rather than as an optional argument because an optional
  * one is the same bypass with nothing to grep for.
+ *
+ * **`'unrestricted'` waives the sales-channel narrowing too** (issue #259), and
+ * on the same ground rather than as a second exemption: the operator names the
+ * organisation one step later, so at import time there is no buyer *and*
+ * therefore no storefront this paste is happening on. The channel the admin's
+ * own request resolved to is the resolver's step-4 default unless the SPA sent
+ * `X-Sales-Channel`, and narrowing an operator's paste against a channel nobody
+ * chose would refuse SKUs the operator can see on every admin screen. The waiver
+ * lives in one place — `CatalogPortLookup.#publishedHere`, which reads this
+ * literal — so it cannot drift apart from the audience half it travels with.
  */
 export type QuickOrderImportAudience = ProductAudience | 'unrestricted';
 

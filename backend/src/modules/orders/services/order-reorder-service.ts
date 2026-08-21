@@ -86,6 +86,34 @@ export class OrderReorderService {
       products.filter((p) => p.status !== 'inactive').map((p) => [p.id, p]),
     );
 
+    /**
+     * **No sales-channel filter here, by an owner ruling of 2026-08-21**
+     * (issue #259). It is a decision, not an omission — every acquisition seam
+     * around this one grew one in that issue, so the absence would otherwise
+     * read as the seam that was missed.
+     *
+     * Two reasons, and the second is the one that is invisible from this call
+     * site:
+     *
+     *  1. A reorder names **no product the caller supplied**. It re-acquires
+     *     the lines of an order this buyer already placed — a commitment the
+     *     platform accepted, priced and fulfilled. That is a different question
+     *     from "may this buyer put this id in a cart", which is what the seams
+     *     that *do* filter are answering. `orders.reorder_enabled` is already
+     *     resolved against `order.salesChannelId` above, so the channel that
+     *     governs this operation is the order's own, not the request's.
+     *  2. Repairing it would need a **new `ReorderUnavailableItem.reason`
+     *     value**, which is a contract change. Reusing `'discontinued'` is not
+     *     available: a product sold on another storefront has not been
+     *     discontinued, and telling a buyer it has is a lie the storefront
+     *     would render verbatim. That is what makes the obvious one-line fix
+     *     wrong, and it is why this paragraph is longer than the fix would
+     *     have been.
+     *
+     * The sibling ruling covers `quote_requests`' `convertToOrder`, which
+     * re-acquires an approved quote's lines through the same
+     * `replaceItemsForCustomer` port and for the same reason.
+     */
     const unavailableItems: ReorderUnavailableItem[] = [];
     const reorderable = items.filter((it) => {
       if (!available.has(it.productId)) {

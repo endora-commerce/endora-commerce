@@ -1758,6 +1758,18 @@ export const ANONYMOUS_PRODUCT_AUDIENCE: ProductAudience = {
  * of those refuses out-of-assortment with the *same* answer it gives a
  * restricted row and an absent one, so the pair cannot be used to enumerate an
  * operator's private assortment.
+ *
+ * **Two re-acquisition paths are exempt, by the same ruling**: `orders`'
+ * reorder and `quote_requests`' `convertToOrder`. Neither names a product the
+ * caller supplied — each rebuilds a cart from lines the buyer already holds a
+ * commitment on, a placed order or a quote the seller approved at agreed
+ * prices — and refusing would strand a buyer holding an approved quote they
+ * cannot act on. Read that as decided, not as the two seams that were missed;
+ * each carries the reason at its own call site, including the second-order
+ * consequence that makes the obvious repair of the first one wrong. Two
+ * operator surfaces are exempt on the operator's-permission ground instead:
+ * `RfqAdminService.createOnBehalf` and `quick_order`'s `'unrestricted'` import
+ * arm, both of which say so where they stand.
  */
 export function isProductVisibleTo(
   product: Pick<CatalogProductRecord, 'visibility' | 'allowedOrganizationIds'>,
