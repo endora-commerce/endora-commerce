@@ -2,7 +2,7 @@ import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../src/db/mikro-orm.config.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { assertServicesAvailable } from '../declared-services.js';
-import { BASE_DATABASE_URL_ENV } from '../run-isolation.js';
+import { BASE_DATABASE_URL_ENV, TEMPLATE_DATABASE_ENV } from '../run-isolation.js';
 import { cloneTemplateForCaller, dropRunDatabase } from '../run-isolation-provision.js';
 
 /**
@@ -142,9 +142,11 @@ async function openTestDb(config: typeof mikroOrmConfig): Promise<TestDb> {
 export async function setupMigratorTestDb(): Promise<TestDb> {
   assertServicesAvailable('setupMigratorTestDb');
   const baseUrl = process.env[BASE_DATABASE_URL_ENV];
-  if (!baseUrl) {
+  const template = process.env[TEMPLATE_DATABASE_ENV];
+  if (!baseUrl || !template) {
     process.stdout.write(
-      `[test-db] ${BASE_DATABASE_URL_ENV} is not set, so this invocation has no template to ` +
+      `[test-db] ${BASE_DATABASE_URL_ENV}/${TEMPLATE_DATABASE_ENV} are not set, so this ` +
+        `invocation has no template to ` +
         `clone — a migrator-driving file is running against the shared database, and a ` +
         `migration sequence that fails here will take the rest of the run with it.\n`,
     );
@@ -168,7 +170,7 @@ export async function setupMigratorTestDb(): Promise<TestDb> {
     };
   }
 
-  const clone = await cloneTemplateForCaller(baseUrl);
+  const clone = await cloneTemplateForCaller(baseUrl, template);
   const db = await openTestDb({ ...mikroOrmConfig, clientUrl: clone.url });
   const closeOrm = db.close;
   return {

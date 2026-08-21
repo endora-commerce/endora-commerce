@@ -386,15 +386,16 @@ re-runs the migration against a schema that already has it:
 - `allOrNothing: true` and `transactional: true` mean the replay rolls back rather than
   half-applying: you lose the run, not the database.
 
-So a rename ships with a coordinated rebuild — every developer runs
-`DATABASE_URL=…/b2b_test_tpl pnpm --filter backend run db:fresh` for the test database and
-`pnpm --filter backend run db:reset` for the dev one, in the same window as the merge.
-`b2b_test_tpl` is the migrated template every test invocation is cloned from since issue
-#189; dropping it does the same job, because the next invocation recreates and re-migrates
-it from scratch.
-`db:fresh` and `db:reset` read `backend/.env` and default to the **dev** database, so
-always pass `DATABASE_URL` explicitly when you mean the test one. CI builds an empty
-database and needs no intervention.
+So a rename ships with a coordinated rebuild of the **dev** database — every developer runs
+`pnpm --filter backend run db:reset` in the same window as the merge.
+
+The test suite needs no intervention. Since issue #289 the migrated template every invocation
+is cloned from is named `<base>_tpl_<digest>`, the digest covering the ordered migration class
+names and the content of every migration file — so a renamed class is a *different* migration
+set, and the next invocation builds a template of its own instead of trying to re-apply
+anything into the one you have. CI builds an empty database and needs no intervention either.
+`db:fresh` and `db:reset` read `backend/.env` and default to the **dev** database, so always
+pass `DATABASE_URL` explicitly when you mean anything else.
 
 ## Module-uninstall migration revert
 

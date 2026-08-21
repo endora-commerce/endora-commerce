@@ -7,28 +7,30 @@
  *      here, after pointing every service URL at an unreachable port.
  *   1. Give this invocation its **own** database and its own Redis logical
  *      database, so two concurrent `vitest run`s cannot corrupt each other
- *      (issue #189). The migrated template is created and brought up to date
- *      under an advisory lock; the run database is a clone of it.
+ *      (issue #189). The migrated template is built under an advisory lock and
+ *      the run database is a clone of it — and *which* template is decided
+ *      first, from a digest over this run's whole migration input, so two
+ *      branches cannot be handed each other's platform (issue #289).
  *   2. Refuse to run if the resolved URL does not look like a test DB (must
  *      contain `_test` or `test_` in the database name). Override with
  *      ALLOW_NON_TEST_DATABASE_URL=1 if you really know what you're doing.
  *      Every generated name is put through the same judgement — isolation
  *      never widens it.
  *   3. Drop this invocation's database when the run ends, and sweep the
- *      databases of runs that crashed before they could.
+ *      databases of runs that crashed before they could, plus the templates of
+ *      migration sets nobody runs any more.
  *
  * Workers inherit env vars from the parent process, so setting
  * `process.env.DATABASE_URL` here propagates to every test worker.
  *
  * Override the base test DB URL with TEST_DATABASE_URL (e.g. for CI with a
- * different host) — the template and the per-invocation database are derived
- * from it. `BACKEND_TEST_ISOLATION=shared` restores the pre-#189 behaviour of
+ * different host) — the template and the per-invocation database are named from
+ * it. `BACKEND_TEST_ISOLATION=shared` restores the pre-#189 behaviour of
  * every invocation sharing one database; see `test/run-isolation.ts` for what
  * that used to cost.
  */
 
 import { Client } from 'pg';
-import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import {
   declaredServices,
   SERVICES_DECLARATION_ENV,
@@ -37,6 +39,7 @@ import {
 import {
   BASE_DATABASE_URL_ENV,
   ISOLATION_ENV,
+  TEMPLATE_DATABASE_ENV,
   KEEP_DATABASE_ENV,
   TEST_DATABASE_NAME_PATTERN,
   databaseNameOf,
@@ -101,6 +104,7 @@ async function ensureDatabaseExists(testUrl: string): Promise<void> {
 
 async function applyMigrations(): Promise<void> {
   const { initOrm, closeOrm } = await import('../src/db/index.js');
+  const { establishPlatformInvariants } = await import('./template-seed.js');
   const orm = await initOrm();
   try {
     const migrator = orm.getMigrator();
@@ -117,58 +121,13 @@ async function applyMigrations(): Promise<void> {
 /**
  * The migration class names this run applies, in the order it applies them.
  *
- * Read from the ORM config rather than recomputed, so there is one ordering and
- * not a copy of it here: `src/db/migration-order.ts` derives it from the
- * manifest dependency graph, and it moves whenever a manifest does.
+ * Read from `src/db/configured-migrations.ts`, the module the ORM config
+ * assigns to `migrationsList` — so there is one ordering and not a copy of it
+ * here, and reading it does not import the config, which would capture whatever
+ * `DATABASE_URL` names at that moment for the life of the process.
  */
-async function configuredMigrationNames(): Promise<string[]> {
-  const { default: config } = await import('../src/db/mikro-orm.config.js');
-  return (config.migrations?.migrationsList ?? []).map((entry) => entry.name);
-}
-
-/**
- * The invariants a migrated platform has before it serves anything, established
- * here so a test file does not have to depend on another one having run first
- * (issue #159).
- *
- * There is exactly one so far: **a default Sales Channel always exists** (D-47…
- * D-51). Production gets it from the boot reconciler; `setupBackendServer` runs
- * the same reconciler after it truncates `sales_channels`. A file that boots no
- * server — `setupTestDb`, a `.bench.ts` — got it from whichever harness file the
- * runner happened to schedule before it, which is not a guarantee at all: six
- * files wrote `(await findOne(SalesChannel, { systemDefault: true }))?.id ?? ''`
- * and passed on a warm database, and
- * `test/integration/carts/cart-abandonment-worker.integration.test.ts` failed on
- * a fresh one with `invalid input syntax for type uuid: ""`.
- *
- * Migrations deliberately do not seed it — the channel is install-time state,
- * not schema — so the seam is here, immediately after `migrator.up()`, which is
- * the point at which this database becomes a platform every test may assume.
- *
- * `en-US` / `PLN` rather than the production `en` / `EUR` fallbacks, matching the
- * language and currency rows `setupBackendServer` seeds, so a fresh database and
- * a warm one describe the same channel.
- */
-async function establishPlatformInvariants(orm: MikroORM): Promise<void> {
-  const { DefaultChannelReconciler } =
-    await import('../src/kernel/sales-channels/default-channel-reconciler.js');
-  // `SalesChannel` is a `@GlobalEntity`, so a plain fork is the right EM here:
-  // there is no tenant filter to stamp and no request scope to inherit.
-  const result = await new DefaultChannelReconciler(
-    () => orm.em.fork() as EntityManager,
-    undefined,
-    { bootstrapDefaults: { code: 'default', language: 'en-US', currency: 'PLN' } },
-  ).run();
-  if (result.action === 'inserted') {
-    process.stdout.write('[test-setup] seeded the system-default sales channel\n');
-  }
-  if (result.systemDefault === undefined) {
-    throw new Error(
-      `[test-setup] the system-default sales channel could not be established ` +
-        `(reconciler said "${result.action}"${result.warning ? `: ${result.warning}` : ''}). ` +
-        `Every test may assume exactly one exists — refusing to start a run without it.`,
-    );
-  }
+async function configuredMigrationNames(): Promise<readonly string[]> {
+  return (await import('../src/db/configured-migrations.js')).MIGRATION_NAMES;
 }
 
 /**
@@ -263,6 +222,14 @@ export default async function globalSetup(): Promise<Teardown | void> {
     return;
   }
 
+  // Issue #289 — which template this run's platform is, computed from the tree
+  // before any database is touched: the ordered migration names plus the
+  // content of every file that writes into a template. Two branches that differ
+  // anywhere in that get two templates and cannot contaminate each other; two
+  // that agree share one and pay one migration pass between them.
+  const { templateIdentity } = await import('./template-identity.js');
+  const identity = await templateIdentity();
+
   // Issue #189 — this invocation's own database, cloned from the migrated
   // template. `migrateTemplate` is passed in rather than done here because the
   // ORM config reads DATABASE_URL at import: the template is migrated while
@@ -270,12 +237,7 @@ export default async function globalSetup(): Promise<Teardown | void> {
   // immediately after.
   const run = await provisionRunDatabase({
     baseUrl,
-    configuredMigrations: async (templateUrl) => {
-      // Before the first import of the ORM config, which captures this
-      // variable and never reads it again — see `ProvisionInput`.
-      process.env['DATABASE_URL'] = templateUrl;
-      return configuredMigrationNames();
-    },
+    identity,
     migrateTemplate: async (templateUrl) => {
       process.env['DATABASE_URL'] = templateUrl;
       await applyMigrations();
@@ -285,9 +247,12 @@ export default async function globalSetup(): Promise<Teardown | void> {
   // A file that drives the real migrator may not do it to the database its
   // neighbours share — the run database is this invocation's only copy, so a
   // migration sequence that dies half-way takes the whole invocation with it.
-  // Exporting the base is what lets `setupMigratorTestDb` clone the same
-  // template this run was cloned from; see `test/migrator-driving-tests.ts`.
+  // Exporting the base and the template name is what lets `setupMigratorTestDb`
+  // clone the same template this run was cloned from — by name, because by the
+  // time it asks, another invocation may have built a template of its own; see
+  // `test/migrator-driving-tests.ts`.
   process.env[BASE_DATABASE_URL_ENV] = baseUrl;
+  process.env[TEMPLATE_DATABASE_ENV] = run.template;
 
   // The same defect on the other service: the 20-file batch that "passed alone"
   // would still have collided on Redis keys. An explicit index in REDIS_URL is

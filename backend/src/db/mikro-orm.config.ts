@@ -2,9 +2,10 @@ import { defineConfig } from '@mikro-orm/postgresql';
 import { Migrator } from '@mikro-orm/migrations';
 import { PluralizingNamingStrategy } from './pluralizing-naming-strategy.js';
 import { ALL_ENTITIES } from './entities-registry.generated.js';
-import { DISCOVERED_MANIFESTS } from '../modules/_lifecycle/manifest-index.generated.js';
-import { MIGRATION_REGISTRY } from './migrations-registry.generated.js';
-import { orderMigrations, BASELINE_THROUGH } from './migration-order.js';
+import {
+  MIGRATIONS as migrationsList,
+  MIGRATION_ORDER_DIAGNOSTICS as diagnostics,
+} from './configured-migrations.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -33,20 +34,6 @@ import { orderMigrations, BASELINE_THROUGH } from './migration-order.js';
 
 const databaseUrl =
   process.env['DATABASE_URL'] ?? 'postgresql://b2b:b2b@localhost:5432/b2b';
-
-const moduleDependencies = new Map<string, readonly string[]>([
-  ['core', []],
-  ...DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
-]);
-
-// Throws at import time on a duplicate name, a duplicate per-module timestamp,
-// an unscoped class name or an unknown module id — a loud, actionable boot
-// failure by design.
-const { migrations: migrationsList, diagnostics } = orderMigrations({
-  entries: MIGRATION_REGISTRY,
-  moduleDependencies,
-  baselineThrough: BASELINE_THROUGH,
-});
 
 // A dependency cycle is a diagnostic, not a throw: the graph is the primary
 // ordering now, so refusing here would let one mis-declared manifest stop the
