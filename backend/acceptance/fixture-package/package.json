@@ -1,0 +1,34 @@
+{
+  "name": "@endora-commerce/mod-acceptance-probe",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "Synthetic third-party module used by the package-schema acceptance criterion (D-110). Never published, never composed by a normal build.",
+  "files": ["dist", "i18n"],
+  "endora": {
+    "type": "module",
+    "id": "acceptance_probe",
+    "platform": "0.x"
+  },
+  "exports": {
+    ".": "./dist/manifest.js",
+    "./backend": "./dist/backend/index.js",
+    "./migrations": "./dist/migrations/index.js",
+    "./i18n/*": "./i18n/*",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "@mikro-orm/core": "^6",
+    "@mikro-orm/migrations": "^6",
+    "fastify": "^5"
+  },
+  "peerDependenciesMeta": {
+    "@mikro-orm/core": { "optional": true },
+    "@mikro-orm/migrations": { "optional": true },
+    "fastify": { "optional": true }
+  }
+}
