@@ -138,7 +138,7 @@ fail=0
 # to sort first and to mark "cross-cutting, not a domain" — see AGENTS.md.
 # ──────────────────────────────────────────────────────────────────────────
 allowed_singular="^(auth|catalog|email|example|import_export|inventory|quick_order|search|seo|assets_library|blog|megamenu|newsletter)$"
-allowed_proper_noun="^(autopay|google_tag_manager|ksef|mfa|payu|pim_ergonode|pwa|stripe|tpay)$"
+allowed_proper_noun="^(autopay|google_tag_manager|ksef|mfa|paypal|payu|pim_ergonode|pwa|stripe|tpay)$"
 
 if [ -d backend/src/modules ]; then
   while IFS= read -r -d '' dir; do

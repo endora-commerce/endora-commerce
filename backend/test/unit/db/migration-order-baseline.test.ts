@@ -31,7 +31,7 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * position must be in the open block.
  *
  * Note on the counts. `specs/081-per-module-migration-order/` measured 141
- * migrations (112 baseline, 29 open) against `master@4186aec0`. Twelve
+ * migrations (112 baseline, 29 open) against `master@4186aec0`. Fourteen
  * migrations have landed since —
  * `Migration20260819T074816CustomerAccountsPasswordSetAt`,
  * `Migration20260819T142837CustomerAccountsFoldEmailCase`,
@@ -40,8 +40,10 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * `Migration20260819T193653PimErgonodeFoldDerivedKeys`,
  * `Migration20260820T100201OrdersNewToPaidTransition`, feature 085 Phase C's
  * five `…FailureStatusOnHold` entries and issue #277's
- * `Migration20260821T131145OrdersPurchaseConversionMarker`, all open-block
- * entries — so the numbers here are 153/112/41. The frozen prefix, which is the claim the feature rests
+ * `Migration20260821T131145OrdersPurchaseConversionMarker` and feature 086's
+ * `Migration20260821T110651PaypalInit` +
+ * `Migration20260821T110652PaypalSeedPaymentMethods`, all open-block
+ * entries — so the numbers here are 155/112/43. The frozen prefix, which is the claim the feature rests
  * on, is the spec's 112 unchanged.
  *
  * A new migration is added to `PRE_081_ORDER` in the position feature 065's
@@ -180,8 +182,37 @@ const FROZEN_PREFIX_LENGTH = 112;
  * nothing: no class was renamed, so `mikro_orm_migrations` still filters every
  * applied entry out of `pending` whatever its list position. Measured the
  * prescribed way, with and without the new registry entry.
+ *
+ * **36 → 39, by three**, and this is that saying. Feature 086's PayPal gateway
+ * adds `Migration20260821T110651PaypalInit` and
+ * `Migration20260821T110652PaypalSeedPaymentMethods`. `paypal` is a leaf — no
+ * module's manifest depends on it — so 065 has no dependency inversion to
+ * correct and emits the two in plain chronological order, which for these two
+ * stamps means **last**, at 153 and 154, after
+ * `AutopayFailureStatusOnHold`. The 153 positions the literal already held are
+ * untouched: 065's emission over the merged registry is master's committed
+ * literal with two names appended and nothing else moved. 081 emits them at 144
+ * and 145, inside `paypal`'s own contiguous block, which the topological order
+ * places after `autopay` and before `payu`.
+ *
+ * Three positions change status, not two, and the third is the reason this
+ * paragraph is longer than the last few. The two new entries are the obvious
+ * pair. The third is `Migration20260819T171006ShipmentsStatusPendingManual`:
+ * it sat at 148 under **both** algorithms — one of the handful of open-block
+ * entries that agreed by coincidence — and inserting two entries ahead of it in
+ * the 081 stream pushes it to 150 while the 065 baseline leaves it at 148. The
+ * coincidence is destroyed, so it joins the moved set. Every other entry after
+ * 145 that shifts by two (`PayuInit`, `PayuSeedPaymentMethods`,
+ * `PayuFailureStatusOnHold`, `ShipmentsOrderFk`, `StripeSeedPaymentMethods`,
+ * `StripeFailureStatusOnHold`, `TpaySeedPaymentMethods`,
+ * `TpayFailureStatusOnHold`) was already moved, so it costs the count nothing.
+ * All 39 are in the open block; the frozen 112 are untouched. Measured the
+ * prescribed way — 065's `orderMigrations` from `master@a139e1b7^` run over the
+ * merged registry, emitted side by side with the current one and the differing
+ * positions counted — and the method was checked first by reproducing master's
+ * committed literal and its 36 exactly before the two entries were added.
  */
-const EXPECTED_MOVED_POSITIONS = 36;
+const EXPECTED_MOVED_POSITIONS = 39;
 
 const MODULE_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map<
   string,
