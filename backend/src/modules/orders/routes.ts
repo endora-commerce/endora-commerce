@@ -50,6 +50,7 @@ import type { OrderReorderService } from './services/order-reorder-service.js';
 import type { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
 import type { OrderCreationAdminService } from './services/order-creation-admin-service.js';
 import type { CustomerOrderCancellationService } from './services/order-cancellation-service.js';
+import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { OrderAppliedPromotion } from './entities/order-applied-promotion.entity.js';
@@ -78,6 +79,11 @@ export interface OrdersDeps {
    * capability the buyer's surface renders that control from.
    */
   customerOrderCancellation: CustomerOrderCancellationService;
+  /**
+   * Issue #277 — the per-order claim on the GA4 `purchase` conversion, spent
+   * by whichever storefront page the buyer sees the order on first.
+   */
+  purchaseConversion: PurchaseConversionService;
   /**
    * Feature 038 US3 — pricing engine, used by the read-only create-order
    * preview to resolve per-line prices for the chosen customer/channel.
@@ -320,6 +326,34 @@ export async function registerOrderRoutes(
         ctx.customerAccountId,
       );
       return { data: await serializeForBuyer(order, ctx.customerAccountId) };
+    },
+  );
+
+  /**
+   * Claim this order's GA4 `purchase` conversion (issue #277).
+   *
+   * The storefront asks before it fires the tag and fires only on `true`, so
+   * one order is reported once however many times the buyer opens it, on
+   * however many devices. Everything about *whether* the order may be counted
+   * at all — a declined gateway payment, a refund, a bank transfer that has
+   * not cleared — is the storefront's own eligibility rule and is settled
+   * before this is called; this route answers one question, "has anyone
+   * counted it yet".
+   *
+   * `POST`, because it spends the claim. Scoped through `getById`, which 404s
+   * for an order this buyer may not read, so nobody can burn a stranger's
+   * conversion.
+   *
+   * There is no request body and no side effect on the order.
+   */
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/orders/:id/purchase-conversion',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const ctx = resolveCustomerContext(request);
+      const order = await orderService.getById(request.params.id, ctx);
+      const counted = await deps.purchaseConversion.claim(order.id);
+      return { data: { counted } };
     },
   );
 

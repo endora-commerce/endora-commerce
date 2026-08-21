@@ -1,3 +1,4 @@
+import { purchaseConversionClaimResponseSchema } from '@b2b/contracts';
 import { apiGetAuthed, apiMutate } from './mutations';
 
 /**
@@ -219,4 +220,30 @@ export async function cloneOrderToQuote(
     sessionCookie,
   });
   return result.data!;
+}
+
+/**
+ * Claim this order's GA4 `purchase` conversion (issue #277).
+ *
+ * `true` for the caller that may report it, `false` for every later one — so
+ * an order is counted once, whichever storefront page the buyer sees it on
+ * first and however many times they come back to it. The decision is the
+ * platform's because a marker in the browser is gone with the cache and never
+ * reaches the buyer's second device.
+ */
+export async function claimPurchaseConversion(
+  sessionCookie: string,
+  id: string,
+): Promise<boolean> {
+  const result = await apiMutate<unknown>({
+    method: 'POST',
+    path: `/api/v1/orders/${id}/purchase-conversion`,
+    body: {},
+    sessionCookie,
+  });
+  // Parsed rather than asserted: a body this does not recognise is a body that
+  // grants nothing, and reporting a conversion the platform did not hand out
+  // is the one outcome worth failing closed over.
+  const parsed = purchaseConversionClaimResponseSchema.safeParse(result.data);
+  return parsed.success && parsed.data.counted;
 }

@@ -6945,6 +6945,15 @@
         }
       }
     },
+    "/api/v1/orders/{id}/purchase-conversion": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/orders/{id}/reorder": {
       "post": {
         "responses": {

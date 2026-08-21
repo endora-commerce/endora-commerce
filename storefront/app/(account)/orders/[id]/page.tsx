@@ -22,6 +22,8 @@ import { StorefrontApiError } from '../../../../lib/api/client';
 import { formatMoney } from '../../../../lib/i18n/money';
 import { tForLocale } from '../../../../lib/i18n/messages';
 import { resolvePaymentReturnNotice } from '../../../../lib/orders/payment-return-notice';
+import { PurchaseTracker } from '../../../../components/analytics/EcommerceTrackers';
+import { purchaseTrackingPayload } from '../../../../lib/analytics/purchase-eligibility';
 
 /**
  * Order confirmation page (T158). Renders the order the buyer just placed
@@ -79,6 +81,24 @@ export default async function OrderConfirmationPage({
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
   const paymentNotice = resolvePaymentReturnNotice(paymentReturn, order.paymentStatus);
+  /**
+   * The GA4 `purchase` conversion for this order (issue #277).
+   *
+   * Issue #274 made this page where every gateway returns the buyer, and it
+   * rendered no tracker — so from that change until this one, a PayU or
+   * Autopay buyer completed a payment and was counted nowhere. The eligibility
+   * rule is the one `/checkout/success` applies, reused rather than restated:
+   * a gateway order counts once its payment is confirmed, an order settled out
+   * of band counts at placement, and a refunded or failed one never counts.
+   *
+   * Not gated on `?payment=`, deliberately. That marker says a gateway sent
+   * the buyer here, and a buyer who closed the tab mid-redirect and opened the
+   * order from their list an hour later arrives without it — the conversion is
+   * no less real. What stops this from counting the same order on every visit
+   * is the platform's claim, which the tracker spends before it fires and
+   * which was never opened for any order placed before this existed.
+   */
+  const purchase = purchaseTrackingPayload(order);
   // Terminal orders close commenting; a pending payment surfaces a Pay CTA.
   const isTerminal = order.status === 'completed' || order.status === 'cancelled';
   // Deliberately narrow, and it stays narrow after feature 085 widened the two
@@ -122,6 +142,8 @@ export default async function OrderConfirmationPage({
 
   return (
     <div className="b2b-auth max-w-[720px]">
+      {/* Feature 049 — GA4 purchase (no-op unless Enhanced Ecommerce is on). */}
+      {purchase ? <PurchaseTracker order={purchase} orderId={order.id} /> : null}
       <h1>Thank you — order placed</h1>
       <p className="b2b-auth__success">
         Order <strong>{order.businessId}</strong> has been received.

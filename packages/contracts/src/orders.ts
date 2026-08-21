@@ -1119,3 +1119,22 @@ export interface OrderTransitionPort {
    */
   isTerminal(orderId: string): Promise<boolean | null>;
 }
+
+/**
+ * The answer to a buyer-side claim on an order's GA4 `purchase` conversion
+ * (issue #277).
+ *
+ * `counted: true` means this caller is the one that may report the conversion;
+ * every later caller, on any device, gets `false`. The storefront asks before
+ * it fires, so the tag runs once per order and never again — which is what
+ * stops a buyer who reopens their order from being counted twice, and what
+ * lets the two surfaces that may count an order (`/checkout/success` and
+ * `/orders/:id`) share one answer instead of guessing about each other.
+ */
+export const purchaseConversionClaimResponseSchema = z.object({
+  counted: z.boolean(),
+});
+
+export type PurchaseConversionClaimResponse = z.infer<
+  typeof purchaseConversionClaimResponseSchema
+>;

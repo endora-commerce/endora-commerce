@@ -41,6 +41,7 @@ import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { commerceModule, type OrdersModuleOptions } from './plugin.js';
+import { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { emitOrderStatusAfter } from './events/order-status-events.js';
 import { OrderReadService, toOrderRecord } from './services/order-read-port.js';
 import { OrderReturnContextProvider } from './services/order-return-context.js';
@@ -171,6 +172,8 @@ export interface OrdersCradle {
   readonly orderServiceAccessor: () => OrderService | null;
   readonly orderListServiceAccessor: () => OrderListService | null;
   readonly orderTransitionServiceAccessor: () => OrderTransitionService | null;
+  /** Issue #277 — the per-order claim on the GA4 `purchase` conversion. */
+  readonly orderPurchaseConversion: PurchaseConversionService;
   readonly orders: ReturnType<typeof commerceModule>;
   /**
    * Owned by `prompt_actions`: the assistant's tool catalogue. An ungated
@@ -301,16 +304,53 @@ export function registerModule(ctx: ModuleContext): void {
       : noCarrierShippingLineRenderer,
   });
 
+  /**
+   * The per-order claim on a GA4 `purchase` conversion (issue #277).
+   *
+   * Registered on its own because two seams share it: the subscriber below
+   * opens a claim when an order is placed, and the buyer-facing route spends
+   * it when the storefront reports the conversion. One instance, so the two
+   * cannot disagree about the key.
+   */
+  ctx.di.register({
+    orderPurchaseConversion: ctx
+      .asFunction(({ redis }: OrdersCradle) => new PurchaseConversionService(redis))
+      .singleton(),
+  });
+
+  /**
+   * Every placed order owes exactly one conversion, from the moment it exists.
+   *
+   * A subscriber rather than a line in `placeOrder`: the marker is an
+   * analytics fact held in Redis, and Redis is not in the placement
+   * transaction. Emitted inside the request scope, `order.created.v1` is
+   * dispatched only after that transaction commits and dropped if it does not,
+   * so a rolled-back placement leaves no claim behind and a Redis hiccup
+   * cannot fail an order.
+   */
+  ctx.subscribe('order.created.v1', async (payload) => {
+    const { orderId } = payload as { orderId: string };
+    await cradle().orderPurchaseConversion.open(orderId);
+  });
+
   ctx.di.register({
     orders: ctx
       .asFunction(
-        ({ emFactory, eventBus, commandBus, auditLogService, redis }: OrdersCradle) =>
+        ({
+          emFactory,
+          eventBus,
+          commandBus,
+          auditLogService,
+          redis,
+          orderPurchaseConversion,
+        }: OrdersCradle) =>
           commerceModule({
             emFactory,
             eventBus,
             commandBus,
             auditLogService,
             redis,
+            purchaseConversion: orderPurchaseConversion,
             // Ports, every one of them read lazily: this registration is a
             // singleton and a gate may not be frozen inside one.
             cartWritePort: lazyPort<CartWritePort>(ctx, 'cartWritePort'),
