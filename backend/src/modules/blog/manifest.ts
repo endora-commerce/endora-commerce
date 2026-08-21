@@ -114,11 +114,22 @@ export const manifest = defineModuleManifest({
     'Multi-channel, multi-language blog with categories, tags, and Page Builder posts.',
   version: '1.0.0',
   dependencies: [
-    // Feature 075, Phase C — the boot seeder registers this module's two role
-    // codes as deletion-protected through `systemRoleCodePort`, where it used
-    // to import `admin_roles`' module-level function. The registry is ungated
-    // and its owner is non-deactivatable, so the declaration buys install and
-    // migration order rather than a flip-time refusal.
+    // Two seams, both in the boot seeder, both into `admin_roles`.
+    //
+    // `systemRoleCodePort` (feature 075, Phase C) registers this module's two
+    // role codes as deletion-protected, where the seeder used to import
+    // `admin_roles`' module-level function. That registry is ungated.
+    //
+    // `adminRolePort` (feature 075, the boundary drain) is where the two role
+    // rows are written, in place of the three raw SQL statements that named
+    // `admin_roles`' own table. That one is gated, so it fails closed: with no
+    // `admin_roles` in the composition the seeder throws, `runBootHooks`
+    // re-throws as `ModuleCompositionError` and the platform exits rather than
+    // serving with two roles nobody granted. `admin_roles` is non-deactivatable,
+    // so no operator flip reaches that state — only a deployment that never
+    // shipped the module, which `composeModules` refuses up front. The
+    // declaration therefore buys install and migration order rather than a
+    // flip-time refusal.
     'admin_roles',
     'assets_library',
     // Feature 072 (T061) — blog resolves the `requireAdmin` port, which `auth`

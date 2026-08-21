@@ -1,6 +1,4 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { randomUUID } from 'crypto';
-import type { SystemRoleCodePort } from '@b2b/contracts';
+import type { AdminRolePort, SystemRoleCodePort } from '@b2b/contracts';
 
 /**
  * SeedBlogRoles — feature 016 / R8 / T025.
@@ -14,6 +12,21 @@ import type { SystemRoleCodePort } from '@b2b/contracts';
  * (FR-025 idempotency) and only refreshes the canonical permission array
  * if it has drifted from the documented set. This mirrors feature 014's
  * Hooks-seeder pattern.
+ *
+ * **Both rows are written through `adminRolePort`** since feature 075 drained
+ * `blog`'s cross-module-import shard. Until then this file selected, inserted
+ * and updated the `admin_roles` table in raw SQL — a boundary that compiled and
+ * returned rows, because a statement in a string names no import specifier, and
+ * the one entry the shard carried. Two things follow from the port that the SQL
+ * did not give us: the seeded rows now carry an audit entry like every other
+ * role write (Constitution XIII), and their permission codes are validated
+ * against the platform's catalogue rather than trusted.
+ *
+ * `upsertByCode` assigns `name` from its input unconditionally, so preserving
+ * an operator's rename is this seeder's job and is done the only way the port's
+ * shape allows: read the row first, and hand its current name straight back on
+ * the refresh. A blind upsert here would silently rename "Bloger" to
+ * "Blog Manager" at every boot.
  */
 
 export const BLOG_ROLE_CODES = {
@@ -45,8 +58,14 @@ export interface BlogRoleSeedResult {
   permissionsRefreshed: boolean;
 }
 
+function hasDrifted(want: readonly string[], have: readonly string[]): boolean {
+  const wanted = [...want].sort();
+  const held = [...have].sort();
+  return wanted.length !== held.length || wanted.some((code, i) => code !== held[i]);
+}
+
 export async function seedBlogRoles(
-  emFactory: () => EntityManager,
+  adminRoles: AdminRolePort,
   systemRoleCodes: SystemRoleCodePort,
 ): Promise<BlogRoleSeedResult[]> {
   // Register the seeded codes as system-protected up-front. Idempotent,
@@ -63,37 +82,33 @@ export async function seedBlogRoles(
     systemRoleCodes.register(def.code);
   }
 
-  const em = emFactory();
   const results: BlogRoleSeedResult[] = [];
 
   for (const def of SEED_DEFINITIONS) {
-    const rows = (await em.execute(
-      'select id::text as id, permissions from admin_roles where code = ?',
-      [def.code],
-    )) as Array<{ id: string; permissions: string[] }>;
+    const existing = await adminRoles.findByCode(def.code);
 
-    if (rows.length === 0) {
-      const id = randomUUID();
-      await em.execute(
-        `insert into admin_roles (id, code, name, permissions, requires_two_factor, created_at, updated_at)
-         values (?, ?, ?, ?::jsonb, false, now(), now())`,
-        [id, def.code, def.defaultName, JSON.stringify(def.permissions)],
-      );
-      results.push({ code: def.code, id, created: true, permissionsRefreshed: false });
+    if (existing === null) {
+      const created = await adminRoles.upsertByCode({
+        code: def.code,
+        name: def.defaultName,
+        permissions: def.permissions,
+        requiresTwoFactor: false,
+      });
+      results.push({ code: def.code, id: created.id, created: true, permissionsRefreshed: false });
       continue;
     }
 
-    const existing = rows[0]!;
-    const wantPerms = [...def.permissions].sort();
-    const havePerms = [...(existing.permissions ?? [])].sort();
-    const drifted =
-      wantPerms.length !== havePerms.length ||
-      wantPerms.some((p, i) => p !== havePerms[i]);
+    const drifted = hasDrifted(def.permissions, existing.permissions);
     if (drifted) {
-      await em.execute(
-        `update admin_roles set permissions = ?::jsonb, updated_at = now() where id = ?`,
-        [JSON.stringify(def.permissions), existing.id],
-      );
+      await adminRoles.upsertByCode({
+        code: def.code,
+        // The operator's own name and two-factor choice, handed back
+        // unchanged: this call exists to correct the permission array and
+        // nothing else.
+        name: existing.name,
+        permissions: def.permissions,
+        requiresTwoFactor: existing.requiresTwoFactor,
+      });
     }
     results.push({
       code: def.code,
