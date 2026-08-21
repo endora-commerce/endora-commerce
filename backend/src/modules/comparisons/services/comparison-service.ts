@@ -17,6 +17,7 @@ import {
 } from '@b2b/contracts';
 import { withSystemScope } from '../../../tenancy/index.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import type { SettingsService } from '../../../kernel/settings/settings.service.js';
 import { Comparison } from '../entities/comparison.entity.js';
 import { ComparisonProduct } from '../entities/comparison-product.entity.js';
@@ -98,6 +99,14 @@ export class ComparisonService {
      * this has none.
      */
     private readonly catalogProducts: CatalogProductReadPort,
+    /**
+     * The sanctioned bridge accessor (Constitution XII), for the assortment
+     * gate `addProduct` owes (issue #259). Required for the same reason
+     * `catalogProducts` is: an optional one would spell "this rig wired no
+     * membership service" and "this channel publishes the product" as the same
+     * answer.
+     */
+    private readonly channelMembership: SalesChannelMembershipPort,
     /**
      * Optional settings service. When undefined, `compare.max_products`
      * defaults to {@link DEFAULT_COMPARE_MAX_PRODUCTS} on every call —
@@ -271,6 +280,21 @@ export class ComparisonService {
     // see may not enter their comparison. Same answer as a product that does
     // not exist: `ProductNotFoundError` is what the route turns into a 404.
     if (!product || !isProductVisibleTo(product, audience)) {
+      throw new ProductNotFoundError(productId);
+    }
+    // Issue #259 — the channel axis, which the predicate above states in
+    // writing that it is not. `salesChannelId` is the channel the caller
+    // resolved for this request and stamps on the row below, so the comparison
+    // a buyer builds on one channel can only ever hold products that channel
+    // publishes. Same `ProductNotFoundError` as the line above: "sold on
+    // another channel" must be indistinguishable from "restricted" and from
+    // "does not exist", or the three together enumerate the assortment.
+    const publishedHere = await this.channelMembership.filterEntityIdsInChannel(
+      salesChannelId,
+      'product',
+      [product.id],
+    );
+    if (publishedHere.length === 0) {
       throw new ProductNotFoundError(productId);
     }
 

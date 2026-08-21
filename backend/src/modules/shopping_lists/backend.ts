@@ -4,6 +4,7 @@ import type { CartWritePort, CatalogProductReadPort, RfqCustomerPort } from '@b2
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { shoppingListsModule, type ShoppingListsModuleOptions } from './plugin.js';
 import { ShoppingListService } from './services/shopping-list-service.js';
 
@@ -86,6 +87,10 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<CartWritePort>(ctx, 'cartWritePort'),
             lazyPort<RfqCustomerPort>(ctx, 'rfqService'),
             lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            // Issue #259 — the channel assortment gate on the save seam. A
+            // kernel registration, not a module's, so there is no edge to
+            // declare here.
+            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
           ),
       )
       .singleton(),

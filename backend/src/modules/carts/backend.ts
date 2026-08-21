@@ -22,6 +22,7 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
 import { abandonmentSettingsReaders } from './services/cart-abandonment-settings.js';
 import { CartQueryService } from './services/cart-query-service.js';
@@ -229,6 +230,7 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<LinePricePort>(ctx, 'pricingService'),
             lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
             lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
             cartApprovalService,
             cartAuditService,
             cartRecomputeCache,
@@ -303,6 +305,7 @@ export function registerModule(ctx: ModuleContext): void {
         lazyPort<RfqCustomerPort>(ctx, 'rfqService'),
         lazyPort<QuoteRequestReadPort>(ctx, 'quoteRequestReadPort'),
         lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+        lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
       ),
       cartPricingRecompute: new CartPricingRecompute(
         emFactory,

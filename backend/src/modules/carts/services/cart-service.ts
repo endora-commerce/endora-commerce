@@ -18,6 +18,8 @@ import type {
   OrganizationDetailsPort,
 } from '@b2b/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
+import { outOfRequestChannel } from '../../../kernel/sales-channels/request-channel-assortment.js';
 import type { CartApprovalService } from './cart-approval-service.js';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartRecomputeCache } from './cart-recompute-cache.js';
@@ -90,6 +92,14 @@ export class CartService {
     private readonly catalogProducts: CatalogProductReadPort,
     /** `organizations`' read model — the buying org the price resolves against. */
     private readonly organizations: OrganizationDetailsPort,
+    /**
+     * The sanctioned bridge accessor (Constitution XII), for the assortment
+     * gate `addItem` owes (issue #259). Required, like `catalogProducts`: an
+     * optional one would make "this rig did not wire it" and "this channel
+     * publishes the product" the same answer, which is the fail-open shape the
+     * whole issue is about.
+     */
+    private readonly channelMembership: SalesChannelMembershipPort,
     private readonly approvalService?: CartApprovalService,
     private readonly auditService?: CartAuditService,
     private readonly recomputeCache?: CartRecomputeCache,
@@ -188,6 +198,19 @@ export class CartService {
     // row may not learn it exists, and the two answers are indistinguishable to
     // an honest client because they are the same answer.
     if (!product || !isProductVisibleTo(product, cartAudience(actor))) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
+    // Issue #259 — the second filter the predicate above says it is not. The
+    // channel is a property of the request, so it is read off the request scope
+    // and never re-resolved here; outside a request there is no channel to be
+    // out of and `outOfRequestChannel` answers `false`.
+    //
+    // The same 404 as the two lines above, deliberately: "sold on another
+    // channel", "restricted to another organisation" and "does not exist" have
+    // to be one answer, or the pair of them is an enumeration oracle over an
+    // operator's private assortment — the defect issue #174 found in the
+    // type-ahead next door.
+    if (await outOfRequestChannel(this.channelMembership, product.id)) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
 

@@ -20,6 +20,16 @@ export const SEED_PRODUCT_102_ID = '00000000-0000-4000-8000-000000000102';
 export const SEED_PRODUCT_103_ID = '00000000-0000-4000-8000-000000000103';
 
 /**
+ * …and their SKUs, for the seams that acquire a product by SKU rather than by
+ * id (issue #259 — the quick-order paste, the api-key order intake). Exported
+ * so a test naming one does not re-declare the literal and drift from the row
+ * below.
+ */
+export const SEED_PRODUCT_101_SKU = 'EXAMPLE-SIMPLE-001';
+export const SEED_PRODUCT_102_SKU = 'EXAMPLE-BLUE-002';
+export const SEED_PRODUCT_103_SKU = 'EXAMPLE-LARGE-003';
+
+/**
  * Minimum seed for US1 public catalog tests.
  *
  * - Two Sales Channels: `pl_retail` (public) and `pl_b2b_vip` (non-public).
@@ -28,8 +38,11 @@ export const SEED_PRODUCT_103_ID = '00000000-0000-4000-8000-000000000103';
  *   (searchable but NOT filterable — used by T046 + T048 to prove the toggle
  *   path), `material` (filterable enum), `certification` (not-yet-filterable —
  *   exercised by T055 hot swap).
- * - Three active Products attached to both channels, with fixed UUIDs so RFQ
- *   tests (T049, T054) can reference them directly.
+ * - Three active Products attached to both channels **and to the
+ *   system-default channel**, with fixed UUIDs so RFQ tests (T049, T054) can
+ *   reference them directly. The third membership is issue #259's: production
+ *   binds a new product to the default channel and this fixture did not, so a
+ *   header-less request resolved a channel that sold nothing.
  */
 export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   // --- Sales Channels ----------------------------------------------------
@@ -124,7 +137,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   // --- Products ----------------------------------------------------------
   const exampleSimple = em.create(Product, {
     id: SEED_PRODUCT_101_ID,
-    sku: 'EXAMPLE-SIMPLE-001',
+    sku: SEED_PRODUCT_101_SKU,
     slug: 'example-simple-product',
     type: 'simple',
     status: 'active',
@@ -143,7 +156,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   });
   const exampleB = em.create(Product, {
     id: SEED_PRODUCT_102_ID,
-    sku: 'EXAMPLE-BLUE-002',
+    sku: SEED_PRODUCT_102_SKU,
     slug: 'example-blue-product',
     type: 'simple',
     status: 'active',
@@ -161,7 +174,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   });
   const exampleC = em.create(Product, {
     id: SEED_PRODUCT_103_ID,
-    sku: 'EXAMPLE-LARGE-003',
+    sku: SEED_PRODUCT_103_SKU,
     slug: 'example-large-product',
     type: 'simple',
     status: 'active',
@@ -195,6 +208,35 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
       b2bVip.id, exampleSimple.id,
       b2bVip.id, exampleB.id,
       b2bVip.id, exampleC.id,
+    ],
+  );
+  // …and to the system-default channel, which is what production does and this
+  // fixture did not (issue #259).
+  //
+  // `SalesChannelMembershipService.bindToDefaultIfEmpty` is wired into
+  // `catalog`'s create path (FR-011), so a product created through the platform
+  // is a member of the default channel unless an operator moved it. This seeder
+  // writes the bridge rows directly and skipped that step, which was invisible
+  // for as long as nothing on the acquisition side read the bridge: a request
+  // that named no channel resolved the system default and then never asked
+  // whether the default sells the product. It asks now, so a fixture that
+  // publishes nothing there would make every header-less test in the tree read
+  // as "out of assortment" — a fixture defect wearing the shape of a real
+  // refusal.
+  const systemDefault = await em.findOne(SalesChannel, { systemDefault: true });
+  if (!systemDefault) {
+    throw new Error(
+      'No system-default sales channel — the harness has not reconciled one, and a ' +
+        'catalogue published on no default channel is not the platform under test.',
+    );
+  }
+  await conn.execute(
+    `insert into sales_channel_products (sales_channel_id, product_id) values (?,?), (?,?), (?,?) ` +
+      `on conflict (sales_channel_id, product_id) do nothing`,
+    [
+      systemDefault.id, exampleSimple.id,
+      systemDefault.id, exampleB.id,
+      systemDefault.id, exampleC.id,
     ],
   );
   await conn.execute(

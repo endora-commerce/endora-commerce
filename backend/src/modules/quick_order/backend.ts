@@ -21,6 +21,7 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
@@ -187,7 +188,12 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         () =>
           new QuickOrderImportPipeline(
-            new CatalogPortLookup(lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort')),
+            new CatalogPortLookup(
+              lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+              // Issue #259 — the channel assortment gate on the pasted-SKU
+              // seam. A kernel registration, so no module edge to declare.
+              lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
+            ),
           ),
       )
       .singleton(),

@@ -81,7 +81,21 @@ describe('a quote request records the channel it was raised on', () => {
       defaultCurrency: 'PLN',
       active: true,
     });
-    return (await h.em().findOneOrFail(SalesChannel, { code })).id;
+    const id = (await h.em().findOneOrFail(SalesChannel, { code })).id;
+    // Publish the quoted product on the probe channel (issue #259). A quote
+    // line is an acquisition and is now refused on a channel that does not sell
+    // it, so a disposable channel with an empty assortment can raise no quote
+    // at all — and this file is about *which* channel a quote records, which
+    // presupposes that one can be raised there.
+    await h
+      .em()
+      .getConnection()
+      .execute(
+        `insert into sales_channel_products (sales_channel_id, product_id) values (?, ?) ` +
+          `on conflict (sales_channel_id, product_id) do nothing`,
+        [id, SEED_PRODUCT_101_ID],
+      );
+    return id;
   }
 
   async function createRfq(headerChannelCode?: string): Promise<string> {

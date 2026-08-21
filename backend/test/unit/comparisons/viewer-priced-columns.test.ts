@@ -14,12 +14,29 @@ import {
   type ProductAudience,
 } from '@b2b/contracts';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
+import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
 import { ComparableAttributeProjection } from '../../../src/modules/comparisons/services/comparable-attribute-projection.js';
 import {
   ComparisonService,
   type ComparisonViewer,
 } from '../../../src/modules/comparisons/services/comparison-service.js';
 import { ShareTokenGenerator } from '../../../src/modules/comparisons/services/share-token-generator.js';
+
+/**
+ * Issue #259 — `addProduct` narrows to the channel it was handed, through the
+ * kernel bridge accessor. These cases never reach that call (the product is
+ * absent, or the exercise is a read), so a port that throws on every method is
+ * the assertion that they do not.
+ */
+const refusingChannelMembership = new Proxy(
+  {},
+  {
+    get: (_target, property) => () => {
+      throw new Error(`comparisons unexpectedly called the channel bridge.${String(property)}`);
+    },
+  },
+) as SalesChannelMembershipPort;
+
 
 /**
  * The viewer's identity decides the price a comparison column shows.
@@ -212,6 +229,7 @@ function serviceWith(
     new ComparableAttributeProjection(),
     new ShareTokenGenerator(),
     catalogProductsStub,
+    refusingChannelMembership,
     settingsStub,
     attributePortStub,
     listingPrices,
@@ -427,6 +445,7 @@ function mixedVisibilityService(priced: string[][]): ComparisonService {
     new ComparableAttributeProjection(),
     new ShareTokenGenerator(),
     catalogProducts,
+    refusingChannelMembership,
     settingsStub,
     attributePortStub,
     listingPrices,
