@@ -6,6 +6,7 @@ import type { CommandBus } from '../../commands/index.js';
 import {
   makeDeleteDeliveryMethodCommand,
   makeUpsertDeliveryMethodCommand,
+  type ShipmentUsageCounter,
 } from './commands/delivery-method.commands.js';
 import { DeliveryMethod } from './entities/delivery-method.entity.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
@@ -49,6 +50,13 @@ export interface DeliveryMethodsAdminDeps {
   registry?: ShippingAdapterRegistry;
   /** Feature 035 — validates `statusOn*` references + powers /admin/order-statuses. */
   orderStatusRegistry?: OrderStatusRegistry;
+  /**
+   * Feature 075 — the FR-003 delete guard's count, asked of `shipments` because
+   * the rows are its own. Required, not optional: a guard that can be left out
+   * is a guard that silently is, and it is the only thing protecting shipment
+   * history from a delete (there is no foreign key).
+   */
+  countShipmentsForMethod: ShipmentUsageCounter;
 }
 
 function rendererKeyFor(deps: { registry?: ShippingAdapterRegistry }, adapter: string): string | null {
@@ -167,10 +175,13 @@ export async function registerDeliveryMethodsAdminRoutes(
     '/api/v1/admin/delivery-methods/:id',
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
-      // The 404 and the delete-guard (FR-003) live inside the Command, on its
-      // transaction: the guard's answer and the delete are then the same moment
-      // rather than two.
-      await deps.commandBus.run(makeDeleteDeliveryMethodCommand(request.params.id));
+      // The 404 and the delete-guard (FR-003) live inside the Command, so a
+      // method that is gone is answered before another module is asked about
+      // it. The count itself comes from `shipments` — see the Command's
+      // `ShipmentUsageCounter` for why it no longer runs on this transaction.
+      await deps.commandBus.run(
+        makeDeleteDeliveryMethodCommand(request.params.id, deps.countShipmentsForMethod),
+      );
       return reply.status(204).send();
     },
   );

@@ -262,19 +262,17 @@ export class StockLevelService {
     const warehouses = await em.find(Warehouse, {});
     const warehouseById = new Map(warehouses.map((w) => [w.id, w]));
 
-    const productCategoryRows = (await em.execute(
-      `select product_id, category_id
-         from product_categories
-        where product_id in (${idPlaceholders})`,
-      [...productIds],
-    )) as Array<{ product_id: string; category_id: string }>;
+    // Asked of `catalog` rather than joined out of its `product_categories`
+    // table — see `resolveAvailabilityBands` for the whole reason (feature 075,
+    // the `inventory` shard).
+    const assignments = await this.catalogCategories.listAssignmentsForProducts(productIds);
     const categoryIdsByProduct = new Map<string, string[]>();
-    for (const row of productCategoryRows) {
-      const list = categoryIdsByProduct.get(row.product_id) ?? [];
-      list.push(row.category_id);
-      categoryIdsByProduct.set(row.product_id, list);
+    for (const assignment of assignments) {
+      const list = categoryIdsByProduct.get(assignment.productId) ?? [];
+      list.push(assignment.categoryId);
+      categoryIdsByProduct.set(assignment.productId, list);
     }
-    const categoryIds = Array.from(new Set(productCategoryRows.map((r) => r.category_id)));
+    const categoryIds = Array.from(new Set(assignments.map((a) => a.categoryId)));
     const categories = await this.catalogCategories.findByIds(categoryIds);
     const categoryById = new Map(categories.map((c) => [c.id, c]));
 
@@ -615,24 +613,23 @@ export class StockLevelService {
       ]),
     );
 
-    const productCategoryRows = (await em.execute(
-      `select product_id, category_id
-         from product_categories
-        where product_id in (${productPlaceholders})`,
-      [...productIds],
-    )) as Array<{
-      product_id: string;
-      category_id: string;
-    }>;
-    const categoryIds = Array.from(new Set(productCategoryRows.map((r) => r.category_id)));
+    // `product_categories` is `catalog`'s bridge table and this module used to
+    // join it here in raw SQL — a boundary crossing that names no import
+    // specifier, one line above the `findByIds` that already asked the owner
+    // the next question (feature 075, the `inventory` shard). The port answers
+    // both halves now. No `activeOnly`: a threshold set on a category an
+    // operator deactivated still governs the stock band of the products in it,
+    // exactly as the join this replaces did.
+    const assignments = await this.catalogCategories.listAssignmentsForProducts(productIds);
+    const categoryIds = Array.from(new Set(assignments.map((a) => a.categoryId)));
     const categories = await this.catalogCategories.findByIds(categoryIds);
     const categoryById = new Map(categories.map((c) => [c.id, c]));
 
     for (const product of products) {
       const cumulativeOnHand = onHandByProduct.get(product.id) ?? 0;
-      const categoryThresholds = productCategoryRows
-        .filter((r) => r.product_id === product.id)
-        .map((r) => categoryById.get(r.category_id))
+      const categoryThresholds = assignments
+        .filter((a) => a.productId === product.id)
+        .map((a) => categoryById.get(a.categoryId))
         .filter((c): c is CatalogCategoryRecord => Boolean(c))
         .map((c) => ({
           high: c.inventoryThresholdHigh,
