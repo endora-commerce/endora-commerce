@@ -68,6 +68,19 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
  * the personalisation's four became three — the organisation row and the extra
  * list, with nothing per-card left for the third to be spent on.
  *
+ * **What this corpus cannot measure.** Its products carry no gallery, no
+ * `product_assets` row and no category assignment, so all three of those reads
+ * come back empty: both `assets.findByIds` calls short-circuit on an empty id
+ * list and are never issued, and the price-list resolution skips its
+ * category-override lookup. That is the whole of the difference between the 11
+ * warm statements above and the 14 the same page costs over a corpus whose
+ * cards have rows. A per-asset loop re-opened inside `resolvePrimaryAssetUrls`
+ * costs this page **nothing** and passes here (measured: 11 warm, unchanged,
+ * while the same regression took the other page from 14 to 87). The numbers
+ * here are the pricing ones and stay the pricing ones;
+ * `listing-card-reads-cost.bench.ts` is where a card's own reads are measured,
+ * over `rich-listing-corpus.ts`.
+ *
  * Skipped unless `PERF_RUN=true`, like every other bench here.
  */
 
