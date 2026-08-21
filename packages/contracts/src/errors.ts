@@ -19,6 +19,16 @@ export const ERROR_CODES = {
   // Catalog
   FILTER_NOT_ALLOWED: 'FILTER_NOT_ALLOWED',
   PRODUCT_NOT_FOUND: 'PRODUCT_NOT_FOUND',
+
+  // Catalog 086 — the viewer's own price as an ordering and as a filter.
+  //
+  // `FILTER_NOT_ALLOWED` is deliberately not reused for either: it means "this
+  // attribute is not filterable", and a price is not an attribute — the
+  // `'price'` occurrences in `catalog-query.service.ts` are an attribute
+  // *value type*, so the message would read as though an operator could switch
+  // price filtering on in the attribute editor.
+  PRICE_ORDERING_UNAVAILABLE: 'PRICE_ORDERING_UNAVAILABLE',
+  PRICE_RANGE_INVALID: 'PRICE_RANGE_INVALID',
   PRODUCT_ARCHIVED: 'PRODUCT_ARCHIVED',
   PRODUCT_DELETE_BLOCKED: 'PRODUCT_DELETE_BLOCKED',
   SKU_ALREADY_EXISTS: 'SKU_ALREADY_EXISTS',

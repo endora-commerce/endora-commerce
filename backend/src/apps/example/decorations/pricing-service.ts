@@ -16,7 +16,13 @@
 //     price_lists" — so an override no longer breaks when core moves a file,
 //     and a reader can tell what is overridden without diffing two trees.
 
-import type { ListingPrice } from '@b2b/contracts';
+import type {
+  DisplayMode,
+  ListingPrice,
+  ListingPriceOrderChunk,
+  ListingPriceOrderQuery,
+  ListingPriceViewerContext,
+} from '@b2b/contracts';
 import type {
   ListingPricesInput,
   PricingLineResult,
@@ -64,6 +70,28 @@ class ExamplePricingService implements PricingServiceContract {
     productIds: readonly string[];
   }): Promise<Map<string, string>> {
     return this.inner.namedListPrices(input);
+  }
+
+  /**
+   * Feature 086 — the listing ordering, delegated whole, for the same reason
+   * `resolveListingPrices` is: the order a buyer sorts by and the figure on the
+   * card have to be the same relation, and a decoration that reordered one
+   * without the other would put this deployment's own tag on a listing whose
+   * positions came from somewhere else.
+   */
+  async orderByUnitPrice(input: ListingPriceOrderQuery): Promise<ListingPriceOrderChunk> {
+    return this.inner.orderByUnitPrice(input);
+  }
+
+  async pricedProductIds(input: {
+    context: ListingPriceViewerContext;
+    productIds: readonly string[];
+  }): Promise<ReadonlySet<string>> {
+    return this.inner.pricedProductIds(input);
+  }
+
+  async pageDisplayMode(input: { context: ListingPriceViewerContext }): Promise<DisplayMode> {
+    return this.inner.pageDisplayMode(input);
   }
 }
 

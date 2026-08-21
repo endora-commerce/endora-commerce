@@ -9,6 +9,7 @@ import {
   type AdminUserReadPort,
   type EmailMailerPort,
   type LanguageReadPort,
+  type ListingPriceOrderPort,
   type ListingPricePort,
   type OrgLinePricePort,
   type CustomFieldDefinitionReadPort,
@@ -111,7 +112,7 @@ export interface CatalogModuleOptions {
    * pricing uses). Consumed only by the external catalog namespace's
    * decoration layer — SC-001 parity by construction.
    */
-  pricingService?: OrgLinePricePort & ListingPricePort;
+  pricingService?: OrgLinePricePort & ListingPricePort & ListingPriceOrderPort;
   /**
    * Feature 062 — inventory availability port for the external namespace's
    * `availability` indication. Optional: when omitted the field is omitted.
@@ -280,6 +281,8 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.assets,
       options.salesChannelMembership,
       options.organizations,
+      // Feature 086 — the ordering slice of the same `pricingService`.
+      options.pricingService,
     );
     const adminService = new CatalogAdminService(
       options.emFactory,
@@ -350,6 +353,9 @@ export function catalogModule(options: CatalogModuleOptions) {
       ...(options.resolveProductImagePlaceholderUrl
         ? { resolveProductImagePlaceholderUrl: options.resolveProductImagePlaceholderUrl }
         : {}),
+      // Feature 086 / FR-016 — the route's own refusal reads the page's display
+      // mode off the same container the ordering comes from.
+      ...(options.pricingService ? { listingPriceOrder: options.pricingService } : {}),
     });
     const categoryAdminService = new CategoryAdminService(
       options.emFactory,

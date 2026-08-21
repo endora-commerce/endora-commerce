@@ -25,6 +25,12 @@ const CATALOG_MISC_ERROR_CODES = new Set<ErrorCode>([
   ERROR_CODES.MIN_NOT_MET,
   ERROR_CODES.MAX_EXCEEDED,
   ERROR_CODES.UNKNOWN_OPTION,
+  // Feature 086 — named one by one rather than by a `PRICE_` prefix, which
+  // would take the whole `PRICE_LIST_*` family off `price_lists`. Routed to
+  // `catalog` because that is the module whose route refuses: the price is not
+  // an attribute and neither code is a price-list error.
+  ERROR_CODES.PRICE_ORDERING_UNAVAILABLE,
+  ERROR_CODES.PRICE_RANGE_INVALID,
 ]);
 
 const SEARCH_MISC_ERROR_CODES = new Set<ErrorCode>([

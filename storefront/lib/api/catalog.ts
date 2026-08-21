@@ -2,6 +2,8 @@ import type {
   CategoryNode,
   FilterDefinition,
   ProductDetail,
+  ProductListCapabilities,
+  ProductListSort,
   ProductSummary,
 } from '@b2b/contracts';
 import { apiGet, apiGetForViewer, type RequestContext } from './client';
@@ -26,15 +28,25 @@ export interface ListProductsResponse {
     nextCursor: string | null;
     hasMore: boolean;
   };
+  /**
+   * Feature 086 — what this page may offer this viewer. Absent from an older
+   * backend, which is why the toolbar treats `undefined` as "no price
+   * controls": offering an ordering the API refuses is worse than offering
+   * none.
+   */
+  capabilities?: ProductListCapabilities;
 }
 
 export interface ListProductsQuery {
   q?: string | undefined;
   cursor?: string | undefined;
   limit?: number | undefined;
-  sort?: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+  sort?: ProductListSort | undefined;
   categorySlug?: string | undefined;
   attributeFilters?: Record<string, string[]> | undefined;
+  /** Feature 086 — inclusive bounds on the viewer's own price. */
+  minPrice?: number | undefined;
+  maxPrice?: number | undefined;
 }
 
 export async function listProducts(
@@ -46,6 +58,11 @@ export async function listProducts(
   if (query.cursor) params.set('cursor', query.cursor);
   if (query.limit) params.set('limit', String(query.limit));
   if (query.sort) params.set('sort', query.sort);
+  // Pass-through, and deliberately no change to the `apiGetForViewer` split
+  // below: that split is what stops one buyer's ordering being stored under a
+  // key every other buyer's request also computes (FR-018).
+  if (query.minPrice !== undefined) params.set('minPrice', String(query.minPrice));
+  if (query.maxPrice !== undefined) params.set('maxPrice', String(query.maxPrice));
   if (query.categorySlug) params.set('filter[category]', query.categorySlug);
   if (query.attributeFilters) {
     for (const [key, values] of Object.entries(query.attributeFilters)) {

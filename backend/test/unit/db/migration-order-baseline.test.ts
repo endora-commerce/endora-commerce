@@ -31,7 +31,7 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * position must be in the open block.
  *
  * Note on the counts. `specs/081-per-module-migration-order/` measured 141
- * migrations (112 baseline, 29 open) against `master@4186aec0`. Fourteen
+ * migrations (112 baseline, 29 open) against `master@4186aec0`. Fifteen
  * migrations have landed since —
  * `Migration20260819T074816CustomerAccountsPasswordSetAt`,
  * `Migration20260819T142837CustomerAccountsFoldEmailCase`,
@@ -42,9 +42,11 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
  * five `…FailureStatusOnHold` entries and issue #277's
  * `Migration20260821T131145OrdersPurchaseConversionMarker` and feature 086's
  * `Migration20260821T110651PaypalInit` +
- * `Migration20260821T110652PaypalSeedPaymentMethods` and feature 075's
- * `Migration20260821T140323CreditLimitsReservationReservingOrganization`, all
- * open-block entries — so the numbers here are 156/112/44. The frozen prefix, which is the claim the feature rests
+ * `Migration20260821T110652PaypalSeedPaymentMethods`, feature 075's
+ * `Migration20260821T140323CreditLimitsReservationReservingOrganization` and
+ * feature 086's
+ * `Migration20260821T135907PriceListsUnitPriceAmountIndex`, all
+ * open-block entries — so the numbers here are 157/112/45. The frozen prefix, which is the claim the feature rests
  * on, is the spec's 112 unchanged.
  *
  * A new migration is added to `PRE_081_ORDER` in the position feature 065's
@@ -240,6 +242,43 @@ const FROZEN_PREFIX_LENGTH = 112;
  * over the rebased registry **with this entry removed** reproduces master's
  * committed literal entry for entry, and recomputing the differing positions
  * over master's own state gives back its committed 39.
+ *
+ * **41 stays 41, and two positions changed status**, which is the case the
+ * paragraphs above kept warning about and the reason a number that did not move
+ * still needs its saying. Feature 086's
+ * `Migration20260821T135907PriceListsUnitPriceAmountIndex` — the partial
+ * covering index over the quantity-1 price brackets that the viewer's own price
+ * ordering scans — is the newest stamp in the registry. 065's chronology emits
+ * it **last**, but the 45-day correction horizon then pulls it back to **122**,
+ * because a new `price_lists` stamp inside the horizon re-fires the inversion
+ * edges around it: `PaymentMethodsFailureStatusOnHold` comes forward from 124
+ * to 121, `PimErgonodeInit`, `PimErgonodeFoldDerivedKeys` and
+ * `OrdersNewToPaidTransition` each go back two, and everything from 126 onwards
+ * keeps its relative order and shifts by one. 081 emits the same entry at
+ * **122** as well, inside `price_lists`' own contiguous block and immediately
+ * after `PriceListsSingleSystemPriceList`.
+ *
+ * So the two algorithms **agree** about the new entry, which is why the count
+ * did not grow — and it would be wrong to read that as "the insertion moved
+ * nobody". Position **122 stopped being moved**: the baseline held
+ * `PimErgonodeFoldDerivedKeys` there and the emitted order held
+ * `OrdersNewToPaidTransition`, and both now hold the new entry. Position
+ * **156** became moved in exchange — the list is one longer, and the last index
+ * now holds `CreditLimitsReservationReservingOrganization` in the baseline
+ * against `TpayFailureStatusOnHold` in the emitted order. One in, one out, 41
+ * either way. All 41 are in the open block and the frozen 112 are untouched,
+ * asserted rather than assumed (the side-by-side emission counted zero
+ * differing positions below 112).
+ *
+ * Measured the prescribed way, and the method was validated **before** the
+ * number was believed: 065's `orderMigrations` from `master@a139e1b7^`, run
+ * over the rebased registry **with this entry filtered out of it**, reproduces
+ * master's committed 156-entry literal exactly, and the same side-by-side
+ * count over that state gives back master's committed 41. The filter is on
+ * `entry.cls.name` — a registry entry has no `name` of its own, so filtering on
+ * one removes nothing and leaves a validation that compares an array with
+ * itself and looks green; the probe asserts that exactly one entry was removed
+ * before it compares anything.
  */
 const EXPECTED_MOVED_POSITIONS = 41;
 
@@ -382,10 +421,11 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260819T074816CustomerAccountsPasswordSetAt',
   'Migration20260819T142837CustomerAccountsFoldEmailCase',
   'Migration20260817T055457PriceListsSingleSystemPriceList',
+  'Migration20260821T084920PaymentMethodsFailureStatusOnHold',
+  'Migration20260821T135907PriceListsUnitPriceAmountIndex',
   'Migration20260804T190439PimErgonodeInit',
   'Migration20260819T193653PimErgonodeFoldDerivedKeys',
   'Migration20260820T100201OrdersNewToPaidTransition',
-  'Migration20260821T084920PaymentMethodsFailureStatusOnHold',
   'Migration20260821T131145OrdersPurchaseConversionMarker',
   'Migration20260801T111000InvoicesGenericTemplateReseed',
   'Migration20260817T194652ShipmentsOrderFk',
