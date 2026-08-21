@@ -85,6 +85,37 @@ export class AuditLogService {
       limit: Math.min(Math.max(filter.limit ?? 100, 1), 500),
     });
   }
+
+  /**
+   * Every entry recorded under one action for a **set** of objects, oldest
+   * first (issue #284).
+   *
+   * `query()` above answers for one object and caps the answer; this one
+   * answers for a page. The difference is the whole reason it exists: its
+   * caller is a list of orders asking who wrote each one's current status, and
+   * `query()` per row is an N+1 across the page — the class of defect MR !822
+   * spent a day pinning out of the catalogue listing.
+   *
+   * Deliberately **uncapped**. A `limit` over a set does not bound the work
+   * evenly, it drops whichever objects sort last, and an object whose history
+   * was silently truncated reads as an object with no history — a wrong answer
+   * rather than a slow one. The population is bounded by the caller instead:
+   * it passes the ids on one page.
+   */
+  async findByObjectIds(input: {
+    action: string;
+    objectType: string;
+    objectIds: readonly string[];
+  }): Promise<AuditLogEntry[]> {
+    const objectIds = [...new Set(input.objectIds)];
+    // No ids is no question, and an `$in: []` is still a round trip.
+    if (objectIds.length === 0) return [];
+    return this.emFactory().find(
+      AuditLogEntry,
+      { action: input.action, objectType: input.objectType, objectId: { $in: objectIds } },
+      { orderBy: { actedAt: 'asc' } },
+    );
+  }
 }
 
 export interface AuditLogFilter {

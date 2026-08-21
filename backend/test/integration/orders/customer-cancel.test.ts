@@ -14,6 +14,7 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import { StockAllocation } from '../../../src/modules/inventory/entities/stock-allocation.entity.js';
 
@@ -344,14 +345,26 @@ describe('a buyer cancels their own order (085 Phase F)', () => {
    * US1 → US3, the path this feature exists to open: a declined payment holds
    * the order at the method's failure status instead of cancelling it, and the
    * buyer may then either pay again or cancel. This is the second exit.
+   *
+   * The decline is driven **through the settlement ingress** rather than by
+   * assigning the two columns. Since issue #284 the predicate asks who wrote
+   * the hold, and a hold assigned in a test is a hold nobody wrote — which the
+   * predicate correctly refuses, and which would have made this case pass or
+   * fail on how its fixture was built rather than on what the product does.
    */
   it('lets the buyer cancel an order held after a declined payment', async () => {
     const orderId = await place(await bankTransferMethod('on_hold'));
-    const em = h.em();
-    const order = await em.findOneOrFail(Order, { id: orderId });
-    order.status = 'on_hold';
-    order.paymentStatus = 'failed';
-    await em.flush();
+    const payment = await h.em().findOneOrFail(Payment, { orderId });
+    const declined = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/payments/receive',
+      ...ADMIN,
+      payload: { paymentId: payment.id, outcome: 'failure', failureReason: 'card declined' },
+    });
+    expect(declined.statusCode).toBe(200);
+    const order = await orderNow(orderId);
+    expect(order.status).toBe('on_hold');
+    expect(order.paymentStatus).toBe('failed');
 
     expect((await readAsBuyer(orderId)).body.data['customerCancellable']).toBe(true);
     const res = await cancel(orderId);

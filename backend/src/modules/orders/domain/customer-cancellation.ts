@@ -1,6 +1,7 @@
 /**
  * When a buyer may cancel an order they placed (feature 085 Phase F, FR-013 to
- * FR-015; derived in `specs/085-payment-failure-recovery/research.md` R13).
+ * FR-015; derived in `specs/085-payment-failure-recovery/research.md` R13, and
+ * corrected by the owner's ruling on issue #284).
  *
  * The owner's ruling is one sentence with two clauses — *"the customer may
  * cancel only orders that have not yet been paid. Beyond that the order is
@@ -11,9 +12,9 @@
  *    a negation of `paid`: a credit-limit order is `deferred`, which is
  *    literally unpaid and would pass a negation, but its credit was drawn
  *    inside the placement transaction — the shop is already acting on it.
- * 2. **Nobody has begun to fulfil the order**, expressed as "the order is still
- *    where the payment flow left it": the graph's initial status, or the status
- *    the payment method's own `statusOnFailure` setting points at.
+ * 2. **Nobody has begun to fulfil the order**: the order is at the graph's
+ *    initial status, or it is at the status the payment method fails into
+ *    **and the settlement ingress is what put it there**.
  *
  * Term 2 exists because term 1 is unsafe on its own. Bank transfer and cash on
  * pickup never advance their money axis — nothing moves it but an operator
@@ -21,6 +22,31 @@
  * `order.status` — so a money-only rule lets a buyer cancel goods already
  * picked, packed and shipped, which under Phase D releases the stock those
  * goods were dispatched against.
+ *
+ * ## What issue #284 changed, and why
+ *
+ * Term 2's second clause used to be the status comparison **alone**: "the order
+ * stands where the ingress would have put it". That was meant to separate an
+ * order held by a decline from one an operator held mid-fulfilment, and R13
+ * claimed it did — but Phase C then set `status_on_failure = 'on_hold'` for
+ * every shipped method, and on that default the two orders are identical in
+ * every column the predicate reads: same `status`, same `paymentStatus`, same
+ * configured failure status. The operator's hold therefore handed the buyer a
+ * cancel control, and cancelling it releases stock the warehouse may already
+ * have picked.
+ *
+ * The difference between the two orders is not a state, it is an **event**, and
+ * since Phase D there is a record of it: every transition writes an
+ * `order.status_transition` audit entry carrying its actor. So the clause now
+ * asks who wrote the hold, and the caller supplies the answer —
+ * see `status-authorship.ts` for what the recorded entry can and cannot say.
+ *
+ * **The status comparison stays, in conjunction rather than alone.** It is no
+ * longer the discriminator it failed to be; it is what keeps a *shipment*-driven
+ * status out. The shipment ingress announces itself as a system actor too, and
+ * an order it moved to `shipment_sent` is an order the shop has dispatched —
+ * authorship alone would admit it, which is the same hazard wearing the other
+ * hat.
  *
  * Pure, and free of any status literal: both comparison values are passed in
  * because both are operator-configurable. The caller reads the initial status
@@ -52,6 +78,19 @@ export interface ShopHasNotStartedInputs {
    * every held order becoming so.
    */
   statusOnFailure: string | null;
+  /**
+   * Whether the order's **current** status was written by a system actor —
+   * which, at a payment method's failure status, is the settlement ingress
+   * (issue #284).
+   *
+   * Established from the order's transition history by
+   * `authorOfCurrentStatus`; `false` covers both "an operator or the customer
+   * wrote it" and "nothing in the history says", and the two are deliberately
+   * one value here because the answer to both is the same. The caller batches
+   * that read for a whole page and hands the decision the boolean, so this
+   * function stays synchronous and cannot issue a query of its own.
+   */
+  currentStatusWrittenBySystem: boolean;
 }
 
 export interface BuyerCancellableInputs extends ShopHasNotStartedInputs {
@@ -65,29 +104,22 @@ export function stillOwedByTheBuyer(paymentStatus: string): boolean {
 }
 
 /**
- * Term 2 — the order is still where the payment flow left it.
+ * Term 2 — nobody has begun to fulfil the order.
  *
- * Deliberately **not** a membership test against `{initial, on_hold}`. An order
- * an operator moved to `on_hold` from mid-fulfilment was moved by an actor
- * after the payment flow left it: the shop chose to hold it, and the shop had
- * already started. Comparing to the method's *configured* failure status is
- * what tells those two `on_hold` orders apart — **whenever the two statuses
- * differ**.
+ * Two ways to satisfy it, and the second one is a conjunction of three facts:
+ * the method's failure status is readable, the order is at it, and a system
+ * actor is what put the order there. Drop any of the three and a case that
+ * must be refused gets through — an unreadable configuration guessed at, a
+ * shipped order that a system actor moved, an operator's hold on the shipped
+ * default where every column agrees with a decline's.
  *
- * Under the shipped default they do not, and research R13 claims more for this
- * formulation than it can deliver. A method that fails into `on_hold` produces
- * an order whose columns are identical whether a decline put it there or an
- * operator did: same status, same money axis, same configured failure status.
- * So on the shipped configuration a mid-fulfilment hold **is** buyer-cancellable,
- * and the buyer releasing it releases stock a shop that had started may have
- * committed. Separating the two needs the order's *history* — who moved it last
- * — which the ruled predicate does not read and which is a design change rather
- * than a fix: it would make a buyer-facing capability depend on audit rows.
- * Recorded here rather than papered over; it is the owner's to decide.
+ * Deliberately **not** a membership test against `{initial, on_hold}`, and no
+ * longer the status comparison on its own: see the header.
  */
 export function shopHasNotStarted(inputs: ShopHasNotStartedInputs): boolean {
   if (inputs.status === inputs.initialStatusCode) return true;
-  return inputs.statusOnFailure !== null && inputs.status === inputs.statusOnFailure;
+  if (inputs.statusOnFailure === null || inputs.status !== inputs.statusOnFailure) return false;
+  return inputs.currentStatusWrittenBySystem;
 }
 
 /** Both terms. The server decides this; the buyer's surface is told the answer. */
