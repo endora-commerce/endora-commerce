@@ -272,7 +272,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     prefix: '[overlay:check]',
     run: { kind: 'tsx', path: 'scripts/check-overlay-determinism.ts', args: [] },
     files: 6,
-    sites: null,
+    // Every import specifier in the six rendered artefacts, which is the
+    // population the `foreign` verdict answers over (feature 080, T030a):
+    // 133 + 67 + 225 + 159 in the four generated files, one in each override
+    // manifest. Recorded 2026-08-21.
+    sites: 586,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -378,9 +382,13 @@ export const READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE: Readonly<Record<string, st
     'no positive enumeration to reconcile against, and that is deliberate: an allow-list ' +
     'would leave the next extension-less script silently unscanned.',
   'backend/scripts/check-overlay-determinism.ts':
-    'the artefact list comes from the generators themselves. The independent half exists ' +
-    'and is a test rather than a second walk: the companion test compares ' +
-    '`coveredArtifactPaths()` against the `*.generated.ts` files on disk.',
+    'the artefact list comes from the generators themselves, and so does the entry list ' +
+    'inside each artefact — a rendered file has no second author. The independent half ' +
+    'exists and is a test rather than a second walk: the companion test compares ' +
+    '`coveredArtifactPaths()` against the `*.generated.ts` files on disk. The `sites` ' +
+    'population is floored per artefact instead (feature 080, T030a), in the idiom ' +
+    "`check-doc-snippets` uses for its roots: a guard derived from the check's own " +
+    'examinations rather than a `sources=` entry it would be reconciling with itself.',
   'backend/scripts/check-shared-table-wipes.ts': 'same population as `check-fixture-substitution`.',
   'backend/scripts/i18n-hardcoded-strings.ts':
     "the population is the admin SPA's own source tree; nothing else in the repository " +
@@ -419,8 +427,6 @@ export const READ_SIZE_WITHOUT_A_SITE_POPULATION: Readonly<Record<string, string
     'reports cross-module reaches; the specifiers and table references it cleared are not ' +
     'collected, and there are two populations (imports and SQL) rather than one.',
   'backend/scripts/check-nul-bytes.ts': 'the unit is the file: a NUL anywhere in it is the rule.',
-  'backend/scripts/check-overlay-determinism.ts':
-    'the unit is the artefact, and every artefact is compared whole.',
   'backend/scripts/check-subscribe-seam.ts':
     'reports bare subscriptions; the seam-registered ones are in `backend.ts` bodies the ' +
     'check does not enumerate.',

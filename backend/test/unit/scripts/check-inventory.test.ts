@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { defineModuleManifest, type ModuleManifest } from '@b2b/contracts';
@@ -64,7 +64,14 @@ import {
   findCrossModuleSql,
   type CrossModuleImportKind,
 } from '../../../scripts/check-module-boundary.js';
-import { compareArtifact } from '../../../scripts/check-overlay-determinism.js';
+import {
+  compareArtifact,
+  containmentSites,
+  examineArtifact,
+  permittedRoots,
+  vacuousContainmentPopulation,
+} from '../../../scripts/check-overlay-determinism.js';
+import { renderEntitiesRegistry } from '../../../scripts/generate-composer.js';
 import { checkPortCatches } from '../../../scripts/check-port-catches.js';
 import {
   findNonBindingIssues,
@@ -1434,6 +1441,103 @@ function artifactVerdicts(
 ): number {
   const verdict = compareArtifact('/repo/x.generated.ts', rendered, read);
   return !verdict.ok && verdict.reason === reason ? 1 : 0;
+}
+
+/**
+ * The `foreign` verdict's fixtures (feature 080, T030a).
+ *
+ * The roots are **derived**, by the same call a real run makes, because the
+ * derivation — which of the paths under `node_modules` is a workspace member
+ * linked out of this repository, and which is an installed package — is the
+ * thing these proofs exist to protect. A hand-written root list would leave it
+ * unrun, which is issue #130's shape.
+ */
+const CONTAINMENT_ROOTS = permittedRoots(REPO_ROOT);
+const ENTITIES_REGISTRY_PATH = renderEntitiesRegistry(new Map()).outputPath;
+const MIGRATIONS_REGISTRY_PATH = join(
+  dirname(ENTITIES_REGISTRY_PATH),
+  'migrations-registry.generated.ts',
+);
+
+/** A rendered artefact carrying exactly the specifiers a proof is about. */
+function renderedArtefact(...specifiers: readonly string[]): string {
+  const imports = specifiers.map((s, i) => `import { E${i} } from '${s}';`).join('\n');
+  return `${imports}\n\nexport const ALL_ENTITIES = [] as const;\n`;
+}
+
+function foreignSpecifiers(content: string): string[] {
+  return containmentSites(ENTITIES_REGISTRY_PATH, content, CONTAINMENT_ROOTS)
+    .filter((site) => site.verdict === 'foreign')
+    .map((site) => site.specifier);
+}
+
+/**
+ * The leak, through the real generator and with the artefact byte-identical to
+ * disk — i.e. deterministic, which is the state in which nothing else looks.
+ */
+function renderedLeakFindings(): number {
+  const rendered = renderEntitiesRegistry(
+    new Map([
+      [
+        'node_modules/@vendor/mod-blog/entities/probe.entity.ts',
+        '@Entity()\nexport class VendorProbe {}\n',
+      ],
+    ]),
+  );
+  const examined = examineArtifact(
+    rendered.outputPath,
+    rendered.content,
+    () => rendered.content,
+    CONTAINMENT_ROOTS,
+  );
+  return !examined.verdict.ok && examined.verdict.reason === 'foreign' ? 1 : 0;
+}
+
+/** Bare workspace member beside a bare installed package: only the latter. */
+function workspaceMemberOnlyTheControl(): number {
+  const found = foreignSpecifiers(renderedArtefact('@b2b/contracts/src/index.js', 'zod/index.js'));
+  return found.length === 1 && found[0] === 'zod/index.js' ? 1 : 0;
+}
+
+/** A core-tree entry beside a leaked one: only the leak. */
+function coreEntryOnlyTheControl(): number {
+  const found = foreignSpecifiers(
+    renderedArtefact(
+      '../modules/blog/entities/post.entity.js',
+      '../node_modules/@vendor/mod-blog/entities/probe.entity.js',
+    ),
+  );
+  return found.length === 1 && found[0]?.includes('node_modules') === true ? 1 : 0;
+}
+
+/**
+ * The floor, over real examinations: an artefact that contributed no entry is
+ * refused **by name**, and the one that contributed some is not.
+ */
+function containmentFloorRefusals(): number {
+  const withEntries = renderedArtefact('../modules/blog/entities/post.entity.js');
+  const contained = examineArtifact(
+    ENTITIES_REGISTRY_PATH,
+    withEntries,
+    () => withEntries,
+    CONTAINMENT_ROOTS,
+  );
+  const noEntry = 'export const MIGRATION_REGISTRY = [] as const;\n';
+  const silent = examineArtifact(
+    MIGRATIONS_REGISTRY_PATH,
+    noEntry,
+    () => noEntry,
+    CONTAINMENT_ROOTS,
+  );
+  const refusal = vacuousContainmentPopulation([contained, silent], CONTAINMENT_ROOTS);
+  // Named, not counted: a refusal naming the artefact that *did* contribute
+  // entries would mean the floor is firing on the wrong one, and would be just
+  // as non-zero.
+  return refusal !== null &&
+    refusal.includes('migrations-registry.generated.ts') &&
+    vacuousContainmentPopulation([contained], CONTAINMENT_ROOTS) === null
+    ? 1
+    : 0;
 }
 
 /** Findings a document produces, of the one shape the proof is about. */
@@ -2817,11 +2921,28 @@ const CHECKS: readonly CheckEntry[] = [
     // belongs to `generate-composer.ts`, which has its own tests, and the one
     // way a broken generator could reach this check silently — rendering
     // nothing, since two empty strings compare equal — is the third proof.
+    //
+    // The last three are the fourth verdict, `foreign` (feature 080 T030a,
+    // D-155.6), and they need the other kind of fixture: determinism renders
+    // the artefact twice and compares, so **two renders of a wrong generator
+    // agree**. Measured on a tree carrying one symlinked vendor package under
+    // `src/modules/`, with the leak regenerated into the committed registry:
+    // all six artefacts reported deterministic, exit 0. The leak proof
+    // therefore enters at the `SourceTree` and runs through the real generator,
+    // as D-155.6 asks; the two discriminations enter at the same place the
+    // containment pass does in a real run — a rendered artefact's text, with
+    // the roots derived from this repository rather than handed in — because
+    // `specifierFromDb` grows its bare-specifier branch with D-149 and cannot
+    // emit one yet.
     script: 'backend/scripts/check-overlay-determinism.ts',
     npmScript: 'overlay:check',
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-overlay-determinism.test.ts',
-    vacuousGuard: 'verdict',
+    // Both, since T030a: the byte comparison is a verdict its caller turns into
+    // exit 1, and the containment floor — an artefact that contributed no
+    // entry, a workspace derivation that named no package, an import line the
+    // parser could not read — exits 2 on its own.
+    vacuousGuard: 'exit-2',
     // Compares committed artefacts against a regenerated pair; a moved tree
     // makes them differ, which is the finding.
     readSize: 'reported',
@@ -2840,6 +2961,23 @@ const CHECKS: readonly CheckEntry[] = [
       // Two empty strings compare equal, so a generator whose walk found nothing
       // would report every artefact deterministic and up to date.
       'empty-render': top(() => artifactVerdicts('', () => '', 'empty')),
+      // A `SourceTree` holding a `node_modules/…` path, rendered by the real
+      // generator: the leak D-141 and D-146 both aim at.
+      foreign: top(() => renderedLeakFindings()),
+      // The discrimination that matters, and the one that must not be got
+      // backwards: a workspace member is committed with a bare specifier
+      // (D-149) and is not foreign, while an installed package named the same
+      // way is. Both in one fixture, so the proof cannot pass by seeing
+      // nothing.
+      'workspace-package-is-not-foreign': top(() => workspaceMemberOnlyTheControl()),
+      // The other half of the same discrimination, and the one that keeps the
+      // verdict usable: 586 of the 586 entries the committed artefacts carry
+      // today are core-tree relative specifiers.
+      'core-entry-is-not-foreign': top(() => coreEntryOnlyTheControl()),
+      // The floor, entered on real examinations rather than a hand-built
+      // record: an artefact that contributed no entry, over roots the
+      // derivation itself produced.
+      'vacuous-containment-population': top(() => containmentFloorRefusals()),
     },
   },
   {
@@ -4634,7 +4772,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // enter as a tree on disk rather than as bytes: a directory exclusion is
       // a decision the walk takes, and a record list is its output.
       'backend/scripts/check-nul-bytes.ts': 11,
-      'backend/scripts/check-overlay-determinism.ts': 3,
+      // Three ways an artefact can be wrong, plus the fourth verdict's four
+      // (feature 080, T030a): the leak, the two discriminations it must not get
+      // backwards — a workspace member is not a foreign package, a core-tree
+      // entry is not either — and the containment floor.
+      'backend/scripts/check-overlay-determinism.ts': 7,
       // Five, plus D-88's four: two shapes the backward hop now refuses and two
       // it must not follow. The last two are the limit — a free function in
       // another file, and a class method shadowing a module-scoped alias — and
