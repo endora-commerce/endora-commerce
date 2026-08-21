@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getResolvedPrice, getResolvedPricesBulk } from '../../lib/api/pricing';
+import {
+  getProductDisplayMode,
+  getResolvedPrice,
+  getResolvedPricesBulk,
+} from '../../lib/api/pricing';
 import { getCategoryTree, getProductBySlug, listProducts } from '../../lib/api/catalog';
 import { withoutViewer, type RequestContext } from '../../lib/api/client';
 
@@ -64,6 +68,8 @@ const RESOLVED_PRICE_BODY = {
   },
 };
 
+const DISPLAY_MODE_BODY = { data: { displayMode: 'net_only' } };
+
 const LISTING_BODY = {
   data: [],
   pagination: { limit: 4, nextCursor: null, hasMore: false },
@@ -125,6 +131,38 @@ describe('the storefront asks the price question as the viewer', () => {
         expect(headerOf(call, 'Cookie')).toBe('b2b_session=a-buyer-session');
         expect(call.init.cache).toBe('no-store');
       }
+    });
+  });
+
+  describe('getProductDisplayMode', () => {
+    // Issue #271. Net-versus-gross is the same "who is asking" question the
+    // price is, and the cart is the surface that asks it: this call went
+    // through `apiGet` with a 60 s shared window, so the backend could not tell
+    // a signed-in buyer from the public and the answer would have been shared
+    // even after the backend learned to.
+    it('asks as the viewer, and lets no shared cache keep the answer', async () => {
+      stubFetch(DISPLAY_MODE_BODY);
+      await getProductDisplayMode('p1', SIGNED_IN);
+
+      const call = calls[0]!;
+      expect(call.url).toContain('/api/v1/storefront/pricing/display-mode/p1');
+      expect(headerOf(call, 'Cookie')).toBe('b2b_session=a-buyer-session');
+      expect(call.init.cache).toBe('no-store');
+      expect(call.init.next).toBeUndefined();
+    });
+
+    it('leaves the anonymous request exactly as it was', async () => {
+      stubFetch(DISPLAY_MODE_BODY);
+      await getProductDisplayMode('p1', ANONYMOUS);
+
+      const call = calls[0]!;
+      expect(headerOf(call, 'Cookie')).toBeUndefined();
+      expect(headerOf(call, 'X-Sales-Channel')).toBe('pl_retail');
+      expect(call.init.next).toEqual({
+        revalidate: 60,
+        tags: ['pricing:display-mode', 'pricing:product:p1'],
+      });
+      expect(call.init.cache).toBeUndefined();
     });
   });
 

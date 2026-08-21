@@ -109,11 +109,14 @@ export default async function CartPage({
 
   const { locale, ctx } = await getServerContext();
 
-  // Resolve ONE settings-driven price display mode for the whole cart so the
-  // net/gross presentation matches the PDP and product cards. The storefront
-  // pricing endpoint resolves the mode from the Settings module (the request
-  // wrapper does not forward customer auth), so the whole cart shares one mode
-  // — exactly the "single version everywhere" the display setting expresses.
+  // Resolve ONE price display mode for the whole cart so the net/gross
+  // presentation matches the PDP and product cards. It is resolved for the
+  // buyer in front of the page (issue #271): `ctx` carries their session, so
+  // the endpoint walks the same Product → Category → Organization → Settings
+  // chain the resolved price on the PDP walks, for the same viewer. Before
+  // that, this call forwarded no credential and the endpoint answered as a
+  // guest, so a signed-in buyer whose deployment sets the two `pricing.*` keys
+  // differently read one convention here and the other on the product page.
   // Resolved from the first line's product; falls back to net when unreachable.
   //
   // Absent `price_lists` resolves to net too, and that is a decision rather than
