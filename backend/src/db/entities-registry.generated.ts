@@ -100,6 +100,8 @@ import { DictionaryTranslation } from '../modules/dictionaries/entities/dictiona
 import { LanguageCountry } from '../modules/dictionaries/entities/language-country.entity.js';
 import { EmailDelivery } from '../modules/email/entities/email-delivery.entity.js';
 import { GaCustomEvent } from '../modules/google_analytics/entities/ga-custom-event.entity.js';
+import { InpostShipmentLink } from '../modules/inpost/entities/inpost-shipment-link.entity.js';
+import { InpostWebhookEvent } from '../modules/inpost/entities/inpost-webhook-event.entity.js';
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
 import { InventoryThreshold } from '../modules/inventory/entities/inventory-threshold.entity.js';
 import { ProductWarehouseLowStockThreshold } from '../modules/inventory/entities/product-warehouse-low-stock-threshold.entity.js';
@@ -323,6 +325,8 @@ export const ALL_ENTITIES = [
   LanguageCountry,
   EmailDelivery,
   GaCustomEvent,
+  InpostShipmentLink,
+  InpostWebhookEvent,
   AvailabilityNotification,
   InventoryThreshold,
   ProductWarehouseLowStockThreshold,

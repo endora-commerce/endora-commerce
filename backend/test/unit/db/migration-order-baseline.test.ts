@@ -107,8 +107,24 @@ const FROZEN_PREFIX_LENGTH = 112;
  * way: 065's `orderMigrations` from `master@a139e1b7^`, run over today's
  * registry, reproduces the literal below entry for entry and puts the new name
  * at 145.
+ *
+ * **30 → 31, by one**, and this is that saying. Feature 068 lands two
+ * migrations, and only one of them moves a position.
+ * `Migration20260804T114814OrdersShippingAdapterData` carries an August 4th
+ * stamp and belongs to `orders`, so both algorithms emit it at 121 — inside
+ * `orders`' own block, where chronology and the dependency order agree — and it
+ * changes no position's status; it only shifts the already-moved tail down by
+ * one, which the count does not see. `Migration20260821T150748InpostWebhookEventsAndShipmentLinks`
+ * is the newest stamp in the registry, so 065's chronology emits it **last**, at
+ * 147; 081 emits it at 145, immediately after `shipments`' two, because a
+ * module's migrations are contiguous and `inpost` declares `shipments` and so
+ * follows it in the topological order, ahead of the four PSP modules. Exactly
+ * one position changes status — the new migration's own. Measured the same way:
+ * 065's `orderMigrations` from `master@a139e1b7^`, run over today's registry,
+ * reproduces the 146 entries the literal already held, entry for entry, and puts
+ * the two new names at 121 and 147.
  */
-const EXPECTED_MOVED_POSITIONS = 30;
+const EXPECTED_MOVED_POSITIONS = 31;
 
 const MODULE_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map<
   string,
@@ -249,6 +265,7 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260819T074816CustomerAccountsPasswordSetAt',
   'Migration20260819T142837CustomerAccountsFoldEmailCase',
   'Migration20260817T055457PriceListsSingleSystemPriceList',
+  'Migration20260804T114814OrdersShippingAdapterData',
   'Migration20260801T111000InvoicesGenericTemplateReseed',
   'Migration20260804T190439PimErgonodeInit',
   'Migration20260817T194652ShipmentsOrderFk',
@@ -274,6 +291,7 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260818T081253CartsCartCompletedOrderFk',
   'Migration20260819T171006ShipmentsStatusPendingManual',
   'Migration20260819T193653PimErgonodeFoldDerivedKeys',
+  'Migration20260821T150748InpostWebhookEventsAndShipmentLinks',
 ];
 
 describe('migration order — the pre-081 baseline (T001)', () => {

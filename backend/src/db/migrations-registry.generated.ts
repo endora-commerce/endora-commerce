@@ -147,6 +147,9 @@ import { Migration20260817T070014EmailDeliveryRecord } from '../modules/email/mi
 // ── google_analytics ────────────────────────────────────────────────────────
 import { Migration20260715T171116GoogleAnalyticsInit } from '../modules/google_analytics/migrations/20260715T171116_google_analytics_init.js';
 
+// ── inpost ──────────────────────────────────────────────────────────────────
+import { Migration20260821T150748InpostWebhookEventsAndShipmentLinks } from '../modules/inpost/migrations/20260821T150748_inpost_webhook_events_and_shipment_links.js';
+
 // ── inventory ───────────────────────────────────────────────────────────────
 import { Migration20260503T182812InventoryWorkflow } from '../modules/inventory/migrations/20260503T182812_inventory_workflow.js';
 import { Migration20260611T140347InventoryWarehouseDefaultLowStockThreshold } from '../modules/inventory/migrations/20260611T140347_inventory_warehouse_default_low_stock_threshold.js';
@@ -409,6 +412,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── google_analytics ────────────────────────────────────────────────────────
   migration('google_analytics', Migration20260715T171116GoogleAnalyticsInit),
+
+  // ── inpost ──────────────────────────────────────────────────────────────────
+  migration('inpost', Migration20260821T150748InpostWebhookEventsAndShipmentLinks),
 
   // ── inventory ───────────────────────────────────────────────────────────────
   migration('inventory', Migration20260503T182812InventoryWorkflow),
