@@ -124,6 +124,24 @@ export const orderSchema = z.object({
   placedAt: isoDateTimeSchema,
   customerNote: z.string().nullable(),
   nextAction: nextActionSchema.nullable(),
+  /**
+   * Whether the buyer reading this order may cancel it (feature 085, FR-018).
+   *
+   * A **capability computed by the platform**, not a fact about the order: it
+   * combines the money axis, the configured status graph and the payment
+   * method's configured failure status, and it is scoped to the account asking
+   * — an Organization colleague may read a peer's order and never cancel it.
+   * The storefront renders its control on this value alone and re-derives
+   * nothing, because two of the three inputs are configuration the storefront
+   * does not have and must not be given.
+   *
+   * Present on the buyer-facing order reads (`GET /api/v1/orders`,
+   * `GET /api/v1/orders/:id` and the placement reply). Absent on the admin
+   * reads, where an administrator's power to cancel carries no payment-state
+   * condition at all (FR-017), so a per-order capability there would describe a
+   * narrowing that does not exist.
+   */
+  customerCancellable: z.boolean().optional(),
 });
 export type Order = z.infer<typeof orderSchema>;
 
@@ -298,6 +316,19 @@ function multiQueryParam<T extends z.ZodTypeAny>(schema: T) {
 export const adminOrdersListQuerySchema = z.object({
   // Multi-select filters (accept repeated query params).
   status: multiQueryParam(orderStatusCodeSchema),
+  /**
+   * The money axis (feature 085, FR-021).
+   *
+   * The list could filter on eight things and none of them was payment status,
+   * so "which orders have a failed payment?" was a question the orders screen
+   * could not answer — and after this feature a platform administrator is the
+   * only actor who can rescue a held order whose buyer cannot.
+   *
+   * Validated against `paymentStatusSchema` rather than a free string: unlike
+   * the lifecycle status, the money axis is a fixed vocabulary and not an
+   * operator-configurable table.
+   */
+  paymentStatus: multiQueryParam(paymentStatusSchema),
   salesChannelId: multiQueryParam(uuidSchema),
   paymentMethodId: multiQueryParam(uuidSchema),
   deliveryMethodId: multiQueryParam(uuidSchema),
@@ -346,7 +377,25 @@ export const adminOrdersListResponseSchema = z.object({
     pageSize: z.number().int().positive(),
     total: z.number().int().nonnegative(),
   }),
+  /** Per **lifecycle status** counts, keyed by status code. */
   counts: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  /**
+   * Per **payment status** counts, keyed by payment status (feature 085,
+   * FR-021).
+   *
+   * A second map rather than more keys in `counts`, because one map cannot
+   * carry both axes: `paid` is a shipped *order* status code **and** a payment
+   * status, so a merged map would silently add two different populations
+   * together under one key — and an operator may name a custom order status
+   * anything, including `failed` or `refunded`.
+   *
+   * Each axis's counts are computed over every other filter but its own, which
+   * is what makes an option's number mean "this is what selecting it would
+   * yield". That is the semantics `counts` already had for the status
+   * multi-select; this map extends it symmetrically, and with no payment-status
+   * filter applied `counts` is exactly what it was before.
+   */
+  paymentStatusCounts: z.record(z.string(), z.number().int().nonnegative()).optional(),
 });
 export type AdminOrdersListResponse = z.infer<typeof adminOrdersListResponseSchema>;
 
@@ -793,6 +842,8 @@ export interface OrderReadPort {
 /** The admin order list's filter set. Page and page size are required. */
 export interface OrderListQuery {
   status?: string[] | undefined;
+  /** The money axis (feature 085, FR-021). */
+  paymentStatus?: string[] | undefined;
   salesChannelId?: string[] | undefined;
   paymentMethodId?: string[] | undefined;
   deliveryMethodId?: string[] | undefined;
@@ -855,7 +906,14 @@ export interface OrderListRow {
 export interface OrderListResult {
   rows: OrderListRow[];
   total: number;
+  /** Per lifecycle status, over every filter except the status filter. */
   counts: Record<string, number>;
+  /**
+   * Per payment status, over every filter except the payment-status filter
+   * (feature 085). Two maps and not one: `paid` is both a shipped order status
+   * code and a payment status, so a single map would merge two populations.
+   */
+  paymentStatusCounts: Record<string, number>;
 }
 
 /**

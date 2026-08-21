@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   addOrderComment,
+  cancelMyOrder,
   cloneOrderToQuote,
   getMyOrder,
   listOrderComments,
@@ -11,6 +12,7 @@ import {
   type OrderComment,
 } from '../../../../lib/api/orders';
 import { retryOrderPayment } from '../../../../lib/api/payments';
+import { offersCancellation } from '../../../../lib/order-cancel';
 import { offersPaymentRetry, paymentRetryDestination } from '../../../../lib/payment-retry';
 import { getReturnable } from '../../../../lib/api/returns';
 import { listMyOrderInvoices, invoiceDownloadUrl } from '../../../../lib/api/invoices';
@@ -94,6 +96,10 @@ export default async function OrderConfirmationPage({
   // owns it and the storefront must not re-derive a lifecycle rule. See
   // `lib/payment-retry.ts`.
   const canRetryPayment = offersPaymentRetry(order);
+  // Feature 085 (US3) — read, never derived. The rule needs the configured
+  // status graph and the payment method's configured failure status, so the
+  // platform decides it and sends the answer; see `lib/order-cancel.ts`.
+  const canCancel = offersCancellation(order);
 
   // Surface a return/complaint entry point directly on the order — only when the
   // order is actually eligible (entered a completing status, items still
@@ -144,6 +150,18 @@ export default async function OrderConfirmationPage({
             <input type="hidden" name="code" value={order.paymentMethod.code} />
             <button type="submit" className="btn btn--primary btn--sm">
               {t('order.payment.retry.cta')}
+            </button>
+          </form>
+        </div>
+      ) : null}
+
+      {canCancel ? (
+        <div className="mb-6">
+          <p className="b2b-auth__hint">{t('order.cancel.hint')}</p>
+          <form action={cancelOrderAction} className="mt-2 inline">
+            <input type="hidden" name="id" value={order.id} />
+            <button type="submit" className="btn btn--outline btn--sm">
+              {t('order.cancel.cta')}
             </button>
           </form>
         </div>
@@ -388,6 +406,31 @@ async function retryPaymentAction(formData: FormData): Promise<void> {
     target = `/orders/${id}?error=${encodeURIComponent(message)}`;
   }
   redirect(target);
+}
+
+/**
+ * Cancel this order (feature 085, US3).
+ *
+ * The buyer **cancels** — the owner's ruling is that there is no approval step
+ * and no pending state — so this is one call and a reload of the same page,
+ * which then shows the order cancelled and no longer offers the control. A
+ * refusal comes back through the page's own `?error=` channel; the server owns
+ * the sentence, because the server owns the rule.
+ */
+async function cancelOrderAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  const id = (formData.get('id') as string) ?? '';
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
+  try {
+    await cancelMyOrder(session, id);
+  } catch (err) {
+    const message = err instanceof StorefrontApiError ? err.message : t('order.cancel.failed');
+    redirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
+  }
+  redirect(`/orders/${id}`);
 }
 
 async function reorderToQuoteAction(formData: FormData): Promise<void> {

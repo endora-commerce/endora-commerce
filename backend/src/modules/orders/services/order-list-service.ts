@@ -6,6 +6,13 @@ import type { OrderStatusGraphService } from './order-status-graph-service.js';
 
 export interface OrderListQuery {
   status?: string[] | undefined;
+  /**
+   * Feature 085 (FR-021) — the money axis. The list had eight filters and none
+   * of them was this one, so an operator could not ask which orders carry a
+   * failed payment; after this feature they are the only actor who can rescue
+   * one.
+   */
+  paymentStatus?: string[] | undefined;
   salesChannelId?: string[] | undefined;
   paymentMethodId?: string[] | undefined;
   deliveryMethodId?: string[] | undefined;
@@ -57,7 +64,17 @@ export interface AdminOrderRow {
 export interface OrderListResult {
   rows: AdminOrderRow[];
   total: number;
+  /** Per lifecycle status, over every applied filter except the status one. */
   counts: Record<string, number>;
+  /**
+   * Per payment status, over every applied filter except the payment-status one
+   * (feature 085).
+   *
+   * A second map rather than more keys in `counts`: `paid` is a shipped order
+   * status code **and** a payment status, so one map would add two different
+   * populations together under a single key.
+   */
+  paymentStatusCounts: Record<string, number>;
 }
 
 const SORTABLE = new Set(['placedAt', 'businessId', 'total', 'status']);
@@ -143,13 +160,23 @@ export class OrderListService {
     }
     if (and.length) base.$and = and;
 
-    // Per-status counts over the base filter (independent of the status tab).
-    const counts = await this.statusCounts(em, base);
+    // The two axis filters, kept out of `base` so each axis's counts can be
+    // taken over every filter but its own — which is what makes an option's
+    // number mean "this is what selecting it would yield". With no
+    // payment-status filter applied these are exactly the numbers this list
+    // returned before feature 085.
+    const statusFilter = query.status?.length ? { status: { $in: query.status } } : {};
+    const paymentStatusFilter = query.paymentStatus?.length
+      ? { paymentStatus: { $in: query.paymentStatus as Array<Order['paymentStatus']> } }
+      : {};
 
-    // Page query adds the status filter on top of the base.
-    const where: FilterQuery<Order> = query.status?.length
-      ? { ...base, status: { $in: query.status } }
-      : base;
+    const [counts, paymentStatusCounts] = await Promise.all([
+      this.countsBy(em, { ...base, ...paymentStatusFilter }, 'status'),
+      this.countsBy(em, { ...base, ...statusFilter }, 'paymentStatus'),
+    ]);
+
+    // Page query adds both axis filters on top of the base.
+    const where: FilterQuery<Order> = { ...base, ...statusFilter, ...paymentStatusFilter };
     const { field, dir } = parseSort(query.sort);
     const offset = (query.page - 1) * query.pageSize;
     const [orders, total] = await em.findAndCount(Order, where, {
@@ -159,13 +186,21 @@ export class OrderListService {
     });
 
     const rows = await this.toRows(em, orders);
-    return { rows, total, counts };
+    return { rows, total, counts, paymentStatusCounts };
   }
 
-  private async statusCounts(em: EntityManager, base: FilterQuery<Order>): Promise<Record<string, number>> {
-    const all = await em.find(Order, base, { fields: ['status'] });
+  /** Counts over `where`, grouped by one of the order's two status axes. */
+  private async countsBy(
+    em: EntityManager,
+    where: FilterQuery<Order>,
+    field: 'status' | 'paymentStatus',
+  ): Promise<Record<string, number>> {
+    const all = await em.find(Order, where, { fields: [field] });
     const counts: Record<string, number> = {};
-    for (const o of all) counts[o.status] = (counts[o.status] ?? 0) + 1;
+    for (const o of all) {
+      const key = o[field];
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
     return counts;
   }
 

@@ -72,6 +72,12 @@ export interface OrderSummary {
   customerNote: string | null;
   placedAt: string;
   nextAction: NextAction | null;
+  /**
+   * Feature 085 — whether *this* buyer may cancel this order, decided by the
+   * platform (FR-018). Optional on the type because only the buyer-facing reads
+   * carry it; `lib/order-cancel.ts` says why nothing here re-derives it.
+   */
+  customerCancellable?: boolean;
 }
 
 export interface PlaceOrderPayload {
@@ -175,6 +181,23 @@ export async function reorderOrder(sessionCookie: string, id: string): Promise<R
   const result = await apiMutate<ReorderResult>({
     method: 'POST',
     path: `/api/v1/orders/${id}/reorder`,
+    body: {},
+    sessionCookie,
+  });
+  return result.data!;
+}
+
+/**
+ * Cancel an order the buyer placed (feature 085, US3).
+ *
+ * No body: the target status is not the buyer's to choose. The server decides
+ * eligibility and answers 409 when the shop has started or the money is no
+ * longer the buyer's to owe, and 404 for an order they did not place.
+ */
+export async function cancelMyOrder(sessionCookie: string, id: string): Promise<OrderSummary> {
+  const result = await apiMutate<OrderSummary>({
+    method: 'POST',
+    path: `/api/v1/orders/${id}/cancel`,
     body: {},
     sessionCookie,
   });

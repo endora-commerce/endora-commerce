@@ -1131,6 +1131,7 @@
   "orders.field.deliveryMethod": "Delivery method",
   "orders.field.orgName": "Organization",
   "orders.field.paymentMethod": "Payment method",
+  "orders.field.paymentStatus": "Payment status",
   "orders.field.salesChannel": "Sales channel",
   "orders.field.search": "Search",
   "orders.field.sort": "Sort",

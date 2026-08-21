@@ -104,11 +104,12 @@ export interface CustomersCradle {
  * written as a value so the promise is one object a test can point at.
  *
  * Empty rather than a refusal because the panel is a read-only history and an
- * account with no orders sees exactly this. `counts` is the per-status tally
- * the admin list renders; there are no orders to tally.
+ * account with no orders sees exactly this. `counts` and `paymentStatusCounts`
+ * are the two per-axis tallies the admin list renders; there are no orders to
+ * tally on either.
  */
 const EMPTY_ORDER_LIST: ReturnType<CustomersModuleOptions['getOrderListService']> = {
-  list: async () => ({ rows: [], total: 0, counts: {} }),
+  list: async () => ({ rows: [], total: 0, counts: {}, paymentStatusCounts: {} }),
 };
 
 export function registerModule(ctx: ModuleContext): void {

@@ -6884,6 +6884,15 @@
         }
       }
     },
+    "/api/v1/orders/{id}/cancel": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/orders/{id}/clone-to-quote": {
       "post": {
         "responses": {

@@ -90,6 +90,11 @@ export type MessageKey =
   | 'order.payment.retry.hint'
   | 'order.payment.retry.inProgress'
   | 'order.payment.retry.failed'
+  // Feature 085 — the buyer cancelling an order they placed, offered exactly
+  // when the platform says they may.
+  | 'order.cancel.cta'
+  | 'order.cancel.hint'
+  | 'order.cancel.failed'
   | 'checkout.coupon.label'
   | 'checkout.coupon.apply'
   | 'checkout.coupon.appliedPrefix'
@@ -316,6 +321,10 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'order.payment.retry.inProgress':
       'A payment is already in progress for this order. Finish it on the payment page or wait for it to time out before starting a new one.',
     'order.payment.retry.failed': 'We could not start the payment. Please try again in a moment.',
+    'order.cancel.cta': 'Cancel this order',
+    'order.cancel.hint':
+      'You have not paid for this order yet and we have not started on it, so you can still cancel it. The goods it reserves go straight back on the shelf.',
+    'order.cancel.failed': 'We could not cancel this order. Please contact us and we will help.',
     'checkout.coupon.label': 'Coupon code (optional)',
     'checkout.coupon.apply': 'Apply',
     'checkout.coupon.appliedPrefix': 'Coupon ',
@@ -557,6 +566,10 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'order.payment.retry.inProgress':
       'Dla tego zamowienia trwa juz platnosc. Dokoncz ja na stronie platnosci albo poczekaj, az wygasnie, zanim rozpoczniesz nowa.',
     'order.payment.retry.failed': 'Nie udalo sie rozpoczac platnosci. Sprobuj ponownie za chwile.',
+    'order.cancel.cta': 'Anuluj zamowienie',
+    'order.cancel.hint':
+      'To zamowienie nie zostalo jeszcze oplacone i nie zaczelismy go realizowac, wiec mozesz je anulowac. Zarezerwowany towar wroci od razu na stan.',
+    'order.cancel.failed': 'Nie udalo sie anulowac tego zamowienia. Skontaktuj sie z nami, pomozemy.',
     'checkout.coupon.label': 'Kod kuponu (opcjonalnie)',
     'checkout.coupon.apply': 'Zastosuj',
     'checkout.coupon.appliedPrefix': 'Kupon ',
