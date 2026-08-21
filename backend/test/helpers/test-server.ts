@@ -1053,7 +1053,6 @@ export async function setupBackendServer(
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
   let orderServiceForOneClick: import('../../src/modules/orders/services/order-service.js').OrderService | null = null;
   // Feature 040 — late-bound OrderListService for the customers module.
-  let orderListServiceForCustomers: import('../../src/modules/orders/services/order-list-service.js').OrderListService | null = null;
   // Feature 026 US4 / 056 — which organizations a sales-rep admin may see.
   // T143a — `organizations`' port, read lazily, where this harness used to
   // build its own `SalesRepAssignmentService` **without** the subtree deps
@@ -2154,12 +2153,6 @@ export async function setupBackendServer(
         customerAccountId: request.testActor.customerAccountId,
         organizationId: request.testActor.organizationId ?? null,
       };
-    },
-    customerOrderListServiceGetter: () => {
-      if (!orderListServiceForCustomers) {
-        throw new Error('OrderListService not yet bound');
-      }
-      return orderListServiceForCustomers;
     },
     customerModerationActorResolver: async (request: FastifyRequest) => {
       const adminUserId =

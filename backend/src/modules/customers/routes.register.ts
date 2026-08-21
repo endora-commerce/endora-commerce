@@ -1,6 +1,5 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { customerRegisterRequestSchema } from '@b2b/contracts';
-import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
+import { SESSION_COOKIE_NAME, customerRegisterRequestSchema } from '@b2b/contracts';
 import type { CustomerRegistrationService } from './services/customer-registration-service.js';
 
 /**

@@ -5,6 +5,9 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type {
   AddressReadPort,
   AuthSessionPort,
+  AuthSessionReadPort,
+  CartQueryPort,
+  CustomFieldValuePort,
   CustomerAccountAdminSearchPort,
   CustomerAccountLifecycleWritePort,
   CustomerAccountReadPort,
@@ -13,14 +16,17 @@ import type {
   CustomerGroupReadPort,
   CustomerPasswordResetPort,
   DefaultPreferencePort,
+  EmailMailerPort,
+  ImpersonationPort,
+  OrderListPort,
   OrganizationDetailsPort,
   PersonalOrganizationPort,
+  RfqCustomerPort,
   VatValidator,
 } from '@b2b/contracts';
 import { CustomerAddressReadService } from './services/customer-address-read-port.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
 import type { SettingsService } from '../../kernel/settings/settings.service.js';
@@ -61,9 +67,11 @@ import { customersModule, type CustomersModuleOptions } from './plugin.js';
  * Two names stay a composition's, both actor-shaped and both owned by `auth` in
  * principle: who the calling customer is, and who the moderating admin is. They
  * join the four `auth` entries already in `HOST_REGISTERED_PORTS` and drain with
- * them. `customerOrderListServiceGetter` is the third, late-bound because
- * `orders` builds the service and a root bridges it (T141); the binding is late
- * because the service is constructed there, not because the module is unconverted.
+ * them. The order-list getter used to be a third: it was late-bound because
+ * `orders` builds the service inside its plugin body and a root bridged the
+ * accessor. Feature 075's cut resolves `orderListPort` instead — the port keeps
+ * that timing and answers a too-early call with a 503, so the late binding is
+ * the owner's problem rather than a name two roots have to agree on.
  */
 
 /** What `customers` resolves from the container, and the names it owns. */
@@ -76,41 +84,19 @@ export interface CustomersCradle {
   readonly requireCustomer: CustomersModuleOptions['requireCustomer'];
   readonly customerAuthService: CustomersModuleOptions['customerAuthService'];
   readonly passwordResetService: CustomersModuleOptions['passwordResetService'];
-  readonly customFieldValueService: NonNullable<CustomersModuleOptions['customFieldValues']>;
-  readonly rfqService: CustomersModuleOptions['rfqService'];
+  readonly customFieldValueService: CustomFieldValuePort;
+  readonly rfqService: RfqCustomerPort;
   /** Owned by `organizations`: which organizations a staff member may act on. */
   readonly organizationSalesRepScopePort: CustomersModuleOptions['salesRepVisibility'];
-  readonly emailMailer: CustomersModuleOptions['mailer'];
+  readonly emailMailer: EmailMailerPort;
   /** The storefront origin the set-password link points at. */
   readonly storefrontBaseUrl: string;
   /** Root-shaped, owner `auth`: who is asking, with a nullable organisation. */
   readonly customerActorResolver: CustomersModuleOptions['resolveCustomerActor'];
   /** Root-shaped, owner `auth`: the moderating admin and the scope they see. */
   readonly customerModerationActorResolver: CustomersModuleOptions['resolveModerationActor'];
-  /**
-   * `orders`' own accessor (T141), replacing the root getter this module used
-   * to read. Answers `null` until `orders` registers its routes, so the
-   * throwing wrapper below is what turns "not yet bound" into an error.
-   */
-  readonly orderListServiceAccessor: () => ReturnType<
-    CustomersModuleOptions['getOrderListService']
-  > | null;
   readonly customers: ReturnType<typeof customersModule>;
 }
-
-/**
- * What the two order-history panels read while `orders` is not effectively
- * present — the behaviour `customers`' `degrades-without` declaration promises,
- * written as a value so the promise is one object a test can point at.
- *
- * Empty rather than a refusal because the panel is a read-only history and an
- * account with no orders sees exactly this. `counts` and `paymentStatusCounts`
- * are the two per-axis tallies the admin list renders; there are no orders to
- * tally on either.
- */
-const EMPTY_ORDER_LIST: ReturnType<CustomersModuleOptions['getOrderListService']> = {
-  list: async () => ({ rows: [], total: 0, counts: {}, paymentStatusCounts: {} }),
-};
 
 export function registerModule(ctx: ModuleContext): void {
   const cradle = (): CustomersCradle => ctx.cradle<CustomersCradle>();
@@ -176,9 +162,6 @@ export function registerModule(ctx: ModuleContext): void {
             // publishes; `sessionService` is `auth`'s class registration, and
             // resolving it here was the leak D-98.1 repaired for `addressService`.
             sessionService: lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
-            // Feature 075 — the two ports the `ImpersonationService` this
-            // module still builds itself now takes. See `plugin.ts`.
-            authSessionPort: lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
             customerAccountReadPort: lazyPort<CustomerAccountReadPort>(
               ctx,
               'customerAccountReadPort',
@@ -214,11 +197,8 @@ export function registerModule(ctx: ModuleContext): void {
             // `addresses`' read: the org-shared book a customer may pick a
             // delivery address from, which this module used to query directly.
             addressReadPort: lazyPort<AddressReadPort>(ctx, 'addressReadPort'),
-            customFieldValues: lazyPort<CustomersCradle['customFieldValueService']>(
-              ctx,
-              'customFieldValueService',
-            ),
-            rfqService: lazyPort<CustomersCradle['rfqService']>(ctx, 'rfqService'),
+            customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
+            rfqService: lazyPort<RfqCustomerPort>(ctx, 'rfqService'),
             // Issue #108 — `organizations`' scope, not a private copy of its
             // wiring. The copy this replaces omitted the optional subtree deps,
             // so feature 056's roll-up was skipped for every block / unblock /
@@ -228,7 +208,22 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'organizationSalesRepScopePort',
             ),
-            mailer: lazyPort<CustomersCradle['emailMailer']>(ctx, 'emailMailer'),
+            mailer: lazyPort<EmailMailerPort>(ctx, 'emailMailer'),
+            // Feature 075 — `carts`' reporting read and `admin_users`'
+            // impersonation seam, where this module built a second instance of
+            // each from an import of the owner's directory. Both are gated
+            // ports, so a singleton may not hold one directly.
+            cartQueryPort: lazyPort<CartQueryPort>(ctx, 'cartQueryPort'),
+            impersonationPort: lazyPort<ImpersonationPort>(ctx, 'impersonationPort'),
+            // `auth`'s read over the session table, for the online-customers
+            // panel — the last thing in this module that named `Session`.
+            authSessionReadPort: lazyPort<AuthSessionReadPort>(ctx, 'authSessionReadPort'),
+            // `orders`' published list, replacing the late-bound accessor and
+            // the `Pick<OrderListService, 'list'>` that typed it. `orders` is
+            // non-deactivatable, so the edge is an ordinary binding dependency
+            // and the panels have no absent state to degrade into: the port's
+            // own 503 covers the window before `orders` registers its routes.
+            orderList: lazyPort<OrderListPort>(ctx, 'orderListPort'),
             // Feature 076 (D-86) — `organizations`' port, resolved lazily: the
             // factory below is a singleton and stores what it is handed, and a
             // captured gate keeps answering after its owner is switched off.
@@ -248,19 +243,6 @@ export function registerModule(ctx: ModuleContext): void {
             resolveCustomerActor: (req: FastifyRequest) => cradle().customerActorResolver(req),
             resolveModerationActor: (req: FastifyRequest) =>
               cradle().customerModerationActorResolver(req),
-            getOrderListService: () => {
-              // D-44 `degrades-without`: the manifest withdraws the flip-time
-              // refusal on `orders`, so an operator may switch it off with the
-              // two history panels still mounted. `orderListServiceAccessor` is
-              // a **gated port** — a closed gate throws rather than answering
-              // `null` — so the presence probe comes before the resolution, not
-              // after it. The declared degradation is an empty page, which is
-              // also what an account with no orders sees.
-              if (!effectiveState.isPresent('orders')) return EMPTY_ORDER_LIST;
-              const service = cradle().orderListServiceAccessor();
-              if (!service) throw new Error('OrderListService not yet bound');
-              return service;
-            },
             // The three reads that used to be a root's, one of them exercised
             // by no test at all — see the note above.
             resolveAllowRegistrationWithoutOrganization: () =>

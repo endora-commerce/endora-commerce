@@ -326,6 +326,11 @@ export function registerModule(ctx: ModuleContext): void {
             // after `email` was switched off, and Awilix's strict mode refuses
             // it outright.
             lazyPort<EmailMailerPort>(ctx, 'emailMailer'),
+            // Feature 075 (D-87) — who the moderation mail goes to. The
+            // recipient lookup was raw SQL against `customer_accounts`' table,
+            // which names no import specifier and so crossed the boundary
+            // invisibly to the import predicate.
+            lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
             () =>
               readSetting<'auto' | 'manual'>(
                 ORGANIZATIONS_SETTING_CODES.MODERATION_MODE,

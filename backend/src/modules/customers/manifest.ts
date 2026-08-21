@@ -93,33 +93,33 @@ export const manifest = defineModuleManifest({
   // itself. It reads `addressReadPort` now. Binding, and unremarkably so —
   // `addresses` is non-deactivatable, so the edge has no absent state to
   // declare a degrade for.
+  //
+  // Feature 075's cut adds three more, each replacing a second instance this
+  // module built from an import of the owner's directory or a query against its
+  // table: `admin_users` (the impersonation seam behind the "view as this
+  // customer" control), `carts` (the reporting read behind the customer-detail
+  // cart panel) and `orders` (the list behind both order-history panels).
+  //
+  // All three are binding, and unremarkably so: every one of them declares
+  // `nonDeactivatable`, so none has an absent state for a degrade to describe.
+  // The `orders` edge in particular used to be a `degrades-without` whose
+  // reason argued that declaring it "would make `orders` undeactivatable" — a
+  // sentence about a module that has never had an activation control, kept
+  // alive by a presence probe that could not fire. It is a declared dependency
+  // now, and the panels read the gated port directly.
   dependencies: [
     'addresses',
+    'admin_users',
     'auth',
+    'carts',
     'custom_fields',
     'customer_accounts',
     'email',
+    'orders',
     'organizations',
     'quick_order',
     'quote_requests',
     'settings',
-  ],
-  // D-44 — real to the container, binding on no operator.
-  nonBindingDependencies: [
-    {
-      moduleId: 'orders',
-      name: 'orderListServiceAccessor',
-      kind: 'degrades-without',
-      whenAbsent: 'order history is empty on the self-service and admin customer panels',
-      reason:
-        'Two read-only history panels list a customer’s orders through `orders`’ late-bound ' +
-        'list service. Declaring the edge is cycle-free, and that is precisely the problem: ' +
-        'it would make `orders` undeactivatable for as long as the customer surface is ' +
-        'present, which is a presence rule nobody decided. The panels have a defined ' +
-        'behaviour instead — an empty page, the same one an account with no orders sees — ' +
-        'reached through a presence probe ahead of the port, because a closed gate throws ' +
-        'rather than answering `null`.',
-    },
   ],
   settings,
   i18n: { bundlesDir: 'i18n' },

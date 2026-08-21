@@ -8,17 +8,21 @@ import {
   customFieldValuesSchema,
   validateCustomerVatRequestSchema,
   ERROR_CODES,
+  isCustomFieldValidationFailure,
+  SESSION_COOKIE_NAME,
+  ADMIN_SESSION_COOKIE_NAME,
+  type CartQueryPort,
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountReadPort,
+  type CustomFieldValuePort,
+  type EmailMailerPort,
+  type ImpersonationPort,
+  type OrderListPort,
+  type RfqCustomerPort,
   type VatValidator,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
-import {
-  CustomFieldValidationError,
-  type CustomFieldValueService,
-} from '../custom_fields/services/custom-field-value.service.js';
-import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { CustomerModerationService } from './services/customer-moderation-service.js';
 import type { CustomerAdminQueryService } from './services/customer-admin-query-service.js';
 import type { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
@@ -26,16 +30,11 @@ import type { CustomerDeletionService } from './services/customer-deletion-servi
 import type { CustomerPresenceService } from './services/customer-presence-service.js';
 import type { CustomerAddressService } from './services/customer-address-service.js';
 import type { CustomerPasswordResetPort } from '@b2b/contracts';
-import type { Mailer } from '../email/services/mailer.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import {
   serializeCustomerAddress,
   serializeOrganizationAddress,
 } from './serializers.js';
-import type { ImpersonationService } from '../admin_users/services/impersonation-service.js';
-import type { CartQueryService } from '../carts/services/cart-query-service.js';
-import type { OrderListService } from '../orders/services/order-list-service.js';
-import type { RfqService } from '../quote_requests/services/rfq-service.js';
 
 const ADMIN_SHADOW_COOKIE = 'admin_shadow_session';
 
@@ -85,16 +84,26 @@ export interface CustomersAdminDeps {
   queryService: CustomerAdminQueryService;
   orgAssignmentService: CustomerOrgAssignmentService;
   addressService: CustomerAddressService;
-  cartQueryService: CartQueryService;
-  /** Narrowed to the one method this surface calls — see `plugin.ts` (D-44). */
-  getOrderListService: () => Pick<OrderListService, 'list'>;
-  rfqService: RfqService;
+  cartQueryService: CartQueryPort;
+  /**
+   * `orders`' published list (feature 075), where this surface used to hold
+   * `Pick<OrderListService, 'list'>` — a type operator in front of a
+   * cross-module import of the class.
+   */
+  orderList: OrderListPort;
+  rfqService: RfqCustomerPort;
   vatValidator: VatValidator;
-  impersonationService: ImpersonationService;
+  /**
+   * `admin_users`' published impersonation seam. The "view as this customer"
+   * control lives on this screen and the machinery lives in that module by
+   * design, so the surface holds the port rather than a second instance of the
+   * service (feature 075).
+   */
+  impersonationService: ImpersonationPort;
   deletionService: CustomerDeletionService;
   presenceService: CustomerPresenceService;
   passwordResetService: CustomerPasswordResetPort;
-  mailer: Mailer;
+  mailer: EmailMailerPort;
   auditLogService: AuditLogService;
   storefrontBaseUrl: string;
   /**
@@ -102,7 +111,7 @@ export interface CustomersAdminDeps {
    * persists them: `customer_accounts` owns the row, so its lifecycle port
    * runs the Command and this validator is the merge that port is handed.
    */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
 }
 
 export async function registerCustomersAdminRoutes(
@@ -140,7 +149,7 @@ export async function registerCustomersAdminRoutes(
           // first so a switched-off owner keeps failing closed instead of being
           // laundered into a validation error (AGENTS.md composition item 7).
           rethrowIfModuleDisabled(err);
-          if (err instanceof CustomFieldValidationError) {
+          if (isCustomFieldValidationFailure(err)) {
             throw new HttpError(
               422,
               ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
@@ -418,7 +427,7 @@ export async function registerCustomersAdminRoutes(
       await resolveModerationActor(request);
       const page = Math.max(1, Number.parseInt(request.query.page ?? '1', 10) || 1);
       const pageSize = Math.min(100, Math.max(1, Number.parseInt(request.query.pageSize ?? '20', 10) || 20));
-      const result = await deps.getOrderListService().list({
+      const result = await deps.orderList.list({
         placedByCustomerAccountId: request.params.id,
         page,
         pageSize,

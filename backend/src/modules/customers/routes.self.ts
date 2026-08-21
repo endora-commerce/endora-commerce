@@ -1,5 +1,10 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { CustomerAccountReadPort, CustomerAuthPort } from '@b2b/contracts';
+import type {
+  CustomerAccountReadPort,
+  CustomerAuthPort,
+  OrderListPort,
+  RfqCustomerPort,
+} from '@b2b/contracts';
 import {
   changePasswordRequestSchema,
   customerAddressInputSchema,
@@ -7,8 +12,6 @@ import {
   ERROR_CODES,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { OrderListService } from '../orders/services/order-list-service.js';
-import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type { CustomerAddressService } from './services/customer-address-service.js';
 import type { CustomerDefaultsService } from './services/customer-defaults-service.js';
 import {
@@ -52,13 +55,15 @@ export interface CustomersSelfDeps {
   resolveCustomerActor: ResolveCustomerActor;
   customerAuthService: CustomerAuthPort;
   /**
-   * Lazy getter — OrderListService is built inside the orders plugin's
-   * registration, so it is only available once the server has booted. Routes
-   * resolve it at request time — and, since D-44, may get an empty reader back
-   * when `orders` is not effectively present.
+   * `orders`' published list (feature 075). It used to be a lazy getter over
+   * `Pick<OrderListService, 'list'>` — a type operator in front of a
+   * cross-module import of the class. The port keeps the getter's timing: the
+   * service is built inside the `orders` plugin body, so a call made before
+   * route registration answers 503 rather than a `null` this file would have
+   * to remember to check.
    */
-  getOrderListService: () => Pick<OrderListService, 'list'>;
-  rfqService: RfqService;
+  orderList: OrderListPort;
+  rfqService: RfqCustomerPort;
   customerAddressService: CustomerAddressService;
   customerDefaultsService: CustomerDefaultsService;
 }
@@ -68,7 +73,7 @@ export async function registerCustomersSelfRoutes(
   deps: CustomersSelfDeps,
 ): Promise<void> {
   const { accounts, requireCustomer, customerAuthService, resolveCustomerActor } = deps;
-  const { getOrderListService, rfqService } = deps;
+  const { orderList, rfqService } = deps;
   const { customerAddressService, customerDefaultsService } = deps;
 
   // GET /api/v1/me/customer — own profile
@@ -127,7 +132,7 @@ export async function registerCustomersSelfRoutes(
         100,
         Math.max(1, Number.parseInt(request.query.pageSize ?? '20', 10) || 20),
       );
-      const result = await getOrderListService().list({
+      const result = await orderList.list({
         placedByCustomerAccountId: actor.customerAccountId,
         page,
         pageSize,

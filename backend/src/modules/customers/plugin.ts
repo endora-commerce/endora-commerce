@@ -1,10 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModulePlugin } from '../../http/server.js';
-import type { OrderListService } from '../orders/services/order-list-service.js';
-import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
-import { ImpersonationService } from '../admin_users/services/impersonation-service.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
 import { CustomerAddressService } from './services/customer-address-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
@@ -17,12 +13,13 @@ import { CustomerAdminQueryService } from './services/customer-admin-query-servi
 import { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
 import { CustomerDeletionService } from './services/customer-deletion-service.js';
 import { CustomerPresenceService } from './services/customer-presence-service.js';
-import { CartQueryService } from '../carts/services/cart-query-service.js';
 import { AnonymizationSweepWorker } from './workers/anonymization-sweep-worker.js';
-import type { Mailer } from '../email/services/mailer.js';
 import type {
   AddressReadPort,
   AuthSessionPort,
+  AuthSessionReadPort,
+  CartQueryPort,
+  CustomFieldValuePort,
   CustomerAccountAdminSearchPort,
   CustomerAccountLifecycleWritePort,
   CustomerAccountReadPort,
@@ -30,8 +27,12 @@ import type {
   CustomerGroupReadPort,
   CustomerPasswordResetPort,
   DefaultPreferencePort,
+  EmailMailerPort,
+  ImpersonationPort,
+  OrderListPort,
   OrganizationDetailsPort,
   PersonalOrganizationPort,
+  RfqCustomerPort,
   VatValidator,
 } from '@b2b/contracts';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
@@ -69,19 +70,28 @@ export interface CustomersModuleOptions {
    * `createSession`, `destroyAllForCustomer`, `listRecentlyActiveCustomers`
    * — are all on {@link AuthSessionPort}, so nothing needed the class.
    *
-   * Still a second option beside `authSessionPort` below, which is the same
-   * port: merging the two is this module's own Phase-C cut, not a rename.
+   * It was one of two options over the same port until this module's Phase-C
+   * cut: the duplicate existed only to feed the `ImpersonationService` this
+   * host built itself, and that instance is now `admin_users`' port.
    */
   sessionService: AuthSessionPort;
   /**
-   * `auth`'s and `customer_accounts`' published surfaces, needed only by the
-   * `ImpersonationService` this host still constructs itself. `admin_users`'
-   * Phase-C cut moved that class onto both ports (feature 075), so the two
-   * options are threaded through here until this module's own cut replaces the
-   * second instance with `impersonationPort` — which is what its shard entries
-   * for `plugin.ts` and `routes.admin.ts` retire.
+   * `admin_users`' published impersonation seam (feature 075). This host used
+   * to construct a **second** `ImpersonationService` from an import of that
+   * module's directory, over the port `admin_users`' own Phase-C cut published
+   * for it — so the machinery ran here whether its owner was present or not.
+   * The port is gated: a switched-off `admin_users` answers 503
+   * `MODULE_DISABLED` at the seam instead of minting a session.
    */
-  authSessionPort: AuthSessionPort;
+  impersonationPort: ImpersonationPort;
+  /**
+   * `auth`'s published read over the session table, for the online-customers
+   * panel. The panel *reports* on sessions rather than managing them, which is
+   * why it is a separate port from {@link AuthSessionPort} — and why this
+   * module no longer needs `Session` to answer "when was this account last
+   * seen".
+   */
+  authSessionReadPort: AuthSessionReadPort;
   customerAccountReadPort: CustomerAccountReadPort;
   /**
    * Feature 075, Phase C — the rest of `customer_accounts`' published surface
@@ -120,15 +130,15 @@ export interface CustomersModuleOptions {
   /** Reads `customers.allow_registration_without_organization`. */
   resolveAllowRegistrationWithoutOrganization: () => Promise<boolean>;
   /**
-   * Lazy — OrderListService is bound during the orders plugin registration.
-   *
-   * Narrowed to the one method the two history panels call, so the degrade
-   * `orders` being absent produces can be expressed in the type rather than in
-   * a comment (D-44): an empty page is a value this shape can hold, and a whole
-   * `OrderListService` is not.
+   * `orders`' published list, which the self-service history panel and the
+   * admin customer-detail orders panel both read (feature 075). It replaces
+   * `Pick<OrderListService, 'list'>` over a late-bound accessor: the port keeps
+   * the accessor's timing, because `orders` builds the service inside its
+   * plugin body, and answers a call made before that with a 503 rather than a
+   * `null` two route files had to remember to check.
    */
-  getOrderListService: () => Pick<OrderListService, 'list'>;
-  rfqService: RfqService;
+  orderList: OrderListPort;
+  rfqService: RfqCustomerPort;
   auditLogService: AuditLogService;
   /**
    * `quick_order`'s ordering defaults, which the customer-detail screen and
@@ -144,7 +154,13 @@ export interface CustomersModuleOptions {
   resolveModerationActor: ResolveModerationActor;
   /** VAT/NIP validator port (VIES / Biała lista in production). */
   vatValidator: VatValidator;
-  mailer: Mailer;
+  mailer: EmailMailerPort;
+  /**
+   * `carts`' reporting read: the account's current cart and its abandoned ones,
+   * for the customer-detail panel. This host used to build a second
+   * `CartQueryService` from an import of that module's directory (feature 075).
+   */
+  cartQueryPort: CartQueryPort;
   /** Base URL for the storefront set-password link in reset emails. */
   storefrontBaseUrl: string;
   /** Reads `customers.deletion_retention_days`. */
@@ -156,7 +172,7 @@ export interface CustomersModuleOptions {
    * path. The persistence is `customer_accounts`': its lifecycle port runs the
    * Command and takes this validator as the merge (feature 075).
    */
-  customFieldValues?: CustomFieldValueService;
+  customFieldValues?: CustomFieldValuePort;
 }
 
 export interface CustomersModuleHandle {
@@ -202,12 +218,6 @@ export function customersModule(options: CustomersModuleOptions): {
         options.sessionService.destroyAllForCustomer(customerAccountId),
     },
   );
-  const impersonationService = new ImpersonationService(
-    options.emFactory,
-    options.authSessionPort,
-    options.customerAccountReadPort,
-    options.auditLogService,
-  );
   const queryService = new CustomerAdminQueryService(options.emFactory, customerDefaultsService, {
     accounts: options.customerAccountReadPort,
     accountSearch: options.customerAccountAdminSearchPort,
@@ -220,7 +230,6 @@ export function customersModule(options: CustomersModuleOptions): {
     options.organizationDetailsPort,
     authorityService,
   );
-  const cartQueryService = new CartQueryService(options.emFactory);
   const deletionService = new CustomerDeletionService(
     options.customerAccountReadPort,
     options.customerAccountLifecycleWritePort,
@@ -232,11 +241,11 @@ export function customersModule(options: CustomersModuleOptions): {
     },
   );
   const presenceService = new CustomerPresenceService(
-    options.emFactory,
     {
       listRecentlyActiveCustomers: (windowMinutes) =>
         options.sessionService.listRecentlyActiveCustomers(windowMinutes),
     },
+    options.authSessionReadPort,
     options.resolvePresenceFreshnessMinutes,
     options.customerAccountReadPort,
   );
@@ -253,7 +262,7 @@ export function customersModule(options: CustomersModuleOptions): {
       requireCustomer: options.requireCustomer,
       resolveCustomerActor: options.resolveCustomerActor,
       customerAuthService,
-      getOrderListService: options.getOrderListService,
+      orderList: options.orderList,
       rfqService: options.rfqService,
       customerAddressService,
       customerDefaultsService,
@@ -267,11 +276,11 @@ export function customersModule(options: CustomersModuleOptions): {
       queryService,
       orgAssignmentService,
       addressService: customerAddressService,
-      cartQueryService,
-      getOrderListService: options.getOrderListService,
+      cartQueryService: options.cartQueryPort,
+      orderList: options.orderList,
       rfqService: options.rfqService,
       vatValidator: options.vatValidator,
-      impersonationService,
+      impersonationService: options.impersonationPort,
       deletionService,
       presenceService,
       passwordResetService,
