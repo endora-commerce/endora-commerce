@@ -461,11 +461,11 @@ number", never pick a number, never edit an execution list.
    `mikro_orm_migrations` stores the **class name**, so every database that already ran the
    migration under its old name will see the new name as pending and try to re-apply it.
    Rename only when moving a migration between groups is genuinely required (as feature 072
-   T020 did), and ship the rename with a note telling every developer to rebuild:
-   `DATABASE_URL=…/b2b_test_tpl pnpm --filter backend run db:fresh` plus
-   `pnpm --filter backend run db:reset` for the dev database. The template is the database the
-   test suite migrates since issue #189; dropping it is the other way to force the rebuild,
-   since the next invocation recreates it.
+   T020 did), and ship the rename with a note telling every developer to rebuild the **dev**
+   database: `pnpm --filter backend run db:reset`. The test suite needs nothing, since issue
+   #289: its migration template is named after a digest of the migration set, so a renamed
+   class is a different set and the next invocation builds its own template rather than
+   re-applying anything into yours.
 6. **Never scaffold a migration stamped at or before `BASELINE_THROUGH`**
    (`20260801T000000`, `backend/src/db/migration-order.ts`). Everything the committed core
    registry contributed at or before it is the **frozen historical prefix**: its order is

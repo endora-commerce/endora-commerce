@@ -17,13 +17,18 @@ import type { Redis } from 'ioredis';
 import {
   SWEEP_LIMIT,
   STALE_RUN_DATABASE_MS,
+  STALE_TEMPLATE_MS,
   advisoryLockKey,
   databaseNameOf,
+  formatTemplateProvenance,
+  parseTemplateProvenance,
   redisUrlWithDatabase,
   runDatabaseName,
+  staleTemplates,
   strandedRunDatabases,
   templateDatabaseName,
   templateDrift,
+  templateFamilyName,
   withDatabase,
 } from './run-isolation.js';
 
@@ -46,6 +51,31 @@ async function connectAdmin(url: string): Promise<Client> {
 async function databaseExists(admin: Client, name: string): Promise<boolean> {
   const { rowCount } = await admin.query('select 1 from pg_database where datname = $1', [name]);
   return (rowCount ?? 0) > 0;
+}
+
+/**
+ * What a database says about itself.
+ *
+ * A database comment is the one piece of state a template can carry that a
+ * clone does not inherit — `create database … template …` copies the contents
+ * and leaves `pg_shdescription` behind, which is exactly right: the provenance
+ * is the *template's*, and a run database has none. It also needs no table in
+ * the template and no connection to it.
+ */
+async function databaseComment(admin: Client, name: string): Promise<string | undefined> {
+  const { rows } = await admin.query<{ note: string | null }>(
+    "select shobj_description(oid, 'pg_database') as note from pg_database where datname = $1",
+    [name],
+  );
+  return rows[0]?.note ?? undefined;
+}
+
+async function setDatabaseComment(admin: Client, name: string, comment: string): Promise<void> {
+  // Neither identifier nor comment can be parameterised here. The name is one
+  // this module generated and the comment is assembled from a digest and a
+  // timestamp, but the escape stays because the alternative is a rule nobody
+  // can see being followed.
+  await admin.query(`comment on database "${name}" is '${comment.replace(/'/g, "''")}'`);
 }
 
 /**
@@ -122,92 +152,135 @@ export interface RunDatabase {
 export interface ProvisionInput {
   /** The DSN naming the base database, from TEST_DATABASE_URL or the default. */
   readonly baseUrl: string;
+  /**
+   * Which migration set this run has, from `test/template-identity.ts`.
+   *
+   * A **value**, unlike the callback this used to be, because the identity is
+   * read from `src/db/configured-migrations.ts` — the ordering the ORM config
+   * assigns, extracted so that reading it does not mean importing the config.
+   * That import is what the callback existed to delay: **the config captures
+   * `DATABASE_URL` at import**, once per process, and the parent used to import
+   * it while that variable was unset, whose fallback is the *dev* database.
+   * `migrateTemplate` is still a callback for exactly that reason.
+   */
+  readonly identity: {
+    readonly digest: string;
+    readonly migrations: readonly string[];
+    readonly migrationFiles: number;
+  };
   /** Applies pending migrations to the template and establishes the platform invariants. */
   readonly migrateTemplate: (templateUrl: string) => Promise<void>;
-  /**
-   * The migration class names this run applies, in the order it applies them.
-   * The template is rebuilt when what it holds is not a prefix of them — see
-   * `templateDrift`.
-   *
-   * A callback taking the template's DSN, and not a value, for the same reason
-   * `migrateTemplate` is one: **the ORM config captures `DATABASE_URL` at
-   * import**, once per process, so whatever names that variable when the config
-   * is first imported is the database this process migrates for the rest of its
-   * life. Reading the configured order means importing the config, so it is
-   * read here — after the template's DSN exists and can be pointed at — rather
-   * than by a caller that has not got one yet. Taking a plain array made the
-   * parent import the config while `DATABASE_URL` was unset, and its fallback
-   * is the **dev** database; the migration ran there and only its
-   * `allOrNothing` transaction kept that from mattering.
-   */
-  readonly configuredMigrations: (templateUrl: string) => Promise<readonly string[]>;
   readonly log?: Log;
+}
+
+/** Whether a template holds this run's migration set and nothing else. */
+function isExactly(applied: readonly string[], expected: readonly string[]): boolean {
+  return applied.length === expected.length && templateDrift(applied, expected) === undefined;
 }
 
 /**
  * Give this invocation its own database.
  *
  * Everything between taking the advisory lock and releasing it is serialized
- * across invocations: ensure the template exists, migrate it, disconnect from
- * it, clone. Holding the lock across the clone as well is deliberate — the
- * clone is a fraction of a second, and it is what guarantees the template is
- * idle at the moment the next invocation's migration opens a connection to it.
+ * across invocations: identify the template, build it if it is not there or not
+ * what it claims, migrate it, disconnect from it, clone, collect the templates
+ * nobody uses any more. Holding the lock across the clone as well is deliberate
+ * — the clone is a fraction of a second, and it is what guarantees the template
+ * is idle at the moment the next invocation's migration opens a connection to
+ * it.
  *
  * The lock is taken on the `postgres` maintenance database: PostgreSQL advisory
  * locks are scoped to a database, so every waiter has to agree on which, and it
  * must not be the template — a session holding the lock there is exactly the
- * session that would make the clone illegal.
+ * session that would make the clone illegal. It is one key for the whole
+ * `<base>_tpl*` family rather than one per digest, because the sweep walks the
+ * templates of other digests (see `templateFamilyName`).
+ *
+ * **Which template, is the question this function exists to answer** (issue
+ * #289). It is `<base>_tpl_<digest>`, the digest being over this run's whole
+ * migration input, so a template is shared only by runs whose platform it
+ * actually is. Two things then have to agree before it is cloned: the
+ * provenance comment the build wrote on it, and the migration names it actually
+ * holds. Either disagreeing rebuilds it from empty — including "it says
+ * nothing", because a template that cannot say what it holds is the defect.
  */
 export async function provisionRunDatabase(input: ProvisionInput): Promise<RunDatabase> {
   const log = input.log ?? defaultLog;
   const base = databaseNameOf(input.baseUrl);
-  const template = templateDatabaseName(base);
+  const { digest, migrations: expected } = input.identity;
+  const template = templateDatabaseName(base, digest);
+  const templateUrl = withDatabase(input.baseUrl, template);
   const name = runDatabaseName(base);
-  const lockKey = advisoryLockKey(template);
+  const lockKey = advisoryLockKey(templateFamilyName(base));
+
+  log(
+    `[test-setup] migration set ${digest}: ${expected.length} migration(s), read from ` +
+      `${input.identity.migrationFiles} source file(s) — template ${template}`,
+  );
 
   const admin = await connectAdmin(input.baseUrl);
   try {
     await admin.query('select pg_advisory_lock($1)', [lockKey]);
     try {
+      let rebuild: string | undefined;
       if (!(await databaseExists(admin, template))) {
-        await admin.query(`create database "${template}"`);
-        log(`[test-setup] created the migration template ${template}`);
+        rebuild = `no template for this migration set exists yet`;
+      } else {
+        const provenance = parseTemplateProvenance(await databaseComment(admin, template));
+        const applied = await appliedMigrations(templateUrl);
+        if (provenance === undefined) {
+          // Unknown provenance is the whole defect: a database whose contents
+          // nothing can account for. It is never cloned, whatever its name.
+          rebuild = `${template} carries no provenance this harness wrote`;
+        } else if (provenance.digest !== digest) {
+          rebuild = `${template} says it holds migration set ${provenance.digest}, not ${digest}`;
+        } else if (!isExactly(applied, expected)) {
+          // The provenance says one thing and the database says another —
+          // a build that died half-way, or somebody's psql session.
+          rebuild =
+            `${template} holds ${applied.length} of this run's ${expected.length} migration(s), ` +
+            `and ${templateDrift(applied, expected, template)?.message ?? 'not in order'}`;
+        }
       }
-      const templateUrl = withDatabase(input.baseUrl, template);
-      const expected = await input.configuredMigrations(templateUrl);
 
-      // The template outlives every run and is shared by every branch on the
-      // machine, and `migrator.up()` only ever appends. So before it is
-      // brought forward, check that what it holds is an order this run's
-      // migrations could have produced — and rebuild it from empty when it is
-      // not. Dropping is ours to do: the name is one this module generates,
-      // nothing runs tests against it, and rebuilding costs one migration pass.
-      const drift = templateDrift(await appliedMigrations(templateUrl), expected, template);
-      if (drift) {
-        log(`[test-setup] ${drift.message}`);
+      if (rebuild !== undefined) {
+        log(`[test-setup] ${rebuild} — building it from empty.`);
         await admin.query(`drop database if exists "${template}" with (force)`);
         await admin.query(`create database "${template}"`);
+        await input.migrateTemplate(templateUrl);
+
+        // A clone is only worth anything if the template is now exactly this
+        // run's platform. After a build-and-migrate it is, by construction — so
+        // a finding here is a real defect and gets said out loud rather than
+        // handed to every test file in the run as a database that is quietly
+        // not what the code says it is. It is also what catches a
+        // `migrateTemplate` that migrated *something else*, which is a live
+        // hazard while the ORM config resolves its DSN from an ambient
+        // variable.
+        const applied = await appliedMigrations(templateUrl);
+        if (!isExactly(applied, expected)) {
+          throw new Error(
+            `the migration template is not this run's migration set after migrating it: it holds ` +
+              `${applied.length} migration(s) against ${expected.length} configured` +
+              `${templateDrift(applied, expected, template) ? `, and ${templateDrift(applied, expected, template)?.message}` : ''}. ` +
+              `Drop "${template}" by hand and report this — a run cloned from it would not be ` +
+              `the platform this branch's code describes.`,
+          );
+        }
       }
 
-      await input.migrateTemplate(templateUrl);
-
-      // A clone is only worth anything if the template is now exactly this
-      // run's platform. After a rebuild-and-migrate it is, by construction —
-      // so a finding here is a real defect and gets said out loud rather than
-      // handed to every test file in the run as a database that is quietly not
-      // what the code says it is. It is also what catches a `migrateTemplate`
-      // that migrated *something else*, which is a live hazard while the ORM
-      // config resolves its DSN from an ambient variable.
-      const residual = templateDrift(await appliedMigrations(templateUrl), expected, template);
-      if (residual) {
-        throw new Error(
-          `the migration template is still not this run's migration set after migrating it: ` +
-            `${residual.message} Drop "${template}" by hand and report this — a run cloned ` +
-            `from it would not be the platform this branch's code describes.`,
-        );
-      }
+      // Written after the template is known good, and rewritten on every use:
+      // the digest is what a later run checks, and `lastUsedAt` is what the
+      // sweep reads. A build that dies before this line leaves a template with
+      // no provenance, which the next run rebuilds rather than trusts.
+      await setDatabaseComment(
+        admin,
+        template,
+        formatTemplateProvenance({ digest, migrations: expected.length, lastUsedAt: new Date() }),
+      );
 
       await cloneFromTemplate(admin, name, template);
+      await sweepStaleTemplates(admin, base, template, log);
     } finally {
       await admin.query('select pg_advisory_unlock($1)', [lockKey]);
     }
@@ -220,29 +293,104 @@ export async function provisionRunDatabase(input: ProvisionInput): Promise<RunDa
 }
 
 /**
- * A database of this template's, for a caller that is not the invocation.
+ * A database of this run's template, for a caller that is not the invocation.
+ *
+ * The template is named by the caller, not re-derived here, and that is the
+ * point (issue #289): `global-setup.ts` resolved which template this run's
+ * platform is and exported the name, so a file cloning one mid-run gets the
+ * database the run itself was cloned from — not whatever `<base>_tpl` has
+ * become while the run has been going, which with several branches on one
+ * cluster is routinely another branch's schema.
  *
  * The advisory lock is the same one provisioning takes, and for the same
  * reason: it is what keeps the template idle at the moment a clone starts.
  * `setupMigratorTestDb` is the only caller — a test file that drives the real
  * migrator and must not do it to the database its neighbours share.
  */
-export async function cloneTemplateForCaller(baseUrl: string): Promise<RunDatabase> {
+export async function cloneTemplateForCaller(
+  baseUrl: string,
+  template: string,
+): Promise<RunDatabase> {
   const base = databaseNameOf(baseUrl);
-  const template = templateDatabaseName(base);
   const name = runDatabaseName(base);
+  const lockKey = advisoryLockKey(templateFamilyName(base));
   const admin = await connectAdmin(baseUrl);
   try {
-    await admin.query('select pg_advisory_lock($1)', [advisoryLockKey(template)]);
+    await admin.query('select pg_advisory_lock($1)', [lockKey]);
     try {
+      if (!(await databaseExists(admin, template))) {
+        throw new Error(
+          `this run's migration template "${template}" is gone. Nothing drops a template in ` +
+            `use, so either something dropped it by hand or this run outlived it — either way ` +
+            `a clone of what is there now would not be the platform this run started on.`,
+        );
+      }
       await cloneFromTemplate(admin, name, template);
     } finally {
-      await admin.query('select pg_advisory_unlock($1)', [advisoryLockKey(template)]);
+      await admin.query('select pg_advisory_unlock($1)', [lockKey]);
     }
   } finally {
     await admin.end();
   }
   return { url: withDatabase(baseUrl, name), name, template };
+}
+
+/**
+ * Drop the templates of migration sets nobody runs any more.
+ *
+ * Keying a template by its migration set is what stops two branches sharing
+ * one; this is the other half of that bargain, because a branch leaves its
+ * set's template behind the moment it gains a migration or is rebased. Called
+ * under the provisioning lock, so no template can be half-built while it runs.
+ *
+ * Best-effort and never fatal: a sweep that fails is a disk-space problem, not
+ * a reason to fail somebody's test run.
+ */
+export async function sweepStaleTemplates(
+  admin: Client,
+  base: string,
+  keep: string,
+  log: Log = defaultLog,
+): Promise<string[]> {
+  const dropped: string[] = [];
+  try {
+    const { rows } = await admin.query<{ datname: string; note: string | null }>(
+      "select datname, shobj_description(oid, 'pg_database') as note from pg_database",
+    );
+    const busy = await admin.query<{ datname: string }>(
+      'select distinct datname from pg_stat_activity where datname is not null',
+    );
+    const lastUsed = new Map<string, Date>();
+    for (const row of rows) {
+      const provenance = parseTemplateProvenance(row.note);
+      if (provenance) lastUsed.set(row.datname, provenance.lastUsedAt);
+    }
+    const stale = staleTemplates({
+      base,
+      names: rows.map((row) => row.datname),
+      busy: new Set(busy.rows.map((row) => row.datname)),
+      keep,
+      lastUsed,
+      now: new Date(),
+      maxAgeMs: STALE_TEMPLATE_MS,
+      limit: SWEEP_LIMIT,
+    });
+    for (const name of stale) {
+      try {
+        await admin.query(`drop database if exists "${name}" with (force)`);
+        dropped.push(name);
+      } catch {
+        // Somebody connected between the read and the drop. The next
+        // invocation sweeps again.
+      }
+    }
+    if (dropped.length > 0) {
+      log(`[test-setup] swept ${dropped.length} migration template(s) no branch has used lately`);
+    }
+  } catch (error) {
+    log(`[test-setup] could not sweep stale migration templates: ${(error as Error).message}`);
+  }
+  return dropped;
 }
 
 export async function dropRunDatabase(

@@ -42,12 +42,17 @@
  * from scratch on a fresh cluster, which is what the CI job's comment about
  * exercising the whole chain is protecting.
  *
- * **And checked for currency before it is cloned.** The template outlives every
- * run and is shared by every branch on the machine, while `migrator.up()` only
- * appends — so what it holds has to be a *prefix* of the order this run
- * configures, or no append can make it this run's platform. `templateDrift`
- * below is that judgement, and provisioning rebuilds the template from empty
- * when it finds one.
+ * **And it is the template of this run's migration set, not the machine's.**
+ * `<base>_tpl_<digest>` (issue #289): the digest covers the ordered migration
+ * class names *and* the content of every file that writes into a template, so
+ * two branches that differ anywhere a template can see get two templates, and
+ * two trees that agree share one and migrate once between them. Before that
+ * there was one `<base>_tpl` and a check comparing applied migration *names*
+ * against the configured order — which catches a branch that added a migration
+ * and cannot catch one that changed what a migration of the same name does.
+ * See `templateDigest`. What the name claims is checked against the template's
+ * own provenance comment and against `mikro_orm_migrations` before anything is
+ * cloned; a template that cannot account for itself is rebuilt, never used.
  *
  * **Names satisfy the existing guard.** `runDatabaseName` refuses to produce a
  * name `TEST_DATABASE_NAME_PATTERN` would not accept, so the harness's refusal
@@ -75,9 +80,16 @@
  * considered — the 156 hand-named databases and anything else on the cluster
  * are outside the pattern by construction, and `strandedRunDatabases` is
  * unit-tested on exactly that. Redis leases expire on their own TTL.
+ *
+ * **Templates are collected too**, and have to be: one per migration set means
+ * one left behind whenever a branch gains a migration or is rebased.
+ * `staleTemplates` is the other half of the bargain keying them made — same
+ * three conditions, with the age read from the template's provenance rather
+ * than from its name, because what matters about a template is when it was last
+ * *used*.
  */
 
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
 
 /**
@@ -97,11 +109,29 @@ const MAX_IDENTIFIER_LENGTH = 63;
 /** What separates the base name from the run token. */
 const RUN_INFIX = '_r_';
 
-/** The migrated database every run is cloned from. Nothing runs tests against it. */
+/**
+ * The migrated database a run is cloned from. Nothing runs tests against it.
+ *
+ * The suffix is followed by the migration set's digest — see `templateDigest`.
+ * The bare `<base>_tpl` was the pre-#289 name and is nobody's template now.
+ */
 const TEMPLATE_SUFFIX = '_tpl';
+
+/** How many hex characters of the digest a template name carries. */
+export const TEMPLATE_DIGEST_LENGTH = 12;
 
 /** How old a run database must be before a sweep may take it for stranded. */
 export const STALE_RUN_DATABASE_MS = 4 * 60 * 60 * 1000;
+
+/**
+ * How long a template survives with nothing using it.
+ *
+ * Templates are keyed by the migration set, so a branch that adds a migration
+ * leaves the previous set's template behind the moment it is rebased or merged.
+ * A day of nobody asking for a set is the point at which keeping its 19 MB
+ * costs more than the one migration pass rebuilding it would.
+ */
+export const STALE_TEMPLATE_MS = 24 * 60 * 60 * 1000;
 
 /** How many stranded databases one invocation drops, so a sweep cannot become the run's cost. */
 export const SWEEP_LIMIT = 25;
@@ -123,6 +153,17 @@ export const KEEP_DATABASE_ENV = 'BACKEND_TEST_KEEP_DATABASE';
  * one would be a second, weaker spelling of `runDatabaseName`.
  */
 export const BASE_DATABASE_URL_ENV = 'BACKEND_TEST_BASE_URL';
+
+/**
+ * The template this run was cloned from, exported to the workers alongside it.
+ *
+ * A name and not a derivation, because since #289 there is more than one
+ * template on the cluster and which one is this run's is a fact about the run,
+ * not about the base: another invocation may build a template of its own while
+ * this one is still going, and a file that re-derived "the template" mid-run
+ * would clone whichever set happened to be newest.
+ */
+export const TEMPLATE_DATABASE_ENV = 'BACKEND_TEST_TEMPLATE';
 
 export type IsolationMode = 'per-invocation' | 'shared';
 
@@ -183,10 +224,201 @@ function assertUsableDatabaseName(name: string): string {
   return name;
 }
 
-/** The migrated source every run of this base is cloned from. */
-export function templateDatabaseName(base: string): string {
+/**
+ * The migrated source every run of *this migration set* is cloned from.
+ *
+ * The digest is in the name because that is what makes two different migration
+ * sets two different databases: a template is shared exactly by the runs whose
+ * platform it actually is, and never by the runs that merely share a cluster
+ * with it. See `templateDigest` for what "the same set" means, and issue #289
+ * for what one shared `<base>_tpl` cost.
+ */
+export function templateDatabaseName(base: string, digest: string): string {
   assertSafeIdentifier(base);
-  return assertUsableDatabaseName(`${base}${TEMPLATE_SUFFIX}`);
+  if (!new RegExp(`^[0-9a-f]{${TEMPLATE_DIGEST_LENGTH}}$`).test(digest)) {
+    throw new Error(
+      `"${digest}" is not a migration-set digest — expected ${TEMPLATE_DIGEST_LENGTH} hex ` +
+        `characters from templateDigest(). A template whose name does not carry its identity ` +
+        `is the one issue #289 is about.`,
+    );
+  }
+  return assertUsableDatabaseName(`${base}${TEMPLATE_SUFFIX}_${digest}`);
+}
+
+/**
+ * The lock every invocation of this base takes before it touches a template.
+ *
+ * One key for the whole family rather than one per digest: a sweep walks the
+ * templates of *other* digests, so it has to exclude an invocation that is
+ * half-way through building one. It is also, deliberately, the exact string the
+ * pre-#289 code derived its key from, so an invocation running that code still
+ * serializes against this one while the two versions coexist on a machine.
+ */
+export function templateFamilyName(base: string): string {
+  assertSafeIdentifier(base);
+  return `${base}${TEMPLATE_SUFFIX}`;
+}
+
+/** The digest a template name carries, or `undefined` for a name this module did not make. */
+export function parseTemplateDatabaseName(
+  base: string,
+  name: string,
+): { readonly digest: string } | undefined {
+  if (!/^[A-Za-z0-9_]+$/.test(base)) return undefined;
+  const match = new RegExp(
+    `^${base}${TEMPLATE_SUFFIX}_([0-9a-f]{${TEMPLATE_DIGEST_LENGTH}})$`,
+  ).exec(name);
+  return match ? { digest: match[1] as string } : undefined;
+}
+
+/** What a template is built from: this run's migration order and the sources behind it. */
+export interface TemplateInputs {
+  /** The migration class names this run applies, in the order it applies them. */
+  readonly migrations: readonly string[];
+  /** Every file whose content decides what the migrated template holds. */
+  readonly sources: readonly TemplateSource[];
+}
+
+export interface TemplateSource {
+  /** Repository-relative, so two worktrees of the same commit agree. */
+  readonly path: string;
+  readonly sha256: string;
+}
+
+/**
+ * What makes two runs' templates the same template.
+ *
+ * Issue #189 keyed the template on the base database alone and compared the
+ * *names* of the applied migrations against this run's order before cloning it.
+ * That catches a template another branch added a migration to. It does not
+ * catch — and cannot — a branch that changed what a migration of the same name
+ * *does*, which is the ordinary shape of two agents iterating on the same
+ * feature, and it is how a run whose tree contained no such string failed
+ * against a payment method row called `paypal_checkout` seeded from a branch it
+ * had never seen (issue #289).
+ *
+ * So the identity is the whole input: the ordered class names — order included,
+ * because a manifest `dependencies` edit reorders migrations without touching
+ * one of them — and the content of every file that writes into the template,
+ * which is every migration source plus the handful of files that seed the
+ * platform invariants. Two trees that agree on all of it share a template and
+ * pay one migration pass between them; two that do not cannot collide, because
+ * they are not looking at the same database at all.
+ *
+ * It **throws on an empty input** rather than digesting nothing: every empty
+ * input hashes to the same value, so a caller that read no migrations would
+ * quietly name the same template as a caller that read all of them — a template
+ * of unknown provenance, which is the defect and not a fix for it.
+ */
+export function templateDigest(inputs: TemplateInputs): string {
+  if (inputs.migrations.length === 0) {
+    throw new Error(
+      'refusing to identify a migration template from no migrations — the digest would be the ' +
+        'one every empty read produces, and every such run would share one template.',
+    );
+  }
+  if (inputs.sources.length === 0) {
+    throw new Error(
+      'refusing to identify a migration template from no source files — the migration names ' +
+        'alone cannot see a branch that changed what a migration of the same name does.',
+    );
+  }
+  const hash = createHash('sha256');
+  hash.update('migrations\n');
+  for (const name of inputs.migrations) hash.update(`${name}\n`);
+  hash.update('sources\n');
+  for (const source of [...inputs.sources].sort((a, b) => (a.path < b.path ? -1 : 1))) {
+    hash.update(`${source.path} ${source.sha256}\n`);
+  }
+  return hash.digest('hex').slice(0, TEMPLATE_DIGEST_LENGTH);
+}
+
+/** What a template says about itself, in the comment PostgreSQL keeps on the database. */
+export interface TemplateProvenance {
+  readonly digest: string;
+  /** How many migrations were applied when it was built — a second, cheaper thing to disagree about. */
+  readonly migrations: number;
+  readonly lastUsedAt: Date;
+}
+
+/** The marker that says the comment is ours and is the shape this version reads. */
+const PROVENANCE_MARKER = 'b2b-test-template v1';
+
+export function formatTemplateProvenance(provenance: TemplateProvenance): string {
+  return (
+    `${PROVENANCE_MARKER} digest=${provenance.digest} migrations=${provenance.migrations} ` +
+    `lastUsedAt=${provenance.lastUsedAt.toISOString()}`
+  );
+}
+
+/**
+ * What the template says it is, or `undefined` when it says nothing this
+ * version understands.
+ *
+ * Every "undefined" is a template a run must rebuild rather than clone: an
+ * older version's template, a hand-made database that happens to fit the name,
+ * one whose build died before it could sign itself. "I cannot tell what this
+ * holds" and "this holds the wrong thing" get the same answer on purpose.
+ */
+export function parseTemplateProvenance(
+  comment: string | null | undefined,
+): TemplateProvenance | undefined {
+  if (!comment || !comment.startsWith(PROVENANCE_MARKER)) return undefined;
+  const digest = /\bdigest=([0-9a-f]+)/.exec(comment)?.[1];
+  const migrations = /\bmigrations=(\d+)/.exec(comment)?.[1];
+  const lastUsedAt = /\blastUsedAt=(\S+)/.exec(comment)?.[1];
+  if (digest === undefined || migrations === undefined || lastUsedAt === undefined) {
+    return undefined;
+  }
+  const at = new Date(lastUsedAt);
+  if (Number.isNaN(at.getTime())) return undefined;
+  return { digest, migrations: Number.parseInt(migrations, 10), lastUsedAt: at };
+}
+
+export interface StaleTemplateSelection {
+  readonly base: string;
+  /** Every database name on the cluster. */
+  readonly names: readonly string[];
+  readonly busy: ReadonlySet<string>;
+  /** This invocation's own template, which is never stale. */
+  readonly keep: string;
+  /** When each template was last used, from its own provenance comment. */
+  readonly lastUsed: ReadonlyMap<string, Date>;
+  readonly now: Date;
+  readonly maxAgeMs: number;
+  readonly limit: number;
+}
+
+/**
+ * The templates a sweep may drop.
+ *
+ * Keying templates by their migration set is what stops two branches sharing
+ * one; the cost of it is that a branch leaves its set's template behind when it
+ * merges, so something has to collect them. Same three conditions as the run
+ * database sweep — a name this module generated, nothing connected, nobody
+ * using it lately — with the age read from the template's own provenance
+ * comment rather than from its name, because a template's useful age is when it
+ * was last *used* and not when it was built.
+ *
+ * A template with no readable provenance is stale immediately. It is a database
+ * no run would clone anyway (provisioning rebuilds one it cannot identify), so
+ * leaving it costs disk and buys nothing. The pre-#289 `<base>_tpl` is not in
+ * the population at all — `parseTemplateDatabaseName` refuses it — because an
+ * invocation running older code clones that one *during* its run, and dropping
+ * it under such a run would fail it for a reason in nobody's diff.
+ */
+export function staleTemplates(input: StaleTemplateSelection): string[] {
+  const selected: string[] = [];
+  for (const name of input.names) {
+    if (selected.length >= input.limit) break;
+    if (name === input.keep) continue;
+    if (input.busy.has(name)) continue;
+    if (!parseTemplateDatabaseName(input.base, name)) continue;
+    const lastUsed = input.lastUsed.get(name);
+    if (lastUsed && input.now.getTime() - lastUsed.getTime() < input.maxAgeMs) continue;
+    selected.push(name);
+  }
+  return selected;
 }
 
 export function randomRunToken(): string {
