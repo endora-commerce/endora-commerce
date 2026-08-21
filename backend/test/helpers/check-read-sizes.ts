@@ -226,9 +226,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-lock-claims.ts': {
     prefix: '[lock-claims]',
     run: { kind: 'tsx', path: 'scripts/check-lock-claims.ts', args: [] },
-    files: 122,
-    sites: 6,
-    sources: ['manifest-index'],
+    // Re-recorded for issue #279, which added `packages/contracts/src` to the
+    // population: 113 → 192 files and 6 → 9 named-subject claims on the tree
+    // the widening landed against. The second source is the contracts barrel,
+    // `index.ts`, which is what the package says it publishes — the same
+    // derived floor the manifest index provides for the module half.
+    files: 192,
+    sites: 9,
+    sources: ['manifest-index', 'contracts-barrel'],
   },
   'backend/scripts/check-module-boundary.ts': {
     prefix: '[module-boundary]',
