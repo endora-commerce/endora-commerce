@@ -45,3 +45,41 @@ export interface ShippingEmailContext {
 export interface ShippingEmailRendererPort {
   render(rendererKey: string | null, ctx: ShippingEmailContext): string;
 }
+
+/**
+ * Container name: `shipmentUsagePort`. Owner: `shipments`.
+ *
+ * "Has this delivery method ever shipped anything?" — the one question
+ * `delivery_methods` has to ask before it deletes a method row (feature 035,
+ * FR-003; feature 077, D-87).
+ *
+ * It asked it in raw SQL until feature 075 drained the shard:
+ * `select count(*) from "shipments" where "delivery_method_id" = ?`, inside the
+ * delete Command's own transaction. The statement named no import specifier, so
+ * the boundary it crossed compiled and returned rows.
+ *
+ * **`shipments.delivery_method_id` carries no foreign key** — the table was
+ * created without one — so this count is the only thing standing between a
+ * delete and permanently orphaned shipment history. That is why the answer is
+ * asked of the owner rather than approximated, and why the caller refuses the
+ * delete when it cannot get one.
+ *
+ * The count runs on this module's own `EntityManager`, so it is outside any
+ * transaction the caller has open. That costs nothing here: `shipments` is a
+ * table the delete transaction never writes, so there is no write of its own
+ * for the read to be blind to, and the race a cross-module read cannot close —
+ * a shipment created between the count and the commit — was equally open to the
+ * in-transaction statement this replaced, which took no lock either.
+ *
+ * **Owner off:** `delivery_methods` decides this module's presence *before* it
+ * resolves the port and refuses the delete with a sentence naming this module,
+ * rather than resolving a gate and catching it — see its manifest's
+ * `nonBindingDependencies` entry. The edge is non-binding because `shipments`
+ * declares `delivery_methods`, so declaring it back closes a cycle, and
+ * acknowledging it would make `shipments` unswitchable for as long as delivery
+ * methods are present.
+ */
+export interface ShipmentUsagePort {
+  /** How many shipment rows — of any status — reference this delivery method. */
+  countForDeliveryMethod(deliveryMethodId: string): Promise<number>;
+}

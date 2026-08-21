@@ -654,13 +654,22 @@ export class FeedGenerationService {
     const placeholders = productIds.map(() => '?').join(',');
 
     // Categories, localized root → leaf.
-    const categoryRows = (await conn.execute(
-      `select product_id, category_id from product_categories where product_id in (${placeholders})`,
-      productIds,
-      'all',
-      em.getTransactionContext(),
-    )) as Array<{ product_id: string; category_id: string }>;
-    const categoryIds = [...new Set(categoryRows.map((r) => r.category_id))];
+    //
+    // `product_categories` is `catalog`'s bridge table and was joined here in
+    // raw SQL — a boundary crossing that names no import specifier, two lines
+    // above the `findByIds` that already asked the owner the next question
+    // (feature 075, the `product_feeds` shard). The owner answers both halves
+    // now, on its own `EntityManager`: a hydration batch writes nothing to
+    // `catalog`, so the transaction context the statement used to carry had
+    // nothing of its own to show it.
+    //
+    // No `activeOnly`. The floor a feed publishes against is
+    // `catalogProductFilterPort`'s **sellable product** set, applied by the
+    // owner during selection; narrowing the *category path* on top of it would
+    // silently blank the `product_category` field of an item the feed is still
+    // emitting, which reads as a mapping defect rather than as a filter.
+    const categoryRows = await this.deps.catalogCategories.listAssignmentsForProducts(productIds);
+    const categoryIds = [...new Set(categoryRows.map((r) => r.categoryId))];
     const categories = categoryIds.length
       ? await this.deps.catalogCategories.findByIds(categoryIds)
       : [];
@@ -694,8 +703,8 @@ export class FeedGenerationService {
     const out: FeedItemSource[] = [];
     for (const product of products) {
       const productCategoryIds = categoryRows
-        .filter((r) => r.product_id === product.id)
-        .map((r) => r.category_id);
+        .filter((r) => r.productId === product.id)
+        .map((r) => r.categoryId);
       const path = this.categoryPath(
         productCategoryIds,
         categoryById,

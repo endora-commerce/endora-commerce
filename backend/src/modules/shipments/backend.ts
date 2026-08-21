@@ -7,6 +7,7 @@ import type {
   OrderReadPort,
   OrderTransitionPort,
   ShipmentStatus,
+  ShipmentUsagePort,
   ShippingAdapterRegistryPort,
   ShippingEmailRendererPort,
 } from '@b2b/contracts';
@@ -15,6 +16,7 @@ import { lazyPort } from '../../kernel/index.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { ShipmentService } from './services/shipment-service.js';
+import { ShipmentUsageService } from './services/shipment-usage.service.js';
 import { resolveShippingEmailRenderer } from './services/shipping-email-renderer.js';
 import { ReceiveShipmentHandler } from './services/receive-shipment-handler.js';
 import type { ShippingEventBus } from './services/events.js';
@@ -110,6 +112,28 @@ export function registerModule(ctx: ModuleContext): void {
             eventBus as ShippingEventBus,
           ),
       )
+      .singleton(),
+  );
+
+  /**
+   * Feature 075 — the delete guard `delivery_methods` used to write itself.
+   *
+   * That module counted this one's table in raw SQL, which names no import
+   * specifier and so crossed the boundary invisibly until D-87 gave
+   * `check:module-boundary` a second predicate. The count is a question about
+   * shipment rows, so it is answered here.
+   *
+   * A port and not a contribution into a registry `delivery_methods` owns:
+   * a contributed edge is filtered by contributor at enumeration, so switching
+   * this module off would silently withdraw the guard — and with no foreign key
+   * on `shipments.delivery_method_id` that means orphaned history rather than a
+   * refused delete. The consumer decides this module's presence itself and
+   * refuses; see its manifest's `nonBindingDependencies` entry.
+   */
+  ctx.di.providePort<ShipmentUsagePort>(
+    'shipmentUsagePort',
+    ctx
+      .asFunction(({ emFactory }: ShipmentsCradle) => new ShipmentUsageService(emFactory))
       .singleton(),
   );
 

@@ -35,6 +35,49 @@ export const manifest = defineModuleManifest({
   // edge became real with the conversion (feature 072, T095).
   // `organizations` since feature 072 (T138) — see the payment twin.
   dependencies: ['auth', 'organizations'],
+  /**
+   * D-44 — real to the container, binding on no operator (feature 075, the
+   * `delivery_methods` boundary shard).
+   *
+   * `shipments` declares this module, so the ordinary declaration closes a
+   * manifest cycle, and acknowledging the edge would put `delivery_methods` —
+   * present in every deployment that ships anything — among the dependents that
+   * refuse the flip, making shipments permanently unswitchable. The delete
+   * guard has a defined behaviour instead: it probes
+   * `effectiveState.isPresent('shipments')` before it resolves the port and
+   * refuses the delete when the answer is no, so nothing catches
+   * `ModuleDisabledError` and the degrade is declared rather than laundered out
+   * of a closed gate.
+   *
+   * Refusing rather than proceeding is the whole point of the entry.
+   * `shipments.delivery_method_id` carries no foreign key, so this count is the
+   * only thing between a delete and permanently orphaned shipment history — and
+   * a switched-off module is exactly when no screen would show the operator
+   * that the history exists. Switching a module off is meant to be reversible;
+   * a delete taken while it was off is not. Every row, binding and setting stays
+   * where it was, so the delete becomes available again the moment shipments
+   * comes back.
+   */
+  nonBindingDependencies: [
+    {
+      moduleId: 'shipments',
+      name: 'shipmentUsagePort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'Deleting a delivery method is refused, naming the shipments module. Every other ' +
+        'surface — the catalog, the channel bindings, the storefront list, the writes — is ' +
+        'unaffected.',
+      reason:
+        'The FR-003 delete guard counts the shipments created against a method before it ' +
+        'removes the row, and those rows belong to `shipments`. It was a raw ' +
+        '`select count(*) from "shipments"` on this module\'s own transaction until feature ' +
+        '075 — a boundary crossing that named no import specifier and so compiled. The ' +
+        'ordinary declaration closes a cycle (`shipments` depends on this module for the ' +
+        'method row, the adapter registry and the order-status registry) and an acknowledged ' +
+        'edge would refuse every attempt to switch shipments off, which is a capability ' +
+        'operators are meant to have.',
+    },
+  ],
   settings: {
     moduleCode: 'delivery_methods',
     groups: [{ code: 'delivery_methods', name: 'Delivery methods' }],

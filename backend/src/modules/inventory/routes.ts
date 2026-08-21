@@ -233,12 +233,13 @@ export async function registerInventoryRoutes(
 
       const globalThresholds = await loadGlobalThresholds(em);
       const productThresholds = await loadProductThresholdsRow(em, productId);
-      // `em.execute`, not `em.getKnex()` — same reason as the sum above.
-      const productCategoryRows = (await em.execute(
-        `select category_id from product_categories where product_id = ?`,
-        [productId],
-      )) as Array<{ category_id: string }>;
-      const categoryIds = productCategoryRows.map((r) => r.category_id);
+      // Asked of `catalog`, not joined out of its `product_categories` table:
+      // the bridge row is the owner's and the port has answered for it since
+      // D-87 (feature 075, the `inventory` shard). The `findByIds` on the next
+      // line was already going to the owner for the threshold columns — this is
+      // the first half of the same question arriving at the same place.
+      const assignments = await catalogCategories.listAssignmentsForProducts([productId]);
+      const categoryIds = assignments.map((a) => a.categoryId);
       const categories = await catalogCategories.findByIds(categoryIds);
       const categoryThresholds = categories.map((c) => ({
         high: c.inventoryThresholdHigh,

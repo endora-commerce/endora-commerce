@@ -15,40 +15,29 @@
  * number is checked both ways (issue #267); a plain string means one. The key does not
  * change with the count — that is what keeps it stable across a move inside the file.
  *
- * The shard exists because of issue #187: all four reaches below are knex query builders,
- * which name their table as a call argument, so neither the import predicate nor D-87's
- * statement path could see them. They are not new couplings — they are couplings the check
- * could not see, and three of the four sit beside a `catalogCategoryReadPort` call that
- * already asks `catalog` the next question.
+ * **Three of the four issue-#187 reaches are gone.** All three read
+ * `product_categories`, and all three sat beside a `catalogCategoryReadPort` call that was
+ * already asking the owner the *next* question — so retiring them needed nothing published:
+ * `listAssignmentsForProducts` has answered "which categories are these products in?" since
+ * D-87, and the three sites now ask it. What is left is the one reach in the shard that a
+ * batch read cannot retire, because it is not a lookup at all.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/inventory/routes.ts:sql:catalog/product_categories':
-    'Issue #187 seed — the availability route reads `catalog`\'s `product_categories` with ' +
-    '`knex(\'product_categories\').where(\'product_id\', …)` to find the categories a ' +
-    'product belongs to, and then hands the ids straight to `catalogCategories.findByIds`. ' +
-    'The port is already resolved on the line below the builder and `catalog` is already ' +
-    'declared in this module\'s manifest; what is missing is the first half of the ' +
-    'question. Retired by: `catalogCategoryReadPort` answering "which categories does this ' +
-    'product belong to?" itself, so the join table stays inside its owner.',
-  'modules/inventory/services/stock-level-service.ts:sql:catalog/product_categories': {
-    sites: 2,
-    reason:
-      'Issue #187 seed — the same read as the route\'s, twice: the stock list and the ' +
-      'low-stock report each page `catalog`\'s `product_categories` with ' +
-      '`knex(\'product_categories\').whereIn(\'product_id\', …)` and then resolve the ' +
-      'category rows through `catalogCategories.findByIds`. Retired by: the batch form of ' +
-      'the same port method the route needs — "the category ids of these products" — so both ' +
-      'sites lose the builder together.',
-  },
   'modules/inventory/services/stock-level-service.ts:sql:catalog/products':
-    'Issue #187 seed — the stock list pages with `knex({ p: \'products\' }).innerJoin({ ' +
-    'sl: \'stock_levels\' }, …)`, joining `catalog`\'s `products` to this module\'s ' +
-    '`stock_levels` so the SKU/name search and the low/out filters are pushed into SQL ' +
-    'rather than post-filtered in JS (the comment above the query says exactly that). It ' +
-    'is the one reach in this shard with a performance reason, and the aliasing object ' +
-    'form is why the D-94 grep missed it. Retired by: `catalog` publishing the paged ' +
-    'product-id read this list needs (search term plus id filter, ordered), leaving the ' +
-    'stock join to run over ids `catalog` returned.',
+    'Issue #187 seed — the admin stock roster paginates with ' +
+    '`knex({ p: \'products\' }).innerJoin({ sl: \'stock_levels\' }, …)`, joining `catalog`\'s ' +
+    '`products` to this module\'s `stock_levels`. It is the one reach in this shard that is ' +
+    'not a lookup: the join is what pushes the SKU/name/id search **and** the low/out ' +
+    'filters into SQL, and both filters are predicates over `products.manage_stock` and ' +
+    '`products.low_stock_threshold` evaluated in a `HAVING` against `SUM(sl.on_hand)` — a ' +
+    'condition that spans one table each way, so neither side can answer it alone. Post-' +
+    'filtering in JS is not the repair either: `total` and the page would then be computed ' +
+    'over rows the filter later drops, so the count an operator is shown would stop matching ' +
+    'the list under it. The aliasing object form is why the D-94 grep missed it. ' +
+    'Retired by: `catalog` publishing the paged product-id read this list needs — a search ' +
+    'term, an id filter, and the two stock-governing columns exposed so the predicate can be ' +
+    'evaluated over ids the owner returned. That is a `catalog`-side decision and belongs in ' +
+    'a `catalog` merge request; feature 086 holds that module while this shard is drained.',
 };

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type DeliveryMethodUpsert } from '@b2b/contracts';
 import type { Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
@@ -113,23 +112,33 @@ export function makeUpsertDeliveryMethodCommand(
 }
 
 /**
- * Delete-guard (FR-003): never orphan a Shipment's method reference. Counted on
- * the Command's own transaction, so the guard and the delete answer the same
- * moment.
+ * How many shipments reference a delivery method — supplied by the caller
+ * because the rows belong to `shipments` (feature 075, the `delivery_methods`
+ * shard).
+ *
+ * This used to be a `select count(*) from "shipments"` written here, on the
+ * Command's own transaction. The comment above it said that made the guard and
+ * the delete "the same moment", and the claim did not survive being looked at:
+ * neither statement takes a lock, so a shipment created between the count and
+ * the commit was always possible. What the statement really was is a read of
+ * another module's table that named no import specifier, and so crossed the
+ * boundary invisibly until D-87 gave `check:module-boundary` a second
+ * predicate.
+ *
+ * The owner answers on its own `EntityManager`, outside this transaction. That
+ * costs nothing here: `shipments` is a table this transaction never writes, so
+ * there is no write of its own for the read to be blind to.
+ *
+ * @see `services/shipment-usage-guard.ts` for what happens when `shipments` is
+ *      switched off — the answer is a refusal, and it is the caller's to make
+ *      before it resolves anything.
  */
-async function countShipmentsForMethod(em: EntityManager, methodId: string): Promise<number> {
-  const rows = await em
-    .getConnection()
-    .execute<Array<{ count: string }>>(
-      `select count(*)::text as count from "shipments" where "delivery_method_id" = ?`,
-      [methodId],
-      'all',
-      em.getTransactionContext(),
-    );
-  return Number(rows[0]?.count ?? '0');
-}
+export type ShipmentUsageCounter = (deliveryMethodId: string) => Promise<number>;
 
-export function makeDeleteDeliveryMethodCommand(id: string): Command<void> {
+export function makeDeleteDeliveryMethodCommand(
+  id: string,
+  countShipmentsForMethod: ShipmentUsageCounter,
+): Command<void> {
   return {
     action: 'delivery_method.delete',
     objectType: 'delivery_method',
@@ -139,7 +148,7 @@ export function makeDeleteDeliveryMethodCommand(id: string): Command<void> {
       if (!row) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Delivery method not found.');
       }
-      const referencing = await countShipmentsForMethod(em, row.id);
+      const referencing = await countShipmentsForMethod(row.id);
       if (referencing > 0) {
         throw new HttpError(
           409,

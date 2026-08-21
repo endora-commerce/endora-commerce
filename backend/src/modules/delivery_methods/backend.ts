@@ -1,7 +1,9 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DeliveryMethodReadPort } from '@b2b/contracts';
+import type { DeliveryMethodReadPort, ShipmentUsagePort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
@@ -14,6 +16,7 @@ import { EnumOrderStatusRegistry } from './services/order-status-registry.port.j
 import { shippingAdapterRegistry } from './services/registry-singleton.js';
 import { DeliveryMethodReadService } from './services/delivery-method-read-port.js';
 import { ShippingMethodEligibilityService } from './services/shipping-method-eligibility.js';
+import { makeShipmentUsageCounter } from './services/shipment-usage-guard.js';
 
 /**
  * `delivery_methods` — the payment twin's mirror image (feature 072, wave 1,
@@ -122,6 +125,22 @@ export function registerModule(ctx: ModuleContext): void {
       commandBus: ctx.cradle<DeliveryMethodsCradle>().commandBus,
       registry,
       orderStatusRegistry: shippingOrderStatusRegistry,
+      /**
+       * Feature 075 — the FR-003 delete guard, asked of the module that owns
+       * the rows instead of counting its table in raw SQL.
+       *
+       * The port is resolved **per call**, inside the counter, and only after
+       * `effectiveState` has answered: `lazyPort`'s proxy may not be captured
+       * into a singleton, and a gate resolved before the first request is one
+       * of the three fail-open shapes the deactivation-consequence ledger
+       * refuses. The edge is `nonBindingDependencies` rather than a
+       * dependency — see the manifest for why the cycle forbids the ordinary
+       * declaration, and `shipment-usage-guard.ts` for what absence means.
+       */
+      countShipmentsForMethod: makeShipmentUsageCounter({
+        isShipmentsPresent: () => effectiveState.isPresent('shipments'),
+        shipmentUsage: () => lazyPort<ShipmentUsagePort>(ctx, 'shipmentUsagePort'),
+      }),
       ...(membership === undefined ? {} : { salesChannelMembership: membership }),
     });
   });
