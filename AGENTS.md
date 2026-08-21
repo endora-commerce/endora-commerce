@@ -21,7 +21,9 @@ tools read this file directly; Claude Code reaches it through the `@AGENTS.md` i
 - **`storefront/`** — Next.js 15 App Router + React 19 + Tailwind v4, Server Components and
   server actions.
 - **`packages/`** — `contracts` (Zod schemas: the source of truth for every API shape),
-  `api-client`, `cms-components`, `email-components`.
+  `api-client`, `page-builder-core`, `cms-components`, `email-components`. All five set
+  `"main": "./src/index.ts"`, so a consumer compiles their **source**; see the worktree note
+  under *Commands* for what that means in a `git worktree`.
 
 **A new runtime dependency needs written justification** in the feature plan's Complexity
 Tracking section (Constitution IV). The default answer is "no new dependency" — reuse what
@@ -81,6 +83,46 @@ pass: `TEST_DATABASE_URL` still names the base, and the run's actual DSN is in `
 old behaviour for a post-mortem, `BACKEND_TEST_KEEP_DATABASE=1` keeps the run's database, and
 `test:unit:fast` is untouched because it declares `BACKEND_TEST_SERVICES=none` and provisions
 nothing. See `backend/test/README.md` § *One database per invocation*.
+
+**Standing a `git worktree` up: one command, and never a symlinked
+`node_modules`** (issue #255).
+
+```bash
+git worktree add ../wt-<slug> -b <branch> master
+bash ../wt-<slug>/scripts/setup-worktree.sh          # pnpm install --frozen-lockfile
+bash ../wt-<slug>/scripts/setup-worktree.sh --link   # only off the store's filesystem
+```
+
+All five packages under `packages/` set `"main": "./src/index.ts"`, so a consumer that
+resolves `@b2b/contracts` reads **source** — and which source is decided by one relative
+symlink, `backend/node_modules/@b2b/contracts -> ../../../packages/contracts`. Point a
+workspace's `node_modules` at another checkout and all sixteen of those links re-root
+there. Measured on this repository, in a worktree whose `packages/contracts` carried a
+symbol `master` does not have: `vitest` imported the **main tree's** file and the branch's
+own contract test failed against `master`'s source, while `tsc` — protected by the `paths`
+block — compiled the worktree's. One run type-checking one branch and executing another is
+worse than either being wrong, and `pnpm ls @b2b/contracts` reported this worktree's path
+throughout, because it answers from the manifest's `link:` declaration and never looks at
+the symlink. **Do not use it to check this.**
+
+The default is the boring one and it is not slow: `pnpm install --frozen-lockfile` in a
+fresh worktree took **4 s** for 2055 packages and cost essentially no disk — every file
+under `node_modules/.pnpm` is a hard link into the pnpm store, same inode as the main
+tree's. `--link` exists for the worktree that is on a *different* filesystem from the store
+(a tmpfs scratchpad, a container mount), where pnpm cannot hard-link and an install
+materialises 1.3 GB: it symlinks the **root** `node_modules` — third-party packages only,
+identical on every branch — and `cp -a`s each workspace's own, so the relative `@b2b/*`
+links inside them re-root here. 0.2 s, and it refuses when `pnpm-lock.yaml` differs from
+the checkout it would borrow from.
+
+Getting it wrong no longer produces a wrong measurement: `vitest.config.base.ts` — the one
+file every workspace's vitest config merges — refuses the run, naming each foreign link and
+its target. It covers `backend`, `admin` and `storefront` in one place; `tsc` is covered
+instead by `paths` in `tsconfig.base.json` being complete, which
+`backend/test/unit/harness/workspace-resolution.test.ts` keeps true for every package under
+`packages/`. `ALLOW_FOREIGN_WORKSPACE_PACKAGES=1` is the override for deliberately
+measuring another checkout. What neither covers is `eslint` and the `check-*` scripts —
+stated here rather than discovered later. See `scripts/workspace-resolution.ts`.
 
 ## Binding principles
 

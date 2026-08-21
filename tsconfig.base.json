@@ -40,7 +40,9 @@
       "@b2b/cms-components": ["./packages/cms-components/src/index.ts"],
       "@b2b/cms-components/*": ["./packages/cms-components/src/*"],
       "@b2b/email-components": ["./packages/email-components/src/index.ts"],
-      "@b2b/email-components/*": ["./packages/email-components/src/*"]
+      "@b2b/email-components/*": ["./packages/email-components/src/*"],
+      "@b2b/page-builder-core": ["./packages/page-builder-core/src/index.ts"],
+      "@b2b/page-builder-core/*": ["./packages/page-builder-core/src/*"]
     }
   }
 }
