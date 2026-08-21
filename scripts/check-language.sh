@@ -47,9 +47,8 @@ cd "$REPO_ROOT"
 
 # shellcheck source=scripts/lib/read-size.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/read-size.sh"
-
-# Where the expected population comes from in full mode (issue #244).
-manifest_index="backend/src/modules/_lifecycle/manifest-index.generated.ts"
+# shellcheck source=scripts/lib/module-root.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/module-root.sh"
 
 red() { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -70,6 +69,35 @@ if ! command -v git >/dev/null 2>&1 || ! git rev-parse --is-inside-work-tree >/d
 fi
 if ! command -v perl >/dev/null 2>&1; then
   red "✗ check-language needs perl (it blanks cited terms before testing the prose)."
+  exit 2
+fi
+
+# Where the expected population comes from in full mode (issue #244), and where
+# this run's own source is — **resolved, not spelled**. This script used to
+# write `backend/src/modules/_lifecycle/manifest-index.generated.ts` here while
+# its sibling `check-naming.sh` resolved the same file (feature 080, T012), so a
+# moved module tree left it refusing to run for a layout change it should
+# follow. They are one job and one pair of modes; they derive the root the same
+# way, and both prune a checkout nested inside this one — see
+# `lib/module-root.sh` for why the discriminator is the `.git` entry and what it
+# cannot see.
+module_root_resolve_nested_checkouts
+index_status=0
+manifest_index="$(module_root_manifest_index)" || index_status=$?
+if [ "$index_status" -ne 0 ]; then
+  case "$index_status" in
+    2)
+      red "✗ check-language found more than one generated manifest index:"
+      printf '%s\n' "$manifest_index" | sed 's/^/    /'
+      red "  Each names a different module tree, so the expected population would be one"
+      red "  tree's while the listing is the repository's. Refusing to guess."
+      ;;
+    *)
+      red "✗ check-language found no generated manifest index in this repository, so it"
+      red "  cannot derive the population its listing is reconciled against."
+      red "  Refusing to report a vacuous pass."
+      ;;
+  esac
   exit 2
 fi
 
@@ -282,13 +310,25 @@ else
   listing="full"
 fi
 
+# A nested checkout's sources are another commit's, and a finding in one is
+# reported against a path no merge request on this branch can change. `git
+# ls-files --others` answers for a nested work tree with a single directory
+# entry while its gitfile resolves, and file by file once the gitdir has been
+# swept — so this filter is the difference between a few phantom entries in the
+# count and a whole second tree scanned as if it were ours. It reads as
+# unnecessary on the machine it was written on, where an untracked
+# `.git/info/exclude` rule already hides `.claude/worktrees`; that rule is
+# local, no clone carries it, and it covers one path name rather than the
+# property.
 if [[ "$listing" == "diff" ]]; then
   mapfile -t candidate_files < <(
-    git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${exceptions[@]}" 2>/dev/null || true
+    git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${exceptions[@]}" 2>/dev/null \
+      | module_root_drop_nested_checkouts || true
   )
 else
   mapfile -t candidate_files < <(
-    git ls-files --cached --others --exclude-standard -- "${exceptions[@]}" 2>/dev/null || true
+    git ls-files --cached --others --exclude-standard -- "${exceptions[@]}" 2>/dev/null \
+      | module_root_drop_nested_checkouts || true
   )
 fi
 
@@ -320,11 +360,13 @@ docs_globs=(
 
 if [[ "$listing" == "diff" ]]; then
   mapfile -t docs_files < <(
-    git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${docs_globs[@]}" 2>/dev/null || true
+    git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${docs_globs[@]}" 2>/dev/null \
+      | module_root_drop_nested_checkouts || true
   )
 else
   mapfile -t docs_files < <(
-    git ls-files --cached --others --exclude-standard -- "${docs_globs[@]}" 2>/dev/null || true
+    git ls-files --cached --others --exclude-standard -- "${docs_globs[@]}" 2>/dev/null \
+      | module_root_drop_nested_checkouts || true
   )
 fi
 

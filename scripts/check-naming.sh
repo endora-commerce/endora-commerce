@@ -19,6 +19,9 @@
 # Where the module tree is: **resolved, not spelled** (feature 080, T012). See
 # `lib/module-root.sh`; the root is the generated manifest index's grandparent,
 # a repository without one is exit 2, and every rule below reads `$modules_root`.
+# A checkout nested inside this one — a `git worktree` created under the
+# repository directory, as every agent here works in — is another commit of the
+# same repository and is pruned from both the resolution and the listing.
 
 set -euo pipefail
 
@@ -65,7 +68,29 @@ list_files() {
   fi
 }
 
-mapfile -t changed_files < <(list_files | grep -Ev '^(node_modules/|dist/|build/|\.next/|\.docusaurus/|pnpm-lock\.yaml|package-lock\.json)' || true)
+# Resolved once, at the top level: two of the walks below consult it, a pipeline
+# stage runs in a subshell, and a second scan is a second chance to disagree
+# with the first.
+module_root_resolve_nested_checkouts
+
+# A nested checkout is another commit of this same repository, so its paths are
+# not this listing's (see `lib/module-root.sh` for the discriminator).
+#
+# The listing needs the filter as much as the resolution does, and for a reason
+# that is easy to measure wrong. `git ls-files --others` reports a nested work
+# tree whose gitfile resolves as a **single directory entry**, and one whose
+# gitdir has been swept away **file by file** — so the same directory is a
+# handful of phantom entries in the count or a whole second tree in it,
+# depending on housekeeping nobody performed deliberately. On the machine this
+# was written on neither happens, because an untracked `.git/info/exclude` rule
+# hides `.claude/worktrees` from git and from nothing else: that rule is why
+# this script's sibling kept printing a correct `files=` while this one could
+# not resolve its root at all. A count that depends on a file no clone carries
+# is a count that means one thing here and another there, which is what stops a
+# recorded read size being worth recording (issue #248).
+mapfile -t changed_files < <(list_files \
+  | grep -Ev '^(node_modules/|dist/|build/|\.next/|\.docusaurus/|pnpm-lock\.yaml|package-lock\.json)' \
+  | module_root_drop_nested_checkouts || true)
 
 # A full-tree listing that comes back empty is a broken listing, not a clean
 # repository: every rule below iterates this array, so all four would report

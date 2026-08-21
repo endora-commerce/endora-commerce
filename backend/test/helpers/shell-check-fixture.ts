@@ -65,6 +65,16 @@ const MANIFEST_INDEX = 'backend/src/modules/_lifecycle/manifest-index.generated.
 /** Where a pdfmake install sits: pnpm's hoisted store, or a plain top-level one. */
 export type PdfmakeLayout = 'hoisted' | 'top-level';
 
+/**
+ * Which of the two markers git writes at the root of a checkout.
+ *
+ * `git worktree add` writes a `.git` **file** holding `gitdir: <path>`; a clone
+ * and a submodule have a `.git` **directory**. Both mean the same thing to the
+ * rule — this directory is a checkout of its own and is not the source of the
+ * repository the walk started in.
+ */
+export type NestedCheckoutKind = 'worktree' | 'clone';
+
 export interface ShellRunResult {
   readonly status: number | null;
   readonly output: string;
@@ -105,6 +115,23 @@ export interface ShellCheckFixture {
    * it goes on judging.
    */
   moveModuleTree: (name: string) => string;
+  /**
+   * Plants a second checkout of this same repository *inside* the fixture — a
+   * complete module tree with its own generated index, under a directory
+   * carrying the `.git` entry git itself writes.
+   *
+   * This is the normal state of a working machine here: agents run in
+   * `git worktree`s created under `.claude/worktrees/`, so from the main
+   * checkout the repo-wide walk finds one index per worktree plus its own.
+   * `kind` picks which of the two markers git writes — `'worktree'` is the
+   * gitfile `git worktree add` leaves, `'clone'` the `.git` directory a nested
+   * clone or submodule has — because a rule that saw only one of them would
+   * prune half the nested checkouts on this machine.
+   *
+   * Returns the nested module root, so a caller can plant a finding in it and
+   * assert that the outer run did **not** report it.
+   */
+  nestCheckout: (path: string, kind?: NestedCheckoutKind) => string;
   run: (
     script: string,
     args?: readonly string[],
@@ -188,6 +215,30 @@ export function createShellCheckFixture(): ShellCheckFixture {
   );
   write('docs/docs/intro.md', '# Intro\n\nEnglish prose.\n');
   lists(['backend/src/modules/orders/order-service.ts']);
+  // The fixture is a checkout, so it carries the marker a checkout carries.
+  // Without it the nested-checkout rule would be tested only in the direction
+  // that prunes: a rule that pruned any directory holding a `.git` — the
+  // repository's own root included — would find no index at all here and every
+  // case above would go from its own verdict to exit 2. With it, the outer
+  // root's marker is in the fixture and the rule has to step over it.
+  mkdirSync(join(root, '.git'), { recursive: true });
+  writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/master\n', 'utf8');
+
+  const nestCheckout = (path: string, kind: NestedCheckoutKind = 'worktree'): string => {
+    const nestedRoot = `${path}/backend/src/modules`;
+    write(
+      `${nestedRoot}/_lifecycle/manifest-index.generated.ts`,
+      "import { manifest as manifest0 } from '../orders/manifest.js';\nexport const MANIFEST_INDEX = [manifest0];\n",
+    );
+    write(`${nestedRoot}/orders/order-service.ts`, '// English comment.\nexport const a = 1;\n');
+    if (kind === 'worktree') {
+      write(`${path}/.git`, `gitdir: ${join(root, '.git', 'worktrees', 'nested')}\n`);
+    } else {
+      mkdirSync(join(root, path, '.git'), { recursive: true });
+      writeFileSync(join(root, path, '.git', 'HEAD'), 'ref: refs/heads/master\n', 'utf8');
+    }
+    return nestedRoot;
+  };
 
   const installPdfmake = (bytes: number, layout: PdfmakeLayout = 'top-level'): void => {
     const dir =
@@ -212,6 +263,7 @@ export function createShellCheckFixture(): ShellCheckFixture {
       renameSync(join(root, 'backend/src/modules'), join(root, 'backend/src', name));
       return `backend/src/${name}`;
     },
+    nestCheckout,
     installPdfmake,
     run: (script, args = [], env = {}) => {
       const result = spawnSync('bash', [join(root, 'scripts', script), ...args], {
