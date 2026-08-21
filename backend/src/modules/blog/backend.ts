@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type {
+  AdminRolePort,
   AssetReferenceRegistryPort,
   DictionaryValidator,
   SystemRoleCodePort,
@@ -199,10 +200,25 @@ export function registerModule(ctx: ModuleContext): void {
     if (!effectiveState.isPresent('blog')) return;
     const { emFactory } = ctx.cradle<BlogCradle>();
     await seedDefaultCategory(emFactory);
+    // Two ports into `admin_roles`, and they are different kinds of seam.
+    //
+    // `adminRolePort` is a **call**: it is where the two role rows are written
+    // since feature 075 drained this module's cross-module-import shard, in
+    // place of three raw SQL statements against `admin_roles`' own table. It is
+    // gated, so the seam fails closed — but `admin_roles` declares itself
+    // non-deactivatable, so the state that gate answers "no" in is one an
+    // operator cannot reach: the only way this composition runs without it is a
+    // deployment that never shipped it, and `composeModules` refuses that
+    // before the first module registers. Resolving it here rather than in a
+    // factory keeps it lazy, so composition asks the gate nothing.
+    //
     // `systemRoleCodePort` is `admin_roles`' ungated contribution registry, so
-    // resolving it here asks no gate — the probe above is this module's own
-    // answer about its own seeds, not a question about the registry's owner.
-    await seedBlogRoles(emFactory, lazyPort<SystemRoleCodePort>(ctx, 'systemRoleCodePort'));
+    // resolving it asks no gate at all — the probe above is this module's own
+    // answer about its own seeds, not a question about either seam's owner.
+    await seedBlogRoles(
+      lazyPort<AdminRolePort>(ctx, 'adminRolePort'),
+      lazyPort<SystemRoleCodePort>(ctx, 'systemRoleCodePort'),
+    );
   });
 
   /**
