@@ -555,17 +555,13 @@ function testAnyLabel(name: unknown): string {
 
 const SEEDED_TABLES = [
   // Feature 076 — Pimcore PIM. Truncated explicitly because nothing cascades
-  // here from the tables below: connection, inbound events, mappings, runs and
-  // issues have no path from catalog/orders. Listed children-first.
+  // here from the tables below. Listed children-first.
   'pimcore_import_issues',
   'pimcore_field_protections',
   'pimcore_media_links',
-  'pimcore_product_links',
-  'pimcore_price_bindings',
-  'pimcore_category_mappings',
-  'pimcore_attribute_set_mappings',
-  'pimcore_attribute_mappings',
-  'pimcore_inbound_events',
+  'pimcore_source_links',
+  'pimcore_delivered_records',
+  'pimcore_catalogue_deliveries',
   // Runs and connections reference each other (`current_run_id` /
   // `connection_id`); truncate … cascade handles the cycle.
   'pimcore_import_runs',

@@ -75,6 +75,17 @@ export interface SalesChannelMembershipPort {
   ): Promise<MembershipMutationResult>;
 
   /**
+   * Replace an entity's complete channel membership set atomically.
+   * Complete-record integrations use this instead of composing add/remove.
+   */
+  replaceChannelsForEntity(
+    entityType: ChannelMemberEntityType,
+    entityId: string,
+    channelIds: readonly [string, ...string[]],
+    options?: MembershipMutationOptions,
+  ): Promise<MembershipMutationResult>;
+
+  /**
    * Give the target every channel the source belongs to, one audited add per
    * membership (issue #185). `catalog`'s product duplication is the caller.
    */
