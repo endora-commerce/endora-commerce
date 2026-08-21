@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   listingPriceMoney,
   type CatalogAttributeReadPort,
+  type CatalogGalleryPort,
   type CatalogProductReadPort,
   ANONYMOUS_PRODUCT_AUDIENCE,
   isProductVisibleTo,
@@ -107,6 +108,20 @@ export class ComparisonService {
      * answer.
      */
     private readonly channelMembership: SalesChannelMembershipPort,
+    /**
+     * Feature 075 / D-87 — `catalog`'s gallery read model, for the base image
+     * of each column. Required for the same reason `catalogProducts` is: the
+     * alternative to a wired port is not "a comparison without pictures", it is
+     * a service that cannot tell an operator who set no base image from a rig
+     * that wired no owner.
+     *
+     * `baseImageUrls`, not `list`: the read is a batch, it must tolerate an id
+     * whose product has since been removed, and the value a column renders is a
+     * **url**, which `catalog` resolves through the asset port it holds. Those
+     * three are exactly why the single join this replaced could not be swapped
+     * for the per-product port that already existed.
+     */
+    private readonly catalogGallery: CatalogGalleryPort,
     /**
      * Optional settings service. When undefined, `compare.max_products`
      * defaults to {@link DEFAULT_COMPARE_MAX_PRODUCTS} on every call —
@@ -458,12 +473,20 @@ export class ComparisonService {
     const pricedFor: ComparisonPricedFor =
       viewerOrganization !== null ? 'organization' : 'channel';
 
-    // Base-image lookup per product (label='base_image' only — spec
-    // FR-006 names *base image* explicitly; no fallback to other labels).
+    // Base-image lookup per product (label='base_image' only — spec FR-006
+    // names *base image* explicitly; no fallback to other labels, which is why
+    // `catalog`'s own `resolvePrimaryAssetUrls` — thumbnail → base_image →
+    // first — is not what this asks for).
+    //
+    // Feature 075 / D-87: this was one statement joining `gallery_item_labels`
+    // and `gallery_items` to `assets_library`'s `assets`, three cross-module
+    // reaches in a single join and invisible to every import check in the tree.
+    // The owner answers it now, from its own two tables plus the asset port it
+    // already holds.
     const visibleProductIds = products.map((p) => p.id);
     const baseImageByProduct =
       visibleProductIds.length > 0
-        ? await this.loadBaseImageUrls(em, visibleProductIds)
+        ? await this.catalogGallery.baseImageUrls(visibleProductIds)
         : new Map<string, string | null>();
 
     // Comparable attribute definitions (catalog adapter port — Constitution I).
@@ -558,31 +581,6 @@ export class ComparisonService {
     }
   }
 
-  /**
-   * One product → one base-image URL, via `gallery_item_labels` with
-   * `label='base_image'`. Returns `null` for products without one.
-   */
-  private async loadBaseImageUrls(
-    em: EntityManager,
-    productIds: string[],
-  ): Promise<Map<string, string | null>> {
-    const rows = await em.getConnection().execute<{
-      product_id: string;
-      storage_url: string;
-    }[]>(
-      `select gil.product_id, a.storage_url
-         from gallery_item_labels gil
-         join gallery_items gi on gi.id = gil.gallery_item_id
-         join assets a on a.id = gi.asset_id
-         where gil.label = 'base_image'
-           and gil.product_id in (${productIds.map(() => '?').join(',')})`,
-      productIds,
-    );
-    const out = new Map<string, string | null>();
-    for (const id of productIds) out.set(id, null);
-    for (const r of rows) out.set(r.product_id, r.storage_url);
-    return out;
-  }
 }
 
 // ---------------------------------------------------------------------------

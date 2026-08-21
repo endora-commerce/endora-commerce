@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   CatalogAttributeReadPort,
   CatalogAttributeView,
+  CatalogGalleryPort,
   CatalogProductReadPort,
   CatalogProductRecord,
   CustomerAccountReadPort,
@@ -135,6 +136,17 @@ const settingsStub = {
   get: async () => 4,
 } as unknown as SettingsService;
 
+/**
+ * Feature 075 / D-87 — `catalog`'s gallery port. These cases are about
+ * entitlement and prices, so a port that answers "no base image" for every
+ * requested id is all they need from it; the map holding one entry per
+ * requested id is the part of the contract the view indexes on.
+ */
+const imagelessGallery = {
+  baseImageUrls: async (ids: readonly string[]) =>
+    new Map<string, string | null>(ids.map((id) => [id, null])),
+} as unknown as CatalogGalleryPort;
+
 const attributePortStub: CatalogAttributeReadPort = {
   listAll: async () => [],
   getByIdOrKey: async () => null,
@@ -169,6 +181,7 @@ describe('comparisons — catalog rows arrive over catalogProductReadPort', () =
       new ShareTokenGenerator(),
       catalogProducts,
       refusingChannelMembership,
+      imagelessGallery,
       settingsStub,
       attributePortStub,
     );
@@ -210,6 +223,7 @@ describe('comparisons — catalog rows arrive over catalogProductReadPort', () =
       new ShareTokenGenerator(),
       catalogProducts,
       refusingChannelMembership,
+      imagelessGallery,
       settingsStub,
       attributePortStub,
       { resolveListingPrices: async () => new Map() },

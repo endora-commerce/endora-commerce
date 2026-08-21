@@ -2617,6 +2617,22 @@ export interface CatalogGalleryWriteOptions {
 }
 
 /**
+ * One gallery item of a batch read, flattened to the three fields a caller
+ * outside `catalog` builds an image list from: which product it belongs to,
+ * which asset it points at, and where it sits in the operator's order.
+ *
+ * Deliberately not `GalleryItem`. The batch read exists for callers that walk a
+ * page — or a whole sellable catalogue — and the label set, the timestamps and
+ * the item id are all rows or columns those callers do not read; carrying them
+ * would cost a second statement per batch for a field nobody looks at.
+ */
+export interface CatalogGalleryBatchItem {
+  productId: string;
+  assetId: string;
+  position: number;
+}
+
+/**
  * Container name: `galleryService`. Owner: `catalog`.
  *
  * **Owner off:** the seam fails closed — resolving this port throws
@@ -2627,6 +2643,44 @@ export interface CatalogGalleryWriteOptions {
  */
 export interface CatalogGalleryPort {
   list(productId: string): Promise<GalleryItem[]>;
+  /**
+   * The gallery items of a **batch** of products, ordered by product and then
+   * by the operator's position, in one statement.
+   *
+   * `list` cannot serve this caller and it is not a matter of taste: it takes a
+   * single product, verifies it exists, and then runs two more queries, so a
+   * page of 500 products costs 1500 round-trips where this costs one. That is
+   * what kept a raw `select … from gallery_items` inside `product_feeds` — a
+   * boundary crossing that names no import specifier and so compiled (feature
+   * 075 / D-87).
+   *
+   * **A product id that resolves to nothing is data, not an error.** No row
+   * comes back for it and the method does not throw: a caller holding an id
+   * whose product has since been removed asks about the batch it has, not about
+   * the batch it wishes it had. The two absences — "this product has an empty
+   * gallery" and "this product is gone" — are therefore not distinguished here,
+   * because both consumers render them identically (no image) and telling them
+   * apart would need exactly the product-existence probe that makes `list`
+   * unusable for a batch.
+   */
+  listForProducts(productIds: readonly string[]): Promise<CatalogGalleryBatchItem[]>;
+  /**
+   * The `base_image` url of each of a batch of products — `base_image` only,
+   * with no fallback to `thumbnail` or to the first item by position.
+   *
+   * The returned map holds **one entry per requested id**, `null` where this
+   * module has no `base_image` for it: the product carries no such label, the
+   * product is gone, or the asset row behind the label no longer resolves. A
+   * caller that renders a placeholder for all three (both of today's do) reads
+   * one branch; the map's key set answering the request exactly is what lets it
+   * index without re-checking membership.
+   *
+   * `catalog` answers this from its own `gallery_item_labels` and
+   * `gallery_items` plus the asset read port it already holds, so a consumer
+   * gets the url without joining `assets_library`'s table itself — which is the
+   * third of the three reaches this method retires (feature 075 / D-87).
+   */
+  baseImageUrls(productIds: readonly string[]): Promise<Map<string, string | null>>;
   create(
     productId: string,
     req: CreateGalleryItemRequest,

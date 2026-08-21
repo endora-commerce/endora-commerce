@@ -39,7 +39,7 @@ function product(): CatalogProductRecord {
   } as unknown as CatalogProductRecord;
 }
 
-/** Answers the gallery read and refuses anything naming the category bridge. */
+/** Refuses anything naming the category bridge. */
 function fakeEm(): EntityManager {
   return {
     getConnection: () => ({
@@ -81,6 +81,7 @@ describe('product_feeds — category assignments come from the catalog port', ()
           category(PARENT_CATEGORY, 'Tools', null),
         ],
       },
+      catalogGallery: { listForProducts: async () => [] },
       resolvePublicImageUrls: async () => new Map<string, string>(),
       resolveAvailability: async () => new Map(),
       resolveAnonymousPrice: async () => null,
