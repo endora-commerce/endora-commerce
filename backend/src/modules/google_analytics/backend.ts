@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
+import type { CmsBlockSeedPort } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -35,14 +36,20 @@ import { registerGoogleAnalyticsStorefrontRoutes } from './routes.storefront.js'
  * which is `defineModuleWorker`. That closes the fourth and last of them.
  *
  * **The CMS block seed stays in `ctx.routes`, not `ctx.onBoot`.** It is the one
- * decision here that is not mechanical. `ensureCookieConsentBlock` writes a
+ * decision here that is not mechanical. `ensureCookieConsentBlock` seeds a
  * predefined CMS block, so it needs `cms`' tables to exist and it needs sales
- * channels — and it is deliberately wrapped in a `try/catch` that downgrades
- * failure to a warning, because a platform composed without the CMS module must
- * still boot. `ctx.onBoot` would run it earlier, which buys nothing it needs and
+ * channels. `ctx.onBoot` would run it earlier, which buys nothing it needs and
  * costs the ordering guarantee it currently has for free by running at plugin
  * attach. `_i18n` taught this lesson the expensive way in wave 1: a seed moved
  * to `onBoot` that silently found nothing.
+ *
+ * **What changed under it is who writes** (feature 075 / D-87). The seeder used
+ * to insert into `cms_blocks` and `cms_block_sales_channels` itself and was
+ * wrapped in a `try/catch` that downgraded any failure to a warning, so that a
+ * platform composed without the CMS module could still boot. It asks `cms`
+ * through `cmsBlockSeedPort` now and decides that module's presence before it
+ * calls, so the absence is an answer this body logs rather than an exception a
+ * `catch` has to be trusted to tell apart from a real one.
  *
  * `channels` is `salesChannelCodeIdPort` — the code⇄id lookup, which belongs to
  * `sales_channels` and is registered by a root until that module converts
@@ -126,7 +133,6 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.routes(async (app) => {
     const {
       googleAnalyticsServices,
-      emFactory,
       settingsReadPort,
       requireAdmin,
       adminAuditActorResolver,
@@ -135,12 +141,17 @@ export function registerModule(ctx: ModuleContext): void {
     googleAnalyticsServices.revalidator.setLogger(app.log);
 
     // Seed the predefined cookie-consent CMS block (idempotent; runs once
-    // channels exist). Guarded so a platform without the CMS module skips it
-    // rather than failing to boot.
-    try {
-      await ensureCookieConsentBlock(emFactory);
-    } catch (err) {
-      app.log.warn({ err }, '[google_analytics] cookie-consent CMS block seed skipped');
+    // channels exist). `cms` owns the write since feature 075 — the seeder asks
+    // it through `cmsBlockSeedPort` and answers `cms-absent` rather than
+    // throwing when the CMS is not there, so this no longer needs a `catch` to
+    // keep a CMS-less platform booting. `lazyPort` built here resolves nothing:
+    // it defers to the method call, which the seeder makes only after it has
+    // decided presence.
+    const seeded = await ensureCookieConsentBlock(
+      lazyPort<CmsBlockSeedPort>(ctx, 'cmsBlockSeedPort'),
+    );
+    if (seeded === 'cms-absent') {
+      app.log.info('[google_analytics] cookie-consent CMS block seed skipped — cms is not present');
     }
 
     // Queue consumer (Principle X): a separable worker entrypoint, gated on

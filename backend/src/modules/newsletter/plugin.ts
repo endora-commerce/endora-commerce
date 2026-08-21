@@ -36,7 +36,6 @@ import {
   createAutomationStepWorker,
 } from './services/queues/newsletter-queues.js';
 import { NewsletterSelfService } from './services/self.service.js';
-import { ensureNewsletterConsentBlock } from './services/consent-block-seeder.js';
 import { registerNewsletterStorefrontRoutes } from './routes.storefront.js';
 import { registerNewsletterAdminRoutes } from './routes.admin.js';
 import { registerNewsletterSelfRoutes } from './routes.self.js';
@@ -203,13 +202,6 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
   });
 
   return async (app) => {
-    // Seed the predefined consent CMS block (idempotent; runs after channels
-    // exist). Guarded so a platform without the CMS module simply skips it.
-    try {
-      await ensureNewsletterConsentBlock(options.emFactory);
-    } catch (err) {
-      app.log.warn({ err }, '[newsletter] consent CMS block seed skipped');
-    }
 
     // Queue consumers (Principle X): separable, pause on disable.
     if (options.runWorkers && options.redis && planQueue && sendQueue) {

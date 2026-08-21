@@ -110,6 +110,8 @@ export {
   type CmsReferenceRegistryPort,
   type CmsPageRecord,
   type CmsPageReadPort,
+  type CmsSeededBlock,
+  type CmsBlockSeedPort,
 } from './cms.js';
 export * from './shopping-lists.js';
 export * from './quick-order.js';
