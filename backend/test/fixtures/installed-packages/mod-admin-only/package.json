@@ -1,0 +1,11 @@
+{
+  "name": "@fixture/mod-admin-only",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "endora": { "type": "module", "id": "fixture_admin_only", "platform": "0.x" },
+  "exports": {
+    ".": "./lib/manifest.js",
+    "./package.json": "./package.json"
+  }
+}
