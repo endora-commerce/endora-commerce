@@ -382,13 +382,19 @@ describe('the expectation ledger records a criterion that is red today', () => {
     expect(Object.keys(ledger.assertions).sort()).toEqual([...ASSERTION_IDS].sort());
   });
 
-  it('expects the schema half — A1 … A4 — to fail, each with a reason naming what is missing', () => {
+  it('expects the schema half — A1 … A4 — to pass, each with a reason naming what earned it', () => {
     // The four that are about a package's **schema** reaching PostgreSQL, which
-    // is what Wave 3's T033 closes and what "a package can ship schema" means.
-    // A5 left this list when T031 landed: an installed package now reaches
-    // `resolvedManifestEntries()` and both composition roots.
+    // is what "a package can ship schema" means. They were the red this whole
+    // criterion existed to hold, and T033 earned them: the ORM configuration
+    // became an async factory that merges every installed package's
+    // `./migrations` and `./backend` exports into the order and the entity set.
+    // A5 left the red list when T031 landed, for the same kind of reason.
+    //
+    // The assertion is inverted rather than deleted, because the ledger's job
+    // is unchanged: a `pass` recorded here that the run cannot reproduce is
+    // drift in the other direction, and that has to fail just as loudly.
     for (const id of ['A1', 'A2', 'A3', 'A4'] as const) {
-      expect(ledger.assertions[id]?.status, `${id} must be recorded as failing today`).toBe('fail');
+      expect(ledger.assertions[id]?.status, `${id} must be recorded as passing today`).toBe('pass');
       expect(ledger.assertions[id]?.reason.length).toBeGreaterThan(40);
     }
   });
@@ -396,7 +402,10 @@ describe('the expectation ledger records a criterion that is red today', () => {
   it('expects A5 to pass, and A6 and A7 to fail on reasons of their own', () => {
     // Both used to read "Follows A5", which stopped being true the moment A5
     // did. A recorded reason that is stale is worse than none: it sends the
-    // next author to fix something that is already fixed.
+    // next author to fix something that is already fixed. A7's reason moved
+    // again with T033 — its migration count is settled and what stops it now is
+    // A6's missing activation row, so nothing composes and no registration row
+    // is written for the package to be uninstalled from.
     expect(ledger.assertions['A5']?.status).toBe('pass');
     for (const id of ['A6', 'A7'] as const) {
       expect(ledger.assertions[id]?.status).toBe('fail');
@@ -424,10 +433,21 @@ describe('the expectation ledger records a criterion that is red today', () => {
     );
     expect(exitCodeForExpectation(compareToExpectation(measured, ledger.assertions))).toBe(0);
 
-    const forward = measured.map((r) => (r.id === 'A1' ? result('A1', 'pass') : r));
+    // Forward drift: an assertion the ledger records as `fail` coming back
+    // green. A6 is the example now that T033 turned A1 green — and the
+    // remedy is unchanged, which is the point: record the green in the merge
+    // request that earned it, never edit the ledger to make a pipeline pass.
+    const forward = measured.map((r) => (r.id === 'A6' ? result('A6', 'pass') : r));
     const forwardDrift = compareToExpectation(forward, ledger.assertions);
-    expect(forwardDrift.drift.map((d) => d.id)).toEqual(['A1']);
+    expect(forwardDrift.drift.map((d) => d.id)).toEqual(['A6']);
     expect(exitCodeForExpectation(forwardDrift)).toBe(1);
+
+    // Backward drift on an assertion T033 earned: a green that stops being
+    // green must fail exactly as loudly as one that arrives unannounced.
+    const regressed = measured.map((r) => (r.id === 'A1' ? result('A1', 'fail') : r));
+    const regressedDrift = compareToExpectation(regressed, ledger.assertions);
+    expect(regressedDrift.drift.map((d) => d.id)).toEqual(['A1']);
+    expect(exitCodeForExpectation(regressedDrift)).toBe(1);
 
     const backward = measured.map((r) => (r.id === 'A8' ? result('A8', 'fail') : r));
     expect(exitCodeForExpectation(compareToExpectation(backward, ledger.assertions))).toBe(1);
