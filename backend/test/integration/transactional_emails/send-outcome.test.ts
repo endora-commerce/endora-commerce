@@ -22,7 +22,7 @@ import {
   SettingNotRegistered,
   type SettingsService,
 } from '../../../src/kernel/settings/settings.service.js';
-import type { EmailMailerPort, EmailMailerSendInput } from '@b2b/contracts';
+import type { EmailMailerPort, EmailMailerSendInput } from '@endora-commerce/contracts';
 
 const CHANNEL = '00000000-0000-0000-0000-0000000000aa';
 

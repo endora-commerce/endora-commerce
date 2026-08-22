@@ -1,5 +1,5 @@
 // Prompt Actions module — feature 043 contract surface.
-// Three sections, matching the per-module convention in @b2b/contracts:
+// Three sections, matching the per-module convention in @endora-commerce/contracts:
 //   (1) Lifecycle: request statuses + provider registry.
 //   (2) JSONB payload shapes persisted on `prompt_action_requests`
 //       (plan / clarification / result) — the Zod schemas are the source of

@@ -4,7 +4,7 @@ import { FileDown, Mail, RefreshCw } from 'lucide-react';
 import type {
   InvoiceDetail as InvoiceDetailData,
   SendInvoiceEmailResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { formatMoney } from '@/lib/money';

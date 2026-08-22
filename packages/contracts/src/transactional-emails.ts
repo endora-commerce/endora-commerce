@@ -2,7 +2,7 @@
 //
 // Source-of-truth Zod schemas + inferred types shared by backend (routes,
 // reconciler, sender port) and admin (API client). Content trees are opaque
-// Puck data; their email-safe component set is owned by @b2b/email-components.
+// Puck data; their email-safe component set is owned by @endora-commerce/email-components.
 
 import { z } from 'zod';
 

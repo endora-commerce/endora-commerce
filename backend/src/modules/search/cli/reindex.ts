@@ -33,7 +33,7 @@
  * as the reason `searchReindexPort` came home.
  */
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleCliCommandContext } from '@b2b/contracts';
+import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../../kernel/index.js';
 import type { SearchModuleHandle } from '../plugin.js';
 

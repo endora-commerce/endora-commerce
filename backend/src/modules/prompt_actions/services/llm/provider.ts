@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { LlmToolDefinition, PromptActionsProvider } from '@b2b/contracts';
+import type { LlmToolDefinition, PromptActionsProvider } from '@endora-commerce/contracts';
 
 /**
  * Provider-neutral LLM adapter contract (feature 043, research §R2).

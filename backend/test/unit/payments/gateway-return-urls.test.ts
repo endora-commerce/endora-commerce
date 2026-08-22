@@ -6,7 +6,7 @@ import type {
   PaymentMethodReadPort,
   PaymentReadPort,
   PaymentReferencePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { AutopayTransactionService } from '../../../src/modules/autopay/services/autopay-transaction-service.js';
 import type { AutopayClient } from '../../../src/modules/autopay/services/autopay-client.js';
 import { StripeIntentService } from '../../../src/modules/stripe/services/stripe-intent-service.js';

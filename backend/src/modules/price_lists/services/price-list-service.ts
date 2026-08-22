@@ -1,11 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type ApplicationRule } from '@b2b/contracts';
+import { ERROR_CODES, type ApplicationRule } from '@endora-commerce/contracts';
 import type {
   CatalogCategoryReadPort,
   CatalogProductReadPort,
   CustomerGroupReadPort,
   OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListProduct } from '../entities/price-list-product.entity.js';

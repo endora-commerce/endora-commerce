@@ -40,7 +40,7 @@ condition. The bundled `bank_transfer`, `pickup`, `credit_limit`, and
 
 ### The contract
 
-`PaymentAdapter` (from `@b2b/contracts`) carries:
+`PaymentAdapter` (from `@endora-commerce/contracts`) carries:
 
 - `adapterKey` — stable id; matches `payment_methods.adapter`.
 - `type` — one of `bank_transfer | pickup | credit_limit | gateway`.

@@ -2,7 +2,7 @@ import type {
   OrganizationDetailsPort,
   PriceOrganization,
   ProductAudience,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * The buying organisation the pricing engine should resolve a catalogue price

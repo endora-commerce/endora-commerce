@@ -1,9 +1,9 @@
-import type { PushAudienceCriterionType, PushAudienceRule } from '@b2b/contracts';
+import type { PushAudienceCriterionType, PushAudienceRule } from '@endora-commerce/contracts';
 
 /**
  * Pure push-audience rule evaluator (Rule Builder targeting).
  *
- * Walks the AST defined in `@b2b/contracts/pwa#PushAudienceRule` and returns
+ * Walks the AST defined in `@endora-commerce/contracts/pwa#PushAudienceRule` and returns
  * whether a single subscriber (resolved into the context below) is in the
  * target audience. Mirrors the price-list `evaluateApplicationRule` shape but
  * keeps a boolean result — push targeting has no priority chain.

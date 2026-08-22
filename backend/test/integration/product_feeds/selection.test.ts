@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ProductSelectionRule } from '@b2b/contracts';
+import type { ProductSelectionRule } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

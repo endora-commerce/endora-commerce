@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { InvoicePdfPort, InvoiceReadPort, InvoiceRecord } from '@b2b/contracts';
+import type { InvoicePdfPort, InvoiceReadPort, InvoiceRecord } from '@endora-commerce/contracts';
 import { Invoice } from '../entities/invoice.entity.js';
 import { buildBulkInvoicesPdf, buildMinimalInvoicePdf } from './invoice-pdf.js';
 

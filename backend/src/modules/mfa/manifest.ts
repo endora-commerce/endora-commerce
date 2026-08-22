@@ -2,7 +2,7 @@ import {
   defineModuleManifest,
   defineModuleSettingsManifest,
   MFA_SETTING_CODES,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * MFA module — feature 042.

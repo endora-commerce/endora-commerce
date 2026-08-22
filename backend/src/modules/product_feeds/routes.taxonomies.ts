@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { taxonomyProviderCodeSchema } from '@b2b/contracts';
+import { taxonomyProviderCodeSchema } from '@endora-commerce/contracts';
 import { PRODUCT_FEEDS_READ_PERMISSION, PRODUCT_FEEDS_WRITE_PERMISSION } from './manifest.js';
 import { parseOrThrow } from './routes.admin.js';
 import {

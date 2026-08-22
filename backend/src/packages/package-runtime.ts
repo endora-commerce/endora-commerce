@@ -48,7 +48,7 @@
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
+import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
 import type { ModuleEntry } from '../kernel/compose.js';
 import type { MigrationRegistryEntry } from '../db/migration-order.js';
 import {

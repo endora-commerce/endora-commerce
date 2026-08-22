@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -8,7 +8,7 @@ import type {
   EmailDeliveryRecorder,
   EmailMailerPort,
   SettingsAdminPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ContentResolver } from './services/content-resolver.js';
 import { BrandingService, type AssetUrlResolver } from './services/branding.service.js';
 import { EmbedResolver } from './services/embed-resolver.js';

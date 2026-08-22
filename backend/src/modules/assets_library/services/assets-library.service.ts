@@ -3,7 +3,7 @@
 // move. US3 brings cloud adapters online.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type AssetSummary, type AssetDetail } from '@b2b/contracts';
+import { ERROR_CODES, type AssetSummary, type AssetDetail } from '@endora-commerce/contracts';
 import { Asset } from '../entities/asset.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { AdapterRegistry } from './storage/adapter-registry.js';

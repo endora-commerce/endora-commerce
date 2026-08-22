@@ -1,8 +1,8 @@
 'use client';
 
 import { Render } from '@measured/puck';
-import { defaultPageBuilderConfig } from '@b2b/cms-components';
-import type { BlogContentEnvelope } from '@b2b/contracts';
+import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
+import type { BlogContentEnvelope } from '@endora-commerce/contracts';
 
 /**
  * Renders the active-language tree from a blog Post's Page Builder

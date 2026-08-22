@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomFieldValidationError as CustomFieldValidationErrorDto, SupportedEntityType } from '@b2b/contracts';
+import type { CustomFieldValidationError as CustomFieldValidationErrorDto, SupportedEntityType } from '@endora-commerce/contracts';
 import type { CachedDefinition } from './custom-field-definitions-cache.js';
 
 /**

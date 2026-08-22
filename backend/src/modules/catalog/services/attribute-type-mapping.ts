@@ -3,7 +3,7 @@ import {
   type ApiAttributeType as ContractApiAttributeType,
   type AttributeValueType,
   type NumericKind,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 
 /**

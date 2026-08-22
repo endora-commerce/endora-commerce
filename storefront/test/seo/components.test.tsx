@@ -4,7 +4,7 @@ import { Breadcrumbs } from '../../components/Breadcrumbs';
 import { ProductCard } from '../../components/ProductCard';
 import { ProductGallery } from '../../components/ProductGallery';
 import { StockBadge } from '../../components/StockBadge';
-import type { ProductSummary, ProductAsset } from '@b2b/contracts';
+import type { ProductSummary, ProductAsset } from '@endora-commerce/contracts';
 
 /**
  * T243 — assert that the reference-theme primitives expose the markup

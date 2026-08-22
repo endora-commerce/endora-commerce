@@ -5,7 +5,7 @@ import {
   type MegamenuDetail,
   type MegamenuItem,
   type PutItemsRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { MegamenuCache } from './megamenu-cache.js';
 import type { MegamenuService } from './megamenu-service.js';

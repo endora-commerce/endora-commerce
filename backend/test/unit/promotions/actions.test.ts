@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CartLine } from '@b2b/contracts';
+import type { CartLine } from '@endora-commerce/contracts';
 import { createPromotionActionRegistry } from '../../../src/modules/promotions/services/promotion-action-registry.js';
 import type { CartApplyContext } from '../../../src/modules/promotions/actions/types.js';
 

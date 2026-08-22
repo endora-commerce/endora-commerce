@@ -1,5 +1,5 @@
 import type { Readable } from 'node:stream';
-import type { FeedDeliveryFailureReason, FeedDeliveryProtocol } from '@b2b/contracts';
+import type { FeedDeliveryFailureReason, FeedDeliveryProtocol } from '@endora-commerce/contracts';
 
 /**
  * The delivery transport SPI — feature 070 / plan.md § Transport SPI.

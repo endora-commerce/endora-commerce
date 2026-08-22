@@ -9,7 +9,7 @@ import {
   type PromptActionTool,
   type SetOrderStatusParams,
   type ToolContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SupportedEntityType } from '@b2b/contracts';
+import type { SupportedEntityType } from '@endora-commerce/contracts';
 import {
   CustomFieldValidationError,
   CustomFieldValueService,

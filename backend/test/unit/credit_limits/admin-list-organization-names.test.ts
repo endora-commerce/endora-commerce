@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from '@fastify/type-provider-zod';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { OrganizationDetailsPort, OrganizationRecord } from '@b2b/contracts';
+import type { OrganizationDetailsPort, OrganizationRecord } from '@endora-commerce/contracts';
 import {
   registerCreditLimitsRoutes,
   type CreditLimitsDeps,

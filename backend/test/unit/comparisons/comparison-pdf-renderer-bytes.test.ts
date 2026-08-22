@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ComparisonOwnerView } from '@b2b/contracts';
+import type { ComparisonOwnerView } from '@endora-commerce/contracts';
 import { ComparisonPdfRenderer } from '../../../src/modules/comparisons/services/comparison-pdf-renderer.js';
 import { AssetByteFetcher } from '../../../src/modules/comparisons/services/asset-byte-fetcher.js';
 

@@ -81,7 +81,7 @@ function buildDocument(meta: OpenApiMetadata): OpenAPIV3_1.Document {
       title: meta.title,
       version: meta.version,
       description:
-        'B2B Platform API. Generated at runtime from the Zod schemas in @b2b/contracts. ' +
+        'B2B Platform API. Generated at runtime from the Zod schemas in @endora-commerce/contracts. ' +
         'Source of truth: specs/001-b2b-platform-foundation/contracts/.',
     },
     servers: [{ url: meta.serverUrl }],

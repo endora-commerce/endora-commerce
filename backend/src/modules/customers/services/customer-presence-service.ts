@@ -2,7 +2,7 @@ import type {
   AuthSessionReadPort,
   CustomerAccountReadPort,
   OnlineCustomer,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * CustomerPresenceService — the admin "online customers" view (feature 040,

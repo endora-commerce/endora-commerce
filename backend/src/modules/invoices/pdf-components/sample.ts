@@ -1,4 +1,4 @@
-import type { InvoiceDetail } from '@b2b/contracts';
+import type { InvoiceDetail } from '@endora-commerce/contracts';
 
 /** A representative invoice used for template preview rendering (US6). */
 export function sampleInvoiceDetail(): InvoiceDetail {

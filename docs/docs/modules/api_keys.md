@@ -81,7 +81,7 @@ nullable binding/expiry columns `organizationId`, `salesChannelId`,
 
 ## Extension points
 
-- **New scopes** — extend `apiKeyScopeSchema` in `@b2b/contracts` and gate the
+- **New scopes** — extend `apiKeyScopeSchema` in `@endora-commerce/contracts` and gate the
   new surface at its call site; the service is scope-name-agnostic at
   enforcement time.
 - **Per-key rate limit** — `api-key-service.authenticate` returns the key

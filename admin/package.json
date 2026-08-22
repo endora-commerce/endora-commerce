@@ -16,11 +16,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@b2b/api-client": "workspace:*",
-    "@b2b/cms-components": "workspace:^",
-    "@b2b/contracts": "workspace:*",
-    "@b2b/email-components": "workspace:^",
-    "@b2b/page-builder-core": "workspace:^",
+    "@endora-commerce/api-client": "workspace:*",
+    "@endora-commerce/cms-components": "workspace:^",
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/email-components": "workspace:^",
+    "@endora-commerce/page-builder-core": "workspace:^",
     "@measured/puck": "^0.20.2",
     "@radix-ui/react-checkbox": "^1.3.3",
     "@radix-ui/react-collapsible": "^1.1.12",

@@ -1,4 +1,4 @@
-import type { ConfigurationTypeDescriptor } from '@b2b/contracts';
+import type { ConfigurationTypeDescriptor } from '@endora-commerce/contracts';
 
 /**
  * The `product_feeds_delivery` configuration type — feature 070 / FR-107.

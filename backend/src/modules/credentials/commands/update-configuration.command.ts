@@ -1,4 +1,4 @@
-import { ERROR_CODES, type UpdateConfiguration } from '@b2b/contracts';
+import { ERROR_CODES, type UpdateConfiguration } from '@endora-commerce/contracts';
 import type { AuditState, Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';

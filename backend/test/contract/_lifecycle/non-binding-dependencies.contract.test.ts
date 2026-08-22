@@ -2,8 +2,8 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { ModuleManifest } from '@b2b/contracts';
-import { defineModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import {
   orderMigrations,
   type MigrationClass,

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CreateCustomFieldDefinitionRequest } from '@b2b/contracts';
+import type { CreateCustomFieldDefinitionRequest } from '@endora-commerce/contracts';
 import type { CommandBus } from '../../../src/commands/index.js';
 import { CustomFieldDefinition } from '../../../src/modules/custom_fields/entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../../../src/modules/custom_fields/entities/custom-field-option.entity.js';

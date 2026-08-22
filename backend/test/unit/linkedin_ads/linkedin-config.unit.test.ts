@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LINKEDIN_ADS_SETTING_CODES } from '@b2b/contracts';
+import { LINKEDIN_ADS_SETTING_CODES } from '@endora-commerce/contracts';
 import { LinkedInConfigService } from '../../../src/modules/linkedin_ads/services/linkedin-config.service.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 

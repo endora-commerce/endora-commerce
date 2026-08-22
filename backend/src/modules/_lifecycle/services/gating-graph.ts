@@ -1,4 +1,4 @@
-import type { ModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import { REGISTERED_MANIFESTS } from '../registered-manifests.js';
 
 /**

@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Job } from 'bullmq';
-import type { PushProviderRegistryPort } from '@b2b/contracts';
+import type { PushProviderRegistryPort } from '@endora-commerce/contracts';
 import { PushMessage } from '../entities/push-message.entity.js';
 import { PushMessageDelivery } from '../entities/push-message-delivery.entity.js';
 import { PushSubscription } from '../entities/push-subscription.entity.js';

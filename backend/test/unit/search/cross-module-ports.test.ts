@@ -7,7 +7,7 @@ import type {
   OrganizationDetailsPort,
   OrganizationRecord,
   ProductSummary,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
 import {
   createSuggestionPricingEnricher,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { InterpreterService } from './interpreter.service.js';
-import type { PromptActionTool, ToolContext } from '@b2b/contracts';
+import type { PromptActionTool, ToolContext } from '@endora-commerce/contracts';
 import { PromptActionToolRegistry } from './tool-registry.js';
 import { LlmProviderError, type LlmCompletion, type LlmRequest } from './llm/provider.js';
 

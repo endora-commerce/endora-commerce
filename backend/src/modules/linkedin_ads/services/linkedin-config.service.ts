@@ -4,7 +4,7 @@ import {
   LINKEDIN_DISABLED_CONFIG,
   type LinkedInStorefrontConfig,
   type LinkedInStorefrontMapping,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 /**

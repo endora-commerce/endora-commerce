@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { BlogPostStatus } from '@b2b/contracts';
+import type { BlogPostStatus } from '@endora-commerce/contracts';
 import { Badge } from '@/components/ui/badge';
 
 const VARIANT_BY_STATUS: Record<BlogPostStatus, 'default' | 'outline' | 'secondary'> = {

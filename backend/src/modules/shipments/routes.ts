@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { receiveShipmentSchema } from '@b2b/contracts';
+import { receiveShipmentSchema } from '@endora-commerce/contracts';
 import type { Shipment } from './entities/shipment.entity.js';
 import type { ReceiveShipmentHandler } from './services/receive-shipment-handler.js';
 import type { ShipmentService } from './services/shipment-service.js';

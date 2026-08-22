@@ -1,12 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { normalizeEmailAddress } from '@b2b/contracts';
+import { normalizeEmailAddress } from '@endora-commerce/contracts';
 import type {
   AdminUserLookupOptions,
   AdminUserPreferencePort,
   AdminUserReadPort,
   AdminUserRecord,
   ImpersonationPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import type { AdminUserService } from './admin-user-service.js';
 import type { ImpersonationService } from './impersonation-service.js';

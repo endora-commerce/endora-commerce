@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { GTM_CLIENT_ONLY_EVENTS, type GtmCollectRequest } from '@b2b/contracts';
+import { GTM_CLIENT_ONLY_EVENTS, type GtmCollectRequest } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

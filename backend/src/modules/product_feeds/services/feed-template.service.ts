@@ -6,7 +6,7 @@ import {
   type FeedTemplateFieldWrite,
   type TaxonomyProviderCode,
   type UpdateFeedTemplateRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { FeedTaxonomy } from '../entities/feed-taxonomy.entity.js';

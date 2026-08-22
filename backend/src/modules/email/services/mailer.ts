@@ -3,7 +3,7 @@ import type {
   EmailMailerSendInput,
   EmailMailerSendOutcome,
   EmailMailerSuppressionReason,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Mailer abstraction (T136 + T178 helper).
@@ -15,7 +15,7 @@ import type {
  * without an SMTP server. Production composition wires a real SMTP
  * transport (e.g. via nodemailer) by implementing this interface.
  *
- * The four shapes moved to `@b2b/contracts` in feature 075's Phase P —
+ * The four shapes moved to `@endora-commerce/contracts` in feature 075's Phase P —
  * thirty-two sites across eight modules named them at this path, and D-59's
  * `MailerSendOutcome` is read one layer up by `transactional_emails`. They are
  * aliased back here so the drivers below and the consumers Phase C has not

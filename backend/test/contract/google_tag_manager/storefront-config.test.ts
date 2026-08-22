@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   GOOGLE_TAG_MANAGER_SETTING_CODES,
   gtmStorefrontConfigSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

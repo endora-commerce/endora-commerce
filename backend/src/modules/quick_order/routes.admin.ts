@@ -3,7 +3,7 @@ import {
   ERROR_CODES,
   quickOrderBuildRequestSchema,
   quickOrderImportRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import type { QuickOrderBuildService } from './services/quick-order-build-service.js';

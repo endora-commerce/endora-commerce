@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { composeModules } from '../../../src/kernel/compose.js';

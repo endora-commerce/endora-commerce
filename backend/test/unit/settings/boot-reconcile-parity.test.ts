@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { settingsManifest as settingsModuleManifest } from '../../../src/modules/settings/manifest.js';
 import { collectRegisteredSettingsManifests } from '../../../src/modules/settings/services/registered-settings-manifests.js';

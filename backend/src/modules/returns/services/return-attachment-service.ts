@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
-import type { ReturnAttachmentDto } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import type { ReturnAttachmentDto } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseAttachment } from '../entities/return-case-attachment.entity.js';

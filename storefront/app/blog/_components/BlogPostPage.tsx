@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { BlogBySlugPostResponse } from '@b2b/contracts';
+import type { BlogBySlugPostResponse } from '@endora-commerce/contracts';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';
 import { BlogPostBody } from './BlogPostBody';
 import { RelatedPostsStrip } from './RelatedPostsStrip';

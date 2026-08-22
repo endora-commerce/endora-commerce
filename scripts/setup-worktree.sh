@@ -5,7 +5,7 @@
 #
 # Every package under `packages/` resolves through its own `exports` map at
 # `./dist`, built from the checkout it lives in — and *which* checkout is decided
-# by `backend/node_modules/@b2b/contracts -> ../../../packages/contracts`, a
+# by `backend/node_modules/@endora-commerce/contracts -> ../../../packages/contracts`, a
 # **relative** link. Symlink a workspace's `node_modules` at another checkout
 # and every one of those links re-roots there: `vitest` then compiles and runs
 # the other branch while the run claims to be about this one. Measured: 16 of
@@ -28,7 +28,7 @@
 # cannot hard-link and an install materialises 1.3 GB. It symlinks the **root**
 # `node_modules` — which holds only third-party packages, identical on every
 # branch — and copies each workspace's own `node_modules` with `cp -a`, so the
-# relative `@b2b/*` links inside them re-root *here*. About 0.2 s.
+# relative `@endora-commerce/*` links inside them re-root *here*. About 0.2 s.
 #
 # Two things `--link` borrows that it cannot verify, both stated here rather
 # than discovered later. It refuses a `pnpm-lock.yaml` that differs from the
@@ -68,7 +68,7 @@ if [ ! -f "$HERE/pnpm-workspace.yaml" ]; then
   exit 2
 fi
 
-# The workspaces whose `node_modules` carries `@b2b/*` links. Derived from the
+# The workspaces whose `node_modules` carries `@endora-commerce/*` links. Derived from the
 # tree, so a sixth package needs no edit here.
 workspaces() {
   local dir
@@ -110,7 +110,7 @@ else
     name="${dir#"$HERE"/}"
     [ -d "$SOURCE/$name/node_modules" ] || continue
     rm -rf "${dir:?}/node_modules"
-    # `cp -a` keeps every link a link. That is the whole trick: the `@b2b/*`
+    # `cp -a` keeps every link a link. That is the whole trick: the `@endora-commerce/*`
     # entries are relative, so copied here they point at *this* worktree's
     # `packages/`, while the third-party entries keep pointing at the shared
     # root store.

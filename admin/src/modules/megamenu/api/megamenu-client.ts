@@ -9,7 +9,7 @@ import type {
   MegamenuSummary,
   PatchMegamenuRequest,
   PutItemsRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 export type {
   ActivateBindingRequest,

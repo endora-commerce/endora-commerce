@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOOGLE_ANALYTICS_SETTING_CODES } from '@b2b/contracts';
+import { GOOGLE_ANALYTICS_SETTING_CODES } from '@endora-commerce/contracts';
 import { GaConfigService } from './ga-config.service.js';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 

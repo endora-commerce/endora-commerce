@@ -11,7 +11,7 @@
 // and the cross-module DictionaryValidator port — DO NOT require this
 // permission. They are public service surfaces.
 
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 
 export const DICTIONARY_PERMISSIONS = {
   WRITE: 'dictionary.write',

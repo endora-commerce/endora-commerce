@@ -13,7 +13,7 @@ import type {
   CreateDictionaryLanguageRequest,
   DictionaryLanguage,
   UpdateDictionaryLanguageRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';

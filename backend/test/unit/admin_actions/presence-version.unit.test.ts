@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AdminI18nTranslatePort, PermissionReadPort } from '@b2b/contracts';
+import type { AdminI18nTranslatePort, PermissionReadPort } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import { AdminActionsService } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
 

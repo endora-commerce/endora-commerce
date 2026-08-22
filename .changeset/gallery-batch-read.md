@@ -1,5 +1,5 @@
 ---
-'@b2b/contracts': minor
+'@endora-commerce/contracts': minor
 ---
 
 `CatalogGalleryPort` gains two batch reads, and `CatalogGalleryBatchItem` is

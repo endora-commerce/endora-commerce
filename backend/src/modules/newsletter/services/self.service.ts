@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SelfNewsletterStatus } from '@b2b/contracts';
+import type { SelfNewsletterStatus } from '@endora-commerce/contracts';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
 import { NewsletterSubscriberTag } from '../entities/newsletter-subscriber-tag.entity.js';

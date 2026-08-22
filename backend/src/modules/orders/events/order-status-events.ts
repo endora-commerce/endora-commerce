@@ -16,13 +16,13 @@
  */
 
 import { randomUUID } from 'crypto';
-import type { OrderStatusActor } from '@b2b/contracts';
+import type { OrderStatusActor } from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 
 export type OrderStatusEventKind = 'fromToBefore' | 'fromBefore' | 'fromToAfter' | 'toAfter';
 
 /**
- * `OrderStatusActor` moved to `@b2b/contracts` in feature 075's Phase P — it
+ * `OrderStatusActor` moved to `@endora-commerce/contracts` in feature 075's Phase P — it
  * is half of what `payments` and `shipments` pass when they announce a
  * committed transition. Re-exported here for the length of Phase P.
  */

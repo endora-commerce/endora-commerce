@@ -39,8 +39,8 @@
  * with the key.
  */
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { normalizeEmailAddress, type AdminRolePort } from '@b2b/contracts';
-import type { ModuleCliCommandContext } from '@b2b/contracts';
+import { normalizeEmailAddress, type AdminRolePort } from '@endora-commerce/contracts';
+import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
 import { lazyPort, type ModuleContext } from '../../../kernel/index.js';
 import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';

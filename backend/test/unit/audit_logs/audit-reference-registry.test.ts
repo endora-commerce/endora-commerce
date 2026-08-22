@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AuditReferenceResolver } from '@b2b/contracts';
+import type { AuditReferenceResolver } from '@endora-commerce/contracts';
 import { AuditReferenceRegistry } from '../../../src/modules/audit_logs/services/audit-reference-registry.js';
 
 /**

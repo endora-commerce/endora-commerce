@@ -14,7 +14,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { InvoiceSectionTabs } from '@/components/InvoiceSectionTabs';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { SendInvoiceEmailResult } from '@b2b/contracts';
+import type { SendInvoiceEmailResult } from '@endora-commerce/contracts';
 import { sendInvoiceEmailMessage } from './email-outcome';
 import {
   Table,

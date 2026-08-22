@@ -5,7 +5,7 @@ import {
   sendInvoiceEmailRequestSchema,
   type IssueInvoiceEmailOutcome,
   type OrderReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Invoice } from './entities/invoice.entity.js';
 import { Order } from '../orders/entities/order.entity.js';
 import { isOrgInScope } from '../../tenancy/derived-scope.js';

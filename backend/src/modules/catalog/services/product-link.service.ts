@@ -7,7 +7,7 @@ import {
   type ListingPricePort,
   type OrganizationDetailsPort,
   type ProductAudience,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import type { CommandBus } from '../../../commands/index.js';

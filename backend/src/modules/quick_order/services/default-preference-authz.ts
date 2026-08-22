@@ -1,5 +1,5 @@
-import type { PreferenceActor } from '@b2b/contracts';
-import type { QuickOrderPreferenceScope } from '@b2b/contracts';
+import type { PreferenceActor } from '@endora-commerce/contracts';
+import type { QuickOrderPreferenceScope } from '@endora-commerce/contracts';
 
 /**
  * Pure authorization for managing default ordering preferences (feature 039,
@@ -13,7 +13,7 @@ import type { QuickOrderPreferenceScope } from '@b2b/contracts';
  *   - Platform admin  → any scope.
  */
 /**
- * The union moved to `@b2b/contracts` in feature 075's Phase P — `customers`
+ * The union moved to `@endora-commerce/contracts` in feature 075's Phase P — `customers`
  * writes a buyer's defaults through `defaultPreferencePort` and has to name
  * the actor. Re-exported here for the length of Phase P, which cuts no
  * consumer.

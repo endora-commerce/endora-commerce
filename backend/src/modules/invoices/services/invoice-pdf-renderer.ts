@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import type { TDocumentDefinitions, TFontDictionary, Content } from 'pdfmake/interfaces.js';
-import type { InvoiceDetail } from '@b2b/contracts';
+import type { InvoiceDetail } from '@endora-commerce/contracts';
 import type { AmountToWordsLocale } from './amount-to-words.js';
 import {
   headerSection,

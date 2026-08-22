@@ -2,7 +2,7 @@ import type {
   BulkProgressReader,
   BulkProgressSnapshot,
   PromptActionBulkProgressRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * The bulk-progress contribution registry (feature 043 US2; D-72 point 4).

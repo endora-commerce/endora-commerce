@@ -23,7 +23,7 @@ import type {
   OrderReadPort,
   OrderRecord,
   ShippingAdapter,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
 import { ShipmentService } from '../../../src/modules/shipments/services/shipment-service.js';

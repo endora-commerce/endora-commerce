@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { DictionaryReferenceError } from '@b2b/contracts';
+import { DictionaryReferenceError } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';

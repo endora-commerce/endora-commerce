@@ -4,7 +4,7 @@ import {
   type AttributeSet,
   type AttributeSetDetail,
   type ProductDetail,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

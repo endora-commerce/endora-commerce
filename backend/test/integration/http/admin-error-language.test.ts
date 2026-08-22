@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { join } from 'node:path';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 import {

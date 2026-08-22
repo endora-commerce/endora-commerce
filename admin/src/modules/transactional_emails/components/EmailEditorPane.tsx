@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { EmailEmbeds, EmailRenderEmbeds, PuckDataTree } from '@b2b/email-components';
+import type { EmailEmbeds, EmailRenderEmbeds, PuckDataTree } from '@endora-commerce/email-components';
 import {
   EmailEditorPane as SharedEmailEditorPane,
   previewNode,

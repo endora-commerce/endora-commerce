@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { PIM_ERGONODE_SETTING_CODES } from '@b2b/contracts';
+import { PIM_ERGONODE_SETTING_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

@@ -1,4 +1,4 @@
-import type { ShippingSurface } from '@b2b/contracts';
+import type { ShippingSurface } from '@endora-commerce/contracts';
 import type { DeliveryMethod } from '../entities/delivery-method.entity.js';
 import type { ShippingAdapterRegistry } from './shipping-adapter-registry.js';
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import type { MetaStorefrontConfig } from '@b2b/contracts';
+import type { MetaStorefrontConfig } from '@endora-commerce/contracts';
 import { subscribeConsent } from '../../lib/analytics/consent';
 import { configureMeta, isMetaConfigured, loadMetaPixel } from '../../lib/analytics/meta/pixel';
 

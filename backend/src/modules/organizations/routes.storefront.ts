@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { OrganizationContextService } from './services/organization-context-service.js';
 import type {

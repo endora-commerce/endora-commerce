@@ -16,7 +16,7 @@ import {
   type ResponsiveProp,
   type Shadow,
   type SpacingValue,
-} from '@b2b/page-builder-core';
+} from '@endora-commerce/page-builder-core';
 import { useCmsRenderAssets, useCmsRenderMediaBaseUrl } from './render-context.js';
 import { absolutizeMediaUrl } from '../utils/resolve-image-url.js';
 

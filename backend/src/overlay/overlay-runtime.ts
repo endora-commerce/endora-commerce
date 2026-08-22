@@ -14,7 +14,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
+import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
 import type { ModuleEntry } from '../kernel/compose.js';
 import {
   activeOverlayDecorationsRoot,

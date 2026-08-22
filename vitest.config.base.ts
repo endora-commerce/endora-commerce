@@ -5,7 +5,7 @@
 import { defineConfig } from 'vitest/config';
 import { assertWorkspacePackagesAreLocal } from './scripts/workspace-resolution.js';
 
-// Issue #255 — refuse a run whose `@b2b/*` source comes from another checkout.
+// Issue #255 — refuse a run whose `@endora-commerce/*` source comes from another checkout.
 //
 // Every package under `packages/` resolves through its own `exports` map at
 // `./dist`, built from the checkout it lives in, so the workspace symlinks

@@ -17,7 +17,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { fileTypeFromBuffer } from 'file-type';
 import { randomUUID } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 
 import { Asset } from '../entities/asset.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';

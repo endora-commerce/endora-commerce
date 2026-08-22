@@ -23,7 +23,7 @@ import type {
   TransactionalEmailSender,
   VatValidator,
   DictionaryReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';

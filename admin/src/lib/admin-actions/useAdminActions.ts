@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { AdminActionView } from '@b2b/contracts';
+import type { AdminActionView } from '@endora-commerce/contracts';
 import { useAdminActionsContext } from './AdminActionsProvider.js';
 import { normalize } from '../text-normalization.js';
 

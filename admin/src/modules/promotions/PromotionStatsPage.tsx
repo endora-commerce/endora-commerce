@@ -7,7 +7,7 @@ import { EChart } from '@/components/charts/echart';
 import { useTranslation } from '@/i18n/useTranslation';
 import { PageHeader } from '@/components/ui/page-header';
 import { formatMoney } from '@/lib/money';
-import type { PromotionStatsGroupBy, PromotionUsageStats } from '@b2b/contracts';
+import type { PromotionStatsGroupBy, PromotionUsageStats } from '@endora-commerce/contracts';
 import { promotionsClient } from './client';
 
 /**

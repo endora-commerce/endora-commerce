@@ -1,7 +1,7 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
-import type { EmailVariableDescriptor } from '@b2b/contracts';
+import type { EmailVariableDescriptor } from '@endora-commerce/contracts';
 
 /**
  * TransactionalEmail — feature 047 (US1/US5).

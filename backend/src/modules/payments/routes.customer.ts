@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { ERROR_CODES, OrganizationCannotTransactError } from '@b2b/contracts';
+import { ERROR_CODES, OrganizationCannotTransactError } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { PaymentRetryService } from './services/payment-retry-service.js';
 

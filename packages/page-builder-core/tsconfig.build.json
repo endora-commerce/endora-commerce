@@ -2,7 +2,7 @@
   // Emit configuration — see `packages/contracts/tsconfig.build.json` for why the
   // type-check config and the emit config are two files.
   //
-  // This package imports no sibling `@b2b/*` package, so clearing `paths` changes
+  // This package imports no sibling `@endora-commerce/*` package, so clearing `paths` changes
   // nothing it resolves today. It is cleared anyway: the guarantee is "the emitting
   // configuration never reaches another package's source", and a guarantee that holds
   // only until somebody adds the first sibling import is not one.

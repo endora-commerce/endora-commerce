@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES, paymentRetryResultSchema } from '@b2b/contracts';
+import { ERROR_CODES, paymentRetryResultSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

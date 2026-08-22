@@ -2,7 +2,7 @@
 
 import type { PuckComponent } from '@measured/puck';
 import { useMemo } from 'react';
-import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
+import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
 import type { RichContentProps } from '../schema/component-types.js';
 import { BoxStyled } from './box-styles.js';
 import { RICH_CONTENT_PROSE_CLASS, resolveRichContentHtml } from './rich-content-shared.js';

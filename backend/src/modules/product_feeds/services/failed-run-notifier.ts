@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { FeedRunFailureCode } from '@b2b/contracts';
+import type { FeedRunFailureCode } from '@endora-commerce/contracts';
 import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { FeedRun } from '../entities/feed-run.entity.js';

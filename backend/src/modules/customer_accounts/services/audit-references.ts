@@ -1,4 +1,4 @@
-import type { AuditReferenceRegistryPort, OrganizationDetailsPort } from '@b2b/contracts';
+import type { AuditReferenceRegistryPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 

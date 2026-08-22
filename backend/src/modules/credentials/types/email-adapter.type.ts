@@ -1,4 +1,4 @@
-import type { ConfigurationTypeDescriptor } from '@b2b/contracts';
+import type { ConfigurationTypeDescriptor } from '@endora-commerce/contracts';
 
 /**
  * Core `email_adapter` configuration type (feature 058, US1 / research §R2).

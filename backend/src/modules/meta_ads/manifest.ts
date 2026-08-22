@@ -1,5 +1,5 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
-import { META_ADS_SETTING_CODES } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import { META_ADS_SETTING_CODES } from '@endora-commerce/contracts';
 
 /**
  * Meta Ads module (feature 064). Puts the Meta Pixel on the storefront per sales

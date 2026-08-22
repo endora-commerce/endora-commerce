@@ -4,7 +4,7 @@ import {
   type CatalogProductReadPort,
   type CatalogProductRecord,
   type ProductAudience,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { CartItem } from '../entities/cart-item.entity.js';
 
 /**

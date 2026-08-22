@@ -1741,7 +1741,7 @@ export const ANONYMOUS_PRODUCT_AUDIENCE: ProductAudience = {
  * one answer that a listing, a PDP, a search hit, a cart line, a comparison and
  * a feed row can all reach.
  *
- * It lives in `@b2b/contracts` rather than in `catalog` because the record it
+ * It lives in `@endora-commerce/contracts` rather than in `catalog` because the record it
  * reads is already published here: twenty modules hold a
  * {@link CatalogProductRecord}, both columns are on it, and a predicate over a
  * published shape needs no port, no manifest edge and no `catalog` on the other

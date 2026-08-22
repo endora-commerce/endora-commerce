@@ -351,7 +351,13 @@ describe('check-release-intent — the pattern reader', () => {
   it('reads a scope wildcard, which is what the 67-package case looks like', () => {
     expect(unreadablePattern(['@endora-commerce/*'])).toBeNull();
     expect(matchesPattern('@endora-commerce/*', '@endora-commerce/blog')).toBe(true);
-    expect(matchesPattern('@endora-commerce/*', '@b2b/contracts')).toBe(false);
+    // The negative case has to be a name in *another* scope, and `@endora/` is
+    // the one that matters: it is reserved for the company's other npm packages
+    // (D-153, D-161), so a reader that matched across the hyphen would ignore a
+    // package this repository does not own. It used to be `@b2b/contracts` —
+    // this workspace's own second scope until T042e renamed the five packages,
+    // which left the assertion with no scope to be other than.
+    expect(matchesPattern('@endora-commerce/*', '@endora/contracts')).toBe(false);
   });
 
   it('matches across the scope separator, because a name is not a path', () => {

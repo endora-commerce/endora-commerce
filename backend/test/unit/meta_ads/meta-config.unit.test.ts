@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { META_ADS_SETTING_CODES } from '@b2b/contracts';
+import { META_ADS_SETTING_CODES } from '@endora-commerce/contracts';
 import { MetaConfigService } from '../../../src/modules/meta_ads/services/meta-config.service.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 

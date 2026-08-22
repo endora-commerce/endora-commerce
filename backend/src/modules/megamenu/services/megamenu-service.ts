@@ -11,7 +11,7 @@ import {
   type MegamenuSummary,
   type PatchMegamenuRequest,
   type ResolvedMenuItem,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { MegamenuCache } from './megamenu-cache.js';

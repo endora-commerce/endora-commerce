@@ -12,7 +12,7 @@ import type {
   QuoteRequestReadPort,
   RfqCustomerPort,
   SalesChannelAttributionRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { QuoteRequestReadService } from './services/quote-request-read-port.js';
 import { registerQuoteRequestSalesChannelAttributions } from './services/sales-channel-attributions.js';

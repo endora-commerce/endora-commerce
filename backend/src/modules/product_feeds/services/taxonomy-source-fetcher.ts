@@ -1,5 +1,5 @@
 import { lookup } from 'node:dns/promises';
-import { TAXONOMY_FETCH_LIMITS } from '@b2b/contracts';
+import { TAXONOMY_FETCH_LIMITS } from '@endora-commerce/contracts';
 import type {
   TaxonomyFetchFailure,
   TaxonomyFetchRequest,

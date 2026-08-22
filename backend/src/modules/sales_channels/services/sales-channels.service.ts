@@ -9,7 +9,7 @@ import {
   type SalesChannelAttributionRegistryPort,
   type SalesChannelCreateBody,
   type SalesChannelUpdateBody,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { CommandBus } from '../../../commands/command-bus.js';

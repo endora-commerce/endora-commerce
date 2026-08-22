@@ -1,5 +1,5 @@
 /**
- * `dispatchValidatorMode` moved to `@b2b/contracts` in feature 075's Phase P.
+ * `dispatchValidatorMode` moved to `@endora-commerce/contracts` in feature 075's Phase P.
  *
  * It is published as a **function, not a port**, which contradicts
  * `contracts/port-publication.md` §1.5 — that section names this file as the
@@ -15,4 +15,4 @@
  *
  * Re-exported here for the length of Phase P, which cuts no consumer.
  */
-export { dispatchValidatorMode } from '@b2b/contracts';
+export { dispatchValidatorMode } from '@endora-commerce/contracts';

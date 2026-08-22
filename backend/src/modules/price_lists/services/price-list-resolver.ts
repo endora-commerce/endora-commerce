@@ -1,4 +1,4 @@
-import type { RuleCriterionType } from '@b2b/contracts';
+import type { RuleCriterionType } from '@endora-commerce/contracts';
 import type { RuleEvaluation } from './application-rule-evaluator.js';
 
 /**

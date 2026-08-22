@@ -5,7 +5,7 @@ import type {
   AuthSessionPort,
   CustomerAccountReadPort,
   CustomerAccountRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import type { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { hashPassword } from '../../../src/kernel/crypto/password-hasher.js';

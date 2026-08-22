@@ -12,7 +12,7 @@
 # Every job that executes repository code runs `pnpm run build:packages` after the
 # install. Since feature 080 (T042) the five packages under `packages/` resolve through
 # their own `exports` maps at `./dist`, so an unbuilt workspace is an unresolvable
-# `@b2b/*` specifier rather than a slightly stale one. `release:changeset` is the one
+# `@endora-commerce/*` specifier rather than a slightly stale one. `release:changeset` is the one
 # node job without the step: it runs the changesets CLI and imports nothing of ours.
 # Ruling R12 — a build script only a developer ever runs is configuration, not a build;
 # `outDir` had been configured in all five packages since they were created and had never
@@ -414,7 +414,7 @@ release:changeset:
     # one job that has git. Every backend job runs `node:22.17-slim`, which
     # ships none (`test/helpers/shell-check-fixture.ts` fakes `git ls-files` for
     # that reason), and the release-branch discriminator IS a `git diff`, so a
-    # fake would prove the fake. It reaches no service and imports no `@b2b/*`
+    # fake would prove the fake. It reaches no service and imports no `@endora-commerce/*`
     # package, which is why this job still needs neither containers nor
     # `build:packages`. `check-release-intent.test.ts` fails in the unit suite
     # if this line goes away, so the file cannot become one nothing runs.

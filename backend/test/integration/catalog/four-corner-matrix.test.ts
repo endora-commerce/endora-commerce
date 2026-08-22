@@ -20,7 +20,7 @@ import {
  * by the deferred T026 / T061 polish; until those land the public read
  * still pickLang's the baseline JSONB and would ignore per-product overrides.
  * The admin endpoint is the canonical resolver consumer today and exercises
- * the same code path (the shared `@b2b/contracts` resolver) — so this test
+ * the same code path (the shared `@endora-commerce/contracts` resolver) — so this test
  * still pins the four-corner guarantee end-to-end. Once T026 / T061 ship,
  * the assertions below can be replicated against the public read.
  */

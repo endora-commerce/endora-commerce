@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ModuleManifestSchema } from '@b2b/contracts';
+import { ModuleManifestSchema } from '@endora-commerce/contracts';
 import { manifest as lifecycleManifest } from '../../../src/modules/_lifecycle/manifest.js';
 import { manifest as settingsManifest } from '../../../src/modules/settings/manifest.js';
 import { manifest as salesChannelsManifest } from '../../../src/modules/sales_channels/manifest.js';

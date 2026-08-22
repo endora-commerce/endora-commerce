@@ -4,7 +4,7 @@ import {
   type OrderPlacementPort,
   type PlacedOrderRecord,
   type QuickOrderOneClickEligibility,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { DefaultPreferenceService } from './default-preference-service.js';
 
@@ -29,7 +29,7 @@ export interface OneClickPlaceInput {
  * stock) and the payment-routing `nextAction` come from `placeOrder` (FR-029 /
  * FR-030); no parallel ordering path (FR-031).
  *
- * Both collaborators are `@b2b/contracts` ports since feature 075's Phase C —
+ * Both collaborators are `@endora-commerce/contracts` ports since feature 075's Phase C —
  * `cartWritePort` and `orderPlacementPort`. The lazy `() => OrderService | null`
  * accessor is gone with them: the port's gate answers 503 `MODULE_DISABLED`
  * when `orders` is not present, which is the same refusal the `null` branch

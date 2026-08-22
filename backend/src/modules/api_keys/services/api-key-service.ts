@@ -5,7 +5,7 @@ import {
   type ApiKeyBinding,
   type CustomerAccountReadPort,
   type OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ApiKey } from '../entities/api-key.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';

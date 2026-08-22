@@ -11,7 +11,7 @@ import {
   patchCmsTemplateRequestSchema,
   putCmsColorPaletteRequestSchema,
   putCmsPageContentRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ColorPaletteAuditContext, ColorPaletteWriter } from './plugin.js';
 import type { CmsPageService } from './services/cms-page-service.js';
 import type { PageBuilderRegistry } from './services/page-builder-registry.js';

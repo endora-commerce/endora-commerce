@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@measured/puck';
-import { slugify, type CmsBlockDetail } from '@b2b/contracts';
+import { slugify, type CmsBlockDetail } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,7 +38,7 @@ const blankForm: FormState = { name: '', code: '', active: true, description: ''
  * `latwy-blok`). The result is a subset of the `cmsCodeRe` charset
  * (`[a-z0-9._-]`), so it always validates.
  *
- * `slugify` from `@b2b/contracts`, **imported, never re-implemented** (issue
+ * `slugify` from `@endora-commerce/contracts`, **imported, never re-implemented** (issue
  * #245). This site's four-line chain was already correct — it and `PageEditor`
  * were the only two of eight that cut to length *before* stripping the trailing
  * separator — so nothing about its output moves; it is here because eight

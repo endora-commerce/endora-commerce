@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   seoEntityTypeSchema,
   upsertSeoMetaOverrideRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { MetaTagResolverService } from './services/meta-tag-resolver.service.js';
 import type { SitemapGeneratorService } from './services/sitemap-generator.service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

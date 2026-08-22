@@ -1,4 +1,4 @@
-import type { InvoiceLine, VatSummaryRow } from '@b2b/contracts';
+import type { InvoiceLine, VatSummaryRow } from '@endora-commerce/contracts';
 
 /** Round to 2 decimals (half-up) for monetary values. */
 function round2(n: number): number {

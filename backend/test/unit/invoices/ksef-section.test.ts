@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { InvoiceDetail } from '@b2b/contracts';
+import type { InvoiceDetail } from '@endora-commerce/contracts';
 import { ksefSection, type InvoiceDetailWithKsef } from '../../../src/modules/invoices/pdf-components/sections.js';
 
 /**

@@ -5,7 +5,7 @@ import type {
   CmsResolvedHook,
   CmsResolvedPage,
   CmsResolvedTemplate,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { walkAssetIds, walkBlockEmbeds, walkTemplateEmbeds } from './content-tree-walker.js';
 import type { CmsCache } from './cms-cache.js';
 

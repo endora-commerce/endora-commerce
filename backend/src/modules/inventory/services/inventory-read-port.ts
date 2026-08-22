@@ -6,7 +6,7 @@ import type {
   StockLevelRecord,
   WarehouseChannelAssignmentRecord,
   WarehouseRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import {
   DEFAULT_WAREHOUSE_CODE,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import { PermissionCatalogueService } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
 
 describe('PermissionCatalogueService', () => {

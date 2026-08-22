@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { CartSnapshot } from '@b2b/contracts';
+import type { CartSnapshot } from '@endora-commerce/contracts';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 
 /**

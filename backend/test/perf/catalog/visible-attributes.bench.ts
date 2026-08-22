@@ -9,7 +9,7 @@ import type { ProductAttribute } from '../../../src/modules/catalog/entities/pro
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { AttributeSetAttribute } from '../../../src/modules/catalog/entities/attribute-set-attribute.entity.js';
 import { createAttributeFixture } from '../../helpers/seed-catalog.js';
-import { ANONYMOUS_PRODUCT_AUDIENCE } from '@b2b/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE } from '@endora-commerce/contracts';
 
 /**
  * Feature 012 / T067 — `visibleAttributes` projection p95 latency.

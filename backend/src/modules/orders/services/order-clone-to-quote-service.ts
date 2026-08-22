@@ -3,7 +3,7 @@ import {
   ERROR_CODES,
   type CreateQuoteRequest,
   type RfqCustomerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';

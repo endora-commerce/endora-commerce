@@ -1,4 +1,4 @@
-import { ERROR_CODES, type ImportExportEntity } from '@b2b/contracts';
+import { ERROR_CODES, type ImportExportEntity } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
 import { parseCsv, rowsToRecords, serializeCsv } from './csv-codec.js';

@@ -1,7 +1,7 @@
 import type {
   DictionaryValidator,
   SalesChannelAttributionRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../src/events/bus.js';
 import type { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';

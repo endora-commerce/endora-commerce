@@ -13,7 +13,7 @@ import type { FinalizeAppliedPromotion, UsageContext } from './promotion-usage-s
  * beside the implementation, and `orders` imports it as a type: the provider's
  * own declaration is what `tsc` checks both ends against.
  *
- * It stays **out of `@b2b/contracts`** on purpose. The first parameter is the
+ * It stays **out of `@endora-commerce/contracts`** on purpose. The first parameter is the
  * caller's MikroORM `EntityManager`, and FR-034 forbids a MikroORM type in the
  * contracts package. That is not an oversight in the seam — it is the seam:
  * `promotion_usages_order_fk` (`promotion_usages.order_id` -> `orders.id`,
@@ -25,7 +25,7 @@ import type { FinalizeAppliedPromotion, UsageContext } from './promotion-usage-s
  * cross-module ledger rather than debt, and it names this constraint.
  *
  * The read half is not here. `applyToCart` is `PromotionApplyPort` in
- * `@b2b/contracts`, which `carts` already resolves under the same container
+ * `@endora-commerce/contracts`, which `carts` already resolves under the same container
  * name; the consumer-declared duplicate of it was deleted with `PromotionPort`.
  */
 export interface PromotionUsageFinalizer {

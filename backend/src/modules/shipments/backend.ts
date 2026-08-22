@@ -10,7 +10,7 @@ import type {
   ShipmentUsagePort,
   ShippingAdapterRegistryPort,
   ShippingEmailRendererPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';

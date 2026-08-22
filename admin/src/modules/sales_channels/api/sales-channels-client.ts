@@ -6,12 +6,12 @@ import type {
   SalesChannelSetDefaultResponse,
   SalesChannelSummary,
   SalesChannelUpdateBody,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { apiClient } from '@/lib/api-client';
 
 /**
  * Typed wrapper around `/api/v1/admin/sales-channels/*` — feature 005 / T038.
- * Source-of-truth schemas live in `@b2b/contracts`.
+ * Source-of-truth schemas live in `@endora-commerce/contracts`.
  *
  * Optimistic concurrency for PATCH rides on the body's `expectedVersion`
  * field (matches feature 003/004); the response's ETag is also exposed

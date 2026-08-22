@@ -11,7 +11,7 @@ import {
   type LanguageAdminPort,
   type LanguageReadPort,
   type LanguageSeedPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -70,7 +70,7 @@ import { registerDictionaryStorefrontRoutes } from './routes.storefront.js';
  * kept listing currencies and the validator kept accepting codes out of modules
  * an operator had switched off. Both are now the four published ports, each
  * resolved with `lazyPort` and handed to the service that needs it, never
- * captured. The two event names are constants in `@b2b/contracts` now, which is
+ * captured. The two event names are constants in `@endora-commerce/contracts` now, which is
  * where a string belongs; the direction is untouched — `currencies` and
  * `languages` announce, this module subscribes, and neither learns who listens.
  */

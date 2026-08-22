@@ -4,7 +4,7 @@
 // never a physical file move.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type AssetFolder as AssetFolderDto } from '@b2b/contracts';
+import { ERROR_CODES, type AssetFolder as AssetFolderDto } from '@endora-commerce/contracts';
 
 import { HttpError } from '../../../http/error-envelope.js';
 import { AssetFolder } from '../entities/asset-folder.entity.js';

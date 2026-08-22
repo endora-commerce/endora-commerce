@@ -7,7 +7,7 @@ import type {
   KnownIconName,
   PermissionReadPort,
   SupportedAdminLanguage,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { STATE_CHANGED_CHANNEL } from '../../../kernel/lifecycle/registry-cache.js';
 
 /**

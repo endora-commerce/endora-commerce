@@ -1,4 +1,4 @@
-import type { ProductSummary } from '@b2b/contracts';
+import type { ProductSummary } from '@endora-commerce/contracts';
 import {
   SearchBackendUnavailable,
   type SearchQueryService,

@@ -5,12 +5,12 @@ import type {
   ProductListCapabilities,
   ProductListSort,
   ProductSummary,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { apiGet, apiGetForViewer, type RequestContext } from './client';
 
 /**
  * Catalog read paths. The API returns a Zod-derived shape; we re-export
- * those types from `@b2b/contracts` so themes that only override
+ * those types from `@endora-commerce/contracts` so themes that only override
  * `components/*` keep the same prop contracts.
  *
  * The three readers that carry a **price** — the listing, the product detail

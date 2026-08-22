@@ -5,7 +5,7 @@ import {
   createShoppingListRequestSchema,
   renameShoppingListRequestSchema,
   updateShoppingListItemRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ShoppingListService } from './services/shopping-list-service.js';
 import type { ShoppingList } from './entities/shopping-list.entity.js';

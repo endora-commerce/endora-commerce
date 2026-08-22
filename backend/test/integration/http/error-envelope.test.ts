@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { setupTestServer } from '../../helpers/test-server.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 

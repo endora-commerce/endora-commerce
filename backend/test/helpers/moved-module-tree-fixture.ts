@@ -197,7 +197,7 @@ export function createMovedModuleTreeFixture(
   const root = mkdtempSync(join(tmpdir(), 'moved-module-tree-'));
   const backend = join(root, 'backend');
   mkdirSync(backend, { recursive: true });
-  // Bare specifiers (`typescript`, `@b2b/contracts`) resolve by walking up from
+  // Bare specifiers (`typescript`, `@endora-commerce/contracts`) resolve by walking up from
   // the importing file, so the fixture borrows the backend's installed tree
   // rather than carrying one.
   symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(backend, 'node_modules'));
@@ -410,7 +410,7 @@ export function createSplitModuleTreeFixture(
   mkdirSync(backend, { recursive: true });
   symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(backend, 'node_modules'));
   // A second borrowed tree, at the fixture root. A relocated module resolves
-  // `@b2b/contracts` by walking up from `packages/modules/<id>/src`, which never
+  // `@endora-commerce/contracts` by walking up from `packages/modules/<id>/src`, which never
   // passes through `backend/`, so without this the manifest index cannot be
   // imported and every check dies at module resolution.
   symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(root, 'node_modules'));

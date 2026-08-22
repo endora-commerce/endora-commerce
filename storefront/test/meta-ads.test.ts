@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MetaStorefrontConfig } from '@b2b/contracts';
+import type { MetaStorefrontConfig } from '@endora-commerce/contracts';
 import {
   configureMeta,
   isMetaConfigured,

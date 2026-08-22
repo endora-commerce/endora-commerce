@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { CustomFieldDefinitionReadPort } from '@b2b/contracts';
+import type { CustomFieldDefinitionReadPort } from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';

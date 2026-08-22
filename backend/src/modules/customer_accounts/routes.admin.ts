@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { upsertCustomerGroupRequestSchema } from '@b2b/contracts';
+import { upsertCustomerGroupRequestSchema } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { CustomerGroup } from './entities/customer-group.entity.js';
 import type { CustomerGroupService } from './services/customer-group-service.js';

@@ -9,7 +9,7 @@
  */
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import type { EmailDefaultsRegistry } from './email-defaults-registry.js';
 

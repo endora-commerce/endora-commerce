@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ERROR_CODES, type FeedDeliveryHttpLabel, type FeedDeliveryProtocol } from '@b2b/contracts';
+import { ERROR_CODES, type FeedDeliveryHttpLabel, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type { Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { FeedDelivery } from '../entities/feed-delivery.entity.js';

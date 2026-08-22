@@ -5,7 +5,7 @@ import type { ReactElement } from 'react';
 import {
   EMAIL_ROW_LAYOUT_PRESETS,
   type EmailRowLayoutPresetId,
-} from '@b2b/email-components';
+} from '@endora-commerce/email-components';
 import { Button } from '@/components/ui/button';
 
 export function EmailRowLayoutPicker({

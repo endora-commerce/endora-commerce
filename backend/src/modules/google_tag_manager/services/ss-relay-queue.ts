@@ -1,7 +1,7 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
 import { enterSystemScope } from '../../../kernel/scope.js';
 import type Redis from 'ioredis';
-import type { GtmCollectRequest, GtmPageContext } from '@b2b/contracts';
+import type { GtmCollectRequest, GtmPageContext } from '@endora-commerce/contracts';
 
 /**
  * BullMQ queue for the server-side Google Tag Manager relay (feature 066, US3 /

@@ -162,7 +162,7 @@ type PartialSite = Omit<EnforcedGateSite, 'file' | 'moduleId'>;
  * - the optional-call form `requireAdmin?.('code')`;
  * - `requireAdminAny(['a', 'b'])` in either of the above positions;
  * - a constant argument, resolved module-locally, through a relative import, or
- *   through `@b2b/contracts`, including a member read of a permission map;
+ *   through `@endora-commerce/contracts`, including a member read of a permission map;
  * - `permissionService.hasPermission(actor, 'code')` — the capability check a
  *   service uses where there is no route to hang a `preHandler` on.
  *
@@ -342,7 +342,7 @@ interface FileFacts {
 
 /**
  * Resolves a constant argument to its literal, following at most a few hops:
- * module-local, a relative import, or `@b2b/contracts`. Deeper indirection has
+ * module-local, a relative import, or `@endora-commerce/contracts`. Deeper indirection has
  * never appeared, and pretending to resolve it would hide the same gate the
  * `unresolved` bucket is there to surface.
  *
@@ -404,7 +404,7 @@ export class ConstantResolver {
 
   /** Candidate files a specifier may resolve to, in preference order. */
   #resolveSpecifier(from: string, specifier: string): string[] {
-    if (specifier === '@b2b/contracts') return this.#contractsSources();
+    if (specifier === '@endora-commerce/contracts') return this.#contractsSources();
     if (!specifier.startsWith('.')) return [];
     const base = resolve(dirname(from), specifier);
     const candidates = [base.replace(/\.js$/, '.ts'), `${base}.ts`, join(base, 'index.ts'), base];
@@ -412,7 +412,7 @@ export class ConstantResolver {
   }
 
   /**
-   * `@b2b/contracts` re-exports everything from its barrel, so following the
+   * `@endora-commerce/contracts` re-exports everything from its barrel, so following the
    * barrel would mean parsing every `export *`. Scanning the package's own
    * sources for the constant reaches the same answer in one hop.
    */

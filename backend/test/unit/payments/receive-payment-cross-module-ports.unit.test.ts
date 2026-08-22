@@ -4,7 +4,7 @@ import type {
   OrderTransitionPort,
   PaymentMethodReadPort,
   PaymentMethodRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';

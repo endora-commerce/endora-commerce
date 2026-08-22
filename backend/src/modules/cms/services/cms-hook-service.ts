@@ -6,7 +6,7 @@ import {
   type CmsHookSummary,
   type CreateCmsHookRequest,
   type PatchCmsHookRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CmsCache } from './cms-cache.js';
 

@@ -7,7 +7,7 @@
 // The reconciler is idempotent — operator edits to existing translation
 // rows are not overwritten.
 
-import type { DictionaryEntryType } from '@b2b/contracts';
+import type { DictionaryEntryType } from '@endora-commerce/contracts';
 
 export interface TranslationSeedRow {
   entryType: DictionaryEntryType;

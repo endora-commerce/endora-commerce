@@ -1,4 +1,4 @@
-import type { CmsBlockSeedPort, CmsContentEnvelope } from '@b2b/contracts';
+import type { CmsBlockSeedPort, CmsContentEnvelope } from '@endora-commerce/contracts';
 import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
 
 /**

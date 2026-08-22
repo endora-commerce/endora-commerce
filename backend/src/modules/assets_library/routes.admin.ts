@@ -22,7 +22,7 @@ import {
   deleteFolderRequestSchema,
   moveAssetRequestSchema,
   moveManyAssetsRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 import { HttpError } from '../../http/error-envelope.js';
 import { Asset } from './entities/asset.entity.js';

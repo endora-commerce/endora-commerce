@@ -11,7 +11,7 @@ import type {
   AdminActionView,
   GetAdminActionsResponse,
   SupportedAdminLanguage,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { getAdminActions } from './api.js';
 
 /**

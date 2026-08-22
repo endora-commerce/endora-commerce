@@ -1,7 +1,7 @@
 // Typed admin client for the Assets Library — feature 013 / US1.
 //
 // Wraps the shared `apiClient` with strong response types inferred from
-// `@b2b/contracts/assets-library`. Components consume this rather than
+// `@endora-commerce/contracts/assets-library`. Components consume this rather than
 // touching `apiClient` directly.
 
 import { apiClient } from '@/lib/api-client';
@@ -15,7 +15,7 @@ import type {
   ListFoldersResponse,
   PatchAssetRequest,
   PatchFolderRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 export type { AssetSummary, AssetDetail, AssetFolder };
 

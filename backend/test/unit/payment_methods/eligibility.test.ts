@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { PaymentAdapter, PaymentEligibilityContext } from '@b2b/contracts';
+import type { PaymentAdapter, PaymentEligibilityContext } from '@endora-commerce/contracts';
 import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
 import { PaymentMethodEligibilityService } from '../../../src/modules/payment_methods/services/payment-method-eligibility.js';
 import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';

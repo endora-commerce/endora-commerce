@@ -1,5 +1,5 @@
 import { cookies, headers } from 'next/headers';
-import type { I18nConfigResponse } from '@b2b/contracts';
+import type { I18nConfigResponse } from '@endora-commerce/contracts';
 import { getI18nConfig } from './api/i18n';
 import { getModulePresence, type ModulePresenceSet } from './api/module-presence';
 import { resolveLocale } from './i18n/locale';

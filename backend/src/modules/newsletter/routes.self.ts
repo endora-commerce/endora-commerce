@@ -3,7 +3,7 @@ import {
   ERROR_CODES,
   selfSubscribeRequestSchema,
   selfUnsubscribeRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { NewsletterSelfService } from './services/self.service.js';
 

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ERROR_CODES, type DeliveryMethodUpsert } from '@b2b/contracts';
+import { ERROR_CODES, type DeliveryMethodUpsert } from '@endora-commerce/contracts';
 import type { Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { DeliveryMethod } from '../entities/delivery-method.entity.js';

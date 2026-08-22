@@ -221,7 +221,7 @@ describe('analyzeSource — what it must not flag', () => {
   it('ignores bare package specifiers', () => {
     const source = [
       "import { z } from 'zod';",
-      "import { orderSchema } from '@b2b/contracts';",
+      "import { orderSchema } from '@endora-commerce/contracts';",
       "import { EntityManager } from '@mikro-orm/postgresql';",
     ].join('\n');
     expect(analyzeSource(source, ORDER_SERVICE)).toEqual([]);

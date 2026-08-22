@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { MfaActiveEnrolmentCounts, MfaEnrolmentCountPort } from '@b2b/contracts';
+import type { MfaActiveEnrolmentCounts, MfaEnrolmentCountPort } from '@endora-commerce/contracts';
 import { MfaEnrolment } from '../entities/mfa-enrolment.entity.js';
 
 /**

@@ -1,5 +1,5 @@
 import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
-import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@b2b/contracts';
+import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
 import { Order } from '../entities/order.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';

@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { AdminI18nTranslatePort, PermissionReadPort } from '@b2b/contracts';
+import type { AdminI18nTranslatePort, PermissionReadPort } from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

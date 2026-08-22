@@ -13,7 +13,7 @@ import {
   type CustomerAuthPort,
   type CustomerPasswordResetPort,
   type EmailMailerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { RegistrationService } from './services/registration-service.js';
 import type { EmailVerificationService } from './services/email-verification-service.js';

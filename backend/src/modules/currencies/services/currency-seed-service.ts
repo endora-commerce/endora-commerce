@@ -1,4 +1,4 @@
-import type { CurrencySeedPort, CurrencySeedRow } from '@b2b/contracts';
+import type { CurrencySeedPort, CurrencySeedRow } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 
 /**

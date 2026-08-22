@@ -4,7 +4,7 @@ import {
   ERROR_CODES,
   type CustomerAccountMemberWritePort,
   type CustomerAccountReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Organization } from '../entities/organization.entity.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';

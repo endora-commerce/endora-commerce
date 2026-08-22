@@ -60,7 +60,7 @@ Legacy `pnpm modules:install` / `pnpm modules:uninstall` (plural) print a deprec
 Every module exports a `manifest` constant from `backend/src/modules/<id>/manifest.ts`:
 
 ```typescript
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
 
 export const manifest = defineModuleManifest({
   id: 'pricing',
@@ -166,7 +166,7 @@ backend/src/modules/coupons/
 
 ```typescript
 // backend/src/modules/coupons/manifest.ts
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
 
 const settings = defineModuleSettingsManifest({
   moduleCode: 'coupons',

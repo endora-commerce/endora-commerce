@@ -3,7 +3,7 @@ import {
   defineModuleManifest,
   type ModuleCliCommand,
   type ModuleLifecycleParticipant,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/module-context.js';
 
 /**

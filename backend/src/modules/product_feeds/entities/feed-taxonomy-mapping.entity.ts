@@ -1,6 +1,6 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { randomUUID } from 'node:crypto';
-import type { TaxonomyProviderCode } from '@b2b/contracts';
+import type { TaxonomyProviderCode } from '@endora-commerce/contracts';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**

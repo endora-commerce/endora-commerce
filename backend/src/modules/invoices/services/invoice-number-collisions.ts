@@ -2,7 +2,7 @@ import type {
   NumberPatternCollision,
   NumberPatternSequenceDefect,
   NumberingSeries,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { channelDiscriminator, formatInvoiceNumber } from './invoice-number-generator.js';
 
 /**

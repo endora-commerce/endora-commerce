@@ -2,7 +2,7 @@ import type {
   DictionaryReference,
   DictionaryReferenceDescriptor,
   DictionaryReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * In-process registry of "who still points at this language code" descriptors

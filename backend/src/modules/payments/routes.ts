@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { receivePaymentSchema } from '@b2b/contracts';
+import { receivePaymentSchema } from '@endora-commerce/contracts';
 import type { ReceivePaymentHandler } from './services/receive-payment-handler.js';
 import type { PaymentService } from './services/payment-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

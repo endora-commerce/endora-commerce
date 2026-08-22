@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../../http/error-envelope.js';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { InvoiceTemplate } from '../entities/invoice-template.entity.js';
 import { pickLanguageTree } from '../pdf-components/tree-mapper.js';
 import { recordAuditFromContext } from '../../../commands/index.js';

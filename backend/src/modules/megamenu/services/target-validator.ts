@@ -6,7 +6,7 @@
 // scope, Asset matches an expected kind) live here so the unit test can
 // stub them without booting a server.
 
-import { ERROR_CODES, type MegamenuItem } from '@b2b/contracts';
+import { ERROR_CODES, type MegamenuItem } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 
 const externalUrlRe = /^(?:https?:\/\/|tel:|mailto:)/i;

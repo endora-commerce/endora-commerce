@@ -4,7 +4,7 @@ import {
   META_DISABLED_CONFIG,
   type MetaStorefrontConfig,
   type MetaStorefrontMapping,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 /** Loader for a channel's enabled custom-event mappings in the storefront shape. */

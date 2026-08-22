@@ -5,7 +5,7 @@ import {
   type AdminUserReadPort,
   type BulkUpdateProductsRequest,
   type EmailMailerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';

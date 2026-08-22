@@ -9,7 +9,7 @@ import { QuoteRequestEvent, type QuoteRequestEventType } from '../entities/quote
  * through this service; it is the only authorised writer of
  * quote_request_events. The schema check on `event_type` lives at the
  * DB level (migration 029); the discriminated payload shape is enforced
- * by the route validators upstream (Zod schemas in @b2b/contracts).
+ * by the route validators upstream (Zod schemas in @endora-commerce/contracts).
  */
 export interface RfqEventActor {
   adminUserId?: string | null;

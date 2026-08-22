@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { OptimisticLockError } from '@mikro-orm/core';
 import { Organization, type OrganizationStatus } from '../entities/organization.entity.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
-import type { CustomerAccountReadPort, EmailMailerPort } from '@b2b/contracts';
+import type { CustomerAccountReadPort, EmailMailerPort } from '@endora-commerce/contracts';
 import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 import type { OrganizationEventBus } from './registration-service.js';
 

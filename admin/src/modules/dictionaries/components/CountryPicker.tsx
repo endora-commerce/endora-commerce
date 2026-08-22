@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type SelectHTMLAttributes } from 'react';
-import type { Country } from '@b2b/contracts';
+import type { Country } from '@endora-commerce/contracts';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
 import { dictionaryClient } from '../client';

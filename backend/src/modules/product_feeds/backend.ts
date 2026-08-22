@@ -15,7 +15,7 @@ import type {
   ConfigurationTypeRegistryPort,
   CustomFieldDefinitionReadPort,
   PriceListReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { productFeedsModule, type ProductFeedsModuleOptions } from './plugin.js';
 import { feedDeliveryConfigurationType } from './services/delivery/delivery-credential.type.js';
 import { presenceAwareRecorder } from './services/failed-run-notifier.js';

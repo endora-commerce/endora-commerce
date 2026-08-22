@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ANONYMOUS_PRODUCT_AUDIENCE } from '@b2b/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE } from '@endora-commerce/contracts';
 import { ProductLinkService } from '../../../src/modules/catalog/services/product-link.service.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';

@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { CatalogProductReadPort, CustomerAccountReadPort } from '@b2b/contracts';
+import type { CatalogProductReadPort, CustomerAccountReadPort } from '@endora-commerce/contracts';
 import { AvailabilityWorker } from '../../../src/modules/inventory/services/availability-worker.js';
 import { AvailabilityNotification } from '../../../src/modules/inventory/entities/availability-notification.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';

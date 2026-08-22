@@ -12,7 +12,7 @@ import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registe
  */
 const RESOLVED_MANIFESTS = await resolvedManifestEntries();
 import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
-import type { PromptActionTool } from '@b2b/contracts';
+import type { PromptActionTool } from '@endora-commerce/contracts';
 import {
   catalogPromptMutationTools,
   catalogPromptResolverTools,

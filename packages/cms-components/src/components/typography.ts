@@ -4,7 +4,7 @@ import {
   buildResponsiveNumberVars,
   resolveResponsiveNumber,
   type BreakpointTier,
-} from '@b2b/page-builder-core';
+} from '@endora-commerce/page-builder-core';
 import type { HeadingLevel, TextFontFamily, TextFontStyle, TypographyProps } from '../schema/component-types.js';
 
 export const FONT_FAMILY_CSS: Record<TextFontFamily, string> = {

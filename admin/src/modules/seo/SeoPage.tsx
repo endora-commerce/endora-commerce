@@ -4,7 +4,7 @@ import type {
   SeoEntityType,
   SitemapChannelStatus,
   UpsertSeoMetaOverrideRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';

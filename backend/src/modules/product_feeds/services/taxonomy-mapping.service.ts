@@ -3,7 +3,7 @@ import type {
   CatalogCategoryReadPort,
   CatalogCategoryRecord,
   TaxonomyProviderCode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '../../../commands/index.js';
 import { FeedTaxonomy } from '../entities/feed-taxonomy.entity.js';
 import { FeedTaxonomyMapping } from '../entities/feed-taxonomy-mapping.entity.js';

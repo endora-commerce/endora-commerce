@@ -2,7 +2,7 @@ import {
   ERROR_CODES,
   type SettingsAdminAuditContext,
   type SettingsAdminPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';

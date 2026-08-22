@@ -4,7 +4,7 @@ import {
   normalizeEmailAddress,
   type AuthSessionPort,
   type MfaLoginPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
@@ -28,7 +28,7 @@ import type { AuditPort } from '../../../kernel/ports/audit.js';
  * now named where they belong rather than in `auth`'s directory. Sessions come
  * over {@link AuthSessionPort}, so a session is minted or destroyed through the
  * surface `auth` publishes and never through its `Session` entity. The MFA seam
- * is `auth`'s *shape* implemented by `mfa`, published in `@b2b/contracts` so
+ * is `auth`'s *shape* implemented by `mfa`, published in `@endora-commerce/contracts` so
  * this service depends on neither module for it. And the password hash is a
  * pure function that moved to `src/kernel/crypto/`: an operator switching a
  * module off must not make "hash this string" answer 503.

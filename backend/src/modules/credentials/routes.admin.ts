@@ -4,7 +4,7 @@ import {
   CreateConfigurationSchema,
   ERROR_CODES,
   UpdateConfigurationSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { CREDENTIALS_READ_PERMISSION, CREDENTIALS_WRITE_PERMISSION } from './manifest.js';
 import type { CredentialsService } from './services/credentials.service.js';

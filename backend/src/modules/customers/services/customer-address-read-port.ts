@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomerAddressReadPort, CustomerAddressRecord } from '@b2b/contracts';
+import type { CustomerAddressReadPort, CustomerAddressRecord } from '@endora-commerce/contracts';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
 
 /**

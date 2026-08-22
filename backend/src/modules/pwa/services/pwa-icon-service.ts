@@ -2,7 +2,7 @@ import { Readable } from 'node:stream';
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { PWA_ICON_SIZES, type PwaIconPurpose, type PwaIconRendition as PwaIconRenditionDto } from '@b2b/contracts';
+import { PWA_ICON_SIZES, type PwaIconPurpose, type PwaIconRendition as PwaIconRenditionDto } from '@endora-commerce/contracts';
 import { PwaIconRendition } from '../entities/pwa-icon-rendition.entity.js';
 
 /** Thrown when an uploaded icon fails validation (FR-010). */

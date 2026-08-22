@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { CmsSeededBlock } from '@b2b/contracts';
+import type { CmsSeededBlock } from '@endora-commerce/contracts';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import {
   COOKIE_CONSENT_BLOCK_CODE,

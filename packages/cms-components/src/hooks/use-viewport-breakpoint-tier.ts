@@ -1,7 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { tierFromViewportWidth, type BreakpointTier } from '@b2b/page-builder-core';
+import { tierFromViewportWidth, type BreakpointTier } from '@endora-commerce/page-builder-core';
 
 function subscribe(onStoreChange: () => void): () => void {
   if (typeof window === 'undefined') return () => undefined;

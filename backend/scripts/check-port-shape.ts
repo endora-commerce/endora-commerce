@@ -211,7 +211,7 @@ export interface PortNameFinding {
  *
  * **Two-way**: an entry whose port has gained a registration, or whose port no
  * longer exists, fails the check as stale. This is not a queue to add to — a
- * port nobody provides is what `@b2b/contracts` would publish to the outside
+ * port nobody provides is what `@endora-commerce/contracts` would publish to the outside
  * world at F4, so an entry is a decision that has been taken and recorded, not
  * one deferred.
  *
@@ -278,7 +278,7 @@ export interface UnpublishedResolutionFinding {
 export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> = {
   // The two D-94.5 ports, and they are one entry written twice: each is an
   // interface the **owner** declares beside its implementation, deliberately
-  // outside `@b2b/contracts`, because its signature carries the caller's
+  // outside `@endora-commerce/contracts`, because its signature carries the caller's
   // MikroORM `EntityManager` and FR-034 keeps a MikroORM type out of that
   // package. Both are held there by a foreign key rather than by a convention
   // — `credit_limit_reservations_order_fk` and `promotion_usages_order_fk`,
@@ -291,13 +291,13 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
   // either shape today would mean publishing an `EntityManager`.
   'orders:creditLimitService':
     'D-94.5 — `CreditLimitPort` is declared by `credit_limits` beside its ' +
-    'implementation and stays out of `@b2b/contracts` because `reserve` takes the ' +
+    'implementation and stays out of `@endora-commerce/contracts` because `reserve` takes the ' +
     "caller's `EntityManager` (FR-034); `credit_limit_reservations_order_fk` is what " +
     'holds it co-transactional. Retired by F4 package entry points, as the matching ' +
     "`permanent: true` entry in `orders`' cross-module-imports shard says.",
   'orders:promotionUsageFinalizer':
     'D-94.5 — the twin of the entry above and the same shape: `PromotionUsageFinalizer` ' +
-    'is `promotions`\' own interface, kept out of `@b2b/contracts` because ' +
+    'is `promotions`\' own interface, kept out of `@endora-commerce/contracts` because ' +
     '`finalizeUsage` takes the placement transaction, and held there by ' +
     '`promotion_usages_order_fk`. Retired by F4 package entry points.',
   // `catalog`'s remaining edge, and the one the #196 sweep recorded as *two
@@ -313,7 +313,7 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
     'definition *reads* to the published `customFieldDefinitionReadPort`. ' +
     '`CatalogCustomFieldsPort` extends `CustomFieldDefinitionApplyApi`, whose every ' +
     "method takes the caller's `EntityManager` — FR-034 keeps a MikroORM type out of " +
-    '`@b2b/contracts`, and `fk_product_attributes_custom_field_definition` is `on delete ' +
+    '`@endora-commerce/contracts`, and `fk_product_attributes_custom_field_definition` is `on delete ' +
     'restrict` with a `unique` on the same column, so the attribute row and its ' +
     'definition must be written in one transaction and a second one cannot satisfy the ' +
     'key. D-77 ruled the seam permanent for that reason. Retired by F4 package entry ' +

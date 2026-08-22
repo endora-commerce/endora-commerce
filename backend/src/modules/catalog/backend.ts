@@ -1,8 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
-import { ERROR_CODES, type ListingPriceOrderPort, type ListingPricePort } from '@b2b/contracts';
-import type { AuditReferenceRegistryPort } from '@b2b/contracts';
+import { ERROR_CODES, type ListingPriceOrderPort, type ListingPricePort } from '@endora-commerce/contracts';
+import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
 import type {
   AssetReadPort,
   AssetReferenceRegistryPort,
@@ -28,7 +28,7 @@ import type {
   SearchQueryPort,
   LanguageReadPort,
   OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
@@ -143,7 +143,7 @@ export interface CatalogCradle {
    * entry recorded. The read half names the published port now; this half
    * cannot, because `CatalogCustomFieldsPort` extends
    * `CustomFieldDefinitionApplyApi`, whose every method takes the caller's
-   * `EntityManager` (FR-034 keeps a MikroORM type out of `@b2b/contracts`) and
+   * `EntityManager` (FR-034 keeps a MikroORM type out of `@endora-commerce/contracts`) and
    * `fk_product_attributes_custom_field_definition` is what holds it
    * co-transactional (D-77).
    */
@@ -183,7 +183,7 @@ export interface CatalogCradle {
    * Typed as the published contract since feature 075 — an ungated
    * `ctx.di.register` on the owner's side (D-39), so this stays a plain cradle
    * read rather than a `lazyPort`, and the shape crossing the boundary is a
-   * `@b2b/contracts` interface rather than `assets_library`'s class.
+   * `@endora-commerce/contracts` interface rather than `assets_library`'s class.
    */
   readonly assetReferenceRegistry: AssetReferenceRegistryPort;
   /**
@@ -333,7 +333,7 @@ export function registerModule(ctx: ModuleContext): void {
               'customFieldDefinitionReadPort',
             ),
             // The apply seam (D-77): every method takes the caller's
-            // `EntityManager`, so it stays off `@b2b/contracts` and keeps
+            // `EntityManager`, so it stays off `@endora-commerce/contracts` and keeps
             // naming the owner's own registration.
             customFieldsPort: lazyPort<CatalogCradle['customFieldDefinitionService']>(
               ctx,
@@ -422,7 +422,7 @@ export function registerModule(ctx: ModuleContext): void {
   // `product_feeds`' predicate-driven product scan was deliberately unmet here
   // and escalated to the `product_feeds` cut, which ruled it: the module keeps
   // its selection DSL and compiles it to `CatalogProductFilter` — a grammar
-  // narrower than MikroORM, published in `@b2b/contracts` — and this module
+  // narrower than MikroORM, published in `@endora-commerce/contracts` — and this module
   // translates and runs it, with the eligibility floor and the keyset cursor
   // inside `catalogProductFilterPort` rather than in the caller's conjunction.
   // ---------------------------------------------------------------------------

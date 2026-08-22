@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AssetReadPort } from '@b2b/contracts';
+import type { AssetReadPort } from '@endora-commerce/contracts';
 import { GalleryService } from '../../../src/modules/catalog/services/gallery.service.js';
 
 /**

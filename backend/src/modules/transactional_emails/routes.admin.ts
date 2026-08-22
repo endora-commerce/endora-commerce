@@ -12,8 +12,8 @@ import {
   putEmailContentRequestSchema,
   setTransactionalEmailActiveRequestSchema,
   transactionalEmailDetailQuerySchema,
-} from '@b2b/contracts';
-import type { PuckDataTree } from '@b2b/email-components/schema/envelope';
+} from '@endora-commerce/contracts';
+import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
 import type { CommandBus } from '../../commands/index.js';
 import { makeSetTransactionalEmailActiveCommand } from './commands/email-activation.commands.js';
 import type { EmailDefaultsRegistry } from './services/email-defaults-registry.js';

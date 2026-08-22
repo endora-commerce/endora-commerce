@@ -5,7 +5,7 @@ import {
   PromptActionListQuerySchema,
   SubmitPromptRequestSchema,
   type PromptActionRequestDto,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { PROMPT_ACTIONS_USE_PERMISSION } from './manifest.js';
 import type { PromptActionRequest } from './entities/prompt-action-request.entity.js';

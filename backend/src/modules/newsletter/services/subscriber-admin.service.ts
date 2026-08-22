@@ -7,7 +7,7 @@ import {
   type SubscriberListResponse,
   type SubscriberStatus,
   type SubscriberSummary,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';

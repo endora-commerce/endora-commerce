@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type SelectHTMLAttributes } from 'react';
-import type { ResolvedCountry } from '@b2b/contracts';
+import type { ResolvedCountry } from '@endora-commerce/contracts';
 import { useDictionary } from '../DictionaryProvider';
 
 export interface CountryPickerProps

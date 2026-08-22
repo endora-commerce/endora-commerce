@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { defineModuleManifest, type ModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest, type ModuleManifest } from '@endora-commerce/contracts';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import {
   activationDeclarationsFrom,

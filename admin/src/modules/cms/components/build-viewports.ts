@@ -1,6 +1,6 @@
-import type { CmsPageBuilderDescriptor } from '@b2b/contracts';
+import type { CmsPageBuilderDescriptor } from '@endora-commerce/contracts';
 
-/** Mirrors `@b2b/page-builder-core` DEFAULT_BREAKPOINTS without importing the editor bundle. */
+/** Mirrors `@endora-commerce/page-builder-core` DEFAULT_BREAKPOINTS without importing the editor bundle. */
 const DEFAULT_BREAKPOINTS = {
   tabletMin: 768,
   desktopMin: 1024,

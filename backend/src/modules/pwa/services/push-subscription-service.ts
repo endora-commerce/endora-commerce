@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PushSubscriptionInput } from '@b2b/contracts';
+import type { PushSubscriptionInput } from '@endora-commerce/contracts';
 import { PushSubscription } from '../entities/push-subscription.entity.js';
 
 export interface RegisterSubscriptionInput extends PushSubscriptionInput {

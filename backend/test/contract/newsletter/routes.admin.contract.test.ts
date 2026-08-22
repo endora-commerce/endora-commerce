@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { campaignDetailSchema } from '@b2b/contracts';
+import { campaignDetailSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PaymentReadPort } from '@b2b/contracts';
+import type { PaymentReadPort } from '@endora-commerce/contracts';
 import { makeDeletePaymentMethodCommand } from '../../../src/modules/payment_methods/commands/payment-method.commands.js';
 import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
 import { HttpError } from '../../../src/http/error-envelope.js';

@@ -1,6 +1,6 @@
 'use client';
 
-import type { GaTriggerAction } from '@b2b/contracts';
+import type { GaTriggerAction } from '@endora-commerce/contracts';
 import { getGaConfig, trackGaEvent } from './gtag';
 
 type Primitive = string | number | boolean;

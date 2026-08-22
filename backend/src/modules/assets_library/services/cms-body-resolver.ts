@@ -6,7 +6,7 @@
 // CMS-page response can inline ready-to-render URLs alongside the body.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AssetEmbedResolution } from '@b2b/contracts';
+import type { AssetEmbedResolution } from '@endora-commerce/contracts';
 import { Asset } from '../entities/asset.entity.js';
 import type { AssetsLibraryService } from './assets-library.service.js';
 

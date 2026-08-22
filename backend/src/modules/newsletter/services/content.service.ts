@@ -1,10 +1,10 @@
-import { renderEmailHtml } from '@b2b/email-components/render/render-email-html';
-import { renderEmailText } from '@b2b/email-components/render/render-email-text';
-import { renderDirectives } from '@b2b/email-components/directives/directive-engine';
+import { renderEmailHtml } from '@endora-commerce/email-components/render/render-email-html';
+import { renderEmailText } from '@endora-commerce/email-components/render/render-email-text';
+import { renderDirectives } from '@endora-commerce/email-components/directives/directive-engine';
 
 /**
  * Newsletter content rendering (feature 048, research R2/R4). Reuses the shared
- * `@b2b/email-components` renderer + directive engine wholesale, so newsletter
+ * `@endora-commerce/email-components` renderer + directive engine wholesale, so newsletter
  * mail is visually identical to transactional mail. This module owns only the
  * per-recipient variable context and the compose-with-blocks step.
  */

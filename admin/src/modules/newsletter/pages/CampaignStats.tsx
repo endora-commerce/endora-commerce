@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { EChartsOption } from 'echarts';
-import type { CampaignStats as CampaignStatsDto } from '@b2b/contracts';
+import type { CampaignStats as CampaignStatsDto } from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';

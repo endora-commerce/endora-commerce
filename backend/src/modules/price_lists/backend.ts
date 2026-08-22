@@ -9,11 +9,11 @@ import type {
   PriceListAdminPort,
   PriceListReadPort,
   DictionaryReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
-import type { AuditReferenceRegistryPort } from '@b2b/contracts';
+import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
 import { lazyPort } from '../../kernel/index.js';
 import { registerPriceListAuditReferences } from './services/audit-references.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

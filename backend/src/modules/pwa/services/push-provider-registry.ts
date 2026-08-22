@@ -1,4 +1,4 @@
-import type { PushProvider, PushProviderRegistryPort } from '@b2b/contracts';
+import type { PushProvider, PushProviderRegistryPort } from '@endora-commerce/contracts';
 
 /**
  * Provider-agnostic push registry (FR-019). Mirrors the payment/shipping adapter

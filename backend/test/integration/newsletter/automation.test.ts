@@ -8,7 +8,7 @@ import { InMemoryNewsletterProvider } from '../../../src/modules/newsletter/serv
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
 import { NewsletterAutomationRun } from '../../../src/modules/newsletter/entities/newsletter-automation-run.entity.js';
-import type { AutomationStep } from '@b2b/contracts';
+import type { AutomationStep } from '@endora-commerce/contracts';
 
 function tree(text: string): Record<string, unknown> {
   return { root: { props: {} }, content: [{ type: 'EmailText', props: { id: 't', text } }], zones: {} };

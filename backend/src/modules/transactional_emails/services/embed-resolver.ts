@@ -5,8 +5,8 @@
  */
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PuckDataTree } from '@b2b/email-components/schema/envelope';
-import { walkBlockEmbeds, walkTemplateEmbeds } from '@b2b/email-components/tree/walk-embeds';
+import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
+import { walkBlockEmbeds, walkTemplateEmbeds } from '@endora-commerce/email-components/tree/walk-embeds';
 import { EmailBlock } from '../entities/email-block.entity.js';
 import { EmailTemplate } from '../entities/email-template.entity.js';
 import { EmailBlockSalesChannel } from '../entities/email-block-sales-channel.entity.js';

@@ -7,7 +7,7 @@ import {
   GTM_RELAY_ELIGIBLE_EVENTS,
   type GtmRelayEligibleEvent,
   type GtmStorefrontConfig,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Feature 066 — Google Tag Manager.

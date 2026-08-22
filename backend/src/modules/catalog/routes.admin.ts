@@ -33,7 +33,7 @@ import {
   updateProductRequestSchema,
   updateVariantRequestSchema,
   ERROR_CODES,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { CatalogAdminService } from './services/catalog-admin.service.js';
 import type { CatalogBulkUpdateService } from './services/catalog-bulk-update.service.js';
@@ -52,7 +52,7 @@ import type { ProductScopeContextService } from './services/product-scope-contex
 import type { ProductEditorPreferencesService } from './services/product-editor-preferences.service.js';
 import type { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import type { ProductOverridesService } from './services/product-overrides.service.js';
-import { productValueOverridesPatchRequestSchema } from '@b2b/contracts';
+import { productValueOverridesPatchRequestSchema } from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ProductVariant } from './entities/product-variant.entity.js';
 import type { Product } from './entities/product.entity.js';

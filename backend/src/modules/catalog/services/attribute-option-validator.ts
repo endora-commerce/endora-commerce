@@ -4,7 +4,7 @@
  * Pure functions used by the attribute Commands
  * (`catalog/commands/attribute-commands.ts`) to refuse bad input before it
  * reaches the DB. Attribute-key format is enforced at the API boundary by
- * the Zod schemas in `@b2b/contracts`.
+ * the Zod schemas in `@endora-commerce/contracts`.
  */
 
 const OPTION_VALUE_REGEX = /^[a-z0-9_-]{1,200}$/;

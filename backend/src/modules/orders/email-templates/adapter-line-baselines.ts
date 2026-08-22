@@ -1,4 +1,4 @@
-import type { PaymentEmailRendererPort, ShippingEmailRendererPort } from '@b2b/contracts';
+import type { PaymentEmailRendererPort, ShippingEmailRendererPort } from '@endora-commerce/contracts';
 
 /**
  * The order-confirmation e-mail's two adapter lines, for a deployment where the

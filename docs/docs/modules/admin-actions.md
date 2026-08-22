@@ -19,7 +19,7 @@ A module's `manifest.ts` may declare zero or more actions inline alongside its e
 `settings` and `i18n` fields:
 
 ```ts
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 
 export const manifest = defineModuleManifest({
   id: 'catalog',

@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import { describe, expect, it } from 'vitest';
-import type { FieldDefinition } from '@b2b/contracts';
+import type { FieldDefinition } from '@endora-commerce/contracts';
 import {
   buildPersistableValues,
   maskSecrets,

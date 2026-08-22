@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ShipmentUsagePort } from '@b2b/contracts';
+import type { ShipmentUsagePort } from '@endora-commerce/contracts';
 import { Shipment } from '../entities/shipment.entity.js';
 
 /**

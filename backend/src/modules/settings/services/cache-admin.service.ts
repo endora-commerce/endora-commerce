@@ -1,5 +1,5 @@
 import type Redis from 'ioredis';
-import type { CacheNamespaceDto } from '@b2b/contracts';
+import type { CacheNamespaceDto } from '@endora-commerce/contracts';
 import {
   inProcessCaches,
   type InProcessCacheRegistry,

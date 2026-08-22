@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Webhook } from '../entities/webhook.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';

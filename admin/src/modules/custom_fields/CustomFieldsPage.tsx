@@ -24,7 +24,7 @@ import type {
   CustomFieldEntityTypeInfo,
   CustomFieldValueType,
   SupportedEntityType,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /** Pre-API fallback so the page renders before the entity-types fetch resolves. */
 const FALLBACK_ENTITY_TYPES: CustomFieldEntityTypeInfo[] = (

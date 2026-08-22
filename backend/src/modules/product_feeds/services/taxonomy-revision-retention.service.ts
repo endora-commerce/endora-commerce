@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { TaxonomyProviderCode } from '@b2b/contracts';
+import type { TaxonomyProviderCode } from '@endora-commerce/contracts';
 import { FeedTaxonomy } from '../entities/feed-taxonomy.entity.js';
 
 /**

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { CartSnapshot } from '@b2b/contracts';
+import type { CartSnapshot } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

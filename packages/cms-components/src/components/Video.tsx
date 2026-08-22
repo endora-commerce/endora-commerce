@@ -6,9 +6,9 @@ import {
   resolveResponsive,
   resolveResponsiveNumber,
   withHideOn,
-} from '@b2b/page-builder-core';
-import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
-import type { BreakpointTier } from '@b2b/page-builder-core';
+} from '@endora-commerce/page-builder-core';
+import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
+import type { BreakpointTier } from '@endora-commerce/page-builder-core';
 import type { VideoProps } from '../schema/component-types.js';
 import { useViewportBreakpointTier } from '../hooks/use-viewport-breakpoint-tier.js';
 import { BoxStyled } from './box-styles.js';

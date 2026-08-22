@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CreateProductRequest } from '@b2b/contracts';
+import type { CreateProductRequest } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

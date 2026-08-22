@@ -12,7 +12,7 @@ import { useTranslation } from '@/i18n/useTranslation';
  */
 export const SELLER_COMPANY_DATA_CODE = 'invoices.seller.company_data';
 
-/** Ordered field list mirroring `sellerCompanyDataSchema` in @b2b/contracts. */
+/** Ordered field list mirroring `sellerCompanyDataSchema` in @endora-commerce/contracts. */
 const FIELDS = [
   'legalName',
   'addressLine1',

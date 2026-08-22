@@ -7,7 +7,7 @@ import {
   type SearchWarehousesParams,
   type SetStockLevelParams,
   type ToolContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import type { EventBus } from '../../events/bus.js';

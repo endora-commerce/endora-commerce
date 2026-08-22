@@ -1,9 +1,9 @@
 {
-  "name": "@b2b/api-client",
+  "name": "@endora-commerce/api-client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Typed HTTP client shared by storefront and admin. Re-exports Zod-inferred types from @b2b/contracts so both frontends stay in lockstep with the backend surface.",
+  "description": "Typed HTTP client shared by storefront and admin. Re-exports Zod-inferred types from @endora-commerce/contracts so both frontends stay in lockstep with the backend surface.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -25,7 +25,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@b2b/contracts": "workspace:*",
+    "@endora-commerce/contracts": "workspace:*",
     "zod": "^4.2.0"
   },
   "devDependencies": {

@@ -1,13 +1,13 @@
 import { Migration } from '@mikro-orm/migrations';
-import { defaultHeaderTree } from '@b2b/email-components/defaults/default-header';
+import { defaultHeaderTree } from '@endora-commerce/email-components/defaults/default-header';
 import {
   defaultFooterTree,
   envelopeFromTree,
-} from '@b2b/email-components/defaults/default-footer';
+} from '@endora-commerce/email-components/defaults/default-footer';
 
 /**
  * Reseed shared system header/footer block trees (TE + newsletter) from the
- * current `@b2b/email-components` defaults, and clear admin transactional email
+ * current `@endora-commerce/email-components` defaults, and clear admin transactional email
  * content overrides so boot reconcile + Reset land on the new simple layouts.
  *
  * Newsletter campaign bodies are left untouched — only the system default

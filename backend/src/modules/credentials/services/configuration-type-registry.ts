@@ -1,8 +1,8 @@
 import type {
   ConfigurationTypeDescriptor,
   ConfigurationTypeRegistryPort,
-} from '@b2b/contracts';
-import { ERROR_CODES } from '@b2b/contracts';
+} from '@endora-commerce/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /**

@@ -63,10 +63,10 @@ Membership add / remove operations are idempotent by construction and do not bum
 
 ## Audit hooks
 
-Every identity change, lifecycle change, and membership change writes one `audit_log_entries` row synchronously inside the same transaction. Action codes live in `@b2b/contracts`:
+Every identity change, lifecycle change, and membership change writes one `audit_log_entries` row synchronously inside the same transaction. Action codes live in `@endora-commerce/contracts`:
 
 ```ts
-import { SALES_CHANNEL_AUDIT_ACTIONS } from '@b2b/contracts';
+import { SALES_CHANNEL_AUDIT_ACTIONS } from '@endora-commerce/contracts';
 
 await auditLogService.record({
   action: SALES_CHANNEL_AUDIT_ACTIONS.IDENTITY_CHANGED,

@@ -19,7 +19,7 @@ import {
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type CustomerRolePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import { HttpError } from '../../http/error-envelope.js';
 import { getTenantContext } from '../../tenancy/tenant-context.js';
@@ -297,7 +297,7 @@ export async function registerOrganizationsAdminRoutes(
         } catch (err) {
           // Narrowed structurally rather than by `instanceof`: the constructor
           // is a file in `custom_fields`' directory, and the guard is what
-          // `@b2b/contracts` publishes in its place. `customFieldValueService`
+          // `@endora-commerce/contracts` publishes in its place. `customFieldValueService`
           // is a gated port, so this re-throws anything that is not the
           // validation failure — a `ModuleDisabledError` included.
           if (isCustomFieldValidationFailure(err)) {

@@ -21,7 +21,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync,
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import {
   collectModuleCommands,
   helpFor,

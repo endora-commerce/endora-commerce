@@ -2,7 +2,7 @@ import type {
   AttributeValueType,
   ComparisonAttributeRow,
   ComparisonRowClass,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * The slice of the catalog's composed `CatalogAttributeView` this projection

@@ -36,8 +36,8 @@
  * is always the declaring module's, and a port the body resolves is gated by
  * its own owner's `providePort`.
  */
-import type { ModuleCliCommand, ModuleManifest } from '@b2b/contracts';
-import { MODULE_CLI_COMMAND_NAME_RE } from '@b2b/contracts';
+import type { ModuleCliCommand, ModuleManifest } from '@endora-commerce/contracts';
+import { MODULE_CLI_COMMAND_NAME_RE } from '@endora-commerce/contracts';
 import { requireModuleEnabled } from '../kernel/lifecycle/plugin-helpers.js';
 import type { ModuleContext } from '../kernel/module-context.js';
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { DictionaryEntryType, DictionaryLanguage, DictionaryTranslation } from '@b2b/contracts';
+import type { DictionaryEntryType, DictionaryLanguage, DictionaryTranslation } from '@endora-commerce/contracts';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';

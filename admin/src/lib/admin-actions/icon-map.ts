@@ -35,7 +35,7 @@ import {
   Video,
   type LucideIcon,
 } from 'lucide-react';
-import type { KnownIconName } from '@b2b/contracts';
+import type { KnownIconName } from '@endora-commerce/contracts';
 
 /**
  * Map from the closed allowlist of icon names declared in

@@ -9,7 +9,7 @@ import type {
   CatalogProductReadPort,
   LinePricePort,
   OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * T021 (feature 027) — CartPricingRecompute helper.

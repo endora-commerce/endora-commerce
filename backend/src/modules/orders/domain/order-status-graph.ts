@@ -19,7 +19,7 @@ import {
   ORDER_STATUS_CANCELLED,
   ORDER_STATUS_INITIAL,
   ORDER_STATUS_ON_HOLD,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 export interface OrderStatusDef {
   code: string;
@@ -59,7 +59,7 @@ export interface OrderTransitionDef {
 }
 
 /**
- * The three spellings moved to `@b2b/contracts` in feature 075's Phase P —
+ * The three spellings moved to `@endora-commerce/contracts` in feature 075's Phase P —
  * `payments` compares an order's status against the first of them, and a
  * constant is not port material (FR-013). Re-exported here so this file's own
  * graph logic and the consumers Phase C has not reached keep resolving them.

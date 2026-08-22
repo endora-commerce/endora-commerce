@@ -10,7 +10,7 @@ import {
   type CustomerAccountRecord,
   type CustomerAccountStandaloneCreateInput,
   type CustomerAccountWriteRequestMeta,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { Command, CommandBus } from '../../../commands/index.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';

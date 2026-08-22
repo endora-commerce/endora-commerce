@@ -8,7 +8,7 @@ import type {
   GetBundlesResponse,
   SupportedAdminLanguage,
   TranslationBundleEntries,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 export type {
   GetBundlesResponse,

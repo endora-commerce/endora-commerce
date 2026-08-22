@@ -4,7 +4,7 @@ import type {
   ReceivePaymentContext,
   PaymentOutcome,
   StartPaymentResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Built-in payment adapters (feature 034). These formalise the pre-existing

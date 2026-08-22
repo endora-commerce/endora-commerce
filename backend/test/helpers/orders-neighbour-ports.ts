@@ -9,8 +9,8 @@ import type {
   InventoryStockReadPort,
   OrganizationDetailsPort,
   PaymentMethodReadPort,
-} from '@b2b/contracts';
-import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@b2b/contracts';
+} from '@endora-commerce/contracts';
+import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@endora-commerce/contracts';
 import { CustomerAccountReadService } from '../../src/modules/customer_accounts/services/customer-account-ports.js';
 import { OrganizationDetailsService } from '../../src/modules/organizations/services/organization-details-port.js';
 import { CatalogProductReadService } from '../../src/modules/catalog/services/catalog-product-read.service.js';

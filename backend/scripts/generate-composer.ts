@@ -527,7 +527,7 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
 // because every other module's settings fall back to its \`general\` group), and
 // everything else topo-sorts or set-ifies.
 
-import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
+import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
 
 ${imports}
 

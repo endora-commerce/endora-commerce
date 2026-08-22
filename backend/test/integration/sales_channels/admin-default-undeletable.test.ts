@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { SalesChannelAttributionRegistry } from '../../../src/modules/sales_channels/services/sales-channel-attribution-registry.js';

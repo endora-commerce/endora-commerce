@@ -4,7 +4,7 @@ import {
   catalogBulkPriceRequestSchema,
   ERROR_CODES,
   type ProductAudience,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import { productAudienceOf } from '../../http/product-audience.js';

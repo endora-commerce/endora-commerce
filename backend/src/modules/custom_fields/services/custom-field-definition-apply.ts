@@ -4,7 +4,7 @@ import type {
   CustomFieldOptionDto,
   SupportedEntityType,
   UpdateCustomFieldDefinitionRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { CustomFieldDefinition } from '../entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../entities/custom-field-option.entity.js';
 import { isSupportedEntityType } from './custom-field-registry.js';

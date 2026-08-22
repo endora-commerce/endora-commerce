@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ResolvedMenuItem } from '@b2b/contracts';
+import type { ResolvedMenuItem } from '@endora-commerce/contracts';
 import { MenuAsset } from './MenuAsset';
 import { MenuButton } from './MenuButton';
 import { MenuCmsBlockEmbed } from './MenuCmsBlockEmbed';

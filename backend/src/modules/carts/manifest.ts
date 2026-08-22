@@ -2,7 +2,7 @@ import {
   defineModuleManifest,
   defineModuleSettingsManifest,
   type ModuleCliCommand,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/module-context.js';
 
 /**

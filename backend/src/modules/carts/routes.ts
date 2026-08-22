@@ -10,7 +10,7 @@ import {
   OrganizationCannotTransactError,
   type CatalogProductReadPort,
   type PromotionApplication,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CartService } from './services/cart-service.js';
 import type { CartUpsellService } from './services/cart-upsell-service.js';
 import type { CartCouponService } from './services/cart-coupon-service.js';

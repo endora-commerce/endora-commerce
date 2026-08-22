@@ -6,7 +6,7 @@ import type {
   PromptActionPlan,
   PromptActionResult,
   PromptActionStatus,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * PromptActionRequest — feature 043 / data-model §1–§2.

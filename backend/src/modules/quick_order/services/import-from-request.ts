@@ -1,4 +1,4 @@
-import type { QuickOrderImportRequest } from '@b2b/contracts';
+import type { QuickOrderImportRequest } from '@endora-commerce/contracts';
 import { parseCsvRows, type ParseOutcome } from './import-rows.js';
 import { parseXlsxRows } from './excel-importer.js';
 

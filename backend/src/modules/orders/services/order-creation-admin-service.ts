@@ -4,12 +4,12 @@ import {
   type AddressServicePort,
   type CartWritePort,
   type CustomerAccountReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { Order } from '../entities/order.entity.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
 import type { OrderService } from './order-service.js';
-import type { EmailMailerPort, TransactionalEmailSender } from '@b2b/contracts';
+import type { EmailMailerPort, TransactionalEmailSender } from '@endora-commerce/contracts';
 import { buildAdminCreatedOrderEmail } from '../email-templates/admin-created-order.js';
 import {
   orderEmailNotSent,

@@ -13,7 +13,7 @@ import {
   type CustomerAuthPort,
   type CustomerPasswordStatePort,
   type CustomerRolePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';

@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
-import type { ReturnCaseCommentDto } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import type { ReturnCaseCommentDto } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseComment } from '../entities/return-case-comment.entity.js';

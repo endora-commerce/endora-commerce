@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { getCurrentPlatformScope } from '../scope.js';
 import type { CachedChannel } from './sales-channels-cache.js';

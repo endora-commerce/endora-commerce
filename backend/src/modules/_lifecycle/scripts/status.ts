@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import Redis from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleListItem } from '@b2b/contracts';
+import type { ModuleListItem } from '@endora-commerce/contracts';
 import { initOrm, closeOrm } from '../../../db/index.js';
 import { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ModuleLifecycleOrchestrator } from '../services/orchestrator.js';

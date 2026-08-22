@@ -3,7 +3,7 @@ import {
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 

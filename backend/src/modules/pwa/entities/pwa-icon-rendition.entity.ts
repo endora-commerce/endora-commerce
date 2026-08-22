@@ -1,7 +1,7 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
-import type { PwaIconPurpose } from '@b2b/contracts';
+import type { PwaIconPurpose } from '@endora-commerce/contracts';
 
 /**
  * PwaIconRendition (feature 046, US2). A derived icon size for a channel's PWA

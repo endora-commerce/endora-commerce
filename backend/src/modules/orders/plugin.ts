@@ -5,7 +5,7 @@ import type { CommandBus } from '../../commands/index.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import type Redis from 'ioredis';
-import type { EmailMailerPort } from '@b2b/contracts';
+import type { EmailMailerPort } from '@endora-commerce/contracts';
 import {
   OrderService,
   type OrderEventBus,
@@ -52,7 +52,7 @@ import type {
   PromotionApplyPort,
   RfqCustomerPort,
   ShippingAdapterRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerOrderRoutes } from './routes.js';
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
@@ -89,7 +89,7 @@ export interface OrdersModuleOptions {
    * confirmation is rendered from the admin-editable template instead of the
    * in-code builder.
    */
-  getTransactionalEmailSender?: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
+  getTransactionalEmailSender?: () => import('@endora-commerce/contracts').TransactionalEmailSender | undefined;
   /** Optional CreditLimit driver — wired by the credit_limits module composition root. */
   creditLimit?: CreditLimitPort;
   /**
@@ -231,7 +231,7 @@ export interface OrdersModuleOptions {
    * The redemption row placement writes on its own `EntityManager` (D-94.5).
    * A separate name because it is a separate port: `promotions` declares the
    * interface, because the signature carries a MikroORM type that FR-034 keeps
-   * out of `@b2b/contracts`.
+   * out of `@endora-commerce/contracts`.
    */
   promotionUsageFinalizer?: PromotionUsageFinalizer;
   /**

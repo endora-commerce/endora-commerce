@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditPort } from '../ports/audit.js';
-import { SALES_CHANNEL_AUDIT_ACTIONS } from '@b2b/contracts';
+import { SALES_CHANNEL_AUDIT_ACTIONS } from '@endora-commerce/contracts';
 import { SalesChannel } from './sales-channel.entity.js';
 
 /**

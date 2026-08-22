@@ -5,7 +5,7 @@ import type {
   ComparisonAdminListQuery,
   CustomerAccountReadPort,
   CustomerAccountRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Comparison } from '../entities/comparison.entity.js';
 import {

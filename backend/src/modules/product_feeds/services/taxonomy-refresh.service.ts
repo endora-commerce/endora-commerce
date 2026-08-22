@@ -6,7 +6,7 @@ import {
   type FeedTaxonomyCheckTrigger,
   type FeedTaxonomyRevisionFlag,
   type TaxonomyProviderCode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { FeedTaxonomy } from '../entities/feed-taxonomy.entity.js';
 import { FeedTaxonomyCheck } from '../entities/feed-taxonomy-check.entity.js';
 import { FeedTaxonomyNode } from '../entities/feed-taxonomy-node.entity.js';

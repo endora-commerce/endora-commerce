@@ -12,7 +12,7 @@ places:
 1. **The live OpenAPI document** at `GET /api/v1/_openapi.json`
    (HTML viewer at `GET /api/v1/_docs`). This is the **source of truth**
    for the runtime — generated at startup from the Zod schemas in
-   `@b2b/contracts` that Fastify itself validates against, so it cannot
+   `@endora-commerce/contracts` that Fastify itself validates against, so it cannot
    drift from the running server.
 2. **Per-domain contract stubs** in
    [`specs/001-b2b-platform-foundation/contracts/`](https://github.com/)

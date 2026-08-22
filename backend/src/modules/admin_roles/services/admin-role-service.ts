@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
-import { ERROR_CODES, type AdminUserReadPort } from '@b2b/contracts';
+import { ERROR_CODES, type AdminUserReadPort } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';

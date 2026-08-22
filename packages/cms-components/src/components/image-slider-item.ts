@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { CORNER_RADIUS_PX } from '@b2b/page-builder-core';
+import { CORNER_RADIUS_PX } from '@endora-commerce/page-builder-core';
 import type { ImageSliderItem } from '../schema/component-types.js';
 
 /** Flatten nested `image` onto top-level fields used by resolveImageUrl. */

@@ -13,7 +13,7 @@
 // Emails that are not naturally sales-channel-scoped resolve against the
 // system-default channel; global template editing still applies.
 
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type { TransactionalEmailSender } from '@endora-commerce/contracts';
 
 export interface TemplateEmailDeps {
   getSender?: () => TransactionalEmailSender | undefined;

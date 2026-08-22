@@ -12,7 +12,7 @@ import {
   type PromotionApplication,
   type PromotionApplyPort,
   type StartPaymentResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import {
@@ -79,7 +79,7 @@ import { StockAllocation } from '../../inventory/entities/stock-allocation.entit
  * The two em-carrying interfaces their owners write (D-94.5).
  *
  * Both name a MikroORM `EntityManager`, so neither can live in
- * `@b2b/contracts` (FR-034) — and both are held co-transactional by a foreign
+ * `@endora-commerce/contracts` (FR-034) — and both are held co-transactional by a foreign
  * key into `orders` (`promotion_usages_order_fk`,
  * `credit_limit_reservations_order_fk`). `orders` declared both itself until
  * D-94.5, which meant `lazyPort<T>`'s unchecked cast had nothing to check the
@@ -110,7 +110,7 @@ import type {
   PaymentMethodRecord,
   ShippingAdapterRegistryPort,
   TransactionalEmailSender,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   buildOrderConfirmationEmail,
   buildOrderConfirmationVariables,
@@ -268,7 +268,7 @@ export class OrderService {
    * The redemption row, written on the placement `EntityManager` (D-94.5).
    *
    * A separate name from `promotion` because it is a separate port: the
-   * em-carrying half cannot live in `@b2b/contracts` (FR-034), so `promotions`
+   * em-carrying half cannot live in `@endora-commerce/contracts` (FR-034), so `promotions`
    * declares it beside its implementation and this module imports the type.
    */
   private readonly promotionUsageFinalizer: PromotionUsageFinalizer | undefined;

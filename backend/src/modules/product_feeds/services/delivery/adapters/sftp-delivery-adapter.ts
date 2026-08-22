@@ -1,5 +1,5 @@
 import SftpClient from 'ssh2-sftp-client';
-import { FEED_DELIVERY_LIMITS, type FeedDeliveryProtocol } from '@b2b/contracts';
+import { FEED_DELIVERY_LIMITS, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import {
   FeedDeliveryError,
   normalisePath,

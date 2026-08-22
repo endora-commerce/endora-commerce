@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@b2b/contracts';
+import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { GetAdminActionsResponse, ModulePresence } from '@b2b/contracts';
+import type { GetAdminActionsResponse, ModulePresence } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { AdminActionsProvider } from '../../src/lib/admin-actions/AdminActionsProvider';
 

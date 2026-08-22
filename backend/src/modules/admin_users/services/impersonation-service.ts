@@ -4,7 +4,7 @@ import {
   type AuthSessionPort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';

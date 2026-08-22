@@ -3,7 +3,7 @@
 // It is deliberately a plain object rather than a `defineModuleManifest(...)`
 // call: the root export of a published module package must be isomorphic and
 // carry no runtime dependency (071 `contracts/module-manifest.md`), and a
-// third-party author has no `@b2b/contracts` to import at runtime — and not
+// third-party author has no `@endora-commerce/contracts` to import at runtime — and not
 // even as a type, because a type import resolves through this repository's
 // `paths` and drags the contracts sources into the package's own build. The
 // built artefact therefore names nothing from this repository, which the runner

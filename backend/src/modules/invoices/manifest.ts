@@ -1,4 +1,4 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
 
 /**
  * Invoices module — manifest (feature 047-invoices-module).

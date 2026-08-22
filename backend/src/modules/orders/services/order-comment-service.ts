@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
 import { Order } from '../entities/order.entity.js';
@@ -7,7 +7,7 @@ import type {
   CustomerAccountReadPort,
   EmailMailerPort,
   TransactionalEmailSender,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import { buildOrderCommentNotificationEmail } from '../email-templates/order-comment-notification.js';
 import {

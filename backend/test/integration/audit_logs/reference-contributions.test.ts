@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { AuditReferenceRegistryPort } from '@b2b/contracts';
+import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

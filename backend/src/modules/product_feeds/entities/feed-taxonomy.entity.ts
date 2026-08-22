@@ -4,7 +4,7 @@ import type {
   FeedTaxonomyRevisionFlag,
   FeedTaxonomyRevisionSource,
   TaxonomyProviderCode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**

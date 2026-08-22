@@ -3,7 +3,7 @@ import {
   isPriceSort,
   productListQuerySchema,
   productListSortSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Feature 086 — the contract change, asserted where the contract is

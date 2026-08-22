@@ -5,7 +5,7 @@ import {
   type BulkProgressSnapshot,
   type ToolAuditContext,
   type ToolContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { PromptActionRequest } from '../entities/prompt-action-request.entity.js';

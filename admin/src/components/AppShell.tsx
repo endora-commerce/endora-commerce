@@ -70,7 +70,7 @@ import { resolveIcon } from '@/lib/admin-actions/icon-map';
 import { getPromptCapability, listUnseenPromptRequests } from '@/lib/prompt-actions/api';
 import { PromptModePanel } from './prompt-actions/PromptModePanel';
 import { SpeechToTextButton } from './SpeechToTextButton';
-import type { PromptActionRequestDto } from '@b2b/contracts';
+import type { PromptActionRequestDto } from '@endora-commerce/contracts';
 
 interface NavItem extends GatedSurface {
   to: string;

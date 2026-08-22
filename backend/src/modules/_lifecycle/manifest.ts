@@ -1,4 +1,4 @@
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 
 /**
  * Bootstrap manifest for the lifecycle subsystem itself. Carries no

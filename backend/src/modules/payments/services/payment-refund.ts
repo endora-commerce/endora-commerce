@@ -5,7 +5,7 @@ import type {
   PaymentRefundInput,
   PaymentRefundPort,
   PaymentRefundResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { gatewayRefundRegistry } from './registry-singleton.js';
 

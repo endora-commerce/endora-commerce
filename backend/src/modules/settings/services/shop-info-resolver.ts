@@ -1,4 +1,4 @@
-import type { ShopInfo } from '@b2b/contracts';
+import type { ShopInfo } from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 /**

@@ -7,7 +7,7 @@ import {
   type InvoiceKind,
   type OrderReadPort,
   type VatSummaryRow,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
 import { isOrgInScope } from '../../../tenancy/derived-scope.js';

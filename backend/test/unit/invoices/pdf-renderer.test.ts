@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { InvoicePdfRenderer } from '../../../src/modules/invoices/services/invoice-pdf-renderer.js';
-import type { InvoiceDetail } from '@b2b/contracts';
+import type { InvoiceDetail } from '@endora-commerce/contracts';
 
 const detail: InvoiceDetail = {
   id: '00000000-0000-4000-8000-000000000001',

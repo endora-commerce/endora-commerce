@@ -1,4 +1,4 @@
-import type { ModuleManifest, ModuleSettingsManifest } from '@b2b/contracts';
+import type { ModuleManifest, ModuleSettingsManifest } from '@endora-commerce/contracts';
 import { settingsManifest as settingsModuleManifest } from '../manifest.js';
 
 /** The one property of a registry entry this derivation reads. */

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { ConfigurationDto } from '@b2b/contracts';
+import type { ConfigurationDto } from '@endora-commerce/contracts';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';

@@ -7,7 +7,7 @@ import {
   resubmitQuoteRequestSchema,
   ERROR_CODES,
   OrganizationCannotTransactError,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { RfqService, CustomerContext } from './services/rfq-service.js';
 import { HttpError } from '../../http/error-envelope.js';
 

@@ -1,6 +1,6 @@
 import { asValue } from 'awilix';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GOOGLE_TAG_MANAGER_SETTING_CODES } from '@b2b/contracts';
+import { GOOGLE_TAG_MANAGER_SETTING_CODES } from '@endora-commerce/contracts';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import {
   createModuleContext,

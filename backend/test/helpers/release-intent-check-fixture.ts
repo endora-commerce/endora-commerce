@@ -28,7 +28,7 @@ export type FileMap = Readonly<Record<string, string | null>>;
  * It is deliberately *not* a copy of this repository's five packages — a red
  * proof that mutated the real names would read as a claim about them, and the
  * rule under test is about the shape of the workspace rather than about
- * `@b2b/*`. The scope is a second one on purpose: `@fx/` is what
+ * `@endora-commerce/*`. The scope is a second one on purpose: `@fx/` is what
  * `@endora-commerce/` will be.
  */
 export const DEFAULT_CHECKOUT: FileMap = {

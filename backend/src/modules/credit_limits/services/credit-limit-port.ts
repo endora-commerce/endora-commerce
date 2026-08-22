@@ -10,7 +10,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
  * declaration lives here now, beside `CreditLimitService`, and `orders`
  * imports it as a type.
  *
- * It stays **out of `@b2b/contracts`**: `reserve` takes the caller's MikroORM
+ * It stays **out of `@endora-commerce/contracts`**: `reserve` takes the caller's MikroORM
  * `EntityManager`, and FR-034 forbids a MikroORM type there. That is the seam
  * rather than a defect in it. `reserve` holds a `PESSIMISTIC_WRITE` on the
  * organization's `credit_limits` row — or the owning ancestor's, taken with

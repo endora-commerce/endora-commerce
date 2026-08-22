@@ -1,4 +1,4 @@
-import type { ModuleListResponse } from '@b2b/contracts';
+import type { ModuleListResponse } from '@endora-commerce/contracts';
 import { apiClient } from '@/lib/api-client';
 
 /**

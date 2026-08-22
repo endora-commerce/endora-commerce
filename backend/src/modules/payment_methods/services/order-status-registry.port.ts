@@ -2,7 +2,7 @@ import {
   orderStatusSchema,
   type OrderStatusOption,
   type OrderStatusRegistry,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * OrderStatusRegistry port (feature 034 — research.md R2).
@@ -18,7 +18,7 @@ import {
  * to an order is done by the caller, which already owns the Order. This keeps
  * the module isolated (constitution Principle I).
  *
- * The interface moved to `@b2b/contracts` in feature 075's Phase P — `orders`
+ * The interface moved to `@endora-commerce/contracts` in feature 075's Phase P — `orders`
  * and `payments` both read it. Re-exported here for the length of Phase P,
  * which cuts no consumer; the implementation below now `implements` the
  * published type, which is what keeps the two from drifting.

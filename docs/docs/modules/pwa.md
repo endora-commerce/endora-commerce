@@ -43,7 +43,7 @@ Sales Channel via the standard global + override chain:
 
 ### Push abstraction
 
-`PushProvider` (in `@b2b/contracts`) is the swappable delivery seam. The default
+`PushProvider` (in `@endora-commerce/contracts`) is the swappable delivery seam. The default
 `WebPushProvider` sends standard Web-Push signed with VAPID via the `web-push`
 library (on Chrome the endpoints ride Google's free FCM). A token-based
 `FcmProvider` (`firebase-admin`) and `OneSignalProvider` are drop-in extension

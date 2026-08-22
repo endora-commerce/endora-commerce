@@ -1,4 +1,4 @@
-import type { ShipmentStatus } from '@b2b/contracts';
+import type { ShipmentStatus } from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 
 /**

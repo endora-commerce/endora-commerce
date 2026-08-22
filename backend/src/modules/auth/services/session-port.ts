@@ -5,7 +5,7 @@ import type {
   AuthSessionPort,
   AuthSessionReadPort,
   AuthSessionRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Session } from '../entities/session.entity.js';
 import type { SessionService } from './session-service.js';
 

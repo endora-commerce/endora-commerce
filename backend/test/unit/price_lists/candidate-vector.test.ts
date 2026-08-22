@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ApplicationRule, PriceListResolutionContext } from '@b2b/contracts';
-import { evaluateApplicationRule } from '@b2b/contracts';
+import type { ApplicationRule, PriceListResolutionContext } from '@endora-commerce/contracts';
+import { evaluateApplicationRule } from '@endora-commerce/contracts';
 import {
   buildCandidateVector,
   MAX_CATEGORY_CRITERIA_PER_RULE,

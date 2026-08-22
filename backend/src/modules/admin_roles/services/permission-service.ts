@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AdminUserReadPort } from '@b2b/contracts';
+import type { AdminUserReadPort } from '@endora-commerce/contracts';
 import { AdminRole } from '../entities/admin-role.entity.js';
 
 /**

@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type AddressReadPort, type AddressRecord } from '@b2b/contracts';
+import { ERROR_CODES, type AddressReadPort, type AddressRecord } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';

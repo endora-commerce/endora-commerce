@@ -24,7 +24,7 @@ import { afterEach, describe, expect, it } from 'vitest';
  *   2. **`linked` links through the *dependent-bump* machinery and not
  *      otherwise.** It raises a package that is already in a release to the
  *      group's number; it never adds one. So the documented behaviour — a
- *      release of `@b2b/page-builder-core` carries all three — holds today
+ *      release of `@endora-commerce/page-builder-core` carries all three — holds today
  *      because every package sits at `0.0.0`, where `workspace:^` resolves to
  *      `^0.0.0` and *any* bump is out of range. At `1.x` the same minor leaves
  *      the peers satisfied, so it carries neither. Both regimes are asserted,
@@ -54,9 +54,9 @@ const LIBRARIES = [
 ] as const;
 const APPLICATIONS = ['backend', 'admin', 'storefront', 'docs'] as const;
 const PAGE_BUILDER_GROUP = [
-  '@b2b/page-builder-core',
-  '@b2b/cms-components',
-  '@b2b/email-components',
+  '@endora-commerce/page-builder-core',
+  '@endora-commerce/cms-components',
+  '@endora-commerce/email-components',
 ] as const;
 
 let workspace: string | undefined;
@@ -131,12 +131,12 @@ function versionOf(dir: string, library: string): string {
   ).version;
 }
 
-/** `@b2b/<x>` → its version, for the three the group covers. */
+/** `@endora-commerce/<x>` → its version, for the three the group covers. */
 function groupVersions(dir: string): Readonly<Record<string, string>> {
   return {
-    '@b2b/page-builder-core': versionOf(dir, 'page-builder-core'),
-    '@b2b/cms-components': versionOf(dir, 'cms-components'),
-    '@b2b/email-components': versionOf(dir, 'email-components'),
+    '@endora-commerce/page-builder-core': versionOf(dir, 'page-builder-core'),
+    '@endora-commerce/cms-components': versionOf(dir, 'cms-components'),
+    '@endora-commerce/email-components': versionOf(dir, 'email-components'),
   };
 }
 
@@ -164,7 +164,7 @@ describe('privatePackages.version — the setting that silently disables everyth
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
       },
-      files: { '.changeset/a.md': changeset('@b2b/contracts', 'minor') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
     });
     const before = versionOf(dir, 'contracts');
 
@@ -180,7 +180,7 @@ describe('privatePackages.version — the setting that silently disables everyth
       mutateConfig: (config) => {
         delete config['privatePackages'];
       },
-      files: { '.changeset/a.md': changeset('@b2b/contracts', 'minor') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
     });
     const before = versionOf(dir, 'contracts');
 
@@ -194,7 +194,7 @@ describe('privatePackages.version — the setting that silently disables everyth
    * not evidence of a setting unless the same tree bumps with the setting on.
    */
   it('bumps and consumes the changeset with the repository’s real configuration', () => {
-    const dir = fixture({ files: { '.changeset/a.md': changeset('@b2b/contracts', 'minor') } });
+    const dir = fixture({ files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') } });
     const before = versionOf(dir, 'contracts');
 
     expect(runChangeset(dir, ['version']).status).toBe(0);
@@ -204,8 +204,8 @@ describe('privatePackages.version — the setting that silently disables everyth
   });
 
   /** `updateInternalDependencies: "patch"` — independent numbers, carried together. */
-  it('carries `@b2b/api-client` on a `@b2b/contracts` release without sharing its number', () => {
-    const dir = fixture({ files: { '.changeset/a.md': changeset('@b2b/contracts', 'minor') } });
+  it('carries `@endora-commerce/api-client` on a `@endora-commerce/contracts` release without sharing its number', () => {
+    const dir = fixture({ files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') } });
 
     runChangeset(dir, ['version']);
 
@@ -218,31 +218,31 @@ describe('the `linked` group — what it does, and what it does not', () => {
   /**
    * D-108's documented behaviour, at the versions the tree carries today.
    */
-  it('carries all three on a minor to `@b2b/page-builder-core`, at 0.0.0', () => {
+  it('carries all three on a minor to `@endora-commerce/page-builder-core`, at 0.0.0', () => {
     const dir = fixture({
-      files: { '.changeset/a.md': changeset('@b2b/page-builder-core', 'minor') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/page-builder-core', 'minor') },
     });
 
     runChangeset(dir, ['version']);
 
     expect(groupVersions(dir)).toEqual({
-      '@b2b/page-builder-core': '0.1.0',
-      '@b2b/cms-components': '0.1.0',
-      '@b2b/email-components': '0.1.0',
+      '@endora-commerce/page-builder-core': '0.1.0',
+      '@endora-commerce/cms-components': '0.1.0',
+      '@endora-commerce/email-components': '0.1.0',
     });
   });
 
-  it('moves only `@b2b/cms-components` on a patch to it alone', () => {
+  it('moves only `@endora-commerce/cms-components` on a patch to it alone', () => {
     const dir = fixture({
-      files: { '.changeset/a.md': changeset('@b2b/cms-components', 'patch') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/cms-components', 'patch') },
     });
 
     runChangeset(dir, ['version']);
 
     expect(groupVersions(dir)).toEqual({
-      '@b2b/page-builder-core': '0.0.0',
-      '@b2b/cms-components': '0.0.1',
-      '@b2b/email-components': '0.0.0',
+      '@endora-commerce/page-builder-core': '0.0.0',
+      '@endora-commerce/cms-components': '0.0.1',
+      '@endora-commerce/email-components': '0.0.0',
     });
   });
 
@@ -263,18 +263,18 @@ describe('the `linked` group — what it does, and what it does not', () => {
    * asserted here so that the day it happens it is a recorded decision and not
    * a surprise in a release merge request.
    */
-  it('moves only `@b2b/page-builder-core` on a minor once the group is at 1.x', () => {
+  it('moves only `@endora-commerce/page-builder-core` on a minor once the group is at 1.x', () => {
     const dir = fixture({
       seedVersion: '1.4.2',
-      files: { '.changeset/a.md': changeset('@b2b/page-builder-core', 'minor') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/page-builder-core', 'minor') },
     });
 
     runChangeset(dir, ['version']);
 
     expect(groupVersions(dir)).toEqual({
-      '@b2b/page-builder-core': '1.5.0',
-      '@b2b/cms-components': '1.4.2',
-      '@b2b/email-components': '1.4.2',
+      '@endora-commerce/page-builder-core': '1.5.0',
+      '@endora-commerce/cms-components': '1.4.2',
+      '@endora-commerce/email-components': '1.4.2',
     });
   });
 
@@ -287,16 +287,16 @@ describe('the `linked` group — what it does, and what it does not', () => {
   it('carries all three on a major once the group is at 1.x', () => {
     const dir = fixture({
       seedVersion: '1.4.2',
-      files: { '.changeset/a.md': changeset('@b2b/page-builder-core', 'major') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/page-builder-core', 'major') },
     });
 
     runChangeset(dir, ['version']);
 
     expect(groupVersions(dir)).toEqual({
-      '@b2b/page-builder-core': '2.0.0',
-      '@b2b/cms-components': '2.0.0',
-      '@b2b/email-components': '2.0.0',
+      '@endora-commerce/page-builder-core': '2.0.0',
+      '@endora-commerce/cms-components': '2.0.0',
+      '@endora-commerce/email-components': '2.0.0',
     });
-    for (const name of PAGE_BUILDER_GROUP) expect(name).toMatch(/^@b2b\//);
+    for (const name of PAGE_BUILDER_GROUP) expect(name).toMatch(/^@endora-commerce\//);
   });
 });

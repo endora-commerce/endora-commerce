@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { RuleBuilder, type RuleAttributeField } from '@/components/rule-builder/RuleBuilder';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { PromotionRule, PromotionRuleRecord } from '@b2b/contracts';
+import type { PromotionRule, PromotionRuleRecord } from '@endora-commerce/contracts';
 import { promotionRulesClient, promotionsClient } from './client';
 
 /**

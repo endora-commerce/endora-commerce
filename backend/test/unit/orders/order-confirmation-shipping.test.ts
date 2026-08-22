@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PaymentEmailRendererPort, ShippingEmailRendererPort } from '@b2b/contracts';
+import type { PaymentEmailRendererPort, ShippingEmailRendererPort } from '@endora-commerce/contracts';
 import { buildOrderConfirmationEmail } from '../../../src/modules/orders/email-templates/order-confirmation.js';
 import {
   noCarrierShippingLineRenderer,

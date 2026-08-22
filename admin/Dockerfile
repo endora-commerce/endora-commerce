@@ -25,12 +25,12 @@ COPY packages/email-components/package.json packages/email-components/package.js
 COPY storefront/package.json storefront/package.json
 COPY admin/package.json admin/package.json
 # `docs` is excluded by .dockerignore and unused by app builds.
-RUN pnpm install --frozen-lockfile --filter admin... --filter @b2b/cms-components
+RUN pnpm install --frozen-lockfile --filter admin... --filter @endora-commerce/cms-components
 
 COPY packages/ packages/
 COPY admin/ admin/
 
-# Every `@b2b/*` package resolves through its own `exports` map at `./dist` (feature 080,
+# Every `@endora-commerce/*` package resolves through its own `exports` map at `./dist` (feature 080,
 # T042), so all of admin's workspace dependencies are built, not just the one that ships a
 # stylesheet. `admin^...` is admin's dependency closure *without* admin itself — running
 # `admin`'s own build here would be `vite build` before the API base URL is set.

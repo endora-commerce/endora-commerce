@@ -3,7 +3,7 @@ import type {
   CatalogProductReadPort,
   CustomerAccountReadPort,
   EmailMailerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
 import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 

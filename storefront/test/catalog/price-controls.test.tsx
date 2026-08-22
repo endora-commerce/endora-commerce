@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import type { FilterDefinition } from '@b2b/contracts';
+import type { FilterDefinition } from '@endora-commerce/contracts';
 import {
   parseCatalogPriceQuery,
   parsePriceBound,

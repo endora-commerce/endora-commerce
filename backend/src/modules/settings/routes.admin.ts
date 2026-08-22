@@ -6,7 +6,7 @@ import {
   ResetValueQuerySchema,
   SetValueRequestSchema,
   SettingsListQuerySchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SettingsAdminService, AdminAuditContext } from './services/settings-admin.service.js';
 import type { Setting } from '../../kernel/settings/setting.entity.js';
 import type { SettingGroup } from '../../kernel/settings/setting-group.entity.js';

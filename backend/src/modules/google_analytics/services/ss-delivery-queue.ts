@@ -1,7 +1,7 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
 import { enterSystemScope } from '../../../kernel/scope.js';
 import type Redis from 'ioredis';
-import type { GaCollectRequest } from '@b2b/contracts';
+import type { GaCollectRequest } from '@endora-commerce/contracts';
 
 /**
  * BullMQ queue for server-side Google Analytics event delivery (feature 049,

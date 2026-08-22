@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { paymentStatusSchema } from '@b2b/contracts';
+import { paymentStatusSchema } from '@endora-commerce/contracts';
 
 /**
  * Feature 085 Phase G (FR-022) — the money axis is rendered in the operator's

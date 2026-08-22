@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AdminRolePort, AdminUserReadPort, SystemRoleCodePort } from '@b2b/contracts';
+import type { AdminRolePort, AdminUserReadPort, SystemRoleCodePort } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { AdminRoleService } from '../../../src/modules/admin_roles/services/admin-role-service.js';

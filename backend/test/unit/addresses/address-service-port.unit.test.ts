@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AddressRecord } from '@b2b/contracts';
+import type { AddressRecord } from '@endora-commerce/contracts';
 import { Address } from '../../../src/modules/addresses/entities/address.entity.js';
 import type { AddressService } from '../../../src/modules/addresses/services/address-service.js';
 import { createAddressServicePort } from '../../../src/modules/addresses/services/address-ports.js';

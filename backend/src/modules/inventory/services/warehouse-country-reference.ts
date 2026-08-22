@@ -1,4 +1,4 @@
-import type { DictionaryReferenceRegistryPort } from '@b2b/contracts';
+import type { DictionaryReferenceRegistryPort } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 
 /**

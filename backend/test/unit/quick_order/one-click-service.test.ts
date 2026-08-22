@@ -4,7 +4,7 @@ import type {
   OrderPlacementPort,
   PlacedOrderRecord,
   QuickOrderResolvedDefaults,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { OneClickService } from '../../../src/modules/quick_order/services/one-click-service.js';
 import type { DefaultPreferenceService } from '../../../src/modules/quick_order/services/default-preference-service.js';
 

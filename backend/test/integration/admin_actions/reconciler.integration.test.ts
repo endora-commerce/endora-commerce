@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleAction as ModuleActionDecl } from '@b2b/contracts';
+import type { ModuleAction as ModuleActionDecl } from '@endora-commerce/contracts';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
 import { AdminActionsReconciler } from '../../../src/modules/admin_actions/services/admin-actions-reconciler.js';
 import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';

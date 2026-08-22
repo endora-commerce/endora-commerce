@@ -1,4 +1,4 @@
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 
 /**
  * Admin Roles module — manifest backfill (Module Lifecycle, feature 018).

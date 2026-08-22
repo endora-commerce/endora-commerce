@@ -1,4 +1,4 @@
-import type { FeedTaxonomyCheckReason } from '@b2b/contracts';
+import type { FeedTaxonomyCheckReason } from '@endora-commerce/contracts';
 
 /**
  * The overlay seam for taxonomy egress — feature 067 / Principle XV,

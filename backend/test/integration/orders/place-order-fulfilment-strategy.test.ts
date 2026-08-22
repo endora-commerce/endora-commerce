@@ -12,7 +12,7 @@ import {
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import type { FulfilmentStrategy } from '@b2b/contracts';
+import type { FulfilmentStrategy } from '@endora-commerce/contracts';
 import {
   DEFAULT_WAREHOUSE_ID,
   Warehouse,

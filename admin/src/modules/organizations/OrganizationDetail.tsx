@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import type { FulfilmentStrategy, Warehouse } from '@b2b/contracts';
+import type { FulfilmentStrategy, Warehouse } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
 import { FulfilmentStrategyPanel } from './panels/FulfilmentStrategyPanel';

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { ClearCacheRequestSchema } from '@b2b/contracts';
+import { ClearCacheRequestSchema } from '@endora-commerce/contracts';
 import type { CacheAdminService } from './services/cache-admin.service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 

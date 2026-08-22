@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import type { BlogCategoryTile } from '@b2b/contracts';
+import type { BlogCategoryTile } from '@endora-commerce/contracts';
 
 const BLOG_PREFIX = '/blog';
 

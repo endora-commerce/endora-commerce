@@ -1,5 +1,5 @@
 import { apiClient } from '../api-client.js';
-import type { GetAdminActionsResponse, SupportedAdminLanguage } from '@b2b/contracts';
+import type { GetAdminActionsResponse, SupportedAdminLanguage } from '@endora-commerce/contracts';
 
 /**
  * Fetch the operator-visible action list for the requested language.

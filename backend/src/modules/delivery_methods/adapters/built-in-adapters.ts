@@ -6,7 +6,7 @@ import type {
   StartShipmentResult,
   ReceiveShipmentContext,
   ShipmentOutcome,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Built-in shipping adapters (feature 035). Two bundled offline reference

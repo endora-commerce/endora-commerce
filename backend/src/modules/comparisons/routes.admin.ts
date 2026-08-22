@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   ERROR_CODES,
   comparisonAdminListQuerySchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { ComparisonNotFoundError } from './services/comparison-service.js';
 import type { ComparisonAdminService } from './services/comparison-admin.service.js';

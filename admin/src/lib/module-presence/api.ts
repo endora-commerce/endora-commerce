@@ -1,7 +1,7 @@
 import type {
   AdminModulePresenceResponse,
   ModuleActivationResponse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { apiClient } from '../api-client.js';
 
 /**

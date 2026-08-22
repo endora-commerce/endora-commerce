@@ -3,7 +3,7 @@ import {
   GOOGLE_ANALYTICS_SETTING_CODES,
   type GaStorefrontConfig,
   type GaStorefrontCustomEvent,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 /**

@@ -1,5 +1,5 @@
 // Fixture: a `backend.ts` that exports no `registerModule`.
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 
 export const manifest = defineModuleManifest({
   id: 'fixture_no_register',

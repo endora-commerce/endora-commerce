@@ -2,8 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { OrganizationSalesRepAssignment } from '../entities/organization-sales-rep-assignment.entity.js';
 import { Organization } from '../entities/organization.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import { ERROR_CODES } from '@b2b/contracts';
-import type { SalesRepAssignmentPort, SalesRepAssignmentRow } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import type { SalesRepAssignmentPort, SalesRepAssignmentRow } from '@endora-commerce/contracts';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { OrganizationTreeService } from './organization-tree-service.js';
@@ -35,7 +35,7 @@ export interface SalesRepSubtreeDeps {
  * Structural rather than the entity type on purpose: a consumer wants the reps,
  * not `organizations`' ORM rows.
  *
- * Both declarations moved to `@b2b/contracts` in feature 075's Phase P, so the
+ * Both declarations moved to `@endora-commerce/contracts` in feature 075's Phase P, so the
  * two consuming modules can name a package rather than this file. Re-exported
  * here for the length of Phase P, which cuts no consumer.
  */

@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { ANONYMOUS_PRODUCT_AUDIENCE, type CatalogProductReadPort } from '@b2b/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE, type CatalogProductReadPort } from '@endora-commerce/contracts';
 import {
   SearchBackendUnavailable,
   SearchQueryService,

@@ -18,7 +18,7 @@ import {
   putProviderRequestSchema,
   createNewsletterEmailBlockRequestSchema,
   updateNewsletterEmailBlockRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { z } from 'zod';
 import type { NewsletterCampaignService } from './services/campaign.service.js';
 import type { NewsletterSubscriberService } from './services/subscriber.service.js';

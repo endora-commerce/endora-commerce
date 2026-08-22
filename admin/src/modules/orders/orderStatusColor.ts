@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { ORDER_STATUS_COLOR_PRESETS, ORDER_STATUS_DEFAULT_COLOR } from '@b2b/contracts';
+import { ORDER_STATUS_COLOR_PRESETS, ORDER_STATUS_DEFAULT_COLOR } from '@endora-commerce/contracts';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 

@@ -11,7 +11,7 @@ import { randomUUID } from 'crypto';
  * JSONB) — this entity only holds the (channel, [language]) slots.
  *
  * The resolver in `services/product-value-resolver.ts` (and its
- * pure-function twin in `@b2b/contracts`) fuses baseline + overrides
+ * pure-function twin in `@endora-commerce/contracts`) fuses baseline + overrides
  * into an effective value per (channel, language) context using the
  * fallback chain documented in
  * specs/023-product-scope-editor/data-model.md §3.2.

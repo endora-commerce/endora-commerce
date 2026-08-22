@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+import { defineModuleSettingsManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import {
   BreakingChangeRejected,

@@ -4,7 +4,7 @@
 // subscriber/tag/campaign/automation DTOs, the provider configuration shape,
 // and the `NewsletterSendProvider` port other newsletter services implement.
 // Email content reuses the transactional-emails `puckDataTreeSchema` so the
-// shared `@b2b/email-components` renderer can render both identically.
+// shared `@endora-commerce/email-components` renderer can render both identically.
 
 import { z } from 'zod';
 import { puckDataTreeSchema } from './transactional-emails.js';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ModuleManifest, RegistryState } from '@b2b/contracts';
+import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import { composeModules } from '../../../src/kernel/compose.js';

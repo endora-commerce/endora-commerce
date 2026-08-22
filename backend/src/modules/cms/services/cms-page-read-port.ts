@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CmsPageReadPort, CmsPageRecord } from '@b2b/contracts';
+import type { CmsPageReadPort, CmsPageRecord } from '@endora-commerce/contracts';
 import { CmsPage } from '../entities/cms-page.entity.js';
 
 /**

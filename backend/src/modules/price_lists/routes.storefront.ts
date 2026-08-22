@@ -8,7 +8,7 @@ import {
   type OrganizationDetailsPort,
   type OrganizationRecord,
   type ProductAudience,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import { markPersonalisedPricing, productAudienceOf } from '../../http/product-audience.js';
 

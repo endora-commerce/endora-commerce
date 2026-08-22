@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomerAccountReadPort } from '@b2b/contracts';
+import type { CustomerAccountReadPort } from '@endora-commerce/contracts';
 
 /**
  * OrderAccessService (T145).

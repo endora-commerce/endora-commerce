@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 // Feature 075, Phase C — pure functions over their arguments (a secret and a

@@ -1,4 +1,4 @@
-import type { I18nConfigResponse } from '@b2b/contracts';
+import type { I18nConfigResponse } from '@endora-commerce/contracts';
 
 /**
  * Resolve the storefront locale for a server-rendered request.

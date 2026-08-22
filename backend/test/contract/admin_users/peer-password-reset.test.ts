@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ADMIN_SESSION_COOKIE_NAME, ERROR_CODES } from '@b2b/contracts';
+import { ADMIN_SESSION_COOKIE_NAME, ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

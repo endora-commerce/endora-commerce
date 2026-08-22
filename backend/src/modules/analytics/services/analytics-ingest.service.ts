@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ingestAnalyticsEventSchema, type IngestAnalyticsEvent } from '@b2b/contracts';
+import { ingestAnalyticsEventSchema, type IngestAnalyticsEvent } from '@endora-commerce/contracts';
 import { AnalyticsEvent } from '../entities/analytics-event.entity.js';
 import type { AnalyticsForwarder } from './ga4-forwarder.js';
 

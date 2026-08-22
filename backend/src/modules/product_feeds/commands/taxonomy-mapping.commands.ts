@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ERROR_CODES, type TaxonomyProviderCode } from '@b2b/contracts';
+import { ERROR_CODES, type TaxonomyProviderCode } from '@endora-commerce/contracts';
 import type { Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { FeedTaxonomyMapping } from '../entities/feed-taxonomy-mapping.entity.js';

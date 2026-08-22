@@ -7,7 +7,7 @@ import {
   TranslationBundleEntriesSchema,
   type SupportedAdminLanguage,
   type TranslationBundleEntries,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Filesystem reader for module-shipped translation bundles —

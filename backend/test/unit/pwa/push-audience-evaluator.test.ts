@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PushAudienceRule } from '@b2b/contracts';
+import type { PushAudienceRule } from '@endora-commerce/contracts';
 import {
   evaluatePushAudienceRule,
   type PushAudienceContext,

@@ -1,4 +1,4 @@
-import type { ModuleManifest, RegistryState } from '@b2b/contracts';
+import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 
 /**
  * The modules a composition is **required to have**, and the refusal when it

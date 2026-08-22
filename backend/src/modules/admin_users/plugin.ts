@@ -7,7 +7,7 @@ import type {
   MfaLoginPort,
   PermissionCataloguePort,
   PermissionReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { AdminAuthService } from './services/admin-auth-service.js';
 import { ImpersonationService } from './services/impersonation-service.js';
 import { AdminUserService } from './services/admin-user-service.js';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { ResolvedMegamenu, ResolvedMenuItem } from '@b2b/contracts';
+import type { ResolvedMegamenu, ResolvedMenuItem } from '@endora-commerce/contracts';
 
 interface CategoriesMegaProps {
   megamenu: ResolvedMegamenu | null;

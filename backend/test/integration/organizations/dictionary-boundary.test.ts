@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { RegisterOrganizationRequest } from '@b2b/contracts';
+import type { RegisterOrganizationRequest } from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 

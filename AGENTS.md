@@ -14,8 +14,9 @@ tools read this file directly; Claude Code reaches it through the `@AGENTS.md` i
   Zod, ioredis, BullMQ, Meilisearch, `nodemailer`, `pdfmake`. Cross-cutting infrastructure:
   in-process `EventBus` (`src/events/bus.ts`), Command Bus (`src/commands/`), TenantContext
   (`src/tenancy/`), module lifecycle (`src/modules/_lifecycle/`), i18n (`src/modules/_i18n/`).
-- **`admin/`** — React 19 + Vite + react-router-dom 7 + `@b2b/api-client` + `lucide-react` +
-  Tailwind 4 + Radix/shadcn primitives; `@measured/puck` for the CMS/e-mail builders;
+- **`admin/`** — React 19 + Vite + react-router-dom 7 + `@endora-commerce/api-client` +
+  `lucide-react` + Tailwind 4 + Radix/shadcn primitives; `@measured/puck` for the CMS/e-mail
+  builders;
   `@dnd-kit` for drag-drop; charts through the `<EChart>` wrapper
   (`admin/src/components/charts/echart.tsx`).
 - **`storefront/`** — Next.js 15 App Router + React 19 + Tailwind v4, Server Components and
@@ -63,8 +64,9 @@ pnpm run check:naming && pnpm run check:language
 **Building the packages** (feature 080, T042). The five packages under `packages/` ship a
 compiled `dist` and their `exports` maps point at it, with a `types` condition on every
 subpath. So `pnpm run build:packages` is not an optional step — until it has run in a fresh
-checkout, every `@b2b/*` specifier is unresolvable at **runtime**, which is `vitest`, `tsx`,
-`vite` and `next` alike. Every CI job that executes repository code runs it after the install;
+checkout, every `@endora-commerce/*` specifier is unresolvable at **runtime**, which is
+`vitest`, `tsx`, `vite` and `next` alike. Every CI job that executes repository code runs it
+after the install;
 `release:changeset` is the one that does not, because it imports nothing of ours. **`tsc` is
 the exception and deliberately so**: `tsconfig.base.json`'s `paths` keeps it on the packages'
 *source*, which is what makes a type error land on the line that caused it and what keeps the
@@ -120,14 +122,15 @@ bash ../wt-<slug>/scripts/setup-worktree.sh --link   # only off the store's file
 
 All five packages under `packages/` resolve through their own `exports` map at `./dist`,
 built from the checkout they live in — and which checkout that is comes down to one relative
-symlink, `backend/node_modules/@b2b/contracts -> ../../../packages/contracts`. Point a
-workspace's `node_modules` at another checkout and all sixteen of those links re-root
+symlink, `backend/node_modules/@endora-commerce/contracts -> ../../../packages/contracts`.
+Point a workspace's `node_modules` at another checkout and all sixteen of those links re-root
 there. Measured on this repository, in a worktree whose `packages/contracts` carried a
 symbol `master` does not have: `vitest` imported the **main tree's** file and the branch's
 own contract test failed against `master`'s source, while `tsc` — protected by the `paths`
 block — compiled the worktree's. One run type-checking one branch and executing another is
-worse than either being wrong, and `pnpm ls @b2b/contracts` reported this worktree's path
-throughout, because it answers from the manifest's `link:` declaration and never looks at
+worse than either being wrong, and `pnpm ls @endora-commerce/contracts` reported this
+worktree's path throughout, because it answers from the manifest's `link:` declaration and
+never looks at
 the symlink. **Do not use it to check this.**
 
 The default is the boring one and it is not slow: `pnpm install --frozen-lockfile` in a
@@ -136,7 +139,7 @@ under `node_modules/.pnpm` is a hard link into the pnpm store, same inode as the
 tree's. `--link` exists for the worktree that is on a *different* filesystem from the store
 (a tmpfs scratchpad, a container mount), where pnpm cannot hard-link and an install
 materialises 1.3 GB: it symlinks the **root** `node_modules` — third-party packages only,
-identical on every branch — and `cp -a`s each workspace's own, so the relative `@b2b/*`
+identical on every branch — and `cp -a`s each workspace's own, so the relative `@endora-commerce/*`
 links inside them re-root here. 0.2 s, and it refuses when `pnpm-lock.yaml` differs from
 the checkout it would borrow from.
 
@@ -147,9 +150,10 @@ instead by `paths` in `tsconfig.base.json` being complete, which
 `backend/test/unit/harness/workspace-resolution.test.ts` keeps true for every package the
 workspace globs produce — **however deep** they nest it (feature 080, T040a). Both halves of
 that population used to be written down: `readdir('packages')`, one level, filtered by the
-literal scope `'@b2b/'`. Neither survives 66 module packages a directory deeper under a second
-scope, and a package this guard cannot see is a package with no protection at all — which is
-the one way a #255 repair can regress in silence. `ALLOW_FOREIGN_WORKSPACE_PACKAGES=1` is the override for deliberately
+literal scope `'@b2b/'` — the one the packages carried before T042e renamed them. Neither
+survives 66 module packages a directory deeper under a second scope, and a package this guard
+cannot see is a package with no protection at all — which is the one way a #255 repair can
+regress in silence. `ALLOW_FOREIGN_WORKSPACE_PACKAGES=1` is the override for deliberately
 measuring another checkout. What neither covers is `eslint` and the `check-*` scripts —
 stated here rather than discovered later. See `scripts/workspace-resolution.ts`.
 
@@ -825,16 +829,18 @@ A good changeset is written **for the consumer of the package**, not for the rev
 branch: name the exported symbol, and for a `major` give the old call and the new one, because
 nothing else in this repository will tell an upgrader what to do. One file per meaning, not
 one per merge request. **The bump level is your judgement and cannot be delegated** — that is
-why D-107 chose this tool: a change to `@b2b/contracts` can be breaking for `@b2b/api-client`
-and inert for `@b2b/cms-components`, and no commit prefix knows which.
+why D-107 chose this tool: a change to `@endora-commerce/contracts` can be breaking for
+`@endora-commerce/api-client` and inert for `@endora-commerce/cms-components`, and no commit
+prefix knows which.
 
 **Versioning is independent, with one `linked` group** (D-108):
-`@b2b/page-builder-core`, `@b2b/cms-components` and `@b2b/email-components` take one version
-number whenever a release includes more than one of them. `page-builder-core` is a **peer**
+`@endora-commerce/page-builder-core`, `@endora-commerce/cms-components` and
+`@endora-commerce/email-components` take one version number whenever a release includes more
+than one of them. `page-builder-core` is a **peer**
 dependency of the other two and ships React contexts and hooks, so the consuming application
 resolves exactly one copy; ranges that disagree resolve two, and a provider in one copy against
 a consumer in the other is a `null` context at runtime, not a type error.
-`@b2b/contracts` and `@b2b/api-client` version independently — Changesets patch-bumps a
+`@endora-commerce/contracts` and `@endora-commerce/api-client` version independently — Changesets patch-bumps a
 dependent on its own (`updateInternalDependencies: "patch"`).
 
 **Read `linked` precisely, because the sentence that used to stand here was measured wrong**

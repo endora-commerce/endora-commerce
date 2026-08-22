@@ -14,7 +14,7 @@ import {
   SEED_PRODUCT_102_ID,
   SEED_PRODUCT_103_ID,
 } from '../../helpers/seed-catalog.js';
-import type { CartSnapshot, CatalogProductReadPort } from '@b2b/contracts';
+import type { CartSnapshot, CatalogProductReadPort } from '@endora-commerce/contracts';
 
 /**
  * Feature 012 / T056 — Promotion attribute criterion end-to-end (US8).

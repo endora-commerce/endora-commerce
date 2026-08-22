@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { asFunction } from 'awilix';
-import type { RequestMeta, ScopeEntryPointKind } from '@b2b/contracts';
+import type { RequestMeta, ScopeEntryPointKind } from '@endora-commerce/contracts';
 import { runWithTenantContext, type TenantContext } from '../tenancy/tenant-context.js';
 import { systemTenantContext } from '../tenancy/resolve-tenant-context.js';
 import { recordEscapeHatchAudit } from '../tenancy/escape-hatch.js';

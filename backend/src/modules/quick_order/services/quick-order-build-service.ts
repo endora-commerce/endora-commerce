@@ -4,7 +4,7 @@ import {
   type QuickOrderBuildResponse,
   type QuickOrderTarget,
   type RfqCustomerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 
 /**

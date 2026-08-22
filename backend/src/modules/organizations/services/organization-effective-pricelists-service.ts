@@ -3,7 +3,7 @@ import {
   evaluateApplicationRule,
   type PriceListReadPort,
   type PriceListResolutionContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Organization } from '../entities/organization.entity.js';
 
 /**

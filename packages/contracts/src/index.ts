@@ -1,4 +1,4 @@
-// @b2b/contracts — source-of-truth Zod schemas for every API boundary of the B2B platform.
+// @endora-commerce/contracts — source-of-truth Zod schemas for every API boundary of the B2B platform.
 //
 // Per Principle V of the constitution, this package is the ONLY place where request/response
 // shapes are defined. The backend regenerates its live OpenAPI document from here at startup

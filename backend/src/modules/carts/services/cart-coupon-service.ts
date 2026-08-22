@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CartSnapshot, CouponDropReason, PromotionApplication } from '@b2b/contracts';
+import type { CartSnapshot, CouponDropReason, PromotionApplication } from '@endora-commerce/contracts';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import type {
@@ -7,7 +7,7 @@ import type {
   OrganizationDetailsPort,
   PromotionApplyPort,
   PromotionCodePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CartApprovalService } from './cart-approval-service.js';
 import { resolveCartCustomerGroupId } from './customer-group-resolver.js';
 

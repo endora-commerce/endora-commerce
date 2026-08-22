@@ -2,7 +2,7 @@
   // Emit configuration — the only configuration in this package allowed to write files.
   //
   // `tsconfig.json` is the type-check half: it keeps `tsconfig.base.json`'s `paths`
-  // block, which maps every `@b2b/*` specifier at a sibling package's *source*, and it
+  // block, which maps every `@endora-commerce/*` specifier at a sibling package's *source*, and it
   // carries `noEmit: true` so it can never produce an artefact. This file is the mirror
   // image — `paths` is cleared, so a sibling resolves through its own `exports` map to
   // its built `.d.ts`, and emit is switched back on.

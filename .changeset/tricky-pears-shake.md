@@ -1,5 +1,5 @@
 ---
-'@b2b/contracts': minor
+'@endora-commerce/contracts': minor
 ---
 
 Order and filter a product listing by the viewer's own price.

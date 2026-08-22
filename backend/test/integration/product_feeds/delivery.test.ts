@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FeedDeliveryProtocol } from '@b2b/contracts';
+import type { FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

@@ -6,7 +6,7 @@ import type {
   CustomerAccountRecord,
   CustomerGroupReadPort,
   OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Order } from '../../orders/entities/order.entity.js';
 import type { CustomerDefaultsService } from './customer-defaults-service.js';

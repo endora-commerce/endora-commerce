@@ -8,7 +8,7 @@ import type {
   ProductDetail,
   ProductPriceTier,
   ProductSummary,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { Product } from '../entities/product.entity.js';
 
@@ -50,7 +50,7 @@ export interface CatalogOrgPriceDecoratorDeps {
    * `price_lists`' `PricingServiceContract` used to be. This decorator calls
    * two of its methods. `OrgLinePricePort` — `LinePricePort` plus the bracket
    * ladder — was published in this cut, because `PricingServiceContract` is
-   * deliberately not in `@b2b/contracts` (it is the overlay decoration's
+   * deliberately not in `@endora-commerce/contracts` (it is the overlay decoration's
    * contract gate) and was `listBracketMinQuantities`' only declaration.
    */
   pricingService: OrgLinePricePort;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 

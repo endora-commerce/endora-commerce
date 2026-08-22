@@ -3,7 +3,7 @@ import {
   LINKEDIN_TRIGGER_ACTIONS,
   createLinkedInConversionMappingSchema,
   updateLinkedInConversionMappingSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   LINKEDIN_ADS_READ_PERMISSION,
   LINKEDIN_ADS_WRITE_PERMISSION,

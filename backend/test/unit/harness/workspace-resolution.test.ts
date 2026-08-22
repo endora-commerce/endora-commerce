@@ -1,5 +1,5 @@
 /**
- * The guard that refuses a run whose `@b2b/*` source is another checkout's
+ * The guard that refuses a run whose `@endora-commerce/*` source is another checkout's
  * (issue #255).
  *
  * Every fixture here enters at the **top** of the analysis — a whole synthetic
@@ -11,7 +11,7 @@
  *
  * The last two tests are about this repository rather than a fixture: one keeps
  * the `tsconfig.base.json` `paths` block complete, which is what makes `tsc`
- * resolve `@b2b/*` inside the checkout it is run from, and one asserts that the
+ * resolve `@endora-commerce/*` inside the checkout it is run from, and one asserts that the
  * checkout running the suite is itself correctly wired.
  */
 
@@ -35,7 +35,7 @@ interface FakeCheckout {
   /**
    * Directory paths relative to the root, each getting a manifest.
    *
-   * A bare name means `packages/<name>` and `@b2b/<name>`, which is the
+   * A bare name means `packages/<name>` and `@endora-commerce/<name>`, which is the
    * layout this repository has today. A path with a slash is taken as written,
    * which is what the nested case needs (feature 080, T040a).
    */
@@ -48,7 +48,7 @@ interface FakeCheckout {
    * so here rather than relying on a directory scan.
    */
   readonly globs?: readonly string[];
-  /** Consumer directory → the `@b2b/*` specifiers its manifest declares. */
+  /** Consumer directory → the `@endora-commerce/*` specifiers its manifest declares. */
   readonly workspaces: Readonly<Record<string, readonly string[]>>;
   /**
    * `<consumer>/node_modules/<specifier>` → absolute path it resolves to.
@@ -70,10 +70,10 @@ function packageDirectoryOf(entry: string): string {
   return entry.includes('/') ? entry : `packages/${entry}`;
 }
 
-/** `packages/modules/blog` → `@b2b/blog`; `contracts` → `@b2b/contracts`. */
+/** `packages/modules/blog` → `@endora-commerce/blog`; `contracts` → `@endora-commerce/contracts`. */
 function packageNameOf(entry: string): string {
   const segments = entry.split('/');
-  return `@b2b/${segments[segments.length - 1]!}`;
+  return `@endora-commerce/${segments[segments.length - 1]!}`;
 }
 
 /** A whole checkout, as the questions {@link ResolutionFs} asks of one. */
@@ -135,45 +135,45 @@ function wiredCorrectly(): ResolutionFs {
   return fakeCheckout({
     packages: ['contracts', 'page-builder-core'],
     workspaces: {
-      backend: ['@b2b/contracts', '@b2b/page-builder-core'],
+      backend: ['@endora-commerce/contracts', '@endora-commerce/page-builder-core'],
       'packages/contracts': [],
     },
     links: {
-      'backend/node_modules/@b2b/contracts': `${ROOT}/packages/contracts`,
-      'backend/node_modules/@b2b/page-builder-core': `${ROOT}/packages/page-builder-core`,
+      'backend/node_modules/@endora-commerce/contracts': `${ROOT}/packages/contracts`,
+      'backend/node_modules/@endora-commerce/page-builder-core': `${ROOT}/packages/page-builder-core`,
     },
   });
 }
 
 describe('workspace resolution guard', () => {
-  it('accepts a checkout whose @b2b links all land inside it', () => {
+  it('accepts a checkout whose @endora-commerce links all land inside it', () => {
     const report = inspectWorkspaceResolution(ROOT, wiredCorrectly());
 
-    expect(report.packages).toEqual(['@b2b/contracts', '@b2b/page-builder-core']);
+    expect(report.packages).toEqual(['@endora-commerce/contracts', '@endora-commerce/page-builder-core']);
     expect(report.links.map((link) => link.verdict)).toEqual(['local', 'local']);
     expect(workspaceResolutionRefusal(report)).toBeNull();
   });
 
   it('refuses a link that re-roots at another checkout — the symlinked worktree', () => {
     // Exactly what `ln -s /main/backend/node_modules <worktree>/backend/node_modules`
-    // produces: the relative `@b2b` link inside it resolves at the main tree.
+    // produces: the relative `@endora-commerce` link inside it resolves at the main tree.
     const fs = fakeCheckout({
       packages: ['contracts', 'page-builder-core'],
-      workspaces: { backend: ['@b2b/contracts', '@b2b/page-builder-core'] },
+      workspaces: { backend: ['@endora-commerce/contracts', '@endora-commerce/page-builder-core'] },
       links: {
-        'backend/node_modules/@b2b/contracts': '/home/dev/b2b-platform/packages/contracts',
-        'backend/node_modules/@b2b/page-builder-core': `${ROOT}/packages/page-builder-core`,
+        'backend/node_modules/@endora-commerce/contracts': '/home/dev/b2b-platform/packages/contracts',
+        'backend/node_modules/@endora-commerce/page-builder-core': `${ROOT}/packages/page-builder-core`,
       },
     });
 
     const report = inspectWorkspaceResolution(ROOT, fs);
     const refusal = workspaceResolutionRefusal(report);
 
-    expect(report.links.find((link) => link.specifier === '@b2b/contracts')?.verdict).toBe(
+    expect(report.links.find((link) => link.specifier === '@endora-commerce/contracts')?.verdict).toBe(
       'foreign',
     );
     expect(refusal?.kind).toBe('foreign');
-    expect(refusal?.message).toContain('backend/node_modules/@b2b/contracts');
+    expect(refusal?.message).toContain('backend/node_modules/@endora-commerce/contracts');
     expect(refusal?.message).toContain('/home/dev/b2b-platform/packages/contracts');
     expect(refusal?.message).toContain(ALLOW_FOREIGN_ENV);
   });
@@ -181,14 +181,14 @@ describe('workspace resolution guard', () => {
   it('refuses a declared link that is not installed', () => {
     const fs = fakeCheckout({
       packages: ['contracts'],
-      workspaces: { admin: ['@b2b/contracts'] },
+      workspaces: { admin: ['@endora-commerce/contracts'] },
       links: {},
     });
 
     const refusal = workspaceResolutionRefusal(inspectWorkspaceResolution(ROOT, fs));
 
     expect(refusal?.kind).toBe('missing');
-    expect(refusal?.message).toContain('admin/node_modules/@b2b/contracts');
+    expect(refusal?.message).toContain('admin/node_modules/@endora-commerce/contracts');
   });
 
   it('refuses a tree that holds no workspace package — it can answer nothing', () => {
@@ -212,24 +212,24 @@ describe('workspace resolution guard', () => {
   });
 
   it('reads devDependencies as well as dependencies, and never peerDependencies', () => {
-    // `@b2b/page-builder-core` is a peer *and* a devDependency of the two
+    // `@endora-commerce/page-builder-core` is a peer *and* a devDependency of the two
     // component packages. pnpm links it because of the devDependency; a
     // peer-only entry would be reported missing on a perfectly good tree.
     const manifestOf = (path: string): unknown => {
       if (path === join(ROOT, 'packages', 'page-builder-core', 'package.json')) {
-        return { name: '@b2b/page-builder-core' };
+        return { name: '@endora-commerce/page-builder-core' };
       }
       if (path === join(ROOT, 'packages', 'cms-components', 'package.json')) {
         return {
-          name: '@b2b/cms-components',
-          peerDependencies: { '@b2b/page-builder-core': 'workspace:^' },
-          devDependencies: { '@b2b/page-builder-core': 'workspace:^' },
+          name: '@endora-commerce/cms-components',
+          peerDependencies: { '@endora-commerce/page-builder-core': 'workspace:^' },
+          devDependencies: { '@endora-commerce/page-builder-core': 'workspace:^' },
         };
       }
       if (path === join(ROOT, 'packages', 'email-components', 'package.json')) {
         return {
-          name: '@b2b/email-components',
-          peerDependencies: { '@b2b/page-builder-core': 'workspace:^' },
+          name: '@endora-commerce/email-components',
+          peerDependencies: { '@endora-commerce/page-builder-core': 'workspace:^' },
         };
       }
       return null;
@@ -248,7 +248,7 @@ describe('workspace resolution guard', () => {
             ? ['packages']
             : [],
       realpath: (path) =>
-        path === join(ROOT, 'packages/cms-components/node_modules/@b2b/page-builder-core')
+        path === join(ROOT, 'packages/cms-components/node_modules/@endora-commerce/page-builder-core')
           ? `${ROOT}/packages/page-builder-core`
           : null,
     };
@@ -262,7 +262,7 @@ describe('workspace resolution guard', () => {
 
   it('sees a package the globs nest, which a scan of `packages/` cannot (T040a)', () => {
     // The #255 guard's population used to be `readdir('packages')` filtered by
-    // the literal `'@b2b/'`. Feature 080 puts 66 module packages one level
+    // the literal `'@endora-commerce/'`. Feature 080 puts 66 module packages one level
     // deeper, and a package this guard cannot see is a package with **no**
     // protection: its `node_modules` link can re-root at another checkout and
     // the run compiles that branch while reporting a clean tick. So the fixture
@@ -271,23 +271,23 @@ describe('workspace resolution guard', () => {
     const fs = fakeCheckout({
       globs: ['backend', 'packages/*', 'packages/modules/*'],
       packages: ['contracts', 'packages/modules/blog'],
-      workspaces: { backend: ['@b2b/contracts', '@b2b/blog'] },
+      workspaces: { backend: ['@endora-commerce/contracts', '@endora-commerce/blog'] },
       links: {
-        'backend/node_modules/@b2b/contracts': `${ROOT}/packages/contracts`,
-        'backend/node_modules/@b2b/blog': '/home/dev/b2b-platform/packages/modules/blog',
+        'backend/node_modules/@endora-commerce/contracts': `${ROOT}/packages/contracts`,
+        'backend/node_modules/@endora-commerce/blog': '/home/dev/b2b-platform/packages/modules/blog',
       },
     });
 
     const report = inspectWorkspaceResolution(ROOT, fs);
     const refusal = workspaceResolutionRefusal(report);
 
-    expect(report.packages).toEqual(['@b2b/blog', '@b2b/contracts']);
+    expect(report.packages).toEqual(['@endora-commerce/blog', '@endora-commerce/contracts']);
     expect(refusal?.kind).toBe('foreign');
-    expect(refusal?.message).toContain('backend/node_modules/@b2b/blog');
+    expect(refusal?.message).toContain('backend/node_modules/@endora-commerce/blog');
   });
 
   it('reports the scopes its own globs produce, not a scope written down (T040a)', () => {
-    // The other half of the same defect. `WORKSPACE_SCOPE = '@b2b/'` was a
+    // The other half of the same defect. `WORKSPACE_SCOPE = '@endora-commerce/'` was a
     // constant, and a second scope — which is what an extension-package
     // programme introduces — would have been invisible to the predicate and
     // absent from the message. Both are derived now, so a run says which
@@ -295,11 +295,11 @@ describe('workspace resolution guard', () => {
     const fs = fakeCheckout({
       globs: ['backend', 'packages/*', 'packages/modules/*'],
       packages: ['contracts', 'packages/modules/blog'],
-      workspaces: { backend: ['@b2b/contracts'] },
-      links: { 'backend/node_modules/@b2b/contracts': `${ROOT}/packages/contracts` },
+      workspaces: { backend: ['@endora-commerce/contracts'] },
+      links: { 'backend/node_modules/@endora-commerce/contracts': `${ROOT}/packages/contracts` },
     });
 
-    expect(inspectWorkspaceResolution(ROOT, fs).scopes).toEqual(['@b2b/']);
+    expect(inspectWorkspaceResolution(ROOT, fs).scopes).toEqual(['@endora-commerce/']);
   });
 
   it('does not mistake a sibling directory with a shared prefix for this checkout', () => {
@@ -322,7 +322,7 @@ describe('this checkout', () => {
     expect(root).not.toBeNull();
   });
 
-  it('resolves every @b2b/* package to its own packages/ directory', () => {
+  it('resolves every @endora-commerce/* package to its own packages/ directory', () => {
     // The guard `vitest.config.base.ts` already ran, as a test: a worktree
     // wired at another checkout fails here with the same sentence.
     const report = inspectWorkspaceResolution(root!, nodeResolutionFs());
@@ -343,7 +343,7 @@ describe('this checkout', () => {
     // `paths` is what makes `tsc` read the worktree's own packages instead of
     // whatever the node_modules symlink points at, and it is relative to this
     // file, so it re-roots with the checkout. It is also hand-written:
-    // `@b2b/page-builder-core` was added to `packages/` without an entry, and
+    // `@endora-commerce/page-builder-core` was added to `packages/` without an entry, and
     // for as long as that stood, one run type-checked one branch and executed
     // another.
     const tsconfig = JSON.parse(readFileSync(join(root!, 'tsconfig.base.json'), 'utf8')) as {

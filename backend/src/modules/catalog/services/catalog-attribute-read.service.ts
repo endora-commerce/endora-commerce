@@ -6,7 +6,7 @@ import type {
   CatalogAttributeView,
   CustomFieldDefinitionReadPort,
   CustomFieldDefinitionWithOptions,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
@@ -30,7 +30,7 @@ import { cfToLegacyValueType } from './attribute-type-mapping.js';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * The three shapes moved to `@b2b/contracts` in feature 075's Phase P — four
+ * The three shapes moved to `@endora-commerce/contracts` in feature 075's Phase P — four
  * modules type themselves against `CatalogAttributeView` today by importing
  * this file. Re-exported here for the length of Phase P, which cuts no
  * consumer.

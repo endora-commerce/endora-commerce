@@ -3,7 +3,7 @@ import type {
   AnalyticsEventType,
   AnalyticsSummaryQuery,
   AnalyticsSummaryResponse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * AnalyticsQueryService (T237 / FR-111).

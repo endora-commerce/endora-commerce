@@ -7,7 +7,7 @@ import type {
   ListingPriceOrderQuery,
   ListingPriceOrderRow,
   ListingPriceViewerContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
 import {

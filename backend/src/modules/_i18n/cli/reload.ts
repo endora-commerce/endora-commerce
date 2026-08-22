@@ -29,7 +29,7 @@
  * the same as the running platform's: core, this deployment's overlay modules
  * and every installed package (feature 080, T032).
  */
-import type { ModuleCliCommandContext } from '@b2b/contracts';
+import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
 import { lazyPort, type ModuleContext } from '../../../kernel/index.js';
 import {
   reconcileBundles,

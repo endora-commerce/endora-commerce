@@ -17,7 +17,7 @@ import {
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type SalesRepAssignmentPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';

@@ -1,5 +1,5 @@
 import type { Content } from 'pdfmake/interfaces.js';
-import type { InvoiceDetail } from '@b2b/contracts';
+import type { InvoiceDetail } from '@endora-commerce/contracts';
 import type { AmountToWordsLocale } from '../services/amount-to-words.js';
 import {
   headerSection,

@@ -4,7 +4,7 @@ import type {
   SearchListResult,
   SearchQueryContext,
   SearchQueryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { SearchBackendUnavailable } from './search-query.service.js';
 
 /**

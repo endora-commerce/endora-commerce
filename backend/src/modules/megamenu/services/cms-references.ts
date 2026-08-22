@@ -6,12 +6,12 @@
 // surfaces megamenu items that hold the reference, so the delete is
 // refused with the merged-holder list.
 //
-// Both shapes are read from `@b2b/contracts` since feature 075's Phase C, so
+// Both shapes are read from `@endora-commerce/contracts` since feature 075's Phase C, so
 // this module no longer names a file in `cms`. The seam itself is unchanged:
 // an ungated registration `cms` enumerates on delete, honoured while `megamenu`
 // is off because the items still hold the reference.
 
-import type { CmsExternalReferenceScanner, CmsReference } from '@b2b/contracts';
+import type { CmsExternalReferenceScanner, CmsReference } from '@endora-commerce/contracts';
 import type { MegamenuReferenceRegistry } from './megamenu-reference-registry.js';
 
 export function registerMegamenuCmsReferences(

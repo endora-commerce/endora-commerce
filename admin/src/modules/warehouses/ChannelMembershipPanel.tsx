@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import type { Warehouse, WarehouseChannelAssignment } from '@b2b/contracts';
+import type { Warehouse, WarehouseChannelAssignment } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { warehousesClient } from './api/warehouses-client';

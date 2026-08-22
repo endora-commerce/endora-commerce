@@ -16,7 +16,7 @@
  *    landing where it was configured to land would leave no trace at all.
  * 3. **Every bare specifier a published source imports is a declared runtime
  *    dependency.** A devDependency is not one: it is not installed for a consumer. This
- *    found five in `@b2b/cms-components` — four Tiptap extensions and `leaflet`.
+ *    found five in `@endora-commerce/cms-components` — four Tiptap extensions and `leaflet`.
  * 4. **The built declarations are real types.** An unresolvable import inside an emitted
  *    `.d.ts` turns every type flowing through it into `any` with no diagnostic, because
  *    `skipLibCheck: true` (`tsconfig.base.json`) suppresses the error in a dependency's
@@ -166,7 +166,7 @@ describe('package distribution shape', () => {
 
   describe('distShapeFindings refuses each defect it names', () => {
     const sound: PackageManifest = {
-      name: '@b2b/example',
+      name: '@endora-commerce/example',
       main: './dist/index.js',
       types: './dist/index.d.ts',
       files: ['dist'],
@@ -332,7 +332,7 @@ describe('published sources declare every dependency they import', () => {
 
   it('reads imports as syntax, not as prose', () => {
     // The regex version of this analysis reported `no such` and `not asked about` as
-    // packages, from sentences in `@b2b/contracts`' own doc comments.
+    // packages, from sentences in `@endora-commerce/contracts`' own doc comments.
     const source = [
       "// An operator asked about `import { thing } from 'not-a-package'` and was",
       '// told no.',
@@ -349,7 +349,7 @@ describe('published sources declare every dependency they import', () => {
  * The only assertion here that can tell a correct `dist` from one whose declarations
  * degraded to `any`.
  *
- * A consumer outside the workspace resolves `@b2b/*` through node_modules and the
+ * A consumer outside the workspace resolves `@endora-commerce/*` through node_modules and the
  * packages' own `exports` maps — no `paths`, no source — and asserts a bad member of a
  * `z.infer` union under `@ts-expect-error`. If the union became `any` the directive is
  * unused and `tsc` reports TS2578. Measured: with `zod` unresolvable from the built
@@ -359,7 +359,7 @@ describe('the built declarations are real types, not `any`', () => {
   it('rejects a bad union member read from the built d.ts', () => {
     const consumer = mkdtempSync(join(tmpdir(), 't042-consumer-'));
     try {
-      mkdirSync(join(consumer, 'node_modules', '@b2b'), { recursive: true });
+      mkdirSync(join(consumer, 'node_modules', '@endora-commerce'), { recursive: true });
       mkdirSync(join(consumer, 'src'), { recursive: true });
       for (const { dir, manifest } of PACKAGES) {
         symlinkSync(dir, join(consumer, 'node_modules', manifest.name!));
@@ -387,9 +387,9 @@ describe('the built declarations are real types, not `any`', () => {
       writeFileSync(
         join(consumer, 'src', 'probe.ts'),
         [
-          "import type { ProductType } from '@b2b/contracts';",
-          "import { productTypeSchema } from '@b2b/contracts';",
-          "import type { ResponsiveProp } from '@b2b/page-builder-core/types/responsive';",
+          "import type { ProductType } from '@endora-commerce/contracts';",
+          "import { productTypeSchema } from '@endora-commerce/contracts';",
+          "import type { ResponsiveProp } from '@endora-commerce/page-builder-core/types/responsive';",
           '',
           "export const good: ProductType = 'configurable';",
           '// @ts-expect-error not a member of the ProductType union',

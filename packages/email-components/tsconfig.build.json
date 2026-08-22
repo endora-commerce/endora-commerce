@@ -2,7 +2,7 @@
   // Emit configuration — see `packages/contracts/tsconfig.build.json` for why the
   // type-check config and the emit config are two files.
   //
-  // With `paths` cleared, `@b2b/page-builder-core` resolves through its `exports` map
+  // With `paths` cleared, `@endora-commerce/page-builder-core` resolves through its `exports` map
   // to `packages/page-builder-core/dist/*.d.ts`, so that package must be built first.
   "extends": "./tsconfig.json",
   "compilerOptions": {

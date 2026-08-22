@@ -2,11 +2,11 @@ import type {
   EmailMailerSendInput,
   PaymentEmailRendererPort,
   ShippingEmailRendererPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   orderTotalsLabels,
   type OrderTotalsLabels,
-} from '@b2b/email-components/render/order-labels';
+} from '@endora-commerce/email-components/render/order-labels';
 
 /**
  * Order-confirmation e-mail (feature 034). Sent after a successful checkout.

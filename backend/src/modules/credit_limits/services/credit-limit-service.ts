@@ -6,7 +6,7 @@ import type { Command, CommandBus } from '../../../commands/index.js';
 import { CreditLimit } from '../entities/credit-limit.entity.js';
 import { CreditLimitReservation } from '../entities/credit-limit-reservation.entity.js';
 import { CreditLimitReturnTopup } from '../entities/credit-limit-return-topup.entity.js';
-import type { CreditTopupResult, OrganizationInheritancePort } from '@b2b/contracts';
+import type { CreditTopupResult, OrganizationInheritancePort } from '@endora-commerce/contracts';
 
 /**
  * CreditLimitService (T214) — implements the contract documented in

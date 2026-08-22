@@ -1,7 +1,7 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
-import type { PromotionRule } from '@b2b/contracts';
+import type { PromotionRule } from '@endora-commerce/contracts';
 
 /**
  * Feature 045 — a standalone, named promotion rule reusable across

@@ -5,7 +5,7 @@ import {
   createMegamenuRequestSchema,
   patchMegamenuRequestSchema,
   putItemsRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { MegamenuService } from './services/megamenu-service.js';
 import type { MegamenuItemService } from './services/megamenu-item-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANONYMOUS_PRODUCT_AUDIENCE, type CatalogProductReadPort } from '@b2b/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE, type CatalogProductReadPort } from '@endora-commerce/contracts';
 import {
   buildFilterExpression,
   SearchBackendUnavailable,

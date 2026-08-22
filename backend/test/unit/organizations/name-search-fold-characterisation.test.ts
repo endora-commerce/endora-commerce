@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { normalizeOrganizationName } from '@b2b/contracts';
+import { normalizeOrganizationName } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 
 /**

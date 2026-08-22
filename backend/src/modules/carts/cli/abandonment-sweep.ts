@@ -58,7 +58,7 @@
  * contribute a notifier, this command and the platform will agree about it,
  * which they could not before.
  */
-import type { ModuleCliCommandContext } from '@b2b/contracts';
+import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../../kernel/index.js';
 import type { CartAbandonmentWorker } from '../services/cart-abandonment-worker.js';
 

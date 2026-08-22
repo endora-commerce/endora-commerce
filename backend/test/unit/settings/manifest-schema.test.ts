@@ -4,7 +4,7 @@ import {
   ModuleSettingsManifestSchema,
   SettingValueTypeSchema,
   valueSchemaForType,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * T016 — Unit tests for the manifest Zod surface (no DB).

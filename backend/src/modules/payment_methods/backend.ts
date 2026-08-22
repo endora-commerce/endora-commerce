@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PaymentMethodReadPort, PaymentReadPort } from '@b2b/contracts';
+import type { PaymentMethodReadPort, PaymentReadPort } from '@endora-commerce/contracts';
 import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { CommandBus } from '../../commands/index.js';

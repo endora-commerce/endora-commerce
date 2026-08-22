@@ -1,5 +1,5 @@
 import type { FastifyRequest } from 'fastify';
-import { LANGUAGE_FALLBACK, SUPPORTED_LANGUAGES, type SupportedLanguage } from '@b2b/contracts';
+import { LANGUAGE_FALLBACK, SUPPORTED_LANGUAGES, type SupportedLanguage } from '@endora-commerce/contracts';
 import { currentSalesChannel } from '../sales-channels/sales-channel-resolver.middleware.js';
 
 /**

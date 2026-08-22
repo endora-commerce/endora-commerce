@@ -1,7 +1,7 @@
 import type {
   SettingWriteValidator,
   SettingWriteValidatorRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ModulePresencePort } from './settings-admin.service.js';
 
 /**

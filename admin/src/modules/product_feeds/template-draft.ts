@@ -5,7 +5,7 @@ import type {
   FeedOutputFormat,
   FeedProviderCode,
   TaxonomyProviderCode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { FeedTemplateDetail, FeedTemplateFieldDto } from './api';
 
 /**

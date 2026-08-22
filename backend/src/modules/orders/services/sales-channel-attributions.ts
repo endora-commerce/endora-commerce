@@ -1,4 +1,4 @@
-import type { SalesChannelAttributionRegistryPort } from '@b2b/contracts';
+import type { SalesChannelAttributionRegistryPort } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Order } from '../entities/order.entity.js';
 

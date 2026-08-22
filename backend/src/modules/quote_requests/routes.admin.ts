@@ -6,7 +6,7 @@ import {
   adminCreateQuoteRequestSchema,
   adminPatchQuoteRequestSchema,
   rfqStatusSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { RfqAdminService, AdminContext, AdminAssignmentScope } from './services/rfq-admin-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 

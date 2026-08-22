@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PriceListReadPort, PriceListRecord } from '@b2b/contracts';
+import type { PriceListReadPort, PriceListRecord } from '@endora-commerce/contracts';
 import { PriceList } from '../entities/price-list.entity.js';
 
 /**

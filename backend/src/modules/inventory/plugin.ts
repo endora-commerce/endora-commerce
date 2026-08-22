@@ -22,7 +22,7 @@ import type {
   CustomerAccountReadPort,
   DictionaryValidator,
   EmailMailerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface InventoryAuditContext {

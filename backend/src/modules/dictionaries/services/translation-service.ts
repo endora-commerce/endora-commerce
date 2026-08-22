@@ -4,7 +4,7 @@ import {
   type CurrencyReadPort,
   type DictionaryEntryType,
   type LanguageReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Country } from '../entities/country.entity.js';
 import { DictionaryTranslation } from '../entities/dictionary-translation.entity.js';

@@ -1,11 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import type {
   CustomerPasswordStatePort,
   MfaSocialLinkSummary,
   MfaSocialProvider,
   MfaSubjectRef,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
 import { MfaSocialIdentity } from '../entities/mfa-social-identity.entity.js';

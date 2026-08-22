@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
-import type { AuthSessionPort, AuthSessionReadPort } from '@b2b/contracts';
+import type { AuthSessionPort, AuthSessionReadPort } from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { AdminPermissionChecker } from '../../kernel/ports/require-admin.js';

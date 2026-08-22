@@ -448,7 +448,7 @@ export function analyzePlatformImports(source: string, file: string): PlatformIm
  * survivor was `kernel/ports/organizations.ts` type-importing the `Organization`
  * entity, escalated rather than fixed because both available answers were
  * D-32-scale; D-55 settled it with a structural `OrganizationSnapshot` typed on
- * `@b2b/contracts`' existing status union, at a cost of one file. The name stays
+ * `@endora-commerce/contracts`' existing status union, at a cost of one file. The name stays
  * `KERNEL_…` because the kernel is what the ledger protects, but rule B's roots
  * are all four platform roots, so a peer's debt would be keyed here too.
  * `test/unit/kernel/boundary-check.test.ts` pins it empty, so an entry cannot

@@ -13,10 +13,10 @@ import {
   type EmailBlockSummary,
   type PatchEmailBlockRequest,
   type PutEmailBlockContentRequest,
-} from '@b2b/contracts';
-import type { PuckDataTree } from '@b2b/email-components/schema/envelope';
-import { EMAIL_SAFE_COMPONENT_NAMES } from '@b2b/email-components/schema/component-types';
-import { walkUnknownComponents } from '@b2b/email-components/tree/walk-embeds';
+} from '@endora-commerce/contracts';
+import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
+import { EMAIL_SAFE_COMPONENT_NAMES } from '@endora-commerce/email-components/schema/component-types';
+import { walkUnknownComponents } from '@endora-commerce/email-components/tree/walk-embeds';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';

@@ -113,7 +113,7 @@ export function createLockClaimsFixture(): LockClaimsFixture {
   );
   writeFileSync(
     join(contracts, '..', 'package.json'),
-    `${JSON.stringify({ name: '@b2b/contracts', private: true }, null, 2)}\n`,
+    `${JSON.stringify({ name: '@endora-commerce/contracts', private: true }, null, 2)}\n`,
     'utf8',
   );
   const modules = join(root, 'backend', 'src', 'modules');

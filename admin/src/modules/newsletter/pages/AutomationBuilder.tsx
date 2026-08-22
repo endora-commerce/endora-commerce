@@ -7,7 +7,7 @@ import type {
   AutomationTriggerType,
   NewsletterCustomField,
   NewsletterTag,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

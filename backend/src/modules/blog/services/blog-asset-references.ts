@@ -17,7 +17,7 @@ import type {
   AssetReference,
   AssetReferenceDescriptor,
   AssetReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 export function registerBlogAssetReferences(
   registry: AssetReferenceRegistryPort,

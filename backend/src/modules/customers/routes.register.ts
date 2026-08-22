@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { SESSION_COOKIE_NAME, customerRegisterRequestSchema } from '@b2b/contracts';
+import { SESSION_COOKIE_NAME, customerRegisterRequestSchema } from '@endora-commerce/contracts';
 import type { CustomerRegistrationService } from './services/customer-registration-service.js';
 
 /**

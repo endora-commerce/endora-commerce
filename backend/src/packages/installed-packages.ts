@@ -19,7 +19,7 @@
 // ## What it cannot see, deliberately
 //
 //   - **a workspace member.** pnpm links one into `node_modules` from outside,
-//     so `<root>/node_modules/@b2b/contracts` really is `packages/contracts`.
+//     so `<root>/node_modules/@endora-commerce/contracts` really is `packages/contracts`.
 //     Every such link is refused, and that is the point: this repository's own
 //     five `packages/*` must never be discovered as installed packages, and a
 //     module package that is a workspace member is a fact about *the tree* and
@@ -44,10 +44,10 @@
 //
 // ## The containment test is over real paths on both sides, and that is load-bearing
 //
-// A workspace link is **relative** — `backend/node_modules/@b2b/contracts ->
+// A workspace link is **relative** — `backend/node_modules/@endora-commerce/contracts ->
 // ../../../packages/contracts` — so it re-roots with whatever directory it
 // physically sits in. Issue #255 is that fact biting from the other side: a
-// `node_modules` symlinked at another checkout's makes every `@b2b/*` resolve
+// `node_modules` symlinked at another checkout's makes every `@endora-commerce/*` resolve
 // into that checkout, while `pnpm ls` cheerfully reports the local path,
 // because it answers from the manifest's `link:` declaration and never reads
 // the symlink.
@@ -56,7 +56,7 @@
 // it asks is "did this package's install stay inside the directory the roots
 // really are", never "does its path start with the string we were handed" — a
 // prefix test over the declared path would accept a `node_modules` that is
-// itself a link into somebody else's tree. Both wirings of the `@b2b/*` case
+// itself a link into somebody else's tree. Both wirings of the `@endora-commerce/*` case
 // come out the same and correct: the link lands on `packages/<name>`, which is
 // outside whichever `node_modules` it was reached through, so a workspace
 // member is refused whether the instance's `node_modules` is its own, a copy,

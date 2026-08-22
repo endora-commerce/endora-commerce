@@ -22,7 +22,7 @@ import type {
   ListingPriceOrderChunk,
   ListingPriceOrderQuery,
   ListingPriceViewerContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type {
   ListingPricesInput,
   PricingLineResult,

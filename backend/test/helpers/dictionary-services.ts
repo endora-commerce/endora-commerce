@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CurrencyReadPort, LanguageReadPort } from '@b2b/contracts';
+import type { CurrencyReadPort, LanguageReadPort } from '@endora-commerce/contracts';
 import { DictionaryValidator } from '../../src/modules/dictionaries/services/dictionary-validator.js';
 import { CurrencyReadService } from '../../src/modules/currencies/services/currency-ports.js';
 import { LanguageReadService } from '../../src/modules/languages/services/language-ports.js';

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { SALES_CHANNEL_AUDIT_ACTIONS } from '@b2b/contracts';
+import { SALES_CHANNEL_AUDIT_ACTIONS } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';

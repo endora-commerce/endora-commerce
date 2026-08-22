@@ -13,7 +13,7 @@ import {
   type ProductAudience,
   type ProductListSort,
   type ProductSummary,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { encodeCursor, decodeCursor } from '../../../http/cursor.js';
 import {

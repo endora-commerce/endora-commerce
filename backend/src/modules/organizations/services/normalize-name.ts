@@ -1,5 +1,5 @@
 /**
- * `normalizeOrganizationName` moved to `@b2b/contracts` in feature 075's
+ * `normalizeOrganizationName` moved to `@endora-commerce/contracts` in feature 075's
  * Phase P: it is pure over its argument, so a gated port answering 503 to
  * "fold these diacritics" would be a bug rather than a degrade (FR-013).
  *
@@ -10,4 +10,4 @@
  *
  * Re-exported here for the length of Phase P, which cuts no consumer.
  */
-export { normalizeOrganizationName } from '@b2b/contracts';
+export { normalizeOrganizationName } from '@endora-commerce/contracts';

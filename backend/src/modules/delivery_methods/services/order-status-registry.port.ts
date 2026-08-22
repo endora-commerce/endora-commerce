@@ -2,7 +2,7 @@ import {
   orderStatusSchema,
   type OrderStatusOption,
   type OrderStatusRegistry,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * OrderStatusRegistry port (feature 035 — research.md R3).
@@ -18,7 +18,7 @@ import {
  * than a deep import across modules (constitution Principle I). The port does
  * NOT touch the Order entity — applying a status is the caller's job.
  *
- * The interface moved to `@b2b/contracts` in feature 075's Phase P. It was
+ * The interface moved to `@endora-commerce/contracts` in feature 075's Phase P. It was
  * declared twice — once here and once in `payment_methods`, in the same words
  * — because both modules map an outcome onto an order status; one declaration
  * is what stops the two drifting. Re-exported here for the length of Phase P,

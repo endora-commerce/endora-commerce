@@ -5,7 +5,7 @@ import type {
   ProductSelectionOp,
   ProductSelectionRule,
   ProductSelectionValue,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Selection-rule compiler — feature 067 / FR-025, FR-029 (T066).

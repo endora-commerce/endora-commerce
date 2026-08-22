@@ -3,7 +3,7 @@ import {
   type NumberingSeries,
   type SettingWriteValidationInput,
   type SettingWriteValidator,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { INVOICES_SETTING_CODES } from '../manifest.js';
 import {

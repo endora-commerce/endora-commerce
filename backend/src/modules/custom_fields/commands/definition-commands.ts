@@ -2,7 +2,7 @@ import type {
   CreateCustomFieldDefinitionRequest,
   CustomFieldOptionDto,
   UpdateCustomFieldDefinitionRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { Command } from '../../../commands/index.js';
 import { CustomFieldDefinition } from '../entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../entities/custom-field-option.entity.js';

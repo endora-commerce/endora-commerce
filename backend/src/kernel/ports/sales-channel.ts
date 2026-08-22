@@ -1,4 +1,4 @@
-import type { ChannelMemberEntityType } from '@b2b/contracts';
+import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
 import type { CachedChannel } from '../sales-channels/sales-channels-cache.js';
 import type {
   MembershipMutationOptions,

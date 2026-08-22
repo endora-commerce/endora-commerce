@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   OrganizationCannotTransactError,
   OrganizationNotFoundError,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Organization } from '../entities/organization.entity.js';
 
 /**
@@ -63,7 +63,7 @@ export class OrganizationContextService {
 }
 
 /**
- * Both error classes moved to `@b2b/contracts` in feature 075's Phase P. An
+ * Both error classes moved to `@endora-commerce/contracts` in feature 075's Phase P. An
  * error is a shape, not behaviour — four modules catch `instanceof` on the
  * second one to turn it into a 409 envelope, and the kernel's
  * `OrganizationReadPort` has documented both as `assertCanTransact`'s failure

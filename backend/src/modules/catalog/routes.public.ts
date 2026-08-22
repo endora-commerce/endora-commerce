@@ -14,7 +14,7 @@ import {
   type ProductListCapabilities,
   type ProductListSort,
   type SearchQueryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';

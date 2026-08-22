@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import type { DiscoveredManifestEntry } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 import {
   REGISTERED_MANIFESTS,

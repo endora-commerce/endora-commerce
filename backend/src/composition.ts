@@ -9,7 +9,7 @@ import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/ser
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@b2b/contracts';
+import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@endora-commerce/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { ApiInterceptorRegistry } from './http/interceptors/index.js';
@@ -130,7 +130,7 @@ import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 // kernel-obeying platform peer and may not name a module (D-52). A root may.
 import { ERROR_TRANSLATION_KEYS } from './modules/_i18n/services/error-translation.js';
 import type { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
-import type { ModuleSettingsManifest } from '@b2b/contracts';
+import type { ModuleSettingsManifest } from '@endora-commerce/contracts';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
 
 /**
@@ -1084,7 +1084,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // other consumer instead of holding the variables its callbacks filled in.
   const emailCradle = (): {
     transactionalEmailSenderAccessor: () =>
-      | import('@b2b/contracts').TransactionalEmailSender
+      | import('@endora-commerce/contracts').TransactionalEmailSender
       | undefined;
     emailBrandingAccessor: () =>
       | {

@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PaymentReferencePort } from '@b2b/contracts';
+import type { PaymentReferencePort } from '@endora-commerce/contracts';
 import { Payment } from '../entities/payment.entity.js';
 
 /**

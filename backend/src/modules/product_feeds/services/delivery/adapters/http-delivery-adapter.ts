@@ -1,6 +1,6 @@
 import { lookup } from 'node:dns/promises';
 import { Readable } from 'node:stream';
-import { FEED_DELIVERY_LIMITS, type FeedDeliveryProtocol } from '@b2b/contracts';
+import { FEED_DELIVERY_LIMITS, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import {
   refuseForbiddenAddresses,
   validateDeliveryTargetUrl,

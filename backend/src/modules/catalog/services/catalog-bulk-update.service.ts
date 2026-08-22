@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type BulkUpdateProductsRequest } from '@b2b/contracts';
+import { ERROR_CODES, type BulkUpdateProductsRequest } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';

@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { LANGUAGE_FALLBACK, ERROR_CODES, type ErrorCode, type ErrorEnvelope, type SupportedLanguage } from '@b2b/contracts';
+import { LANGUAGE_FALLBACK, ERROR_CODES, type ErrorCode, type ErrorEnvelope, type SupportedLanguage } from '@endora-commerce/contracts';
 import { ZodError, type core as zodCore } from 'zod';
 import { hasZodFastifySchemaValidationErrors } from '@fastify/type-provider-zod';
 
@@ -68,7 +68,7 @@ export interface ErrorEnvelopeOptions {
    * runtime — `_i18n` is `nonDeactivatable` and the map is a static table — but
    * F4's precondition is that packages are not cyclic.
    *
-   * **It stays injected rather than moving into `@b2b/contracts`**, for symmetry
+   * **It stays injected rather than moving into `@endora-commerce/contracts`**, for symmetry
    * with the two functions below and because a routing table frozen into a
    * contracts release is a routing table a module cannot re-point when it takes
    * ownership of a code family.

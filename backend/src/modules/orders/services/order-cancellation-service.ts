@@ -4,7 +4,7 @@ import {
   ORDER_STATUS_CANCELLED,
   type OrderTransitionPort,
   type PaymentMethodReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Order } from '../entities/order.entity.js';
 import { isBuyerCancellable } from '../domain/customer-cancellation.js';

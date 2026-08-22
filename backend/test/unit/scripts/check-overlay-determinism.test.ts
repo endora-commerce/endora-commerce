@@ -144,15 +144,15 @@ describe('deriveWorkspacePackages', () => {
     // make every bare specifier read as an installed package, which is a red
     // this run could not justify — hence the floor below.
     //
-    // `@b2b/page-builder-core` is named on purpose: it is the member that was
+    // `@endora-commerce/page-builder-core` is named on purpose: it is the member that was
     // missing from `tsconfig.base.json`'s hand-written `paths` block for long
     // enough to type-check one branch and execute another (issue #255). A
     // derivation off the workspace globs has all five whether or not anybody
     // remembered the sixth list.
     const names = deriveWorkspacePackages(REPO_ROOT).map((p) => p.name);
-    expect(names).toContain('@b2b/contracts');
+    expect(names).toContain('@endora-commerce/contracts');
     expect(names).toContain('backend');
-    expect(names).toContain('@b2b/page-builder-core');
+    expect(names).toContain('@endora-commerce/page-builder-core');
   });
 
   it('reads nothing from a tree with no workspace file, rather than guessing', () => {
@@ -193,7 +193,7 @@ describe('containmentSites', () => {
     // repository's own packages the day the layout moves.
     const sites = containmentSites(
       REGISTRY_PATH,
-      artefactImporting('@b2b/contracts/src/index.js'),
+      artefactImporting('@endora-commerce/contracts/src/index.js'),
       ROOTS,
     );
     expect(sites[0]).toMatchObject({ verdict: 'workspace-package' });

@@ -1,4 +1,4 @@
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 
 /**
  * Admin notifications — minimal "bell" surface.

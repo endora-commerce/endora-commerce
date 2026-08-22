@@ -3,7 +3,7 @@ import {
   PushSubscriptionInputSchema,
   PushSubscriptionDeleteSchema,
   type PwaIconPurpose,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { PwaConfigResolver } from './services/pwa-config-resolver.js';
 import type { PwaIconService } from './services/pwa-icon-service.js';
 import type { PushSubscriptionService } from './services/push-subscription-service.js';

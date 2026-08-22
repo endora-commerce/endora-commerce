@@ -3,7 +3,7 @@ import type {
   NumberPatternCollision,
   NumberingSeries,
   SettingsAdminPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Setting } from '../../../kernel/settings/setting.entity.js';

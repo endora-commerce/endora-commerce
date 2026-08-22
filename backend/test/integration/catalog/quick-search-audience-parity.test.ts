@@ -6,7 +6,7 @@ import {
   type CatalogAttributeReadPort,
   type ProductAudience,
   type ProductVisibility,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { CatalogQuickSearchService } from '../../../src/modules/catalog/services/catalog-quick-search.service.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
@@ -15,7 +15,7 @@ import { Product } from '../../../src/modules/catalog/entities/product.entity.js
  * Issue #262 — the parity `catalogQuickSearchPort` had no test for.
  *
  * Product visibility is expressed in three places and two of them have to be
- * SQL: {@link isProductVisibleTo} in `@b2b/contracts`, this port's `@>`
+ * SQL: {@link isProductVisibleTo} in `@endora-commerce/contracts`, this port's `@>`
  * containment clause, and `catalog-product-filter.service.ts`'s
  * `sellableFloor`. The owner's ruling is to keep the three and pin the
  * differences, so what makes the duplication safe is a test per SQL site that

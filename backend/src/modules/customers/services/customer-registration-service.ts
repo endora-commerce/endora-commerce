@@ -4,7 +4,7 @@ import {
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountRecord,
   type PersonalOrganizationPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 
 /**

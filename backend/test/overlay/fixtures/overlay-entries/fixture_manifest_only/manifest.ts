@@ -3,7 +3,7 @@
 // It must be SKIPPED rather than thrown at. This is the shape that crashed
 // composition before D-103: `loadOverlayModulePlugins` imported `plugin.ts` for
 // every discovered id without asking whether the file existed.
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 
 export const manifest = defineModuleManifest({
   id: 'fixture_manifest_only',

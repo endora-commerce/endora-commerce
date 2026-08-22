@@ -6,7 +6,7 @@ import {
   type CustomFieldDefinitionWithOptions,
   type CustomFieldOptionDto,
   type UpdateAttributeRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { Command } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CustomFieldDefinitionApplyApi } from '../../custom_fields/services/custom-field-definition.service.js';

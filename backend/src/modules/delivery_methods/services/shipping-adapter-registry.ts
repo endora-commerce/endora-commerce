@@ -1,4 +1,4 @@
-import type { ShippingAdapter, ShippingAdapterRegistryPort } from '@b2b/contracts';
+import type { ShippingAdapter, ShippingAdapterRegistryPort } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /**

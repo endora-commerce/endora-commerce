@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   ReducedDeploymentDeclarationSchema,
   type ReducedDeploymentDeclaration,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { selectedDeployment } from '../../../overlay/overlay-roots.js';
 
 /**
@@ -30,7 +30,7 @@ import { selectedDeployment } from '../../../overlay/overlay-roots.js';
  * mechanism is discoverable rather than folklore.
  *
  * The entry shape is {@link ReducedDeploymentDeclaration}, declared in
- * `@b2b/contracts`: the file carrying it belongs to a deployment, and a
+ * `@endora-commerce/contracts`: the file carrying it belongs to a deployment, and a
  * deployment naming this module's internals is the coupling that outlives the
  * module (`test/integration/kernel/module-removal.test.ts` counts exactly that).
  */

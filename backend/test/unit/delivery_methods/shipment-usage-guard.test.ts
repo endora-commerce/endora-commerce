@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ShipmentUsagePort } from '@b2b/contracts';
+import type { ShipmentUsagePort } from '@endora-commerce/contracts';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { makeShipmentUsageCounter } from '../../../src/modules/delivery_methods/services/shipment-usage-guard.js';
 import {

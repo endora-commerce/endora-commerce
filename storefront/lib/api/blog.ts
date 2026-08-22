@@ -2,7 +2,7 @@ import type {
   BlogBySlugResponse,
   BlogIndexResponse,
   BlogTagByCodeResponse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 import { isModuleDisabled } from './module-absence';
 

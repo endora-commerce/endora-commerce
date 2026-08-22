@@ -8,7 +8,7 @@
 # how every backend script (dev, migrate, seed, admin:create) already executes and avoids
 # an AOT bundling step the repository has never exercised.
 #
-# Its workspace packages are the opposite case since feature 080 (T042): each `@b2b/*`
+# Its workspace packages are the opposite case since feature 080 (T042): each `@endora-commerce/*`
 # package resolves through its own `exports` map at `./dist`, so they are compiled below,
 # before the source is anything the runtime can reach.
 

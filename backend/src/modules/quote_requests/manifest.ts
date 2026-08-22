@@ -1,7 +1,7 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Settings manifest for the Quote Requests module — feature 008.

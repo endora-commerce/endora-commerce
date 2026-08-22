@@ -1,4 +1,4 @@
-import type { ModulePresence, RegistryState } from '@b2b/contracts';
+import type { ModulePresence, RegistryState } from '@endora-commerce/contracts';
 import { registryCache, type ModuleRegistryCache } from './registry-cache.js';
 
 /**

@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
-import type { NewsletterSendProvider, ResolveResult } from '@b2b/contracts';
+import { NEWSLETTER_SETTING_CODES } from '@endora-commerce/contracts';
+import type { NewsletterSendProvider, ResolveResult } from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '../../../../kernel/ports/settings.js';
 import { ConsoleNewsletterProvider } from './console-provider.js';
 import { SmtpProvider } from './smtp-provider.js';

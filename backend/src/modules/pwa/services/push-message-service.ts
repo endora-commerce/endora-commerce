@@ -5,7 +5,7 @@ import type {
   OrganizationDetailsPort,
   PushAudience,
   PushTrigger,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { PushMessage } from '../entities/push-message.entity.js';
 import { PushMessageDelivery } from '../entities/push-message-delivery.entity.js';
 import { PushSubscription } from '../entities/push-subscription.entity.js';

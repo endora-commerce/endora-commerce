@@ -1,4 +1,4 @@
-import { ApiError, createApiClient, type ApiClient } from '@b2b/api-client';
+import { ApiError, createApiClient, type ApiClient } from '@endora-commerce/api-client';
 
 const baseUrl =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
@@ -32,4 +32,4 @@ export const apiClient: ApiClient = {
   delete: (p, init) => trap(inner.delete(p, init)),
 };
 
-export { ApiError } from '@b2b/api-client';
+export { ApiError } from '@endora-commerce/api-client';

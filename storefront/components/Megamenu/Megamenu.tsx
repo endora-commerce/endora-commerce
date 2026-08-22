@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ResolvedMegamenu, ResolvedMenuItem } from '@b2b/contracts';
+import type { ResolvedMegamenu, ResolvedMenuItem } from '@endora-commerce/contracts';
 import { MegamenuMobileDrawer } from './MegamenuMobileDrawer';
 import { MegamenuPanel } from './MegamenuPanel';
 

@@ -30,12 +30,12 @@ COPY packages/cms-components/package.json packages/cms-components/package.json
 COPY storefront/package.json storefront/package.json
 COPY admin/package.json admin/package.json
 # `docs` is excluded by .dockerignore and unused by app builds.
-RUN pnpm install --frozen-lockfile --filter storefront... --filter @b2b/cms-components
+RUN pnpm install --frozen-lockfile --filter storefront... --filter @endora-commerce/cms-components
 
 COPY packages/ packages/
 COPY storefront/ storefront/
 
-# Every `@b2b/*` package resolves through its own `exports` map at `./dist` (feature 080,
+# Every `@endora-commerce/*` package resolves through its own `exports` map at `./dist` (feature 080,
 # T042), so all of the storefront's workspace dependencies are built, not just the one
 # that ships a stylesheet. `storefront^...` is that dependency closure *without* the
 # storefront itself — its own build has to run after the NEXT_PUBLIC_* args are set.

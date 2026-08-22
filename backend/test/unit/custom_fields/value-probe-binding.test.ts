@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SupportedEntityType } from '@b2b/contracts';
+import type { SupportedEntityType } from '@endora-commerce/contracts';
 import {
   CustomFieldValueService,
   type DefinitionSource,

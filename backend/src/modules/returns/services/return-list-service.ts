@@ -5,7 +5,7 @@ import type {
   AdminReturnsListQuery,
   AdminReturnsListResponse,
   BulkTransitionResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { orgConstraintFor } from '../../../tenancy/derived-scope.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';

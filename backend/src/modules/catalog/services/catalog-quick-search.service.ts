@@ -5,7 +5,7 @@ import type {
   CatalogQuickSearchHit,
   CatalogQuickSearchParams,
   CatalogQuickSearchPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * The buyer-facing quick-search read model (issue #174).
@@ -50,7 +50,7 @@ import type {
  *
  * ## The other SQL statement of the same rule, and why it looks different
  *
- * `isProductVisibleTo` in `@b2b/contracts` is the platform's one answer, and
+ * `isProductVisibleTo` in `@endora-commerce/contracts` is the platform's one answer, and
  * this module restates it in SQL **twice** because a predicate over a record
  * cannot be pushed into a query. The other restatement is
  * `ANONYMOUS_AUDIENCE_CLAUSE` in `catalog-product-filter.service.ts`, and it is

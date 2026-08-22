@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CommandBus } from '../../commands/index.js';
-import type { CredentialsPort } from '@b2b/contracts';
+import type { CredentialsPort } from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

@@ -4,7 +4,7 @@ import {
   normalizeEmailAddress,
   type AuthSessionPort,
   type MfaLoginPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';

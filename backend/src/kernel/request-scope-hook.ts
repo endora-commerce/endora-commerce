@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
-import type { RequestMeta } from '@b2b/contracts';
+import type { RequestMeta } from '@endora-commerce/contracts';
 import type { TenantContext } from '../tenancy/tenant-context.js';
 import { enterPlatformScope } from './scope.js';
 

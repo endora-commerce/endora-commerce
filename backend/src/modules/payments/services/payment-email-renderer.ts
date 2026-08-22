@@ -8,10 +8,10 @@
  * E-mail bodies are plain text (see Mailer.MailerSendInput.text), so a renderer
  * is a `(ctx) => string` builder rather than a React component.
  */
-import type { PaymentEmailContext } from '@b2b/contracts';
+import type { PaymentEmailContext } from '@endora-commerce/contracts';
 
 /**
- * `PaymentEmailContext` moved to `@b2b/contracts` in feature 075's Phase P —
+ * `PaymentEmailContext` moved to `@endora-commerce/contracts` in feature 075's Phase P —
  * `orders` renders the payment line with it. Re-exported here for the length
  * of Phase P, which cuts no consumer.
  */

@@ -1,4 +1,4 @@
-import type { EmailMailerSendInput } from '@b2b/contracts';
+import type { EmailMailerSendInput } from '@endora-commerce/contracts';
 
 export interface BuildVerificationEmailInput {
   customerAccountId: string;

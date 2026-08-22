@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import type { CartApprovalStatus } from '../entities/cart.entity.js';
@@ -9,7 +9,7 @@ import type {
   OrganizationCartApprovalWritePort,
   OrganizationDetailsPort,
   OrganizationRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CartAuditService } from './cart-audit-service.js';
 
 /**

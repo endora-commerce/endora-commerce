@@ -2,7 +2,7 @@ import type {
   AuditReferenceLabel,
   AuditReferenceRegistryPort,
   AuditReferenceResolver,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * In-process registry of "what is this audit row about, and where does it live?"
@@ -12,7 +12,7 @@ import type {
  * modules' boot hooks. `RecentActivityService` is the only reader today.
  *
  * **Enumeration policy: an absent contributor's resolver is skipped.** The
- * reasoning is at `AuditReferenceRegistryPort` in `@b2b/contracts`, and the
+ * reasoning is at `AuditReferenceRegistryPort` in `@endora-commerce/contracts`, and the
  * short of it is that the descriptor carries a deep link into the contributor's
  * own admin screen: a module that is not present contributes no screen, so
  * nothing may link to one. The audit row still renders — with the label the

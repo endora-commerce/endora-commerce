@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DictionaryReferenceRegistryPort } from '@b2b/contracts';
+import type { DictionaryReferenceRegistryPort } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { CountryReferenceRegistry } from '../../../src/modules/dictionaries/services/country-reference-registry.js';

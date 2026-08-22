@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AssetReadPort, AssetRecord } from '@b2b/contracts';
+import type { AssetReadPort, AssetRecord } from '@endora-commerce/contracts';
 import { Asset } from '../entities/asset.entity.js';
 
 /**

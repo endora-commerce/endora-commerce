@@ -1,4 +1,4 @@
-import { adminOrderPaymentStatusTransitionSchema, paymentStatusSchema } from '@b2b/contracts';
+import { adminOrderPaymentStatusTransitionSchema, paymentStatusSchema } from '@endora-commerce/contracts';
 
 /**
  * The order's money axis, as the admin screens read and write it (feature 085).

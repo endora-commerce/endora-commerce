@@ -23,7 +23,7 @@ import type {
   PersonalOrganizationPort,
   RfqCustomerPort,
   VatValidator,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { CustomerAddressReadService } from './services/customer-address-read-port.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';

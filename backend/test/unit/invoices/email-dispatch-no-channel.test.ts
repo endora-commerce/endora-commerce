@@ -4,7 +4,7 @@ import type {
   TransactionalEmailSendInput,
   TransactionalEmailSender,
   TransactionalSendOutcome,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   InvoiceEmailDispatcher,
   type InvoiceEmailDispatchDeps,

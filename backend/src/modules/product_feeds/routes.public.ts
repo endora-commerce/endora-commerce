@@ -18,7 +18,7 @@ import { extensionFor } from './routes.admin.js';
  *
  *   GET /api/v1/public/product-feeds/:token
  *
- * Its consumer is Google Merchant Center's fetcher, not `@b2b/api-client`, so
+ * Its consumer is Google Merchant Center's fetcher, not `@endora-commerce/api-client`, so
  * it looks unlike every other route here and each difference is deliberate:
  *
  *  - **No JSON envelope.** The body IS the feed file. The one sanctioned

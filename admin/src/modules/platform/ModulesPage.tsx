@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, Lock } from 'lucide-react';
-import type { ModuleListItem, ModulePresence } from '@b2b/contracts';
+import type { ModuleListItem, ModulePresence } from '@endora-commerce/contracts';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';

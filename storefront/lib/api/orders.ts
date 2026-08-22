@@ -1,4 +1,4 @@
-import { purchaseConversionClaimResponseSchema } from '@b2b/contracts';
+import { purchaseConversionClaimResponseSchema } from '@endora-commerce/contracts';
 import { apiGetAuthed, apiMutate } from './mutations';
 
 /**

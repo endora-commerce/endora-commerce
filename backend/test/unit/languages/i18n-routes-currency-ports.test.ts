@@ -5,7 +5,7 @@ import type {
   CurrencyAdminPort,
   CurrencyReadPort,
   CurrencyRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   registerI18nRoutes,
   type I18nRoutesDeps,

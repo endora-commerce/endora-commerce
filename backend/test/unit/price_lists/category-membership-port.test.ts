@@ -4,7 +4,7 @@ import type {
   CatalogCategoryAssignmentRecord,
   CatalogCategoryReadPort,
   CatalogCategoryRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
 import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
 import { PriceDisplayModeOverride } from '../../../src/modules/price_lists/entities/price-display-mode-override.entity.js';

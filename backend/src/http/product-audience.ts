@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { ANONYMOUS_PRODUCT_AUDIENCE, type ProductAudience } from '@b2b/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE, type ProductAudience } from '@endora-commerce/contracts';
 
 /**
  * The {@link ProductAudience} of a request, off the actor the auth plugin

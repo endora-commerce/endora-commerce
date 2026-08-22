@@ -9,7 +9,7 @@
 // must stay silent.
 
 import { describe, expect, it } from 'vitest';
-import type { TransactionalEmailSendInput, TransactionalSendOutcome } from '@b2b/contracts';
+import type { TransactionalEmailSendInput, TransactionalSendOutcome } from '@endora-commerce/contracts';
 import {
   makeTemplateEmail,
   noopTemplateEmail,

@@ -1,11 +1,11 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type ReceiveShipment } from '@b2b/contracts';
+import { ERROR_CODES, type ReceiveShipment } from '@endora-commerce/contracts';
 import type {
   DeliveryMethodReadPort,
   OrderTransitionOutcome,
   OrderTransitionPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Shipment } from '../entities/shipment.entity.js';
 import type { ShippingEventBus } from './events.js';

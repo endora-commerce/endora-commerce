@@ -1,7 +1,7 @@
 import type {
   InventoryProductThresholdWritePort,
   ProductThresholdCopyResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '../../../commands/index.js';
 import { ProductWarehouseLowStockThreshold } from '../entities/product-warehouse-low-stock-threshold.entity.js';
 

@@ -12,7 +12,7 @@
 
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 
 import { HttpError } from '../../http/error-envelope.js';
 import { Asset } from './entities/asset.entity.js';

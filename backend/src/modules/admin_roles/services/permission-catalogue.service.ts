@@ -2,7 +2,7 @@ import {
   PERMISSION_CATALOGUE,
   type ModuleManifest,
   type PermissionCatalogueEntry,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 export interface PermissionCatalogueServiceOptions {
   registryEntries: ReadonlyArray<{ manifest: ModuleManifest }>;

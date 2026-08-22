@@ -6,7 +6,7 @@ import type {
   DeliveryMethodReadPort,
   OrganizationRestrictionPort,
   PaymentMethodReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { customerAddressesOrAbsent } from '../../../src/modules/quick_order/backend.js';

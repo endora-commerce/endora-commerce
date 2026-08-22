@@ -1,4 +1,4 @@
-import type { EmailMailerSendInput } from '@b2b/contracts';
+import type { EmailMailerSendInput } from '@endora-commerce/contracts';
 
 /**
  * Feature 038 (US6) — email to the customer when a sales rep / admin reorders

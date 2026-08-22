@@ -7,7 +7,7 @@ import {
   definePageBuilderComponent,
   type PageBuilderComponentDefinition,
   type PageBuilderContext,
-} from '@b2b/page-builder-core';
+} from '@endora-commerce/page-builder-core';
 import { useEmailEmbeds } from './components/email-embeds-context.js';
 import { useEmailBrandingPreview } from './components/email-branding-preview-context.js';
 import type {

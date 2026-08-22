@@ -6,7 +6,7 @@ import {
   type CmsPageSummary,
   type CreateCmsPageRequest,
   type PatchCmsPageRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { walkBlockEmbeds, walkUnknownComponents } from './content-tree-walker.js';

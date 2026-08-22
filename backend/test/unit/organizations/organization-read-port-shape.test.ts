@@ -6,7 +6,7 @@ import type {
 } from '../../../src/kernel/ports/organizations.js';
 import { OrganizationContextService } from '../../../src/modules/organizations/services/organization-context-service.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { organizationStatusSchema } from '@b2b/contracts';
+import { organizationStatusSchema } from '@endora-commerce/contracts';
 import { ORGANIZATION_STATUSES } from '../../../src/modules/organizations/entities/organization.entity.js';
 
 /**
@@ -36,7 +36,7 @@ describe('OrganizationReadPort as a structural snapshot', () => {
     expect(snapshot.status).toBe('active');
   });
 
-  it('takes its status union from @b2b/contracts, which the entity re-declares identically', () => {
+  it('takes its status union from @endora-commerce/contracts, which the entity re-declares identically', () => {
     // D-55 makes the contracts declaration the kernel's. If the entity ever
     // gains a status the contract does not have, the snapshot silently narrows
     // what the port can report — so the two lists are pinned together here.

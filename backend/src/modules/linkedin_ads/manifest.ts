@@ -1,5 +1,5 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
-import { LINKEDIN_ADS_SETTING_CODES } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import { LINKEDIN_ADS_SETTING_CODES } from '@endora-commerce/contracts';
 
 /**
  * LinkedIn Ads module (feature 063). Puts the LinkedIn Insight Tag on the

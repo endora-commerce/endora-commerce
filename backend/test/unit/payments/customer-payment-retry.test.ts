@@ -9,7 +9,7 @@ import {
   type PaymentAdapter,
   type PaymentAdapterRegistryPort,
   type StartPaymentResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { PaymentRetryService } from '../../../src/modules/payments/services/payment-retry-service.js';
 import type { PaymentService } from '../../../src/modules/payments/services/payment-service.js';

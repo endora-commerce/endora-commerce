@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
@@ -9,7 +9,7 @@ import type {
   CustomerAccountReadPort,
   EmailMailerPort,
   TransactionalEmailSender,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { buildReorderCreatedEmail } from '../email-templates/reorder-created.js';
 import {
   orderEmailNotSent,

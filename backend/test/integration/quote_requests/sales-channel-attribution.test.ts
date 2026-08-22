@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';

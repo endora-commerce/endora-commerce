@@ -6,7 +6,7 @@ import {
   type DictionaryEntryType,
   type DictionaryRegistryResponse,
   type LanguageReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Country } from '../entities/country.entity.js';

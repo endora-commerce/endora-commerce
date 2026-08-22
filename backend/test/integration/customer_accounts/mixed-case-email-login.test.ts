@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CustomerPasswordResetPort } from '@b2b/contracts';
+import type { CustomerPasswordResetPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

@@ -2,7 +2,7 @@ import type {
   CurrencyAdminPort,
   CurrencyReadPort,
   CurrencyRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Currency } from '../entities/currency.entity.js';
 import type { CurrencyService } from './currency-service.js';

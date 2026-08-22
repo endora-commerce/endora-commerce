@@ -11,7 +11,7 @@ import {
   type LinePricePort,
   type OrganizationDetailsPort,
   type OrganizationRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';

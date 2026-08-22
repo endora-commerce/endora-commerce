@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import { buildStaticRegistry } from '../../../src/modules/_lifecycle/services/static-registry.js';
 
 /**

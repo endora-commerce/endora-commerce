@@ -5,7 +5,7 @@ import type {
   CatalogGalleryPort,
   CatalogProductReadPort,
   CatalogProductRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';

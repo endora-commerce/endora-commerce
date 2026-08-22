@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import type { ConfigurationTypeDescriptor } from '@b2b/contracts';
+import type { ConfigurationTypeDescriptor } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CommandActor, CommandBus } from '../../../src/commands/index.js';
 import { makeDeleteConfigurationCommand } from '../../../src/modules/credentials/commands/delete-configuration.command.js';

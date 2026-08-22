@@ -7,7 +7,7 @@ import {
   type CreateCategoryRequest,
   type CustomFieldValuePort,
   type UpdateCategoryInput,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import type { CommandBus, CommandEvent } from '../../../commands/index.js';
@@ -69,7 +69,7 @@ function categoryUpdatedEvent(
 /**
  * The patch this service's `update` accepts.
  *
- * Published in `@b2b/contracts` in feature 075's Phase P — the category write
+ * Published in `@endora-commerce/contracts` in feature 075's Phase P — the category write
  * port takes it — and aliased back here so the two cannot drift.
  */
 export type { UpdateCategoryInput };

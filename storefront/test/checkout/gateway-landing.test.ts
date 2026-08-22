@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { storefrontPaymentReturnUrl, type PaymentReturnOutcome } from '@b2b/contracts';
+import { storefrontPaymentReturnUrl, type PaymentReturnOutcome } from '@endora-commerce/contracts';
 import {
   parseReturnOutcome,
   postPaymentDestination,

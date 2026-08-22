@@ -10,7 +10,7 @@ import {
   type GetBundlesResponse,
   type I18nCoverageResponse,
   type SupportedAdminLanguage,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { I18nService } from './services/i18n-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 

@@ -78,7 +78,7 @@ import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
 import { loadPackageModuleEntries } from '../../src/packages/package-runtime.js';
 import { buildStaticRegistry } from '../../src/modules/_lifecycle/services/static-registry.js';
 import type { LoadedManifestRegistry } from '../../src/modules/_lifecycle/services/manifest-loader.js';
-import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@b2b/contracts';
+import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@endora-commerce/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
@@ -154,7 +154,7 @@ import {
   FeedDeliveryError,
   type FeedDeliveryAdapter,
 } from '../../src/modules/product_feeds/services/delivery/delivery-adapter.interface.js';
-import type { FeedDeliveryProtocol } from '@b2b/contracts';
+import type { FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type { PimErgonodeCradle } from '../../src/modules/pim_ergonode/backend.js';
 import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services/ergonode-client.port.js';
 import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/services/ergonode-media-fetcher.js';
@@ -170,7 +170,7 @@ import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js
 import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { z } from 'zod';
 import type { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
-import type { AssetReadPort } from '@b2b/contracts';
+import type { AssetReadPort } from '@endora-commerce/contracts';
 import type { PricingServiceContract } from '../../src/modules/price_lists/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
@@ -1343,7 +1343,7 @@ export async function setupBackendServer(
   // other consumer instead of holding the variables its callbacks filled in.
   const emailCradle = (): {
     transactionalEmailSenderAccessor: () =>
-      | import('@b2b/contracts').TransactionalEmailSender
+      | import('@endora-commerce/contracts').TransactionalEmailSender
       | undefined;
     emailBrandingAccessor: () => { resolve(salesChannelId: string): Promise<unknown> } | undefined;
   } => container.cradle as never;

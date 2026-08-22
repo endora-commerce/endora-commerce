@@ -10,7 +10,7 @@ import { RfqEventService } from '../../../src/modules/quote_requests/services/rf
 import { RfqNotificationService } from '../../../src/modules/quote_requests/services/rfq-notification-service.js';
 import { SalesRepAssignmentService } from '../../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { EventBus } from '../../../src/events/bus.js';
-import type { AdminUserReadPort } from '@b2b/contracts';
+import type { AdminUserReadPort } from '@endora-commerce/contracts';
 
 /**
  * T074 — Expiry worker honours `quote_requests.expiryDays`.

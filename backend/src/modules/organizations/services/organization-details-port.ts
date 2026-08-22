@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { OrganizationDetailsPort, OrganizationRecord } from '@b2b/contracts';
-import { normalizeOrganizationName } from '@b2b/contracts';
+import type { OrganizationDetailsPort, OrganizationRecord } from '@endora-commerce/contracts';
+import { normalizeOrganizationName } from '@endora-commerce/contracts';
 import { Organization } from '../entities/organization.entity.js';
 
 /**

@@ -16,7 +16,7 @@ const nextConfig = {
   // for a slim Docker runtime image — no full node_modules at runtime.
   output: 'standalone',
   // The app lives in a pnpm monorepo; trace from the repo root so the workspace
-  // packages (@b2b/*) are bundled into the standalone output.
+  // packages (@endora-commerce/*) are bundled into the standalone output.
   outputFileTracingRoot: path.join(dirname, '..'),
   // Enable typed Link and route typing — surfaces missing routes at build time.
   typedRoutes: true,
@@ -26,7 +26,7 @@ const nextConfig = {
   // runtime) only to what it transpiles. `extensionAlias` below is the other half — the
   // NodeNext `.js` specifiers in their relative imports resolved to `.ts`/`.tsx` before
   // the build existed and now resolve to the emitted `.js`, so both spellings are listed.
-  transpilePackages: ['@b2b/cms-components', '@b2b/page-builder-core', '@b2b/api-client', '@b2b/contracts'],
+  transpilePackages: ['@endora-commerce/cms-components', '@endora-commerce/page-builder-core', '@endora-commerce/api-client', '@endora-commerce/contracts'],
   webpack(config) {
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),

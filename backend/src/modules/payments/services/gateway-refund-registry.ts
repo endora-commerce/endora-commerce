@@ -1,4 +1,4 @@
-import type { PaymentRefundInput, PaymentRefundResult } from '@b2b/contracts';
+import type { PaymentRefundInput, PaymentRefundResult } from '@endora-commerce/contracts';
 
 /**
  * GatewayRefundRegistry (feature 049) — the generic seam through which a PSP
@@ -45,7 +45,7 @@ import type { PaymentRefundInput, PaymentRefundResult } from '@b2b/contracts';
  *    switched-off gateway.
  *
  * Feature 075's Phase C took the cut Phase P set up: the two shapes `returns`
- * declares are read from `@b2b/contracts` now, so this file names no other
+ * declares are read from `@endora-commerce/contracts` now, so this file names no other
  * module. The declaration itself stays here rather than being replaced by the
  * package's structurally identical `GatewayRefundRegistryPort`, and the reason
  * is `absentOwnerFor`: the published port is the **contribution** surface the

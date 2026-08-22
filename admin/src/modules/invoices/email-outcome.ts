@@ -2,7 +2,7 @@ import type {
   InvoiceEmailNotSentReason,
   IssueInvoiceEmailOutcome,
   SendInvoiceEmailResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /** The scope-bound translator `useTranslation` hands out. */
 type Translate = (key: string, params?: Record<string, string | number>) => string;

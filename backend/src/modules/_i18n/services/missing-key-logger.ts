@@ -1,4 +1,4 @@
-import type { ModuleLifecycleLogger } from '@b2b/contracts';
+import type { ModuleLifecycleLogger } from '@endora-commerce/contracts';
 
 /**
  * Diagnostic surface for the resolver's fallback path — feature 019 /

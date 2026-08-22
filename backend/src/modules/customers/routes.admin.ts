@@ -20,7 +20,7 @@ import {
   type OrderListPort,
   type RfqCustomerPort,
   type VatValidator,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { CustomerModerationService } from './services/customer-moderation-service.js';
@@ -29,7 +29,7 @@ import type { CustomerOrgAssignmentService } from './services/customer-org-assig
 import type { CustomerDeletionService } from './services/customer-deletion-service.js';
 import type { CustomerPresenceService } from './services/customer-presence-service.js';
 import type { CustomerAddressService } from './services/customer-address-service.js';
-import type { CustomerPasswordResetPort } from '@b2b/contracts';
+import type { CustomerPasswordResetPort } from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import {
   serializeCustomerAddress,

@@ -1,4 +1,4 @@
-import { productListSortSchema, type ProductListSort } from '@b2b/contracts';
+import { productListSortSchema, type ProductListSort } from '@endora-commerce/contracts';
 
 /**
  * The listing chrome's two feature-086 query parameters, parsed once for both

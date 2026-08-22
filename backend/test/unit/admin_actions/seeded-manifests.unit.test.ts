@@ -8,7 +8,7 @@ import { manifest as blogManifest } from '../../../src/modules/blog/manifest.js'
 import { manifest as megamenuManifest } from '../../../src/modules/megamenu/manifest.js';
 import { manifest as salesChannelsManifest } from '../../../src/modules/sales_channels/manifest.js';
 import { manifest as settingsManifest } from '../../../src/modules/settings/manifest.js';
-import { ModuleActionSchema } from '@b2b/contracts';
+import { ModuleActionSchema } from '@endora-commerce/contracts';
 
 /**
  * Per-module manifest assertions for the v1 seed action set (T028, T029,

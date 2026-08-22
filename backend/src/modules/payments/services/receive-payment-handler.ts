@@ -1,11 +1,11 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, ORDER_STATUS_ON_HOLD, type ReceivePayment } from '@b2b/contracts';
+import { ERROR_CODES, ORDER_STATUS_ON_HOLD, type ReceivePayment } from '@endora-commerce/contracts';
 import type {
   OrderTransitionOutcome,
   OrderTransitionPort,
   PaymentMethodReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Payment } from '../entities/payment.entity.js';

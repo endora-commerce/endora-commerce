@@ -1,5 +1,5 @@
-import { FEED_DELIVERY_REDACTED, isSecretDeliveryHeader } from '@b2b/contracts';
-import type { FeedDeliveryHeader, FeedDeliveryHeaderInput } from '@b2b/contracts';
+import { FEED_DELIVERY_REDACTED, isSecretDeliveryHeader } from '@endora-commerce/contracts';
+import type { FeedDeliveryHeader, FeedDeliveryHeaderInput } from '@endora-commerce/contracts';
 
 /**
  * The Headers textarea ↔ header list conversion — feature 070.

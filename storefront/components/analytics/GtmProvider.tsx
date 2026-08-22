@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
-import type { GtmStorefrontConfig } from '@b2b/contracts';
+import type { GtmStorefrontConfig } from '@endora-commerce/contracts';
 import { configureGtm } from '../../lib/analytics/gtm/dataLayer';
 import { subscribeConsent } from '../../lib/analytics/consent';
 

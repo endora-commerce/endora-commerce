@@ -4,7 +4,7 @@ import {
   gaCustomEventUpdateSchema,
   gaCustomEventListQuerySchema,
   GA_ACTION_FIELD_CATALOGUE,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { GaCustomEventsService, GaAuditContext } from './services/custom-events.service.js';
 
 export interface GoogleAnalyticsAdminDeps {

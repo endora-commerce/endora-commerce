@@ -35,7 +35,7 @@ import { CartDroppedLinesBanner } from '../../../components/CartDroppedLinesBann
 import { CartApprovalBanner } from '../../../components/CartApprovalBanner';
 import { getMe } from '../../../lib/api/account';
 import { getProductDisplayMode, PRICING_UNAVAILABLE } from '../../../lib/api/pricing';
-import type { DisplayMode } from '@b2b/contracts';
+import type { DisplayMode } from '@endora-commerce/contracts';
 
 /**
  * Cart page — Industria-themed (feature 027 T045 / T046 / T059 / T074 / T096).

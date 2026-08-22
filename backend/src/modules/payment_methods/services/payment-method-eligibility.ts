@@ -1,4 +1,4 @@
-import type { PaymentSurface } from '@b2b/contracts';
+import type { PaymentSurface } from '@endora-commerce/contracts';
 import type { PaymentMethod } from '../entities/payment-method.entity.js';
 import type { PaymentAdapterRegistry } from './payment-adapter-registry.js';
 

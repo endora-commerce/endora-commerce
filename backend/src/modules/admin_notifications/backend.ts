@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AdminNotificationRecordPort } from '@b2b/contracts';
+import type { AdminNotificationRecordPort } from '@endora-commerce/contracts';
 import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { registerAdminNotificationsRoutes } from './routes.admin.js';

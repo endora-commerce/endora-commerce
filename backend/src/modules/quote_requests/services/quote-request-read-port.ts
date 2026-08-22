@@ -3,8 +3,8 @@ import type {
   QuoteRequestLineRecord,
   QuoteRequestReadPort,
   QuoteRequestRecord,
-} from '@b2b/contracts';
-import { OPEN_QUOTE_REQUEST_STATUSES } from '@b2b/contracts';
+} from '@endora-commerce/contracts';
+import { OPEN_QUOTE_REQUEST_STATUSES } from '@endora-commerce/contracts';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 

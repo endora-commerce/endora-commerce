@@ -6,7 +6,7 @@ import {
   type PushProvider,
   type PushSendResult,
   type PushSubscriptionRef,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 export interface WebPushSettingsPort {
   get<T>(code: string, salesChannelId: string, schema: z.ZodType<T>): Promise<T>;

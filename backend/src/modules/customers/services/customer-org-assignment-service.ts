@@ -4,7 +4,7 @@ import {
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type { ModerationActor } from './customer-moderation-service.js';

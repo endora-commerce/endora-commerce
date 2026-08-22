@@ -1,6 +1,6 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
-import type { SupportedAdminLanguage, TranslationBundleEntries } from '@b2b/contracts';
+import type { SupportedAdminLanguage, TranslationBundleEntries } from '@endora-commerce/contracts';
 
 /**
  * Translation Bundle — feature 019 / data-model.md §1.1.

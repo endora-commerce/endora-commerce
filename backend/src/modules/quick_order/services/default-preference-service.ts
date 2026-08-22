@@ -11,11 +11,11 @@ import {
   type QuickOrderPreferenceScope,
   type QuickOrderPreferenceUpsert,
   type QuickOrderResolvedDefaults,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { QuickOrderDefaultPreference } from '../entities/quick-order-default-preference.entity.js';
-import type { PreferenceAuditContext } from '@b2b/contracts';
+import type { PreferenceAuditContext } from '@endora-commerce/contracts';
 import { canManagePreference, type PreferenceActor } from './default-preference-authz.js';
 import {
   resolvePreferenceFields,
@@ -24,7 +24,7 @@ import {
 } from './default-preference-resolver.js';
 
 /**
- * Moved to `@b2b/contracts` in feature 075's Phase P — `customers` passes it
+ * Moved to `@endora-commerce/contracts` in feature 075's Phase P — `customers` passes it
  * when it writes a buyer's defaults. Re-exported here for the length of
  * Phase P, which cuts no consumer.
  */

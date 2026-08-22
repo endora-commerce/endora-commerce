@@ -6,7 +6,7 @@ import {
   type MetaStorefrontMapping,
   type MetaTriggerAction,
   type UpdateMetaCustomEventMapping,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { MetaCustomEventMapping } from '../entities/meta-custom-event-mapping.entity.js';
 

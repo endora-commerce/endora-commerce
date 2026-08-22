@@ -12,7 +12,7 @@ import {
   setBlogPostRelatedPostsRequestSchema,
   setBlogPostRelatedProductsRequestSchema,
   setBlogPostTagsRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { z } from 'zod';
 import type { BlogCategoryService } from './services/blog-category-service.js';
 import type { BlogPostService } from './services/blog-post-service.js';

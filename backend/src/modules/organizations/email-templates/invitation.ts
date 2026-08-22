@@ -1,4 +1,4 @@
-import type { EmailMailerSendInput } from '@b2b/contracts';
+import type { EmailMailerSendInput } from '@endora-commerce/contracts';
 
 /**
  * Invitation email template (T178 / FR-043).

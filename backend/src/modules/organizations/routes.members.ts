@@ -8,7 +8,7 @@ import {
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type CustomerRolePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { InvitationService } from './services/invitation-service.js';
 import type { OrganizationInvitation } from './entities/organization-invitation.entity.js';

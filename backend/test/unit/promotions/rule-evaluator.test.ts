@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PromotionRule } from '@b2b/contracts';
+import type { PromotionRule } from '@endora-commerce/contracts';
 import {
   evaluatePromotionRule,
   type PromotionRuleContext,

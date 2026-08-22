@@ -15,7 +15,7 @@ import {
   type OrganizationDetailsPort,
   type PriceOrganization,
   type ProductAudience,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { withSystemScope } from '../../../tenancy/index.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';

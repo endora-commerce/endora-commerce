@@ -1,9 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DictionaryValidator,
   DictionaryReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { AddressReadPort, AddressServicePort } from '@b2b/contracts';
+import type { AddressReadPort, AddressServicePort } from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { AddressService } from './services/address-service.js';

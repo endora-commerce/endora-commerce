@@ -1,4 +1,4 @@
-import type { NewsletterSendMessage, NewsletterSendProvider } from '@b2b/contracts';
+import type { NewsletterSendMessage, NewsletterSendProvider } from '@endora-commerce/contracts';
 
 /**
  * Default newsletter provider for dev/tests (feature 048). Logs the message and

@@ -1,4 +1,4 @@
-import type { DisplayMode } from '@b2b/contracts';
+import type { DisplayMode } from '@endora-commerce/contracts';
 
 /**
  * Pure display-mode resolver (feature 011 / FR-039).

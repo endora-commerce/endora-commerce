@@ -4,7 +4,7 @@ import type {
   ConfigurationTypeDescriptor,
   FieldDefinition,
   ProviderVariant,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ConfigurationTypeUnknown } from './configuration-type-registry.js';
 import { encryptSecretValue, secretValueIsSet } from './secret-value-codec.js';
 

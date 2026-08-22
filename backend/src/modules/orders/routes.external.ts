@@ -4,7 +4,7 @@ import {
   apiPlaceOrderRequestSchema,
   ERROR_CODES,
   OrganizationCannotTransactError,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
@@ -170,7 +170,7 @@ function headerValue(raw: string | string[] | undefined): string | undefined {
  * The existing serialized order envelope (contract `orderSchema`). Mirrors the
  * customer surface's serializer in `routes.ts` — kept private there by the
  * "customer route file untouched" guard; both derive from the same
- * `@b2b/contracts` `orderSchema`, which pins the shape against drift.
+ * `@endora-commerce/contracts` `orderSchema`, which pins the shape against drift.
  */
 async function serializeExternalOrder(
   em: EntityManager,

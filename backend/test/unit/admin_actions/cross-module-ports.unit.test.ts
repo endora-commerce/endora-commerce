@@ -4,7 +4,7 @@ import type {
   AdminI18nTranslatePort,
   ModuleAction,
   PermissionReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   adminActionsModule,

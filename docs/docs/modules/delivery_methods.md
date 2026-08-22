@@ -52,10 +52,10 @@ A platform module is recognised as a shipping-method adapter **iff** it
 registers a `ShippingAdapter` in the process-wide `shippingAdapterRegistry`
 from its boot hook (FR-001). No core change is required.
 
-1. **Implement the `ShippingAdapter` contract** (`@b2b/contracts`):
+1. **Implement the `ShippingAdapter` contract** (`@endora-commerce/contracts`):
 
    ```ts
-   import type { ShippingAdapter } from '@b2b/contracts';
+   import type { ShippingAdapter } from '@endora-commerce/contracts';
 
    export const myCarrierAdapter: ShippingAdapter = {
      adapterKey: 'my_carrier',

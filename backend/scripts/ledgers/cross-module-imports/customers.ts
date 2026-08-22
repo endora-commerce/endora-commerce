@@ -16,7 +16,7 @@
  * `emailMailer` and `authSessionReadPort`. Four of those contracts name this
  * module by id as the consumer they were written for. Two more sites were not
  * a port question at all — `SESSION_COOKIE_NAME` and `ADMIN_SESSION_COOKIE_NAME`
- * live in `@b2b/contracts`, and `auth/plugin.ts` only re-exports them, so this
+ * live in `@endora-commerce/contracts`, and `auth/plugin.ts` only re-exports them, so this
  * module was the last one in the tree taking them the long way round.
  *
  * The cut had been withdrawn once on a lock claim over this module — a claim

@@ -4,7 +4,7 @@
     "schemas": {}
   },
   "info": {
-    "description": "B2B Platform API. Generated at runtime from the Zod schemas in @b2b/contracts. Source of truth: specs/001-b2b-platform-foundation/contracts/.",
+    "description": "B2B Platform API. Generated at runtime from the Zod schemas in @endora-commerce/contracts. Source of truth: specs/001-b2b-platform-foundation/contracts/.",
     "title": "B2B Platform API (test)",
     "version": "test"
   },

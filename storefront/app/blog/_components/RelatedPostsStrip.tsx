@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { BlogPostCard } from '@b2b/contracts';
+import type { BlogPostCard } from '@endora-commerce/contracts';
 import { PostCard } from './PostCard';
 
 export function RelatedPostsStrip({ posts }: { posts: BlogPostCard[] }): ReactNode {

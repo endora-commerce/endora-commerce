@@ -9,7 +9,7 @@ import type {
   CustomerGroupRecord,
   OrganizationDetailsPort,
   OrganizationRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   registerPwaAdminRoutes,
   type PwaAdminRoutesDeps,

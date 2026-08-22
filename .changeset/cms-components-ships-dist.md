@@ -1,14 +1,14 @@
 ---
-'@b2b/cms-components': major
+'@endora-commerce/cms-components': major
 ---
 
-`@b2b/cms-components` now ships compiled JavaScript and declarations. `main`, `types` and
+`@endora-commerce/cms-components` now ships compiled JavaScript and declarations. `main`, `types` and
 every `exports` subpath resolve under `./dist`; `files` is `["dist"]`. `./styles.css`
 already pointed at `./dist/cms-components.css` and is unchanged — the `build` script now
 runs `tsc` first and the Tailwind step second.
 
-**What changes for you.** No import statement moves: `@b2b/cms-components`,
-`@b2b/cms-components/components/*`, `@b2b/cms-components/schema/*` and the `./*` wildcard
+**What changes for you.** No import statement moves: `@endora-commerce/cms-components`,
+`@endora-commerce/cms-components/components/*`, `@endora-commerce/cms-components/schema/*` and the `./*` wildcard
 all keep their names and reach the same modules, one directory over. What can go is the
 `transpilePackages` entry, loader or bundler plugin you needed to compile its `.tsx`
 source. `"use client"` survives the emit as the first line of each file.

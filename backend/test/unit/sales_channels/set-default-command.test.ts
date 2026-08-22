@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import type { CommandActor } from '../../../src/commands/command.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';

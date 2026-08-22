@@ -3,7 +3,7 @@ import type {
   QuickOrderImportResponse,
   RecognizedQuickOrderItem,
   RejectedQuickOrderItem,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { resolveVariant, type VariantLike } from './variant-resolver.js';
 import type { NormalizedRow, ParseOutcome } from './import-rows.js';
 

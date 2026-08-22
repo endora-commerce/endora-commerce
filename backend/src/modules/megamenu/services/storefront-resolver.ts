@@ -7,7 +7,7 @@ import type {
   MegamenuEmbedSide,
   MegamenuIconPosition,
   MegamenuAssetKind,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { MegamenuCache } from './megamenu-cache.js';
 
 export interface StorefrontDeps {

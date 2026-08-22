@@ -9,7 +9,7 @@ import type {
   OrganizationDetailsPort,
   SettingsAdminAuditContext,
   SettingsAdminPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { SearchIndexer } from './services/search-indexer.js';
 import { SearchEventSubscriber } from './services/search-event-subscriber.js';

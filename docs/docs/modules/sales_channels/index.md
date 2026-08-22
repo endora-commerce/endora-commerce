@@ -61,7 +61,7 @@ Hard-delete with `?fallbackToDefault=true` rebinds orphaned entities to the syst
 
 ## Audit trail (FR-019)
 
-Every identity change, lifecycle change, and membership change writes one `audit_log_entries` row synchronously inside the same transaction. The action codes live in `@b2b/contracts` as `SALES_CHANNEL_AUDIT_ACTIONS`:
+Every identity change, lifecycle change, and membership change writes one `audit_log_entries` row synchronously inside the same transaction. The action codes live in `@endora-commerce/contracts` as `SALES_CHANNEL_AUDIT_ACTIONS`:
 
 - `sales_channel.identity.changed` — create + update.
 - `sales_channel.lifecycle.changed` — deactivate / activate / delete / system-default-promoted.

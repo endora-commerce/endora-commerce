@@ -24,7 +24,7 @@ Principle I — mirrors the payment/shipping adapter registries).
 
 ## The `PromptActionTool` contract
 
-Published in `@b2b/contracts` since feature 075 (D-75) — a contributor names
+Published in `@endora-commerce/contracts` since feature 075 (D-75) — a contributor names
 `PromptActionTool`, `ToolContext` and `PromptActionToolRegistryPort` from there
 and never reaches into this module. The class that enforces the rules below
 stays here (`prompt_actions/services/tool-registry.ts`).
@@ -42,7 +42,7 @@ which opens its own transaction. It used to carry the request path's
 | `kind` | `'resolver'` (side-effect-free, runs during interpretation) or `'mutation'`. |
 | `description` | English, action-oriented — the LLM's **only** documentation. |
 | `requiredPermission` | Mirror the permission guarding the equivalent manual admin route. |
-| `paramsSchema` | A Zod schema (lives in `@b2b/contracts`); the single source for validating LLM arguments **and** for the provider-facing JSON Schema. |
+| `paramsSchema` | A Zod schema (lives in `@endora-commerce/contracts`); the single source for validating LLM arguments **and** for the provider-facing JSON Schema. |
 | `execute(params, ctx)` | Delegates to the same admin service that backs the manual route. |
 | `preview(params, ctx)` | **Mutations only, required** — returns server-computed facts shown in the confirmable plan. |
 

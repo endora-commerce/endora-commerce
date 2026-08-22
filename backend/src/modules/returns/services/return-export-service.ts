@@ -1,4 +1,4 @@
-import type { AdminReturnsListQuery } from '@b2b/contracts';
+import type { AdminReturnsListQuery } from '@endora-commerce/contracts';
 import type { ReturnListService } from './return-list-service.js';
 
 const MAX_EXPORT_ROWS = 10_000;

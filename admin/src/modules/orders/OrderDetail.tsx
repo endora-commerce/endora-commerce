@@ -42,7 +42,7 @@ import {
   paymentStatusLabelKey,
   paymentStatusOptions,
 } from './paymentStatus';
-import type { IssueInvoiceEmailOutcome } from '@b2b/contracts';
+import type { IssueInvoiceEmailOutcome } from '@endora-commerce/contracts';
 
 type OrderTab = 'overview' | 'payment' | 'delivery' | 'comments';
 

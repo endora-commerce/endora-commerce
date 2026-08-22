@@ -5,7 +5,7 @@ import {
   cronFromBuilder,
   type CronBuilderFrequency,
   type CronBuilderValue,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';

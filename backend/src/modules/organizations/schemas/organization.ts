@@ -2,9 +2,9 @@ import { z } from 'zod';
 
 /**
  * Zod schemas used by feature 026 — moderation, restrictions, and VAT
- * validation. These live in the module (not in `@b2b/contracts`) because
+ * validation. These live in the module (not in `@endora-commerce/contracts`) because
  * they describe internal route bodies; the public contract for the
- * Organization status enum is exported from `@b2b/contracts` and
+ * Organization status enum is exported from `@endora-commerce/contracts` and
  * re-imported here.
  */
 

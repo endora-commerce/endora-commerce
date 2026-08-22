@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import type {
   AttributeSet,
   AttributeSetDetail,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +34,7 @@ interface AdminAttribute {
  * Single-page module per foundation 001 admin convention:
  *   - inline `useState` + `useEffect` for data fetching,
  *   - direct `apiClient.{get,post,patch,delete}` calls,
- *   - `@b2b/contracts` types as the single source of truth.
+ *   - `@endora-commerce/contracts` types as the single source of truth.
  *
  * Renders the list of Attribute Sets, lets the admin create custom
  * ones, expand a row to inspect / edit assigned attributes, and

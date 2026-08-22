@@ -1,5 +1,5 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
-import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import { NEWSLETTER_SETTING_CODES } from '@endora-commerce/contracts';
 
 /**
  * Newsletter module (feature 048). Owns the subscriber list, tags, custom

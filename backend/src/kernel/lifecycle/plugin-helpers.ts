@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Worker } from 'bullmq';
-import { ERROR_CODES, type ModuleDisabledDetails } from '@b2b/contracts';
+import { ERROR_CODES, type ModuleDisabledDetails } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModulePlugin } from '../../http/server.js';
 import { effectiveState } from './effective-state.js';

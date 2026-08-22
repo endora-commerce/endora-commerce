@@ -3,7 +3,7 @@ import {
   ANONYMOUS_PRODUCT_AUDIENCE,
   type SearchListResult,
   type SearchQueryContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { createSearchQueryPort } from '../../../src/modules/search/services/search-query-port.js';
 import { SearchBackendUnavailable } from '../../../src/modules/search/services/search-query.service.js';
 

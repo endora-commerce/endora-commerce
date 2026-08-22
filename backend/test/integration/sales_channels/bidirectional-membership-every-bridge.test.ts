@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ERROR_CODES, type ChannelMemberEntityType } from '@b2b/contracts';
+import { ERROR_CODES, type ChannelMemberEntityType } from '@endora-commerce/contracts';
 import { randomUUID } from 'crypto';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { EventBus } from '../../../src/events/bus.js';

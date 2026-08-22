@@ -1,11 +1,11 @@
-// @b2b/api-client — typed HTTP client shared by storefront and admin.
+// @endora-commerce/api-client — typed HTTP client shared by storefront and admin.
 //
 // The client is deliberately thin: it carries cookies for session auth and an optional API-key
 // for integration-scope calls, wraps fetch with the project's envelope conventions, and surfaces
-// typed errors from @b2b/contracts. Module-specific methods (getProduct, createOrder, …) are
+// typed errors from @endora-commerce/contracts. Module-specific methods (getProduct, createOrder, …) are
 // added by their corresponding user-story phases in tasks.md.
 
-import type { ErrorEnvelope } from '@b2b/contracts';
+import type { ErrorEnvelope } from '@endora-commerce/contracts';
 
 export interface ApiClientOptions {
   baseUrl: string;

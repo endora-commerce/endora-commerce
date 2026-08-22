@@ -1,6 +1,6 @@
 // Sales Channels module — feature 005 contract surface.
 // Single file with logical sections (matching the convention used by every
-// other module in @b2b/contracts):
+// other module in @endora-commerce/contracts):
 //   (1) Identity primitives (channel code, summary, detail).
 //   (2) Resolver middleware contract (header / query schemas).
 //   (3) Admin HTTP request/response schemas (list / detail / create / edit

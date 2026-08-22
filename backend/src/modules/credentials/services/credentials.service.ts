@@ -7,7 +7,7 @@ import {
   type CreateConfiguration,
   type ResolveResult,
   type UpdateConfiguration,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CredentialConfiguration } from '../entities/credential-configuration.entity.js';

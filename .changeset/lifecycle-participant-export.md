@@ -1,5 +1,5 @@
 ---
-'@b2b/contracts': minor
+'@endora-commerce/contracts': minor
 ---
 
 Publish `ModuleLifecycleParticipant` — a third lifecycle export a module's

@@ -1,9 +1,9 @@
-import type { CreditTopupInput, CreditTopupPort, CreditTopupResult } from '@b2b/contracts';
+import type { CreditTopupInput, CreditTopupPort, CreditTopupResult } from '@endora-commerce/contracts';
 import type { CreditLimitService } from './credit-limit-service.js';
 
 /**
  * Credit-limits-side implementation of the returns module's `CreditTopupPort`
- * (feature 046, R7). The three declarations are read from `@b2b/contracts`,
+ * (feature 046, R7). The three declarations are read from `@endora-commerce/contracts`,
  * where Phase P published them: `returns` still states the shape and this
  * module still satisfies it, but neither names a file in the other's directory
  * (feature 075, Phase C). A "credit toward future orders" resolution increases the

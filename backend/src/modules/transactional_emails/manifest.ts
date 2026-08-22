@@ -1,6 +1,6 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
-import { DEFAULT_HEADER_BLOCK_CODE } from '@b2b/email-components/defaults/default-header';
-import { DEFAULT_FOOTER_BLOCK_CODE } from '@b2b/email-components/defaults/default-footer';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import { DEFAULT_HEADER_BLOCK_CODE } from '@endora-commerce/email-components/defaults/default-header';
+import { DEFAULT_FOOTER_BLOCK_CODE } from '@endora-commerce/email-components/defaults/default-footer';
 
 /**
  * Transactional Emails module (feature 047). Owns the editable email

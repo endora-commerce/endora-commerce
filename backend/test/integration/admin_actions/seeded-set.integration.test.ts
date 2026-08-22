@@ -7,7 +7,7 @@ import { ModuleAction } from '../../../src/modules/admin_actions/entities/module
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import type { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
 import type { PermissionService } from '../../../src/modules/admin_roles/services/permission-service.js';
-import type { SupportedAdminLanguage } from '@b2b/contracts';
+import type { SupportedAdminLanguage } from '@endora-commerce/contracts';
 import { manifest as catalogManifest } from '../../../src/modules/catalog/manifest.js';
 import { manifest as importExportManifest } from '../../../src/modules/import_export/manifest.js';
 import { manifest as inventoryManifest } from '../../../src/modules/inventory/manifest.js';

@@ -2,7 +2,7 @@
 
 import type { ReactElement, ReactNode } from 'react';
 import type { Plugin } from '@measured/puck';
-import { PageBuilderOutline } from '@b2b/page-builder-core/editor';
+import { PageBuilderOutline } from '@endora-commerce/page-builder-core/editor';
 
 /**
  * Email builder plugin — Outline like CMS, without CMS viewport / responsive field wiring.

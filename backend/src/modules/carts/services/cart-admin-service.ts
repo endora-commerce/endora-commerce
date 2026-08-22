@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import type {
   AdminCartsListQuery,
   AdminCartsListResponse,
@@ -9,14 +9,14 @@ import type {
   CatalogProductRecord,
   CustomerAccountReadPort,
   OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { CartAuditEntry } from '../entities/cart-audit-entry.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { CartAuditService } from './cart-audit-service.js';
-import type { CartSnapshot, PromotionApplication } from '@b2b/contracts';
+import type { CartSnapshot, PromotionApplication } from '@endora-commerce/contracts';
 
 /** Narrow port over the promotion engine for the admin cart-detail discount. */
 export interface AdminCartPromotionPort {

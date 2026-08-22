@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import type { NewsletterSendMessage, NewsletterSendProvider } from '@b2b/contracts';
+import type { NewsletterSendMessage, NewsletterSendProvider } from '@endora-commerce/contracts';
 
 export interface SmtpProviderConfig {
   host: string;

@@ -1,7 +1,7 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Orders module — manifest.

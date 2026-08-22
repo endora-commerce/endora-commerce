@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { PromptActionPlan } from '@b2b/contracts';
+import type { PromptActionPlan } from '@endora-commerce/contracts';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/i18n/useTranslation';
 

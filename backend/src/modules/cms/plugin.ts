@@ -10,7 +10,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import type { CmsColorPaletteEntry } from '@b2b/contracts';
+import type { CmsColorPaletteEntry } from '@endora-commerce/contracts';
 
 import { PageBuilderRegistry, type PageBuilderBreakpointsResolver, type ColorPaletteResolver } from './services/page-builder-registry.js';
 import { reconcileSeededHooks } from './services/seed-hooks.js';
@@ -84,7 +84,7 @@ export function cmsModule(options: CmsModuleOptions): {
     breakpoints: resolvePageBuilderBreakpointsFromEnv(),
   });
   // Register the CMS module's own built-in components in metadata-only
-  // form. Their actual React renderers live in @b2b/cms-components.
+  // form. Their actual React renderers live in @endora-commerce/cms-components.
   // Field shapes are intentionally minimal at v1 ship; admin-side controls
   // expand them as the editor matures.
   pageBuilderRegistry.register('cms', {
@@ -168,7 +168,7 @@ export function cmsModule(options: CmsModuleOptions): {
       },
       InsertTemplate: {
         // Legacy embed — kept in the SPI so existing trees resolve; not in the
-        // drawer palette (see @b2b/cms-components categories.embeds).
+        // drawer palette (see @endora-commerce/cms-components categories.embeds).
         fields: { code: { type: 'text', label: 'Template code', required: true } },
         contexts: ['cms'],
       },

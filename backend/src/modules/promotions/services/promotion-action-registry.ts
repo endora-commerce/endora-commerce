@@ -1,4 +1,4 @@
-import type { PromotionAction } from '@b2b/contracts';
+import type { PromotionAction } from '@endora-commerce/contracts';
 import type { CartApplyContext, DiscountResult, PromotionActionDefinition } from '../actions/types.js';
 import { freeDeliveryAction } from '../actions/free-delivery.js';
 import { percentageOffCartAction } from '../actions/percentage-off-cart.js';

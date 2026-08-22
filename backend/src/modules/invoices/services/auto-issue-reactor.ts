@@ -6,7 +6,7 @@ import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
 } from '../../../kernel/settings/settings.service.js';
-import type { InvoiceDetail } from '@b2b/contracts';
+import type { InvoiceDetail } from '@endora-commerce/contracts';
 import type { InvoiceService } from './invoice-service.js';
 import type { InvoiceEmailDispatcher, InvoiceEmailLog } from './invoice-email-dispatch.js';
 import type { SettingsReader } from './seller-settings.js';

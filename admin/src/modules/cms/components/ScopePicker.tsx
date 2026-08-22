@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { SalesChannelDetail, SalesChannelSummary } from '@b2b/contracts';
+import type { SalesChannelDetail, SalesChannelSummary } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

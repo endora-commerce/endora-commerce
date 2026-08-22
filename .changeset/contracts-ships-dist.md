@@ -1,12 +1,12 @@
 ---
-'@b2b/contracts': major
+'@endora-commerce/contracts': major
 ---
 
-`@b2b/contracts` now ships compiled JavaScript and declarations. `main`, `types` and
+`@endora-commerce/contracts` now ships compiled JavaScript and declarations. `main`, `types` and
 every `exports` subpath resolve under `./dist`; `files` is `["dist"]`.
 
 **What changes for you.** The package no longer hands you TypeScript. Before, resolving
-`@b2b/contracts` gave you `src/index.ts` and you compiled it yourself — which is why a
+`@endora-commerce/contracts` gave you `src/index.ts` and you compiled it yourself — which is why a
 consumer needed `transpilePackages`, a `ts-node`/`tsx` loader, or a bundler plugin to use
 it at all. Now it gives you `dist/index.js` with `dist/index.d.ts` beside it, so remove
 that configuration. Nothing about the exported symbols moved: `productTypeSchema`,
@@ -16,7 +16,7 @@ that configuration. Nothing about the exported symbols moved: `productTypeSchema
 **One specifier stops resolving.** A subpath written with a `.js` extension —
 
 ```ts
-import type { CmsFieldDescriptor } from '@b2b/contracts/cms.js'; // was: src/cms.ts
+import type { CmsFieldDescriptor } from '@endora-commerce/contracts/cms.js'; // was: src/cms.ts
 ```
 
 — went through the old `"./*": "./src/*.ts"` map, where `tsc` substituted the extension.
@@ -25,7 +25,7 @@ The new map is `"./*": "./dist/*.js"`, under which the same specifier asks for
 extension:
 
 ```ts
-import type { CmsFieldDescriptor } from '@b2b/contracts/cms';
+import type { CmsFieldDescriptor } from '@endora-commerce/contracts/cms';
 ```
 
 Every extensionless subpath is unaffected.

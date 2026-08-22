@@ -59,7 +59,7 @@ export class AdminUser {
    * Admin UI preferred language — feature 019. NULL means "no preference
    * saved", which the resolver treats as the platform default (English).
    * The column is bounded by the `SupportedAdminLanguageSchema` allowlist
-   * in `@b2b/contracts/src/admin-i18n.ts`; the validation lives at the
+   * in `@endora-commerce/contracts/src/admin-i18n.ts`; the validation lives at the
    * service / route boundary, not at the column level.
    */
   @Property({ type: 'string', length: 12, nullable: true })

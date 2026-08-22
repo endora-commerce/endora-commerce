@@ -4,7 +4,7 @@ import type {
   AddressReadPort,
   AddressRecord,
   AddressServicePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Address } from '../entities/address.entity.js';
 import type { AddressService } from './address-service.js';
 

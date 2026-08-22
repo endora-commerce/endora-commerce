@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { ERROR_CODES, assignSalesRepRequestSchema } from '@b2b/contracts';
+import { ERROR_CODES, assignSalesRepRequestSchema } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import { AdminUser } from '../admin_users/entities/admin-user.entity.js';

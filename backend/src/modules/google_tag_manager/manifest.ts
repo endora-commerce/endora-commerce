@@ -1,5 +1,5 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
-import { GOOGLE_TAG_MANAGER_SETTING_CODES } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import { GOOGLE_TAG_MANAGER_SETTING_CODES } from '@endora-commerce/contracts';
 
 /**
  * Google Tag Manager module (feature 066). Puts the operator's GTM container on

@@ -8,7 +8,7 @@ import {
   type CredentialsPort,
   type FeedDeliveryHeader,
   type UpsertFeedDeliveryRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '../../../../commands/index.js';
 import { HttpError } from '../../../../http/error-envelope.js';
 import { FeedDelivery } from '../../entities/feed-delivery.entity.js';

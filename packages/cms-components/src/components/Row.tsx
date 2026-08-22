@@ -14,8 +14,8 @@ import {
   ROW_CONTENT_MAX_WIDTH,
   verticalAlignToCss,
   withHideOn,
-} from '@b2b/page-builder-core';
-import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
+} from '@endora-commerce/page-builder-core';
+import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
 import type { RowContentMaxWidth, RowProps, RowSectionLayout } from '../schema/component-types.js';
 import { BoxStyled } from './box-styles.js';
 import { createDefaultColumnItem } from './Column.js';

@@ -1,4 +1,4 @@
-import type { GaStorefrontConfig } from '@b2b/contracts';
+import type { GaStorefrontConfig } from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 
 const DISABLED_CONFIG: GaStorefrontConfig = {

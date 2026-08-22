@@ -3,7 +3,7 @@ import type {
   PromotionRuleCondition,
   PromotionRuleOp,
   PromotionRuleValue,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Feature 045 — pure evaluator for the typed promotion Rule AST.

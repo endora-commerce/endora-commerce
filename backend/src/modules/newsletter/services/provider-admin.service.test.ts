@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { z } from 'zod';
-import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
+import { NEWSLETTER_SETTING_CODES } from '@endora-commerce/contracts';
 import { NewsletterProviderAdminService, type SettingsWriter } from './provider-admin.service.js';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import type { NewsletterProviderRegistry } from './provider/provider-registry.js';

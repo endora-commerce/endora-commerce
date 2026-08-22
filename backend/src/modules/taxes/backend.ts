@@ -7,7 +7,7 @@ import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channe
 import type {
   TaxServicePort, DictionaryValidator,
   DictionaryReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { TaxService } from './services/tax-service.js';
 import { registerTaxRoutes } from './routes.js';
 import { registerTaxCountryReferences } from './services/tax-country-reference.js';

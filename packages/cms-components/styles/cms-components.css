@@ -1,7 +1,7 @@
 /*
- * @b2b/cms-components — self-contained, prefix-isolated stylesheet (feature 041, FR-012a).
+ * @endora-commerce/cms-components — self-contained, prefix-isolated stylesheet (feature 041, FR-012a).
  *
- * Built by `pnpm --filter @b2b/cms-components build` (Tailwind CLI) into
+ * Built by `pnpm --filter @endora-commerce/cms-components build` (Tailwind CLI) into
  * `dist/cms-components.css`, which both the storefront (CMS render path) and the
  * admin Page Builder editor import. The build is host-independent on purpose:
  *

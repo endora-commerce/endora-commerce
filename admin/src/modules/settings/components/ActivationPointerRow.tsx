@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
-import type { SettingDto } from '@b2b/contracts';
+import type { SettingDto } from '@endora-commerce/contracts';
 import { Badge } from '@/components/ui/badge';
 import { useTranslation } from '@/i18n/useTranslation';
 

@@ -1,4 +1,4 @@
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import type { AuditState, Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CredentialConfiguration } from '../entities/credential-configuration.entity.js';

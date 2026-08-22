@@ -1,4 +1,4 @@
-import type { LanguageSeedPort } from '@b2b/contracts';
+import type { LanguageSeedPort } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 
 /**

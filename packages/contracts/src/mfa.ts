@@ -1,4 +1,4 @@
-// @b2b/contracts — MFA module (feature 042).
+// @endora-commerce/contracts — MFA module (feature 042).
 //
 // Source-of-truth Zod schemas for the MFA boundary: TOTP enrolment/verification,
 // the two-step login result, federated sign-in, and admin reset/enforcement.

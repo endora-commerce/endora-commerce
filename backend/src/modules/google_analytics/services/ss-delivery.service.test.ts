@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GOOGLE_ANALYTICS_SETTING_CODES } from '@b2b/contracts';
+import { GOOGLE_ANALYTICS_SETTING_CODES } from '@endora-commerce/contracts';
 import type { Queue } from 'bullmq';
 import { makeEnqueuer, makeProcessor } from './ss-delivery.service.js';
 import type { GaDeliveryJobData } from './ss-delivery-queue.js';

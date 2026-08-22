@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { ShippingAdapter, ShippingEligibilityContext } from '@b2b/contracts';
+import type { ShippingAdapter, ShippingEligibilityContext } from '@endora-commerce/contracts';
 import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
 import { ShippingMethodEligibilityService } from '../../../src/modules/delivery_methods/services/shipping-method-eligibility.js';
 import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';

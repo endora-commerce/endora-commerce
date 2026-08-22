@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ResolveResult } from '@b2b/contracts';
+import type { ResolveResult } from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import { SEARCH_SETTING_CODES } from '../manifest.js';
 

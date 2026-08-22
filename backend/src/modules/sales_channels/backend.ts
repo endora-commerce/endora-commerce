@@ -3,7 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type {
   DictionaryValidator,
   SalesChannelAttributionRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '../../commands/command-bus.js';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';

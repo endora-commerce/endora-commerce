@@ -20,7 +20,7 @@ import {
   Trash2,
   Zap,
 } from 'lucide-react';
-import type { ApplicationRule } from '@b2b/contracts';
+import type { ApplicationRule } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';

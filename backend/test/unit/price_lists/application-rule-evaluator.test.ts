@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ApplicationRule } from '@b2b/contracts';
+import type { ApplicationRule } from '@endora-commerce/contracts';
 import {
   evaluateApplicationRule,
   type ResolutionContext,

@@ -6,7 +6,7 @@ import type {
   OrganizationRecord,
   ProductSummary,
   SearchSuggestItem,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { SuggestionPricingEnricher } from '../routes.public.js';
 

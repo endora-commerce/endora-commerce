@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   StorefrontModulePresenceResponseSchema,
   type StorefrontModulePresenceResponse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 
 /**

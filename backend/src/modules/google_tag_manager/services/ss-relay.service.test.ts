@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Queue } from 'bullmq';
-import { GOOGLE_TAG_MANAGER_SETTING_CODES, type GtmCollectRequest } from '@b2b/contracts';
+import { GOOGLE_TAG_MANAGER_SETTING_CODES, type GtmCollectRequest } from '@endora-commerce/contracts';
 import { makeEnqueuer, makeProcessor } from './ss-relay.service.js';
 import type { GtmRelayJobData } from './ss-relay-queue.js';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';

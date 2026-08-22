@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
-import type { PromptActionRequestDto, ResultOperation } from '@b2b/contracts';
+import type { PromptActionRequestDto, ResultOperation } from '@endora-commerce/contracts';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/i18n/useTranslation';
 import { markPromptRequestSeen } from '@/lib/prompt-actions/api';

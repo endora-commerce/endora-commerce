@@ -4,7 +4,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Check, Copy, RotateCcw } from 'lucide-react';
-import type { SettingDto } from '@b2b/contracts';
+import type { SettingDto } from '@endora-commerce/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

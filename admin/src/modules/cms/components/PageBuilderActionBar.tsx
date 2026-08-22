@@ -19,9 +19,9 @@ import {
   addColumnFullWidth,
   applyRowLayoutPreset,
   type RowLayoutPresetId,
-} from '@b2b/cms-components/editor/row-layout-presets';
-import type { RowProps } from '@b2b/cms-components/schema/component-types';
-import { usePageBuilderPuck, resolveContentSliderIdForItem } from '@b2b/page-builder-core/editor';
+} from '@endora-commerce/cms-components/editor/row-layout-presets';
+import type { RowProps } from '@endora-commerce/cms-components/schema/component-types';
+import { usePageBuilderPuck, resolveContentSliderIdForItem } from '@endora-commerce/page-builder-core/editor';
 import { useActionBarTarget } from './action-bar-target';
 import { QuickTooltip, wrapQuickTooltip } from './QuickTooltip';
 import { ContentSliderActionBarExtras } from './ContentSliderActionBarExtras';

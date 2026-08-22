@@ -1,4 +1,4 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
 
 /**
  * Quick Order module — manifest (Module Lifecycle, feature 018) extended for

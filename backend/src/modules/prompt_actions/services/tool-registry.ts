@@ -4,7 +4,7 @@ import type {
   PromptActionTool,
   PromptActionToolRegistryPort,
   ToolVisibilityContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * PromptActionToolRegistry — the module-facing port of feature 043
@@ -30,7 +30,7 @@ import type {
  * **The contribution shape is published** (feature 075, D-75):
  * `PromptActionTool`, `ToolContext`, `ToolAuditContext`, `LlmToolDefinition`,
  * `ToolVisibilityContext` and `PromptActionToolRegistryPort` all live in
- * `@b2b/contracts`, so a contributor names the interface and this module keeps
+ * `@endora-commerce/contracts`, so a contributor names the interface and this module keeps
  * the class. What made that possible was deleting `ToolContext.em`: it carried
  * a MikroORM type that may not appear in a browser-bundled package, and — more
  * to the point — it carried nothing anybody used. Every contributor read it in

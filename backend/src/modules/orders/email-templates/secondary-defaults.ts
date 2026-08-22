@@ -1,7 +1,7 @@
 // Default subject + content for the secondary orders transactional emails
 // (feature 047): order_comment, reorder_created, admin_created_order.
 
-import { simpleEmailBodyTree } from '@b2b/email-components/defaults/simple-email-body';
+import { simpleEmailBodyTree } from '@endora-commerce/email-components/defaults/simple-email-body';
 
 const LANGS = ['en-US', 'pl-PL'];
 

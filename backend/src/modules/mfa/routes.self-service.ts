@@ -4,8 +4,8 @@ import {
   mfaDisableRequestSchema,
   mfaRegenerateRequestSchema,
   mfaSocialUnlinkParamsSchema,
-} from '@b2b/contracts';
-import type { MfaSubjectRef } from '@b2b/contracts';
+} from '@endora-commerce/contracts';
+import type { MfaSubjectRef } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';

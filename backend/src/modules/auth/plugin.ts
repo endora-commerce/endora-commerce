@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
-import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '@b2b/contracts';
+import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
 import type { SessionService } from './services/session-service.js';
 import type { Session } from './entities/session.entity.js';
 
@@ -84,7 +84,7 @@ export interface AuthPluginOptions {
  * signed in on the Admin UI in the same browser — on a shared host (e.g. all
  * `localhost` ports) a single cookie name would clobber the other on every login.
  *
- * The two spellings moved to `@b2b/contracts` in feature 075's Phase P: they are
+ * The two spellings moved to `@endora-commerce/contracts` in feature 075's Phase P: they are
  * constants, not behaviour, and five modules set or clear the cookie. They are
  * re-exported from here so the consumers Phase C has not reached yet keep
  * resolving them at this path.

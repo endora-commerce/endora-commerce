@@ -1,5 +1,5 @@
 ---
-'@b2b/contracts': minor
+'@endora-commerce/contracts': minor
 ---
 
 Publish `CmsBlockSeedPort` — the idempotent seeding seam for a predefined CMS

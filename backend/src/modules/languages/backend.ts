@@ -8,7 +8,7 @@ import {
   type LanguageAdminPort,
   type LanguageReadPort,
   type LanguageSeedPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { LanguageService } from './services/language-service.js';
@@ -50,7 +50,7 @@ import { registerI18nRoutes } from './routes.js';
 
 /** Emitted after any language write; the root drops the dictionary caches. */
 /**
- * The spelling moved to `@b2b/contracts` in feature 075's Phase P — it is a
+ * The spelling moved to `@endora-commerce/contracts` in feature 075's Phase P — it is a
  * constant, not behaviour, and `dictionaries` subscribes to it. Re-exported
  * here for the length of Phase P, which cuts no consumer.
  */

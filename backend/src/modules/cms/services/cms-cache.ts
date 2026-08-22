@@ -3,7 +3,7 @@ import type {
   CmsResolvedBlock,
   CmsResolvedHook,
   CmsResolvedPage,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Storefront read-through cache for the CMS module — feature 014 / T094 (R10).

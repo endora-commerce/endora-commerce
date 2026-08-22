@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
-import type { AdminI18nTranslatePort, PermissionReadPort } from '@b2b/contracts';
+import type { AdminI18nTranslatePort, PermissionReadPort } from '@endora-commerce/contracts';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
 import { AdminActionsService } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
 import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';

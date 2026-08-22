@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { NEWSLETTER_SETTING_CODES, newsletterOptInModeSchema } from '@b2b/contracts';
-import type { NewsletterOptInMode } from '@b2b/contracts';
+import { NEWSLETTER_SETTING_CODES, newsletterOptInModeSchema } from '@endora-commerce/contracts';
+import type { NewsletterOptInMode } from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import type { NewsletterTokenHelper } from './token.helper.js';
 

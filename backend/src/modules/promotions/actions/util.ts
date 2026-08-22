@@ -1,4 +1,4 @@
-import type { CartLine } from '@b2b/contracts';
+import type { CartLine } from '@endora-commerce/contracts';
 
 /** Round to 2 decimal places (money). */
 export function round2(value: number): number {

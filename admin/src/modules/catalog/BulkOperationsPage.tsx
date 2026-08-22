@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BULK_OPERATION_TYPES, type BulkOperation, type BulkOperationStatus } from '@b2b/contracts';
+import { BULK_OPERATION_TYPES, type BulkOperation, type BulkOperationStatus } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';

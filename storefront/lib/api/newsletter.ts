@@ -2,7 +2,7 @@ import type {
   NewsletterStatusResponse,
   NewsletterSubscribeResponse,
   SelfNewsletterStatus,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { apiMutate, apiGetAuthed } from './mutations';
 
 const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';

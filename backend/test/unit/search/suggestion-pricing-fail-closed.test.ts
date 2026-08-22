@@ -3,7 +3,7 @@ import {
   ERROR_CODES,
   type CatalogProductReadPort,
   type OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import {
   createSuggestionPricingEnricher,

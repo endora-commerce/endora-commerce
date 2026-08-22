@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { manifest, pwaSettingsManifest } from '../../../src/modules/pwa/manifest.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
-import { PWA_PERMISSIONS, PWA_SETTING_CODES } from '@b2b/contracts';
+import { PWA_PERMISSIONS, PWA_SETTING_CODES } from '@endora-commerce/contracts';
 
 describe('pwa manifest + permissions (feature 046)', () => {
   it('declares id "pwa" and its dependencies', () => {

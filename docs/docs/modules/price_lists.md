@@ -29,7 +29,7 @@ The legacy `PriceListItem` and `PriceListAssignment` tables (and the
 `code` / `currency` / `priority` / `isDefault` columns on `price_lists`)
 are kept by migration 031 only as a transitional shim during the
 expand → migrate → contract rollout. Newly written code MUST consume
-the engine schema via `@b2b/contracts`.
+the engine schema via `@endora-commerce/contracts`.
 
 ## Lifecycle
 

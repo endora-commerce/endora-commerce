@@ -7,7 +7,7 @@ import {
   type FeedTemplatePreviewRequest,
   type CatalogProductReadPort,
   type TaxonomyProviderCode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { FeedTemplate } from '../entities/feed-template.entity.js';

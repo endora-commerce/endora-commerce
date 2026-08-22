@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import { normalizeEmailAddress } from '@b2b/contracts';
-import type { AuditReferenceRegistryPort, OrganizationDetailsPort } from '@b2b/contracts';
+import { normalizeEmailAddress } from '@endora-commerce/contracts';
+import type { AuditReferenceRegistryPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
 import type {
   AuthSessionPort,
   CustomerAccountAdminSearchPort,
@@ -16,7 +16,7 @@ import type {
   CustomerRolePort,
   CustomerTotpEnrolmentPort,
   MfaLoginPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import { recordAuditFromContext } from '../../commands/index.js';

@@ -7,7 +7,7 @@ import {
   type BlogTagInboundReferencesResponse,
   type CreateBlogTagRequest,
   type PatchBlogTagRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { BlogCacheService } from './blog-cache.js';
 

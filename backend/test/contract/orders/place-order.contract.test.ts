@@ -10,7 +10,7 @@ import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 
 /**
  * Feature 036 (US1) — `POST /api/v1/orders` contract over the real HTTP stack.
- * Verifies the wire response shape promised in `@b2b/contracts`:
+ * Verifies the wire response shape promised in `@endora-commerce/contracts`:
  *   - `data.businessId` is the customer-facing identifier (distinct from `id`),
  *   - `data.nextAction` carries the real adapter variant (here:
  *     `awaiting_transfer` because the seeded method uses the bank-transfer

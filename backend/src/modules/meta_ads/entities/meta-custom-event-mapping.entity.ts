@@ -1,7 +1,7 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
-import type { MetaTriggerAction } from '@b2b/contracts';
+import type { MetaTriggerAction } from '@endora-commerce/contracts';
 
 /**
  * MetaCustomEventMapping (feature 064, US4). Adds a custom Meta event to a

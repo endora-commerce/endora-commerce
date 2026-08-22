@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { feedTemplateDocumentSchema } from '@b2b/contracts';
+import { feedTemplateDocumentSchema } from '@endora-commerce/contracts';
 import {
   buildTemplateDocument,
   serializeTemplateDocument,

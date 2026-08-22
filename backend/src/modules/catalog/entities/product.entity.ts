@@ -94,7 +94,7 @@ export class Product {
    *
    * A non-empty array restricts whatever `visibility` says, `public` included.
    * Enforcement is per read path and not every path applies it today; the
-   * `CatalogQuickSearchPort` doc block in `@b2b/contracts` states the predicate
+   * `CatalogQuickSearchPort` doc block in `@endora-commerce/contracts` states the predicate
    * for the path that does.
    *
    * No foreign key holds these ids, so a deleted organisation leaves its id in

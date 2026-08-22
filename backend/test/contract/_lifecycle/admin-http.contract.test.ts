@@ -7,7 +7,7 @@ import {
 import {
   ModuleListResponseSchema,
   type ModuleListItem,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { registerLifecycleAdminRoutes } from '../../../src/modules/_lifecycle/routes.admin.js';
 import type { ModuleLifecycleOrchestrator } from '../../../src/modules/_lifecycle/services/orchestrator.js';

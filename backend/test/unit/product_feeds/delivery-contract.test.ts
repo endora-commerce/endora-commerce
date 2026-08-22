@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isSecretDeliveryHeader,
   upsertFeedDeliveryRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   describeTarget,
   normalisePath,

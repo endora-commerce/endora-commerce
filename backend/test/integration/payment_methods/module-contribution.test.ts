@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { PaymentAdapter } from '@b2b/contracts';
+import type { PaymentAdapter } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

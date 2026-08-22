@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type PromotionRule } from '@b2b/contracts';
+import { ERROR_CODES, type PromotionRule } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
 import { Promotion } from '../entities/promotion.entity.js';

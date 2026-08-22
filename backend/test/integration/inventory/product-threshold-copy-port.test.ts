@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { InventoryProductThresholdWritePort } from '@b2b/contracts';
+import type { InventoryProductThresholdWritePort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

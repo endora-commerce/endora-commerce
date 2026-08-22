@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleManifest, RegistryState } from '@b2b/contracts';
+import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import { ModuleRegistration } from '../../../kernel/lifecycle/module-registration.entity.js';
 import { activationDeclarationsFrom } from '../../../kernel/lifecycle/activation-resolver.js';
 import { installGatingGraph } from './gating-graph.js';

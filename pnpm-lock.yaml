@@ -32,19 +32,19 @@ importers:
 
   admin:
     dependencies:
-      '@b2b/api-client':
+      '@endora-commerce/api-client':
         specifier: workspace:*
         version: link:../packages/api-client
-      '@b2b/cms-components':
+      '@endora-commerce/cms-components':
         specifier: workspace:^
         version: link:../packages/cms-components
-      '@b2b/contracts':
+      '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../packages/contracts
-      '@b2b/email-components':
+      '@endora-commerce/email-components':
         specifier: workspace:^
         version: link:../packages/email-components
-      '@b2b/page-builder-core':
+      '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../packages/page-builder-core
       '@measured/puck':
@@ -159,16 +159,16 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1042.0
         version: 3.1042.0
-      '@b2b/cms-components':
+      '@endora-commerce/cms-components':
         specifier: workspace:^
         version: link:../packages/cms-components
-      '@b2b/contracts':
+      '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../packages/contracts
-      '@b2b/email-components':
+      '@endora-commerce/email-components':
         specifier: workspace:^
         version: link:../packages/email-components
-      '@b2b/page-builder-core':
+      '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../packages/page-builder-core
       '@fastify/cookie':
@@ -350,7 +350,7 @@ importers:
 
   packages/api-client:
     dependencies:
-      '@b2b/contracts':
+      '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../contracts
       zod:
@@ -379,7 +379,7 @@ importers:
         specifier: ^5.5.0
         version: 5.7.0(react@19.2.5)
     devDependencies:
-      '@b2b/page-builder-core':
+      '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../page-builder-core
       '@tailwindcss/cli':
@@ -452,7 +452,7 @@ importers:
 
   packages/email-components:
     devDependencies:
-      '@b2b/page-builder-core':
+      '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../page-builder-core
       '@measured/puck':
@@ -494,16 +494,16 @@ importers:
 
   storefront:
     dependencies:
-      '@b2b/api-client':
+      '@endora-commerce/api-client':
         specifier: workspace:*
         version: link:../packages/api-client
-      '@b2b/cms-components':
+      '@endora-commerce/cms-components':
         specifier: workspace:^
         version: link:../packages/cms-components
-      '@b2b/contracts':
+      '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../packages/contracts
-      '@b2b/page-builder-core':
+      '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../packages/page-builder-core
       '@measured/puck':

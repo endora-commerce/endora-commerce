@@ -1,4 +1,4 @@
-import type { CartLine, PromotionCriterion } from '@b2b/contracts';
+import type { CartLine, PromotionCriterion } from '@endora-commerce/contracts';
 
 /**
  * Feature 012 / US8 — pure rule evaluator for the promotions module.

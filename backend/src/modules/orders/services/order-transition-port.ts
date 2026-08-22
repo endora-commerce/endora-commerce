@@ -4,7 +4,7 @@ import {
   type OrderStatusActor,
   type OrderTransitionOutcome,
   type OrderTransitionPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { Order } from '../entities/order.entity.js';

@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { FeedRunFailureCode, FeedRunStatus, FeedRunTrigger } from '@b2b/contracts';
+import type { FeedRunFailureCode, FeedRunStatus, FeedRunTrigger } from '@endora-commerce/contracts';
 import { FeedRun, type FeedRunSkipReason } from '../entities/feed-run.entity.js';
 import { FeedRunIssue } from '../entities/feed-run-issue.entity.js';
 

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { createApiKeyRequestSchema } from '@b2b/contracts';
+import { createApiKeyRequestSchema } from '@endora-commerce/contracts';
 import type { ApiKeyService } from './services/api-key-service.js';
 import type { ApiKey } from './entities/api-key.entity.js';
 import { testAdminUserId } from '../../http/test-actor-carrier.js';

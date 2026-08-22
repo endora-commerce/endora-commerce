@@ -4,7 +4,7 @@ import type {
   AdminRoleRecord,
   SystemRoleCodePort,
   UpsertAdminRoleInput,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { BLOG_ROLE_CODES, seedBlogRoles } from '../../../src/modules/blog/services/seed-roles.js';
 
 /**

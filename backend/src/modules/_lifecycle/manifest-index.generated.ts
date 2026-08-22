@@ -22,7 +22,7 @@
 // because every other module's settings fall back to its `general` group), and
 // everything else topo-sorts or set-ifies.
 
-import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
+import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
 
 import { manifest as manifest0, lifecycleParticipant as lifecycleParticipant0, cliCommands as cliCommands0 } from '../_i18n/manifest.js';
 import { manifest as manifest1 } from '../_lifecycle/manifest.js';

@@ -4,7 +4,7 @@ import type {
   CatalogCategoryProductCount,
   CatalogCategoryReadPort,
   CatalogCategoryRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Category } from '../entities/category.entity.js';
 
 /**

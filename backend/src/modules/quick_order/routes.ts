@@ -4,7 +4,7 @@ import {
   quickOrderImportRequestSchema,
   quickOrderSearchQuerySchema,
   type CatalogQuickSearchPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import { productAudienceOf } from '../../http/product-audience.js';
 import type { QuickOrderImportPipeline } from './services/import-pipeline.js';

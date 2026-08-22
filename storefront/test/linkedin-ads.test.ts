@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LinkedInStorefrontConfig } from '@b2b/contracts';
+import type { LinkedInStorefrontConfig } from '@endora-commerce/contracts';
 import {
   configureLinkedIn,
   isLinkedInConfigured,

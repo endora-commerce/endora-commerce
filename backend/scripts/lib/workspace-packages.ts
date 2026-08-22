@@ -212,7 +212,7 @@ export function workspaceMembers(repoRoot: string, fs: WorkspaceFs): readonly Wo
 
 /**
  * The npm scopes those members are published under, sorted, each with its
- * trailing slash — `['@b2b/']` today.
+ * trailing slash — `['@endora-commerce/']` today.
  *
  * Derived rather than declared, because a second scope is exactly what feature
  * 080 introduces and the one thing that must not happen is a guard that keeps

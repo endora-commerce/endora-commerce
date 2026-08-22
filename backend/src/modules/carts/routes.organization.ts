@@ -8,7 +8,7 @@ import {
   type CartStatus,
   type CartApprovalStatus,
   type CustomerAccountReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CartService } from './services/cart-service.js';

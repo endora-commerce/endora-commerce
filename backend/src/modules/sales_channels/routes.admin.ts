@@ -6,7 +6,7 @@ import {
   SalesChannelSetDefaultBodySchema,
   SalesChannelUpdateBodySchema,
   type ChannelMemberEntityType,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { z } from 'zod';
 import { HttpError } from '../../http/error-envelope.js';
 import type {

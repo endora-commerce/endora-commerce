@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ListingPriceViewerContext } from '@b2b/contracts';
+import type { ListingPriceViewerContext } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

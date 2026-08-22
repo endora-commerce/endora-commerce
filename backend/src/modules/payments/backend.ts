@@ -12,7 +12,7 @@ import type {
   PaymentReferencePort,
   PaymentRefundPort,
   ReceivePaymentPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
@@ -221,7 +221,7 @@ export function registerModule(ctx: ModuleContext): void {
   // **The refund registry is published under its push name only** (D-99.7). It
   // once had a second, gated registration here — `gatewayRefundRegistryPort`,
   // over the same instance — which nothing ever resolved, while the doc block in
-  // `@b2b/contracts` described the *push* seam above it. An out-of-tree gateway
+  // `@endora-commerce/contracts` described the *push* seam above it. An out-of-tree gateway
   // reading only the published contracts would have resolved the gate from its
   // boot hook and exited 1. The contract now names `gatewayRefundRegistry`, the
   // ungated registration above, and says why it is ungated; the pull is

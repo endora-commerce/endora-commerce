@@ -3,7 +3,7 @@ import type {
   CustomerAccountMemberWritePort,
   CustomerPasswordResetPort,
   CustomerPasswordStatePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

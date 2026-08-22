@@ -3,7 +3,7 @@ import Redis from 'ioredis';
 import { existsSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import type { IMigrator } from '@mikro-orm/core';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ModuleLifecycleOrchestrator } from '../../../src/modules/_lifecycle/services/orchestrator.js';

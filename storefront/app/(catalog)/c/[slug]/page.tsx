@@ -12,7 +12,7 @@ import {
   getFilters,
   listProducts,
 } from '../../../../lib/api/catalog';
-import type { CategoryNode, ProductListSort } from '@b2b/contracts';
+import type { CategoryNode, ProductListSort } from '@endora-commerce/contracts';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
 import {

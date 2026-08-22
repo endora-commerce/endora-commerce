@@ -10,7 +10,7 @@ import type {
   GetBundlesResponse,
   PatchPreferredLanguageBody,
   SupportedAdminLanguage,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 export async function getBundles(
   language: SupportedAdminLanguage,

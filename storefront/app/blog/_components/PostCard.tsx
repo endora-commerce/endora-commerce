@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import type { BlogPostCard } from '@b2b/contracts';
+import type { BlogPostCard } from '@endora-commerce/contracts';
 
 const BLOG_PREFIX = '/blog';
 

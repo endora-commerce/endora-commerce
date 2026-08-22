@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleAction as ModuleActionDecl } from '@b2b/contracts';
+import type { ModuleAction as ModuleActionDecl } from '@endora-commerce/contracts';
 import { ModuleAction } from '../entities/module-action.entity.js';
 
 /**

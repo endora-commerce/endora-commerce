@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AdminUserReadPort, SalesRepAssignmentPort } from '@b2b/contracts';
+import type { AdminUserReadPort, SalesRepAssignmentPort } from '@endora-commerce/contracts';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { RfqEventBus } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';

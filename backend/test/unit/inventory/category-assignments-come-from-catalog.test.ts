@@ -5,7 +5,7 @@ import type {
   CatalogCategoryRecord,
   CatalogProductReadPort,
   CatalogProductRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { StockLevelService } from '../../../src/modules/inventory/services/stock-level-service.js';
 
 /**

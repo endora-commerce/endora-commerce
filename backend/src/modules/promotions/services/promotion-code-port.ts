@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PromotionCodePort, ResolvedPromotionCode } from '@b2b/contracts';
+import type { PromotionCodePort, ResolvedPromotionCode } from '@endora-commerce/contracts';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
 

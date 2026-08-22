@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANONYMOUS_PRODUCT_AUDIENCE } from '@b2b/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE } from '@endora-commerce/contracts';
 import { parseCsvRows } from './import-rows.js';
 import {
   QuickOrderImportPipeline,

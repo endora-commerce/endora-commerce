@@ -9,7 +9,7 @@ import {
   type CustomerAccountReadPort,
   type InventoryDisplayMode,
   type StorefrontProductStock,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AvailabilityNotificationService } from './services/availability-notification-service.js';
 import type { WarehouseChannelService } from './services/warehouse-channel-service.js';

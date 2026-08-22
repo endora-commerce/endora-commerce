@@ -4,7 +4,7 @@ import {
   PWA_PERMISSIONS,
   PWA_SETTING_CODES,
   type SettingManifestEntry,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * PWA module — feature 046.

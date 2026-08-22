@@ -4,7 +4,7 @@ import type {
   OrderReadPort,
   OrderRecord,
   TransactionalEmailSender,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import {
   SettingNotRegistered,
@@ -25,7 +25,7 @@ import { INVOICES_SETTING_CODES } from '../manifest.js';
  * transport, and an error the FR-029 `catch` absorbed. An invoice was issued and
  * nothing anywhere said that no message had been sent.
  *
- * The seven reasons live in `@b2b/contracts` since issue #149, because the admin
+ * The seven reasons live in `@endora-commerce/contracts` since issue #149, because the admin
  * issue route answers with one and an API shape belongs there.
  */
 export type { InvoiceEmailNotSentReason };

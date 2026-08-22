@@ -5,8 +5,8 @@ import {
   mfaSetupTicketCompleteSchema,
   SESSION_COOKIE_NAME,
   ADMIN_SESSION_COOKIE_NAME,
-} from '@b2b/contracts';
-import type { AuthSessionPort } from '@b2b/contracts';
+} from '@endora-commerce/contracts';
+import type { AuthSessionPort } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { MfaLoginService } from './services/mfa-login-service.js';

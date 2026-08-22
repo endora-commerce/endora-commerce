@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CmsBlockSeedPort, CmsSeededBlock } from '@b2b/contracts';
+import type { CmsBlockSeedPort, CmsSeededBlock } from '@endora-commerce/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 
 /**

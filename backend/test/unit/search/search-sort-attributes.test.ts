@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SearchListProductsParams } from '@b2b/contracts';
+import type { SearchListProductsParams } from '@endora-commerce/contracts';
 import { SORTABLE_ATTRIBUTES } from '../../../src/modules/search/services/search-indexer.js';
 import { buildSort } from '../../../src/modules/search/services/search-query.service.js';
 

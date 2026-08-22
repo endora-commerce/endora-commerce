@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ERROR_CODES, PromptActionRequestResponseSchema } from '@b2b/contracts';
+import { ERROR_CODES, PromptActionRequestResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

@@ -1,4 +1,4 @@
-import type { DisplayMode } from '@b2b/contracts';
+import type { DisplayMode } from '@endora-commerce/contracts';
 import { apiGetForViewer, type RequestContext } from './client';
 import { isModuleDisabled } from './module-absence';
 

@@ -26,11 +26,11 @@ backend module reads values through one well-known service.
 ## For module authors — declaring your settings
 
 Each module that wants to register settings or groups exports a sibling
-`manifest.ts` file using the helper from `@b2b/contracts`:
+`manifest.ts` file using the helper from `@endora-commerce/contracts`:
 
 ```ts
 // backend/src/modules/<your_module>/manifest.ts
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+import { defineModuleSettingsManifest } from '@endora-commerce/contracts';
 
 export const settingsManifest = defineModuleSettingsManifest({
   moduleCode: 'your_module',

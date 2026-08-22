@@ -1,4 +1,4 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
 
 export const shipmentsSettingsManifest = defineModuleSettingsManifest({
   moduleCode: 'shipments',

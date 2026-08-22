@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ModuleManifest, RegistryState } from '@b2b/contracts';
+import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import {
   ReducedDeploymentError,
   assertLockedModulesPresent,

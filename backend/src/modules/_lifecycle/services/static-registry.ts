@@ -3,7 +3,7 @@ import type {
   ModuleLifecycleParticipant,
   ModuleManifest,
   ModuleUninstallHook,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ModuleDepGraph } from './dep-graph.js';
 import { collectLifecycleParticipants } from './manifest-loader.js';
 import type { LoadedManifestRegistry, LoadedModuleEntry } from './manifest-loader.js';

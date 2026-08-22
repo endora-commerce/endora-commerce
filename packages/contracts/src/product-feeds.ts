@@ -1,6 +1,6 @@
 // Product Feed module — feature 067 contract surface.
 // Single file with logical sections (matching the convention used by every
-// other module in @b2b/contracts):
+// other module in @endora-commerce/contracts):
 //   (1) Enumerations (provider, output format, granularity, run status, …).
 //   (2) Scheduling primitives (cron expression, IANA timezone, schedule).
 //   (3) The product-selection rule AST.

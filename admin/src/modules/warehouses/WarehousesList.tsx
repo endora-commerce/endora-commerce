@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { Warehouse } from '@b2b/contracts';
+import type { Warehouse } from '@endora-commerce/contracts';
 import { Plus, Search, Warehouse as WarehouseIcon } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';

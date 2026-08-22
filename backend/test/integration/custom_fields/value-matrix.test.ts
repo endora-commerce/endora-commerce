@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import type { SupportedEntityType } from '@b2b/contracts';
+import type { SupportedEntityType } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

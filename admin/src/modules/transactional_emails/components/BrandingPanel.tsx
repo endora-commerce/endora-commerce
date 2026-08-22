@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { EmailBranding } from '@b2b/contracts';
+import type { EmailBranding } from '@endora-commerce/contracts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';

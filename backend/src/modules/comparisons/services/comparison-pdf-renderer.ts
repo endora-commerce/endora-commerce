@@ -30,7 +30,7 @@ import type {
   ComparisonAttributeRow,
   ComparisonDisplayMode,
   ComparisonProductSummary,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { AssetByteFetcher } from './asset-byte-fetcher.js';
 
 /**

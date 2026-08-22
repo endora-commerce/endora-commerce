@@ -36,7 +36,7 @@ import {
  * accident shows up as a red test rather than as a smaller number.
  *
  * The population is the whole tree since issue #240 extracted `foldDiacritics`
- * into `@b2b/contracts`. Before that, `backend/`, `storefront/` and `packages/`
+ * into `@endora-commerce/contracts`. Before that, `backend/`, `storefront/` and `packages/`
  * were excluded for a stated reason — none of them could import a helper that
  * lived in `admin/src` — and the discrimination below asserted their absence.
  * It now asserts the opposite for the same reason read forwards: a fold in any
@@ -557,7 +557,7 @@ describe('check-diacritic-folds — the slug run', () => {
       " * The chain this carried was `name.toLowerCase().replace(/[^a-z0-9]+/g, '-')`,",
       ' * which deleted every non-ASCII letter.',
       ' */',
-      "import { slugify } from '@b2b/contracts';",
+      "import { slugify } from '@endora-commerce/contracts';",
       'export const code = (name: string): string => slugify(name, { maxLength: 80 });',
     ].join('\n');
     expect(slugRuns(source)).toEqual([]);
@@ -1027,7 +1027,7 @@ describe('check-diacritic-folds — the exit codes', () => {
     expect(result.output).toContain('admin/src/modules/cms/components/cms-template-layout.ts');
     expect(result.output).toContain('violations=1');
     expect(result.output).toContain('slug-run');
-    expect(result.output).toContain("Import { slugify } from '@b2b/contracts'");
+    expect(result.output).toContain("Import { slugify } from '@endora-commerce/contracts'");
   });
 
   it('exits 1 when a slug-ledger entry no longer describes the file it names', () => {
@@ -1081,7 +1081,7 @@ describe('check-diacritic-folds — the exit codes', () => {
     );
     repo.write(
       'admin/src/modules/cms/components/cms-template-layout.ts',
-      "import { slugify } from '@b2b/contracts';\n" +
+      "import { slugify } from '@endora-commerce/contracts';\n" +
         'export const codeFromTemplateName = (name: string): string =>\n' +
         "  slugify(name, { maxLength: 80 });\n",
     );
@@ -1162,7 +1162,7 @@ describe('check-diacritic-folds — the tree it guards', () => {
     const path = 'admin/src/lib/text-normalization.ts';
     const source = readFileSync(join(REPO_ROOT, path), 'utf8');
     expect(analyzeSource(source, path), `${path} folds on its own again`).toEqual([]);
-    expect(source).toContain("import { foldDiacritics } from '@b2b/contracts'");
+    expect(source).toContain("import { foldDiacritics } from '@endora-commerce/contracts'");
   });
 
   /**
@@ -1193,14 +1193,14 @@ describe('check-diacritic-folds — the tree it guards', () => {
     'admin/src/modules/product_feeds/api.ts',
   ];
 
-  it.each(slugGenerators)('%s slugifies through @b2b/contracts, not its own chain', (path) => {
+  it.each(slugGenerators)('%s slugifies through @endora-commerce/contracts, not its own chain', (path) => {
     const source = readFileSync(join(REPO_ROOT, path), 'utf8');
     expect(
       analyzeSource(source, path),
       `${path} folds or builds a slug on its own again`,
     ).toEqual([]);
     expect(source, `${path} does not import the shared slug generator`).toMatch(
-      /import \{[^}]*\bslugify\b[^}]*\} from '@b2b\/contracts'/,
+      /import \{[^}]*\bslugify\b[^}]*\} from '@endora-commerce\/contracts'/,
     );
     // The chain itself, not just the fold: a site that kept its own collapse and
     // merely imported the helper would satisfy the two assertions above while
@@ -1221,7 +1221,7 @@ describe('check-diacritic-folds — the tree it guards', () => {
     expect(helper).toContain('export interface SlugifyOptions');
   });
 
-  it('the anchored helper is the one in @b2b/contracts, reachable from every package', () => {
+  it('the anchored helper is the one in @endora-commerce/contracts, reachable from every package', () => {
     expect(SHARED_FOLD_HELPER).toBe('packages/contracts/src/text-normalization.ts');
     expect(HELPER_SOURCE).toContain('export function foldDiacritics');
     // Exported from the package index, or no consumer outside it can import it

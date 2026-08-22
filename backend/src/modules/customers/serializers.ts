@@ -2,7 +2,7 @@ import type {
   AddressRecord,
   CustomerAddress as CustomerAddressDTO,
   OrganizationAddressRef,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CustomerAddress } from './entities/customer-address.entity.js';
 
 /** Maps a persisted CustomerAddress to its API contract shape. */

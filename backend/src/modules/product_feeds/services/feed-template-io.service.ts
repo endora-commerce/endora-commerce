@@ -13,7 +13,7 @@ import {
   type FeedTemplateDocument,
   type ImportFeedTemplateRequest,
   type TaxonomyProviderCode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { FeedTaxonomy } from '../entities/feed-taxonomy.entity.js';
@@ -143,7 +143,7 @@ export function serializeTemplateDocument(document: FeedTemplateDocument): strin
  * rather than its id, because the file is something a human hands to another
  * human.
  *
- * The slug is `slugify` from `@b2b/contracts`, **imported, never
+ * The slug is `slugify` from `@endora-commerce/contracts`, **imported, never
  * re-implemented** (issue #245). The private chain this carried folded with
  * `NFKD` and then stripped the combining marks, which leaves `ł` standing —
  * U+0142 has no canonical decomposition — for the `[^a-z0-9]+` collapse to

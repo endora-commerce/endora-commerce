@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import type { CustomFieldDefinitionReadPort, CustomFieldValuePort } from '@b2b/contracts';
+import type { CustomFieldDefinitionReadPort, CustomFieldValuePort } from '@endora-commerce/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -108,7 +108,7 @@ export function registerModule(ctx: ModuleContext): void {
    * (`CustomFieldDefinitionApplyApi`), whose every method takes the caller's
    * `EntityManager` so that a product attribute and its definition are written
    * under one transaction. D-77 ruled that seam permanent and FR-034 keeps a
-   * MikroORM type out of `@b2b/contracts`, so it is the one name this module
+   * MikroORM type out of `@endora-commerce/contracts`, so it is the one name this module
    * publishes no contract for; it is ledgered as such in
    * `RESOLUTIONS_OF_UNPUBLISHED_NAMES`. Every definition **read** goes through
    * `customFieldDefinitionReadPort` below (issue #209).

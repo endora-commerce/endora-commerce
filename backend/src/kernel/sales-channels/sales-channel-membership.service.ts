@@ -3,7 +3,7 @@ import {
   ERROR_CODES,
   SALES_CHANNEL_AUDIT_ACTIONS,
   type ChannelMemberEntityType,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { AuditPort } from '../ports/audit.js';
 import type { EventBus } from '../../events/bus.js';

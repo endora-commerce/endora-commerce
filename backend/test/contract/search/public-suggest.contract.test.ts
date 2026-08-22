@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES, SearchSuggestResponseSchema } from '@b2b/contracts';
+import { ERROR_CODES, SearchSuggestResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
-import type { OrderReadPort, OrderRecord, PaymentMethodReadPort } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import type { OrderReadPort, OrderRecord, PaymentMethodReadPort } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { PaymentRefundProvider } from '../../../src/modules/payments/services/payment-refund.js';
 import { gatewayRefundRegistry } from '../../../src/modules/payments/services/registry-singleton.js';

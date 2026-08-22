@@ -9,7 +9,7 @@ import {
   type CustomerAccountRecord,
   type DictionaryValidator,
   type RegisterOrganizationRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Organization } from '../entities/organization.entity.js';

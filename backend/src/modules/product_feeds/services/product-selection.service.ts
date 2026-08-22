@@ -3,7 +3,7 @@ import type {
   CatalogProductReadPort,
   CatalogProductRecord,
   ProductSelectionRule,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   collectSelectionCategoryIds,
   compileSelectionRule,

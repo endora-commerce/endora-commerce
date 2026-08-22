@@ -1,8 +1,8 @@
-// @b2b/email-components — shared transactional-email building blocks (feature 047).
+// @endora-commerce/email-components — shared transactional-email building blocks (feature 047).
 //
 // Root entry (admin/editor surface): re-exports the React Puck config plus the
 // pure schema/render/directive/tree/defaults modules. The BACKEND must import
-// the pure subpaths directly (e.g. `@b2b/email-components/render/render-email-html`)
+// the pure subpaths directly (e.g. `@endora-commerce/email-components/render/render-email-html`)
 // to avoid pulling React into the send path.
 
 export * from './schema/component-types.js';

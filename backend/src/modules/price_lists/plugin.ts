@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomerAccountReadPort } from '@b2b/contracts';
+import type { CustomerAccountReadPort } from '@endora-commerce/contracts';
 import { PriceListService } from './services/price-list-service.js';
 import { PricingService } from './services/pricing-service.js';
 import type { PriceListTargetReads } from './services/price-list-service.js';

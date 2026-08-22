@@ -3,7 +3,7 @@ import type {
   FeedTaxonomyCheck,
   FeedTaxonomyRevision,
   TaxonomyProviderCode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Admin API client for provider taxonomies and category mappings

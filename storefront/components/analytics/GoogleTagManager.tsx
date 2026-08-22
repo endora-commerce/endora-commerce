@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Script from 'next/script';
-import { gtmContainerIdSchema, type GtmStorefrontConfig } from '@b2b/contracts';
+import { gtmContainerIdSchema, type GtmStorefrontConfig } from '@endora-commerce/contracts';
 
 /**
  * Injects the sales channel's Google Tag Manager container (feature 066, US1).

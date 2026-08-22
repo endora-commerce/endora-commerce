@@ -6,7 +6,7 @@ import {
   upsertPromotionRequestSchema,
   upsertPromotionRuleRequestSchema,
   type PromotionAction,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { PromotionService, UpsertPromotionInput } from './services/promotion-service.js';
 import type { CouponService } from './services/coupon-service.js';
 import type { PromotionRuleStore } from './services/promotion-rule-store.js';
@@ -30,12 +30,12 @@ export interface PromotionRuleTargetPorts {
   paymentMethods?: () => Promise<Array<{ id: string; code: string; name: string }>>;
   deliveryMethods?: () => Promise<Array<{ id: string; code: string; name: string }>>;
 }
-import { promotionStatsGroupBySchema } from '@b2b/contracts';
+import { promotionStatsGroupBySchema } from '@endora-commerce/contracts';
 import type { Promotion } from './entities/promotion.entity.js';
 import type { PromotionCoupon } from './entities/promotion-coupon.entity.js';
 import type { PromotionRuleEntity } from './entities/promotion-rule.entity.js';
 import { PROMOTION_PERMISSIONS } from './manifest.js';
-import type { CatalogPromoAttributePort } from '@b2b/contracts';
+import type { CatalogPromoAttributePort } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface PromotionRoutesDeps {

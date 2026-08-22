@@ -22,7 +22,7 @@ import {
   type LanguageRecord,
   type UpdateCurrencyInput,
   type UpdateLanguageInput,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { DICTIONARY_PERMISSIONS } from './manifest.js';
 import type {
   CountryService} from './services/country-service.js';

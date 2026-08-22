@@ -44,8 +44,8 @@ deciding whether to upgrade, so:
   a field carries two files, so the changelog carries two lines.
 - **The bump is a judgement, and it is yours.** D-107 chose this tool precisely because
   "is this breaking?" cannot be recovered from a commit prefix: a change to
-  `@b2b/contracts` can be breaking for `@b2b/api-client` and inert for
-  `@b2b/cms-components`. Decide it deliberately.
+  `@endora-commerce/contracts` can be breaking for `@endora-commerce/api-client` and inert for
+  `@endora-commerce/cms-components`. Decide it deliberately.
 
 ## What the bumps do here
 
@@ -53,11 +53,11 @@ Versioning is **independent** (D-108), with one `linked` group:
 
 | Group | Packages | Why |
 | --- | --- | --- |
-| Page Builder | `@b2b/page-builder-core`, `@b2b/cms-components`, `@b2b/email-components` | `page-builder-core` is a **peer** dependency of the other two and ships React contexts and hooks. The consuming application resolves exactly one copy; version ranges that disagree resolve two, and a provider in one copy with a consumer in the other is a `null` context, not a type error. So `linked` gives them one number **whenever a release includes more than one of them**. `cms-components` can still move on its own — it does not carry the runtime, so nothing skews. |
+| Page Builder | `@endora-commerce/page-builder-core`, `@endora-commerce/cms-components`, `@endora-commerce/email-components` | `page-builder-core` is a **peer** dependency of the other two and ships React contexts and hooks. The consuming application resolves exactly one copy; version ranges that disagree resolve two, and a provider in one copy with a consumer in the other is a `null` context, not a type error. So `linked` gives them one number **whenever a release includes more than one of them**. `cms-components` can still move on its own — it does not carry the runtime, so nothing skews. |
 
 Read `linked` precisely, and precisely is narrower than this page used to claim. It **raises a
 package that is already in a release** to the group's highest number; it never *adds* one. It
-does not force the other two out whenever one moves — a patch on `@b2b/cms-components` alone
+does not force the other two out whenever one moves — a patch on `@endora-commerce/cms-components` alone
 leaves the other two where they are, which is right, because `cms-components` carries no
 runtime the app has to resolve once.
 
@@ -81,7 +81,7 @@ shared number was the mechanism, never the requirement. Every row is asserted by
 `backend/test/unit/release/changeset-flow.test.ts`, against these manifests and this config,
 so nobody meets the third one for the first time in a release merge request.
 
-`@b2b/contracts` and `@b2b/api-client` version independently. Changesets patch-bumps a
+`@endora-commerce/contracts` and `@endora-commerce/api-client` version independently. Changesets patch-bumps a
 dependent automatically (`updateInternalDependencies: "patch"`), so a `contracts` release
 carries `api-client` with it without either sharing the other's number. They are deliberately
 *not* linked: `api-client` names exactly one erased type from `contracts`, the version the pair
@@ -124,7 +124,7 @@ makes a package public.
 
 **Do not run `pnpm changeset:version` by hand.** It exits **0** when it bumps nothing —
 measured on this repository, with `privatePackages.version` at the `@changesets/config@4`
-default of `false` and a pending changeset naming `@b2b/contracts`: exit 0, "All files have
+default of `false` and a pending changeset naming `@endora-commerce/contracts`: exit 0, "All files have
 been updated", no version moved, and the changeset still on disk. `version:packages` refuses
 that, and refuses a release with nothing to consume, and restores the tree either way.
 

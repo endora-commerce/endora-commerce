@@ -5,9 +5,9 @@
 // which routes to the backend that originally stored the bytes).
 //
 // This is a TypeScript-only contract — the interface is never serialized over
-// the wire, so it lives here rather than in @b2b/contracts.
+// the wire, so it lives here rather than in @endora-commerce/contracts.
 
-import type { AssetVisibility, StorageBackendCode } from '@b2b/contracts';
+import type { AssetVisibility, StorageBackendCode } from '@endora-commerce/contracts';
 export type { AssetVisibility, StorageBackendCode };
 
 export interface StorageAdapterSelfCheck {

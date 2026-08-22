@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listingPriceMoney } from '@b2b/contracts';
+import { listingPriceMoney } from '@endora-commerce/contracts';
 import { listingPriceFrom } from '../../../src/modules/price_lists/services/listing-price-chain.js';
 import type { PricingLineResult } from '../../../src/modules/price_lists/services/pricing-service.interface.js';
 

@@ -1,5 +1,5 @@
 // The package's root export. A published manifest is a plain object: a
-// third-party author has no `@b2b/contracts` to import at runtime.
+// third-party author has no `@endora-commerce/contracts` to import at runtime.
 export const manifest = {
   id: 'fixture_widgets',
   name: 'Fixture Widgets',

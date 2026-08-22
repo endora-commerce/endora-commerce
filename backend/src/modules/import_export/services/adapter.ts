@@ -8,7 +8,7 @@ import type {
   InventoryStockReadPort,
   OrderReadPort,
   OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * What an adapter is allowed to reach (feature 075, D-74).

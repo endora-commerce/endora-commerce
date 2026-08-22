@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import type { Command, CommandContext } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { FeedTemplate } from '../entities/feed-template.entity.js';

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { resolveAttribute, type OverrideRow, type ResolverContext } from '@b2b/contracts';
+import { resolveAttribute, type OverrideRow, type ResolverContext } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -11,7 +11,7 @@ import {
  * Feature 022 — T055 (US3). Resolver cross-engine symmetry.
  *
  * The backend admin endpoint and the admin SPA's effective-preview
- * panel both import `resolveAttribute` from `@b2b/contracts`. The
+ * panel both import `resolveAttribute` from `@endora-commerce/contracts`. The
  * structural guarantee (single TS module, two consumers) is enforced
  * at build time; this integration test pins the runtime guarantee:
  * for every contract-matrix scenario, the value returned by
@@ -24,12 +24,12 @@ import {
  * `GET /products/:slug` (public read). The storefront-side resolver swap-in
  * is tracked by the deferred T026/T061 polish; until those land the public
  * read still pickLang's the baseline JSONB. The pure resolver in
- * `@b2b/contracts` is the canonical source of truth for both consumers, so
+ * `@endora-commerce/contracts` is the canonical source of truth for both consumers, so
  * pinning admin === pure-resolver covers the symmetry invariant the spec
  * cares about (admin SPA imports the same module). Re-target to the public
  * route once T060 / T061 / T026 ship.
  */
-describe('US3 — resolver symmetry (admin endpoint ↔ @b2b/contracts pure resolver)', () => {
+describe('US3 — resolver symmetry (admin endpoint ↔ @endora-commerce/contracts pure resolver)', () => {
   let h: BackendServerHandle;
   let productId: string;
   let retailChannelId: string;
@@ -180,7 +180,7 @@ describe('US3 — resolver symmetry (admin endpoint ↔ @b2b/contracts pure reso
   });
 
   for (const sc of scenarios) {
-    it(`${sc.title} (admin path === @b2b/contracts pure resolver)`, async () => {
+    it(`${sc.title} (admin path === @endora-commerce/contracts pure resolver)`, async () => {
       // Reset every override on the product before each scenario.
       await h.em().getConnection().execute(
         `delete from product_value_overrides where product_id = ?`,
@@ -231,7 +231,7 @@ describe('US3 — resolver symmetry (admin endpoint ↔ @b2b/contracts pure reso
       const adminName = adminBody.data.resolved!.name;
       const adminSource = adminBody.data.resolved!.sources['name'];
 
-      // Path B — pure resolver from `@b2b/contracts`.
+      // Path B — pure resolver from `@endora-commerce/contracts`.
       const overrides: OverrideRow[] = sc.overrides.map((o) => ({
         attributeKey: 'name',
         channelId: o.channel === 'vip' ? vipChannelId : retailChannelId,

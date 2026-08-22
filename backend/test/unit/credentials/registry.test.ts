@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ConfigurationTypeDescriptor } from '@b2b/contracts';
+import type { ConfigurationTypeDescriptor } from '@endora-commerce/contracts';
 import {
   ConfigurationTypeRegistry,
   ConfigurationTypeUnknown,

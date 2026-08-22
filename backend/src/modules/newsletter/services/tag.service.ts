@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type CreateNewsletterTagRequest, type NewsletterTag as NewsletterTagDto, type UpdateNewsletterTagRequest } from '@b2b/contracts';
+import { ERROR_CODES, type CreateNewsletterTagRequest, type NewsletterTag as NewsletterTagDto, type UpdateNewsletterTagRequest } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';

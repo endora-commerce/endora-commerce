@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Data } from '@measured/puck';
-import { CmsRenderProvider, walkAssetIds, type CmsRenderEmbeds } from '@b2b/cms-components';
+import { CmsRenderProvider, walkAssetIds, type CmsRenderEmbeds } from '@endora-commerce/cms-components';
 import { assetsLibraryClient } from '@/modules/assets_library/api/assets-library-client';
 import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
 

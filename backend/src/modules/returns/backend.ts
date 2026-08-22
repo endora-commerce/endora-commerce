@@ -4,7 +4,7 @@ import type {
   EmailDefaultsRegistryPort,
   EmailMailerPort,
   TransactionalEmailSender,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';

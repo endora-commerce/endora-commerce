@@ -1,4 +1,4 @@
-import type { EmailMailerSendInput } from '@b2b/contracts';
+import type { EmailMailerSendInput } from '@endora-commerce/contracts';
 
 /**
  * Feature 046 (US2) — email to the customer when their return/complaint case is

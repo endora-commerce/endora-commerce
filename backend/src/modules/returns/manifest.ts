@@ -1,7 +1,7 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Returns module — manifest (feature 046, Zwroty / Refunds / RMA).

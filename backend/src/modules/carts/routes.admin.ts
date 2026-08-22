@@ -4,7 +4,7 @@ import {
   adminRejectCartSchema,
   setCartApprovalPolicySchema,
   ERROR_CODES,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CartAdminService } from './services/cart-admin-service.js';
 import type { CartApprovalService } from './services/cart-approval-service.js';
 import { HttpError } from '../../http/error-envelope.js';

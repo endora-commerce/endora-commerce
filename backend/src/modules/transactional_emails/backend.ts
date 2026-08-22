@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { TemplateEmailPort, ModuleManifest, TransactionalEmailSender } from '@b2b/contracts';
+import type { TemplateEmailPort, ModuleManifest, TransactionalEmailSender } from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';

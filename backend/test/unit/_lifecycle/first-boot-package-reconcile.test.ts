@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { join } from 'node:path';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleManifest, RegistryState } from '@b2b/contracts';
+import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';

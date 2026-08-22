@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock, Power, PowerOff } from 'lucide-react';
-import type { TransactionalEmailSummary } from '@b2b/contracts';
+import type { TransactionalEmailSummary } from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

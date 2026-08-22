@@ -1,4 +1,4 @@
-import '@b2b/cms-components/styles.css';
+import '@endora-commerce/cms-components/styles.css';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Puck, type Config, type ComponentConfig, type Data, type PuckAction } from '@measured/puck';
 import '@measured/puck/puck.css';
@@ -23,13 +23,13 @@ import {
   type EmailRowLayoutPresetId,
   type EmailRowProps,
   type PuckDataTree,
-} from '@b2b/email-components';
-import { filterConfigByContext, type PageBuilderContext } from '@b2b/page-builder-core';
+} from '@endora-commerce/email-components';
+import { filterConfigByContext, type PageBuilderContext } from '@endora-commerce/page-builder-core';
 import {
   hasInvalidColumnPlacement,
   shouldRevertPuckAction,
   toPuckItemArray,
-} from '@b2b/page-builder-core/editor';
+} from '@endora-commerce/page-builder-core/editor';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';

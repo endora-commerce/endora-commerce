@@ -15,7 +15,7 @@ import {
   type CustomFieldDefinitionReadPort,
   type CustomFieldValuePort,
   type OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';

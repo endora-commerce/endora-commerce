@@ -1,4 +1,4 @@
-import type { ConfigurationTypeDescriptor, FieldDefinition } from '@b2b/contracts';
+import type { ConfigurationTypeDescriptor, FieldDefinition } from '@endora-commerce/contracts';
 
 /**
  * Core `llm` configuration type (feature 058, US1 / research §R2).

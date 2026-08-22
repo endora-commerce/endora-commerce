@@ -16,7 +16,7 @@ import {
   returnStatusUpdateSchema,
   returnTransitionsSetSchema,
   settlementRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ReturnCaseService } from './services/return-case-service.js';
 import type { ReturnAuthorizationService } from './services/return-authorization-service.js';
 import type { ReturnCommentService } from './services/return-comment-service.js';

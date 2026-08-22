@@ -146,7 +146,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // and the login hook. There used to be another entry: the kernel
   // type-imported the `Organization` entity to declare `OrganizationReadPort`,
   // recorded here as "meant to be permanent". D-55 dissolved it — the port now
-  // declares a structural `OrganizationSnapshot` over `@b2b/contracts`' status
+  // declares a structural `OrganizationSnapshot` over `@endora-commerce/contracts`' status
   // union, and the entity stays in this module. The kernel owning the shape
   // never required it to own the class.
   organizations: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],

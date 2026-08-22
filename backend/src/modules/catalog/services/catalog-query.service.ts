@@ -40,7 +40,7 @@ import {
   type ProductListSort,
   type ProductSummary,
   type ProductVariant as VariantDto,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { encodeCursor, decodeCursor } from '../../../http/cursor.js';

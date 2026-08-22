@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CatalogGalleryPort } from '@b2b/contracts';
+import type { CatalogGalleryPort } from '@endora-commerce/contracts';
 
 import {
   setupBackendServer,

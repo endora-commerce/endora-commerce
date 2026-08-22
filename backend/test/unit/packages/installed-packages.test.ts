@@ -196,19 +196,19 @@ describe('a node_modules that is itself a link (issue #255)', () => {
 
   it('still refuses a workspace member reached through that aliased root', () => {
     // The discrimination: relaxing the root is not relaxing the rule. The
-    // `@b2b/*` shape — a relative link onto `packages/<name>` — lands outside
+    // `@endora-commerce/*` shape — a relative link onto `packages/<name>` — lands outside
     // whichever `node_modules` it was reached through, in every wiring.
     const source = join(root, 'aliased-workspace-source', 'packages', 'mod-member');
     mkdirSync(source, { recursive: true });
     writeFileSync(
       join(source, 'package.json'),
       `${JSON.stringify(
-        { name: '@b2b/mod-member', version: '1.0.0', endora: { type: 'module', id: 'member' } },
+        { name: '@endora-commerce/mod-member', version: '1.0.0', endora: { type: 'module', id: 'member' } },
         null,
         2,
       )}\n`,
     );
-    const scoped = join(root, 'real-store', 'node_modules', '@b2b');
+    const scoped = join(root, 'real-store', 'node_modules', '@endora-commerce');
     mkdirSync(scoped, { recursive: true });
     symlinkSync(source, join(scoped, 'mod-member'), 'dir');
 
@@ -216,7 +216,7 @@ describe('a node_modules that is itself a link (issue #255)', () => {
 
     expect(scan.packages.map((p) => p.id)).not.toContain('member');
     expect(scan.skipped).toContainEqual(
-      expect.objectContaining({ kind: 'links-out-of-node-modules', name: '@b2b/mod-member' }),
+      expect.objectContaining({ kind: 'links-out-of-node-modules', name: '@endora-commerce/mod-member' }),
     );
   });
 });

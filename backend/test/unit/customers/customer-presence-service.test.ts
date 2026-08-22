@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AuthSessionReadPort, CustomerAccountReadPort } from '@b2b/contracts';
+import type { AuthSessionReadPort, CustomerAccountReadPort } from '@endora-commerce/contracts';
 import { CustomerPresenceService } from '../../../src/modules/customers/services/customer-presence-service.js';
 
 /**

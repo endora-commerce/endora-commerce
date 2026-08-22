@@ -7,7 +7,7 @@ import {
   type FeedDeliveryAttempt as FeedDeliveryAttemptDto,
   type FeedDeliveryFailureReason,
   type FeedDeliveryProtocol,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../../http/error-envelope.js';
 import { FeedArtefact } from '../../entities/feed-artefact.entity.js';
 import type { FeedDelivery } from '../../entities/feed-delivery.entity.js';

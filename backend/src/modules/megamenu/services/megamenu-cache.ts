@@ -1,5 +1,5 @@
 import type Redis from 'ioredis';
-import type { ResolvedMegamenu } from '@b2b/contracts';
+import type { ResolvedMegamenu } from '@endora-commerce/contracts';
 
 /**
  * Storefront read-through cache for the Megamenu module — feature 015 / T017.

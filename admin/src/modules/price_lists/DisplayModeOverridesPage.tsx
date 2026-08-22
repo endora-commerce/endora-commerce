@@ -10,7 +10,7 @@ import {
   Settings as SettingsIcon,
   Trash2,
 } from 'lucide-react';
-import type { DisplayMode } from '@b2b/contracts';
+import type { DisplayMode } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { normalize } from '@/lib/text-normalization';

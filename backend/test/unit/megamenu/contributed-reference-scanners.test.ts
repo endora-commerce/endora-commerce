@@ -4,14 +4,14 @@ import type {
   AssetReferenceDescriptor,
   AssetReferenceRegistryPort,
   CmsExternalReferenceScanner,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { registerMegamenuAssetReferences } from '../../../src/modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from '../../../src/modules/megamenu/services/cms-references.js';
 import type { MegamenuReferenceRegistry } from '../../../src/modules/megamenu/services/megamenu-reference-registry.js';
 
 /**
  * Feature 075, Phase C — what `megamenu` contributes to the two reference
- * registries, described by the `@b2b/contracts` shapes rather than by the
+ * registries, described by the `@endora-commerce/contracts` shapes rather than by the
  * classes `assets_library` and `cms` own.
  *
  * The seam is deliberately an ungated registration on both sides (D-39): a

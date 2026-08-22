@@ -6,7 +6,7 @@ import {
   type CmsBlockSummary,
   type CreateCmsBlockRequest,
   type PatchCmsBlockRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { walkUnknownComponents } from './content-tree-walker.js';
 import type { CmsReferenceRegistry } from './cms-reference-registry.js';

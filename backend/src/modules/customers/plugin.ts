@@ -34,7 +34,7 @@ import type {
   PersonalOrganizationPort,
   RfqCustomerPort,
   VatValidator,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
 import {
   registerCustomersSelfRoutes,

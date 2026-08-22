@@ -1,7 +1,7 @@
 import { Migration } from '@mikro-orm/migrations';
 import { randomUUID } from 'crypto';
-import { defaultHeaderTree } from '@b2b/email-components/defaults/default-header';
-import { defaultFooterTree, envelopeFromTree } from '@b2b/email-components/defaults/default-footer';
+import { defaultHeaderTree } from '@endora-commerce/email-components/defaults/default-header';
+import { defaultFooterTree, envelopeFromTree } from '@endora-commerce/email-components/defaults/default-footer';
 
 /**
  * Feature 048 — Newsletter.

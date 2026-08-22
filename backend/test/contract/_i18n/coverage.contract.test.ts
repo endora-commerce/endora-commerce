@@ -7,7 +7,7 @@ import {
 import {
   I18nCoverageResponseSchema,
   ERROR_CODES,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Feature 021 — `GET /api/v1/admin/i18n/coverage` contract test.

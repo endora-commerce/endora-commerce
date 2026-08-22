@@ -2,7 +2,7 @@ import type {
   LanguageAdminPort,
   LanguageReadPort,
   LanguageRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Language } from '../entities/language.entity.js';
 import type { LanguageService } from './language-service.js';

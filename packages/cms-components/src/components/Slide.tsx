@@ -2,7 +2,7 @@
 
 import type { ComponentType } from 'react';
 import { type ComponentConfig, type PuckComponent } from '@measured/puck';
-import { DEFAULT_SPACING, withHideOn } from '@b2b/page-builder-core';
+import { DEFAULT_SPACING, withHideOn } from '@endora-commerce/page-builder-core';
 import type { SlideProps } from '../schema/component-types.js';
 import { BoxStyled } from './box-styles.js';
 import {

@@ -24,7 +24,7 @@ import {
   PLATFORM_OWNED_NAMES,
   type PortResolution,
 } from '../../../scripts/check-port-dependencies.js';
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 
 /**

@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { ComparisonDisplayMode } from '@b2b/contracts';
+import type { ComparisonDisplayMode } from '@endora-commerce/contracts';
 
 /**
  * Three-button mode switcher for the comparison page (feature 007 / T031).

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { defineModuleManifest, type ModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest, type ModuleManifest } from '@endora-commerce/contracts';
 
 import {
   analyzeSource as channelAnalyze,
@@ -1578,7 +1578,7 @@ function renderedLeakFindings(): number {
 
 /** Bare workspace member beside a bare installed package: only the latter. */
 function workspaceMemberOnlyTheControl(): number {
-  const found = foreignSpecifiers(renderedArtefact('@b2b/contracts/src/index.js', 'zod/index.js'));
+  const found = foreignSpecifiers(renderedArtefact('@endora-commerce/contracts/src/index.js', 'zod/index.js'));
   return found.length === 1 && found[0] === 'zod/index.js' ? 1 : 0;
 }
 
@@ -4219,7 +4219,7 @@ const CHECKS: readonly CheckEntry[] = [
     // four files in this tree quote the wrong one-liner on purpose, so a
     // text-level implementation reports the documentation that exists to
     // prevent the defect. Its population is the whole tree since the fold moved
-    // into `@b2b/contracts`: the rule "use the shared fold" had nothing to mean
+    // into `@endora-commerce/contracts`: the rule "use the shared fold" had nothing to mean
     // in a package that could not reach one, which is why three packages that
     // fold were excluded by the first version of this entry.
     //
@@ -4356,7 +4356,7 @@ const CHECKS: readonly CheckEntry[] = [
       ),
       // `backend/`, `packages/` and `storefront/` were out until issue #240,
       // for one stated reason: none of them could import a fold that lived in
-      // `admin/src`. `foldDiacritics` in `@b2b/contracts` is reachable from all
+      // `admin/src`. `foldDiacritics` in `@endora-commerce/contracts` is reachable from all
       // three, so all three are in — and a narrowing shows up here as a red
       // test rather than as a smaller number.
       'every-package-that-can-import-the-fold-is-scanned': top(() =>

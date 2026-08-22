@@ -1,6 +1,6 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
-import type { ApplicationRule } from '@b2b/contracts';
+import type { ApplicationRule } from '@endora-commerce/contracts';
 import { RuleScoped } from '../../../tenancy/org-scoped.decorator.js';
 
 /**

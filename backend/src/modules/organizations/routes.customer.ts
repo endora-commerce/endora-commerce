@@ -11,7 +11,7 @@ import {
   type CustomerAccountRecord,
   type CustomerAuthPort,
   type CustomerTotpEnrolmentPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { Organization } from './entities/organization.entity.js';
 

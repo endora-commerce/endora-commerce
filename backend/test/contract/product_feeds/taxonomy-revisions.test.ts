@@ -4,7 +4,7 @@ import {
   feedTaxonomyRevisionImpactResponseSchema,
   feedTaxonomyRevisionSchema,
   PRODUCT_FEED_SETTING_CODES,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

@@ -4,7 +4,7 @@ import {
   type CreateNewsletterCustomFieldRequest,
   type NewsletterCustomField as NewsletterCustomFieldDto,
   type UpdateNewsletterCustomFieldRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterCustomField } from '../entities/newsletter-custom-field.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';

@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DeliveryMethodReadPort, DeliveryMethodRecord } from '@b2b/contracts';
+import type { DeliveryMethodReadPort, DeliveryMethodRecord } from '@endora-commerce/contracts';
 import { DeliveryMethod } from '../entities/delivery-method.entity.js';
 
 /**

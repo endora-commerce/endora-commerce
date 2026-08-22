@@ -52,7 +52,7 @@
  */
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type { ModuleCliCommandContext } from '@b2b/contracts';
+import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
 import { AuditLogEntry } from '../../../kernel/audit/audit-log-entry.entity.js';
 import type { ModuleContext } from '../../../kernel/index.js';
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ProductAsset } from '@b2b/contracts';
+import type { ProductAsset } from '@endora-commerce/contracts';
 import { GallerySwitcher, type GallerySwitcherItem } from './GallerySwitcher';
 import { toAbsoluteAssetUrl } from '../lib/asset-url';
 

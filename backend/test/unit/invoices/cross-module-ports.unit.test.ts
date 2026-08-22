@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { OrderItemRecord, OrderReadPort, OrderRecord } from '@b2b/contracts';
+import type { OrderItemRecord, OrderReadPort, OrderRecord } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';

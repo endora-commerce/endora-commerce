@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { CatalogCategoryReadPort, CatalogProductReadPort } from '@b2b/contracts';
+import type { CatalogCategoryReadPort, CatalogProductReadPort } from '@endora-commerce/contracts';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';

@@ -8,7 +8,7 @@ import type {
   OrderReadPort,
   ShipmentStatus,
   TransactionalEmailSender,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 

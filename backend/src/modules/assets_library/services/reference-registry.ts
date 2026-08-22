@@ -10,10 +10,10 @@ import type {
   AssetReference,
   AssetReferenceDescriptor,
   AssetReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
- * Both shapes moved to `@b2b/contracts` in feature 075's Phase P — four
+ * Both shapes moved to `@endora-commerce/contracts` in feature 075's Phase P — four
  * modules contribute a descriptor, so the descriptor is a boundary shape and
  * not an internal. Re-exported here for the length of Phase P, which cuts no
  * consumer.

@@ -70,7 +70,7 @@ const DEFAULT_DSN = 'postgresql://b2b:b2b@localhost:5432/b2b_acceptance_test';
 const EXPECTATION_FILE = join(BACKEND_ROOT, 'acceptance', 'expected-state.json');
 
 /** Strings that must not survive into the published artefact. */
-const ARTEFACT_MUST_NOT_CONTAIN = ['@Entity(', '@b2b/', 'backend/src'] as const;
+const ARTEFACT_MUST_NOT_CONTAIN = ['@Entity(', '@endora-commerce/', 'backend/src'] as const;
 
 const notes: string[] = [];
 

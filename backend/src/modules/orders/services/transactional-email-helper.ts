@@ -2,7 +2,7 @@
 // admin-editable template, resolving the sales-channel default language.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { TransactionalEmailSender } from '@b2b/contracts';
+import type { TransactionalEmailSender } from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { Order } from '../entities/order.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';

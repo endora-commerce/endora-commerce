@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { CartWritePort, CatalogProductReadPort, RfqCustomerPort } from '@b2b/contracts';
+import type { CartWritePort, CatalogProductReadPort, RfqCustomerPort } from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';

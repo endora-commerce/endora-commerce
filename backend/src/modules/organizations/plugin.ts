@@ -11,7 +11,7 @@ import type {
   CustomerRolePort,
   CustomerTotpEnrolmentPort,
   EmailMailerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { OrganizationModerationService } from './services/organization-moderation-service.js';
 import type { OrganizationRestrictionService } from './services/organization-restriction-service.js';
@@ -34,7 +34,7 @@ import { registerOrganizationsAdminRoutes } from './routes.admin.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminAnyFactory } from '../../kernel/ports/require-admin.js';
-import type { DictionaryValidator } from '@b2b/contracts';
+import type { DictionaryValidator } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**

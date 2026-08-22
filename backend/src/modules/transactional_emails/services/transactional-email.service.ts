@@ -18,19 +18,19 @@ import {
   type TransactionalEmailSendInput,
   type TransactionalEmailSummary,
   type TransactionalSendOutcome,
-} from '@b2b/contracts';
-import type { PuckDataTree } from '@b2b/email-components/schema/envelope';
-import { EMAIL_SAFE_COMPONENT_NAMES } from '@b2b/email-components/schema/component-types';
-import { walkUnknownComponents } from '@b2b/email-components/tree/walk-embeds';
-import { renderEmailHtml } from '@b2b/email-components/render/render-email-html';
-import { renderEmailText } from '@b2b/email-components/render/render-email-text';
-import { renderDirectives } from '@b2b/email-components/directives/directive-engine';
+} from '@endora-commerce/contracts';
+import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
+import { EMAIL_SAFE_COMPONENT_NAMES } from '@endora-commerce/email-components/schema/component-types';
+import { walkUnknownComponents } from '@endora-commerce/email-components/tree/walk-embeds';
+import { renderEmailHtml } from '@endora-commerce/email-components/render/render-email-html';
+import { renderEmailText } from '@endora-commerce/email-components/render/render-email-text';
+import { renderDirectives } from '@endora-commerce/email-components/directives/directive-engine';
 import { HttpError } from '../../../http/error-envelope.js';
 import type {
   EmailDeliveryRecorder,
   EmailDeliveryReason,
   EmailMailerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import { TransactionalEmailContent } from '../entities/transactional-email-content.entity.js';

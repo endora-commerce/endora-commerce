@@ -1,4 +1,4 @@
-import type { SupportedEntityType } from '@b2b/contracts';
+import type { SupportedEntityType } from '@endora-commerce/contracts';
 
 /**
  * Supported-entity registry (feature 055, FR-001/FR-006).

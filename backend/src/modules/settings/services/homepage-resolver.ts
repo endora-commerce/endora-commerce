@@ -1,4 +1,4 @@
-import type { HomepageConfig } from '@b2b/contracts';
+import type { HomepageConfig } from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 const HOMEPAGE_SETTING_CODE = 'homepage_cms_page_slug';

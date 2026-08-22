@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ListingPrice } from '@b2b/contracts';
+import type { ListingPrice } from '@endora-commerce/contracts';
 import { searchHitSummary } from '../../../src/modules/search/services/search-query.service.js';
 
 /**

@@ -1,4 +1,4 @@
-import { defineModuleManifest, type ModuleUninstallHook } from '@b2b/contracts';
+import { defineModuleManifest, type ModuleUninstallHook } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 
 /**

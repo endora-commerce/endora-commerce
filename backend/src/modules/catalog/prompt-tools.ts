@@ -15,7 +15,7 @@ import {
   type BulkProgressSnapshot,
   type PromptActionTool,
   type ToolContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import { HttpError } from '../../http/error-envelope.js';

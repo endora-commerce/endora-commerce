@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TAXONOMY_FETCH_LIMITS } from '@b2b/contracts';
+import { TAXONOMY_FETCH_LIMITS } from '@endora-commerce/contracts';
 import {
   classifyAddress,
   isForbiddenAddress,

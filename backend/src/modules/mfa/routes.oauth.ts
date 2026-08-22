@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { randomBytes } from 'crypto';
-import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '@b2b/contracts';
-import type { AuthSessionPort, FederatedSignInOptionsResponse } from '@b2b/contracts';
+import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
+import type { AuthSessionPort, FederatedSignInOptionsResponse } from '@endora-commerce/contracts';
 import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { ChallengeStore } from './services/challenge-store.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';

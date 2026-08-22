@@ -2,7 +2,7 @@
 // email_verification, organization_invitation, new_org_registration.
 // Simple layout via shared header/footer embeds + heading / text / CTA.
 
-import { simpleEmailBodyTree } from '@b2b/email-components/defaults/simple-email-body';
+import { simpleEmailBodyTree } from '@endora-commerce/email-components/defaults/simple-email-body';
 
 const LANGS = ['en-US', 'pl-PL'];
 

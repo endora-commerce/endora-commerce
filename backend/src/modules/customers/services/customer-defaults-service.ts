@@ -3,7 +3,7 @@ import type {
   CustomerDefaults,
   DefaultPreferencePort,
   PreferenceAuditContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CustomerAddressService } from './customer-address-service.js';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
 

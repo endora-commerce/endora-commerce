@@ -3,7 +3,7 @@ import {
   META_TRIGGER_ACTIONS,
   createMetaCustomEventMappingSchema,
   updateMetaCustomEventMappingSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { META_ADS_READ_PERMISSION, META_ADS_WRITE_PERMISSION } from './manifest.js';
 import type {
   MetaAuditContext,

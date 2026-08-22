@@ -4,7 +4,7 @@ import {
   createReturnCaseRequestSchema,
   customerAddCommentRequestSchema,
   selectReturnDeliveryMethodRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ReturnCaseService } from './services/return-case-service.js';
 import type { ReturnCommentService } from './services/return-comment-service.js';
 import type { ReturnDeliveryMethodService } from './services/return-delivery-method-service.js';

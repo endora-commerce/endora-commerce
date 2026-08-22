@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { settle } from './_helpers';
 
 // Admin CMS Page Builder no-regression subset (FR-012b). The admin app is NOT migrated,
-// but it consumes @b2b/cms-components; after that package gains its self-contained
+// but it consumes @endora-commerce/cms-components; after that package gains its self-contained
 // stylesheet, the admin editor/preview surfaces rendering those components MUST look
 // unchanged. Baseline captured pre-migration (T007).
 //

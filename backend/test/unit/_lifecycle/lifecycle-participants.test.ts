@@ -4,7 +4,7 @@ import {
   type ModuleHardUninstalledEvent,
   type ModuleInstalledEvent,
   type ModuleLifecycleParticipant,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ModuleLifecycleOrchestrator } from '../../../src/modules/_lifecycle/services/orchestrator.js';
 import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
 import type {

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { DisplayMode } from '@b2b/contracts';
+import type { DisplayMode } from '@endora-commerce/contracts';
 import type { PricingMoney } from '../../lib/api/pricing';
 import { DEFAULT_VAT_RATE, grossFromNet } from '../../lib/i18n/money';
 

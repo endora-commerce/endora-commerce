@@ -3,7 +3,7 @@ import {
   ModuleManifestSchema,
   defineModuleManifest,
   defineModuleSettingsManifest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 describe('ModuleManifestSchema', () => {
   it('accepts a minimal valid manifest', () => {

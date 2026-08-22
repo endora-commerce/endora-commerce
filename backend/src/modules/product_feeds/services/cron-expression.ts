@@ -34,4 +34,4 @@ export {
   isValidTimezone,
   presetForCron,
   type SchedulePreset,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';

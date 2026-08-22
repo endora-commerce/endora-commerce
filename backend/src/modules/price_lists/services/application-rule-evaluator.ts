@@ -1,7 +1,7 @@
 /**
  * Pure rule evaluator (feature 011 / FR-022, FR-023, FR-026, FR-029).
  *
- * The implementation moved to `@b2b/contracts` in feature 075's Phase P
+ * The implementation moved to `@endora-commerce/contracts` in feature 075's Phase P
  * (FR-013): it is a pure function over an `ApplicationRule` — a shape that
  * package already declares — and a context of plain ids, so switching
  * `price_lists` off cannot change whether a rule matches and a gated port
@@ -21,9 +21,9 @@
 import type {
   PriceListResolutionContext,
   PriceListRuleEvaluation,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
-export { evaluateApplicationRule } from '@b2b/contracts';
+export { evaluateApplicationRule } from '@endora-commerce/contracts';
 
 export type ResolutionContext = PriceListResolutionContext;
 export type RuleEvaluation = PriceListRuleEvaluation;

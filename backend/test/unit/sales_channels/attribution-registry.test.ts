@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SalesChannelAttributionDescriptor } from '@b2b/contracts';
+import type { SalesChannelAttributionDescriptor } from '@endora-commerce/contracts';
 import { SalesChannelAttributionRegistry } from '../../../src/modules/sales_channels/services/sales-channel-attribution-registry.js';
 
 /**

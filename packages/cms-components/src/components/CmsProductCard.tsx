@@ -5,7 +5,7 @@ import {
   CORNER_RADIUS_PX,
   resolveResponsiveNumber,
   type BreakpointTier,
-} from '@b2b/page-builder-core';
+} from '@endora-commerce/page-builder-core';
 import type { CmsProductSummary } from '../schema/catalog-types.js';
 import type { CmsProductCardProps } from '../schema/component-types.js';
 

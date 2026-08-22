@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { OrderReadPort } from '@b2b/contracts';
+import type { OrderReadPort } from '@endora-commerce/contracts';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';

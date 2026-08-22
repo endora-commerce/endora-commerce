@@ -8,7 +8,7 @@ import type {
   RegistryState,
   ModuleListItem,
   ModuleListItemFlag,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ManifestReconciler } from '../../../kernel/settings/manifest-reconciler.js';
 import { Setting } from '../../../kernel/settings/setting.entity.js';
 import { SettingGroup } from '../../../kernel/settings/setting-group.entity.js';

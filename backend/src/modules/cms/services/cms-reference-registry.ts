@@ -1,9 +1,9 @@
-import type { CmsReference, CmsExternalReferenceScanner } from '@b2b/contracts';
+import type { CmsReference, CmsExternalReferenceScanner } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { walkBlockEmbeds, walkTemplateEmbeds } from './content-tree-walker.js';
 
 /**
- * Both shapes moved to `@b2b/contracts` in feature 075's Phase P — `megamenu`
+ * Both shapes moved to `@endora-commerce/contracts` in feature 075's Phase P — `megamenu`
  * contributes a scanner, which makes the descriptor a boundary shape rather
  * than an internal. Re-exported here for the length of Phase P, which cuts no
  * consumer.

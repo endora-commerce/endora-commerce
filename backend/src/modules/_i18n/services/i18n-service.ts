@@ -7,7 +7,7 @@ import {
   type I18nCoverageResponse,
   type SupportedAdminLanguage,
   type TranslationBundleEntries,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { TranslationBundle } from '../entities/translation-bundle.entity.js';
 import { loadModuleBundles, BundleLoadError } from './bundle-loader.js';
 import { MissingKeyLogger } from './missing-key-logger.js';

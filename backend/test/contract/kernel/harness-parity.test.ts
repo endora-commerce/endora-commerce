@@ -519,7 +519,7 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
     reason:
       'D-54 moved this map out of `src/http` and into both roots on purpose: a platform peer ' +
       'may not name a module, a root may. It drains when the error-code→translation-key ' +
-      'mapping is declared beside the codes in `@b2b/contracts`, which is where the codes ' +
+      'mapping is declared beside the codes in `@endora-commerce/contracts`, which is where the codes ' +
       'already live, rather than in the module that renders them.',
   },
   '_lifecycle:REGISTERED_MANIFESTS': {
@@ -739,7 +739,7 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
       'throwing this error type. No instance of anything `product_feeds` owns is constructed ' +
       'here, so the hazard the ceiling exists for — a root-built service that keeps answering ' +
       'after its module is switched off — has no site. The only move that would remove the ' +
-      'name is relocating an error class into `@b2b/contracts` for one test helper’s benefit, ' +
+      'name is relocating an error class into `@endora-commerce/contracts` for one test helper’s benefit, ' +
       'which nothing else in the tree wants and which would put a module’s internal failure ' +
       'vocabulary into the shared API package. Nothing is: do not drain this.',
   },

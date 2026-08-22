@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { NumberingSeries } from '@b2b/contracts';
+import type { NumberingSeries } from '@endora-commerce/contracts';
 import {
   findNumberPatternCollisions,
   patternSequenceDefect,

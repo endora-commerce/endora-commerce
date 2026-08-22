@@ -1,4 +1,4 @@
-import type { SearchSuggestItem } from '@b2b/contracts';
+import type { SearchSuggestItem } from '@endora-commerce/contracts';
 
 /**
  * Storefront client for the search module's typeahead endpoint —

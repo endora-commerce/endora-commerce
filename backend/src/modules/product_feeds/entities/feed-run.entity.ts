@@ -5,7 +5,7 @@ import type {
   FeedRunStatus,
   FeedRunTrigger,
   FeedTemplateField as FeedTemplateFieldDto,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /** Skip reasons for `status = 'skipped'` (data-model §4). */

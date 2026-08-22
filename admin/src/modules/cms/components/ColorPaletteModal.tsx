@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { CmsColorPaletteEntry } from '@b2b/contracts';
+import type { CmsColorPaletteEntry } from '@endora-commerce/contracts';
 import { ColorPicker } from '@/components/ui/color-picker';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/i18n/useTranslation';

@@ -5,7 +5,7 @@ import {
   type CurrencyReadPort,
   type CurrencySeedPort,
   type DictionaryReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { CurrencyService } from './services/currency-service.js';
@@ -48,7 +48,7 @@ export interface CurrenciesCradle {
 /**
  * Emitted after any write that changes the set or shape of currencies.
  *
- * The spelling moved to `@b2b/contracts` in feature 075's Phase P — it is a
+ * The spelling moved to `@endora-commerce/contracts` in feature 075's Phase P — it is a
  * constant, not behaviour, and `dictionaries` subscribes to it. Re-exported
  * here for the length of Phase P, which cuts no consumer.
  */

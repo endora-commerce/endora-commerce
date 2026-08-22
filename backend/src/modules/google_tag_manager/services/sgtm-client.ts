@@ -14,7 +14,7 @@
  * the network.
  */
 
-import type { GtmPageContext } from '@b2b/contracts';
+import type { GtmPageContext } from '@endora-commerce/contracts';
 
 export interface SgtmDestination {
   /** Base URL of the server container, e.g. `https://sgtm.example.com`. */

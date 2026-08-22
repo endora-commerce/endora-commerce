@@ -2,7 +2,7 @@ import {
   evaluateApplicationRule,
   type ApplicationRule,
   type PriceListResolutionContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { pickPriorityChain, type PriceListCandidate } from './price-list-resolver.js';
 
 /**

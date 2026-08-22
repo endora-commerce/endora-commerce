@@ -18,7 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { ReturnReasonDto } from '@b2b/contracts';
+import type { ReturnReasonDto } from '@endora-commerce/contracts';
 
 /** Managed return/complaint reasons (feature 046, US7). */
 export function ReturnReasonsPage(): ReactNode {

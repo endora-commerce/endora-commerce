@@ -8,7 +8,7 @@ import {
   type ModuleLifecycleParticipant,
   type ModuleUninstallHook,
   type ModuleManifestExports,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ModuleDepGraph } from './dep-graph.js';
 
 export interface LoadedModuleEntry<EM = unknown, R = unknown> {

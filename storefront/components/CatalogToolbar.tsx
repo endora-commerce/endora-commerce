@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useMemo, useTransition, type ChangeEvent, type ReactNode } from 'react';
-import type { ProductListSort } from '@b2b/contracts';
+import type { ProductListSort } from '@endora-commerce/contracts';
 import { tForLocale } from '../lib/i18n/messages';
 
 /**

@@ -13,7 +13,7 @@ import {
   type OrganizationRecord,
   type PriceOrganization,
   type ProductAudience,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
 import { ComparableAttributeProjection } from '../../../src/modules/comparisons/services/comparable-attribute-projection.js';

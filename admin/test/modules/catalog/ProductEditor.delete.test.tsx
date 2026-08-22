@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { ApiError } from '@b2b/api-client';
+import { ApiError } from '@endora-commerce/api-client';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 const getSpy = vi.fn();

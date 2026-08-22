@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { randomBytes } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ConfigurationTypeDescriptor } from '@b2b/contracts';
+import type { ConfigurationTypeDescriptor } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

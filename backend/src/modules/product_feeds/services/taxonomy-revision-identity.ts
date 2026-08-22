@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { TaxonomyProviderCode } from '@b2b/contracts';
+import type { TaxonomyProviderCode } from '@endora-commerce/contracts';
 import type { TaxonomyNodeDraft } from './taxonomy-file-parser.js';
 
 /**

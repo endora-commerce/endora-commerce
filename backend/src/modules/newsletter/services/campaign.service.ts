@@ -6,7 +6,7 @@ import {
   type CreateCampaignRequest,
   type UpdateCampaignRequest,
   type RenderedEmail,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterCampaign } from '../entities/newsletter-campaign.entity.js';
 import { NewsletterCampaignSubscriber } from '../entities/newsletter-campaign-subscriber.entity.js';

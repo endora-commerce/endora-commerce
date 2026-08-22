@@ -5,10 +5,10 @@ import {
   replaceBracketsRequestSchema,
   replaceProductsRequestSchema,
   ERROR_CODES,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { z } from 'zod';
 import { HttpError } from '../../http/error-envelope.js';
-import type { ApplicationRule } from '@b2b/contracts';
+import type { ApplicationRule } from '@endora-commerce/contracts';
 import { ruleVisibleForScope } from '../../tenancy/derived-scope.js';
 import type { PriceListService } from './services/price-list-service.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
@@ -21,7 +21,7 @@ import type {
   CustomerAccountReadPort,
   CustomerGroupReadPort,
   OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { PRICE_LIST_PERMISSIONS } from './manifest.js';
 

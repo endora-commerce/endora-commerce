@@ -4,7 +4,7 @@ import type {
   MfaLoginDecision,
   MfaLoginPort,
   MfaSubjectRef,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { MfaEnrolment } from '../entities/mfa-enrolment.entity.js';
 import type { ChallengeStore } from './challenge-store.js';
 import type { MfaPolicyResolver } from './mfa-policy-resolver.js';

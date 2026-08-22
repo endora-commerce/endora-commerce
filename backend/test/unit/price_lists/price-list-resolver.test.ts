@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RuleCriterionType } from '@b2b/contracts';
+import type { RuleCriterionType } from '@endora-commerce/contracts';
 import {
   pickPriorityChain,
   tieBreak,

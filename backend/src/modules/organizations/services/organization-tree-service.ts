@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type OrganizationTreeNode } from '@b2b/contracts';
+import { ERROR_CODES, type OrganizationTreeNode } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { Organization, OrganizationStatus } from '../entities/organization.entity.js';
 

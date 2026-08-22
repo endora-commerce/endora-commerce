@@ -7,7 +7,7 @@ import {
   type LanguageReadPort,
   type PriceListReadPort,
   type UpdateProductFeedRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';

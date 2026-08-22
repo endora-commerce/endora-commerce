@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, normalizeEmailAddress } from '@b2b/contracts';
+import { ERROR_CODES, normalizeEmailAddress } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 // Feature 075, Phase C — a pure function over its argument, so it lives in the
 // kernel rather than behind a gate that would answer 503 to "hash this string".

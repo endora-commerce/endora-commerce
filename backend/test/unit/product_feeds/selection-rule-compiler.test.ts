@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CatalogProductFilter, ProductSelectionRule } from '@b2b/contracts';
+import type { CatalogProductFilter, ProductSelectionRule } from '@endora-commerce/contracts';
 import {
   collectSelectionCategoryIds,
   compileSelectionRule,

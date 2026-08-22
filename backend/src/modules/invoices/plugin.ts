@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { OrderReadPort, OrderRecord, TransactionalEmailSender } from '@b2b/contracts';
+import type { OrderReadPort, OrderRecord, TransactionalEmailSender } from '@endora-commerce/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';

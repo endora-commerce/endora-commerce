@@ -5,7 +5,7 @@ import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { OrganizationDetailsPort, OrganizationInheritancePort } from '@b2b/contracts';
+import type { OrganizationDetailsPort, OrganizationInheritancePort } from '@endora-commerce/contracts';
 import { CreditLimitService, type CreditLimitEventBus } from './services/credit-limit-service.js';
 import { CreditTopupProvider } from './services/credit-topup.js';
 import { registerCreditLimitsRoutes } from './routes.js';

@@ -3,7 +3,7 @@ import type {
   FeedFieldTransform,
   FeedPricePresentation,
   FeedRunIssueReason,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { FeedItemField } from './serializers/serializer.interface.js';
 
 /**

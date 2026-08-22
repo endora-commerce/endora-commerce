@@ -1,5 +1,5 @@
 ---
-'@b2b/contracts': minor
+'@endora-commerce/contracts': minor
 ---
 
 Publish `ModuleCliCommand` — a fourth export a module's `manifest.ts` may

@@ -1,16 +1,16 @@
 /**
- * Which checkout is this run's `@b2b/*` source coming from? (issue #255)
+ * Which checkout is this run's `@endora-commerce/*` source coming from? (issue #255)
  *
  * ## The defect
  *
  * All five packages under `packages/` are `link:`ed workspace members whose
  * `dist` is built from the checkout they physically live in (feature 080,
- * T042), so a consumer that resolves `@b2b/contracts` reads whatever that
+ * T042), so a consumer that resolves `@endora-commerce/contracts` reads whatever that
  * checkout last compiled — and which checkout that is comes down to one
  * symlink:
  *
  * ```
- * backend/node_modules/@b2b/contracts -> ../../../packages/contracts
+ * backend/node_modules/@endora-commerce/contracts -> ../../../packages/contracts
  * ```
  *
  * That link is *relative*, and it is relative to where the link physically
@@ -20,7 +20,9 @@
  * and the run compiles and executes the **main tree's** branch instead.
  *
  * Measured on this tree, in a worktree whose `packages/contracts` carried a
- * symbol `master` does not have:
+ * symbol `master` does not have. The specifiers below are the ones that were
+ * measured, before feature 080's T042e renamed the scope (D-161); they are the
+ * record of a run and are left as they were spelled that day:
  *
  *   * `require.resolve('@b2b/contracts')` from `<worktree>/backend`
  *     → `/home/…/b2b-platform/packages/contracts/src/index.ts`. The main tree.
@@ -59,7 +61,8 @@
  *
  * **Which packages those are comes from `pnpm-workspace.yaml`, not from a scope
  * written here** (feature 080, T040a). It used to be `readdir('packages')`
- * filtered by the literal `'@b2b/'`, which is the same question answered one
+ * filtered by the literal `'@b2b/'` — the scope's spelling before T042e, and
+ * the same question answered one
  * level deep and for one scope. Both halves were about to be wrong at once: F4
  * moves 66 modules to packages of their own, under a directory `readdir` never
  * reaches and a scope this constant does not name — and a package the guard
@@ -75,7 +78,7 @@
  *
  *   * **A package resolved from a registry rather than the workspace.** Today
  *     all five are `link:` workspace dependencies, so "outside this checkout"
- *     and "wrong branch" are the same statement. On the day `@b2b/contracts`
+ *     and "wrong branch" are the same statement. On the day `@endora-commerce/contracts`
  *     is consumed as a published version through a symlinked root store, this
  *     guard would call a correct tree foreign. The remedy then is to key on
  *     the lockfile's `link:` specifier, not to widen the containment test.
@@ -122,11 +125,11 @@ export interface ResolutionFs {
   readonly realpath: (path: string) => string | null;
 }
 
-/** One `<consumer>/node_modules/@b2b/<name>` link the manifests say must exist. */
+/** One `<consumer>/node_modules/@endora-commerce/<name>` link the manifests say must exist. */
 export interface WorkspaceLink {
   /** Consumer directory, relative to the root — `backend`, `packages/api-client`. */
   readonly consumer: string;
-  /** The bare specifier, e.g. `@b2b/contracts`. */
+  /** The bare specifier, e.g. `@endora-commerce/contracts`. */
   readonly specifier: string;
   /** Where the link is expected, relative to the root. */
   readonly linkPath: string;
@@ -153,7 +156,7 @@ export interface WorkspaceResolutionRefusal {
   readonly message: string;
 }
 
-/** The scopes, for a message: `@b2b/*`, or `@b2b/*, @endora-commerce/*`. */
+/** The scopes, for a message: `@endora-commerce/*`, or that plus any second scope. */
 function scopeToken(report: WorkspaceResolutionReport): string {
   return report.scopes.map((scope) => `${scope}*`).join(', ');
 }
@@ -169,7 +172,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
  *
  * Membership is tested against the names the globs produced rather than against
  * a scope prefix: a scope is a good message and a poor predicate — a
- * third-party `@b2b/…` dependency would be classified as ours, and a workspace
+ * third-party `@endora-commerce/…` dependency would be classified as ours, and a workspace
  * package published under a second scope would not.
  */
 function declaredWorkspaceDependencies(
@@ -266,7 +269,7 @@ export function inspectWorkspaceResolution(
 const REMEDY =
   'Wire the worktree with `bash scripts/setup-worktree.sh` (about 0.2 s), or run\n' +
   '`pnpm install --frozen-lockfile` inside it (about 3 s against a warm store). Never\n' +
-  'symlink a workspace\'s `node_modules` at another checkout: the `@b2b/*` links inside\n' +
+  'symlink a workspace\'s `node_modules` at another checkout: the `@endora-commerce/*` links inside\n' +
   'it are relative, so they re-root at that checkout and this run measures its branch.';
 
 /**
@@ -400,7 +403,7 @@ function realpathOr(dir: string, fs: ResolutionFs): string {
 }
 
 /**
- * The guard itself: throw unless every `@b2b/*` link is this checkout's own.
+ * The guard itself: throw unless every `@endora-commerce/*` link is this checkout's own.
  *
  * Called from `vitest.config.base.ts`, so it runs once per vitest invocation in
  * every workspace, before a single test file is collected.

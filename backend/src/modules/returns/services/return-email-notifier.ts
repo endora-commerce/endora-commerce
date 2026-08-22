@@ -1,4 +1,4 @@
-import type { EmailMailerPort, TransactionalEmailSender } from '@b2b/contracts';
+import type { EmailMailerPort, TransactionalEmailSender } from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { ReturnCase } from '../entities/return-case.entity.js';
 import type { ReturnNotifier } from './return-authorization-service.js';

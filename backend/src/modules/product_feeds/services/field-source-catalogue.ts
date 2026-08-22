@@ -1,4 +1,4 @@
-import type { FeedFieldSourceCatalogue, FeedFieldSourceGroupKind } from '@b2b/contracts';
+import type { FeedFieldSourceCatalogue, FeedFieldSourceGroupKind } from '@endora-commerce/contracts';
 
 /**
  * The guided binding catalogue — feature 067 / FR-070.

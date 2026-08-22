@@ -9,7 +9,7 @@ import {
   type ResolveAllResult,
   type LanguageReadPort,
   type ResolverContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 import type { Product } from '../entities/product.entity.js';
 import { ProductValueOverride } from '../entities/product-value-override.entity.js';
@@ -21,12 +21,12 @@ import {
 
 /**
  * Feature 022 — backend wrapper around the pure resolver in
- * `@b2b/contracts`. Handles the EM-side concerns:
+ * `@endora-commerce/contracts`. Handles the EM-side concerns:
  *   - fetching the override map for a product in a single SELECT,
  *   - assembling AttributeDefs for the system + user-defined attrs,
  *   - resolving the platform's primary admin language.
  *
- * The actual fallback-chain logic lives in `@b2b/contracts` so the
+ * The actual fallback-chain logic lives in `@endora-commerce/contracts` so the
  * admin SPA imports the same code (guaranteeing server / client
  * agreement — SC-004).
  */

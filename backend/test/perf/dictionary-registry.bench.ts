@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Knex } from '@mikro-orm/postgresql';
-import type { DictionaryRegistryResponse } from '@b2b/contracts';
+import type { DictionaryRegistryResponse } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

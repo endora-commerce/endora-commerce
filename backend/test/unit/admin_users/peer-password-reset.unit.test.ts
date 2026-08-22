@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AdminRolePort, AuthSessionPort } from '@b2b/contracts';
+import type { AdminRolePort, AuthSessionPort } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import type { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { hashPassword, verifyPassword } from '../../../src/kernel/crypto/password-hasher.js';

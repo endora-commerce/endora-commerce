@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { dictionaryEntryTypeSchema } from '@b2b/contracts';
+import { dictionaryEntryTypeSchema } from '@endora-commerce/contracts';
 import type { DictionaryReadService } from './services/dictionary-read-service.js';
 
 export interface DictionaryStorefrontRoutesDeps {

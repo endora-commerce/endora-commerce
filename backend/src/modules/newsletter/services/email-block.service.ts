@@ -5,7 +5,7 @@ import {
   type NewsletterEmailBlockDetail,
   type NewsletterEmailBlockSummary,
   type UpdateNewsletterEmailBlockRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterEmailBlock } from '../entities/newsletter-email-block.entity.js';
 import type { ContentTree, EmailEmbeds } from './content.service.js';

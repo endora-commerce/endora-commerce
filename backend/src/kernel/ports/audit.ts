@@ -28,11 +28,11 @@ import type { AuditLogEntry } from '../audit/audit-log-entry.entity.js';
  * ruling removes; and each would silently re-widen the surface the day somebody
  * adds a method.
  *
- * **Not in `@b2b/contracts`.** Two of these four signatures name types that
+ * **Not in `@endora-commerce/contracts`.** Two of these four signatures name types that
  * package cannot have: `recordWithin` takes the caller's MikroORM
  * `EntityManager` — that *is* the co-transactional guarantee, not an
  * implementation detail — and every method answers in `AuditLogEntry`, a kernel
- * entity. `@b2b/contracts` depends on `zod` alone and is consumed by the admin
+ * entity. `@endora-commerce/contracts` depends on `zod` alone and is consumed by the admin
  * SPA and the storefront; giving it an ORM dependency to hold a backend-only
  * seam would be a new runtime dependency (Constitution IV) on the one package
  * three applications share. `kernel/ports/settings.ts` and

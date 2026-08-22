@@ -20,7 +20,7 @@ import type {
   TransactionalEmailSendInput,
   TransactionalEmailSender,
   TransactionalSendOutcome,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ReturnEmailNotifier } from '../../../src/modules/returns/services/return-email-notifier.js';
 import type { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';

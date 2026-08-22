@@ -8,7 +8,7 @@ import type {
   CatalogProductVariantRecord,
   FeedRunFailureCode,
   FeedRunTrigger,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { FeedRun } from '../entities/feed-run.entity.js';

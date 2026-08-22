@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import type { AuditPort } from '../../kernel/ports/audit.js';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import type {
   CartQueryPort,
   CartReadPort,
@@ -16,7 +16,7 @@ import type {
   PromotionCodePort,
   QuoteRequestReadPort,
   RfqCustomerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -104,7 +104,7 @@ export interface CartsCradle {
   /**
    * Feature 075, Phase C — the six ports every service here used to reach by
    * importing another module's class or entity. Each is a contract type from
-   * `@b2b/contracts`, never the provider's class, and each is resolved lazily
+   * `@endora-commerce/contracts`, never the provider's class, and each is resolved lazily
    * by a string literal so a switched-off owner answers at the call.
    */
   readonly pricingService: LinePricePort;

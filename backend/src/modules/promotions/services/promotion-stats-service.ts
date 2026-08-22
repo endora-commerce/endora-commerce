@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PromotionStatsGroupBy, PromotionUsageStats } from '@b2b/contracts';
+import type { PromotionStatsGroupBy, PromotionUsageStats } from '@endora-commerce/contracts';
 
 /**
  * Feature 045 (US7) — usage statistics aggregated over `promotion_usages`.

@@ -1,6 +1,6 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'node:crypto';
-import type { FeedDeliveryHttpLabel, FeedDeliveryProtocol } from '@b2b/contracts';
+import type { FeedDeliveryHttpLabel, FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**

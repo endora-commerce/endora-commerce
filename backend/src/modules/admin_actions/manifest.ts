@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { defineModuleManifest, type ModuleLifecycleParticipant } from '@b2b/contracts';
+import { defineModuleManifest, type ModuleLifecycleParticipant } from '@endora-commerce/contracts';
 
 /**
  * Admin Command Palette Actions Registry — feature 020.

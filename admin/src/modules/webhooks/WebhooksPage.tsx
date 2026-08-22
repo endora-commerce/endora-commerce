@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Check, Copy, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
-import type { Webhook, WebhookDelivery } from '@b2b/contracts';
+import type { Webhook, WebhookDelivery } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';

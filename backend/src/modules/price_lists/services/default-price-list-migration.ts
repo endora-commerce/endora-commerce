@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CatalogProductReadPort } from '@b2b/contracts';
+import type { CatalogProductReadPort } from '@endora-commerce/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListProduct } from '../entities/price-list-product.entity.js';

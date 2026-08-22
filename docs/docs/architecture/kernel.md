@@ -113,7 +113,7 @@ platform-wide and the behaviour stays in the module that owns the table.
 
 Since D-55 the port types its return values with a kernel-owned structural
 `OrganizationSnapshot` — `{ id, status }`, with `OrganizationStatus` taken from
-`@b2b/contracts` — rather than the module's `Organization` entity class. That is
+`@endora-commerce/contracts` — rather than the module's `Organization` entity class. That is
 the whole surface the port's callers consume: `promotions` reads `status`, and
 `carts` and `orders` discard the return value entirely because what they want is
 the throw. TypeScript is structural, so `OrganizationContextService` satisfies

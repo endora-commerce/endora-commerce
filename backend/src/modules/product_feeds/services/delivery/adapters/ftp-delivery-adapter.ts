@@ -1,6 +1,6 @@
 import { Client as FtpClient } from 'basic-ftp';
 import { Readable } from 'node:stream';
-import { FEED_DELIVERY_LIMITS, type FeedDeliveryProtocol } from '@b2b/contracts';
+import { FEED_DELIVERY_LIMITS, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import {
   FeedDeliveryError,
   normalisePath,

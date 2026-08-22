@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { FeedTaxonomyRevision } from '@b2b/contracts';
+import type { FeedTaxonomyRevision } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useFocusTrap } from '@/components/hooks/useFocusTrap';

@@ -1,7 +1,7 @@
 import { lazy, Suspense, type ReactElement } from 'react';
 import type { CustomField } from '@measured/puck';
-import { sanitizeEmailHtml } from '@b2b/email-components';
-import { htmlFromTiptap } from '@b2b/cms-components';
+import { sanitizeEmailHtml } from '@endora-commerce/email-components';
+import { htmlFromTiptap } from '@endora-commerce/cms-components';
 import { Button } from '@/components/ui/button';
 import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
 import { useEmailVariables } from './EmailVariablesProvider';
@@ -15,7 +15,7 @@ import { useEmailVariables } from './EmailVariablesProvider';
 type TipTapJson = Parameters<typeof htmlFromTiptap>[0];
 
 const LazyRichContentEditorField = lazy(async () => {
-  const mod = await import('@b2b/cms-components');
+  const mod = await import('@endora-commerce/cms-components');
   return { default: mod.RichContentEditorField };
 });
 

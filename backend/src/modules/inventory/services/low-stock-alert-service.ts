@@ -3,7 +3,7 @@ import type {
   CatalogProductReadPort,
   CatalogProductRecord,
   EmailMailerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import { z } from 'zod';
 import { StockLevel } from '../entities/stock-level.entity.js';

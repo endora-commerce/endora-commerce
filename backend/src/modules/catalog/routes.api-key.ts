@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { createProductRequestSchema } from '@b2b/contracts';
+import { createProductRequestSchema } from '@endora-commerce/contracts';
 import type { CatalogQueryService } from './services/catalog-query.service.js';
 import type { CatalogAdminService } from './services/catalog-admin.service.js';
 import type { AttributeSetService } from './services/attribute-set.service.js';

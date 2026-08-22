@@ -5,7 +5,7 @@ import type {
   CustomFieldEntityTypeInfo,
   SupportedEntityType,
   UpdateCustomFieldDefinitionRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /** Typed admin client for the custom-fields definition API (feature 055). */
 type Wrap<T> = { data: T };

@@ -9,7 +9,7 @@
 //
 // The registry is React-free: it only stores component metadata
 // (fields shape, owner module, optional preview-icon hint). The actual
-// React render functions live in @b2b/cms-components (or in per-module
+// React render functions live in @endora-commerce/cms-components (or in per-module
 // extension packages); the storefront imports them directly.
 
 import type {
@@ -18,8 +18,8 @@ import type {
   CmsPageBuilderDescriptor,
   PageBuilderBreakpoints,
   PageBuilderContext,
-} from '@b2b/contracts/cms';
-import { DEFAULT_BREAKPOINTS } from '@b2b/page-builder-core/types/responsive';
+} from '@endora-commerce/contracts/cms';
+import { DEFAULT_BREAKPOINTS } from '@endora-commerce/page-builder-core/types/responsive';
 
 export type PageBuilderBreakpointsResolver = () => Promise<PageBuilderBreakpoints>;
 
@@ -108,7 +108,7 @@ export class PageBuilderRegistry {
   /**
    * Returns the metadata view used by the admin `/page-builder/config`
    * endpoint. Excludes React render functions — those come from
-   * `@b2b/cms-components` and per-module extension packages.
+   * `@endora-commerce/cms-components` and per-module extension packages.
    */
   async describe(): Promise<CmsPageBuilderDescriptor> {
     const breakpoints = await this.resolveBreakpoints();

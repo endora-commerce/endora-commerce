@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ModuleManifest } from '@b2b/contracts';
-import { defineModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import {
   ModuleGatingGraph,
   acknowledgedPortEdgesFrom,

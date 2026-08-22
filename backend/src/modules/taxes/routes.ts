@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { taxResolutionInputSchema, upsertTaxRequestSchema } from '@b2b/contracts';
+import { taxResolutionInputSchema, upsertTaxRequestSchema } from '@endora-commerce/contracts';
 import type { TaxService } from './services/tax-service.js';
 import type { Tax } from './entities/tax.entity.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

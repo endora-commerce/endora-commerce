@@ -4,7 +4,7 @@ import type {
   CustomFieldDefinitionWithOptions,
   CustomFieldOptionRecord,
   SupportedEntityType,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CustomFieldDefinition } from '../entities/custom-field-definition.entity.js';
 import type { CustomFieldOption } from '../entities/custom-field-option.entity.js';
 import type { CachedDefinition } from './custom-field-definitions-cache.js';

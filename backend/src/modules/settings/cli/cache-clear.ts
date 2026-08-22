@@ -17,7 +17,7 @@
  * does, on the connection the platform configured — and a deployment decoration
  * over that registration reaches it.
  */
-import type { ModuleCliCommandContext } from '@b2b/contracts';
+import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../../kernel/index.js';
 import { CACHE_NAMESPACES, type CacheAdminService } from '../services/cache-admin.service.js';
 

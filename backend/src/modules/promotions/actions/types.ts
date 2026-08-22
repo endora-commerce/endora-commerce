@@ -1,4 +1,4 @@
-import type { CartLine, PromotionAction } from '@b2b/contracts';
+import type { CartLine, PromotionAction } from '@endora-commerce/contracts';
 
 /**
  * The cart facts an action operates on. The engine clamps the returned

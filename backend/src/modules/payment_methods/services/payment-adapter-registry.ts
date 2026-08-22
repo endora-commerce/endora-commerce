@@ -1,4 +1,4 @@
-import type { PaymentAdapter, PaymentAdapterRegistryPort } from '@b2b/contracts';
+import type { PaymentAdapter, PaymentAdapterRegistryPort } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
 
 /**

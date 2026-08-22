@@ -3,7 +3,7 @@ import type {
   CatalogProductReadPort,
   StockImportError,
   StockImportResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EventBus } from '../../../events/bus.js';
 import { randomUUID } from 'crypto';
 import { StockLevel } from '../entities/stock-level.entity.js';

@@ -6,11 +6,11 @@ import type {
   PromotionCodePort,
   QuoteRequestReadPort,
   RfqCustomerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { ANONYMOUS_PRODUCT_AUDIENCE, ERROR_CODES } from '@b2b/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE, ERROR_CODES } from '@endora-commerce/contracts';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
 import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';

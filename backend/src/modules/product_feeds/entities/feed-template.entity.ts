@@ -4,7 +4,7 @@ import type {
   FeedItemGranularity,
   FeedOutputFormat,
   FeedProviderCode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**

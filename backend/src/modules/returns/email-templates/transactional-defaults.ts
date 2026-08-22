@@ -1,6 +1,6 @@
 // Default subject + content for the returns transactional emails (feature 047).
 
-import { simpleEmailBodyTree } from '@b2b/email-components/defaults/simple-email-body';
+import { simpleEmailBodyTree } from '@endora-commerce/email-components/defaults/simple-email-body';
 
 const LANGS = ['en-US', 'pl-PL'];
 

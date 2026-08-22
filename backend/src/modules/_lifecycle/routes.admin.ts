@@ -13,7 +13,7 @@ import {
   type ModuleActivationResponse,
   type ModuleDeactivationImpact,
   type ModuleListResponse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import type { ApiInterceptorRegistry } from '../../http/interceptors/index.js';
 import { HttpError } from '../../http/error-envelope.js';

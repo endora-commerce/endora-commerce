@@ -6,7 +6,7 @@ import type {
   PromotionCodePort,
   DictionaryValidator,
   DictionaryReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -139,7 +139,7 @@ export function registerModule(ctx: ModuleContext): void {
    * the implementation, and `orders` imports the type — a permanent
    * cross-module ledger entry naming `promotion_usages_order_fk`, because the
    * signature carries the caller's `EntityManager` and FR-034 keeps a MikroORM
-   * type out of `@b2b/contracts`.
+   * type out of `@endora-commerce/contracts`.
    */
   ctx.di.providePort<PromotionUsageFinalizer>(
     'promotionUsageFinalizer',

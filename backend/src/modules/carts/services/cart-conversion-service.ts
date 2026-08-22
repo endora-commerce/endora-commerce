@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
@@ -8,7 +8,7 @@ import type {
   QuoteRequestReadPort,
   RfqCustomerContext,
   RfqCustomerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { productIdsInRequestChannel } from '../../../kernel/sales-channels/request-channel-assortment.js';

@@ -3,12 +3,12 @@ import { randomUUID } from 'crypto';
 import {
   DEFAULT_HEADER_BLOCK_CODE,
   defaultHeaderTree,
-} from '@b2b/email-components/defaults/default-header';
+} from '@endora-commerce/email-components/defaults/default-header';
 import {
   DEFAULT_FOOTER_BLOCK_CODE,
   defaultFooterTree,
   envelopeFromTree,
-} from '@b2b/email-components/defaults/default-footer';
+} from '@endora-commerce/email-components/defaults/default-footer';
 
 /**
  * Feature 047 — Transactional Emails.

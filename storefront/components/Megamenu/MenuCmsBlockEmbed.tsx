@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Render } from '@measured/puck';
-import { defaultPageBuilderConfig } from '@b2b/cms-components';
-import type { ResolvedMenuItem } from '@b2b/contracts';
+import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
+import type { ResolvedMenuItem } from '@endora-commerce/contracts';
 
 interface MenuCmsBlockEmbedProps {
   item: ResolvedMenuItem;

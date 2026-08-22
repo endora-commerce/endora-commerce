@@ -9,7 +9,7 @@ import {
   type AdminRoleRecord,
   type PermissionCataloguePort,
   type PermissionReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AdminUserService } from './services/admin-user-service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

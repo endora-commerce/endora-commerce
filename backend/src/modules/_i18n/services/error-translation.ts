@@ -1,4 +1,4 @@
-import { ERROR_CODES, type ErrorCode } from '@b2b/contracts';
+import { ERROR_CODES, type ErrorCode } from '@endora-commerce/contracts';
 
 export interface ErrorTranslationTarget {
   moduleId: string;

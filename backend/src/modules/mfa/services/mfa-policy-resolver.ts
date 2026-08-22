@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import { MFA_SETTING_CODES } from '@b2b/contracts';
-import type { MfaLoginContext, MfaSubjectRef } from '@b2b/contracts';
+import { MFA_SETTING_CODES } from '@endora-commerce/contracts';
+import type { MfaLoginContext, MfaSubjectRef } from '@endora-commerce/contracts';
 import { MfaOrganizationPolicy } from '../entities/mfa-organization-policy.entity.js';
 
 /**

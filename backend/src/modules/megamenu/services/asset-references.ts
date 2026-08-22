@@ -4,7 +4,7 @@
 // `iconAssetId` (link items with an icon). Both edges block deletion of
 // the upstream Library Asset with a 409.
 //
-// The registry and the descriptor are named by their `@b2b/contracts` shapes
+// The registry and the descriptor are named by their `@endora-commerce/contracts` shapes
 // since feature 075's Phase C: this file describes what it contributes, and
 // `assets_library` decides what enumerating it means — including the policy
 // that honours this scanner while `megamenu` is switched off, which is why the
@@ -15,7 +15,7 @@ import type {
   AssetReference,
   AssetReferenceDescriptor,
   AssetReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 export function registerMegamenuAssetReferences(
   registry: AssetReferenceRegistryPort,

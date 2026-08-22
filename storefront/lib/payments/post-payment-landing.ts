@@ -1,4 +1,4 @@
-import type { PaymentReturnOutcome } from '@b2b/contracts';
+import type { PaymentReturnOutcome } from '@endora-commerce/contracts';
 
 /**
  * Where a buyer lands once a payment gateway hands them back (issue #287).

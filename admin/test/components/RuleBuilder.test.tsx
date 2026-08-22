@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { PromotionRule } from '@b2b/contracts';
+import type { PromotionRule } from '@endora-commerce/contracts';
 import {
   RuleBuilder,
   type RuleBuilderBuiltinField,

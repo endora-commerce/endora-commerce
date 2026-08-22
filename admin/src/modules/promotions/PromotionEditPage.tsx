@@ -23,10 +23,10 @@ import { RuleBuilder, type RuleAttributeField, type RuleFieldOptions } from '@/c
 import { PaginationFooter } from '@/components/PaginationFooter';
 import { usePageSizePreference } from '@/lib/use-page-size-preference';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { PromotionAction, PromotionActionType, PromotionRule } from '@b2b/contracts';
+import type { PromotionAction, PromotionActionType, PromotionRule } from '@endora-commerce/contracts';
 import { promotionsClient, promotionRulesClient, type Coupon } from './client';
 import { CouponGeneratorForm } from './CouponGeneratorForm';
-import type { PromotionRuleRecord } from '@b2b/contracts';
+import type { PromotionRuleRecord } from '@endora-commerce/contracts';
 
 const ACTION_TYPES: PromotionActionType[] = [
   'free_delivery',

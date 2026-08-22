@@ -77,7 +77,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
-import type { ModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import { deploymentsOnDisk } from '../src/overlay/overlay-roots.js';
 import { discoverOverlayModuleManifests } from '../src/overlay/overlay-runtime.js';
 import {

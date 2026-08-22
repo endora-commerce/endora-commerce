@@ -1,8 +1,8 @@
 ---
-'@b2b/email-components': major
+'@endora-commerce/email-components': major
 ---
 
-`@b2b/email-components` now ships compiled JavaScript and declarations. `main`, `types`
+`@endora-commerce/email-components` now ships compiled JavaScript and declarations. `main`, `types`
 and every `exports` subpath resolve under `./dist`; `files` is `["dist"]`.
 
 **What changes for you.** No import statement moves. The three maps keep their names and
@@ -22,7 +22,7 @@ and the rest keep their names and shapes.
 convention.** `render/*`, `directives/*`, `tree/*`, `schema/*` and `defaults/*` compile to
 JavaScript that imports no React, so a backend send path can keep importing them without
 pulling the editor in; `components/*` and `config` are the React half. React,
-`react-dom`, `@measured/puck` and `@b2b/page-builder-core` remain optional peer
+`react-dom`, `@measured/puck` and `@endora-commerce/page-builder-core` remain optional peer
 dependencies for that reason.
 
 **Test files are no longer part of the package.** They never were meant to be; the build

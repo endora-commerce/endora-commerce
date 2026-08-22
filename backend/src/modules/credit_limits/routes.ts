@@ -4,7 +4,7 @@ import {
   adjustCreditLimitRequestSchema,
   grantCreditLimitRequestSchema,
   type OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { testAdminUserId } from '../../http/test-actor-carrier.js';
 import { isOrgInScope } from '../../tenancy/derived-scope.js';

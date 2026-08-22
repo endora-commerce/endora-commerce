@@ -7,7 +7,7 @@ import {
   type FeedFieldSourceCatalogue,
   type FeedFieldSourceKind,
   type FeedOutputFormat,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { PromptActionTool } from '@b2b/contracts';
+import type { PromptActionTool } from '@endora-commerce/contracts';
 import { PromptActionToolRegistry } from './tool-registry.js';
 
 /**

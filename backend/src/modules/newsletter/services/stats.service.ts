@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CampaignStats } from '@b2b/contracts';
+import type { CampaignStats } from '@endora-commerce/contracts';
 import { NewsletterSendRecord } from '../entities/newsletter-send-record.entity.js';
 import { NewsletterEngagementEvent } from '../entities/newsletter-engagement-event.entity.js';
 

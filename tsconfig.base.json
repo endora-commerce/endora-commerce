@@ -33,16 +33,16 @@
     "emitDecoratorMetadata": true,
     "paths": {
       "@core/*": ["./backend/src/*"],
-      "@b2b/contracts": ["./packages/contracts/src/index.ts"],
-      "@b2b/contracts/*": ["./packages/contracts/src/*"],
-      "@b2b/api-client": ["./packages/api-client/src/index.ts"],
-      "@b2b/api-client/*": ["./packages/api-client/src/*"],
-      "@b2b/cms-components": ["./packages/cms-components/src/index.ts"],
-      "@b2b/cms-components/*": ["./packages/cms-components/src/*"],
-      "@b2b/email-components": ["./packages/email-components/src/index.ts"],
-      "@b2b/email-components/*": ["./packages/email-components/src/*"],
-      "@b2b/page-builder-core": ["./packages/page-builder-core/src/index.ts"],
-      "@b2b/page-builder-core/*": ["./packages/page-builder-core/src/*"]
+      "@endora-commerce/contracts": ["./packages/contracts/src/index.ts"],
+      "@endora-commerce/contracts/*": ["./packages/contracts/src/*"],
+      "@endora-commerce/api-client": ["./packages/api-client/src/index.ts"],
+      "@endora-commerce/api-client/*": ["./packages/api-client/src/*"],
+      "@endora-commerce/cms-components": ["./packages/cms-components/src/index.ts"],
+      "@endora-commerce/cms-components/*": ["./packages/cms-components/src/*"],
+      "@endora-commerce/email-components": ["./packages/email-components/src/index.ts"],
+      "@endora-commerce/email-components/*": ["./packages/email-components/src/*"],
+      "@endora-commerce/page-builder-core": ["./packages/page-builder-core/src/index.ts"],
+      "@endora-commerce/page-builder-core/*": ["./packages/page-builder-core/src/*"]
     }
   }
 }

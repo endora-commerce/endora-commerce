@@ -8,7 +8,7 @@ import type {
   CatalogProductValueOverrideRecord,
   CatalogProductVariantRecord,
   ProductLinkKind,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink } from '../entities/product-link.entity.js';
 import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.js';

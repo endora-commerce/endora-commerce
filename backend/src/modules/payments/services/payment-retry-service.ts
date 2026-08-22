@@ -7,7 +7,7 @@ import {
   type PaymentAdapterRegistryPort,
   type PaymentRetryNextAction,
   type PaymentRetryResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { PaymentService } from './payment-service.js';

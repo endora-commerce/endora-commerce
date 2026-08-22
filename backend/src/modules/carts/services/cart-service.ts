@@ -6,7 +6,7 @@ import {
   isProductVisibleTo,
   type CartMergeOutcome,
   type ProductAudience,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
@@ -16,14 +16,14 @@ import type {
   CatalogProductRecord,
   LinePricePort,
   OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { outOfRequestChannel } from '../../../kernel/sales-channels/request-channel-assortment.js';
 import type { CartApprovalService } from './cart-approval-service.js';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartRecomputeCache } from './cart-recompute-cache.js';
-import type { DisplayMode } from '@b2b/contracts';
+import type { DisplayMode } from '@endora-commerce/contracts';
 
 /**
  * CartService (T125).

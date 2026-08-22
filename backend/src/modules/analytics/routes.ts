@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   analyticsSummaryQuerySchema,
   ingestAnalyticsBatchRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AnalyticsIngestService } from './services/analytics-ingest.service.js';
 import type { AnalyticsQueryService } from './services/analytics-query.service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

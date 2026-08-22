@@ -5,7 +5,7 @@ import type {
   ListingPricePort,
   OrganizationDetailsPort,
   SearchQueryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

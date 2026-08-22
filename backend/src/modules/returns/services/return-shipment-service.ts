@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
-import type { ReturnShipmentDto } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import type { ReturnShipmentDto } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';

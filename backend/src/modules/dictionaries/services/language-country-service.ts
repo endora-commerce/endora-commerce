@@ -9,7 +9,7 @@
 // index mid-flight.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type LanguageReadPort } from '@b2b/contracts';
+import { ERROR_CODES, type LanguageReadPort } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { LanguageCountry } from '../entities/language-country.entity.js';
 import { Country } from '../entities/country.entity.js';

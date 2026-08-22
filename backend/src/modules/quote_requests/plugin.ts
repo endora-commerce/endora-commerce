@@ -11,7 +11,7 @@ import type {
   OrderReadPort,
   OrganizationDetailsPort,
   SalesRepAssignmentPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { RfqService, type RfqEventBus } from './services/rfq-service.js';
 import { createQuoteRequestBusinessIdGenerator } from './services/quote-request-business-id-generator.js';
 import { RfqAdminService } from './services/rfq-admin-service.js';

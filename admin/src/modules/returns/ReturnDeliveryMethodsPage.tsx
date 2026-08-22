@@ -17,7 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { ReturnDeliveryMethodDto } from '@b2b/contracts';
+import type { ReturnDeliveryMethodDto } from '@endora-commerce/contracts';
 
 /** Allowed return delivery methods + cost (feature 046, US6). */
 export function ReturnDeliveryMethodsPage(): ReactNode {

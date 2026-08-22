@@ -33,7 +33,8 @@
  *
  * `changeset version` exits **0** when it bumps nothing. Measured on this
  * repository, with `privatePackages.version` at the `@changesets/config@4`
- * default of `false` and a pending changeset naming `@b2b/contracts`: exit 0,
+ * default of `false` and a pending changeset naming `@b2b/contracts` — the
+ * package's name that day, before T042e renamed the scope: exit 0,
  * "All files have been updated", no version moved, and the changeset file still
  * on disk. That is the shape this repository has been bitten by seven times —
  * an operation whose green is indistinguishable from its no-op — so:

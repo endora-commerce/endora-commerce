@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { DictionaryEntryType } from '@b2b/contracts';
+import type { DictionaryEntryType } from '@endora-commerce/contracts';
 import {
   fetchByCodeFromBrowser,
   fetchDictionaryFromBrowser,

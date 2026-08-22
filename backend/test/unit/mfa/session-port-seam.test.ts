@@ -7,7 +7,7 @@ import {
   type AuthCreateSessionInput,
   type AuthSessionPort,
   type AuthSessionRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   registerMfaPublicRoutes,
   type MfaPublicDeps,

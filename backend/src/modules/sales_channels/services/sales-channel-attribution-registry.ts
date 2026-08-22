@@ -2,7 +2,7 @@ import type {
   SalesChannelAttribution,
   SalesChannelAttributionDescriptor,
   SalesChannelAttributionRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * In-process registry of "who is still attributed to this sales channel?"
@@ -16,7 +16,7 @@ import type {
  *
  * **Enumeration policy: honoured while the contributing module is absent.**
  * The reasoning is at `SalesChannelAttributionRegistryPort` in
- * `@b2b/contracts`, and the short of it is that this is referential integrity
+ * `@endora-commerce/contracts`, and the short of it is that this is referential integrity
  * rather than a surface: a switched-off module still owns the rows carrying the
  * channel id, so skipping its counter would let an operator delete the channel
  * underneath them. That is why this class takes no presence predicate — unlike

@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, type ReactNode } from 'react';
-import type { CatalogPreviewApi, CmsCategoryNode, CmsProductSummary } from '@b2b/cms-components';
-import { CatalogPreviewProvider as CmsCatalogPreviewProvider } from '@b2b/cms-components';
+import type { CatalogPreviewApi, CmsCategoryNode, CmsProductSummary } from '@endora-commerce/cms-components';
+import { CatalogPreviewProvider as CmsCatalogPreviewProvider } from '@endora-commerce/cms-components';
 import { apiClient } from '@/lib/api-client';
 import {
   mapAdminProductToCmsSummary,

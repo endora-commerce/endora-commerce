@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { AdminModulePresenceResponse, ModulePresence } from '@b2b/contracts';
+import type { AdminModulePresenceResponse, ModulePresence } from '@endora-commerce/contracts';
 import { getModulePresence } from './api.js';
 
 /**

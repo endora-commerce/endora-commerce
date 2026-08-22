@@ -4,7 +4,7 @@ import {
   ERROR_CODES,
   SESSION_COOKIE_NAME,
   impersonationRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { TestActorCarrier } from '../../http/test-actor-carrier.js';
 import type { ImpersonationService } from './services/impersonation-service.js';

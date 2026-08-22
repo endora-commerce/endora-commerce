@@ -1,4 +1,4 @@
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import type { Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Organization } from '../entities/organization.entity.js';

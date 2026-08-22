@@ -7,7 +7,7 @@ import {
   type PaymentMethodAdminListItem,
   type PaymentMethodAvailability,
   type PaymentReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { CommandBus } from '../../commands/index.js';
 import {

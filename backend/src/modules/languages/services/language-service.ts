@@ -3,7 +3,7 @@ import {
   ERROR_CODES,
   type DictionaryReference,
   type DictionaryReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Language } from '../entities/language.entity.js';

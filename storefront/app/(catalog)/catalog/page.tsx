@@ -14,7 +14,7 @@ import {
   parseSortParam,
   priceControlsActive,
 } from '../../../lib/catalog-price-query';
-import type { ProductListSort } from '@b2b/contracts';
+import type { ProductListSort } from '@endora-commerce/contracts';
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

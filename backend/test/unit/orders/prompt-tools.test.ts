@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@b2b/contracts';
+import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { PromptActionToolRegistry } from '../../../src/modules/prompt_actions/services/tool-registry.js';

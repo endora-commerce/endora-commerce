@@ -10,7 +10,7 @@ segment it with **tags** and **custom fields**, and reach it through one-off
 Storefront visitors and signed-in customers subscribe with a per-Sales-Channel
 **opt-in** model; every email carries a working unsubscribe link. Content reuses
 the email-safe renderer and `{{var}}/{{if}}/{{for}}` directive engine from the
-`transactional_emails` stack (`@b2b/email-components`). Bulk delivery goes
+`transactional_emails` stack (`@endora-commerce/email-components`). Bulk delivery goes
 through the module's own configurable **sending provider** (an SMTP adapter that
 reaches Amazon SES SMTP, Mailgun, or any relay), independent of the
 transactional-email transport. The whole module can be **enabled/disabled** so

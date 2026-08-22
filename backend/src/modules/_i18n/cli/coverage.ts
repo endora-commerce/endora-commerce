@@ -13,8 +13,8 @@
  *   --languages pl,en     Filter by supported admin language code (repeatable as CSV)
  *   --include-keys all    Match the route's includeKeys=all
  */
-import { SUPPORTED_LANGUAGES, type SupportedAdminLanguage } from '@b2b/contracts';
-import type { ModuleCliCommandContext } from '@b2b/contracts';
+import { SUPPORTED_LANGUAGES, type SupportedAdminLanguage } from '@endora-commerce/contracts';
+import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
 import { lazyPort, type ModuleContext } from '../../../kernel/index.js';
 import type { I18nService } from '../services/i18n-service.js';
 

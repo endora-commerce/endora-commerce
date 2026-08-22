@@ -6,7 +6,7 @@ import {
   type PwaDisplayMode,
   type PwaIconDescriptor,
   type PwaPublicConfig,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { PwaIconRendition } from '../entities/pwa-icon-rendition.entity.js';
 
 /**

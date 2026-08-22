@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES, type AdminUserReadPort } from '@b2b/contracts';
+import { ERROR_CODES, type AdminUserReadPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

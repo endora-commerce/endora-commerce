@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CatalogGalleryBatchItem, CatalogProductRecord } from '@b2b/contracts';
+import type { CatalogGalleryBatchItem, CatalogProductRecord } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import {
   FeedGenerationService,

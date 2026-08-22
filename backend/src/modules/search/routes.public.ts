@@ -11,7 +11,7 @@ import {
   type RecordPhraseResponse,
   type SearchSuggestItem,
   type SearchSuggestResponse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { markPersonalisedPricing, productAudienceOf } from '../../http/product-audience.js';
 import {

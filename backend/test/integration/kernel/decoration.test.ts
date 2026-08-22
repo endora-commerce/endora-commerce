@@ -5,7 +5,7 @@ import type {
   ListingPriceOrderChunk,
   ListingPriceOrderQuery,
   ListingPriceViewerContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import {
   AmbiguousDecorationError,

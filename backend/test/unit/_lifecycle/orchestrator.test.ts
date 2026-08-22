@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defineModuleManifest, type ModuleActivation } from '@b2b/contracts';
+import { defineModuleManifest, type ModuleActivation } from '@endora-commerce/contracts';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/modules/_lifecycle/services/orchestrator.js';
 import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
 import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';

@@ -3,7 +3,7 @@
  * Simple layout: header → heading → details → download CTA → footer.
  */
 
-import { simpleEmailBodyTree } from '@b2b/email-components/defaults/simple-email-body';
+import { simpleEmailBodyTree } from '@endora-commerce/email-components/defaults/simple-email-body';
 
 const DEFAULT_LANGUAGES = ['en-US', 'pl-PL'];
 

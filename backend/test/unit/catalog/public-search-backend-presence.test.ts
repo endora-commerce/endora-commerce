@@ -7,7 +7,7 @@ import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { registerCatalogPublicRoutes } from '../../../src/modules/catalog/routes.public.js';
-import type { SearchListOutcome, SearchQueryPort } from '@b2b/contracts';
+import type { SearchListOutcome, SearchQueryPort } from '@endora-commerce/contracts';
 import type { CatalogQueryService } from '../../../src/modules/catalog/services/catalog-query.service.js';
 
 /**

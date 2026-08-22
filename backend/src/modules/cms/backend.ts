@@ -7,9 +7,9 @@ import {
   type CmsBlockSeedPort,
   type CmsColorPalette,
   type DictionaryReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { CMS_PAGE_BUILDER_SETTING_CODES } from './manifest.js';
-import type { CmsPageReadPort } from '@b2b/contracts';
+import type { CmsPageReadPort } from '@endora-commerce/contracts';
 import { CmsBlockSeedService } from './services/cms-block-seed-port.js';
 import { CmsPageReadService } from './services/cms-page-read-port.js';
 import { lazyPort, type ModuleContext } from '../../kernel/index.js';

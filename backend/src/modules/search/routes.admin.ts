@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { LlmToggleRequestSchema, type SettingsAdminAuditContext } from '@b2b/contracts';
+import { LlmToggleRequestSchema, type SettingsAdminAuditContext } from '@endora-commerce/contracts';
 import type { LlmToggleService } from './services/llm-toggle.service.js';
 import type { SearchReindexWorker } from './services/search-reindex-worker.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

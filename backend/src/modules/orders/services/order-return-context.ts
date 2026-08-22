@@ -1,14 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
-import type { OrderReturnContext, OrderReturnContextPort } from '@b2b/contracts';
+import type { OrderReturnContext, OrderReturnContextPort } from '@endora-commerce/contracts';
 
 /**
  * Orders-side implementation of `OrderReturnContextPort` (feature 046, R4).
  * Exposes the order facts the returns module needs through a single documented
  * interface, so the returns module never reads `orders` tables directly.
  *
- * The interface itself is published in `@b2b/contracts` (feature 075, Phase P);
+ * The interface itself is published in `@endora-commerce/contracts` (feature 075, Phase P);
  * `returns` declares the shape it needs and this module implements it, which is
  * the direction the port was designed in and the reason it can be named from
  * both sides without either module importing the other.

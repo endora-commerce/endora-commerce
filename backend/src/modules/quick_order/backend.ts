@@ -16,7 +16,7 @@ import type {
   PaymentMethodReadPort,
   RfqCustomerPort,
   SalesRepAssignmentPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
@@ -71,7 +71,7 @@ import { registerQuickOrderOneClickRoutes } from './routes.one-click.js';
  * **Feature 075, Phase C — every collaborator is a published port now.** The
  * five type imports this file carried (`CartService`, `CatalogAttributeReadService`,
  * `OrderService`, `OrganizationRestrictionService`, `RfqService`) named five
- * other modules' classes; they are `@b2b/contracts` interfaces resolved by
+ * other modules' classes; they are `@endora-commerce/contracts` interfaces resolved by
  * `lazyPort` with a string literal. Six more ports arrive with them, because
  * the two preference surfaces and the CSV lookup were reading five modules'
  * entities directly.

@@ -6,7 +6,7 @@ import {
   type DictionaryValidator,
   type ResolvedTax,
   type TaxResolutionInput,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';

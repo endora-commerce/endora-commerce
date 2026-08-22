@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EmailMailerPort } from '@b2b/contracts';
+import type { EmailMailerPort } from '@endora-commerce/contracts';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';

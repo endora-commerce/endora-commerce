@@ -12,8 +12,8 @@
  * carries the optional `legalName` + `address` payloads that the
  * applyAutoFill flow consumes.
  *
- * The two declarations moved to `@b2b/contracts` in feature 075's Phase P so
+ * The two declarations moved to `@endora-commerce/contracts` in feature 075's Phase P so
  * `customers` can name the shape without naming this directory. They are
  * re-exported here for the length of Phase P, which cuts no consumer.
  */
-export type { VatValidationResult, VatValidator } from '@b2b/contracts';
+export type { VatValidationResult, VatValidator } from '@endora-commerce/contracts';

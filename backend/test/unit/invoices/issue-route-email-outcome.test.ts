@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from '@fastify/type-provider-zod';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { issueInvoiceResponseSchema, type InvoiceDetail } from '@b2b/contracts';
+import { issueInvoiceResponseSchema, type InvoiceDetail } from '@endora-commerce/contracts';
 import { registerInvoicesAdminRoutes } from '../../../src/modules/invoices/routes.admin.js';
 import type {
   InvoiceEmailDispatcher,

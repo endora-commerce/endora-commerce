@@ -1,6 +1,6 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { GlobalEntity } from '../../tenancy/org-scoped.decorator.js';
-import type { RegistryState } from '@b2b/contracts';
+import type { RegistryState } from '@endora-commerce/contracts';
 
 /**
  * Module Registration — feature 018 / data-model.md.

@@ -3,7 +3,7 @@ import type {
   PromptActionResult,
   ResultOperation,
   ToolContext,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { PromptActionToolRegistry } from './tool-registry.js';
 
 /**

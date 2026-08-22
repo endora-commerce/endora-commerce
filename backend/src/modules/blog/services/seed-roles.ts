@@ -1,4 +1,4 @@
-import type { AdminRolePort, SystemRoleCodePort } from '@b2b/contracts';
+import type { AdminRolePort, SystemRoleCodePort } from '@endora-commerce/contracts';
 
 /**
  * SeedBlogRoles — feature 016 / R8 / T025.

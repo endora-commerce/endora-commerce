@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
 import { Organization } from '../entities/organization.entity.js';
-import type { AdminNotificationRecordPort, EmailMailerPort } from '@b2b/contracts';
+import type { AdminNotificationRecordPort, EmailMailerPort } from '@endora-commerce/contracts';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
 
 /**

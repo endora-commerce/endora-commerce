@@ -2,7 +2,7 @@ import type {
   CatalogCategoryWritePort,
   CatalogProductWritePort,
   CatalogPromoAttributePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CatalogAdminService } from './catalog-admin.service.js';
 import type { CatalogQueryService } from './catalog-query.service.js';
 import type { CategoryAdminService } from './category-admin.service.js';

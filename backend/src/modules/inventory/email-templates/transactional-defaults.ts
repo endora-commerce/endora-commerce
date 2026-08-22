@@ -1,7 +1,7 @@
 // Default subject + content for inventory transactional emails (feature 047):
 // low_stock_alert (ops) + availability_back_in_stock (customer).
 
-import { simpleEmailBodyTree } from '@b2b/email-components/defaults/simple-email-body';
+import { simpleEmailBodyTree } from '@endora-commerce/email-components/defaults/simple-email-body';
 
 const LANGS = ['en-US', 'pl-PL'];
 

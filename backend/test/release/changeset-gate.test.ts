@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it } from 'vitest';
  *
  * That job already installs git, already runs on every merge request, and is
  * the one whose behaviour this measures. Nothing here reaches Postgres, Redis
- * or Meilisearch, and nothing imports a `@b2b/*` package, so it needs neither
+ * or Meilisearch, and nothing imports a `@endora-commerce/*` package, so it needs neither
  * service containers nor `build:packages` — which is why the job can keep both
  * omissions.
  *
@@ -155,7 +155,7 @@ describe('`changeset status --since` — the merge-request gate', () => {
     const dir = fixture();
     const run = branchWith((root) => {
       writeFileSync(join(root, 'packages/contracts/src/index.ts'), 'export const marker = 2;\n');
-      writeFileSync(join(root, '.changeset/a.md'), changeset('@b2b/contracts', 'minor'));
+      writeFileSync(join(root, '.changeset/a.md'), changeset('@endora-commerce/contracts', 'minor'));
     }, dir);
 
     expect(run.status).toBe(0);
@@ -199,7 +199,7 @@ describe('a release branch is the one branch the gate would refuse for doing its
    * fail.
    */
   function releaseBranch(): string {
-    const dir = fixture({ files: { '.changeset/a.md': changeset('@b2b/contracts', 'minor') } });
+    const dir = fixture({ files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') } });
     initialCommit(dir);
     git(dir, 'checkout', '-q', '-b', 'release/version');
     runChangeset(dir, ['version']);
@@ -253,7 +253,7 @@ describe('a release branch is the one branch the gate would refuse for doing its
     const dir = fixture();
     initialCommit(dir);
     git(dir, 'checkout', '-q', '-b', 'topic');
-    writeFileSync(join(dir, '.changeset/a.md'), changeset('@b2b/contracts', 'minor'));
+    writeFileSync(join(dir, '.changeset/a.md'), changeset('@endora-commerce/contracts', 'minor'));
     git(dir, 'add', '-A');
     git(dir, 'commit', '-q', '-m', 'topic');
 
@@ -268,11 +268,11 @@ describe('a release branch is the one branch the gate would refuse for doing its
    * question has an ordinary answer.
    */
   it('does not classify a branch that consumes and writes as a release', () => {
-    const dir = fixture({ files: { '.changeset/a.md': changeset('@b2b/contracts', 'minor') } });
+    const dir = fixture({ files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') } });
     initialCommit(dir);
     git(dir, 'checkout', '-q', '-b', 'topic');
     runChangeset(dir, ['version']);
-    writeFileSync(join(dir, '.changeset/b.md'), changeset('@b2b/contracts', 'patch'));
+    writeFileSync(join(dir, '.changeset/b.md'), changeset('@endora-commerce/contracts', 'patch'));
     git(dir, 'add', '-A');
     git(dir, 'commit', '-q', '-m', 'topic');
 
@@ -297,7 +297,7 @@ describe('a release branch is the one branch the gate would refuse for doing its
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
       },
-      files: { '.changeset/a.md': changeset('@b2b/contracts', 'minor') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
     });
     initialCommit(vacuous);
     git(vacuous, 'checkout', '-q', '-b', 'release/version');

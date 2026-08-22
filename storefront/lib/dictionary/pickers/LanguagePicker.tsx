@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type SelectHTMLAttributes } from 'react';
-import type { ResolvedLanguage } from '@b2b/contracts';
+import type { ResolvedLanguage } from '@endora-commerce/contracts';
 import { useDictionary } from '../DictionaryProvider';
 
 export interface LanguagePickerProps

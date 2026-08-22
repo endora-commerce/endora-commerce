@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { MfaSubjectRef } from '@b2b/contracts';
+import type { MfaSubjectRef } from '@endora-commerce/contracts';
 import { MfaEnrolment } from '../entities/mfa-enrolment.entity.js';
 import { MfaRecoveryCode } from '../entities/mfa-recovery-code.entity.js';
 import type { SecretCipher } from './secret-cipher.js';

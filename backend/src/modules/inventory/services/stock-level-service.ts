@@ -3,7 +3,7 @@ import type {
   CatalogCategoryReadPort,
   CatalogCategoryRecord,
   CatalogProductReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { randomUUID } from 'crypto';
 import type { EventBus } from '../../../events/bus.js';

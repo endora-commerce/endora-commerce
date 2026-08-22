@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { PRICING_SETTING_CODES, type DisplayMode } from '@b2b/contracts';
+import { PRICING_SETTING_CODES, type DisplayMode } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

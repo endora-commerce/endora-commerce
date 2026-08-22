@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { createWebhookRequestSchema, updateWebhookRequestSchema } from '@b2b/contracts';
+import { createWebhookRequestSchema, updateWebhookRequestSchema } from '@endora-commerce/contracts';
 import type { WebhookService } from './services/webhook-service.js';
 import type { Webhook } from './entities/webhook.entity.js';
 import type { WebhookDelivery } from './entities/webhook-delivery.entity.js';

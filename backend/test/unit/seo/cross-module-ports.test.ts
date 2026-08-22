@@ -8,7 +8,7 @@ import type {
   ChannelMemberEntityType,
   CmsPageReadPort,
   CmsPageRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
 import { MetaTagResolverService } from '../../../src/modules/seo/services/meta-tag-resolver.service.js';
 import { SitemapGeneratorService } from '../../../src/modules/seo/services/sitemap-generator.service.js';

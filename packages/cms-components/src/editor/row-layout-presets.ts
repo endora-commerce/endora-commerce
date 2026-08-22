@@ -1,4 +1,4 @@
-import type { ResponsiveProp } from '@b2b/page-builder-core';
+import type { ResponsiveProp } from '@endora-commerce/page-builder-core';
 import type { RowProps } from '../schema/component-types.js';
 import { createDefaultColumnItem } from '../components/Column.js';
 

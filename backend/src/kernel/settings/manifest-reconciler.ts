@@ -4,7 +4,7 @@ import {
   valueSchemaForType,
   type ModuleSettingsManifest,
   type SettingValueType,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { SettingGroup } from './setting-group.entity.js';
 import { Setting } from './setting.entity.js';
 import { SalesChannel } from '../sales-channels/sales-channel.entity.js';

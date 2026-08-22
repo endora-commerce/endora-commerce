@@ -3,7 +3,7 @@ import type {
   ClarifyRequest,
   PromptActionRequestDto,
   PromptActionsCapability,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Typed client for the prompt-actions endpoints (feature 043,

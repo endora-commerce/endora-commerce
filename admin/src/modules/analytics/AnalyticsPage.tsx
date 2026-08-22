@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { RefreshCw } from 'lucide-react';
-import type { AnalyticsSummaryResponse } from '@b2b/contracts';
+import type { AnalyticsSummaryResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';

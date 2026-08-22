@@ -7,7 +7,7 @@ import {
   carouselEditorPageCount,
   setEditorCarouselPage,
   useEditorCarouselPage,
-} from '@b2b/page-builder-core/editor';
+} from '@endora-commerce/page-builder-core/editor';
 import { QuickTooltip } from './QuickTooltip';
 
 export function CarouselPreviewNav({

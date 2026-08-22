@@ -10,7 +10,7 @@ import {
   listQuerySchema,
   productSelectionPreviewRequestSchema,
   updateProductFeedRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import { PRODUCT_FEEDS_READ_PERMISSION, PRODUCT_FEEDS_WRITE_PERMISSION } from './manifest.js';

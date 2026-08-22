@@ -4,7 +4,7 @@ import {
   type CatalogProductReadPort,
   type CustomerAccountReadPort,
   type EmailMailerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';

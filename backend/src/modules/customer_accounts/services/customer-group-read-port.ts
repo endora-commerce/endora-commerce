@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomerGroupReadPort, CustomerGroupRecord } from '@b2b/contracts';
+import type { CustomerGroupReadPort, CustomerGroupRecord } from '@endora-commerce/contracts';
 import { CustomerGroup } from '../entities/customer-group.entity.js';
 
 /**

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { BulkProgressSnapshot } from '@b2b/contracts';
+import type { BulkProgressSnapshot } from '@endora-commerce/contracts';
 import { CONTRIBUTION_POLICY_STATED } from '../../../scripts/check-port-dependencies.js';
 import { PromptActionBulkProgressRegistry } from '../../../src/modules/prompt_actions/services/bulk-progress-registry.js';
 

@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { VatValidator } from '@b2b/contracts';
+import type { VatValidator } from '@endora-commerce/contracts';
 import type { OrganizationsCradle } from '../../../src/modules/organizations/backend.js';
 
 /**

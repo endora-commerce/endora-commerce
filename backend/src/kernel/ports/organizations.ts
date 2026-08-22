@@ -1,4 +1,4 @@
-import type { OrganizationStatus } from '@b2b/contracts';
+import type { OrganizationStatus } from '@endora-commerce/contracts';
 
 /**
  * Kernel port — organisation read (feature 072, D-32; retyped by D-55).
@@ -16,7 +16,7 @@ import type { OrganizationStatus } from '@b2b/contracts';
  * reads `status`, `carts` and `orders` discard the return value and want the
  * throw, and `loadCartApprovalPolicy` never named an entity at all.
  *
- * `OrganizationStatus` comes from `@b2b/contracts`, which already declares the
+ * `OrganizationStatus` comes from `@endora-commerce/contracts`, which already declares the
  * union the entity re-declares — the second name is the existing one, not a new
  * one. Nothing else moves: TypeScript is structural, so `OrganizationContextService`
  * satisfies this port returning its entity, with no mapping layer and no

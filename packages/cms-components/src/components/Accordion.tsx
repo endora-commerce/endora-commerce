@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { type ComponentConfig, type PuckComponent } from '@measured/puck';
-import { withHideOn } from '@b2b/page-builder-core';
+import { withHideOn } from '@endora-commerce/page-builder-core';
 import type { AccordionProps } from '../schema/component-types.js';
 import { BoxStyled } from './box-styles.js';
 import {

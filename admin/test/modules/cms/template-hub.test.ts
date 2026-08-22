@@ -16,7 +16,7 @@ describe('cms-template-layout guards', () => {
    * `check:diacritic-folds` never reported it and could not: it counts folds
    * written outside the shared helper, and a site that folds nothing writes
    * none. That is the reason the repair is "compose `slugify` from
-   * `@b2b/contracts`" rather than "add a fold here".
+   * `@endora-commerce/contracts`" rather than "add a fold here".
    *
    * Codes already stored are not migrated (owner's ruling, 2026-08-19); this
    * prefill runs on create.

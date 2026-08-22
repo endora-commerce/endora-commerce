@@ -51,12 +51,12 @@
 //
 // **The workspace file is the authority, and `tsconfig.base.json` is not.**
 // Membership could be read off the `paths` block instead, and that list is
-// hand-written: issue #255 found `@b2b/page-builder-core` missing from it long
+// hand-written: issue #255 found `@endora-commerce/page-builder-core` missing from it long
 // enough for one run to type-check against one branch and execute against
 // another. A derivation off the globs cannot acquire that gap, and it also
 // means a **bare specifier naming a member is answered without resolving
 // anything** — which matters, because a workspace link is *relative*
-// (`backend/node_modules/@b2b/contracts -> ../../../packages/contracts`), so a
+// (`backend/node_modules/@endora-commerce/contracts -> ../../../packages/contracts`), so a
 // `node_modules` wired to another checkout re-roots it silently. A committed
 // artefact is a fact about *this* tree, so it is answered from this tree's
 // declaration rather than from whatever an instance's links happen to land on.

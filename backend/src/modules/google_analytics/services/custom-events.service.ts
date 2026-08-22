@@ -7,7 +7,7 @@ import {
   type GaCustomEventListQuery,
   type GaStorefrontCustomEvent,
   type GaTriggerAction,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { GaCustomEvent } from '../entities/ga-custom-event.entity.js';
 

@@ -3,7 +3,7 @@ import {
   ERROR_CODES,
   type PaymentMethodUpsert,
   type PaymentReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { Command } from '../../../commands/command.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { PaymentMethod } from '../entities/payment-method.entity.js';

@@ -1,6 +1,6 @@
 // Settings module — feature 004 contract surface.
 // Holds three logical sections in one file (matching the convention used by
-// every other module in @b2b/contracts):
+// every other module in @endora-commerce/contracts):
 //   (1) Setting value-type Zod registry.
 //   (2) Module manifest schemas — the cross-module registration contract that
 //       any backend module may use to declare its setting groups and settings

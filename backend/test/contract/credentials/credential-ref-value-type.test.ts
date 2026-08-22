@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SettingManifestEntrySchema, valueSchemaForType } from '@b2b/contracts';
+import { SettingManifestEntrySchema, valueSchemaForType } from '@endora-commerce/contracts';
 
 /**
  * Feature 058 US2 (T035) — the `credential_ref` Settings value type contract

@@ -1,4 +1,4 @@
-import type { FeedRunIssueReason } from '@b2b/contracts';
+import type { FeedRunIssueReason } from '@endora-commerce/contracts';
 import type { FeedItemField } from './serializers/serializer.interface.js';
 import type {
   FeedItemPrice,

@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { mfaOrgPolicyRequestSchema } from '@b2b/contracts';
+import { mfaOrgPolicyRequestSchema } from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
 

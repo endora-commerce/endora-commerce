@@ -1,4 +1,4 @@
-import type { EmailDefaults, EmailDefaultsRegistryPort } from '@b2b/contracts';
+import type { EmailDefaults, EmailDefaultsRegistryPort } from '@endora-commerce/contracts';
 /**
  * EmailDefaultsRegistry — feature 047 (R6).
  *
@@ -9,7 +9,7 @@ import type { EmailDefaults, EmailDefaultsRegistryPort } from '@b2b/contracts';
  */
 
 /**
- * `EmailDefaults` moved to `@b2b/contracts` in feature 075's Phase P — seven
+ * `EmailDefaults` moved to `@endora-commerce/contracts` in feature 075's Phase P — seven
  * modules push one from their own boot hook, which makes it a boundary shape
  * rather than an internal. Re-exported here for the length of Phase P, which
  * cuts no consumer.

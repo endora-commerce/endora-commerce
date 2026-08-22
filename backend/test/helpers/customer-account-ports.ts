@@ -4,7 +4,7 @@ import type {
   CustomerAccountLifecycleWritePort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../src/commands/index.js';
 import {

@@ -4,7 +4,7 @@ import type {
   AdminI18nTranslatePort,
   ModuleAction,
   PermissionReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import { AdminActionsReconciler } from './services/admin-actions-reconciler.js';
 import {

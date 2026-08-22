@@ -22,7 +22,7 @@ import {
   type CreateAttributeSetRequest,
   type UpdateAttributeSetRequest,
   type AssignAttributesRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CommandBus } from '../../../commands/index.js';

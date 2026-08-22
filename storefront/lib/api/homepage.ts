@@ -1,4 +1,4 @@
-import type { HomepageConfig } from '@b2b/contracts';
+import type { HomepageConfig } from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 import { isModuleDisabled } from './module-absence';
 

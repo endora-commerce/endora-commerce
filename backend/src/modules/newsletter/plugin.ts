@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import { NEWSLETTER_SETTING_CODES, type EmailMailerPort } from '@b2b/contracts';
+import { NEWSLETTER_SETTING_CODES, type EmailMailerPort } from '@endora-commerce/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';

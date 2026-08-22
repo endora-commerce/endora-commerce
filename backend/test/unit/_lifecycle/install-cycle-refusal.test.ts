@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import {
   ModuleLifecycleOrchestrator,
   LifecycleError,

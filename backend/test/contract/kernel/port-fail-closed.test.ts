@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { createRootContainer, type KernelContainer } from '../../../src/kernel/container.js';

@@ -15,7 +15,7 @@ import {
   type LanguageReadPort,
   type PriceListReadPort,
   type TaxServicePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModulePlugin } from '../../http/server.js';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';

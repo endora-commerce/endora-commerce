@@ -160,7 +160,7 @@ export function isCustomFieldValidationFailure(
 // **One seam is deliberately not published here, and D-77 ruled that it stays
 // that way.** `CustomFieldDefinitionApplyApi` — the six co-transactional
 // `apply*` methods `catalog`'s attribute Commands call — takes the caller's
-// MikroORM `EntityManager`, which may not appear in a `@b2b/contracts`
+// MikroORM `EntityManager`, which may not appear in a `@endora-commerce/contracts`
 // signature (FR-034) and which a branded stand-in would publish rather than
 // remove.
 //
@@ -344,7 +344,7 @@ export interface CustomFieldValuePort {
 // `CustomFieldValidationFailure` and `isCustomFieldValidationFailure` are
 // declared once, above, beside the other D-77 structural guards. Two Phase-C
 // cuts published them independently on the same afternoon — `quote_requests`
-// and `organizations` — and both merged, which stopped `@b2b/contracts`
+// and `organizations` — and both merged, which stopped `@endora-commerce/contracts`
 // compiling at all. The surviving pair keeps the `name === 'CustomFieldValidation
 // Error'` test rather than re-parsing every entry: it is the check that still
 // works once each module is its own npm package (F4), which is the reason the

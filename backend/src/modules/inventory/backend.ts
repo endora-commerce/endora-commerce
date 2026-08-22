@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { DictionaryValidator,
   DictionaryReferenceRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
@@ -18,9 +18,9 @@ import type {
   InventoryStockImportPort,
   InventoryStockReadPort,
   PromptActionToolRegistryPort,
-} from '@b2b/contracts';
-import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@b2b/contracts';
-import type { AuditReferenceRegistryPort } from '@b2b/contracts';
+} from '@endora-commerce/contracts';
+import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@endora-commerce/contracts';
+import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';

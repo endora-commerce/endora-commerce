@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ERROR_CODES, BLOG_RESERVED_URL_PREFIXES } from '@b2b/contracts';
+import { ERROR_CODES, BLOG_RESERVED_URL_PREFIXES } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import {
   BLOG_DEFAULT_ENABLED,

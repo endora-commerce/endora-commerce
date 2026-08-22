@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type GenerateCouponsRequest } from '@b2b/contracts';
+import { ERROR_CODES, type GenerateCouponsRequest } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';

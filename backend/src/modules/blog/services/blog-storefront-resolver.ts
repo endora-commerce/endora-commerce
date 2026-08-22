@@ -10,7 +10,7 @@ import type {
   BlogResolvedPost,
   BlogResolvedTagRef,
   BlogTagByCodeResponse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { BlogCacheService } from './blog-cache.js';
 import type { BlogSettingsResolver } from './blog-settings-resolver.js';
 

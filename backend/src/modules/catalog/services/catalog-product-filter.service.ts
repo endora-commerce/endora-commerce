@@ -5,7 +5,7 @@ import type {
   CatalogProductFilterPort,
   CatalogProductRecord,
   CatalogSellableProductQuery,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Product } from '../entities/product.entity.js';
 import { toCatalogProductRecord } from './catalog-product-read.service.js';
 

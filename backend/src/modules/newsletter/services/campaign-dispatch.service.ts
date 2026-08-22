@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { NewsletterSendProvider } from '@b2b/contracts';
+import type { NewsletterSendProvider } from '@endora-commerce/contracts';
 import { NewsletterCampaign } from '../entities/newsletter-campaign.entity.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterSendRecord } from '../entities/newsletter-send-record.entity.js';

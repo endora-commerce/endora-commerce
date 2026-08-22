@@ -1,7 +1,7 @@
 /**
  * Effective fulfilment-strategy resolver — pure function.
  *
- * The implementation moved to `@b2b/contracts` in feature 075's Phase P
+ * The implementation moved to `@endora-commerce/contracts` in feature 075's Phase P
  * (FR-013): it is pure over its arguments — three configuration layers in, one
  * resolved strategy out — so switching `inventory` off cannot change the
  * answer and a gated port answering 503 would be a bug rather than a degrade.
@@ -16,4 +16,4 @@ export {
   type FulfilmentLayer,
   type EffectiveFulfilment,
   resolveEffectiveFulfilmentStrategy,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';

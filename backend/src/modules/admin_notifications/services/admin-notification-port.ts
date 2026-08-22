@@ -1,7 +1,7 @@
 import type {
   AdminNotificationRecord,
   AdminNotificationRecordPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AdminNotification } from '../entities/admin-notification.entity.js';
 import type { AdminNotificationService } from './admin-notification-service.js';
 

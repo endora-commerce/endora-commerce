@@ -36,7 +36,7 @@
  *    `promotion_usages_order_fk` and `credit_limit_reservations_order_fk`.
  *  - **two interfaces their owners write** — `CreditLimitPort` and
  *    `PromotionUsageFinalizer` (D-94.5). Each names the caller's
- *    `EntityManager`, so FR-034 keeps it out of `@b2b/contracts`; declaring it
+ *    `EntityManager`, so FR-034 keeps it out of `@endora-commerce/contracts`; declaring it
  *    on the consumer's side, which is what this module used to do, left
  *    `lazyPort<T>`'s unchecked cast with nothing to check.
  *
@@ -85,7 +85,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
       'D-94.5 — the interface `credit_limits` writes for the method placement calls, imported '
       + 'as a type and re-exported to `plugin.ts` so this is the one crossing. It is here '
       + 'because of what it names: `reserve` takes the caller`s `EntityManager`, and FR-034 '
-      + 'keeps a MikroORM type out of `@b2b/contracts`, so the declaration cannot live in the '
+      + 'keeps a MikroORM type out of `@endora-commerce/contracts`, so the declaration cannot live in the '
       + 'contracts package. It has to live on the **owner`s** side all the same — '
       + '`lazyPort<T>` is an unchecked cast, so while this module declared the interface '
       + 'itself (as `CreditLimitPort` in `order-service.ts`) nothing verified that '
@@ -107,7 +107,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     reason:
       'D-94.5 — the twin of the `credit_limits` entry above, and the same shape. '
       + '`PromotionUsageFinalizer.finalizeUsage` takes the placement `EntityManager`, so '
-      + 'FR-034 keeps it out of `@b2b/contracts`; `promotions` declares it beside its '
+      + 'FR-034 keeps it out of `@endora-commerce/contracts`; `promotions` declares it beside its '
       + 'implementation and this module imports the type, which is what gives `tsc` something '
       + 'to check both ends against. The read half is NOT here: `applyToCart` is '
       + '`PromotionApplyPort` in the contracts package, resolved under the same container '
@@ -152,7 +152,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
       'transaction opened by a port on the `payments` side cannot satisfy a foreign key ' +
       'against a row it cannot see, and the order is not committed until placement returns. ' +
       'No port can carry the caller`s `EntityManager` without putting MikroORM into ' +
-      '`@b2b/contracts` (FR-034), and D-77 refused the brand, the token and the ambient unit ' +
+      '`@endora-commerce/contracts` (FR-034), and D-77 refused the brand, the token and the ambient unit ' +
       'of work in writing. `orders` does not declare `payments` in `dependencies` because ' +
       '`payments` declares `orders` — the FK`s own direction — so the manifest edge that ' +
       'AGENTS.md § Migrations item 4 asks for is the one `payments` already carries. What ' +

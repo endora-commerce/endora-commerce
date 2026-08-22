@@ -5,7 +5,7 @@ import {
   PWA_SETTING_CODES,
   type PushProvider,
   type PushSendResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

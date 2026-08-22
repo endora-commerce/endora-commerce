@@ -1,4 +1,4 @@
-import type { AuditReferenceLabel, AuditReferenceRegistryPort } from '@b2b/contracts';
+import type { AuditReferenceLabel, AuditReferenceRegistryPort } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AuditLogEntry } from '../../../kernel/audit/audit-log-entry.entity.js';
 import type { AuditActorIdentity } from '../routes.admin.js';

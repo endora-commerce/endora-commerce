@@ -5,7 +5,7 @@ import {
   duplicateFeedTemplateRequestSchema,
   feedTemplatePreviewRequestSchema,
   updateFeedTemplateRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { PRODUCT_FEEDS_READ_PERMISSION, PRODUCT_FEEDS_WRITE_PERMISSION } from './manifest.js';
 import { parseOrThrow } from './routes.admin.js';
 import type { FeedTemplateService, TemplateView } from './services/feed-template.service.js';

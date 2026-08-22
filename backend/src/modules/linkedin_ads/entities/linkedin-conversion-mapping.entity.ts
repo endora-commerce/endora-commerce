@@ -1,7 +1,7 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
-import type { LinkedInTriggerAction } from '@b2b/contracts';
+import type { LinkedInTriggerAction } from '@endora-commerce/contracts';
 
 /**
  * LinkedInConversionMapping (feature 063, US3). Binds a storefront action to a

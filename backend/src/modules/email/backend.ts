@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EmailDeliveryRecorder, EmailMailerPort } from '@b2b/contracts';
+import type { EmailDeliveryRecorder, EmailMailerPort } from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 
 import { resolveSmtpUrlFromEnv } from './resolve-smtp-url.js';

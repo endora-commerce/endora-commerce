@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DictionaryReferenceDescriptor } from '@b2b/contracts';
+import type { DictionaryReferenceDescriptor } from '@endora-commerce/contracts';
 import { CONTRIBUTION_POLICY_STATED } from '../../../scripts/check-port-dependencies.js';
 import { CountryReferenceRegistry } from '../../../src/modules/dictionaries/services/country-reference-registry.js';
 import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';

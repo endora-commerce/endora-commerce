@@ -6,12 +6,12 @@ import type {
   SetValueRequest,
   SettingDto,
   SettingGroupDto,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { apiClient } from '@/lib/api-client';
 
 /**
  * Typed wrapper around `/api/v1/admin/settings/*`.
- * Source-of-truth schemas live in `@b2b/contracts`.
+ * Source-of-truth schemas live in `@endora-commerce/contracts`.
  */
 
 export interface ListGroupsResponse {

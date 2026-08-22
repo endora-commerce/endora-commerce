@@ -4,7 +4,7 @@ import {
   type PromptActionsCapability,
   type PromptActionsProvider,
   type ResolveResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { PROMPT_ACTIONS_SETTING_CODES } from '../../manifest.js';
 import { AnthropicAdapter } from './anthropic-adapter.js';
 import { GoogleAdapter } from './google-adapter.js';

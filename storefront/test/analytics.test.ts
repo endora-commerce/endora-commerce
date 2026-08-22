@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GaStorefrontConfig } from '@b2b/contracts';
+import type { GaStorefrontConfig } from '@endora-commerce/contracts';
 import { configureGa, trackGaEvent, sendPageView } from '../lib/analytics/gtag';
 import { emitActionEvents } from '../lib/analytics/collector';
 import { trackAddToCart } from '../lib/analytics/ecommerce';

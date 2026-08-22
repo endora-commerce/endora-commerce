@@ -5,7 +5,7 @@ import {
   type SettingValueType,
   type SettingWriteChannelProjection,
   type SettingWriteValidatorRegistryPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EventBus } from '../../../events/bus.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';

@@ -20,7 +20,7 @@ import {
   setOrderTransitionsRequestSchema,
   updateOrderSavedViewRequestSchema,
   updateOrderStatusRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type {
   AssetReadPort,
   CatalogProductReadPort,
@@ -32,7 +32,7 @@ import type {
   LinePricePort,
   OrganizationDetailsPort,
   PaymentMethodReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';

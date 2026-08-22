@@ -7,7 +7,7 @@ import type {
   CatalogProductRecord,
   QuoteRequest,
   RfqCustomerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
 import { ShoppingListService } from '../../../src/modules/shopping_lists/services/shopping-list-service.js';
 

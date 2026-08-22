@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { HttpError } from '../../../http/error-envelope.js';
-import { ERROR_CODES } from '@b2b/contracts';
-import { sellerCompanyDataSchema, type SellerCompanyData } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import { sellerCompanyDataSchema, type SellerCompanyData } from '@endora-commerce/contracts';
 import { INVOICES_SETTING_CODES } from '../manifest.js';
 
 /**

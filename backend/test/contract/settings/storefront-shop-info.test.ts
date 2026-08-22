@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ShopInfoResponseSchema } from '@b2b/contracts';
+import { ShopInfoResponseSchema } from '@endora-commerce/contracts';
 
 import {
   setupBackendServer,

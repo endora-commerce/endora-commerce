@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES, type MegamenuItem } from '@b2b/contracts';
+import { ERROR_CODES, type MegamenuItem } from '@endora-commerce/contracts';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import {
   validateTarget,

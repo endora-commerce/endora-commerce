@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import type { FilterDefinition } from '@b2b/contracts';
+import type { FilterDefinition } from '@endora-commerce/contracts';
 import { tForLocale } from '../lib/i18n/messages';
 
 /**

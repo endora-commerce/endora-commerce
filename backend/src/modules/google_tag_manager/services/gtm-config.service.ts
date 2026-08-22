@@ -4,7 +4,7 @@ import {
   GTM_DISABLED_CONFIG,
   gtmContainerIdSchema,
   type GtmStorefrontConfig,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 /**

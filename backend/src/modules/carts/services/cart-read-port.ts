@@ -7,7 +7,7 @@ import type {
   CartSeedLine,
   CartWithItems,
   CartWritePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import type { CartService } from './cart-service.js';

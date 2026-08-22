@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { DisplayMode } from '@b2b/contracts';
+import type { DisplayMode } from '@endora-commerce/contracts';
 import { moneyByMode } from '../lib/i18n/money';
 
 /**

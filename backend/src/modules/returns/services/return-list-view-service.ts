@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
-import type { ReturnSavedViewDto } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import type { ReturnSavedViewDto } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ReturnListSavedView } from '../entities/return-list-saved-view.entity.js';
 

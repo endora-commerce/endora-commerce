@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ProviderConfig } from '@b2b/contracts';
+import type { ProviderConfig } from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

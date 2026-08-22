@@ -7,12 +7,12 @@ import {
   PWA_SETTING_CODES,
   CreatePushMessageRequestSchema,
   UpdatePwaConfigRequestSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type {
   CustomerAccountReadPort,
   CustomerGroupReadPort,
   OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import type { PwaConfigResolver } from './services/pwa-config-resolver.js';
 import { PwaIconInvalid, type PwaIconService } from './services/pwa-icon-service.js';

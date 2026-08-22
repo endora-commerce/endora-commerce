@@ -15,7 +15,7 @@
 
 import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
+import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
 import { discoverOverlayModuleManifests } from '../../overlay/overlay-runtime.js';
 import {
   assertNoPackageModuleIdCollisions,

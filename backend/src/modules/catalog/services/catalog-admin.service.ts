@@ -13,7 +13,7 @@ import {
   type UpdateAttributeRequest,
   type UpdateProductRequest,
   type UpdateVariantRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 
 export interface CatalogEvents extends Record<string, EventBase> {
@@ -61,7 +61,7 @@ import {
 } from './product-type-validations.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
-import type { CustomFieldDefinitionWithOptions } from '@b2b/contracts';
+import type { CustomFieldDefinitionWithOptions } from '@endora-commerce/contracts';
 import type { Command, CommandBus } from '../../../commands/index.js';
 // D-77 — the apply seam is named once in this module, by `attribute-commands.ts`
 // (see the re-export there for why it is a re-export and not a local
@@ -1945,7 +1945,7 @@ export class CatalogAdminService {
    * `products.slug`'s unique index. Callers go through `allocateUniqueSlug`,
    * which allocates against the live table rather than trusting this to be free.
    *
-   * The fold is `slugify` from `@b2b/contracts`, **imported, never
+   * The fold is `slugify` from `@endora-commerce/contracts`, **imported, never
    * re-implemented** (issue #245). The private chain this carried normalised
    * with `NFKD` and stripped the combining marks, which does nothing to `ł` —
    * U+0142 has no canonical decomposition — so the `[^a-z0-9]+` collapse

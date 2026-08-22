@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AssetReadPort } from '@b2b/contracts';
+import type { AssetReadPort } from '@endora-commerce/contracts';
 
 /**
  * "Which image represents this product" — resolved once, in one place

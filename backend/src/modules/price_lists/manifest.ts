@@ -2,7 +2,7 @@ import {
   defineModuleManifest,
   defineModuleSettingsManifest,
   PRICING_SETTING_CODES,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Admin permission codes owned by this module (issue #219).

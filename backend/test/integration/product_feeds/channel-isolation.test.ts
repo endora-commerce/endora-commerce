@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ProductSelectionRule } from '@b2b/contracts';
+import type { ProductSelectionRule } from '@endora-commerce/contracts';
 import { codeOnly } from '../../../scripts/lib/source-text.js';
 import {
   setupBackendServer,

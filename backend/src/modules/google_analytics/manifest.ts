@@ -1,5 +1,5 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
-import { GOOGLE_ANALYTICS_SETTING_CODES } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import { GOOGLE_ANALYTICS_SETTING_CODES } from '@endora-commerce/contracts';
 
 /**
  * Google Analytics module (feature 049). Integrates the storefront with

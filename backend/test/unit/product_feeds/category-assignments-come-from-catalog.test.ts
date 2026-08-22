@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CatalogCategoryRecord, CatalogProductRecord } from '@b2b/contracts';
+import type { CatalogCategoryRecord, CatalogProductRecord } from '@endora-commerce/contracts';
 import {
   FeedGenerationService,
   type FeedGenerationDeps,

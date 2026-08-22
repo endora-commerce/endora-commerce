@@ -1,7 +1,7 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
-import type { PushAudience, PushTrigger, PushMessageStatus } from '@b2b/contracts';
+import type { PushAudience, PushTrigger, PushMessageStatus } from '@endora-commerce/contracts';
 
 /**
  * PushMessage (feature 046, US4). A notification to be delivered, admin-initiated

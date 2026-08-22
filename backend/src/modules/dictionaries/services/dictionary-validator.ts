@@ -6,7 +6,7 @@ import {
   type DictionaryValidator as DictionaryValidatorPort,
   type DictionaryWriteMode,
   type LanguageReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Country } from '../entities/country.entity.js';
 
 interface CacheEntry {

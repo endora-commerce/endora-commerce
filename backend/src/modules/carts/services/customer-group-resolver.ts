@@ -1,4 +1,4 @@
-import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@b2b/contracts';
+import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
 
 /**
  * The effective customer group of a cart's owner (issue #177).

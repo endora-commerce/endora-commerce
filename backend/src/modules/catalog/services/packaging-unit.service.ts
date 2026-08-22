@@ -19,7 +19,7 @@ import {
   type PackagingUnitDto,
   type ReorderPackagingUnitsRequest,
   type UpdatePackagingUnitRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CommandBus } from '../../../commands/index.js';

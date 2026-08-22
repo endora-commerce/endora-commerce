@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Upload } from 'lucide-react';
-import type { Warehouse } from '@b2b/contracts';
+import type { Warehouse } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { warehousesClient } from '../warehouses/api/warehouses-client';

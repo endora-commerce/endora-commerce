@@ -1,4 +1,4 @@
-import type { BulkImportReport, BulkImportRowError, CategoryImportRow } from '@b2b/contracts';
+import type { BulkImportReport, BulkImportRowError, CategoryImportRow } from '@endora-commerce/contracts';
 import type { ImportExportAdapter, ImportExportPorts } from '../adapter.js';
 
 /**

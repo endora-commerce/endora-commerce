@@ -7,7 +7,7 @@ import type {
   PermissionCataloguePort,
   PermissionReadPort,
   SystemRoleCodePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';

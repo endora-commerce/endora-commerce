@@ -28,7 +28,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
         'its `custom_field_definitions` parent inside ONE transaction — a second transaction cannot ' +
         'satisfy a foreign key against a row it cannot see, and `attribute-commands.ts` flushes ' +
         'between the two writes for exactly that reason. No port can carry the caller\'s ' +
-        '`EntityManager` without putting MikroORM into `@b2b/contracts` (FR-034); a branded handle ' +
+        '`EntityManager` without putting MikroORM into `@endora-commerce/contracts` (FR-034); a branded handle ' +
         'publishes the coupling without removing it, a token needs a registry with a lifetime, and ' +
         'an ambient unit of work is refused in writing (D-77 rationale 3) because the ugly ' +
         'parameter is the deterrent that has kept this at one seam in 65 modules. 061 R4 refused ' +

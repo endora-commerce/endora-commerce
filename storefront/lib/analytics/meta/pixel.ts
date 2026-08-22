@@ -2,7 +2,7 @@ import {
   META_STANDARD_EVENTS,
   type MetaStorefrontConfig,
   type MetaTriggerAction,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { readConsent } from '../consent';
 
 /**

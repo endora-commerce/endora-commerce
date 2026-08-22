@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ShippingAdapter } from '@b2b/contracts';
+import type { ShippingAdapter } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

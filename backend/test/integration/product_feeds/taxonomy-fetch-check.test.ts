@@ -2,7 +2,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { PRODUCT_FEED_SETTING_CODES } from '@b2b/contracts';
+import { PRODUCT_FEED_SETTING_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

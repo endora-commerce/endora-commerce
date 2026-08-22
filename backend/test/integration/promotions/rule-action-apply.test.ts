@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import type { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
-import type { CartSnapshot } from '@b2b/contracts';
+import type { CartSnapshot } from '@endora-commerce/contracts';
 
 /**
  * Feature 045 / US1 + US2 — action-based promotions driven by the typed rule

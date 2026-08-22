@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuthSessionPort, MfaLoginPort } from '@b2b/contracts';
+import type { AuthSessionPort, MfaLoginPort } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import { hashPassword, verifyPassword } from '../../../src/kernel/crypto/password-hasher.js';
 import { enroll, verifyTotp } from '../../../src/kernel/crypto/totp.js';
@@ -129,7 +129,7 @@ describe('customer_accounts — sessions over a port, MFA over a contract, crypt
 
     const seen: Array<{ subjectId: string; organizationId: string | null | undefined }> = [];
     // The shape is `auth`'s and the implementation is `mfa`'s — this stub is
-    // neither, which is the whole point of publishing it in `@b2b/contracts`.
+    // neither, which is the whole point of publishing it in `@endora-commerce/contracts`.
     const mfa: MfaLoginPort = {
       beginLogin: async (subject, ctx) => {
         seen.push({ subjectId: subject.subjectId, organizationId: ctx.organizationId });

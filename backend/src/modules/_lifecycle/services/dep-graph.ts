@@ -1,4 +1,4 @@
-import type { ModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 
 /**
  * Dependency graph derived from a snapshot of every loaded manifest.

@@ -1,4 +1,4 @@
-import { ERROR_CODES, type ShipmentUsagePort } from '@b2b/contracts';
+import { ERROR_CODES, type ShipmentUsagePort } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { ShipmentUsageCounter } from '../commands/delivery-method.commands.js';
 

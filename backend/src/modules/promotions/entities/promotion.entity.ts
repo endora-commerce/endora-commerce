@@ -1,7 +1,7 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
-import type { PromotionAction, PromotionCriterion, PromotionRule } from '@b2b/contracts';
+import type { PromotionAction, PromotionCriterion, PromotionRule } from '@endora-commerce/contracts';
 
 /**
  * Promotion — a discount rule applied to a Cart snapshot (T129 / FR-052).

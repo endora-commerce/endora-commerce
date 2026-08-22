@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, isProductVisibleTo } from '@b2b/contracts';
-import type { CartWritePort, CatalogProductReadPort, RfqCustomerPort } from '@b2b/contracts';
+import { ERROR_CODES, isProductVisibleTo } from '@endora-commerce/contracts';
+import type { CartWritePort, CatalogProductReadPort, RfqCustomerPort } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import {

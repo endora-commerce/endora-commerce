@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { FulfilmentStrategy, StockLevelRow, Warehouse } from '@b2b/contracts';
+import type { FulfilmentStrategy, StockLevelRow, Warehouse } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import {

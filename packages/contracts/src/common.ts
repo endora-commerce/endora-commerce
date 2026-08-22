@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /**
  * Shared primitive schemas reused across every module contract.
- * Lives in @b2b/contracts so backend + both frontends share one source of truth.
+ * Lives in @endora-commerce/contracts so backend + both frontends share one source of truth.
  */
 
 export const isoDateTimeSchema = z

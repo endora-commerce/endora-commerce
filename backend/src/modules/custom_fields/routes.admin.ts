@@ -7,7 +7,7 @@ import {
   updateCustomFieldDefinitionSchema,
   type CustomFieldEntityTypeInfo,
   type SupportedEntityType,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { CachedDefinition } from './services/custom-field-definitions-cache.js';
 import {

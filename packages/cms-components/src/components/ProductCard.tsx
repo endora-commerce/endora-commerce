@@ -1,8 +1,8 @@
 'use client';
 
 import { type ComponentConfig, type Field, type PuckComponent } from '@measured/puck';
-import { PB_RESPONSIVE_METADATA, withHideOn } from '@b2b/page-builder-core';
-import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
+import { PB_RESPONSIVE_METADATA, withHideOn } from '@endora-commerce/page-builder-core';
+import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
 import type { CmsProductCardProps } from '../schema/component-types.js';
 import { useViewportBreakpointTier } from '../hooks/use-viewport-breakpoint-tier.js';
 import { BoxStyled } from './box-styles.js';

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Eraser, Languages, RefreshCw, Search } from 'lucide-react';
-import type { CacheNamespaceDto } from '@b2b/contracts';
+import type { CacheNamespaceDto } from '@endora-commerce/contracts';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';

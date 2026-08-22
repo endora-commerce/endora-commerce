@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { Data } from '@measured/puck';
-import type { NewsletterCustomField, NewsletterEmailBlockSummary } from '@b2b/contracts';
+import type { NewsletterCustomField, NewsletterEmailBlockSummary } from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

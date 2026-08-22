@@ -3,7 +3,7 @@ import type {
   CatalogProductReadPort,
   LinePricePort,
   OrganizationDetailsPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { CartRecomputeCache, CachedCartRecompute } from './cart-recompute-cache.js';
 import type { CartItem } from '../entities/cart-item.entity.js';

@@ -3,7 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { SettingsAdminPort } from '@b2b/contracts';
+import type { SettingsAdminPort } from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';

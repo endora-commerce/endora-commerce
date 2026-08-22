@@ -41,7 +41,7 @@ The session-bootstrap response (`GET /api/v1/admin/me`) carries `preferredLangua
 
    ```typescript
    // backend/src/modules/<my_module>/manifest.ts
-   import { defineModuleManifest } from '@b2b/contracts';
+   import { defineModuleManifest } from '@endora-commerce/contracts';
 
    export const manifest = defineModuleManifest({
      id: 'my_module',
@@ -82,7 +82,7 @@ The session-bootstrap response (`GET /api/v1/admin/me`) carries `preferredLangua
 
 ### Rules and constraints
 
-- The supported set is currently `['en', 'pl']` (closed enum in `@b2b/contracts/src/admin-i18n.ts`).
+- The supported set is currently `['en', 'pl']` (closed enum in `@endora-commerce/contracts/src/admin-i18n.ts`).
 - Files for unsupported languages are rejected at install time.
 - A module that ships any bundle MUST ship `en.json` (English is the platform-wide fallback).
   A Polish bundle is encouraged but optional — ship it in the same PR as the English file.
@@ -138,7 +138,7 @@ hard-uninstall hook is the cleanup mechanism, not `ON DELETE CASCADE`.
 
 Adding `de` (or any other BCP-47 code) is treated as a separate feature because the cost is
 mostly translation work, not engineering. The schema change is one line in
-`@b2b/contracts/src/admin-i18n.ts`:
+`@endora-commerce/contracts/src/admin-i18n.ts`:
 
 ```typescript
 export const SupportedAdminLanguageSchema = z.enum(['en', 'pl', 'de']);

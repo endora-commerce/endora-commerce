@@ -2,7 +2,7 @@ import {
   defineModuleManifest,
   defineModuleSettingsManifest,
   PRODUCT_FEED_SETTING_CODES,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Product Feed module — feature 067.

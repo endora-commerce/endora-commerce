@@ -4,13 +4,13 @@ import type {
   CustomerAuthPort,
   OrderListPort,
   RfqCustomerPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   changePasswordRequestSchema,
   customerAddressInputSchema,
   updateCustomerDefaultsRequestSchema,
   ERROR_CODES,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { CustomerAddressService } from './services/customer-address-service.js';
 import type { CustomerDefaultsService } from './services/customer-defaults-service.js';

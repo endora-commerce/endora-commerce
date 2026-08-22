@@ -33,7 +33,7 @@ import type {
   CurrencySeedPort,
   LanguageReadPort,
   LanguageSeedPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { COUNTRY_SEED } from '../seed/countries.js';
 import { CURRENCY_SEED } from '../seed/currencies.js';
 import { POLISH_TRANSLATION_SEED } from '../seed/translations.pl-PL.js';

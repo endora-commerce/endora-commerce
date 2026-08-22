@@ -1,4 +1,4 @@
-import type { ListingPrice } from '@b2b/contracts';
+import type { ListingPrice } from '@endora-commerce/contracts';
 import type { PricingLineResult } from './pricing-service.interface.js';
 
 /**

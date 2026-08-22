@@ -1,6 +1,6 @@
 'use client';
 
-import type { GaStorefrontConfig } from '@b2b/contracts';
+import type { GaStorefrontConfig } from '@endora-commerce/contracts';
 
 /**
  * Client-side Google Analytics helper (feature 049). Wraps `gtag`/`dataLayer`,
