@@ -17,8 +17,10 @@
  * *"because module ids are unique platform-wide — the lifecycle refuses a
  * second module claiming an id"*. Until this landed, that refusal existed only
  * in `buildStaticRegistry`, reachable from the `module:*` CLI scripts, each of
- * which feeds bare-core `REGISTERED_MANIFESTS`: the right refusal, wired
- * where a package cannot reach it.
+ * which fed bare-core `REGISTERED_MANIFESTS`: the right refusal, wired where a
+ * package could not reach it. (T036 pointed those five at the resolved set,
+ * which reaches the *discovery* refusal below rather than that one — a `Map`
+ * keyed by id leaves no duplicate for `buildStaticRegistry` to see.)
  *
  * ## Why here as well as at discovery
  *

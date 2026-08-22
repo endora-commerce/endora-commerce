@@ -272,7 +272,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // must never fail a boot — a lost notification channel means stale, not off.
   await enterSystemScope(
     'boot: load module presence',
-    () => loadModulePresence({ em, manifests: resolvedRegistry.map((e) => e.manifest) }),
+    // The **entries**, not their manifests: `loadModulePresence` narrows the
+    // first-boot insert to what this build ships (D-157.6(b)), and `filePath` is
+    // what says which entry that is. Everything else it does — both D-101
+    // refusals, the gating graph, the activation declarations, the cache itself
+    // — still reads the whole resolved set.
+    () => loadModulePresence({ em, entries: resolvedRegistry }),
     { entryPoint: 'boot' },
   );
 

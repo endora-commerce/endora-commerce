@@ -5,7 +5,7 @@ import { initOrm, closeOrm } from '../../../db/index.js';
 import { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../services/orchestrator.js';
 import { buildStaticRegistry } from '../services/static-registry.js';
-import { REGISTERED_MANIFESTS } from '../registered-manifests.js';
+import { resolvedManifestEntries } from '../registered-manifests.js';
 import { enterSystemScope } from '../../../kernel/scope.js';
 
 const DisableArgsSchema = z.object({
@@ -53,8 +53,16 @@ async function main(): Promise<number> {
 
   let registry;
   try {
+    // D-157.6(a) — the **instance-resolved** set: core, this deployment's
+    // overlay modules and every installed Endora module package. This read
+    // bare-core `REGISTERED_MANIFESTS`, so `module:install <package id>`
+    // answered `unknown module` while `/platform/modules`, fed the resolved
+    // set, installed the same module. Resolved directly rather than through a
+    // composition: a platform command must not compose (D-157.2), because
+    // composition's own reconciler would mark the module installed first and
+    // turn this command into a no-op.
     registry = buildStaticRegistry(
-      REGISTERED_MANIFESTS.map((e) => ({
+      (await resolvedManifestEntries()).map((e) => ({
         manifest: e.manifest,
         filePath: e.filePath,
         ...(e.installHook ? { installHook: e.installHook } : {}),

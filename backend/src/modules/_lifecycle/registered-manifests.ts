@@ -13,13 +13,14 @@
 // genuinely cannot be baked into a committed array — an overlay module's
 // directory, which depends on the deployment the process runs as.
 
-import { dirname, join } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
 import { discoverOverlayModuleManifests } from '../../overlay/overlay-runtime.js';
 import {
   assertNoPackageModuleIdCollisions,
   type ModuleIdClaim,
+  type ModuleIdClaimOrigin,
 } from '../../packages/module-id-claims.js';
 import { discoverPackageModuleManifests } from '../../packages/package-runtime.js';
 import {
@@ -49,6 +50,44 @@ export interface RegisteredManifestEntry {
  */
 const MODULES_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const pathFor = (id: string): string => join(MODULES_ROOT, id, 'manifest.ts');
+
+/**
+ * `backend/src` under `tsx`/`vitest`, `backend/dist` in production — whichever
+ * this file was loaded from. Both roots below are derived from it, so a build
+ * that runs from `dist/` classifies its own modules exactly as a source run
+ * does.
+ */
+const BUILD_ROOT = dirname(MODULES_ROOT);
+
+/** `backend/src/apps` — every deployment's overlay lives under it (D-104). */
+const OVERLAY_APPS_ROOT = join(BUILD_ROOT, 'apps');
+
+const isUnder = (path: string, root: string): boolean =>
+  path === root || path.startsWith(root + sep);
+
+/**
+ * Where a resolved entry came from, read off the `filePath` every entry already
+ * carries.
+ *
+ * D-157.6(b) — *"`filePath` origin is already on every entry, so the split needs
+ * no new field"*. It is a **containment** test against the two roots this build
+ * owns, not a `node_modules` segment test: pnpm links a workspace member into
+ * `node_modules` too, so that segment is wrong in both directions, while
+ * everything this build ships is under {@link BUILD_ROOT} by construction —
+ * `backend/src/modules/<id>/manifest.ts` for core, and
+ * `backend/src/apps/<deployment>/modules/<id>/manifest.ts` for an overlay. An
+ * installed package anchors on the resolved `package.json` that claimed the id
+ * (`PackageModuleManifest.filePath`), which is never inside either.
+ *
+ * `'package'` is therefore the answer for anything this build does not ship,
+ * which is the direction to be wrong in: the one decision resting on it — the
+ * first-boot insert — must not converge a module the platform did not install.
+ */
+export function manifestEntryOrigin(filePath: string): ModuleIdClaimOrigin {
+  if (isUnder(filePath, MODULES_ROOT)) return 'core';
+  if (isUnder(filePath, OVERLAY_APPS_ROOT)) return 'overlay';
+  return 'package';
+}
 
 /**
  * A hook key is set only when the module exports one: with

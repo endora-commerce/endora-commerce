@@ -61,7 +61,12 @@ export interface OrchestratorDeps {
    * ({@link coreMigrationOwnership}) and **refuses** a hard uninstall of any
    * module that registry does not cover, rather than reverting nothing and
    * calling it done. That is the honest answer for the five `module:*` CLI
-   * scripts, which are fed bare-core `REGISTERED_MANIFESTS` today (T036).
+   * scripts: since T036 they read the instance-resolved manifest set, so they
+   * can *name* a package module, but they still pass no ownership — a platform
+   * command must not compose (D-157.2) and only a composition knows which
+   * migrations an installed package brought. So a hard uninstall of a package
+   * module is refused from the terminal rather than reverting core's rows and
+   * leaving the package's behind.
    */
   migrationOwnership?: MigrationOwnership;
   /**

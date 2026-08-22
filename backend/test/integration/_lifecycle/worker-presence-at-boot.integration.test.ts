@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { join } from 'node:path';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest, RegistryState } from '@b2b/contracts';
 import { defineModuleWorker } from '../../../src/kernel/lifecycle/plugin-helpers.js';
@@ -7,6 +8,7 @@ import { loadModulePresence } from '../../../src/modules/_lifecycle/services/pre
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { coreModulesRoot } from '../../../src/overlay/overlay-roots.js';
 
 /**
  * A worker's pause decision at a **fresh boot** (feature 073, Amendment A2-Q2;
@@ -58,7 +60,16 @@ function manifest(id: string): ModuleManifest {
   };
 }
 
-const MANIFESTS = [manifest(ACTIVE), manifest(DEACTIVATED), manifest(UNINSTALLED)];
+/**
+ * Core entries: `loadModulePresence` takes the resolved entries and derives each
+ * one's origin from its `filePath` (D-157.6(b)), so a fixture that wants a row
+ * reconciled has to anchor where a core module anchors.
+ */
+function entry(id: string): { manifest: ModuleManifest; filePath: string } {
+  return { manifest: manifest(id), filePath: join(coreModulesRoot(), id, 'manifest.ts') };
+}
+
+const ENTRIES = [entry(ACTIVE), entry(DEACTIVATED), entry(UNINSTALLED)];
 
 /** The two reads the load makes: the platform axis, then the operator axis. */
 function stubEm(rows: {
@@ -94,7 +105,7 @@ async function bootAndRegisterWorker(
   rows: Parameters<typeof stubEm>[0],
 ): Promise<{ paused: boolean }> {
   registryCache.__resetForTesting();
-  await loadModulePresence({ em: stubEm(rows), manifests: MANIFESTS });
+  await loadModulePresence({ em: stubEm(rows), entries: ENTRIES });
 
   const state = { paused: false };
   const worker: FakeWorker = {
