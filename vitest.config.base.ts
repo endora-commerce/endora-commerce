@@ -3,6 +3,22 @@
 // across backend + frontend + packages (Principle IV — one configuration, not three).
 
 import { defineConfig } from 'vitest/config';
+import { assertWorkspacePackagesAreLocal } from './scripts/workspace-resolution.js';
+
+// Issue #255 — refuse a run whose `@b2b/*` source comes from another checkout.
+//
+// Every package under `packages/` has `"main": "./src/index.ts"`, so the
+// workspace symlinks decide which branch's source this run compiles and
+// executes. A `git worktree` whose `node_modules` was symlinked at the main
+// tree resolves them all there, and the suite then reports on `master` while
+// claiming to report on the branch. Nothing else notices: `pnpm ls` answers
+// from the manifest and never looks at the link.
+//
+// This is the one file every workspace's vitest config merges, so the guard
+// runs once per invocation in backend, admin and storefront alike — before a
+// test file is collected, and without anybody having to remember it. See
+// `scripts/workspace-resolution.ts` for what it can and cannot see.
+assertWorkspacePackagesAreLocal();
 
 export default defineConfig({
   test: {

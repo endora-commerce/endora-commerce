@@ -1,5 +1,8 @@
 # Dependencies
-node_modules/
+# No trailing slash: `node_modules/` matches directories only, and a worktree
+# wired with `scripts/setup-worktree.sh --link` has a *symlinked* root
+# node_modules, which git then reports as an untracked file (issue #255).
+node_modules
 .pnpm-store/
 
 # Build output
