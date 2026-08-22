@@ -1,5 +1,5 @@
 import { readdirSync, statSync, existsSync } from 'node:fs';
-import { dirname, basename, resolve, join } from 'node:path';
+import { dirname, basename, resolve, join, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   ModuleManifestSchema,
@@ -31,6 +31,7 @@ export class ManifestLoadError extends Error {
       | 'self-dep'
       | 'orphan-dep'
       | 'folder-id-mismatch'
+      | 'package-root'
       | 'parse-failed',
     message: string,
   ) {
@@ -64,11 +65,36 @@ export interface DiscoverOptions {
  * `manifest-index.ts` that imports the same modules eagerly — this
  * runtime path is for dev/test where the file system is the source of
  * truth.
+ *
+ * **Identity here is the directory name, and that scopes this loader** (feature
+ * 080, T032). It walks a tree this repository lays out, where Principle VI says
+ * `<id>/manifest.ts` — so the folder name is a claim about the id and a
+ * disagreement is a defect. An **installed package** has neither property: its
+ * directory is its npm name (`@endora-commerce/mod-blog`), and its identity is
+ * the `endora.id` field of its `package.json` (D-142), checked against its
+ * manifest by `src/packages/package-runtime.ts`. Pointing this loader at a
+ * `node_modules` is therefore refused outright rather than walked — see
+ * {@link ManifestLoadError} kind `package-root`. Without that refusal the walk
+ * happens to work and then reports `folder-id-mismatch`, which blames a vendor
+ * for naming their package correctly and sends the reader to fix the one thing
+ * that is right.
  */
 export async function discoverManifests<EM = unknown, R = unknown>(
   opts: DiscoverOptions,
 ): Promise<LoadedManifestRegistry<EM, R>> {
   const root = resolve(opts.modulesRoot);
+  // Before the walk, not inside it: a `node_modules` must not be readable as a
+  // modules tree at all, whatever it happens to contain.
+  if (root.split(sep).includes('node_modules')) {
+    throw new ManifestLoadError(
+      'package-root',
+      `${root} is inside a node_modules tree, and this loader derives a module's id from its ` +
+        `folder name. An installed package's folder is its npm name and its id is the ` +
+        `"endora.id" field of its package.json (D-142), so discovering one here would either ` +
+        `refuse it as a folder-id-mismatch or give it the wrong id. Use ` +
+        `loadPackageModuleEntries / discoverPackageModuleManifests (src/packages/) instead.`,
+    );
+  }
   const exclude = new Set(opts.exclude ?? []);
   const candidates: string[] = [];
 
@@ -115,7 +141,9 @@ export async function discoverManifests<EM = unknown, R = unknown>(
       throw new ManifestLoadError(
         'folder-id-mismatch',
         `manifest at ${filePath} declares id "${parsed.id}" but lives in ` +
-          `folder "${folderName}" — they MUST match (Principle VI).`,
+          `folder "${folderName}" — in a directory-named module tree they MUST match ` +
+          `(Principle VI). An installed package is the other case and never reaches here: ` +
+          `its id is its "endora.id" field, not its folder.`,
       );
     }
     if (parsed.dependencies.includes(parsed.id)) {
@@ -203,7 +231,25 @@ export async function loadProjectManifests<EM = unknown, R = unknown>(
   });
 }
 
-/** Module folder name typically becomes the id; this helper formalises that. */
+/**
+ * The folder name a **directory-named** module's id comes from.
+ *
+ * It answers for the anchor {@link discoverManifests} produces — a
+ * `manifest.ts` under `<modules root>/<id>/`. It refuses a `package.json`
+ * anchor, which is what a resolved package entry's `filePath` is (feature 080,
+ * T032): `basename(dirname(...))` would answer `mod-blog`, the tail of an npm
+ * name, which is neither the module id nor even unique without the `@scope`
+ * this drops. A confident wrong answer is worse than a refusal — a package's id
+ * is its `endora.id`, and `resolvedManifestEntries()` already carries it.
+ */
 export function folderNameFromPath(filePath: string): string {
+  if (basename(filePath) === 'package.json') {
+    throw new ManifestLoadError(
+      'package-root',
+      `${filePath} is a package.json, so it anchors an installed package rather than a ` +
+        `directory-named module. A package's id is its "endora.id" field (D-142), not its ` +
+        `folder name; read it from the manifest entry instead of deriving it from the path.`,
+    );
+  }
   return basename(dirname(filePath));
 }

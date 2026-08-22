@@ -168,7 +168,7 @@ async function runReconcile(ctx: ModuleContext): Promise<I18nReconcileResult> {
   // Absent registry is a real state, not an error: a composition that never
   // builds `_lifecycle` (several unit tests) still serves the read API, which
   // reads `translation_bundles` directly.
-  if (!registry) return { installed: 0, skipped: 0, failed: 0 };
+  if (!registry) return { installed: 0, skipped: 0, failed: 0, failures: [] };
   return reconcileBundles(registry.modules.values(), adminI18nService, {
     // `reconcileBundles` takes a plain message logger; the kernel's is
     // pino-shaped, so the message goes in the second position.

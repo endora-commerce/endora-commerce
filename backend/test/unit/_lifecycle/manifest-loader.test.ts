@@ -3,6 +3,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   discoverManifests,
+  folderNameFromPath,
   ManifestLoadError,
 } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
 
@@ -57,5 +58,53 @@ describe('discoverManifests', () => {
       expect(entry.installHook).toBeUndefined();
       expect(entry.uninstallHook).toBeUndefined();
     }
+  });
+});
+
+/**
+ * The folder-name identity rule, scoped to the origin it is a rule about
+ * (feature 080, T032).
+ *
+ * `discoverManifests` derives a module's identity from its **directory name**
+ * and refuses a manifest that disagrees. That is Principle VI over a tree this
+ * repository owns, and it is right there. It is not right anywhere else: an
+ * installed package's directory is its npm name — `@endora-commerce/mod-blog`
+ * — and its identity is `endora.id` (D-142), checked against the manifest in
+ * `src/packages/package-runtime.ts`. Nothing reaches this loader with a package
+ * today, and the failure mode if something ever did is the worst kind: a
+ * `folder-id-mismatch` blaming a vendor for naming their package correctly.
+ * So the loader refuses the *root*, with the instruction, instead.
+ */
+describe('discoverManifests — identity is the folder name, and that scopes it', () => {
+  it('refuses a modulesRoot inside node_modules and names the loader that owns it', async () => {
+    const root = resolve(fixturesRoot, 'basic-graph');
+    // A path shaped like an instance's installed packages. It does not need to
+    // exist: the refusal is about what the caller asked for, and it has to
+    // land before the walk so that a real `node_modules` cannot be read as a
+    // modules tree at all.
+    const nodeModulesRoot = resolve(root, '..', 'node_modules');
+    await expect(discoverManifests({ modulesRoot: nodeModulesRoot })).rejects.toBeInstanceOf(
+      ManifestLoadError,
+    );
+    try {
+      await discoverManifests({ modulesRoot: nodeModulesRoot });
+      expect.unreachable('a node_modules root must be refused');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ManifestLoadError);
+      expect((err as ManifestLoadError).kind).toBe('package-root');
+      expect((err as Error).message).toContain('endora.id');
+      expect((err as Error).message).toContain('loadPackageModuleEntries');
+    }
+  });
+
+  it('folderNameFromPath refuses a package.json anchor rather than answering wrongly', () => {
+    // A package entry's `filePath` is its resolved `package.json`, so
+    // `basename(dirname(...))` answers `mod-blog` — the tail of an npm name,
+    // which is not the module id and is not scoped by the `@scope` that makes
+    // it unique. Answering that is worse than refusing.
+    expect(() =>
+      folderNameFromPath('/srv/app/node_modules/@endora-commerce/mod-blog/package.json'),
+    ).toThrow(/package\.json/);
+    expect(folderNameFromPath('/srv/app/src/modules/blog/manifest.ts')).toBe('blog');
   });
 });

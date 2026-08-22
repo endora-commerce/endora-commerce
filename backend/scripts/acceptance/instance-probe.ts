@@ -23,8 +23,9 @@
 /* eslint-disable no-console -- this file's stdout is its interface. */
 
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AssertionResult } from './assertions.js';
 
 const PACKAGE_NAME = process.env['ACCEPTANCE_PACKAGE_NAME'] ?? '@endora-commerce/mod-acceptance-probe';
@@ -195,7 +196,7 @@ async function phaseSchema(): Promise<AssertionResult[]> {
     }
     results.push(a4);
 
-    results.push(await identityAndAssets());
+    results.push(await identityAndAssets(() => orm.em.fork()));
     return results;
   } finally {
     await closeOrm().catch(() => undefined);
@@ -208,15 +209,30 @@ async function phaseSchema(): Promise<AssertionResult[]> {
  * palette action resolves in both shipped languages. The fourth quarter —
  * "and enforced" — is answered by the `gate-on` phase, because only a composed
  * application can say whether a route refuses an anonymous caller.
+ *
+ * **The translations go through the platform's own reconciler** (feature 080,
+ * T032). This used to call `loadModuleBundles` on `dirname(entry.filePath)`,
+ * which proves the files were published to a path the assertion computed
+ * itself, and proves nothing about the code that actually populates
+ * `translation_bundles` — at boot, on `i18n:reload` and on `module:install`. So
+ * it now runs `reconcileBundles` over the **whole resolved set**, unfiltered,
+ * and then reads the keys back out of `getMergedBundleForLanguage`, which is
+ * the read the Admin SPA and the command palette serve from. A package whose
+ * bundles the reconciler cannot reach now fails A5 even if its `i18n/` is
+ * sitting right there in `node_modules`, which is the gap this assertion was
+ * recorded as still having.
  */
-async function identityAndAssets(): Promise<AssertionResult> {
+async function identityAndAssets(em: () => EntityManager): Promise<AssertionResult> {
   const { resolvedManifestEntries } = await import(
     '../../src/modules/_lifecycle/registered-manifests.js'
   );
   const { PermissionCatalogueService } = await import(
     '../../src/modules/admin_roles/services/permission-catalogue.service.js'
   );
-  const { loadModuleBundles } = await import('../../src/modules/_i18n/services/bundle-loader.js');
+  const { I18nService } = await import('../../src/modules/_i18n/services/i18n-service.js');
+  const { reconcileBundles } = await import(
+    '../../src/modules/_i18n/services/bundle-reconciler.js'
+  );
 
   const title = 'the module, its permission and its palette action all travel with the package';
   const refuses =
@@ -249,16 +265,29 @@ async function identityAndAssets(): Promise<AssertionResult> {
   if (!action) {
     problems.push('the manifest declares no palette action');
   } else {
-    try {
-      const loaded = loadModuleBundles(
-        MODULE_ID,
-        dirname(entry.filePath),
-        entry.manifest.i18n?.bundlesDir ?? 'i18n',
-      );
+    const i18nService = new I18nService({ em });
+    const warnings: string[] = [];
+    // Unfiltered: the reconciler is handed the whole resolved set, the way
+    // `_i18n`'s boot pass is. Passing only this module's entry would answer a
+    // question the platform never asks.
+    const reconciled = await reconcileBundles(entries, i18nService, {
+      info: () => undefined,
+      warn: (message: string) => warnings.push(message),
+    });
+    const own = reconciled.failures.filter((failure) => failure.moduleId === MODULE_ID);
+    for (const failure of own) {
+      problems.push(`the reconciler refused the package's bundles (${failure.reason})`);
+    }
+    if (own.length === 0) {
       for (const language of ['en', 'pl'] as const) {
-        const bundle = loaded.byLanguage.get(language);
+        // The read the Admin SPA serves the palette from, not the loader.
+        const merged = await i18nService.getMergedBundleForLanguage(language);
+        const bundle = merged.bundles[MODULE_ID];
         if (!bundle) {
-          problems.push(`no ${language} bundle`);
+          problems.push(
+            `no ${language} bundle in translation_bundles after the reconcile ` +
+              `(${reconciled.installed} module(s) installed, ${reconciled.failed} failed)`,
+          );
           continue;
         }
         for (const key of [action.labelKey, action.descriptionKey].filter(
@@ -267,8 +296,6 @@ async function identityAndAssets(): Promise<AssertionResult> {
           if (!(key in bundle)) problems.push(`${language} bundle has no key ${key}`);
         }
       }
-    } catch (error) {
-      problems.push(`bundle load failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -279,7 +306,8 @@ async function identityAndAssets(): Promise<AssertionResult> {
     status: problems.length === 0 ? 'pass' : 'fail',
     detail:
       problems.length === 0
-        ? `filePath ${entry.filePath}, permission grantable, action keys resolve in en and pl`
+        ? `filePath ${entry.filePath}, permission grantable, action keys resolve in en and pl ` +
+          'through the platform reconciler and translation_bundles'
         : problems.join('; '),
   };
 }

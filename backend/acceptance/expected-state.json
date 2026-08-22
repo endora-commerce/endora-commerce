@@ -16,7 +16,12 @@
     "entities now reach the ORM through the async seam in `src/db/configured-migrations.ts` and",
     "`src/db/configured-entities.ts`. Seven of the nine now pass. A6 and A7 stay `fail`, and A7's",
     "reason moved: its migration count is settled and its blocker is now A6's, which is why",
-    "T033 did not close it."
+    "T033 did not close it.",
+    "T032 moved no status and rewrote A5's reason: the assertion now measures the bundles through",
+    "`reconcileBundles` and `translation_bundles` rather than reading the files itself, which is",
+    "what its own recorded reason named as still missing. A reason that has stopped being true is",
+    "drift this file cannot detect — only the status is compared — so it is corrected by hand in",
+    "the merge request that made it false, exactly as T031 did for A6 and A7."
   ],
   "assertions": {
     "A1": {
@@ -37,7 +42,7 @@
     },
     "A5": {
       "status": "pass",
-      "reason": "Earned by T031 (P1) plus the smallest slice of T032 the assertion forces. `loadPackageModuleEntries` (`src/packages/`) enumerates the instance's `node_modules`, keeps every package carrying `endora.type === \"module\"` whose install does not link out of the tree it was found under, and both composition roots now call `composeModules([...MODULES, ...overlay, ...packages], …)`. `resolvedManifestEntries()` merges the same discovery, so the module has an identity, its permission is grantable and the palette action resolves in `en` and `pl`. The T032 slice is `filePath`: it is the resolved `package.json`, because `dirname(filePath)` is how the i18n reconciler and the orchestrator find a module's assets and the compiled root export's directory holds no `i18n/`. What is still T032's: nothing here loads a package's bundles through the platform's own reconciler — A5 reads them through `loadModuleBundles` at the path this entry reports."
+      "reason": "Earned by T031 (P1) and **completed by T032 (P2)**, which moved no status and changed what the pass means. `loadPackageModuleEntries` (`src/packages/`) enumerates the instance's `node_modules`, keeps every package carrying `endora.type === \"module\"` whose install does not link out of the tree it was found under, and both composition roots now call `composeModules([...MODULES, ...overlay, ...packages], …)`. `resolvedManifestEntries()` merges the same discovery, so the module has an identity, its permission is grantable and the palette action resolves in `en` and `pl`. `filePath` is the resolved `package.json`, because `dirname(filePath)` is how the i18n reconciler and the orchestrator find a module's assets and the compiled root export's directory holds no `i18n/`. T032 replaced the assertion's own `loadModuleBundles` read with the platform's path: it runs `reconcileBundles` over the whole resolved set and then reads the action keys back out of `getMergedBundleForLanguage`, which is what the Admin SPA and the command palette serve from. The previous wording recorded exactly this as still outstanding. A package whose bundles the reconciler cannot reach now fails A5 with its `i18n/` sitting in `node_modules`, which is the case the old read could not distinguish from a pass."
     },
     "A6": {
       "status": "fail",
