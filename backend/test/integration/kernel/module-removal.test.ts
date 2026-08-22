@@ -226,10 +226,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // design rather than a leftover, so unlike most entries here they do not go
   // when some other module converts.
   megamenu: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
-  // `admin_actions` (wave 2, T099). `composition.ts` imports the cradle type to
-  // annotate the reconciler it hands the lifecycle orchestrator. That reference
-  // goes when `_lifecycle` converts.
-  admin_actions: ['src/composition.ts'],
   // `pwa` (wave 2, T116). `composition.ts` imports the bridge type to annotate
   // the nine cross-module resolvers it contributes as one. Those are a root's
   // by design — reaching `assets_library` and `sales_channels` is not this
