@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  CatalogCategoryReadPort,
   DisplayMode,
   ListingPrice,
   ListingPriceOrderChunk,
@@ -119,6 +120,53 @@ export class PricingService implements PricingServiceContract {
     private readonly targetReads?: PriceListTargetReads,
   ) {}
 
+  /**
+   * `catalog`'s category read port, or a refusal — the same refusal
+   * `PriceListService.targets()` makes, for the same reason.
+   *
+   * Every category question this engine asks is asked here: which categories a
+   * product is in, and which products a category holds. Skipping one because
+   * nothing was wired would turn "this composition cannot reach `catalog`" into
+   * an answer — "this product is in no category", "this category rule applies
+   * to everything" — and both of those price a line the rule does not cover.
+   */
+  #categoryRead(): CatalogCategoryReadPort {
+    const categoryRead = this.targetReads?.catalogCategoryRead;
+    if (!categoryRead) {
+      throw new Error(
+        'PricingService: this resolution asks `catalog` about category membership and this ' +
+          "composition constructed the engine without `catalog`'s category read port.",
+      );
+    }
+    return categoryRead;
+  }
+
+  /**
+   * `(product, category)` memberships for a set of products, read through
+   * `catalog`'s port (feature 075 / D-87) — the shape both resolution paths
+   * take, one call for the whole set.
+   *
+   * **Structural, deliberately** — no `activeOnly`. `evaluateApplicationRule`'s
+   * `category` criterion tests the raw membership, so narrowing to live
+   * categories here would price a product against a rule its memberships no
+   * longer satisfy the moment an operator deactivates a category.
+   *
+   * Every product asked about gets an entry — an uncategorised one answers an
+   * empty set rather than a missing key, which is what `resolveEngine`'s
+   * single-product read means by "no rows".
+   */
+  async #categoryMemberships(
+    productIds: readonly string[],
+  ): Promise<Map<string, Set<string>>> {
+    const out = new Map<string, Set<string>>();
+    for (const id of productIds) out.set(id, new Set<string>());
+    if (productIds.length === 0) return out;
+    for (const assignment of await this.#categoryRead().listAssignmentsForProducts(productIds)) {
+      out.get(assignment.productId)?.add(assignment.categoryId);
+    }
+    return out;
+  }
+
   // ---- Engine resolver (US5 / FR-026..FR-032) ------------------------
 
   /**
@@ -193,10 +241,8 @@ export class PricingService implements PricingServiceContract {
     if (cached) return cached;
 
     // Build the resolution context.
-    const productCategoryRows = await em.execute<Array<{ category_id: string }>>(
-      `select category_id from product_categories where product_id = ?`,
-      [product.id],
-    );
+    const productCategoryIds =
+      (await this.#categoryMemberships([product.id])).get(product.id) ?? new Set<string>();
     const orgId = context.organization?.id ?? null;
     // Feature 056 — build the org inheritance chain (nearest-first). Flat when
     // no resolver is wired or the org is a root.
@@ -208,7 +254,7 @@ export class PricingService implements PricingServiceContract {
       customerGroupId: context.customerGroupId ?? context.organization?.customerGroupId ?? null,
       salesChannelId: context.salesChannel.id,
       currencyCode,
-      productCategoryIds: new Set(productCategoryRows.map((r) => r.category_id)),
+      productCategoryIds,
     };
 
     // Load every active list and evaluate.
@@ -412,7 +458,7 @@ export class PricingService implements PricingServiceContract {
 
     const em = this.emFactory();
     const productIds = pending.map((p) => p.id);
-    const categoryIdsByProduct = await this.loadCategoryMemberships(em, productIds);
+    const categoryIdsByProduct = await this.#categoryMemberships(productIds);
     const orgId = organization?.id ?? null;
     // Feature 056 — one chain for the page: it depends on the acting org, which
     // the listing context fixes for every product on it.
@@ -695,7 +741,7 @@ export class PricingService implements PricingServiceContract {
    * Two things restrict a stream, and they are intersected rather than chosen
    * between: the caller's opaque id set, and the categories a candidate's own
    * rule requires. The second is read through `catalog`'s category port — this
-   * module does not name `product_categories` in a new statement, and could not
+   * module names `product_categories` in no statement of its own, and could not
    * express the membership as a join into the merge anyway without putting
    * another module's table in this module's SQL (D-87).
    */
@@ -779,17 +825,10 @@ export class PricingService implements PricingServiceContract {
     }
     const out = new Map<string, string[]>();
     if (wanted.size === 0) return out;
-    const categoryRead = this.targetReads?.catalogCategoryRead;
-    if (!categoryRead) {
-      // The same refusal `PriceListService.targets()` makes, for the same
-      // reason: skipping the membership would turn "this composition cannot
-      // reach `catalog`" into "this category rule applies to everything", which
-      // would price products the rule excludes.
-      throw new Error(
-        'PricingService: a candidate price list is scoped to a category and this composition ' +
-          "constructed the engine without `catalog`'s category read port.",
-      );
-    }
+    // Refuses when nothing was wired — see `#categoryRead`. Skipping the
+    // membership would make this category rule apply to everything, which
+    // prices the products it excludes.
+    const categoryRead = this.#categoryRead();
     for (const categoryId of wanted) {
       out.set(categoryId, await categoryRead.listProductIdsInCategory(categoryId));
     }
@@ -855,28 +894,6 @@ export class PricingService implements PricingServiceContract {
    * list+bracket pair, or {list: null, bracket: null} if every match
    * has no usable bracket.
    */
-  /**
-   * `(product_id, category_id)` memberships for a set of products, every
-   * requested product present — an uncategorised one answers an empty set
-   * rather than a missing key, which is what `resolveEngine`'s single-product
-   * read means by "no rows".
-   */
-  private async loadCategoryMemberships(
-    em: EntityManager,
-    productIds: readonly string[],
-  ): Promise<Map<string, Set<string>>> {
-    const out = new Map<string, Set<string>>();
-    for (const id of productIds) out.set(id, new Set<string>());
-    if (productIds.length === 0) return out;
-    const placeholders = productIds.map(() => '?').join(',');
-    const rows = await em.execute<Array<{ product_id: string; category_id: string }>>(
-      `select product_id, category_id from product_categories where product_id in (${placeholders})`,
-      [...productIds],
-    );
-    for (const row of rows) out.get(row.product_id)?.add(row.category_id);
-    return out;
-  }
-
   /**
    * `pickAndResolveBracket` for a whole page, in **priority waves**.
    *
