@@ -78,14 +78,14 @@ async function main(): Promise<number> {
     // composition: a platform command must not compose (D-157.2), because
     // composition's own reconciler would mark the module installed first and
     // turn this command into a no-op.
-    registry = buildStaticRegistry(
-      (await resolvedManifestEntries()).map((e) => ({
-        manifest: e.manifest,
-        filePath: e.filePath,
-        ...(e.installHook ? { installHook: e.installHook } : {}),
-        ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
-      })),
-    );
+    //
+    // It also carries the **lifecycle participants** (T036a / D-159): the
+    // reconcile that keeps `translation_bundles` and `module_actions` aligned
+    // with the manifest set is declared by `_i18n` and `admin_actions` in their
+    // own `manifest.ts` and collected from this registry. It used to arrive as
+    // two services only a composition root could resolve, so this command
+    // installed no bundle and reconciled no palette action at all.
+    registry = buildStaticRegistry(await resolvedManifestEntries());
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     process.stderr.write(`[manifest] ${msg}\n`);

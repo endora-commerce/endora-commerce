@@ -1,9 +1,11 @@
 import type {
   ModuleInstallHook,
+  ModuleLifecycleParticipant,
   ModuleManifest,
   ModuleUninstallHook,
 } from '@b2b/contracts';
 import { ModuleDepGraph } from './dep-graph.js';
+import { collectLifecycleParticipants } from './manifest-loader.js';
 import type { LoadedManifestRegistry, LoadedModuleEntry } from './manifest-loader.js';
 
 /**
@@ -17,14 +19,37 @@ import type { LoadedManifestRegistry, LoadedModuleEntry } from './manifest-loade
  * The CLI scripts (which run via `tsx` against the source tree) and
  * tests (which run via vitest, ditto) use the dynamic discovery loader.
  */
+/**
+ * What {@link buildStaticRegistry} accepts.
+ *
+ * **Hand the resolved entries straight in; do not re-map them.** Five CLI
+ * scripts, `composition.ts` and the test harness each carried a hand-written
+ * identity map from `RegisteredManifestEntry` into this shape, field by field —
+ * seven copies of one function, of which `status.ts` had already dropped
+ * `filePath` and every one of them would have dropped the
+ * `lifecycleParticipant` added in feature 080's T036a. The two types are
+ * structurally compatible on purpose, so there is nothing to copy.
+ *
+ * Every optional field spells `| undefined` explicitly, and that is what makes
+ * the compatibility hold: under `exactOptionalPropertyTypes` a bare `?:`
+ * refuses a value whose own property is typed `T | undefined`, which is what
+ * every carrier of these fields has.
+ */
+export interface StaticRegistryEntry {
+  manifest: ModuleManifest;
+  installHook?: ModuleInstallHook | undefined;
+  uninstallHook?: ModuleUninstallHook | undefined;
+  /**
+   * This module's interest in every *other* module's install and hard
+   * uninstall (feature 080, T036a / D-159).
+   */
+  lifecycleParticipant?: ModuleLifecycleParticipant | undefined;
+  /** Optional source-file path for diagnostics; defaults to `'<static>'`. */
+  filePath?: string | undefined;
+}
+
 export function buildStaticRegistry(
-  entries: ReadonlyArray<{
-    manifest: ModuleManifest;
-    installHook?: ModuleInstallHook;
-    uninstallHook?: ModuleUninstallHook;
-    /** Optional source-file path for diagnostics; defaults to `'<static>'`. */
-    filePath?: string;
-  }>,
+  entries: ReadonlyArray<StaticRegistryEntry>,
 ): LoadedManifestRegistry {
   const modules = new Map<string, LoadedModuleEntry>();
   for (const e of entries) {
@@ -39,6 +64,7 @@ export function buildStaticRegistry(
       filePath: e.filePath ?? '<static>',
       ...(e.installHook ? { installHook: e.installHook } : {}),
       ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
+      ...(e.lifecycleParticipant ? { lifecycleParticipant: e.lifecycleParticipant } : {}),
     });
   }
   // Orphan deps: per research §R7, BOOT IS TOLERANT — modules whose
@@ -68,5 +94,5 @@ export function buildStaticRegistry(
         `[${cycle.cycle.join(' → ')}]`,
     );
   }
-  return { modules, graph };
+  return { modules, graph, participants: collectLifecycleParticipants(modules.values()) };
 }

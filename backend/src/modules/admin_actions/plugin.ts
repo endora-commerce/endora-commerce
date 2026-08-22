@@ -79,8 +79,16 @@ export interface AdminActionsModuleDeps {
 export interface AdminActionsModuleHandle {
   service: AdminActionsService;
   /**
-   * Lifecycle-orchestrator-shaped reconciler. Wired into feature 018's
-   * `OrchestratorDeps.adminActionsReconciler`.
+   * Lifecycle-orchestrator-shaped reconciler, published as the
+   * `adminActionsReconciler` port.
+   *
+   * It no longer has a consumer in this repository (feature 080, T036a): the
+   * lifecycle orchestrator used to resolve it on every module's install, and
+   * now collects this module's `lifecycleParticipant` from the manifest
+   * registry instead — the one shape that also reaches a `module:*` command,
+   * which composes no container to resolve a port from. The port stays
+   * published because it is a legitimate seam for a caller that has a
+   * container; withdrawing it is a contract decision of its own.
    */
   reconciler: {
     install(args: {

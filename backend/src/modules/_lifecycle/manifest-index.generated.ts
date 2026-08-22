@@ -5,7 +5,8 @@
 //
 // The manifest registry — the **only** file that imports a **core** module's
 // manifest. Every core module that ships a lifecycle-shape `manifest.ts` is
-// here, with the install hooks it exports.
+// here, with the lifecycle exports it declares — its install hooks and its
+// lifecycle participant.
 //
 // Bare core under every value of `DEPLOYMENT` (D-104). A deployment's overlay
 // manifests are discovered at runtime and merged on top of this index by
@@ -23,10 +24,10 @@
 
 import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
 
-import { manifest as manifest0 } from '../_i18n/manifest.js';
+import { manifest as manifest0, lifecycleParticipant as lifecycleParticipant0 } from '../_i18n/manifest.js';
 import { manifest as manifest1 } from '../_lifecycle/manifest.js';
 import { manifest as manifest2 } from '../addresses/manifest.js';
-import { manifest as manifest3 } from '../admin_actions/manifest.js';
+import { manifest as manifest3, lifecycleParticipant as lifecycleParticipant3 } from '../admin_actions/manifest.js';
 import { manifest as manifest4 } from '../admin_notifications/manifest.js';
 import { manifest as manifest5 } from '../admin_roles/manifest.js';
 import { manifest as manifest6 } from '../admin_users/manifest.js';
@@ -95,13 +96,14 @@ export interface DiscoveredManifestEntry {
   manifest: ModuleManifest;
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
+  lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
 }
 
 export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
-  { id: '_i18n', manifest: manifest0 },
+  { id: '_i18n', manifest: manifest0, lifecycleParticipant: lifecycleParticipant0 },
   { id: '_lifecycle', manifest: manifest1 },
   { id: 'addresses', manifest: manifest2 },
-  { id: 'admin_actions', manifest: manifest3 },
+  { id: 'admin_actions', manifest: manifest3, lifecycleParticipant: lifecycleParticipant3 },
   { id: 'admin_notifications', manifest: manifest4 },
   { id: 'admin_roles', manifest: manifest5 },
   { id: 'admin_users', manifest: manifest6 },

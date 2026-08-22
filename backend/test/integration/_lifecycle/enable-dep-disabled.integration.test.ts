@@ -63,6 +63,7 @@ describe('Module enable — refuses when dep is disabled (integration)', () => {
         ['fixture_quotes3', { manifest: quotes, filePath: '<test>' }],
       ]) as never,
       graph: new ModuleDepGraph([pricing, quotes]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     const em = db.em();

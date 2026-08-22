@@ -91,6 +91,13 @@ export interface OverlayModuleManifest {
   /** Install-time work lives in `manifest.ts` (D-46), overlay modules included. */
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
+  /**
+   * This module's interest in every *other* module's install and hard
+   * uninstall — feature 080, T036a / D-159. Read here for the same reason the
+   * two hooks are: the export travels with the manifest, so an overlay module
+   * and an installed package declare one on exactly core's terms.
+   */
+  lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
 }
 
 /** Ids of client-only overlay modules for the active deployment (absent from core). */
@@ -128,12 +135,16 @@ export async function discoverOverlayModuleManifests(
     const uninstallHook = mod['uninstallHook'] as
       | ModuleManifestExports['uninstallHook']
       | undefined;
+    const lifecycleParticipant = mod['lifecycleParticipant'] as
+      | ModuleManifestExports['lifecycleParticipant']
+      | undefined;
     out.push({
       id,
       manifest,
       filePath: manifestPath,
       ...(installHook ? { installHook } : {}),
       ...(uninstallHook ? { uninstallHook } : {}),
+      ...(lifecycleParticipant ? { lifecycleParticipant } : {}),
     });
   }
   return out;

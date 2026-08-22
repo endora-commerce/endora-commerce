@@ -61,14 +61,7 @@ async function main(): Promise<number> {
     // composition: a platform command must not compose (D-157.2), because
     // composition's own reconciler would mark the module installed first and
     // turn this command into a no-op.
-    registry = buildStaticRegistry(
-      (await resolvedManifestEntries()).map((e) => ({
-        manifest: e.manifest,
-        filePath: e.filePath,
-        ...(e.installHook ? { installHook: e.installHook } : {}),
-        ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
-      })),
-    );
+    registry = buildStaticRegistry(await resolvedManifestEntries());
   } catch (err) {
     process.stderr.write(`[manifest] ${err instanceof Error ? err.message : String(err)}\n`);
     return 65;

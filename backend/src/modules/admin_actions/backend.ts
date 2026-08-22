@@ -42,8 +42,10 @@ import {
  * to know when the reading moved. A root that supplied one without the other
  * would give the palette a snapshot it can never drop.
  *
- * `adminActionsReconciler` is a **port** — the lifecycle orchestrator resolves
- * it across a module boundary on install and hard-uninstall.
+ * `adminActionsReconciler` is a **port**, and since feature 080's T036a it is
+ * one with no consumer here: the lifecycle orchestrator reaches this module's
+ * reconcile through the `lifecycleParticipant` declared in `manifest.ts`. See
+ * the note on `AdminActionsModuleHandle.reconciler` in `plugin.ts`.
  */
 
 export interface AdminActionsCradle {

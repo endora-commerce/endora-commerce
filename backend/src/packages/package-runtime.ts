@@ -78,6 +78,13 @@ export interface PackageModuleManifest {
   packageName: string;
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
+  /**
+   * This module's interest in every *other* module's install and hard
+   * uninstall — feature 080, T036a / D-159. Read here for the same reason the
+   * two hooks are: the export travels with the manifest, so an overlay module
+   * and an installed package declare one on exactly core's terms.
+   */
+  lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
 }
 
 /**
@@ -203,6 +210,9 @@ async function manifestEntryFor(
   const uninstallHook = module['uninstallHook'] as
     | ModuleManifestExports['uninstallHook']
     | undefined;
+  const lifecycleParticipant = module['lifecycleParticipant'] as
+    | ModuleManifestExports['lifecycleParticipant']
+    | undefined;
 
   return {
     id: installed.id,
@@ -211,6 +221,7 @@ async function manifestEntryFor(
     packageName: installed.name,
     ...(installHook ? { installHook } : {}),
     ...(uninstallHook ? { uninstallHook } : {}),
+    ...(lifecycleParticipant ? { lifecycleParticipant } : {}),
   };
 }
 

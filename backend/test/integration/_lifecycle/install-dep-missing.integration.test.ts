@@ -68,6 +68,7 @@ describe('Module install — missing dep blocks install (integration)', () => {
         ['fixture_b', { manifest: b, filePath: '<test>' }],
       ]) as never,
       graph: new ModuleDepGraph([a, b]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     const auditLog = new AuditLogService(() => db.em());

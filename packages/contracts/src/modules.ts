@@ -447,11 +447,110 @@ export type ModuleUninstallHook<EM = unknown, Redis = unknown> = (
   ctx: ModuleLifecycleContext<EM, Redis> & { hard: boolean },
 ) => Promise<void>;
 
+// ---------------------------------------------------------------------------
+// Lifecycle participants (feature 080, T036a / D-159)
+// ---------------------------------------------------------------------------
+
+/**
+ * What a participant is told when **another** module is installed.
+ *
+ * `moduleId` is the module the operator asked to install, never the
+ * participant's own — that is the whole difference between this and an install
+ * hook, and it is why a participant could not be one. An install hook answers
+ * *"my module is arriving"*; a participant answers *"a module is arriving and I
+ * keep a projection of every module".*
+ */
+export interface ModuleInstalledEvent<EM = unknown> {
+  /** The module being installed. */
+  moduleId: string;
+  /** That module's manifest, already validated. */
+  manifest: ModuleManifest;
+  /**
+   * The directory holding that module's manifest file — what a participant
+   * that reads the module's own files off disk (bundles, templates) joins its
+   * relative directory onto.
+   */
+  modulePath: string;
+  /**
+   * The orchestrator's EntityManager. A participant MUST write through it
+   * rather than forking its own, so its rows join the operation the orchestrator
+   * is performing instead of committing beside it.
+   */
+  em: EM;
+  log: ModuleLifecycleLogger;
+}
+
+/**
+ * What a participant is told when another module is **hard**-uninstalled.
+ *
+ * A soft uninstall never reaches a participant: soft preserves the module's
+ * data so a re-install picks it up unchanged, and a projection of the manifest
+ * is data on those terms.
+ */
+export interface ModuleHardUninstalledEvent<EM = unknown> {
+  /** The module being removed. */
+  moduleId: string;
+  /**
+   * That module's manifest, or `null` when the registry holds a row for a
+   * module whose manifest is no longer on this instance — an orphan. Removing a
+   * projection is exactly the case that must still work then, so the manifest
+   * is nullable here and not on the install side.
+   */
+  manifest: ModuleManifest | null;
+  /** The orchestrator's EntityManager — see {@link ModuleInstalledEvent.em}. */
+  em: EM;
+  log: ModuleLifecycleLogger;
+}
+
+/**
+ * A module's declared interest in **every other module's** lifecycle.
+ *
+ * Two modules keep a table that projects what the manifests declare — `_i18n`
+ * projects `manifest.i18n` into `translation_bundles`, `admin_actions` projects
+ * `manifest.actions` into `module_actions` — and both projections have to move
+ * when *any* module is installed or hard-uninstalled. That is not an install
+ * hook (which fires for its own module) and it cannot be a port (the lifecycle
+ * orchestrator serves a platform command, which composes no container to
+ * resolve one from). It is a third export of `manifest.ts`, walked by the same
+ * generator, so it reaches core, overlay and an installed package on identical
+ * terms.
+ *
+ * **Both methods are required**, deliberately. Feature detection through an
+ * optional method is what D-97.3 refuses on a published port, and the reason
+ * carries here: a participant with nothing to do on one edge writes an empty
+ * body, which is a decision a reader can see, while an omitted method is
+ * indistinguishable from one somebody forgot.
+ *
+ * Keep the implementation in `manifest.ts` **light** — `await import()` the
+ * service the body needs. The generated manifest index is imported by the check
+ * scripts and by `src/db/configured-migrations.ts`, so a participant that
+ * statically imported an ORM-dependent service graph would pull it into every
+ * one of them.
+ */
+export interface ModuleLifecycleParticipant<EM = unknown> {
+  /**
+   * Runs after the installed module's settings are reconciled and before its
+   * own install hook. A throw aborts the install and reverts its migrations,
+   * which is the property FR-016 rests on: an operator installing a module with
+   * an unreadable bundle is told while they can still choose not to install it.
+   */
+  onModuleInstalled(event: ModuleInstalledEvent<EM>): Promise<void>;
+  /** Runs on `uninstall --hard` only. */
+  onModuleHardUninstalled(event: ModuleHardUninstalledEvent<EM>): Promise<void>;
+}
+
 /** Aggregate of what a module's `manifest.ts` may export at runtime. */
 export interface ModuleManifestExports<EM = unknown, Redis = unknown> {
   manifest: ModuleManifest;
   installHook?: ModuleInstallHook<EM, Redis>;
   uninstallHook?: ModuleUninstallHook<EM, Redis>;
+  /**
+   * This module's interest in every *other* module's lifecycle — see
+   * {@link ModuleLifecycleParticipant}. Additive and optional: the modules that
+   * declare one are the two that keep a projection of the manifest set, and
+   * every other module's `manifest.ts` is unchanged.
+   */
+  lifecycleParticipant?: ModuleLifecycleParticipant<EM>;
 }
 
 // ---------------------------------------------------------------------------

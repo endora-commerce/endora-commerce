@@ -5,6 +5,7 @@ import {
   ModuleManifestSchema,
   type ModuleManifest,
   type ModuleInstallHook,
+  type ModuleLifecycleParticipant,
   type ModuleUninstallHook,
   type ModuleManifestExports,
 } from '@b2b/contracts';
@@ -16,11 +17,60 @@ export interface LoadedModuleEntry<EM = unknown, R = unknown> {
   filePath: string;
   installHook?: ModuleInstallHook<EM, R>;
   uninstallHook?: ModuleUninstallHook<EM, R>;
+  /**
+   * This module's interest in *every other* module's install and hard
+   * uninstall — feature 080, T036a / D-159. Declared as an export of the
+   * module's `manifest.ts`, exactly as the two hooks above are.
+   */
+  lifecycleParticipant?: ModuleLifecycleParticipant<EM>;
+}
+
+/** A participant, with the module that declared it — named in a failure. */
+export interface LoadedLifecycleParticipant<EM = unknown> {
+  moduleId: string;
+  participant: ModuleLifecycleParticipant<EM>;
 }
 
 export interface LoadedManifestRegistry<EM = unknown, R = unknown> {
   modules: Map<string, LoadedModuleEntry<EM, R>>;
   graph: ModuleDepGraph;
+  /**
+   * Every lifecycle participant the modules in this registry declare — or
+   * `null` when whoever built this registry is in no position to say.
+   *
+   * The two answers are different facts and the field exists to keep them
+   * apart. `[]` means *"I enumerated the modules and none declares one"*, and
+   * the orchestrator proceeds. `null` means *"I cannot enumerate them"*, and
+   * the orchestrator **refuses** the operation rather than performing an
+   * install that silently reconciles nothing. Collapsing the two is the
+   * fail-open this field was added to close: the reconcilers used to be
+   * optional injected values, so a caller that passed neither got an install
+   * indistinguishable from one where there was nothing to reconcile. The idiom
+   * is `MigrationOwnership.migrationNamesFor`'s, eleven lines from where the
+   * orchestrator reads it (`src/db/configured-migrations.ts`).
+   *
+   * It is **required**, so a builder cannot omit the answer: `[]` for a fixture
+   * registry that carries no participants is a declaration a reader can see.
+   */
+  participants: readonly LoadedLifecycleParticipant<EM>[] | null;
+}
+
+/**
+ * Collect the participants declared by a set of loaded entries.
+ *
+ * Sorted by module id so the order a projection is written in is a property of
+ * the platform rather than of whichever walk produced the map.
+ */
+export function collectLifecycleParticipants<EM = unknown, R = unknown>(
+  entries: Iterable<LoadedModuleEntry<EM, R>>,
+): LoadedLifecycleParticipant<EM>[] {
+  const found: LoadedLifecycleParticipant<EM>[] = [];
+  for (const entry of entries) {
+    if (entry.lifecycleParticipant) {
+      found.push({ moduleId: entry.manifest.id, participant: entry.lifecycleParticipant });
+    }
+  }
+  return found.sort((a, b) => a.moduleId.localeCompare(b.moduleId));
 }
 
 export class ManifestLoadError extends Error {
@@ -173,6 +223,9 @@ export async function discoverManifests<EM = unknown, R = unknown>(
       filePath,
       ...(imported.installHook ? { installHook: imported.installHook } : {}),
       ...(imported.uninstallHook ? { uninstallHook: imported.uninstallHook } : {}),
+      ...(imported.lifecycleParticipant
+        ? { lifecycleParticipant: imported.lifecycleParticipant }
+        : {}),
     });
   }
 
@@ -199,7 +252,7 @@ export async function discoverManifests<EM = unknown, R = unknown>(
     );
   }
 
-  return { modules, graph };
+  return { modules, graph, participants: collectLifecycleParticipants(modules.values()) };
 }
 
 /**

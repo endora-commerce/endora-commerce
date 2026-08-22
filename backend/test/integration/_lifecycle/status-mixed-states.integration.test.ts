@@ -65,6 +65,7 @@ describe('Module status — mixed states (integration)', () => {
         ['fixture_st_c', { manifest: c, filePath: '<test>' }],
       ]) as never,
       graph: new ModuleDepGraph([a, b, c]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     const em = db.em();

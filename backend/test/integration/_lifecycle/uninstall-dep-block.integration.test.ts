@@ -67,6 +67,7 @@ describe('Module uninstall — dependents block (integration)', () => {
         ['fixture_quotes', { manifest: quotes, filePath: '<test>' }],
       ]) as never,
       graph: new ModuleDepGraph([pricing, quotes]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     // Seed both rows as installed.

@@ -75,6 +75,7 @@ describe('Module install — SC-002 rollback (integration)', () => {
         ],
       ]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     const auditLog = new AuditLogService(() => db.em());

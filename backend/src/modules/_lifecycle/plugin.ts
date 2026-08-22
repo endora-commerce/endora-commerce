@@ -24,6 +24,12 @@ export interface LifecycleModuleDeps {
   /**
    * Either a pre-built registry (production composition root supplies the
    * static one), or a manifest list the module composes itself.
+   *
+   * Since feature 080's T036a it also carries the lifecycle participants the
+   * orchestrator runs on every install and hard uninstall — see
+   * `OrchestratorDeps.registry`. The two reconcilers this interface used to
+   * forward are gone with it: they were services only a composition root could
+   * resolve, which is why the five `module:*` commands passed neither.
    */
   registry: LoadedManifestRegistry;
   /**
@@ -35,20 +41,6 @@ export interface LifecycleModuleDeps {
    * and refuses a hard uninstall it cannot enumerate — see `OrchestratorDeps`.
    */
   migrationOwnership?: OrchestratorDeps['migrationOwnership'];
-  /**
-   * Optional Admin UI i18n reconciler — feature 019. When supplied, the
-   * orchestrator drives bundle install on module:install and bundle
-   * removal on module:uninstall --hard. Soft-uninstall preserves bundles.
-   * The reconciler is provided by `_i18n`'s plugin handle.
-   */
-  i18nReconciler?: OrchestratorDeps['i18nReconciler'];
-  /**
-   * Optional Admin Command Palette actions reconciler — feature 020.
-   * When supplied, the orchestrator drives module_actions UPSERT on
-   * module:install and DELETE on module:uninstall --hard. Soft-uninstall
-   * leaves rows in place; visibility is gated by the registry-state join.
-   */
-  adminActionsReconciler?: OrchestratorDeps['adminActionsReconciler'];
 }
 
 export interface LifecycleModuleHandle {
@@ -72,10 +64,6 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
     auditLog: deps.auditLog,
     registry: deps.registry,
     ...(deps.migrationOwnership ? { migrationOwnership: deps.migrationOwnership } : {}),
-    ...(deps.i18nReconciler ? { i18nReconciler: deps.i18nReconciler } : {}),
-    ...(deps.adminActionsReconciler
-      ? { adminActionsReconciler: deps.adminActionsReconciler }
-      : {}),
   } satisfies OrchestratorDeps);
 
   // Feature 072 (D-38) — what is left of the boot half: arming the pub/sub

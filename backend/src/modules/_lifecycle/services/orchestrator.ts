@@ -26,7 +26,10 @@ import {
   pauseWorkersFor,
   resumeWorkersFor,
 } from '../../../kernel/lifecycle/plugin-helpers.js';
-import type { LoadedManifestRegistry } from './manifest-loader.js';
+import type {
+  LoadedLifecycleParticipant,
+  LoadedManifestRegistry,
+} from './manifest-loader.js';
 import {
   coreMigrationOwnership,
   type MigrationOwnership,
@@ -42,7 +45,18 @@ export interface OrchestratorDeps {
   redis: Redis;
   em: () => EntityManager;
   auditLog: AuditLogService;
-  /** The loaded manifest registry — built once at boot or per CLI run. */
+  /**
+   * The loaded manifest registry — built once at boot or per CLI run.
+   *
+   * It carries the **lifecycle participants** as well as the manifests (feature
+   * 080, T036a / D-159): the two modules that keep a projection of the manifest
+   * set — `_i18n`'s `translation_bundles`, `admin_actions`' `module_actions` —
+   * declare a `lifecycleParticipant` in their `manifest.ts` and the orchestrator
+   * collects them from here. They used to arrive as two optional injected
+   * services, which only a composition root could supply, so an install from a
+   * terminal reconciled neither while the same install from `/platform/modules`
+   * reconciled both.
+   */
   registry: LoadedManifestRegistry;
   /**
    * Who owns which migration — the input `uninstall --hard` reverts by.
@@ -79,37 +93,6 @@ export interface OrchestratorDeps {
     info(msg: string): void;
     warn(msg: string): void;
     error(msg: string): void;
-  };
-  /**
-   * Optional Admin UI i18n reconciler — feature 019. When supplied, the
-   * orchestrator delegates per-module bundle install (after settings
-   * reconciliation, before the module's own install hook) and per-module
-   * bundle removal (during hard-uninstall) so `translation_bundles` rows
-   * stay aligned with the lifecycle. Omitted in tests / CLI runs that
-   * don't need translation bookkeeping.
-   */
-  i18nReconciler?: {
-    install(args: {
-      moduleId: string;
-      modulePath: string;
-      bundlesDir: string;
-    }): Promise<{ installed: string[] }>;
-    remove(moduleId: string): Promise<{ removed: number }>;
-  };
-  /**
-   * Optional Admin Command Palette actions reconciler — feature 020.
-   * When supplied, install delegates per-module action UPSERT-and-prune
-   * (after i18n bundles, before the install hook) and hard-uninstall
-   * delegates per-module action removal so `module_actions` rows stay
-   * aligned with the lifecycle. Omitted in tests / CLI runs that don't
-   * need command-palette bookkeeping.
-   */
-  adminActionsReconciler?: {
-    install(args: {
-      moduleId: string;
-      actions: readonly import('@b2b/contracts').ModuleAction[];
-    }): Promise<{ upserted: number; pruned: number }>;
-    remove(moduleId: string): Promise<{ removed: number }>;
   };
 }
 
@@ -241,6 +224,10 @@ export class ModuleLifecycleOrchestrator {
 
       await this.assertInstallClosesNoCycle(moduleId, installedSet);
 
+      // Before the registration row moves: an install this orchestrator cannot
+      // reconcile is refused rather than performed and reported as done.
+      const participants = this.participantsOrRefuse('install', moduleId);
+
       // Mark 'installing' so a crash leaves a paper trail.
       await this.upsertRegistration(moduleId, {
         state: 'installing',
@@ -282,28 +269,32 @@ export class ModuleLifecycleOrchestrator {
           }
         }
 
-        // 2b. Admin UI i18n bundles — feature 019. Optional reconciler;
-        // when wired, refreshes translation_bundles rows for the module
-        // from `<modulePath>/<bundlesDir>/<lang>.json`. Bundle-loader
-        // failures bubble out of install transaction (FR-016).
-        if (manifest.i18n && this.deps.i18nReconciler) {
-          await this.deps.i18nReconciler.install({
-            moduleId: manifest.id,
-            modulePath: dirname(entry.filePath),
-            bundlesDir: manifest.i18n.bundlesDir,
-          });
-        }
-
-        // 2c. Admin Command Palette actions — feature 020. Optional
-        // reconciler; when wired, refreshes module_actions rows for the
-        // module from `manifest.actions`. Reconciler errors abort the
-        // install transaction (FR-005 — duplicate-id surfaces as the
-        // install failure rather than a silent drop).
-        if (this.deps.adminActionsReconciler) {
-          await this.deps.adminActionsReconciler.install({
-            moduleId: manifest.id,
-            actions: manifest.actions ?? [],
-          });
+        // 2b. Every module that keeps a projection of the manifest set gets
+        // told, in one pass (feature 080, T036a / D-159). `_i18n` refreshes
+        // `translation_bundles` from `<modulePath>/<bundlesDir>/<lang>.json`
+        // and `admin_actions` upserts-and-prunes `module_actions` from
+        // `manifest.actions`; each decides for itself whether this manifest
+        // is one it projects, which is why the orchestrator no longer asks
+        // about `manifest.i18n`. A participant that throws aborts the install
+        // and reverts its migrations, which is what FR-016 rests on — an
+        // operator installing a module with an unreadable bundle is told while
+        // they can still choose not to install it.
+        //
+        // The `em` is **this operation's**: the two reconcilers accepted a
+        // transactional one and were called without it, so their rows landed
+        // on a fork made when the platform was composed rather than in the
+        // work the orchestrator is doing.
+        {
+          const participantEm = this.deps.em();
+          for (const { moduleId: owner, participant } of participants) {
+            await participant.onModuleInstalled({
+              moduleId: manifest.id,
+              manifest,
+              modulePath: dirname(entry.filePath),
+              em: participantEm,
+              log: taggedLogger(this.log, owner),
+            });
+          }
         }
 
         // 3. Install hook — runs inside the same em context.
@@ -446,6 +437,19 @@ export class ModuleLifecycleOrchestrator {
       // operator uninstalling the dependents first.
       this.assertDeactivatable(moduleId);
 
+      // A hard uninstall is the half that does not self-heal (D-159 §7): both
+      // boot reconcilers iterate the manifest registry, so `uninstall --hard`
+      // followed by `pnpm remove` leaves rows no boot pass will ever see the
+      // manifest for again. Refuse before the uninstall hook rather than after,
+      // for the reason the migration-revert refusal states in the same file: a
+      // hard uninstall that removes the registration and leaves the projection
+      // is the one outcome it may not have. A **soft** uninstall reaches no
+      // participant at all — it preserves the module's data by design — so it
+      // is not gated on this.
+      const participants = opts.hard
+        ? this.participantsOrRefuse('uninstall --hard', moduleId)
+        : [];
+
       // Block on dependents (any state except uninstalled).
       const dependents = await this.installedDependentsOf(moduleId);
       if (dependents.length > 0) {
@@ -507,14 +511,21 @@ export class ModuleLifecycleOrchestrator {
         revertedMigrations = await this.revertMigrationsFor(moduleId);
         // Hard uninstall deletes the row; soft preserves it as 'uninstalled'.
         await em.removeAndFlush(row);
-        // Feature 019 — hard-uninstall drops the module's translation
-        // bundles too. Soft-uninstall preserves them so a re-install
-        // picks them up unchanged (data-model §3).
-        if (this.deps.adminActionsReconciler) {
-          await this.deps.adminActionsReconciler.remove(moduleId);
-        }
-        if (manifest?.i18n && this.deps.i18nReconciler) {
-          await this.deps.i18nReconciler.remove(moduleId);
+        // Hard-uninstall drops every projection of this module's manifest —
+        // its translation bundles and its palette actions. Soft-uninstall
+        // preserves them so a re-install picks them up unchanged
+        // (data-model §3), which is why this sits in the `hard` branch.
+        //
+        // `manifest` is nullable here and the participants are told so: an
+        // orphan registration row, whose module this instance no longer has,
+        // is exactly the case whose rows nothing else will ever remove.
+        for (const { moduleId: owner, participant } of participants) {
+          await participant.onModuleHardUninstalled({
+            moduleId,
+            manifest,
+            em,
+            log: taggedLogger(this.log, owner),
+          });
         }
       } else {
         row.state = 'uninstalled';
@@ -1057,6 +1068,37 @@ export class ModuleLifecycleOrchestrator {
    *
    * A failing revert still stops the loop rather than widening the gap.
    */
+  /**
+   * The lifecycle participants this operation must run — or a refusal.
+   *
+   * The same two-answers distinction {@link revertMigrationsFor} makes, on the
+   * other half of the same operation. `[]` is *"I enumerated the modules and
+   * none keeps a projection of the manifest set"* and is an ordinary answer a
+   * fixture registry gives; `null` is *"I cannot enumerate them"*, and an
+   * install performed on that answer reconciles nothing and reports success —
+   * which is precisely the shape this task closed on the CLI side, so it is not
+   * re-introduced here as a default.
+   */
+  private participantsOrRefuse(
+    operation: string,
+    moduleId: string,
+  ): readonly LoadedLifecycleParticipant<EntityManager>[] {
+    const participants = this.deps.registry.participants;
+    if (participants === null) {
+      throw new Error(
+        `[${operation}] refusing to ${operation} "${moduleId}": the manifest registry this ` +
+          `orchestrator was given cannot enumerate the lifecycle participants, so it cannot ` +
+          `refresh the projections the manifest set drives — the module's translation bundles ` +
+          `and its command-palette actions. Performing the operation anyway would report ` +
+          `success for an install that installed no bundle, or for a hard uninstall that left ` +
+          `rows nothing will ever remove. Build the registry with buildStaticRegistry() or ` +
+          `discoverManifests(), both of which collect participants; a registry literal must ` +
+          `say \`participants: []\` when it deliberately carries none.`,
+      );
+    }
+    return participants as readonly LoadedLifecycleParticipant<EntityManager>[];
+  }
+
   private async revertMigrationsFor(moduleId: string): Promise<string[]> {
     const ownership = this.deps.migrationOwnership ?? coreMigrationOwnership();
     const names = ownership.migrationNamesFor(moduleId);
@@ -1103,6 +1145,23 @@ export class ModuleLifecycleOrchestrator {
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * The orchestrator's logger, tagged with the participant that is writing.
+ *
+ * A participant runs on *another* module's install, so an untagged line reads
+ * as the installed module's own and sends a reader to the wrong `manifest.ts`.
+ */
+function taggedLogger(
+  log: NonNullable<OrchestratorDeps['log']>,
+  moduleId: string,
+): NonNullable<OrchestratorDeps['log']> {
+  return {
+    info: (msg) => log.info(`[${moduleId}] ${msg}`),
+    warn: (msg) => log.warn(`[${moduleId}] ${msg}`),
+    error: (msg) => log.error(`[${moduleId}] ${msg}`),
+  };
+}
 
 function consoleLogger(): NonNullable<OrchestratorDeps['log']> {
   return {

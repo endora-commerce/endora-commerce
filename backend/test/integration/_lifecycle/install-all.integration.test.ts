@@ -63,6 +63,13 @@ describe('Module install — the whole registry installs from empty (integration
         ]),
       ) as never,
       graph,
+      // Deliberately none (feature 080, T036a / D-159). The subject here is the
+      // install *order* over the whole registered set, and the entries above
+      // carry a placeholder `filePath`, so running `_i18n`'s participant would
+      // have it look for bundle files under `dirname('<manifest-index>')`. The
+      // participants are covered by `test/unit/_lifecycle/lifecycle-participants.test.ts`
+      // and by the CLI integration file beside this one.
+      participants: [],
     };
 
     const orchestrator = new ModuleLifecycleOrchestrator({

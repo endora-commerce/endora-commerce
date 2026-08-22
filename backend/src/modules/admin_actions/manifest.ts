@@ -1,4 +1,5 @@
-import { defineModuleManifest } from '@b2b/contracts';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import { defineModuleManifest, type ModuleLifecycleParticipant } from '@b2b/contracts';
 
 /**
  * Admin Command Palette Actions Registry — feature 020.
@@ -49,3 +50,43 @@ export const manifest = defineModuleManifest({
   // protecting a convenience, which is not what `nonDeactivatable` is for.
   activation: { settingCode: 'admin_actions.enabled', default: true },
 });
+
+/**
+ * `module_actions` follows the manifest set — feature 080, T036a / D-159.
+ *
+ * `_i18n/manifest.ts` states the shape's reasoning in full; this module is the
+ * second instance of it, projecting every other module's `manifest.actions`
+ * array instead of its `i18n` block.
+ *
+ * **It is not gated on this module's own activation, and that is a ruling**
+ * (D-159 §9, the owner, 2026-08-22). `composition.ts` used to forward the
+ * reconciler as a lazily-resolved port, so an operator who had switched the
+ * command palette off could not install an *unrelated* module — the install
+ * aborted on a `MODULE_DISABLED` from a discovery surface that has nothing to
+ * do with it. That was the better of the only two options then on the table,
+ * the other being a backend that would not start; the third, which this takes,
+ * is that a projection of manifest data is written whether or not anything is
+ * serving it. The rows are inert while the palette is off and the palette
+ * answers from them, unchanged, the moment it is switched back on.
+ */
+export const lifecycleParticipant: ModuleLifecycleParticipant<EntityManager> = {
+  async onModuleInstalled({ moduleId, manifest: installed, em }) {
+    const { AdminActionsReconciler } = await import(
+      './services/admin-actions-reconciler.js'
+    );
+    await new AdminActionsReconciler({ em: () => em }).installForModule({
+      moduleId,
+      // Unconditional, including for the empty array: `installForModule`
+      // upserts *and prunes*, so a module that has dropped its last action
+      // needs the call in order for its last row to go.
+      actions: installed.actions ?? [],
+      em,
+    });
+  },
+  async onModuleHardUninstalled({ moduleId, em }) {
+    const { AdminActionsReconciler } = await import(
+      './services/admin-actions-reconciler.js'
+    );
+    await new AdminActionsReconciler({ em: () => em }).removeForModule({ moduleId, em });
+  },
+};
