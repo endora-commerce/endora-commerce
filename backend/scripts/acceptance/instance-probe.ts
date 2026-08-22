@@ -419,6 +419,7 @@ async function phaseUninstall(): Promise<AssertionResult[]> {
     '../../src/modules/_lifecycle/registered-manifests.js'
   );
   const { enterSystemScope } = await import('../../src/kernel/scope.js');
+  const { configuredMigrations } = await import('../../src/db/configured-migrations.js');
   const { default: Redis } = await import('ioredis');
 
   const title = 'a hard uninstall reverts exactly the package\'s migration';
@@ -465,6 +466,12 @@ async function phaseUninstall(): Promise<AssertionResult[]> {
           ...(entry.uninstallHook ? { uninstallHook: entry.uninstallHook } : {}),
         })),
       ),
+      // The merged ownership, exactly as a composition root supplies it. Left
+      // out, the orchestrator answers from the committed core registry and
+      // refuses to hard-uninstall a package it cannot enumerate — which is the
+      // correct refusal, and would make A7 measure the refusal rather than the
+      // revert.
+      migrationOwnership: (await configuredMigrations()).ownership,
     });
     const before = (
       (await orm.em.fork().execute('select count(*)::int as n from mikro_orm_migrations')) as Array<{

@@ -27,6 +27,15 @@ export interface LifecycleModuleDeps {
    */
   registry: LoadedManifestRegistry;
   /**
+   * Who owns which migration, for `uninstall --hard` (feature 080, T033).
+   *
+   * Forwarded rather than computed: the merged answer depends on which
+   * extension packages this instance installed, which only a composition root
+   * knows. Omitted, the orchestrator answers from the committed core registry
+   * and refuses a hard uninstall it cannot enumerate — see `OrchestratorDeps`.
+   */
+  migrationOwnership?: OrchestratorDeps['migrationOwnership'];
+  /**
    * Optional Admin UI i18n reconciler — feature 019. When supplied, the
    * orchestrator drives bundle install on module:install and bundle
    * removal on module:uninstall --hard. Soft-uninstall preserves bundles.
@@ -62,6 +71,7 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
     em: deps.emFactory,
     auditLog: deps.auditLog,
     registry: deps.registry,
+    ...(deps.migrationOwnership ? { migrationOwnership: deps.migrationOwnership } : {}),
     ...(deps.i18nReconciler ? { i18nReconciler: deps.i18nReconciler } : {}),
     ...(deps.adminActionsReconciler
       ? { adminActionsReconciler: deps.adminActionsReconciler }

@@ -12,6 +12,7 @@ import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registr
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
+import { migrationOwnershipOf } from '../../../src/db/configured-migrations.js';
 
 /**
  * Hard uninstall must revert the target module's migrations.
@@ -188,6 +189,11 @@ describe('Module uninstall — migration revert resolves from the registry (inte
         modules: new Map([['fixture_no_migs', { manifest, filePath: '<test>' }]]) as never,
         graph: new ModuleDepGraph([manifest]),
       },
+      // Feature 080 (T033): covered, and owns nothing — the branch this test
+      // is about. Without the declaration the orchestrator answers from the
+      // core registry, which has never heard of `fixture_no_migs`, and refuses
+      // instead: a different branch answering a different question.
+      migrationOwnership: migrationOwnershipOf([], ['fixture_no_migs']),
       migratorFor: async () => migrator,
       log: { info: () => {}, warn: (message) => warnings.push(message), error: () => {} },
     });

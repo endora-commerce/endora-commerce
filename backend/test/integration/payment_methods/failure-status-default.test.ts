@@ -108,8 +108,10 @@ const NORMALISATION_CLASS_RE = /^Migration\d{8}T\d{6}(.+)FailureStatusOnHold$/;
  * `unscoped-name` rule makes that a contract, not a convention), so the gateway
  * set is derivable and nothing here is a list somebody has to remember.
  */
-function configuredOrder(): string[] {
-  const names = (mikroOrmConfig.migrations?.migrationsList ?? []).map((entry) => entry.name);
+async function configuredOrder(): Promise<string[]> {
+  const names = ((await mikroOrmConfig()).migrations?.migrationsList ?? []).map(
+    (entry) => entry.name,
+  );
   // Exit-2 equivalent: an empty list would make every assertion below vacuous.
   expect(names.length, 'the configured migration order is empty').toBeGreaterThan(0);
   return names;
@@ -223,8 +225,8 @@ describe('shipped status_on_failure default [integration]', () => {
    * needs no second file — and it is the first test above that catches one
    * which seeds a terminal status and forgets.
    */
-  it('runs each gateway normalisation after that gateway`s own seed', () => {
-    const names = configuredOrder();
+  it('runs each gateway normalisation after that gateway`s own seed', async () => {
+    const names = await configuredOrder();
     const seeds = positionsBySegment(names, SEED_CLASS_RE);
     const normalisations = positionsBySegment(names, NORMALISATION_CLASS_RE);
 
@@ -258,8 +260,8 @@ describe('shipped status_on_failure default [integration]', () => {
    * module the configured order shows seeding payment methods must appear in
    * both.
    */
-  it('keeps its own lists covering every module that seeds a payment method', () => {
-    const seeds = positionsBySegment(configuredOrder(), SEED_CLASS_RE);
+  it('keeps its own lists covering every module that seeds a payment method', async () => {
+    const seeds = positionsBySegment(await configuredOrder(), SEED_CLASS_RE);
     const moduleIds = [...seeds.keys()].map((segment) =>
       segment.replace(/(?<!^)([A-Z])/g, '_$1').toLowerCase(),
     );

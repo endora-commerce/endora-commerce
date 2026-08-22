@@ -27,7 +27,10 @@ import {
   resumeWorkersFor,
 } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { LoadedManifestRegistry } from './manifest-loader.js';
-import { MIGRATION_REGISTRY } from '../../../db/migrations-registry.generated.js';
+import {
+  coreMigrationOwnership,
+  type MigrationOwnership,
+} from '../../../db/configured-migrations.js';
 import { findModuleCycles } from '../../../db/migration-order.js';
 
 // ---------------------------------------------------------------------------
@@ -41,6 +44,26 @@ export interface OrchestratorDeps {
   auditLog: AuditLogService;
   /** The loaded manifest registry — built once at boot or per CLI run. */
   registry: LoadedManifestRegistry;
+  /**
+   * Who owns which migration — the input `uninstall --hard` reverts by.
+   *
+   * **Injected, and a design decision rather than an `await`** (feature 080,
+   * T033 / D-155.3(c)). This used to be a static `MIGRATION_REGISTRY` import,
+   * justified in its own comment by "the orchestrator must never pull in the
+   * ORM config" — which is right, and is why the merged value arrives as a
+   * value rather than as an `import` of anything async. The merge itself
+   * belongs to whoever composed the platform, because only a composition root
+   * knows which packages this instance installed; `composition.ts` passes
+   * `(await configuredMigrations()).ownership`.
+   *
+   * Omitting it is a **declaration**, not a default that guesses: the
+   * orchestrator then answers from the committed core registry alone
+   * ({@link coreMigrationOwnership}) and **refuses** a hard uninstall of any
+   * module that registry does not cover, rather than reverting nothing and
+   * calling it done. That is the honest answer for the five `module:*` CLI
+   * scripts, which are fed bare-core `REGISTERED_MANIFESTS` today (T036).
+   */
+  migrationOwnership?: MigrationOwnership;
   /**
    * How a migrator is obtained. Defaults to the ORM's own accessor; tests
    * inject a stub here so a revert can be observed without touching schema.
@@ -1001,22 +1024,49 @@ export class ModuleLifecycleOrchestrator {
   /**
    * Revert the migrations a module owns, newest first.
    *
-   * Ownership comes from `MIGRATION_REGISTRY` (a data-only import — the
-   * orchestrator must never pull in the ORM config) and the migration name is
-   * always `cls.name`, which is exactly what `mikro_orm_migrations.name`
-   * stores. Ordering is ascending timestamp, which for a single module is the
-   * resolved execution order: `orderMigrations` emits a module's migrations
-   * contiguously and in ascending timestamp order
+   * Ownership comes from an injected {@link MigrationOwnership} — a data-only
+   * value, because the orchestrator must never pull in the ORM config — and the
+   * migration name is always `cls.name`, which is exactly what
+   * `mikro_orm_migrations.name` stores. Ordering is ascending class name, which
+   * for a single module is the resolved execution order: `orderMigrations`
+   * emits a module's migrations contiguously and in ascending timestamp order,
+   * and the timestamp is the head of the name
    * (specs/081-per-module-migration-order/contracts/ordering-algorithm.md,
    * invariants J2 and J3).
    *
-   * Best-effort: a module with no migrations logs a warning and reverts
-   * nothing, and a failing revert stops the loop rather than widening the gap.
+   * ## The empty case is two different answers, and only one of them is fine
+   *
+   * This used to warn and return `[]` whenever the filter came back empty, so
+   * an installed extension package — whose migrations reach the order at
+   * runtime and never reach the committed core registry (D-119/D-155) — **hard
+   * uninstalled to a warning and left its table in the database**. That is data
+   * left behind by an operation the operator believes removed it, on precisely
+   * the population the mechanism exists for (D-155.3(c)).
+   *
+   * So the two are separated at the seam that knows the difference:
+   * `migrationNamesFor` answers `[]` for *"this module owns no migration"* —
+   * ordinary, and 39 core modules are in it — and `null` for *"the registry I
+   * was handed cannot answer for this module"*. The first is logged; the second
+   * throws, because reverting nothing and reporting success is the one outcome
+   * a hard uninstall may not have.
+   *
+   * A failing revert still stops the loop rather than widening the gap.
    */
   private async revertMigrationsFor(moduleId: string): Promise<string[]> {
-    const names = MIGRATION_REGISTRY.filter((entry) => entry.moduleId === moduleId)
-      .map((entry) => entry.cls.name)
-      .sort();
+    const ownership = this.deps.migrationOwnership ?? coreMigrationOwnership();
+    const names = ownership.migrationNamesFor(moduleId);
+    if (names === null) {
+      throw new Error(
+        `[uninstall] refusing to hard-uninstall "${moduleId}": the migration registry this ` +
+          `orchestrator was given covers ${ownership.coveredModuleIds.size} module(s) and not ` +
+          `that one, so it cannot enumerate the module's chain and cannot say whether there is ` +
+          `anything to revert. Reverting nothing here would drop the module's registration and ` +
+          `leave its tables in the database, which is the one outcome a hard uninstall may not ` +
+          `have. An installed extension package is the case this happens in: its migrations are ` +
+          `discovered at runtime (D-119/D-155), so the orchestrator must be constructed with the ` +
+          `merged 'migrationOwnership' — see src/db/configured-migrations.ts.`,
+      );
+    }
     if (names.length === 0) {
       this.log.warn(
         `[uninstall] module "${moduleId}" owns no registered migration; ` +
@@ -1026,7 +1076,9 @@ export class ModuleLifecycleOrchestrator {
     }
     const migrator = await this.migrator();
     const reverted: string[] = [];
-    for (const name of names.reverse()) {
+    // Copied before reversing: the ownership value is shared for the process
+    // and `reverse()` mutates in place.
+    for (const name of [...names].reverse()) {
       try {
         const result = await migrator.down({ migrations: [name] });
         for (const m of result) reverted.push(m.name);

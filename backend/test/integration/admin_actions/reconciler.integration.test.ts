@@ -24,7 +24,7 @@ describe('AdminActionsReconciler (integration)', () => {
   let em: EntityManager;
 
   beforeAll(async () => {
-    orm = await MikroORM.init(mikroOrmConfig);
+    orm = await MikroORM.init(await mikroOrmConfig());
     em = orm.em.fork() as EntityManager;
   }, 60_000);
 

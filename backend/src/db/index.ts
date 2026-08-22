@@ -27,7 +27,7 @@ let ormInstance: MikroORM | undefined;
 
 export async function initOrm(): Promise<MikroORM> {
   if (!ormInstance) {
-    ormInstance = await MikroORM.init(mikroOrmConfig);
+    ormInstance = await MikroORM.init(await mikroOrmConfig());
   }
   return ormInstance;
 }

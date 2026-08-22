@@ -127,7 +127,7 @@ async function applyMigrations(): Promise<void> {
  * `DATABASE_URL` names at that moment for the life of the process.
  */
 async function configuredMigrationNames(): Promise<readonly string[]> {
-  return (await import('../src/db/configured-migrations.js')).MIGRATION_NAMES;
+  return (await (await import('../src/db/configured-migrations.js')).configuredMigrations()).names;
 }
 
 /**

@@ -8,14 +8,26 @@ import { TEMPLATE_DIGEST_LENGTH } from '../../run-isolation.js';
 import {
   MIGRATION_SOURCE_ROOTS,
   TEMPLATE_SEED_SOURCES,
+  migrationSourceRoots,
   templateIdentity,
   type MigrationSourceRoot,
 } from '../../template-identity.js';
 import {
-  MIGRATION_NAMES,
-  REGISTERED_MIGRATIONS,
+  configuredMigrations,
   type RegisteredMigration,
 } from '../../../src/db/configured-migrations.js';
+
+/**
+ * The configured set, read once for this file.
+ *
+ * It is an async factory since feature 080's T033: an installed extension
+ * package's migrations are discovered at runtime (D-119/D-155), so the merged
+ * order cannot be a module-level constant. `configuredMigrations()` memoises,
+ * so asking here and asking inside `templateIdentity()` is one answer.
+ */
+const configured = await configuredMigrations();
+const MIGRATION_NAMES = configured.names;
+const REGISTERED_MIGRATIONS = configured.registered;
 
 /**
  * Issue #289 — what makes this run's migration template *this run's*.
@@ -298,6 +310,98 @@ describe('a template is never identified from less than it holds', () => {
     expect(other.digest).not.toBe(one.digest);
   });
 
+  it('reads a package root the instance holds, and records it by name@version', async () => {
+    // T033's half of D-155.5: the `external` root exists now, and it is a
+    // directory inside an instance's `node_modules` rather than a path under
+    // `backend/`. What the digest records for it is `<name>@<version>/…`,
+    // because the on-disk path is a property of the instance — a tmpdir here, a
+    // container mount in production — and recording that would give one package
+    // a different digest in every instance and disable template reuse.
+    const instance = await mkdtemp(join(tmpdir(), 'b2b-t033-instance-'));
+    trees.push(instance);
+    const packageMigrations = join(instance, 'node_modules/@vendor/mod-loyalty/dist/migrations');
+    await mkdir(packageMigrations, { recursive: true });
+    await writeFile(
+      join(packageMigrations, '20260821T120000_loyalty_init.js'),
+      'export class Migration20260821T120000LoyaltyInit {}\n',
+    );
+    await writeFile(join(packageMigrations, 'index.js'), 'export const migrations = [];\n');
+
+    const root = await fixtureTree({ migrations: ['create table a ();'] });
+    trees.push(root);
+    const roots = await migrationSourceRoots([
+      {
+        packageName: '@vendor/mod-loyalty',
+        version: '4.2.0',
+        migrationsDirectory: packageMigrations,
+      },
+    ]);
+    const identity = await templateIdentity({
+      root,
+      migrations: [core('MigrationOne'), external('Migration20260821T120000LoyaltyInit')],
+      sourceRoots: roots,
+    });
+
+    const paths = identity.sources.map((source) => source.path);
+    expect(paths).toContain('@vendor/mod-loyalty@4.2.0/20260821T120000_loyalty_init.js');
+    // `index.js` is read — a migration may import it — and is not a migration,
+    // so it settles no floor. Same rule the core helper follows.
+    expect(paths).toContain('@vendor/mod-loyalty@4.2.0/index.js');
+    expect(paths.some((path) => path.startsWith(instance))).toBe(false);
+    expect(identity.origins).toContainEqual({
+      origin: 'external',
+      registered: 1,
+      migrationFiles: 1,
+      sourceFiles: 2,
+    });
+  });
+
+  it('gives two versions of one package two digests', async () => {
+    // The identity half, which the class names alone cannot carry: a package
+    // that republishes the same class with a different body is a different
+    // platform, and `name@version` is what says so.
+    const root = await fixtureTree({ migrations: ['create table a ();'] });
+    trees.push(root);
+    const set = [core('MigrationOne'), external('Migration20260821T120000LoyaltyInit')];
+
+    const digests: string[] = [];
+    for (const version of ['1.0.0', '1.0.1']) {
+      const instance = await mkdtemp(join(tmpdir(), 'b2b-t033-version-'));
+      trees.push(instance);
+      const dir = join(instance, 'migrations');
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        join(dir, '20260821T120000_loyalty_init.js'),
+        'export class Migration20260821T120000LoyaltyInit {}\n',
+      );
+      const roots = await migrationSourceRoots([
+        { packageName: '@vendor/mod-loyalty', version, migrationsDirectory: dir },
+      ]);
+      digests.push(
+        (await templateIdentity({ root, migrations: set, sourceRoots: roots })).digest,
+      );
+    }
+
+    expect(digests[0]).not.toBe(digests[1]);
+  });
+
+  it('refuses an external root that says nothing about how to record itself', async () => {
+    const root = await fixtureTree({ migrations: ['create table a ();'] });
+    trees.push(root);
+    // Absolute, no `recordAs`: every instance would compute a different digest
+    // for the same package and no two runs would ever share a template.
+    await expect(
+      templateIdentity({
+        root,
+        migrations: [core('MigrationOne')],
+        sourceRoots: [
+          ...MIGRATION_SOURCE_ROOTS,
+          { origin: 'external', path: tmpdir(), kind: 'directory', sourceExtension: '.js' },
+        ],
+      }),
+    ).rejects.toThrow(/declares no 'recordAs'/);
+  });
+
   it('does not move because the tree sits somewhere else on disk', async () => {
     // Every agent runs from a worktree of their own. Two checkouts of one
     // commit must share a template, so the paths that go into the digest are
@@ -328,8 +432,13 @@ describe('the harness reads the order the platform runs', () => {
     // not mean importing the ORM config, which captures `DATABASE_URL` at
     // import — the parent process reads this before it knows which database
     // this run will migrate.
+    // The config is a factory since T033 — it merges an installed package's
+    // migrations, which cannot be known at import — so this awaits it. What the
+    // assertion says is unchanged and is the check that matters: a config that
+    // stopped merging, or that grew a merge of its own, goes red here.
     const { default: config } = await import('../../../src/db/mikro-orm.config.js');
-    expect((config.migrations?.migrationsList ?? []).map((entry) => entry.name)).toEqual(
+    const options = await config();
+    expect((options.migrations?.migrationsList ?? []).map((entry) => entry.name)).toEqual(
       MIGRATION_NAMES,
     );
   });

@@ -11,24 +11,29 @@
     "regressions rather than the record of a gap.",
     "T031 moved A5 to `pass` (an installed package now reaches `resolvedManifestEntries()` and",
     "both composition roots) and corrected A6's and A7's reasons, which had both read `Follows",
-    "A5` and stopped being true the moment A5 did."
+    "A5` and stopped being true the moment A5 did.",
+    "T033 moved A1, A2, A3 and A4 to `pass` — the whole schema half. A package's migrations and",
+    "entities now reach the ORM through the async seam in `src/db/configured-migrations.ts` and",
+    "`src/db/configured-entities.ts`. Seven of the nine now pass. A6 and A7 stay `fail`, and A7's",
+    "reason moved: its migration count is settled and its blocker is now A6's, which is why",
+    "T033 did not close it."
   ],
   "assertions": {
     "A1": {
-      "status": "fail",
-      "reason": "The migration registry is emitted by a filesystem walk of `backend/src` (`generate-composer.ts`) and committed. A package contributes no entry, so its migration class is never handed to the migrator and never lands in `mikro_orm_migrations`. Closed by Wave 3 T033 (P3, merged `orderMigrations` inputs)."
+      "status": "pass",
+      "reason": "Earned by T033 (P3 option A). The committed migration registry is still a walk of `backend/src` and still contributes no package entry — that is D-119's answer and it does not move. What moved is that the *configured* order is no longer the committed registry: `src/db/configured-migrations.ts` became an async factory that merges it with every installed package's `./migrations` export, tagged `origin: 'external'` so a stranger's stamp cannot join the frozen historical prefix. The probe reports the package's class applied alongside 158 core migrations."
     },
     "A2": {
-      "status": "fail",
-      "reason": "Follows A1: no migration ran, so the table does not exist."
+      "status": "pass",
+      "reason": "Follows A1, and is kept separate from it on purpose: the table exists because the migration body ran."
     },
     "A3": {
-      "status": "fail",
-      "reason": "Follows A1. It is kept separate from A2 on purpose — when A2 first goes green it must be because the body ran, not because a row was written."
+      "status": "pass",
+      "reason": "The tenant column and the named index are both in `information_schema` as the package's migration declared them — `organization_id uuid` nullable, `acceptance_probe_rows_organization_id_index`. This is the assertion that distinguishes a migration that ran from a row in `mikro_orm_migrations` standing in for one."
     },
     "A4": {
-      "status": "fail",
-      "reason": "The entity registry is emitted from a source-text probe for `@Entity(` under `backend/src` (`generate-composer.ts:603`), and compilation turns the decorator into `__decorate([...])`. A published package therefore contributes zero entities and the ORM metadata has no `AcceptanceProbeRow`. Closed by Wave 3 T033."
+      "status": "pass",
+      "reason": "Earned by T033. The source-text probe still cannot see a compiled decorator and never will, so the committed entity registry is unchanged; `src/db/configured-entities.ts` merges it at runtime with the entity classes each package's `./backend` export declares. `em.find(AcceptanceProbeRow, {})` returns against the host's own metadata."
     },
     "A5": {
       "status": "pass",
@@ -40,7 +45,7 @@
     },
     "A7": {
       "status": "fail",
-      "reason": "No longer `follows A5`, and the failure moved: the orchestrator now finds `acceptance_probe` in the registry and runs the hard uninstall, which answers `reverted 0 migration(s); migration row gone; table dropped`. It reverts nothing because there is nothing to revert — the package's migration never ran (A1) — so this closes with T033 and not before. The three-part detail is what makes that readable: two thirds of A7 are already true and only the count is not."
+      "reason": "The failure moved again, and its remaining blocker is A6's rather than T033's. The migration count is settled: the package's migration now runs (A1), and the orchestrator can enumerate its chain — `revertMigrationsFor` takes an injected `MigrationOwnership` and `composition.ts` supplies the merged one. What stops the revert is upstream of it: `uninstall` short-circuits on `already-uninstalled` because no `module_registrations` row for `acceptance_probe` exists. That row is written by `loadModulePresence` during `composeApp()`, and no phase reaches a composition — `gate-off` returns early on A6's missing activation Setting, so nothing composes and nothing reconciles. Fix A6's ordering and this follows without touching the revert. T033 deliberately did not widen into it: the settings reconciliation still reads bare-core `REGISTERED_MANIFESTS` (A6 item 1), and correcting that alone moves nothing, exactly as A6 says. What T033 did close is the fail-open underneath: the empty case now distinguishes \"this module owns no migration\" from \"the registry I was handed cannot answer for this module's origin\" and **refuses** the second, so a package can no longer hard-uninstall to a warning and leave its table behind."
     },
     "A8": {
       "status": "pass",

@@ -4,6 +4,10 @@ import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/module
 import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
 import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import {
+  migrationOwnershipOf,
+  type MigrationOwnership,
+} from '../../../src/db/configured-migrations.js';
 
 /**
  * Orchestrator — pure-logic unit tests against in-memory stubs.
@@ -170,6 +174,7 @@ function buildOrchestrator(opts: {
   migrator?: FakeMigrator;
   redis?: FakeRedis;
   auditLog?: FakeAuditLog;
+  migrationOwnership?: MigrationOwnership;
 }) {
   const em = opts.em ?? new FakeEm();
   const migrator = opts.migrator ?? new FakeMigrator();
@@ -190,6 +195,16 @@ function buildOrchestrator(opts: {
       em: () => em as never,
       auditLog: auditLog as never,
       registry: opts.registry,
+      // Feature 080 (T033): the orchestrator's hard uninstall distinguishes
+      // "this module owns no migration" from "the registry I was handed cannot
+      // answer for this module", and refuses the second. These fixtures are
+      // fictional modules that the committed core registry has never heard of,
+      // so a test declares its own ownership — every module its registry holds
+      // is covered, and none of them owns a migration. Saying so is what makes
+      // the `[]` the assertions below expect a *statement* rather than the
+      // silence the fail-open used to produce.
+      migrationOwnership:
+        opts.migrationOwnership ?? migrationOwnershipOf([], opts.registry.modules.keys()),
       migratorFor: async () => migrator as never,
     }),
   };
@@ -428,6 +443,91 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
       await orchestrator.uninstall('demo', { hard: true });
 
       expect(seen).toEqual([false, true]);
+    });
+
+    /**
+     * Feature 080, T033 — the fail-open `revertMigrationsFor` had, and the two
+     * branches that replace it.
+     *
+     * It used to warn and return `[]` for *any* empty filter, so a module whose
+     * migrations the orchestrator could not see hard-uninstalled to a warning
+     * and left its tables in the database. That is data left behind by an
+     * operation the operator believes removed it — and the population it
+     * happens to is exactly the one the mechanism exists for, an installed
+     * extension package whose chain is discovered at runtime (D-155.3(c)).
+     */
+    describe('the migration revert distinguishes "owns none" from "cannot answer"', () => {
+      it('is silent and proceeds when the registry covers the module and it owns none', async () => {
+        const reg = buildRegistry([{ id: 'demo' }]);
+        const { orchestrator, em, migrator } = buildOrchestrator({
+          registry: reg,
+          em: new FakeEm([installedRow('demo')]),
+          // Covered, owns nothing. The ordinary case: 39 core modules are in it.
+          migrationOwnership: migrationOwnershipOf([], ['demo']),
+        });
+
+        const result = await orchestrator.uninstall('demo', { hard: true });
+
+        expect(result.revertedMigrations).toEqual([]);
+        expect(migrator.reverted).toEqual([]);
+        // It really did uninstall: the row is gone, which is what makes this
+        // branch different from the refusal below rather than a softer spelling
+        // of it.
+        expect(em.rows).toHaveLength(0);
+      });
+
+      it('refuses, and removes nothing, when the registry cannot answer for the module', async () => {
+        const reg = buildRegistry([{ id: 'loyalty' }]);
+        const { orchestrator, em, migrator } = buildOrchestrator({
+          registry: reg,
+          em: new FakeEm([installedRow('loyalty')]),
+          // The shape a package creates: the manifest registry knows the
+          // module — the operator installed it, it composes, it has routes —
+          // while the migration registry handed to this orchestrator is core's
+          // and has never heard of it.
+          migrationOwnership: migrationOwnershipOf([], ['core', 'orders']),
+        });
+
+        await expect(orchestrator.uninstall('loyalty', { hard: true })).rejects.toThrow(
+          /cannot enumerate the module's chain/,
+        );
+        expect(migrator.reverted).toEqual([]);
+        // The registration survives. A hard uninstall that reverted nothing and
+        // dropped the row would leave the module's tables with no owner and no
+        // way back — the outcome this refusal exists to prevent.
+        expect(em.rows).toHaveLength(1);
+      });
+
+      it('reverts a covered module\'s chain newest first', async () => {
+        const reg = buildRegistry([{ id: 'loyalty' }]);
+        const { orchestrator, migrator } = buildOrchestrator({
+          registry: reg,
+          em: new FakeEm([installedRow('loyalty')]),
+          migrationOwnership: migrationOwnershipOf(
+            [
+              {
+                moduleId: 'loyalty',
+                cls: { name: 'Migration20260801T000000LoyaltyOne' } as never,
+                origin: 'external',
+              },
+              {
+                moduleId: 'loyalty',
+                cls: { name: 'Migration20260901T000000LoyaltyTwo' } as never,
+                origin: 'external',
+              },
+            ],
+            ['loyalty'],
+          ),
+        });
+
+        const result = await orchestrator.uninstall('loyalty', { hard: true });
+
+        expect(migrator.reverted).toEqual([
+          'Migration20260901T000000LoyaltyTwo',
+          'Migration20260801T000000LoyaltyOne',
+        ]);
+        expect(result.revertedMigrations).toEqual(migrator.reverted);
+      });
     });
 
     it('fires neither hook on disable or enable — that is the other axis', async () => {

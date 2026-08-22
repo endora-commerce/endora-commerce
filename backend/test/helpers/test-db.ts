@@ -61,10 +61,19 @@ export interface TestDb {
 export async function setupTestDb(): Promise<TestDb> {
   // Issue #211 — see the note in `setupBackendServer`; same seam, same reason.
   assertServicesAvailable('setupTestDb');
-  return openTestDb(mikroOrmConfig);
+  return openTestDb(await mikroOrmConfig());
 }
 
-async function openTestDb(config: typeof mikroOrmConfig): Promise<TestDb> {
+/**
+ * `Awaited<ReturnType<…>>` rather than `typeof mikroOrmConfig`: the config is
+ * an async factory since feature 080's T033, because an installed extension
+ * package's entities and migrations are discovered at runtime (D-119/D-155).
+ * The annotation follows the value the caller awaits, so the two spellings
+ * cannot drift.
+ */
+type MikroOrmConfig = Awaited<ReturnType<typeof mikroOrmConfig>>;
+
+async function openTestDb(config: MikroOrmConfig): Promise<TestDb> {
   const orm = await MikroORM.init(config);
   let activeEm: EntityManager | undefined;
 
@@ -171,7 +180,7 @@ export async function setupMigratorTestDb(): Promise<TestDb> {
   }
 
   const clone = await cloneTemplateForCaller(baseUrl, template);
-  const db = await openTestDb({ ...mikroOrmConfig, clientUrl: clone.url });
+  const db = await openTestDb({ ...(await mikroOrmConfig()), clientUrl: clone.url });
   const closeOrm = db.close;
   return {
     ...db,

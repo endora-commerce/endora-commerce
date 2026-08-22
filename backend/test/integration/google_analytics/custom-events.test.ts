@@ -23,7 +23,7 @@ describe('GaCustomEventsService (integration)', () => {
   const ctx = { actorAdminUserId: null };
 
   beforeAll(async () => {
-    orm = await MikroORM.init(mikroOrmConfig);
+    orm = await MikroORM.init(await mikroOrmConfig());
     em = () => orm.em.fork() as EntityManager;
     const channels0 = await em().find(
       SalesChannel,
