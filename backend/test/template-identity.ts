@@ -29,7 +29,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { join, relative } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import { MIGRATION_FILE_RE } from '../scripts/new-migration.js';
 import type { RegisteredMigration } from '../src/db/configured-migrations.js';
 import type { MigrationOrigin } from '../src/db/migration-order.js';
@@ -42,32 +42,100 @@ const BACKEND_ROOT = fileURLToPath(new URL('..', import.meta.url));
 export interface MigrationSourceRoot {
   /** Which producer's floor the files under this root count toward. */
   readonly origin: MigrationOrigin;
-  /** `backend/`-relative. */
+  /** `backend/`-relative, or absolute for a root outside this repository. */
   readonly path: string;
   /** `directory` walks the path itself; `module-tree` walks `<path>/<child>/migrations`. */
   readonly kind: 'directory' | 'module-tree';
+  /**
+   * The extension a producer publishes its migration sources with. `.ts` for
+   * this repository; `.js` for an installed package, which ships compiled
+   * output (D-06) and has no TypeScript source to read.
+   *
+   * The recognizer stays the one in `contracts/naming-convention.md` §1 — see
+   * {@link isMigrationSource}. A second regex would be a second answer to
+   * "what is a migration".
+   */
+  readonly sourceExtension?: '.ts' | '.js';
+  /**
+   * What the digest records in place of the on-disk path.
+   *
+   * Absent for a root inside this repository, whose `backend/`-relative path is
+   * already stable across checkouts. **Required** for an installed package,
+   * whose absolute path is a property of *the instance* — a tmpdir, a container
+   * mount — so recording it would give the same package a different digest in
+   * every instance and disable template reuse outright. `<name>@<version>` is
+   * what goes in instead, which is also how the package's identity enters the
+   * digest at all.
+   */
+  readonly recordAs?: string;
 }
 
 /**
- * Where migrations live — every root, with the origin that owns it.
+ * Where **this repository's** migrations live — the roots
+ * `scripts/generate-composer.ts` walks to emit
+ * `src/db/migrations-registry.generated.ts`, so both are `core`.
  *
- * Both are the roots `scripts/generate-composer.ts` walks to emit
- * `src/db/migrations-registry.generated.ts`, so both are `core`. There is no
- * `external` root **yet**: an extension package may ship entities and
- * migrations (D-106.2), and the mechanism that discovers them is Wave 3 of
- * `specs/080-f4-real-scope/tasks.md`, so today no file on disk belongs to that
- * origin. That is a fact about this month, not a rule — this list used to cite
- * the retired D-105 ("an overlay ships no migration") as the reason there could
- * never be a third root, which D-106 narrowed and D-106.2 reversed.
- *
- * Until that root exists, the per-origin floor below is what stands in for it:
- * a package migration that reaches the registry with no root to be read from
- * stops the run by name, instead of being digested around.
+ * The `external` roots are not here and cannot be: an installed extension
+ * package ships migrations (D-106.2) from a directory that exists only in the
+ * instance that installed it, so that half is *discovered*, per run, by
+ * {@link migrationSourceRoots}. This list used to say there could never be a
+ * third root at all, citing the retired D-105 ("an overlay ships no
+ * migration") — which D-106 narrowed and D-106.2 reversed.
  */
 export const MIGRATION_SOURCE_ROOTS: readonly MigrationSourceRoot[] = [
   { origin: 'core', path: 'src/db/migrations', kind: 'directory' },
   { origin: 'core', path: 'src/modules', kind: 'module-tree' },
 ];
+
+/**
+ * Every root this run reads migration sources from: the core pair above, plus
+ * one per installed extension package (feature 080, T033).
+ *
+ * A package contributes to the identity as **content**, not as a name: the
+ * ordered class names are already in through `MIGRATION_NAMES`, and a changed
+ * migration body under an unchanged class name is exactly what the digest
+ * exists to separate (D-155.5). So the input is the files its `./migrations`
+ * subpath resolves into, hashed, recorded under `<name>@<version>` rather than
+ * under the instance's absolute path.
+ *
+ * A package that ships no migrations contributes no root and needs none: it
+ * registers nothing, so its floor is zero and there is nothing to be short of.
+ */
+export async function migrationSourceRoots(
+  packages: readonly {
+    readonly packageName: string;
+    readonly version: string;
+    readonly migrationsDirectory: string | null;
+  }[],
+): Promise<readonly MigrationSourceRoot[]> {
+  return [
+    ...MIGRATION_SOURCE_ROOTS,
+    ...packages
+      .filter((contribution) => contribution.migrationsDirectory !== null)
+      .map((contribution) => ({
+        origin: 'external' as const,
+        path: contribution.migrationsDirectory as string,
+        kind: 'directory' as const,
+        sourceExtension: '.js' as const,
+        recordAs: `${contribution.packageName}@${contribution.version}`,
+      })),
+  ];
+}
+
+/**
+ * Whether a filename is a migration's, under the extension its producer
+ * publishes.
+ *
+ * §1 of the naming convention is the **only** recognizer any tool in this tree
+ * may use, and it is written for `.ts`. A published package ships the compiled
+ * twin of the same filename (D-06), so the answer is the same question asked of
+ * the `.ts` name — never a second regex, which would be a second definition of
+ * what a migration is.
+ */
+function isMigrationSource(name: string, extension: '.ts' | '.js'): boolean {
+  if (!name.endsWith(extension)) return false;
+  return MIGRATION_FILE_RE.test(`${name.slice(0, -extension.length)}.ts`);
+}
 
 /**
  * The files that seed a migrated template, beyond its migrations.
@@ -87,6 +155,13 @@ interface WalkedSource {
   readonly origin: MigrationOrigin;
   readonly absolute: string;
   /**
+   * What the digest records for this file: `backend/`-relative for a root in
+   * this repository, `<name>@<version>/<inside the package>` for an installed
+   * one. Never an absolute path — two checkouts, and two instances of one
+   * package, must agree.
+   */
+  readonly recordedPath: string;
+  /**
    * Whether the filename is a migration's, by the one recognizer every tool in
    * this tree uses — contracts/naming-convention.md §1, imported rather than
    * re-spelled so the harness and the generator cannot disagree about what a
@@ -105,7 +180,13 @@ async function walkSources(
   roots: readonly MigrationSourceRoot[],
 ): Promise<WalkedSource[]> {
   const found: WalkedSource[] = [];
-  const walk = async (absolute: string, origin: MigrationOrigin): Promise<void> => {
+  const walk = async (
+    absolute: string,
+    source: MigrationSourceRoot,
+    recordRoot: string,
+    recordPrefix: string,
+  ): Promise<void> => {
+    const extension = source.sourceExtension ?? '.ts';
     let entries;
     try {
       entries = await readdir(absolute, { withFileTypes: true });
@@ -115,14 +196,34 @@ async function walkSources(
     for (const entry of entries) {
       const child = join(absolute, entry.name);
       if (entry.isDirectory()) {
-        await walk(child, origin);
-      } else if (entry.name.endsWith('.ts')) {
-        found.push({ origin, absolute: child, migration: MIGRATION_FILE_RE.test(entry.name) });
+        await walk(child, source, recordRoot, recordPrefix);
+      } else if (entry.name.endsWith(extension)) {
+        found.push({
+          origin: source.origin,
+          absolute: child,
+          recordedPath: join(recordPrefix, relative(recordRoot, child)),
+          migration: isMigrationSource(entry.name, extension),
+        });
       }
     }
   };
   for (const source of roots) {
-    const absolute = join(root, source.path);
+    // An `external` root is absolute — it lives in the instance's
+    // `node_modules`, not under `backend/` — and records itself under
+    // `<name>@<version>` so the digest is a property of the package rather than
+    // of where the instance happens to sit on disk.
+    const external = isAbsolute(source.path);
+    const absolute = external ? source.path : join(root, source.path);
+    const recordRoot = external ? source.path : root;
+    const recordPrefix = source.recordAs ?? '';
+    if (external && source.recordAs === undefined) {
+      throw new Error(
+        `[test-setup] the migration source root "${source.path}" is outside this repository and ` +
+          `declares no 'recordAs'. Its absolute path is a property of this instance, so ` +
+          `recording it would give one package a different digest in every instance and no two ` +
+          `runs would ever share a template.`,
+      );
+    }
     if (source.kind === 'module-tree') {
       // Only the modules' own `migrations/` directories — walking all of
       // `src/modules` would fold every module's source into the digest and
@@ -130,19 +231,19 @@ async function walkSources(
       const children = await readdir(absolute, { withFileTypes: true }).catch(() => []);
       for (const child of children) {
         if (child.isDirectory())
-          await walk(join(absolute, child.name, 'migrations'), source.origin);
+          await walk(join(absolute, child.name, 'migrations'), source, recordRoot, recordPrefix);
       }
     } else {
-      await walk(absolute, source.origin);
+      await walk(absolute, source, recordRoot, recordPrefix);
     }
   }
-  return found.sort((a, b) => (a.absolute < b.absolute ? -1 : 1));
+  return found.sort((a, b) => (a.recordedPath < b.recordedPath ? -1 : 1));
 }
 
-async function sha256Of(root: string, absolute: string): Promise<TemplateSource> {
+async function sha256Of(path: string, absolute: string): Promise<TemplateSource> {
   const content = await readFile(absolute);
   return {
-    path: relative(root, absolute),
+    path,
     sha256: createHash('sha256').update(content).digest('hex'),
   };
 }
@@ -232,11 +333,17 @@ export async function templateIdentity(
 ): Promise<TemplateIdentity> {
   const root = options.root ?? BACKEND_ROOT;
   // Imported here rather than at the top, as the order always was: a caller
-  // that brought its own set never pays to build the platform's.
-  const registered =
-    options.migrations ??
-    (await import('../src/db/configured-migrations.js')).REGISTERED_MIGRATIONS;
-  const roots = options.sourceRoots ?? MIGRATION_SOURCE_ROOTS;
+  // that brought its own set never pays to build the platform's — and since
+  // T033 building it means scanning `node_modules`, so the saving is real.
+  const configured =
+    options.migrations !== undefined && options.sourceRoots !== undefined
+      ? undefined
+      : await (await import('../src/db/configured-migrations.js')).configuredMigrations();
+  const registered = options.migrations ?? configured?.registered ?? [];
+  // The `external` roots come from the same answer the registrations did, so a
+  // package cannot be registered by one and unread by the other.
+  const roots =
+    options.sourceRoots ?? (await migrationSourceRoots(configured?.packages ?? []));
   const walked = await walkSources(root, roots);
 
   // The origins are derived from the two inputs on every call rather than
@@ -257,11 +364,11 @@ export async function templateIdentity(
   });
   floorEachOrigin(populations, roots);
 
-  const sources = await Promise.all(walked.map((source) => sha256Of(root, source.absolute)));
+  const sources = await Promise.all(walked.map((source) => sha256Of(source.recordedPath, source.absolute)));
   for (const declared of TEMPLATE_SEED_SOURCES) {
     const absolute = join(root, declared);
     try {
-      sources.push(await sha256Of(root, absolute));
+      sources.push(await sha256Of(declared, absolute));
     } catch (error) {
       throw new Error(
         `[test-setup] the declared template seed source "${declared}" could not be read ` +

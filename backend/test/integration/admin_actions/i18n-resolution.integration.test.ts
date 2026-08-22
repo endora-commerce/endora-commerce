@@ -61,7 +61,7 @@ describe('admin_actions i18n resolution (integration, real I18nService)', () => 
   let em: EntityManager;
 
   beforeAll(async () => {
-    orm = await MikroORM.init(mikroOrmConfig);
+    orm = await MikroORM.init(await mikroOrmConfig());
     em = orm.em.fork() as EntityManager;
     await cleanup(em);
     await seedRegistrations(em);

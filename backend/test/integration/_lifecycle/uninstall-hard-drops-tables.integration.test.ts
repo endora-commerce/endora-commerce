@@ -7,6 +7,7 @@ import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-gra
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+import { migrationOwnershipOf } from '../../../src/db/configured-migrations.js';
 
 /**
  * Integration test for FR-011 — hard uninstall deletes registry row
@@ -85,6 +86,10 @@ describe('Module uninstall — hard deletes registry row (integration)', () => {
       em: () => db.em(),
       auditLog: new AuditLogService(() => db.em()),
       registry,
+      // Feature 080 (T033): this fixture module is covered and owns no
+      // migration. Declaring that is what keeps the assertion below about the
+      // registration row rather than about the refusal an unknown module gets.
+      migrationOwnership: migrationOwnershipOf([], ['fixture_hard']),
     });
 
     const result = await orchestrator.uninstall('fixture_hard', { hard: true });

@@ -27,7 +27,7 @@ describe('CommandBus transactional guarantee (feature 054, FR-003) [real DB]', (
   const createdBulkOpIds: string[] = [];
 
   beforeAll(async () => {
-    orm = await MikroORM.init(mikroOrmConfig);
+    orm = await MikroORM.init(await mikroOrmConfig());
     events = new EventBus<Record<string, EventBase>>();
     bus = new CommandBus(orm, new AuditLogService(() => orm.em.fork()), events);
   });

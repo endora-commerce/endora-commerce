@@ -37,15 +37,20 @@
 //     `auditLogService` along with whatever it asked for. Any future grant is
 //     keyed by (package, registration name) and refused outright for a name no
 //     module owns; it is never this flag.
-//  2. **It contributes no schema wiring.** Merging a package's entities and
-//     migrations into the ORM configuration is T033; this file's output is
-//     composer entries and manifest entries, nothing else.
+//  2. **It reads a package's schema; it does not configure one.** T033 added
+//     `packageSchemaContributionsUnder` at the bottom of this file: it resolves
+//     `./migrations` and `./backend` and reads them into registry entries and
+//     entity classes. Merging those into the execution order and into the ORM
+//     configuration is `src/db/configured-migrations.ts` and
+//     `src/db/configured-entities.ts` — so the merge has exactly one
+//     implementation, and this file still knows nothing about a database.
 
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
 import type { ModuleEntry } from '../kernel/compose.js';
+import type { MigrationRegistryEntry } from '../db/migration-order.js';
 import {
   nodeModulesRootsFor,
   scanNodeModulesRoots,
@@ -296,4 +301,180 @@ export async function loadPackageModuleEntries(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ModuleEntry[]> {
   return packageModuleEntriesUnder(nodeModulesRootsFor(env));
+}
+
+// ---------------------------------------------------------------------------
+// The schema half (feature 080, T033 — D-106.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * An entity class as the ORM configuration takes it.
+ *
+ * Deliberately structural and deliberately weak: the host cannot type-check a
+ * stranger's class against `EntityClass<T>` without importing the stranger, and
+ * MikroORM validates it anyway — something that is not an entity fails metadata
+ * discovery loudly and by name.
+ */
+export type EntityClassLike = new (...args: never[]) => object;
+
+/** What one installed package contributes to the platform's schema. */
+export interface PackageSchemaContribution {
+  /** The module id it claims (`endora.id`, D-142) — the migrations' `moduleId`. */
+  readonly id: string;
+  /** The npm package name. For humans, and for the template digest's path. */
+  readonly packageName: string;
+  readonly version: string;
+  /**
+   * The directory the `./migrations` subpath resolves into, or `null` when the
+   * package publishes no such subpath.
+   *
+   * The test harness digests the files under it (`test/template-identity.ts`,
+   * D-155.5): a package ships compiled `.js` with no `.ts` source to hash, so
+   * what it contributes to the migration-template identity as *content* is read
+   * from here rather than from any tree this repository owns.
+   */
+  readonly migrationsDirectory: string | null;
+  /** Registry entries, already tagged `origin: 'external'`. */
+  readonly migrations: readonly MigrationRegistryEntry[];
+  /** The entity classes its `./backend` export declares. */
+  readonly entities: readonly EntityClassLike[];
+}
+
+function isConstructor(value: unknown): value is EntityClassLike {
+  return typeof value === 'function';
+}
+
+/**
+ * Read a package's `./migrations` export into registry entries.
+ *
+ * Two published shapes are accepted, because the contract's wording ("exports
+ * the migration class array") and the acceptance fixture disagree about which
+ * one it means: a bare array of migration classes, and an array of
+ * `{ name, class }` — MikroORM's own `MigrationObject` shape. Anything else is
+ * **refused rather than skipped**: a migration the host silently drops is a
+ * table that never gets created, and the first symptom is a query error nobody
+ * connects to this file.
+ *
+ * The name is always `cls.name`. A declared `name` that disagrees with it is
+ * refused for the reason `mikro_orm_migrations` gives: the class name is what
+ * is persisted, so the host would record one string and revert by another.
+ */
+function migrationEntriesFrom(
+  installed: InstalledPackage,
+  exported: Record<string, unknown>,
+): MigrationRegistryEntry[] {
+  const declared = exported['migrations'] ?? exported['default'];
+  if (!Array.isArray(declared)) {
+    throw new Error(
+      `[packages] the "./migrations" export of ${installed.name} exports no 'migrations' array. ` +
+        `A module package's migrations entry point is the array of its migration classes ` +
+        `(specs/071-modular-packaging/contracts/module-manifest.md); drop the export if the ` +
+        `package ships no schema. Resolved from ${installed.manifestPath}.`,
+    );
+  }
+  return declared.map((entry, index) => {
+    const candidate: unknown = isConstructor(entry)
+      ? entry
+      : (entry as { class?: unknown } | null)?.class;
+    if (!isConstructor(candidate)) {
+      throw new Error(
+        `[packages] entry ${index} of the "./migrations" export of ${installed.name} is neither ` +
+          `a migration class nor a { name, class } pair. Resolved from ${installed.manifestPath}.`,
+      );
+    }
+    const declaredName: unknown = isConstructor(entry)
+      ? undefined
+      : (entry as { name?: unknown }).name;
+    if (typeof declaredName === 'string' && declaredName !== candidate.name) {
+      throw new Error(
+        `[packages] the "./migrations" export of ${installed.name} declares migration ` +
+          `"${declaredName}" for a class named "${candidate.name}". mikro_orm_migrations ` +
+          `persists the class name, so the host would record one string and revert by another. ` +
+          `Resolved from ${installed.manifestPath}.`,
+      );
+    }
+    return {
+      moduleId: installed.id,
+      cls: candidate as MigrationRegistryEntry['cls'],
+      // Never omitted and never 'core'. The baseline block is a claim about
+      // *our* history (`migration-order.ts`), and an entry that lies about its
+      // origin joins a frozen prefix it has no business in.
+      origin: 'external' as const,
+    };
+  });
+}
+
+/** Read a package's `./backend` export for the entity classes it declares. */
+function entityClassesFrom(
+  installed: InstalledPackage,
+  exported: Record<string, unknown>,
+): EntityClassLike[] {
+  const declared = exported['entities'];
+  if (declared === undefined) return [];
+  if (!Array.isArray(declared)) {
+    throw new Error(
+      `[packages] the "./backend" export of ${installed.name} exports 'entities' that is not an ` +
+        `array. It is the list of entity classes the host's ORM registers. Resolved from ` +
+        `${installed.manifestPath}.`,
+    );
+  }
+  return declared.map((entry, index) => {
+    if (!isConstructor(entry)) {
+      throw new Error(
+        `[packages] entry ${index} of the 'entities' export of ${installed.name} is not a class. ` +
+          `Resolved from ${installed.manifestPath}.`,
+      );
+    }
+    return entry;
+  });
+}
+
+/**
+ * Every installed package's schema contribution, against explicit roots.
+ *
+ * Exported so a test can drive it over a `node_modules` tree on disk — the same
+ * entry point the deployment path takes, enumerated, `exports`-resolved and
+ * imported by the same code — rather than by handing a downstream function a
+ * pre-built entry (issue #130).
+ */
+export async function packageSchemaContributionsUnder(
+  roots: readonly string[],
+): Promise<PackageSchemaContribution[]> {
+  const found = scan(roots);
+  assertNoPackageModuleIdCollisions(claimsFor(found.packages));
+
+  const out: PackageSchemaContribution[] = [];
+  for (const installed of found.packages) {
+    const migrationsEntry = resolveSubpath(installed, 'migrations');
+    const migrations =
+      migrationsEntry === null
+        ? []
+        : migrationEntriesFrom(
+            installed,
+            (await import(pathToFileURL(migrationsEntry).href)) as Record<string, unknown>,
+          );
+    const backend = await importSubpath(installed, 'backend');
+    out.push({
+      id: installed.id,
+      packageName: installed.name,
+      version: installed.version,
+      migrationsDirectory: migrationsEntry === null ? null : dirname(migrationsEntry),
+      migrations,
+      entities: backend === null ? [] : entityClassesFrom(installed, backend),
+    });
+  }
+  return out;
+}
+
+/**
+ * {@link packageSchemaContributionsUnder} over the roots this platform reads.
+ *
+ * Empty for an instance that installed no module package — every developer
+ * checkout and every test run — and empty means the ORM configuration is what
+ * it was before a package could ship schema at all.
+ */
+export async function discoverPackageSchema(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<PackageSchemaContribution[]> {
+  return packageSchemaContributionsUnder(nodeModulesRootsFor(env));
 }

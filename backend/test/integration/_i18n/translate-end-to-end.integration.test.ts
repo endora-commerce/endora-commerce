@@ -39,7 +39,7 @@ describe('I18nService.translate (end-to-end against real DB)', () => {
   let logSink: ReturnType<typeof vi.fn>;
 
   beforeAll(async () => {
-    orm = await MikroORM.init(mikroOrmConfig);
+    orm = await MikroORM.init(await mikroOrmConfig());
   }, 60_000);
 
   beforeEach(async () => {

@@ -29,7 +29,7 @@ describe('newsletter send worker runtime (Principle X)', () => {
   const ids = { campaign: '', subscriber: '', record: '' };
 
   beforeAll(async () => {
-    orm = await MikroORM.init(mikroOrmConfig);
+    orm = await MikroORM.init(await mikroOrmConfig());
     redis = new Redis(process.env['REDIS_URL'] ?? 'redis://localhost:6379', {
       maxRetriesPerRequest: null,
     });

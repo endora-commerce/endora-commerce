@@ -109,6 +109,7 @@ import {
 } from './overlay/overlay-runtime.js';
 // Feature 080 — installed extension packages, discovered at runtime (D-155).
 import { loadPackageModuleEntries } from './packages/package-runtime.js';
+import { configuredMigrations } from './db/configured-migrations.js';
 import type { PricingServiceContract } from './modules/price_lists/services/pricing-service.interface.js';
 import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 // D-54 — the error envelope takes this map by injection: `src/http` is a
@@ -2154,6 +2155,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       redisSubscriber,
       emFactory: em,
       auditLog: auditLogService,
+      // Feature 080 (T033, D-155.3(c)) — who owns which migration, merged over
+      // core plus every installed extension package. This root is where it is
+      // known: the orchestrator may not import the ORM config, and the packages
+      // half is a runtime discovery, so the merged value arrives as an
+      // injected value rather than as an import of anything async. Without it
+      // the orchestrator answers from the committed core registry and refuses
+      // a hard uninstall of a module that registry cannot enumerate — which is
+      // exactly the fail-closed a package's `uninstall --hard` needs.
+      migrationOwnership: (await configuredMigrations()).ownership,
       // Feature 019: hand the i18n reconciler to the orchestrator so
       // module:install and module:uninstall --hard keep
       // translation_bundles aligned with the lifecycle.
