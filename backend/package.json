@@ -74,7 +74,8 @@
     "check:port-shape": "tsx scripts/check-port-shape.ts",
     "check:transaction-context": "tsx scripts/check-transaction-context.ts",
     "check:action-route-permissions": "tsx scripts/check-action-route-permissions.ts",
-    "check:release-intent": "tsx scripts/check-release-intent.ts"
+    "check:release-intent": "tsx scripts/check-release-intent.ts",
+    "check:platform-surface": "tsx scripts/check-platform-surface.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",
