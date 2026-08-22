@@ -154,6 +154,21 @@ function main() {
 
   const before = trackedVersions();
   const branch = argument('--branch', `release/version-${new Date().toISOString().slice(0, 10)}`);
+
+  // The default branch name carries a date, so a second release on one day
+  // lands on the first one's name. Refuse it rather than letting `git checkout
+  // -b` throw: the throw is a stack trace on a run that has already changed
+  // nothing, which reads like a defect in this script instead of a question for
+  // the operator — and the answer is theirs, since the standing branch may be a
+  // release under review or an abandoned attempt.
+  if (git('branch', '--list', branch) !== '') {
+    refuse(
+      2,
+      `the branch \`${branch}\` already exists. If it is a release under review, merge or ` +
+        'close it first; if it is an abandoned attempt, delete it. Pass `--branch <name>` to ' +
+        'use a different one.',
+    );
+  }
   git('checkout', '-q', '-b', branch);
 
   const versioned = spawnSync('pnpm', ['run', 'changeset:version'], {
@@ -202,4 +217,15 @@ function main() {
   );
 }
 
-main();
+try {
+  main();
+} catch (error) {
+  // A git invocation that failed is a refusal, not a crash. Without this the
+  // operator gets a `child_process` stack trace and has to read it to find the
+  // one line git wrote — on a run that may have left a branch behind.
+  if (error instanceof Error && 'status' in error) {
+    const stderr = 'stderr' in error ? String(error.stderr).trim() : '';
+    refuse(2, `a git command failed and this run stopped where it was.\n  ${stderr || error.message}`);
+  }
+  throw error;
+}
