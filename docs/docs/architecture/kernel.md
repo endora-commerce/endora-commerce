@@ -1201,7 +1201,7 @@ the build.
 
 Read the first list's size with its own history in mind. It was written as
 conversion residue and drained that way — every entry whose owner converted was
-deleted, and the check fails when one outlives its owner. All 65 core modules have
+deleted, and the check fails when one outlives its owner. Every core module has
 converted, and **28 entries remain**, so what is left is not residue: it is the
 composition inputs no module can default. Three shapes account for nearly all of
 them — *who is asking* (`customerContextResolver`, `cartActorResolver`,

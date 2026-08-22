@@ -170,8 +170,8 @@ replacement. Non-negotiable ones are marked **(NN)**.
 
 ### Composition — `backend.ts` (feature 072)
 
-**A module is composed by the kernel container, not by a composition root.** All 65 core
-modules export `registerModule(ctx: ModuleContext): void` from `backend/src/modules/<id>/backend.ts`;
+**A module is composed by the kernel container, not by a composition root.** Every core
+module exports `registerModule(ctx: ModuleContext): void` from `backend/src/modules/<id>/backend.ts`;
 `backend/src/composition.ts` and `backend/test/test-server.ts` compose that list and pass
 deployment inputs, nothing more. Never construct a module's services in either root, and
 never add a "module options" object for something the module can read itself.
@@ -351,14 +351,18 @@ applies them to every module it composes and may not import from `src/modules/` 
 `_lifecycle` keeps the operator-facing half: the manifest, the permissions, the routes, the
 Commands, the orchestrator and the `module:*` CLI scripts.
 
-**You almost never call those wrappers yourself.** All 65 core modules are composed through
+**You almost never call those wrappers yourself.** Every core module is composed through
 the kernel container (feature 072), and `ctx.routes` / `ctx.worker` / `ctx.subscribe` apply
 the wrappers for you — see the composition checklist above. **A per-deployment overlay module
 under `backend/src/apps/<deployment>/modules/` is composed the same way** (D-103): it ships
 `backend.ts`, gets an ordinary `ModuleContext`, and calls the same seams. Call the wrappers
-directly only where there is no `ModuleContext` — a CLI entry point. Four core modules
-(`newsletter`, `product_feeds`, `pim_ergonode`, `ksef`) still wrap a second time inside their
-`plugin.ts`; that is conversion residue, not a pattern to copy.
+directly only where there is no `ModuleContext` — a CLI entry point. A few core modules still
+wrap a second time inside their `plugin.ts`; that is conversion residue, not a pattern to copy.
+**The set is not written down here**, because it is derived and it drains: this paragraph named
+four, and by the time anyone read it two of them (`product_feeds`, `pim_ergonode`) had been
+converted and now carry a comment saying they deliberately do *not* wrap, while `catalog` had
+joined and was named nowhere. A list wrong in both directions is worse than no list. Derive it:
+`grep -ln 'defineModuleRoutes(\|defineModuleWorker(' backend/src/modules/*/plugin.ts`.
 
 1. **Routes** — wrap the module's route registration in `defineModuleRoutes('<id>', …)` so
    gating holds at the registration seam for every route the module owns, including later
@@ -378,10 +382,14 @@ directly only where there is no `ModuleContext` — a CLI entry point. Four core
    checklist items 2–4). A gate the registration applies cannot be forgotten in the one service
    somebody adds later, which a hand-placed call can and did.
 
-   `requireModuleEnabled('<id>')` (`backend/src/kernel/lifecycle/plugin-helpers.ts:82`) is kept for
+   `requireModuleEnabled('<id>')` (`backend/src/kernel/lifecycle/plugin-helpers.ts`) is kept for
    the entry point that has **no port and no request** — a `module:*` CLI script, a one-off
-   maintenance entry — and it has **zero call sites in `src/` today**; this item used to instruct
-   every module author to call it, which is how it came to be cited far more often than used.
+   maintenance entry. This item used to instruct every module author to call it, which is how it
+   came to be cited far more often than used; the correction then overshot into *"zero call sites
+   in `src/` today"*, which D-157.5 measured false. There is **one**, and it is the worked example
+   of the whole rule: `carts/scripts/abandonment-sweep.ts` asks it for **its own** module id,
+   after composition and outside every `try`. It never asks it for an owner's id — that answer is
+   the port gate's, and asking it twice is how the two come to disagree.
    `check-port-catches.ts` knows the spelling, so a `catch` around one is refused like a `catch`
    around a port.
 
