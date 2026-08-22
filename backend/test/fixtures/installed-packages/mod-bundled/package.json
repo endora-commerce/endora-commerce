@@ -1,0 +1,12 @@
+{
+  "name": "@fixture/mod-bundled",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "endora": { "type": "module", "id": "fixture_bundled", "platform": "0.x" },
+  "exports": {
+    ".": "./lib/manifest.js",
+    "./backend": "./lib/backend/index.js",
+    "./package.json": "./package.json"
+  }
+}

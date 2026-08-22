@@ -28,7 +28,13 @@ import {
 import {
   analyzeSource as classificationAnalyze,
   ENTITY_DECORATOR_HINT,
+  packageEntityFindings,
 } from '../../../scripts/check-entity-tenant-classification.js';
+import {
+  NO_PACKAGE_DECLARATIONS,
+  unreadablePackageReason,
+  type PackageTable,
+} from '../../../scripts/lib/package-declarations.js';
 import {
   declaredProgramEntryPoints,
   findEntrySites,
@@ -1369,6 +1375,41 @@ function sqlBoundaryFindings(source: string, file: string = BLOG_SERVICE_FILE) {
  * comments, migrations or its own module's tables returns two findings and the
  * proof drops to 0 — red, in the run that widened it.
  */
+/**
+ * The same fixture with an installed package's tables in the map (T034).
+ *
+ * The package half enters here, at the check's own entry point, because that is
+ * where a run hands it in: `loadPackageDeclarations` is proven separately, over
+ * a package tree on disk, in `package-declarations.test.ts`.
+ */
+function sqlPackageFindings(
+  source: string,
+  packageTables: readonly PackageTable[] = FIXTURE_PACKAGE_TABLES,
+  file: string = BLOG_SERVICE_FILE,
+) {
+  return findCrossModuleSql({
+    sources: new Map([[file, source]]),
+    schema: new Map([...SQL_BOUNDARY_SCHEMA, [file, source]]),
+    packageTables,
+  }).found;
+}
+
+/** What `@fixture/mod-widgets` declares: one entity table and one join table. */
+const FIXTURE_PACKAGE_TABLES: readonly PackageTable[] = [
+  {
+    table: 'fixture_widgets',
+    moduleId: 'fixture_widgets',
+    packageName: '@fixture/mod-widgets',
+    source: 'entity',
+  },
+  {
+    table: 'fixture_widget_tags',
+    moduleId: 'fixture_widgets',
+    packageName: '@fixture/mod-widgets',
+    source: 'migration',
+  },
+];
+
 function sqlOnlyTheControl(source: string, file: string = BLOG_SERVICE_FILE): number {
   const found = sqlBoundaryFindings(source, file);
   return found.length === 1 && found[0]?.table === 'products' ? 1 : 0;
@@ -2059,6 +2100,45 @@ const CHECKS: readonly CheckEntry[] = [
           'src/modules/catalog/entities/widget.ts',
           (count) => count > 1,
         ),
+      ),
+      // Feature 080, T034. The population is the platform, not the tree: a
+      // module can arrive as an installed package, and a published one ships
+      // compiled output in which the decorated source text above is gone — so
+      // the two proofs enter with the package's *declarations*, which is where
+      // this check receives them. The enumeration under that, on a package tree
+      // on disk, is proven in `package-declarations.test.ts`; splitting them
+      // there is what keeps each proof at the top of the analysis it protects.
+      'package-entity-without-a-classification': top(
+        () =>
+          packageEntityFindings([
+            {
+              moduleId: 'fixture_widgets',
+              packageName: '@fixture/mod-widgets',
+              className: 'FixtureWidget',
+              table: 'fixture_widgets',
+              classifications: [],
+              file: '/instance/node_modules/@fixture/mod-widgets/lib/backend/index.js',
+            },
+          ]).filter((finding) => finding.classifications.length === 0).length,
+      ),
+      // The refusal, which is the property that stops this check answering "no
+      // owner" in silence: a discovered package whose entities cannot be
+      // enumerated stops the run at exit 2 instead of being credited with none.
+      'unreadable-package-refuses': top(() =>
+        unreadablePackageReason({
+          ...NO_PACKAGE_DECLARATIONS,
+          discovered: 1,
+          unreadable: [
+            {
+              packageName: '@fixture/mod-schema-without-entities',
+              moduleId: 'fixture_schema_only',
+              at: '/instance/node_modules/@fixture/mod-schema-without-entities/package.json',
+              reason: 'it ships migrations and its "./backend" export declares no `entities`',
+            },
+          ],
+        }) === null
+          ? 0
+          : 1,
       ),
     },
   },
@@ -2855,6 +2935,34 @@ const CHECKS: readonly CheckEntry[] = [
           `${SQL_CONTROL}\nawait conn.execute(\`select 1 from a_table_nobody_owns\`);`,
         ),
       ),
+      // Feature 080, T034 — the third owner-map source. Without it a table an
+      // installed package owns resolves to nobody and the reach is *not a
+      // finding*, which is the silence `unattributed` is printed to make
+      // visible, one layer out from where the printing reaches. The fixture
+      // enters as source text plus the package's declared tables, so the
+      // statement path and the owner map both run.
+      'sql-package-table': top(
+        () =>
+          sqlPackageFindings(
+            'await conn.execute(`select tag from fixture_widget_tags where widget_id = ?`, [id]);',
+          ).filter((f) => f.table === 'fixture_widget_tags' && f.target === 'fixture_widgets')
+            .length,
+      ),
+      // A package may not take a core table's attribution away from the module
+      // that owns it — the same precedence the entity pass has over the
+      // migration pass, for the same reason. The control is the only finding
+      // when the package claims `products` as well.
+      'package-does-not-take-a-core-table': top(() => {
+        const found = sqlPackageFindings(SQL_CONTROL, [
+          {
+            table: 'products',
+            moduleId: 'fixture_widgets',
+            packageName: '@fixture/mod-widgets',
+            source: 'entity',
+          },
+        ]);
+        return found.length === 1 && found[0]?.target === 'catalog' ? 1 : 0;
+      }),
 
       // --- the knex builder (issue #187) -----------------------------------
       //
@@ -3115,6 +3223,25 @@ const CHECKS: readonly CheckEntry[] = [
       'unowned-name': top(() =>
         portViolations(ORDERS_RESOLVES_UNOWNED, PAYMENT_PORTS, 'unowned-name'),
       ),
+      // Feature 080, T034. The same resolution, against a map that knows an
+      // installed package owns the name: it stops being `unowned-name` — a
+      // wiring bug in the consumer — and becomes the undeclared edge it is. The
+      // fixture is the consumer's source text plus the owner map, so the
+      // resolution scanner runs; what fills the map from a package tree on disk
+      // is proven in `package-declarations.test.ts`.
+      'package-owned-name-is-an-edge-not-a-wiring-bug': top(() => {
+        const owners = new Map([
+          ...PAYMENT_PORTS,
+          ['nobodyRegistersThis', 'fixture_widgets'] as const,
+        ]);
+        const kinds = findViolations({
+          resolutions: ordersResolutions(ORDERS_RESOLVES_UNOWNED),
+          owners,
+          dependencies: new Map([['orders', []]]),
+          providedPorts: PAYMENT_PORTS,
+        }).map((violation) => violation.kind);
+        return kinds.length === 1 && kinds[0] === 'undeclared-dependency' ? 1 : 0;
+      }),
       'captured-name': top(() => portViolations(ORDERS_CAPTURES, PAYMENT_PORTS, 'captured-name')),
       'gated-port-before-first-request': top(() =>
         portViolations(ORDERS_RESOLVES_AT_BOOT, PAYMENT_PORTS, 'gated-port-at-boot'),
@@ -4787,7 +4914,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // Three snippet shapes, the discovery that enrols a document, and
       // T010's root floor — the population one level above the discovery.
       'backend/scripts/check-doc-snippets.ts': 5,
-      'backend/scripts/check-entity-tenant-classification.ts': 2,
+      // The two in-tree shapes — none and more than one — plus T034's two: a
+      // package's persisted entity is in the population, and a package that
+      // could not be enumerated stops the run instead of being credited with
+      // none. Without the second, package awareness would be a map that can
+      // answer "no owner" in silence, which is the defect it exists to remove.
+      'backend/scripts/check-entity-tenant-classification.ts': 4,
       // Three timer shapes plus D-68's four boot-hook ones. The count is the
       // point: the check grew a construct, so its proof had to grow with it.
       'backend/scripts/check-entry-presence.ts': 7,
@@ -4836,7 +4968,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // answers "is this file already known to reach that target" and not "how
       // much", so a count too low, a count too high and a count that is no
       // number are the three ways an entry can stop describing its own file.
-      'backend/scripts/check-module-boundary.ts': 35,
+      // Plus T034's two for the third owner-map source: a table an installed
+      // package owns is a finding, and a package may not take a core table's
+      // attribution away from the module that owns it.
+      'backend/scripts/check-module-boundary.ts': 37,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue
@@ -4858,7 +4993,9 @@ describe('every red proof enters at the top of the analysis', () => {
       // the call-bound local that must go on being a finding, because "the
       // analysis cannot follow this" is not "this is not a port".
       'backend/scripts/check-port-catches.ts': 12,
-      'backend/scripts/check-port-dependencies.ts': 19,
+      // Plus T034's one: a name an installed package owns is an undeclared
+      // edge, not the consumer's wiring bug the short map reported.
+      'backend/scripts/check-port-dependencies.ts': 20,
       // Two for the optional-method rule: the published port and the interface
       // widening one, which is exactly where it bites. Plus issue #192's three
       // for the container-name signal — the two shapes a wrong name takes, and

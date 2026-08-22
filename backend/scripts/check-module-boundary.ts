@@ -60,6 +60,35 @@
  * is still core-owned after attribution is nobody's to ask for, so it is not a
  * finding — the count of those is printed, so a residue cannot grow in silence.
  *
+ * ## The third source: installed packages (feature 080, T034)
+ *
+ * Since T031 a platform composes modules that are in neither of those two
+ * places — an npm package installed into the instance's `node_modules` — and
+ * D-106.2 lets one own tables. A table it owns was in no map, so a core module
+ * reaching into it resolved to no owner and was **not a finding**: exactly the
+ * silence `unattributed` is printed to make visible, one layer further out than
+ * the printing reaches.
+ *
+ * So `scripts/lib/package-declarations.ts` supplies a third pass, read out of
+ * the artefact the platform composes rather than out of a source text a
+ * published package does not ship: its `entities` export for the tables it maps,
+ * and the `create table` literals in the files beside its `./migrations` entry
+ * point for the ones it creates and maps with no class. The package's owner
+ * directory is `package:<npm name>`, which can equal no module directory, so the
+ * reach is cross-boundary by construction.
+ *
+ * **What the map does when it cannot attribute one: it refuses.** There is no
+ * silent third state for a package. A discovered package whose declarations
+ * cannot be enumerated in full stops the run at exit 2 before the map is built,
+ * naming the package. `package pass=0` therefore means "no package is
+ * installed", never "a package was installed and said nothing" — which is the
+ * property the two existing passes buy with their own exit-2 guards, extended
+ * to the source that arrives from outside the repository. Where the tree and a
+ * package declare one table, the **tree wins**, for the reason the entity pass
+ * wins over the migration pass: it is the declaration this repository can
+ * change, and a stranger must not take a core table's attribution away from the
+ * module that owns it.
+ *
  * ## What counts as a specifier
  *
  * Every shape TypeScript admits, through `scripts/lib/specifiers.ts` — the
@@ -223,10 +252,11 @@
  * Usage: `tsx scripts/check-module-boundary.ts [--list] [--tests] [--module <id>]`
  * Exit 0 = every cross-module reach is ledgered in its own shard;
  * exit 1 = at least one is not, or the ledger lies in one of the other seven ways;
- * exit 2 = the check read nothing — no module sources, no ledger directory, or a
- * table→owner map in which **either** pass resolved zero tables. Each pass
- * proves it looked, and a silently empty migration pass is precisely the
- * entity-only blindness the second source exists to remove (issue #113).
+ * exit 2 = the check read nothing — no module sources, no ledger directory, a
+ * table→owner map in which **either** in-tree pass resolved zero tables, or an
+ * installed package whose declarations could not be enumerated. Each pass proves
+ * it looked, and a silently empty migration pass is precisely the entity-only
+ * blindness the second source exists to remove (issue #113).
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -247,7 +277,13 @@ import {
   modulePopulationCoverage,
   vacuousModulePopulation,
 } from './lib/module-population.js';
-import { reportReadSize } from './lib/read-size.js';
+import {
+  loadPackageDeclarations,
+  packageCoverage,
+  refuseUnreadablePackages,
+  type PackageTable,
+} from './lib/package-declarations.js';
+import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const SRC_ROOT = join(BACKEND_ROOT, 'src');
@@ -597,6 +633,15 @@ export interface ModuleBoundaryInput {
    * meaning what they meant.
    */
   readonly schema?: ReadonlyMap<string, string>;
+  /**
+   * Tables the installed extension packages own (feature 080, T034).
+   *
+   * Absent means "this input describes no installed package", which is what
+   * every fixture in the tree says and what every run of this repository's CI
+   * says. It never means "the packages own nothing": a package the loader could
+   * not read stops the run at exit 2 before this map is built.
+   */
+  readonly packageTables?: readonly PackageTable[];
 }
 
 export interface CheckResult {
@@ -749,6 +794,15 @@ export interface TableOwnerReport {
   readonly entityTables: number;
   readonly migrationTables: number;
   /**
+   * Tables an installed extension package owns (feature 080, T034).
+   *
+   * A third pass, printed like the other two. It is **not** in the vacuous-pass
+   * guard, and the asymmetry is deliberate: zero is the honest answer for every
+   * checkout and every CI run of this repository, whereas a package that was
+   * installed and could not be read has already stopped the run at exit 2.
+   */
+  readonly packageTables: number;
+  /**
    * Tables the migration pass resolved that **no** entity declares — the 21 the
    * second source exists for. Printed, because an entity pass that started
    * swallowing them would leave this at zero while every other number held.
@@ -785,7 +839,10 @@ function isCoreOwner(owner: TableOwner): boolean {
  * `sales_channel_products` resolves through `sales_channels` and not through
  * some shorter accident.
  */
-export function buildTableOwners(schema: ReadonlyMap<string, string>): {
+export function buildTableOwners(
+  schema: ReadonlyMap<string, string>,
+  packageTables: readonly PackageTable[] = [],
+): {
   readonly owners: ReadonlyMap<string, TableOwner>;
   readonly report: TableOwnerReport;
 } {
@@ -804,6 +861,25 @@ export function buildTableOwners(schema: ReadonlyMap<string, string>): {
     }
   }
 
+  // The third source. A package's owner directory is `package:<npm name>`, so
+  // it can never equal a module directory and a core module reaching a
+  // package's table is the cross-boundary reach it is — the same identity rule
+  // that makes an overlay `catalog` reaching the core `catalog` a real edge.
+  //
+  // The tree wins a collision, for the reason the entity pass wins one over the
+  // migration pass: it is the declaration this repository can change, and a
+  // stranger must not be able to take a core table's attribution away from the
+  // module that owns it.
+  const fromPackage = new Set<string>();
+  for (const declared of packageTables) {
+    if (owners.has(declared.table)) continue;
+    fromPackage.add(declared.table);
+    owners.set(declared.table, {
+      id: declared.moduleId,
+      dir: `package:${declared.packageName}`,
+    });
+  }
+
   const unattributed: string[] = [];
   for (const [table, owner] of [...owners]) {
     if (!isCoreOwner(owner)) continue;
@@ -817,6 +893,7 @@ export function buildTableOwners(schema: ReadonlyMap<string, string>): {
     report: {
       entityTables: fromEntity.size,
       migrationTables: fromMigration.size,
+      packageTables: fromPackage.size,
       migrationOnlyTables: [...fromMigration].filter((table) => !fromEntity.has(table)).length,
       unattributed: unattributed.sort(),
     },
@@ -896,10 +973,16 @@ export function findCrossModuleSql(input: ModuleBoundaryInput): {
   if (input.schema === undefined) {
     return {
       found: [],
-      report: { entityTables: 0, migrationTables: 0, migrationOnlyTables: 0, unattributed: [] },
+      report: {
+        entityTables: 0,
+        migrationTables: 0,
+        packageTables: 0,
+        migrationOnlyTables: 0,
+        unattributed: [],
+      },
     };
   }
-  const { owners, report } = buildTableOwners(input.schema);
+  const { owners, report } = buildTableOwners(input.schema, input.packageTables ?? []);
   const found = [...input.sources].flatMap(([file, text]) => analyzeSqlSource(text, file, owners));
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return { found, report };
@@ -1301,7 +1384,13 @@ async function main(): Promise<void> {
   const files = collectModuleFiles();
   const sources = sourcesOf(files);
   const schema = sourcesOf(collectSchemaFiles());
-  const owners = buildTableOwners(schema).report;
+  // The third owner-map source (T034). It is read before the vacuous guard so
+  // that a package whose schema cannot be enumerated stops the run instead of
+  // leaving its tables attributed to nobody — the silence that would let every
+  // reach into one report clean.
+  const packages = await loadPackageDeclarations();
+  refuseUnreadablePackages('[module-boundary]', packages);
+  const owners = buildTableOwners(schema, packages.tables).report;
   let registeredModules: readonly string[];
   try {
     registeredModules = await loadRegisteredModuleIds(SRC_ROOT);
@@ -1335,7 +1424,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const result = checkModuleBoundary({ sources, schema }, shards);
+  const result = checkModuleBoundary({ sources, schema, packageTables: packages.tables }, shards);
   const selected = <T extends { readonly moduleId: string }>(entries: readonly T[]): readonly T[] =>
     only === null ? entries : entries.filter((entry) => entry.moduleId === only);
 
@@ -1391,12 +1480,16 @@ async function main(): Promise<void> {
   // the reaches it finds and never counts the specifiers and table references
   // it cleared, so there is no examined-unit number without a second walk;
   // ledgered in `test/helpers/check-read-sizes.ts`.
+  const modules = modulePopulationCoverage({
+    registered: registeredModules,
+    files: [...sources.keys()],
+  });
+  const installed = packageCoverage(packages);
+  const coverages: ReadCoverage[] = installed === null ? [modules] : [modules, installed];
   reportReadSize({
     prefix: '[module-boundary]',
-    files: sources.size + schema.size,
-    coverage: [
-      modulePopulationCoverage({ registered: registeredModules, files: [...sources.keys()] }),
-    ],
+    files: sources.size + schema.size + packages.filesRead,
+    coverage: coverages,
   });
   console.log(
     `[module-boundary] module files=${files.length} cross-module reaches=${result.total} ` +
@@ -1409,6 +1502,7 @@ async function main(): Promise<void> {
     `[module-boundary] table→owner map: entity pass=${result.tableOwners.entityTables} ` +
       `migration pass=${result.tableOwners.migrationTables} ` +
       `(declared by no entity=${result.tableOwners.migrationOnlyTables}) ` +
+      `package pass=${result.tableOwners.packageTables} ` +
       `unattributed=${result.tableOwners.unattributed.length}` +
       (result.tableOwners.unattributed.length > 0
         ? ` (${result.tableOwners.unattributed.join(', ')} — owned by no module, so never a finding)`
