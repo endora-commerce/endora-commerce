@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type {
   AdminUserReadPort,
   CartWritePort,
@@ -76,7 +76,7 @@ export interface QuoteRequestsModuleOptions {
    */
   resolveTaxRate: (organizationId: string) => Promise<number>;
   /** Feature 054 — audits RFQ lifecycle writes co-transactionally when provided. */
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
   /** Feature 055 — validates + reads RFQ custom-field values on the admin edit path. */
   customFieldValues?: CustomFieldValuePort;
   /**

@@ -8,7 +8,7 @@ import {
   type AuthenticatedApiKey,
 } from './services/api-key-service.js';
 import { registerApiKeysAdminRoutes } from './routes.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
@@ -20,7 +20,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 export interface IntegrationsModuleOptions {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
-  auditLogService: AuditLogService;
+  auditLogService: AuditPort;
   /**
    * `organizations`' and `customer_accounts`' published reads, which the
    * binding rules B3 and B4 decide on (feature 075, D-87). Both were raw SQL

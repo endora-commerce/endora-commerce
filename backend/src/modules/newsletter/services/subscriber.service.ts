@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EmailMailerPort } from '@b2b/contracts';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
 import { NewsletterSubscriberTag } from '../entities/newsletter-subscriber-tag.entity.js';
@@ -30,7 +30,7 @@ export interface SubscriberServiceDeps {
   links: NewsletterLinkBuilder;
   /** `emailMailer`, owned by `email`, as its published contract (feature 075). */
   mailer?: EmailMailerPort;
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
   /** Optional observability emitter (wraps the in-process EventBus). */
   emitEvent?: (name: string, payload: Record<string, unknown>) => void;
 }

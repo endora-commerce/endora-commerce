@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { MfaSocialIdentity } from '../entities/mfa-social-identity.entity.js';
 import type { OAuthIdentity } from './oauth-provider-service.js';
 
@@ -26,7 +26,7 @@ export class SocialIdentityService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly deps: SocialIdentityDeps,
-    private readonly auditLogService: AuditLogService,
+    private readonly auditLogService: AuditPort,
   ) {}
 
   async signInCustomer(identity: OAuthIdentity): Promise<SocialSignInResult> {

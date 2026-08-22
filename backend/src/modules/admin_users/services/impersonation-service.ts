@@ -7,7 +7,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * ImpersonationService (T189). Implements the switch-user pattern:
@@ -19,7 +19,7 @@ import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js
  *   - end(impersonationSessionId, adminShadowSessionId) — destroys the
  *     impersonation session, returns the (still alive) admin session id.
  *
- * AuditLogService.record is called BEFORE the cookie is minted (T179
+ * AuditPort.record is called BEFORE the cookie is minted (T179
  * "audit-before-cookie") so a partial failure can never leave an
  * impersonation cookie without an audit row.
  */
@@ -44,7 +44,7 @@ export class ImpersonationService {
     private readonly sessionPort: AuthSessionPort,
     /** `customer_accounts`' published read model — the impersonation target. */
     private readonly customerAccounts: CustomerAccountReadPort,
-    private readonly auditLog: AuditLogService,
+    private readonly auditLog: AuditPort,
   ) {}
 
   async start(input: {

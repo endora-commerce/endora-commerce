@@ -5,7 +5,7 @@ import {
   type ChannelMemberEntityType,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { AuditLogService } from '../audit/audit-log-service.js';
+import type { AuditPort } from '../ports/audit.js';
 import type { EventBus } from '../../events/bus.js';
 import { SalesChannel } from './sales-channel.entity.js';
 
@@ -42,7 +42,7 @@ import { SalesChannel } from './sales-channel.entity.js';
  * connection pool, breaking transactional integration tests).
  *
  * Every successful add / remove writes one audit row through
- * {@link AuditLogService} and emits one EventBus event. Idempotent
+ * {@link AuditPort} and emits one EventBus event. Idempotent
  * no-ops (adding an existing membership / removing a missing one) are
  * NOT audited because they did not change state.
  */
@@ -100,7 +100,7 @@ export class SalesChannelMembershipService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly eventBus: EventBus,
-    private readonly auditLogService?: AuditLogService,
+    private readonly auditLogService?: AuditPort,
   ) {}
 
   /**

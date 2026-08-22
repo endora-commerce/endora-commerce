@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { mfaResetBulkRequestSchema, mfaOrgPolicyRequestSchema } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -13,7 +13,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 export interface MfaAdminDeps {
   enrolmentService: MfaEnrolmentService;
   orgPolicyService: MfaOrgPolicyService;
-  auditLogService: AuditLogService;
+  auditLogService: AuditPort;
   requireAdmin: RequireAdminFactory;
   resolveAdminActor: (req: FastifyRequest) => { adminUserId: string };
   /** Lists the customer-account ids belonging to an organization (US6 bulk). */

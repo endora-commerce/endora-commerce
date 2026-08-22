@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { EventBus } from '../../events/bus.js';
 import type {
   CorrectiveInvoicePort,
@@ -69,7 +69,7 @@ export interface InvoicesBridge {
 export interface InvoicesCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   readonly settingsReadPort: InvoicesModuleOptions['settingsService'];

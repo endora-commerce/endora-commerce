@@ -12,7 +12,7 @@ import {
   type LanguageReadPort,
   type LanguageSeedPort,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -77,7 +77,7 @@ import { registerDictionaryStorefrontRoutes } from './routes.storefront.js';
 
 export interface DictionariesCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly redis: Redis | undefined;
   readonly requireAdmin: RequireAdminFactory;
   /** Owned by `currencies`; this module's admin surface serves both. */

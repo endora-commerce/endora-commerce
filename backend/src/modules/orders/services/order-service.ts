@@ -26,7 +26,7 @@ import {
   type OrderEmailResult,
 } from './transactional-email-helper.js';
 
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { actorFromContext } from '../../../commands/index.js';
 import { getTenantContext } from '../../../tenancy/index.js';
 import { Cart } from '../../carts/entities/cart.entity.js';
@@ -292,7 +292,7 @@ export class OrderService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: OrderEventBus,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
     private readonly creditLimit?: CreditLimitPort,
     accessService?: OrderAccessService,
     paymentDeps?: {

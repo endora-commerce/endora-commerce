@@ -1,6 +1,6 @@
 import type { Queue, Worker } from 'bullmq';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { registerWebhooksAdminRoutes } from './routes.js';
@@ -57,7 +57,7 @@ export const BRIDGED_EVENT_TYPES = ['order.created.v1', 'order.status_changed.v1
 
 export interface WebhooksCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly redis: import('ioredis').Redis;
   /**

@@ -8,7 +8,7 @@ import { CustomerAccount } from '../entities/customer-account.entity.js';
 // for this secret" has no business answering 503 because a module is off.
 import { enroll, verifyTotp } from '../../../kernel/crypto/totp.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * Customer-side 2FA enrolment (T119).
@@ -30,7 +30,7 @@ export interface EnableResult {
 export class TotpEnrolmentService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string): void {

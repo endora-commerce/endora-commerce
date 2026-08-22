@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type BulkUpdateProductsRequest } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import type { CatalogAdminService} from './catalog-admin.service.js';
 import { type AdminAuditContext } from './catalog-admin.service.js';
@@ -77,7 +77,7 @@ export class CatalogBulkUpdateService {
     private readonly emFactory: () => EntityManager,
     private readonly catalogAdmin: CatalogAdminService,
     private readonly salesChannelMembership?: SalesChannelMembershipPort,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   /**

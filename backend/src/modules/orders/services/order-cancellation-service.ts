@@ -20,7 +20,7 @@ import type { OrderStatusGraphService } from './order-status-graph-service.js';
  * The audit read this service needs, narrowed to the one call (issue #284).
  *
  * `audit_log_entries` is a kernel table and a module may relate into the
- * kernel, so this is the kernel's own `AuditLogService` seen through the single
+ * kernel, so this is the kernel's own `AuditPort` seen through the single
  * method that is used — structural, so nothing here depends on the writer half
  * and a unit test can hand over a list of rows without an EntityManager.
  */

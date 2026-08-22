@@ -9,7 +9,7 @@ import type {
   MfaLoginPort,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -116,7 +116,7 @@ export interface MfaBaseUrls {
 export interface MfaCradle {
   readonly emFactory: () => EntityManager;
   readonly redis: Redis;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly commandBus: CommandBus;
   readonly authSessionPort: AuthSessionPort;
   readonly settingsReadPort: SettingsReader;

@@ -16,7 +16,7 @@ import {
 } from '@b2b/contracts';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import type { CustomerAuthService } from './customer-auth-service.js';
@@ -239,7 +239,7 @@ export class CustomerPasswordStateService implements CustomerPasswordStatePort {
 export class CustomerAccountMemberWriteService implements CustomerAccountMemberWritePort {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   async create(input: CustomerAccountCreateInput): Promise<CustomerAccountRecord> {

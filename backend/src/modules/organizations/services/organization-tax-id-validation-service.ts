@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Organization } from '../entities/organization.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import {
   OrganizationTaxIdValidation,
   type ReturnedAddress,
@@ -51,7 +51,7 @@ export interface OrganizationTaxIdValidationServiceDeps {
   /** Ministerstwo Finansów adapter — production wires `new MinisterstwoFinansowClient()`. */
   mfPl?: VatValidator;
   /** Feature 054 — audits the validation write co-transactionally when provided. */
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
 }
 
 export class OrganizationTaxIdValidationService {

@@ -1,7 +1,7 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { ModulePlugin } from '../../http/server.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import {
   ModuleLifecycleOrchestrator,
   type OrchestratorDeps,
@@ -20,7 +20,7 @@ export interface LifecycleModuleDeps {
   /** Subscriber-mode Redis client; ioredis requires a separate connection for pub/sub. */
   redisSubscriber: Redis;
   emFactory: () => EntityManager;
-  auditLog: AuditLogService;
+  auditLog: AuditPort;
   /**
    * Either a pre-built registry (production composition root supplies the
    * static one), or a manifest list the module composes itself.

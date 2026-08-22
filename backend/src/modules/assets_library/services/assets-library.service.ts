@@ -11,7 +11,7 @@ import type { AssetReferenceRegistry } from './reference-registry.js';
 import { UploadPipeline, type UploadInput, type UploadPolicy } from './upload-pipeline.js';
 import { LegacyAssetCannotHardenError } from './storage/errors.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 export class NotImplementedYet extends Error {
   override readonly name = 'NotImplementedYet';
@@ -29,7 +29,7 @@ export interface AssetsLibraryServiceDeps {
   /** Upload-policy provider — reads `assets.allowed_file_types` + max-size. */
   loadUploadPolicy: () => Promise<UploadPolicy>;
   /** Feature 054 — audits asset writes co-transactionally when provided. */
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
 }
 
 export interface ListAssetsQuery {

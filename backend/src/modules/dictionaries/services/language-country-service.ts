@@ -14,7 +14,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { LanguageCountry } from '../entities/language-country.entity.js';
 import { Country } from '../entities/country.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 export class LanguageCountryService {
   /**
@@ -26,7 +26,7 @@ export class LanguageCountryService {
     private readonly emFactory: () => EntityManager,
     private readonly languages: LanguageReadPort,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(

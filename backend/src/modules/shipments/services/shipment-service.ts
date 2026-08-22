@@ -8,7 +8,7 @@ import type {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { Shipment } from '../entities/shipment.entity.js';
 import type { ShippingEventBus } from './events.js';
 
@@ -72,7 +72,7 @@ export class ShipmentService {
     private readonly registry: ShippingAdapterRegistryPort,
     private readonly orderRead: OrderReadPort,
     private readonly deliveryMethodRead: DeliveryMethodReadPort,
-    private readonly auditLog: AuditLogService,
+    private readonly auditLog: AuditPort,
     private readonly events?: ShippingEventBus,
   ) {}
 

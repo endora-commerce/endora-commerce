@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type { EventBus } from '../../events/bus.js';
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import { RETURNS_SETTING_CODES } from './manifest.js';
 import { ReturnStatusGraphService } from './services/return-status-graph-service.js';
 import { ReturnTransitionService } from './services/return-transition-service.js';
@@ -47,7 +47,7 @@ export interface ReturnsModuleOptions {
   correctiveInvoice: CorrectiveInvoicePort;
   creditTopup: CreditTopupPort;
   /** Audit-log writer (FR-041); status changes + settlement are recorded. */
-  auditLog: AuditLogService;
+  auditLog: AuditPort;
   /** Best-effort customer notifications on authorize/reject. */
   notifier?: ReturnNotifier;
 }

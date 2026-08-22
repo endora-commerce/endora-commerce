@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { OrderReadPort, OrderRecord, TransactionalEmailSender } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
 import type { LoadAssetImage } from './pdf-components/embed-logo-images.js';
 import { InvoiceNumberGenerator, createSettingsPatternResolver } from './services/invoice-number-generator.js';
@@ -52,7 +52,7 @@ export interface InvoicesModuleOptions {
   /** FR-035 — audit-log recorder for issuance / correction. */
   audit?: InvoiceAuditRecorder;
   /** Feature 054 — full audit sink for invoice-template writes (co-transactional). */
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
   /**
    * Load image bytes for InvoiceLogo from the Assets Library (avoids pdfmake
    * self-fetching `/assets/file/:id` during Preview PDF).

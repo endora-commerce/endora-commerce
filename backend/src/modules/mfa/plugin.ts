@@ -3,7 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import type { AuthSessionPort, CustomerPasswordStatePort, MfaLoginPort } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import { ChallengeStore } from './services/challenge-store.js';
 import {
@@ -44,7 +44,7 @@ export interface MfaModuleOptions {
   emFactory: () => EntityManager;
   redis: Redis;
   settingsService: SettingsReader;
-  auditLogService: AuditLogService;
+  auditLogService: AuditPort;
   /** Constitution XIII — the unlink is a security-relevant, audited write. */
   commandBus: CommandBus;
   /**

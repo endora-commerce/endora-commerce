@@ -11,7 +11,7 @@ import {
   type SalesChannelUpdateBody,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { CommandBus } from '../../../commands/command-bus.js';
 import type { EventBus } from '../../../events/bus.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
@@ -91,7 +91,7 @@ export class SalesChannelsService {
      * form of a delete guard is an open one.
      */
     private readonly attributionRegistry: SalesChannelAttributionRegistryPort,
-    private readonly auditLogService?: AuditLogService,
+    private readonly auditLogService?: AuditPort,
     /**
      * The invalidating half of the channel cache, narrowed to what a writer
      * needs (D-93). A service that can only invalidate cannot seed the cache

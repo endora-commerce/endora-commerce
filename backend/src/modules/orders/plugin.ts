@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { CommandBus } from '../../commands/index.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import type Redis from 'ioredis';
 import type { EmailMailerPort } from '@b2b/contracts';
@@ -79,7 +79,7 @@ export interface OrdersModuleOptions {
     impersonatorAdminUserId?: string | null;
   };
   /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
-  auditLogService?: AuditLogService;
+  auditLogService?: AuditPort;
   /** Feature 055 — validates + persists Order custom-field values on the admin edit path. */
   customFieldValues?: CustomFieldValuePort;
   /** Feature 034 — mailer for the order-confirmation e-mail (best-effort, post-commit). */

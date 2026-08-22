@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AssetReadPort, AssetsLibraryPort } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { assetsLibraryModule } from './plugin.js';
@@ -39,7 +39,7 @@ type AssetsLibraryResult = ReturnType<typeof assetsLibraryModule>;
 
 export interface AssetsLibraryCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly assetsLibrary: AssetsLibraryResult;
 }

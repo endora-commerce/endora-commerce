@@ -7,7 +7,7 @@ import type {
   DictionaryValidator,
   DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -63,7 +63,7 @@ import { registerPromotionCurrencyReferences } from './services/promotion-curren
 
 export interface PromotionsCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly salesChannelMembershipPort: SalesChannelMembershipPort;
   readonly dictionaryValidator: DictionaryValidator;

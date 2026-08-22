@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { TemplateEmailPort, ModuleManifest, TransactionalEmailSender } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -45,7 +45,7 @@ import { EmailDefaultsRegistry } from './services/email-defaults-registry.js';
 /** What `transactional_emails` resolves from the container, and the names it owns. */
 export interface TransactionalEmailsCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly commandBus: CommandBus;
   readonly settingsReadPort: SettingsReadPort;
   readonly salesChannelResolutionPort: SalesChannelResolutionPort;

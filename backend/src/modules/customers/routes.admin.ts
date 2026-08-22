@@ -30,7 +30,7 @@ import type { CustomerDeletionService } from './services/customer-deletion-servi
 import type { CustomerPresenceService } from './services/customer-presence-service.js';
 import type { CustomerAddressService } from './services/customer-address-service.js';
 import type { CustomerPasswordResetPort } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import {
   serializeCustomerAddress,
   serializeOrganizationAddress,
@@ -104,7 +104,7 @@ export interface CustomersAdminDeps {
   presenceService: CustomerPresenceService;
   passwordResetService: CustomerPasswordResetPort;
   mailer: EmailMailerPort;
-  auditLogService: AuditLogService;
+  auditLogService: AuditPort;
   storefrontBaseUrl: string;
   /**
    * Feature 055 — validates Customer custom-field values. It no longer

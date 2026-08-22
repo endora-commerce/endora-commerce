@@ -5,7 +5,7 @@ import { OrganizationPaymentMethodLink } from '../entities/organization-payment-
 import { OrganizationDeliveryMethodLink } from '../entities/organization-delivery-method-link.entity.js';
 import { OrganizationWarehouseLink } from '../entities/organization-warehouse-link.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 export interface AllowLists {
   paymentMethodIds: string[];
@@ -49,7 +49,7 @@ export interface PatchAllowListInput {
 export class OrganizationRestrictionService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   async readAllowLists(organizationId: string): Promise<AllowListsRead> {

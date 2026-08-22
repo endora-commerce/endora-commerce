@@ -6,7 +6,7 @@ import {
   type CurrencySeedPort,
   type DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { CurrencyService } from './services/currency-service.js';
 import { CurrencyReadService, createCurrencyAdminPort } from './services/currency-ports.js';
@@ -39,7 +39,7 @@ import { CurrencySeedService } from './services/currency-seed-service.js';
 
 export interface CurrenciesCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly eventBus: { emit: (event: string, payload: unknown) => void };
   readonly currencyService: CurrencyService;
   readonly currencyReferenceRegistry: DictionaryReferenceRegistryPort;

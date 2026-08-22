@@ -9,7 +9,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * AdminAuthService (T186; two-step login added in feature 042). login →
@@ -36,7 +36,7 @@ export class AdminAuthService {
     private readonly sessionPort: AuthSessionPort,
     /** Lazily resolved so composition can late-bind the MFA module. */
     private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   async login(input: {

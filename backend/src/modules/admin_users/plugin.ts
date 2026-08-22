@@ -11,7 +11,7 @@ import type {
 import { AdminAuthService } from './services/admin-auth-service.js';
 import { ImpersonationService } from './services/impersonation-service.js';
 import { AdminUserService } from './services/admin-user-service.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import { registerAdminPublicRoutes } from './routes.public.js';
 import { registerImpersonationRoutes } from './routes.impersonation.js';
 import { registerAdminUsersAdminRoutes } from './routes.admin.js';
@@ -27,7 +27,7 @@ export interface AdminModuleOptions {
   emFactory: () => EntityManager;
   /** `auth`'s session surface — mints, loads and destroys the session rows. */
   authSessionPort: AuthSessionPort;
-  auditLogService: AuditLogService;
+  auditLogService: AuditPort;
   /** `admin_roles` — the effective permission codes of one admin user. */
   permissionService: PermissionReadPort;
   /** `admin_roles` — the codes an operator may actually grant. */
@@ -53,7 +53,7 @@ export interface AdminModuleHandle {
   adminAuthService: AdminAuthService;
   impersonationService: ImpersonationService;
   permissionService: PermissionReadPort;
-  auditLogService: AuditLogService;
+  auditLogService: AuditPort;
   /**
    * Exposed so a composition root can contribute `auditActorResolver` to
    * `audit_logs` (feature 072, T084). That module used to be mounted from
@@ -65,7 +65,7 @@ export interface AdminModuleHandle {
 
 /**
  * Admin module composition root. Returns a handle so tests + production
- * boot code can subscribe other modules to AuditLogService etc.
+ * boot code can subscribe other modules to AuditPort etc.
  */
 export function adminModule(
   options: AdminModuleOptions,

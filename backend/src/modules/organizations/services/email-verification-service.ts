@@ -10,7 +10,7 @@ import { Organization } from '../entities/organization.entity.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
 import type { OrganizationEventBus } from './registration-service.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * Email verification flow (T118).
@@ -37,7 +37,7 @@ export class EmailVerificationService {
     private readonly emFactory: () => EntityManager,
     private readonly events: OrganizationEventBus,
     private readonly accounts: EmailVerificationAccountPorts,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   async verify(rawToken: string): Promise<{

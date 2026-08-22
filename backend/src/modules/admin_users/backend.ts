@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type {
   AdminRolePort,
   AdminUserPreferencePort,
@@ -61,7 +61,7 @@ import {
 /** What `admin_users` resolves from the container, and the names it owns. */
 export interface AdminUsersCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   /** Who the acting admin is — production reads `actor`, the harness `testActor`. */
   readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string };

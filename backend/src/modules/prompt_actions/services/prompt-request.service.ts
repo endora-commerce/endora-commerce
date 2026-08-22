@@ -7,7 +7,7 @@ import {
   type ToolContext,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { PromptActionRequest } from '../entities/prompt-action-request.entity.js';
 import type { InterpreterService, StoredConversation } from './interpreter.service.js';
 import { PermissionRevoked, type PlanExecutorService } from './plan-executor.service.js';
@@ -33,7 +33,7 @@ export interface PromptRequestServiceDeps {
   emFactory: () => EntityManager;
   interpreter: InterpreterService;
   executor: PlanExecutorService;
-  auditLogService?: AuditLogService;
+  auditLogService?: AuditPort;
   visibilityFor: OperatorVisibilityFactory;
   /**
    * US2: reads live progress for a delegated bulk operation from whichever

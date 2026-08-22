@@ -21,7 +21,7 @@ import {
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import {
@@ -120,7 +120,7 @@ export interface RfqServiceDeps {
    */
   resolveTaxRate: (organizationId: string) => Promise<number>;
   /** Feature 054 — audits RFQ writes co-transactionally when provided. */
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
 }
 
 export class RfqService {

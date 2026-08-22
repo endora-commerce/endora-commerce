@@ -9,7 +9,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * Customer-side auth flows (T119; two-step login added in feature 042).
@@ -52,7 +52,7 @@ export class CustomerAuthService {
     private readonly sessionService: AuthSessionPort,
     /** Lazily resolved so composition can late-bind the MFA module. */
     private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   async login(input: {

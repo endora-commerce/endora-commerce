@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DictionaryValidator,
   DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { AddressReadPort, AddressServicePort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -45,7 +45,7 @@ import { registerAddressCountryReferences } from './services/address-country-ref
 
 export interface AddressesCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly dictionaryValidator: DictionaryValidator | undefined;
   readonly addressService: AddressService;
 }

@@ -15,7 +15,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Organization } from '../entities/organization.entity.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * Registration flow (T117, FR-040).
@@ -97,7 +97,7 @@ export class RegistrationService {
     private readonly events: OrganizationEventBus,
     private readonly accounts: RegistrationAccountPorts,
     private readonly dictionaryValidator?: DictionaryValidator,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   async registerOrganization(req: RegisterOrganizationRequest): Promise<RegistrationResult> {

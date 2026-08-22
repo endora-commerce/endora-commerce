@@ -6,7 +6,7 @@ import type {
 } from '@b2b/contracts';
 import type { CommandBus } from '../../commands/command-bus.js';
 import type { EventBus } from '../../events/bus.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -46,7 +46,7 @@ import { registerSalesChannelsAdminRoutes } from './routes.admin.js';
 export interface SalesChannelsCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   /** D-51 — moving the system-default flag is a Command (Principle XIII). */
   readonly commandBus: CommandBus;
   readonly requireAdmin: RequireAdminFactory;

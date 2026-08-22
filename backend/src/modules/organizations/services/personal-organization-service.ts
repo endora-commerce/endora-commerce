@@ -6,7 +6,7 @@ import {
   type CustomerAccountRecord,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { Organization } from '../entities/organization.entity.js';
 
 /**
@@ -50,7 +50,7 @@ export class PersonalOrganizationService {
      * written by `customers`' deletion sweep, on a row that module does not
      * own; the write and its one audit row moved here together.
      */
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   /** Name an individual's organization from their profile, falling back to the email local-part. */

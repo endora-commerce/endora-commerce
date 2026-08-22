@@ -34,7 +34,7 @@ import {
   emitCustomerAccountCreated,
   type OrganizationEventBus,
 } from './services/registration-service.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type {
   OrganizationModerationService} from './services/organization-moderation-service.js';
 import {
@@ -95,7 +95,7 @@ export interface AdminOrgsDeps {
    */
   customerAccountRead: CustomerAccountReadPort;
   customerAccountWrite: CustomerAccountMemberWritePort;
-  auditLogService: AuditLogService;
+  auditLogService: AuditPort;
   /**
    * Optional — when provided, the admin direct-member-create endpoint emits
    * `customer_account.created.v1` so downstream modules (shopping_lists) can

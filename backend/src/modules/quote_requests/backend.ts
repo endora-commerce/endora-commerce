@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { EventBus } from '../../events/bus.js';
 import type {
   AdminUserReadPort,
@@ -59,7 +59,7 @@ import { quoteRequestsModule, type QuoteRequestsModuleOptions } from './plugin.j
 export interface QuoteRequestsCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: QuoteRequestsModuleOptions['requireCustomer'];
   readonly settingsReadPort: SettingsReadPort;

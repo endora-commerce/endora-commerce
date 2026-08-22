@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { mfaOrgPolicyRequestSchema } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
 
 /**
@@ -11,7 +11,7 @@ import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
  */
 export interface MfaOrgRoutesDeps {
   orgPolicyService: MfaOrgPolicyService;
-  auditLogService: AuditLogService;
+  auditLogService: AuditPort;
   requireCustomer: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
   /** Resolves the caller's org and asserts they are an org admin (throws 403). */
   resolveOrgAdmin: (req: FastifyRequest) => Promise<{ organizationId: string; actor: string }>;

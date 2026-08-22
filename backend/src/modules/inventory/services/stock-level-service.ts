@@ -7,7 +7,7 @@ import type {
 import { HttpError } from '../../../http/error-envelope.js';
 import { randomUUID } from 'crypto';
 import type { EventBus } from '../../../events/bus.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface InventoryAdjustedEvent {
@@ -103,7 +103,7 @@ export class StockLevelService {
     /** `catalogCategoryReadPort`, owned by `catalog` — the threshold chain. */
     private readonly catalogCategories: CatalogCategoryReadPort,
     private readonly eventBus?: EventBus,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   async listLandingKpis(): Promise<InventoryLandingKpis> {

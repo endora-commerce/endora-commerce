@@ -8,7 +8,7 @@ import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entit
 import { HttpError } from '../../../http/error-envelope.js';
 import { Currency } from '../entities/currency.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * CurrencyService — admin CRUD over the currencies pool.
@@ -29,7 +29,7 @@ export class CurrencyService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
     /**
      * Resolved per call rather than captured: the registry is a singleton this
      * module owns, but the accessor keeps the constructor honest for the tests

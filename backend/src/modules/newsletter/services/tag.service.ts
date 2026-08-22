@@ -3,13 +3,13 @@ import { ERROR_CODES, type CreateNewsletterTagRequest, type NewsletterTag as New
 import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /** Newsletter tag CRUD (feature 048, US3). */
 export class NewsletterTagService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string, stateAfter: Record<string, unknown> | null): void {

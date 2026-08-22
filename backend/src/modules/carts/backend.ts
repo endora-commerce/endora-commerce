@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import { ERROR_CODES } from '@b2b/contracts';
 import type {
   CartQueryPort,
@@ -97,7 +97,7 @@ export interface CartShoppingListBridge {
 /** What `carts` resolves from the container, and the names it owns. */
 export interface CartsCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly redis: Redis;
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: SettingsReadPort;

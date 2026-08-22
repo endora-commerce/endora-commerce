@@ -7,7 +7,7 @@ import { randomUUID } from 'crypto';
  * detail-page audit panel for both Org-Admin and platform-admin views.
  *
  * Companion to `audit_log_entries` — every cart-state transition also
- * lands a row there via AuditLogService.record(...), so the platform-wide
+ * lands a row there via AuditPort.record(...), so the platform-wide
  * audit timeline stays whole. Splitting the two tables keeps the cart UI
  * tight (typed `from_state` / `to_state` / `metadata`) without bloating
  * the generic audit feed.

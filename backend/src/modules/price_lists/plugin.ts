@@ -9,7 +9,7 @@ import { PriceListStatusWorker } from './services/price-list-status-worker.js';
 import { PricingCache } from './services/pricing-cache.js';
 import { registerPricingRoutes } from './routes.js';
 import { registerStorefrontPricingRoutes } from './routes.storefront.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
@@ -39,7 +39,7 @@ export interface PriceListsModuleOptions {
   /** Pass `0` to disable the in-memory pricing LRU (tests). */
   pricingCacheTtlMs?: number;
   /** Feature 024 — optional cross-module hook so price-list mutations land in the audit log. */
-  auditLogService?: AuditLogService;
+  auditLogService?: AuditPort;
   /** Feature 054 — audits `patch` co-transactionally when provided. */
   commandBus?: CommandBus;
   /** Feature 024 — resolves the admin actor identity for audit entries. */

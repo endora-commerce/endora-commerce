@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../kernel/ports/audit.js';
 import { actorFromContext } from './actor.js';
 import { getTenantContext } from '../tenancy/index.js';
 
@@ -25,7 +25,7 @@ export interface AuditFromContextInput {
  * background write still audits. Callers that MUST have an actor use the bus.
  */
 export function recordAuditFromContext(
-  auditLog: AuditLogService,
+  auditLog: AuditPort,
   em: EntityManager,
   input: AuditFromContextInput,
 ): void {

@@ -11,7 +11,7 @@ import {
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import type { EventBus } from '../../events/bus.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import { StockLevel } from './entities/stock-level.entity.js';
 import { Warehouse } from './entities/warehouse.entity.js';
 import { StockLevelService } from './services/stock-level-service.js';
@@ -33,7 +33,7 @@ export interface InventoryPromptToolsDeps {
   /** `catalogCategoryReadPort`, owned by `catalog` — read by the stock service. */
   catalogCategories: CatalogCategoryReadPort;
   eventBus?: EventBus;
-  auditLogService?: AuditLogService;
+  auditLogService?: AuditPort;
 }
 
 const RESULT_LIMIT = 20;

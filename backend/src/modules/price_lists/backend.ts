@@ -10,7 +10,7 @@ import type {
   PriceListReadPort,
   DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { AuditReferenceRegistryPort } from '@b2b/contracts';
@@ -64,7 +64,7 @@ import { registerPriceListCurrencyReferences } from './services/price-list-curre
 /** What `price_lists` resolves from the container, and the names it owns. */
 export interface PriceListsCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly commandBus: CommandBus;
   readonly requireAdmin: RequireAdminFactory;
   readonly organizationInheritancePort: {

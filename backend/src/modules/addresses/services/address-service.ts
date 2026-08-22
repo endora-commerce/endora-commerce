@@ -7,7 +7,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { Address } from '../entities/address.entity.js';
 
 /**
@@ -22,7 +22,7 @@ export class AddressService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly dictionaryValidator?: DictionaryValidator,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {

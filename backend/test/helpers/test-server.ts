@@ -41,16 +41,19 @@ import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js
 // through the same `composedModules.contribute(…)` window, which is a method
 // rather than a convention precisely because this pair kept drifting.
 import { MODULES } from '../../src/composition.generated.js';
+// The composition machinery, by relative path since T042c: it is the host's,
+// not the `./kernel` subpath's, and this is the second composition root rather
+// than a module. `harness-parity.test.ts` holds the two roots to each other.
+import { composeModules } from '../../src/kernel/compose.js';
 import {
-  composeModules,
-  createRegistrationOwnership,
   createRootContainer,
-  platformLogger,
   registerOrm,
   registerValues,
-  requiredModulesFrom,
   type KernelContainer,
-} from '../../src/kernel/index.js';
+} from '../../src/kernel/container.js';
+import { createRegistrationOwnership } from '../../src/kernel/module-context.js';
+import { platformLogger } from '../../src/kernel/logging.js';
+import { requiredModulesFrom } from '../../src/kernel/lifecycle/required-modules.js';
 import type { DecorationRecord } from '../../src/kernel/compose.js';
 import {
   resolveTenantContext,
@@ -311,7 +314,10 @@ export interface BackendServerHandle {
     providerFactory: LlmProviderFactory;
   };
   /** Feature 058 — credentials handle (config-type registry + service). */
-  credentials: { service: CredentialsService; configurationTypeRegistry: ConfigurationTypeRegistry };
+  credentials: {
+    service: CredentialsService;
+    configurationTypeRegistry: ConfigurationTypeRegistry;
+  };
   /** Feature 047 — invoices handle (issuance service, PDF renderer, number generator). */
   invoices: {
     invoiceService: InvoicesCradle['invoiceService'];
@@ -659,7 +665,6 @@ function harnessManifestRegistry(): LoadedManifestRegistry {
   return cachedManifestRegistry;
 }
 
-
 /**
  * Refuse to hand back a server whose error messages cannot be translated
  * (issue #158).
@@ -783,8 +788,6 @@ export async function setupBackendServer(
   await dropStaleCaches(redis);
 
   const auditLogService = new AuditLogService(em);
-
-
 
   const conn = orm.em.getConnection();
   await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
@@ -910,8 +913,7 @@ export async function setupBackendServer(
     // module's code identical in both compositions and keeps the count of
     // *real* subscriptions at "only where a test asks", which is the property
     // `harness-parity` checks.
-    redisSubscriber:
-      options.exercisePubSub === true ? redisSubscriber : inertRedisSubscriber(),
+    redisSubscriber: options.exercisePubSub === true ? redisSubscriber : inertRedisSubscriber(),
     // Modules announce on it; `ctx.subscribe` receives on it. A module that
     // publishes needs it as a registration, not just as a composer option.
     eventBus,
@@ -926,7 +928,7 @@ export async function setupBackendServer(
     // actor property. Soft by contract: `null` for anonymous traffic and for a
     // Customer with no Organization.
     customerOrganizationIdResolver: (request: FastifyRequest): string | null =>
-      request.testActor?.kind === 'customer' ? request.testActor.organizationId ?? null : null,
+      request.testActor?.kind === 'customer' ? (request.testActor.organizationId ?? null) : null,
     storefrontBaseUrl: 'http://localhost:3000',
     // The one composition allowed to serve `/api/v1/_test/latest-verification-token`.
     organizationsExposeTestProbe: true,
@@ -1064,9 +1066,13 @@ export async function setupBackendServer(
 
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
-  let shoppingListServiceRef: import('../../src/modules/shopping_lists/services/shopping-list-service.js').ShoppingListService | null = null;
+  let shoppingListServiceRef:
+    | import('../../src/modules/shopping_lists/services/shopping-list-service.js').ShoppingListService
+    | null = null;
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
-  let orderServiceForOneClick: import('../../src/modules/orders/services/order-service.js').OrderService | null = null;
+  let orderServiceForOneClick:
+    | import('../../src/modules/orders/services/order-service.js').OrderService
+    | null = null;
   // Feature 040 — late-bound OrderListService for the customers module.
   // Feature 026 US4 / 056 — which organizations a sales-rep admin may see.
   // T143a — `organizations`' port, read lazily, where this harness used to
@@ -1081,21 +1087,25 @@ export async function setupBackendServer(
     resolveByEmail(email: string): Promise<{ id: string } | null>;
     autoCreate(email: string): Promise<{ id: string } | null>;
   } =>
-    (container.cradle as never as {
-      customerSocialLoginPort: {
-        resolveByEmail(email: string): Promise<{ id: string } | null>;
-        autoCreate(email: string): Promise<{ id: string } | null>;
-      };
-    }).customerSocialLoginPort;
+    (
+      container.cradle as never as {
+        customerSocialLoginPort: {
+          resolveByEmail(email: string): Promise<{ id: string } | null>;
+          autoCreate(email: string): Promise<{ id: string } | null>;
+        };
+      }
+    ).customerSocialLoginPort;
 
   const salesRepScope = (): {
     listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
   } =>
-    (container.cradle as never as {
-      organizationSalesRepScopePort: {
-        listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
-      };
-    }).organizationSalesRepScopePort;
+    (
+      container.cradle as never as {
+        organizationSalesRepScopePort: {
+          listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+        };
+      }
+    ).organizationSalesRepScopePort;
 
   /**
    * Feature 026 US6 — admin orders/RFQ scope for the test harness. Mirrors
@@ -1134,7 +1144,6 @@ export async function setupBackendServer(
   // `lazyPort` behind an `effectiveState.isPresent('mfa')` probe, so both
   // composition roots contribute nothing for this name and the harness observes
   // exactly what production does.
-
 
   // Feature 056 — organization tree + inheritance resolution, built here for
   // the same reason production builds it (`composition.ts`): three consumers
@@ -1260,41 +1269,68 @@ export async function setupBackendServer(
   // Registered after `composeModules`, where the module declares its defaults.
   composedModules.contribute({
     organizationStatusResolver: async (orgId: string) => {
-      const row = (await em().getKnex()
-        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
+      const row = (await em()
+        .getKnex()
+        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [
+          orgId,
+        ])) as { rows: Array<{ status: string }> };
       return row.rows[0]?.status ?? null;
     },
     promotionRuleTargets: {
       salesChannels: async () => {
-        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
+        const { items } = await (
+          container.cradle as unknown as SalesChannelsCradle
+        ).salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: testAnyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await (container.cradle as unknown as CustomerAccountsCradle).customerGroupService.list();
+        const groups = await (
+          container.cradle as unknown as CustomerAccountsCradle
+        ).customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
-        )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
+          )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
         return res.rows.map((r) => ({ id: r.id, name: r.name, taxId: r.tax_id ?? null }));
       },
       categories: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
-        )) as { rows: Array<{ id: string; slug: string; name: unknown; parent_category_id: string | null }> };
-        return res.rows.map((r) => ({ id: r.id, slug: r.slug, name: testAnyLabel(r.name), parentCategoryId: r.parent_category_id ?? null }));
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
+          )) as {
+          rows: Array<{
+            id: string;
+            slug: string;
+            name: unknown;
+            parent_category_id: string | null;
+          }>;
+        };
+        return res.rows.map((r) => ({
+          id: r.id,
+          slug: r.slug,
+          name: testAnyLabel(r.name),
+          parentCategoryId: r.parent_category_id ?? null,
+        }));
       },
       paymentMethods: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
-        )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
+          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
         return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
       },
       deliveryMethods: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
-        )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
+          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
         return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
       },
     },
@@ -1306,7 +1342,9 @@ export async function setupBackendServer(
   // publishes both services as accessor ports; this root reads them like any
   // other consumer instead of holding the variables its callbacks filled in.
   const emailCradle = (): {
-    transactionalEmailSenderAccessor: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
+    transactionalEmailSenderAccessor: () =>
+      | import('@b2b/contracts').TransactionalEmailSender
+      | undefined;
     emailBrandingAccessor: () => { resolve(salesChannelId: string): Promise<unknown> } | undefined;
   } => container.cradle as never;
 
@@ -1380,7 +1418,8 @@ export async function setupBackendServer(
             customerAccountId: actor.customerAccountId,
             organizationId: orgId,
             impersonatorAdminUserId:
-              (actor as { impersonatorAdminUserId?: string | null }).impersonatorAdminUserId ?? null,
+              (actor as { impersonatorAdminUserId?: string | null }).impersonatorAdminUserId ??
+              null,
             ...(rollupSubtree && rollupSubtree.length > 0
               ? { rollupSubtreeOrganizationIds: rollupSubtree }
               : {}),
@@ -1430,8 +1469,7 @@ export async function setupBackendServer(
   // why the bridge is contributed rather than built into the module.
   composedModules.contribute({
     // D-48 — the system-default channel, which always exists.
-    mfaDefaultChannelIdResolver: async () =>
-      (await salesChannels.resolver.getSystemDefault()).id,
+    mfaDefaultChannelIdResolver: async () => (await salesChannels.resolver.getSystemDefault()).id,
     mfaBaseUrls: {
       backend: 'http://localhost',
       storefront: 'http://localhost:3000',
@@ -1488,7 +1526,11 @@ export async function setupBackendServer(
         }
         const c = await em().findOne(CustomerAccount, { id: request.testActor.customerAccountId });
         if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-          throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+          throw new HttpError(
+            403,
+            ERROR_CODES.FORBIDDEN,
+            'Organization administrator role required.',
+          );
         }
         return { organizationId: c.organizationId, actor: c.id };
       },
@@ -1639,54 +1681,63 @@ export async function setupBackendServer(
   composedModules.contribute({
     megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from categories where id = ? limit 1',
-          [categoryId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from categories where id = ? limit 1', [categoryId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       cmsPageExists: async (pageId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from cms_pages where id = ? limit 1',
-          [pageId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from cms_pages where id = ? limit 1', [pageId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       cmsBlockExists: async (blockId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from cms_blocks where id = ? limit 1',
-          [blockId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from cms_blocks where id = ? limit 1', [blockId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       assetIs: async (assetId, expected) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from assets where id = ? and kind = ? limit 1',
-          [assetId, expected],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from assets where id = ? and kind = ? limit 1', [
+            assetId,
+            expected,
+          ])) as Array<{ '?column?': number }>;
         return rows.length > 0;
       },
     } satisfies TargetValidatorDeps,
     megamenuStorefrontDeps: {
       resolveCategoryUrl: async (categoryId) => {
-        const rows = (await em().getConnection().execute(
-          'select slug from categories where id = ? limit 1',
-          [categoryId],
-        )) as Array<{ slug: string }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select slug from categories where id = ? limit 1', [categoryId])) as Array<{
+          slug: string;
+        }>;
         return rows[0]?.slug ? `/catalog/${rows[0].slug}` : null;
       },
       resolveCmsPageUrl: async (pageId) => {
-        const rows = (await em().getConnection().execute(
-          'select slug from cms_pages where id = ? limit 1',
-          [pageId],
-        )) as Array<{ slug: string }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select slug from cms_pages where id = ? limit 1', [pageId])) as Array<{
+          slug: string;
+        }>;
         return rows[0]?.slug ? `/${rows[0].slug}` : null;
       },
       resolveAsset: async (assetId) => {
-        const rows = (await em().getConnection().execute(
-          'select kind, label from assets where id = ? limit 1',
-          [assetId],
-        )) as Array<{ kind: string; label: string | null }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select kind, label from assets where id = ? limit 1', [assetId])) as Array<{
+          kind: string;
+          label: string | null;
+        }>;
         const row = rows[0];
         if (!row) return null;
         if (row.kind !== 'image' && row.kind !== 'video') return null;
@@ -1694,10 +1745,12 @@ export async function setupBackendServer(
         return { url: resolved.url, label: row.label, kind: row.kind };
       },
       resolveCmsBlock: async (blockId, language) => {
-        const rows = (await em().getConnection().execute(
-          'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
-          [blockId],
-        )) as Array<{
+        const rows = (await em()
+          .getConnection()
+          .execute(
+            'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
+            [blockId],
+          )) as Array<{
           id: string;
           code: string;
           content: { languages?: Record<string, unknown> };
@@ -1759,8 +1812,7 @@ export async function setupBackendServer(
     // own actor property. The ad modules resolve one name instead of each
     // taking its own identically-shaped `resolveAuditContext` option.
     adminAuditActorResolver: (request: FastifyRequest) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : null,
+      actorAdminUserId: request.testActor?.kind === 'admin' ? request.testActor.adminUserId : null,
     }),
     // Feature 072 (wave 2) — **undefined on purpose.** A BullMQ queue built per
     // `setupBackendServer()` is never closed and this harness is constructed
@@ -1771,10 +1823,11 @@ export async function setupBackendServer(
     moduleQueueRedis: undefined,
     // Feature 072 (wave 2) — mirrors `composition.ts`.
     salesChannelCodeIdPort: {
-      idByCode: async (code: string) =>
-        (await salesChannels.resolver.getByCode(code))?.id ?? null,
+      idByCode: async (code: string) => (await salesChannels.resolver.getByCode(code))?.id ?? null,
       codeById: async (id: string) => {
-        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
+        const { items } = await (
+          container.cradle as unknown as SalesChannelsCradle
+        ).salesChannelsService.list({});
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
@@ -1893,8 +1946,8 @@ export async function setupBackendServer(
     catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
       try {
         const channelId =
-          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)?.id ??
-          (await salesChannels.resolver.getSystemDefault()).id;
+          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)
+            ?.id ?? (await salesChannels.resolver.getSystemDefault()).id;
         const url = await settings.settingsService.get(
           'product_image_placeholder_url',
           channelId,
@@ -2055,50 +2108,50 @@ export async function setupBackendServer(
   // asking, the organization's tax rate, and the subtree the RFQ admin scope
   // rolls up over.
   composedModules.contribute({
-      rfqCustomerContextResolver: async (request: FastifyRequest) => {
-        const ctx = customerResolver(request);
-        const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
-        return {
-          customerAccountId: ctx.customerAccountId,
-          organizationId: ctx.organizationId,
-          isOrgAdmin: account?.role === 'organization_admin',
-        };
-      },
-      rfqAdminContextResolver: async (request: FastifyRequest) => {
-        const adminUserId = request.testActor?.kind === 'admin'
-          ? request.testActor.adminUserId
-          : TEST_ADMIN_ID;
-        const adminUser = await em().findOne(AdminUser, { id: adminUserId });
-        const role = adminUser?.adminRoleId
-          ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
-          : null;
-        return {
-          adminUserId,
-          isPlatformAdmin: role?.code === 'platform_admin' || true,
-          roleLabel: role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
-        };
-      },
-      // No `catch`, exactly as production has none since issue #84 — a harness
-      // that swallowed what production propagates would hide the 503 the
-      // fail-closed tests exist to observe.
-      // T143c — read through `organizations`' port, as production reads it.
-      rfqTaxRateResolver: async (organizationId: string) => {
-        const org = await (
-          container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
-        ).organizationTaxProfilePort.taxProfileOf(organizationId);
-        const vatStatus = org?.vatStatus ?? 'vat_payer';
-        if (vatStatus !== 'vat_payer') return 0;
-        const country = org?.country ?? 'PL';
-        const resolved = await taxesCradle.taxService.taxRateFor({
-          country,
-          productType: 'simple',
-          vatStatus,
-        });
-        // Same narrowing production does (issue #124): `none` is "no rule and no
-        // default configured", never "no `taxes` module" — that one throws at
-        // the port gate before this line runs.
-        return resolved.source === 'none' ? 0 : resolved.rate;
-      },
+    rfqCustomerContextResolver: async (request: FastifyRequest) => {
+      const ctx = customerResolver(request);
+      const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
+      return {
+        customerAccountId: ctx.customerAccountId,
+        organizationId: ctx.organizationId,
+        isOrgAdmin: account?.role === 'organization_admin',
+      };
+    },
+    rfqAdminContextResolver: async (request: FastifyRequest) => {
+      const adminUserId =
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
+      const adminUser = await em().findOne(AdminUser, { id: adminUserId });
+      const role = adminUser?.adminRoleId
+        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+        : null;
+      return {
+        adminUserId,
+        isPlatformAdmin: role?.code === 'platform_admin' || true,
+        roleLabel:
+          role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
+      };
+    },
+    // No `catch`, exactly as production has none since issue #84 — a harness
+    // that swallowed what production propagates would hide the 503 the
+    // fail-closed tests exist to observe.
+    // T143c — read through `organizations`' port, as production reads it.
+    rfqTaxRateResolver: async (organizationId: string) => {
+      const org = await (
+        container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
+      ).organizationTaxProfilePort.taxProfileOf(organizationId);
+      const vatStatus = org?.vatStatus ?? 'vat_payer';
+      if (vatStatus !== 'vat_payer') return 0;
+      const country = org?.country ?? 'PL';
+      const resolved = await taxesCradle.taxService.taxRateFor({
+        country,
+        productType: 'simple',
+        vatStatus,
+      });
+      // Same narrowing production does (issue #124): `none` is "no rule and no
+      // default configured", never "no `taxes` module" — that one throws at
+      // the port gate before this line runs.
+      return resolved.source === 'none' ? 0 : resolved.rate;
+    },
   });
 
   // Feature 072 (T138) — the two `organizations` contributions this harness
@@ -2247,12 +2300,13 @@ export async function setupBackendServer(
           req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
         organizationId:
           req.testActor?.kind === 'customer'
-            ? req.testActor.organizationId ?? TEST_ORGANIZATION_ID
+            ? (req.testActor.organizationId ?? TEST_ORGANIZATION_ID)
             : TEST_ORGANIZATION_ID,
       }),
       getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
       resolveRecipientEmail: async (order) =>
-        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
+        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ??
+        null,
       resolveLanguage: async (salesChannelId) =>
         (salesChannelId
           ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
@@ -2268,7 +2322,11 @@ export async function setupBackendServer(
     ksefSellerNipResolver: async () => {
       try {
         const { z: zod } = await import('zod');
-        const raw = await settings.settingsService.get('invoices.seller.tax_id', null, zod.string());
+        const raw = await settings.settingsService.get(
+          'invoices.seller.tax_id',
+          null,
+          zod.string(),
+        );
         const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
         return nip.length > 0 ? nip : null;
       } catch {
@@ -2320,8 +2378,9 @@ export async function setupBackendServer(
       expandCategoryProductIds: (categoryIds: string[]) =>
         // T143a — `catalog`'s port, mirroring `composition.ts`. This built a
         // throwaway `CatalogQueryService` per call.
-        (container.cradle as never as { catalogQueryPort: CatalogQueryService })
-          .catalogQueryPort.expandCategoryProductIds(categoryIds),
+        (
+          container.cradle as never as { catalogQueryPort: CatalogQueryService }
+        ).catalogQueryPort.expandCategoryProductIds(categoryIds),
       resolvePublicImageUrls: async (assetIds: string[]) => {
         const out = new Map<string, string>();
         if (assetIds.length === 0) return out;
@@ -2383,8 +2442,7 @@ export async function setupBackendServer(
   composedModules.contribute({
     shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
   });
-  modules.push(
-  );
+  modules.push();
 
   // Feature 072 (T114) — `newsletter` owns its services and routes now.
   // These stay here because they are pinned per composition rather than
@@ -2588,8 +2646,7 @@ export async function setupBackendServer(
     settings: {
       ...settings,
       adminService: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      cacheAdminService: (container.cradle as unknown as SettingsCradle)
-        .settingsCacheAdminService,
+      cacheAdminService: (container.cradle as unknown as SettingsCradle).settingsCacheAdminService,
     },
     salesChannels: {
       ...salesChannels,
@@ -2635,8 +2692,9 @@ export async function setupBackendServer(
     // T143a — the port `catalog` provides, so a fixture reads the same instance
     // the module does rather than a second one built here.
     get catalogAttributeRead(): CatalogAttributeReadService {
-      return (container.cradle as never as { catalogAttributeReadPort: CatalogAttributeReadService })
-        .catalogAttributeReadPort;
+      return (
+        container.cradle as never as { catalogAttributeReadPort: CatalogAttributeReadService }
+      ).catalogAttributeReadPort;
     },
     // Issue #132 — the same port the listing paths resolve, so a hand-built
     // fixture prices the way the composed catalogue does.
@@ -2777,4 +2835,3 @@ class FakeVatValidator implements VatValidator {
     };
   }
 }
-

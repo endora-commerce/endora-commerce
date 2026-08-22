@@ -53,7 +53,7 @@ import type { ProductEditorPreferencesService } from './services/product-editor-
 import type { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import type { ProductOverridesService } from './services/product-overrides.service.js';
 import { productValueOverridesPatchRequestSchema } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ProductVariant } from './entities/product-variant.entity.js';
 import type { Product } from './entities/product.entity.js';
 import type { CatalogAttributeView } from './services/catalog-attribute-read.service.js';
@@ -169,7 +169,7 @@ export interface CatalogAdminDeps {
    * Gallery, Attachment, ProductLink, GroupedItem, BundleSlot CRUD).
    * Optional so tests that don't wire it up stay green.
    */
-  auditLogService?: AuditLogService;
+  auditLogService?: AuditPort;
 }
 
 export async function registerCatalogAdminRoutes(

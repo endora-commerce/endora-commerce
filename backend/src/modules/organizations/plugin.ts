@@ -24,7 +24,7 @@ import {
 import { EmailVerificationService } from './services/email-verification-service.js';
 import { InvitationService } from './services/invitation-service.js';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './services/org-template-email.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
 import { registerOrganizationsStorefrontRoutes } from './routes.storefront.js';
@@ -114,7 +114,7 @@ export interface OrganizationsModuleOptions {
   /** Storefront base URL for the invitation accept link. */
   storefrontBaseUrl?: string;
   /** Required when `requireAdmin` is set — audit trail for admin org mutations. */
-  auditLogService?: AuditLogService;
+  auditLogService?: AuditPort;
   dictionaryValidator?: DictionaryValidator;
   /** Resolved from the container since feature 072 (T090) — one instance, always armed. */
   addressService: AddressServicePort;

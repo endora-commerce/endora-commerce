@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { CartWritePort, CatalogProductReadPort, RfqCustomerPort } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
@@ -48,7 +48,7 @@ import { ShoppingListService } from './services/shopping-list-service.js';
 /** What `shopping_lists` resolves from the container, and the names it owns. */
 export interface ShoppingListsCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireCustomer: ShoppingListsModuleOptions['requireCustomer'];
   readonly customerContextResolver: ShoppingListsModuleOptions['resolveCustomerContext'];
   readonly rfqService: RfqCustomerPort;

@@ -10,7 +10,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterEmailBlock } from '../entities/newsletter-email-block.entity.js';
 import type { ContentTree, EmailEmbeds } from './content.service.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 interface ContentEnvelope {
   schema_version: number;
@@ -37,7 +37,7 @@ function unwrap(content: Record<string, unknown>, language?: string): ContentTre
 export class NewsletterEmailBlockService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string, stateAfter: Record<string, unknown> | null): void {
