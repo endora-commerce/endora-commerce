@@ -19,7 +19,7 @@ import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actor
  * > the operator gets a crash where the old refusal gave a 409 — a strictly
  * > worse trade.
  *
- * That trade is what these four assertions exist to refuse. Every one of these
+ * That trade is what the cases below exist to refuse. Every one of these
  * edges used to be held shut by a suppression in `check-port-dependencies.ts`,
  * on the argument that declaring it would make the owner unswitchable. The
  * declaration now withdraws the refusal instead — so the state below is one an
@@ -38,11 +38,50 @@ import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actor
  *
  * The operator axis only: `platformAvailable` stays true throughout, which is
  * the case Constitution XVII's checklist item 6 singles out.
+ *
+ * ## Every edge named below is named through {@link edge}
+ *
+ * A case here asserts the sentence a **manifest** declares, so the day the
+ * manifest stops declaring it the case is asserting nobody's promise. That is
+ * not hypothetical: `customers` → `orders:orderListServiceAccessor` was
+ * declared `degrades-without` and covered here until d9025760 withdrew the
+ * declaration — the edge became an ordinary binding dependency on a locked
+ * module and the panels started answering 503 `MODULE_DISABLED`, which is the
+ * right answer and the opposite of what the two cases under it demanded. They
+ * were red from that commit onward, and nothing in the tree connected the
+ * withdrawal to them.
+ *
+ * {@link edge} is that connection. Every `describe` title is built from a
+ * `(consumer, owner, name)` triple rather than written out, and
+ * {@link COVERED_EDGES} collects them for the guard at the foot of the file,
+ * which fails when a triple no longer resolves to a live `degrades-without`
+ * declaration. Withdrawing a declaration now reds this file at the seam that
+ * *says* the declaration exists, instead of three assertions down.
  */
 
 const ALL_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
 const ADMIN = { b2b_session: 'stub-admin-session' };
-const CUSTOMER = { b2b_session: 'stub-customer-session' };
+
+/** A `(consumer, owner, name)` triple this file claims to cover. */
+interface CoveredEdge {
+  readonly consumer: string;
+  readonly owner: string;
+  readonly name: string;
+}
+
+const COVERED_EDGES: CoveredEdge[] = [];
+
+/**
+ * The `describe` title for one declared edge, recorded on the way past.
+ *
+ * The title reads exactly as it did when it was a literal — `consumer →
+ * owner:name` — so grepping for a module id still finds its cases. What it can
+ * no longer do is name an edge no manifest declares.
+ */
+const edge = (consumer: string, owner: string, name: string): string => {
+  COVERED_EDGES.push({ consumer, owner, name });
+  return `${consumer} → ${owner}:${name}`;
+};
 
 describe('nonBindingDependencies — the declared degradation, with the owner off [integration]', () => {
   let h: BackendServerHandle;
@@ -62,22 +101,6 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
 
   const deactivate = (moduleId: string): void => {
     registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: [moduleId] });
-  };
-
-  /**
-   * Absence on the **platform** axis, for an owner feature 074 made core.
-   *
-   * `orders` is now `nonDeactivatable`, and `operatorActivated` short-circuits
-   * to `true` for such a module however the activation map is seeded — so
-   * `deactivate('orders')` stopped making it absent, and the three cases under
-   * it went on passing while asserting nothing (an empty order history is also
-   * what a customer with no orders sees). The declared degradation is still
-   * reachable, by the axis a deployment operator drives: a deployment that does
-   * not install `orders` at all. Withdrawing the module from the enabled set is
-   * that state, and it is the honest way to keep the edge covered.
-   */
-  const withdraw = (moduleId: string): void => {
-    registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== moduleId));
   };
 
   beforeAll(async () => {
@@ -118,7 +141,7 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
    * with API keys. The `?.` that was already there defends against "nobody
    * registered the name" and not against a gate that says no.
    */
-  describe('auth → api_keys:apiKeyResolver', () => {
+  describe(edge('auth', 'api_keys', 'apiKeyResolver'), () => {
     it('leaves a Bearer-carrying request unauthenticated rather than failing it', async () => {
       deactivate('api_keys');
 
@@ -149,7 +172,7 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
    * `catalog` → `api_keys:requireApiKey`, whenAbsent: *the external catalog
    * namespace stops accepting machine-to-machine callers*.
    */
-  describe('catalog → api_keys:requireApiKey', () => {
+  describe(edge('catalog', 'api_keys', 'requireApiKey'), () => {
     it('shuts the machine-to-machine door with a 401, not a 503', async () => {
       deactivate('api_keys');
 
@@ -193,7 +216,7 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
    * organization-bound half of the gate above, guarding
    * `/api/v1/external/catalog/*`.
    */
-  describe('catalog → api_keys:requireBoundApiKey', () => {
+  describe(edge('catalog', 'api_keys', 'requireBoundApiKey'), () => {
     it('shuts the external namespace with a 401, not a 503', async () => {
       deactivate('api_keys');
 
@@ -239,7 +262,7 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
    * so what keeps the listing serving is the presence probe in front of it and
    * not the absence of one.
    */
-  describe('catalog → search:searchQueryPort', () => {
+  describe(edge('catalog', 'search', 'searchQueryPort'), () => {
     let originalBackend: string | undefined;
 
     beforeAll(() => {
@@ -317,75 +340,29 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
     });
   });
 
-  /**
-   * `customers` → `orders:orderListServiceAccessor`, whenAbsent: *order history
-   * is empty on the self-service and admin customer panels*.
+  /*
+   * `customers` → `orders:orderListServiceAccessor` used to be covered here,
+   * and is not an edge of this kind any more.
    *
-   * The accessor's `() => OrderListService | null` return type looks like it
-   * already tolerates an absent `orders`, and that is the trap: it is a gated
-   * port, so an absent `orders` makes the resolution throw before the `null`
-   * check is ever reached. The declared behaviour is an empty page — the same
-   * page a customer with no orders sees.
+   * The declaration promised *order history is empty on the self-service and
+   * admin customer panels*, and the degradation behind it was the sanctioned
+   * shape — an `effectiveState.isPresent('orders')` probe in `customers`
+   * returning an `EMPTY_ORDER_LIST`, no `catch` anywhere near the port. What it
+   * never had was a state that could reach it: `orders` has never carried an
+   * activation control, feature 074 made the lock explicit, and since issue
+   * #258 a composition that does not register a locked module is refused before
+   * the first module registers. So the probe could not fire on either axis, and
+   * the sentence an operator would have been shown described a page nobody
+   * could ever be served.
    *
-   * **The platform axis, not the operator axis** (feature 074). `orders` is
-   * core now: the transaction the platform exists to record is not a capability
-   * a business declines, so no operator can produce this state. A deployment
-   * that never installs the module still can, the container claim is unchanged,
-   * and the spec keeps the declaration legal for exactly that reason. Left on
-   * `deactivate` these three cases would pass without the module ever being
-   * absent, which is worse than deleting them.
+   * d9025760 withdrew the declaration: `orders` is one of `customers`' ordinary
+   * binding `dependencies` now, the panels resolve `orderListPort` directly, and
+   * an absent owner answers 503 `MODULE_DISABLED` at the seam. That is
+   * fail-closed — a different one of the four classifications — so it belongs to
+   * `test/contract/customers/cut-edges-fail-closed.test.ts`. That file has
+   * covered the admin panel since the same commit; the self-service route moved
+   * there beside it rather than being deleted with these cases.
    */
-  describe('customers → orders:orderListServiceAccessor', () => {
-    it('answers an empty self-service order history rather than failing', async () => {
-      withdraw('orders');
-
-      const res = await h.app.inject({
-        method: 'GET',
-        url: '/api/v1/me/customer/orders',
-        cookies: CUSTOMER,
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = res.json() as { data: unknown[]; meta: { total: number } };
-      expect(body.data).toEqual([]);
-      expect(body.meta.total).toBe(0);
-    });
-
-    it('answers an empty admin order-history panel rather than failing', async () => {
-      withdraw('orders');
-
-      const res = await h.app.inject({
-        method: 'GET',
-        url: `/api/v1/admin/customers/${TEST_CUSTOMER_ID}/orders`,
-        cookies: ADMIN,
-      });
-
-      expect(res.statusCode).toBe(200);
-      expect((res.json() as { data: unknown[] }).data).toEqual([]);
-    });
-
-    it('leaves the rest of the customer surface serving', async () => {
-      withdraw('orders');
-
-      // Same guard as on the `catalog` edge: an empty history proves nothing if
-      // the whole module has stopped answering.
-      const res = await h.app.inject({
-        method: 'GET',
-        url: '/api/v1/me/customer',
-        cookies: CUSTOMER,
-      });
-      expect(res.statusCode).toBe(200);
-    });
-
-    it('lists orders again once the module is available again', async () => {
-      const res = await h.app.inject({
-        method: 'GET',
-        url: '/api/v1/me/customer/orders',
-        cookies: CUSTOMER,
-      });
-      expect(res.statusCode).toBe(200);
-    });
-  });
 
   /**
    * `orders` → `payment_methods:paymentAdapterRegistry` and
@@ -402,46 +379,56 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
    * taking: the module that serves the catalogue closes its own seam, while
    * every order already placed stays readable and manageable.
    */
-  describe('orders → the two method modules', () => {
-    it('closes the payment-method catalogue and leaves order taking serving', async () => {
-      deactivate('payment_methods');
+  describe(
+    // Three edges under one heading, and each of the three named through
+    // `edge()` rather than summarised as "the two method modules": a block that
+    // covers three declarations has to put three triples in front of the guard.
+    [
+      edge('orders', 'payment_methods', 'paymentAdapterRegistry'),
+      edge('orders', 'payment_methods', 'paymentOrderStatusRegistry'),
+      edge('orders', 'delivery_methods', 'shippingAdapterRegistry'),
+    ].join(', '),
+    () => {
+      it('closes the payment-method catalogue and leaves order taking serving', async () => {
+        deactivate('payment_methods');
 
-      const methods = await h.app.inject({ method: 'GET', url: '/api/v1/payment-methods' });
-      expect(methods.statusCode).toBe(503);
-      expect((methods.json() as { error: { code: string } }).error.code).toBe('MODULE_DISABLED');
+        const methods = await h.app.inject({ method: 'GET', url: '/api/v1/payment-methods' });
+        expect(methods.statusCode).toBe(503);
+        expect((methods.json() as { error: { code: string } }).error.code).toBe('MODULE_DISABLED');
 
-      // The degradation is the choice, not the module that reads it. Without
-      // this half the assertion above would pass for an `orders` that had
-      // stopped answering with it.
-      const orders = await h.app.inject({
-        method: 'GET',
-        url: '/api/v1/admin/orders',
-        cookies: ADMIN,
+        // The degradation is the choice, not the module that reads it. Without
+        // this half the assertion above would pass for an `orders` that had
+        // stopped answering with it.
+        const orders = await h.app.inject({
+          method: 'GET',
+          url: '/api/v1/admin/orders',
+          cookies: ADMIN,
+        });
+        expect(orders.statusCode).toBe(200);
       });
-      expect(orders.statusCode).toBe(200);
-    });
 
-    it('closes the delivery-method catalogue and leaves order taking serving', async () => {
-      deactivate('delivery_methods');
+      it('closes the delivery-method catalogue and leaves order taking serving', async () => {
+        deactivate('delivery_methods');
 
-      const methods = await h.app.inject({ method: 'GET', url: '/api/v1/delivery-methods' });
-      expect(methods.statusCode).toBe(503);
+        const methods = await h.app.inject({ method: 'GET', url: '/api/v1/delivery-methods' });
+        expect(methods.statusCode).toBe(503);
 
-      const orders = await h.app.inject({
-        method: 'GET',
-        url: '/api/v1/admin/orders',
-        cookies: ADMIN,
+        const orders = await h.app.inject({
+          method: 'GET',
+          url: '/api/v1/admin/orders',
+          cookies: ADMIN,
+        });
+        expect(orders.statusCode).toBe(200);
       });
-      expect(orders.statusCode).toBe(200);
-    });
 
-    it('offers both catalogues again once the modules are switched back on', async () => {
-      for (const url of ['/api/v1/payment-methods', '/api/v1/delivery-methods']) {
-        const res = await h.app.inject({ method: 'GET', url });
-        expect(res.statusCode, url).toBe(200);
-      }
-    });
-  });
+      it('offers both catalogues again once the modules are switched back on', async () => {
+        for (const url of ['/api/v1/payment-methods', '/api/v1/delivery-methods']) {
+          const res = await h.app.inject({ method: 'GET', url });
+          expect(res.statusCode, url).toBe(200);
+        }
+      });
+    },
+  );
 
   it('exercises the deactivated-while-platform-available case throughout', () => {
     // Constitution XVII checklist item 6 asks for this case specifically, and
@@ -457,21 +444,29 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
     }
   });
 
-  it('reaches the `orders` edge by the one axis that can still produce it', () => {
-    // The fourth edge, stated separately rather than dropped from the list
-    // above. Feature 074 makes `orders` core, so the operator axis is closed to
-    // it by declaration — asserted here, so that a future change which reopens
-    // the operator route is visible — and the platform axis is what the three
-    // cases above drive.
-    deactivate('orders');
-    expect(
-      effectiveState.presence('orders')?.operatorActivated,
-      'orders is core; no seeded activation value may make it absent',
-    ).toBe(true);
+  it('covers only edges some manifest still declares `degrades-without`', () => {
+    // The guard the `customers` → `orders` withdrawal walked past. Every title
+    // above went through `edge()`, so this list *is* what the file claims to
+    // cover; each triple has to resolve to a live declaration. A withdrawal
+    // fails here, naming the edge, instead of leaving a case demanding a
+    // degradation nobody promises any more.
+    expect(COVERED_EDGES.length, 'no edge was recorded — `edge()` is not being used').toBeGreaterThan(
+      0,
+    );
 
-    withdraw('orders');
-    const presence = effectiveState.presence('orders');
-    expect(presence?.platformAvailable, 'orders platform axis').toBe(false);
-    expect(effectiveState.isPresent('orders'), 'orders effective presence').toBe(false);
+    const declared = new Set(
+      REGISTERED_MANIFESTS.flatMap((entry) =>
+        (entry.manifest.nonBindingDependencies ?? [])
+          .filter((dep) => dep.kind === 'degrades-without')
+          .map((dep) => `${entry.manifest.id} → ${dep.moduleId}:${dep.name}`),
+      ),
+    );
+
+    expect(
+      COVERED_EDGES.map((e) => `${e.consumer} → ${e.owner}:${e.name}`).filter(
+        (key) => !declared.has(key),
+      ),
+      'covered here but no longer declared `degrades-without` by the consumer’s manifest',
+    ).toEqual([]);
   });
 });
