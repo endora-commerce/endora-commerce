@@ -43,8 +43,34 @@
  * Static analysis through the TypeScript compiler API. Sits alongside
  * `check-container-imports.ts` and `check-kernel-boundary.ts`.
  *
+ * ## Installed packages (feature 080, T034)
+ *
+ * The port→owner map was `src/modules/**` plus {@link HOST_REGISTERED_PORTS},
+ * and since T031 that is a fraction of the platform: a module can arrive as an
+ * npm package installed into the instance's `node_modules`. A name such a
+ * package owns resolved to nobody, so property 1 above reported the *consumer*
+ * as broken — `unowned-name`, a wiring bug — when the wiring is right and the
+ * map was short. That is the ordinary case of the F4 endgame, where a module
+ * leaves this tree for a package and every core consumer of its port starts
+ * reading as a defect.
+ *
+ * `scripts/lib/package-declarations.ts` supplies the third source, read out of
+ * the package's `./backend` artefact with the analyzers below — the same
+ * {@link providedPortNames} and {@link registeredNames} the tree is read with,
+ * so the two derivations cannot disagree about what a registration looks like.
+ *
+ * **What it does when it cannot attribute one: it refuses.** A `./backend`
+ * export whose own source does not declare the `registerModule` it hands out is
+ * bundled or re-exported; its registrations are unreadable and the run stops at
+ * exit 2, naming the package, rather than crediting it with zero names. So
+ * `packages=0` means "no package is installed" and `package-names=0` means "the
+ * installed packages register nothing" — neither can mean "the map stopped
+ * looking".
+ *
  * Usage: `tsx scripts/check-port-dependencies.ts [--list]`
- * Exit 0 = every resolved port is declared; exit 1 = at least one is not.
+ * Exit 0 = every resolved port is declared; exit 1 = at least one is not;
+ * exit 2 = the walk read a residue of the module tree, saw no resolution or no
+ * ledger edge at all, or could not enumerate an installed package.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -66,7 +92,12 @@ import {
   type NonBindingPortEdge,
 } from '../src/modules/_lifecycle/services/gating-graph.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
-import { reportReadSize } from './lib/read-size.js';
+import {
+  loadPackageDeclarations,
+  packageCoverage,
+  refuseUnreadablePackages,
+} from './lib/package-declarations.js';
+import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -2112,6 +2143,35 @@ async function main(): Promise<void> {
     for (const name of registeredNames(source, file)) kernelNames.add(name);
   }
 
+  // The names the installed extension packages register (feature 080, T034).
+  //
+  // The port→owner map was `src/modules/**` plus the host table, so a name an
+  // installed package owns resolved to **no owner** — and a core module
+  // resolving one was reported as `unowned-name`, a wiring bug, when the wiring
+  // is right and the map was short. That is the F4 endgame's ordinary case: a
+  // module leaves the tree for a package and every consumer of its port starts
+  // reading as broken.
+  //
+  // A registration is a call inside `registerModule`, and executing a
+  // stranger's composition to find out what it composes is not a thing a static
+  // check may do — so the artefact is read with the analyzers this file already
+  // owns. What it cannot read it refuses: a `./backend` export whose own source
+  // does not declare the `registerModule` it hands out is bundled or
+  // re-exported, and it stops the run at exit 2 rather than being credited with
+  // zero names.
+  const packages = await loadPackageDeclarations({
+    containerNames: (source, file) => {
+      const gated = new Set(providedPortNames(source, file));
+      return [
+        ...[...gated].map((name) => ({ name, gated: true })),
+        ...registeredNames(source, file)
+          .filter((name) => !gated.has(name))
+          .map((name) => ({ name, gated: false })),
+      ];
+    },
+  });
+  refuseUnreadablePackages('[port-deps]', packages);
+
   const owners = new Map<string, string>(Object.entries(HOST_REGISTERED_PORTS));
   const resolutions: PortResolution[] = [];
   const seams: ImportedContributionSeam[] = [];
@@ -2122,6 +2182,13 @@ async function main(): Promise<void> {
     for (const name of registeredNames(source, file)) owners.set(name, moduleId);
     resolutions.push(...resolvedNames(source, file));
     seams.push(...importedContributionSeams(source, file));
+  }
+  // The tree wins a collision, as it does in `check-module-boundary`'s table
+  // map: two registrations of one name is a `DuplicateRegistrationError` the
+  // container raises for itself, and until it does, a stranger must not take a
+  // core module's name away from it in the diagnosis.
+  for (const claimed of packages.containerNames) {
+    if (!owners.has(claimed.name)) owners.set(claimed.name, claimed.moduleId);
   }
 
   const { DISCOVERED_MANIFESTS } = (await import(
@@ -2193,6 +2260,16 @@ async function main(): Promise<void> {
     for (const name of registeredNames(source, file)) {
       moduleOwnedNames.set(name, moduleId);
     }
+  }
+  // A package's names belong in both, for the reason the tree's do: a gated
+  // port of a package is a gate like any other, and a `PLATFORM_OWNED_NAMES`
+  // entry a package owns is a module-owned name laundering a cross-module edge
+  // past two exemptions (D-73), whichever tree the module lives in.
+  for (const claimed of packages.containerNames) {
+    if (claimed.gated && !moduleRegistered.has(claimed.name)) {
+      moduleRegistered.set(claimed.name, claimed.moduleId);
+    }
+    if (!moduleOwnedNames.has(claimed.name)) moduleOwnedNames.set(claimed.name, claimed.moduleId);
   }
 
   // The modules the orchestrator refuses to switch off on either axis, read
@@ -2331,16 +2408,19 @@ async function main(): Promise<void> {
   // What was read, in the shared grammar (issue #244). The port resolutions are
   // the finer population: `resolutions.length === 0` was already a floor, but a
   // number that halves silently is the case the floor cannot see.
+  const installed = packageCoverage(packages);
+  const coverages: ReadCoverage[] = installed === null ? [coverage] : [coverage, installed];
   reportReadSize({
     prefix: '[port-deps]',
-    files: files.length,
+    files: files.length + packages.filesRead,
     sites: resolutions.length,
-    coverage: [coverage],
+    coverage: coverages,
   });
   console.log(
     `[port-deps] modules scanned=${new Set(files.map(moduleOf)).size} ` +
       `resolutions=${resolutions.length} violations=${violations.length} ` +
       `root-issues=${rootIssues.length} ` +
+      `packages=${packages.discovered} package-names=${packages.containerNames.length} ` +
       `platform-names=${PLATFORM_OWNED_NAMES.size} kernel-supplied=${
         [...PLATFORM_OWNED_NAMES].filter((name) => kernelNames.has(name)).length
       } ` +

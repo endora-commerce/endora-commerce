@@ -17,7 +17,7 @@
  */
 import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   loadPackageDeclarations,
@@ -144,8 +144,7 @@ describe('installed-package declarations — Principle XI', () => {
     // into the one registry the global filters are built from. The read is by
     // class identity, so this is the same object the loader saw.
     const { FixtureWidget } = (await import(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- a fixture artefact, imported the way the loader imports it.
-      (await import('node:url')).pathToFileURL(first.entities[0]!.file).href
+      pathToFileURL(first.entities[0]!.file).href
     )) as { FixtureWidget: new () => object };
     GlobalEntity()(FixtureWidget);
 
