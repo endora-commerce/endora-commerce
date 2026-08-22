@@ -152,6 +152,42 @@ describe('customers — the cut edges fail closed (feature 075, Phase C)', () =>
     expect(restored.statusCode).toBe(200);
   });
 
+  /**
+   * The **self-service** half of the same edge, and the reason it is here.
+   *
+   * `customers` reads `orderListPort` from two routes, and only the admin one
+   * was probed above. The other was covered — asserting the *opposite* answer —
+   * in `test/integration/_lifecycle/non-binding-degradation.integration.test.ts`,
+   * under the `degrades-without` declaration the commit that added this file
+   * withdrew. Deleting that case without landing this one would take the
+   * buyer-facing route's absence coverage with it, which is the surface the
+   * declaration was written about in the first place.
+   *
+   * A fixed customer session rather than the account created above: the route
+   * answers for whoever is signed in, and the stub cookie is the seam the rest
+   * of the suite uses for that.
+   */
+  it('refuses the self-service order history while `orders` is unavailable', async () => {
+    const asCustomer = (): Promise<Reply> =>
+      h.app.inject({
+        method: 'GET',
+        url: '/api/v1/me/customer/orders',
+        cookies: { b2b_session: 'stub-customer-session' },
+      }) as unknown as Promise<Reply>;
+
+    const before = await asCustomer();
+    expect(before.statusCode).toBe(200);
+
+    await withModuleOff('orders', 'platform-unavailable', async () => {
+      const res = await asCustomer();
+      expect(res.statusCode).toBe(503);
+      expect(errorCode(res)).toBe('MODULE_DISABLED');
+    });
+
+    const restored = await asCustomer();
+    expect(restored.statusCode).toBe(200);
+  });
+
   it('refuses the org-shared address panel while `addresses` is unavailable', async () => {
     const before = await get(`/api/v1/admin/customers/${customerId}/addresses`);
     expect(before.statusCode).toBe(200);
