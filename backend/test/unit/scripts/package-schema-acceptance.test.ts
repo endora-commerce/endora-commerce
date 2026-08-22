@@ -298,10 +298,20 @@ describe('the fixture package is the thing the contract describes', () => {
       .join('');
     const className = `Migration${match![1]!}${tail}`;
     expect(readFileSync(join(migrationsDir, file), 'utf8')).toContain(`export class ${className}`);
-    // Past the frozen historical prefix: a package's chain is ordered by the
-    // module graph, and a stamp inside the baseline would be ordered by a
-    // history the package was never part of (D-114).
-    expect(match![1]! > '20260801T000000').toBe(true);
+    // **Nothing here relates the stamp to `BASELINE_THROUGH`, and nothing may.**
+    // This file used to assert `stamp > '20260801T000000'` with the reason that a
+    // lower stamp would have joined the frozen historical prefix. It could not:
+    // baseline membership is `origin === 'core' && stamp <= BASELINE_THROUGH`
+    // (D-114), and `package-runtime.ts` tags every entry read out of a package
+    // `origin: 'external'` unconditionally, so a package's stamp is never
+    // compared against the watermark at all. The stamp above is simply this
+    // package's first migration, with nothing to place it before.
+    //
+    // It was the only executable claim in this repository about a package stamp
+    // and the watermark, so it stood exactly where a package author greps, while
+    // `docs/docs/architecture/migrations.md` § *How to create a migration in an
+    // extension package* teaches that the door is not there. A green test must
+    // not be able to mean something it does not mean; do not add it back.
   });
 
   it('ships flat i18n bundles covering the action keys in both languages', () => {
