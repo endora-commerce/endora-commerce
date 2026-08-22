@@ -18,7 +18,7 @@ import type {
   CmsPageBuilderDescriptor,
   PageBuilderBreakpoints,
   PageBuilderContext,
-} from '@b2b/contracts/cms.js';
+} from '@b2b/contracts/cms';
 import { DEFAULT_BREAKPOINTS } from '@b2b/page-builder-core/types/responsive';
 
 export type PageBuilderBreakpointsResolver = () => Promise<PageBuilderBreakpoints>;

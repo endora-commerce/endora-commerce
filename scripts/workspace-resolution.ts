@@ -3,9 +3,11 @@
  *
  * ## The defect
  *
- * All five packages under `packages/` set `"main": "./src/index.ts"`, so a
- * consumer that resolves `@b2b/contracts` reads **source**, never a build
- * output. Which source it reads is decided by one symlink:
+ * All five packages under `packages/` are `link:`ed workspace members whose
+ * `dist` is built from the checkout they physically live in (feature 080,
+ * T042), so a consumer that resolves `@b2b/contracts` reads whatever that
+ * checkout last compiled — and which checkout that is comes down to one
+ * symlink:
  *
  * ```
  * backend/node_modules/@b2b/contracts -> ../../../packages/contracts
@@ -272,9 +274,10 @@ export function workspaceResolutionRefusal(
       message:
         `${foreign.length} of ${report.links.length} \`${WORKSPACE_SCOPE}*\` links in this ` +
         `checkout resolve outside it:\n${lines.join('\n')}\n\n` +
-        `This checkout is ${report.root}. Every package under \`packages/\` has ` +
-        '`"main": "./src/index.ts"`, so those links decide **whose source this run ' +
-        'compiles and executes** — and the answer above is: another branch\'s. Nothing ' +
+        `This checkout is ${report.root}. Every package under \`packages/\` resolves ` +
+        'through its own `exports` map at `./dist`, so those links decide **whose ' +
+        'source this run compiles and whose build it executes** — and the answer above ' +
+        "is: another branch's. Nothing " +
         'else would report it: `pnpm ls` prints the path the manifest declares, not the ' +
         `one the symlink reaches.\n\n${REMEDY}\n\n` +
         `Set ${ALLOW_FOREIGN_ENV}=1 if you are deliberately measuring another checkout.`,

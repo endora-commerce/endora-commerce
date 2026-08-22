@@ -9,6 +9,15 @@
 #
 # build + deploy run on the default branch only; deploy is a MANUAL gate.
 #
+# Every job that executes repository code runs `pnpm run build:packages` after the
+# install. Since feature 080 (T042) the five packages under `packages/` resolve through
+# their own `exports` maps at `./dist`, so an unbuilt workspace is an unresolvable
+# `@b2b/*` specifier rather than a slightly stale one. `release:changeset` is the one
+# node job without the step: it runs the changesets CLI and imports nothing of ours.
+# Ruling R12 — a build script only a developer ever runs is configuration, not a build;
+# `outDir` had been configured in all five packages since they were created and had never
+# been executed, which is how a `rootDir` defect sat latent in three of them.
+#
 # Required CI/CD variables (Settings → CI/CD → Variables):
 #   Build/runtime (public, baked into the frontend bundles at build time):
 #     API_DOMAIN              e.g. api.example.com
@@ -47,6 +56,7 @@ quality:
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     - pnpm -r run typecheck
     - pnpm -r run lint
@@ -468,6 +478,7 @@ test:backend:deployment:
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     # The artefacts must be deterministic with the variable set — that is the
     # half of issue #120's ruling this family never had.
@@ -563,6 +574,7 @@ test:backend:
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     # `exec vitest` (not `run test --`) — pnpm leaks the literal `--` into the
     # script args, which makes vitest ignore --shard and run the whole suite.
@@ -597,6 +609,7 @@ test:backend:unit:
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     - pnpm --filter backend run test:unit:fast
   cache:
@@ -672,6 +685,7 @@ acceptance:package-schema:
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     - pnpm --filter backend run acceptance:package-schema:ci
   cache:
@@ -717,6 +731,7 @@ test:frontend:
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     - pnpm --filter '!backend' run test
   cache:
@@ -780,6 +795,7 @@ perf:backend:
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     # `test/perf/carts/abandonment-sweep.bench.ts` runs on both schedules again
     # (issue #152). It was excluded because it could not finish: the sweep did

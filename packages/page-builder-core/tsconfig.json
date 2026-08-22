@@ -1,8 +1,11 @@
 {
+  // Type-check configuration; `tsconfig.build.json` is the emitting one. See the header
+  // there for why the two are separate.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
+    "noEmit": true,
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": []

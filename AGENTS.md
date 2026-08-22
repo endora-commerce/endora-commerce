@@ -21,9 +21,11 @@ tools read this file directly; Claude Code reaches it through the `@AGENTS.md` i
 - **`storefront/`** — Next.js 15 App Router + React 19 + Tailwind v4, Server Components and
   server actions.
 - **`packages/`** — `contracts` (Zod schemas: the source of truth for every API shape),
-  `api-client`, `page-builder-core`, `cms-components`, `email-components`. All five set
-  `"main": "./src/index.ts"`, so a consumer compiles their **source**; see the worktree note
-  under *Commands* for what that means in a `git worktree`.
+  `api-client`, `page-builder-core`, `cms-components`, `email-components`. All five build a
+  real `dist` and resolve there through their own `exports` maps (feature 080, T042), so
+  **`pnpm run build:packages` is a precondition for running anything** — tests, `dev`, both
+  frontend builds. `tsc` is the exception and stays on source through `tsconfig.base.json`'s
+  `paths`; see *Building the packages* under *Commands*.
 
 **A new runtime dependency needs written justification** in the feature plan's Complexity
 Tracking section (Constitution IV). The default answer is "no new dependency" — reuse what
@@ -43,6 +45,8 @@ is already in the stack.
 ## Commands
 
 ```bash
+pnpm run build:packages                  # FIRST, after any install: the five packages
+                                         # under packages/ resolve at ./dist
 pnpm -r run typecheck                    # or: pnpm --filter <app> run typecheck
 pnpm -r run lint
 pnpm --filter backend run test:unit:fast # FAST: test/unit minus its 16 service-dependent
@@ -55,6 +59,27 @@ pnpm run dev                             # full dev stack; pnpm run dev:infra fo
 pnpm --filter backend run db:fresh       # rebuild the schema from migrations
 pnpm run check:naming && pnpm run check:language
 ```
+
+**Building the packages** (feature 080, T042). The five packages under `packages/` ship a
+compiled `dist` and their `exports` maps point at it, with a `types` condition on every
+subpath. So `pnpm run build:packages` is not an optional step — until it has run in a fresh
+checkout, every `@b2b/*` specifier is unresolvable at **runtime**, which is `vitest`, `tsx`,
+`vite` and `next` alike. Every CI job that executes repository code runs it after the install;
+`release:changeset` is the one that does not, because it imports nothing of ours. **`tsc` is
+the exception and deliberately so**: `tsconfig.base.json`'s `paths` keeps it on the packages'
+*source*, which is what makes a type error land on the line that caused it and what keeps the
+#255 worktree guard working. The consequence is a real one and worth stating: a stale `dist`
+means the type-check and the test run are reading different files. Rebuild after touching a
+package.
+
+Two things about the build shape that look like detail and are not. Each package has **two**
+tsconfigs — `tsconfig.json` type-checks with `paths` active and cannot emit (`noEmit: true`),
+`tsconfig.build.json` clears `paths`, sets `rootDir` and emits. Do not merge them: `rootDir`
+with an active `paths` block is TS6059, which exits 2 **and emits the sibling package's
+output beside that sibling's source** — 432 untracked files in `packages/contracts/src` and
+`packages/page-builder-core/src`, in the measurement that produced this rule. And every build
+sets **`noEmitOnError: true`**, because `dist/` is git-ignored: a compile that failed would
+otherwise ship its artefacts and leave nothing for anybody to notice.
 
 **Which backend test command to use.** `test:unit:fast` (config: `backend/vitest.unit.config.ts`)
 is the one to run while you iterate and the one CI runs on every backend MR as `test:backend:unit`,
@@ -93,8 +118,8 @@ bash ../wt-<slug>/scripts/setup-worktree.sh          # pnpm install --frozen-loc
 bash ../wt-<slug>/scripts/setup-worktree.sh --link   # only off the store's filesystem
 ```
 
-All five packages under `packages/` set `"main": "./src/index.ts"`, so a consumer that
-resolves `@b2b/contracts` reads **source** — and which source is decided by one relative
+All five packages under `packages/` resolve through their own `exports` map at `./dist`,
+built from the checkout they live in — and which checkout that is comes down to one relative
 symlink, `backend/node_modules/@b2b/contracts -> ../../../packages/contracts`. Point a
 workspace's `node_modules` at another checkout and all sixteen of those links re-root
 there. Measured on this repository, in a worktree whose `packages/contracts` carried a
