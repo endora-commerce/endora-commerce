@@ -335,7 +335,7 @@ refused once enforcement is on.
 ### E1. Walk `/platform/modules` and decide each one
 
 **Why.** Principle XVII makes a module's presence the conjunction of platform availability and
-the operator's activation choice — and the second axis has a default. Of the 65 core modules, 23
+the operator's activation choice — and the second axis has a default. Of the core modules, 23
 declare themselves non-deactivatable and the rest ship an operator activation control; **every
 one of those controls defaults to on.** Nothing about a fresh install expresses what this client
 bought.
