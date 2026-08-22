@@ -298,9 +298,17 @@ describe('the fixture package is the thing the contract describes', () => {
       .join('');
     const className = `Migration${match![1]!}${tail}`;
     expect(readFileSync(join(migrationsDir, file), 'utf8')).toContain(`export class ${className}`);
-    // Past the frozen historical prefix: a package's chain is ordered by the
-    // module graph, and a stamp inside the baseline would be ordered by a
-    // history the package was never part of (D-114).
+    // Past the frozen historical prefix — a property of *this fixture*, not a
+    // rule the platform imposes on a package. Baseline membership is
+    // `origin === 'core' && stamp <= BASELINE_THROUGH` (D-114), and
+    // `package-runtime.ts` tags every package entry `origin: 'external'`
+    // unconditionally, so a package's stamp is never compared against the
+    // watermark at all; a back-dated one is still ordered by the module graph.
+    // The assertion stands because the fixture is what a package author is
+    // pointed at as the worked example (docs/docs/architecture/migrations.md
+    // § How to create a migration in an extension package), and an exemplar
+    // that back-dates its stamp would teach a rule that reads as forbidden
+    // when it is merely pointless.
     expect(match![1]! > '20260801T000000').toBe(true);
   });
 
