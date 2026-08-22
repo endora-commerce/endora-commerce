@@ -173,6 +173,19 @@ For a Command: extract the pure write onto the transactional `em` and run it thr
 `commandBus.run(...)`; delete any prior manual audit call in the same change (avoid the
 double-audit shape). For the lightweight path: add the `#audit(...)` helper delegating
 to `recordAuditFromContext` and call it immediately before the method's `flush()`. For
-a non-audited write: add a `command-coverage-ignore: <reason>` comment. Register every
-new Command action in `backend/src/commands/command-registry.ts`. See the feature
+a non-audited write: add a `command-coverage-ignore: <reason>` comment. See the feature
 quickstart (`specs/054-command-bus-audit-undo/quickstart.md`) for the full pattern.
+
+**There is no action to register anywhere** (D-163). Until then this paragraph ended with
+*"register every new Command action in `backend/src/commands/command-registry.ts`"*, and
+that file's own header named two consumers for the list — this check, and operator-facing
+undo affordances. Both were wrong from the day it was written: `check-command-coverage.ts`
+has never imported it and decides coverage from a `commandBus.run(...)` call in the same
+method, and the one undo affordance in the tree reads the `reversible` **column** on
+`catalog_bulk_operations`, set per row when the operation captured revert state.
+`CommandBus.run` never consulted it and `Command.action` is a plain `string`. So a 258-entry
+hand-maintained allow-list read as a gate on Constitution XIII and gated nothing, which is
+worse than no list at all: the next author asking *"is this write covered?"* got a confident
+wrong answer from it. It is deleted. **A Command's `action` is whatever string the Command
+declares**; what makes the write audited is that it runs through `CommandBus.run`, and the
+only thing that checks it is the check described above.
