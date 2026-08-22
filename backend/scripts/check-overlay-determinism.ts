@@ -74,7 +74,7 @@
 // specifier **exists** — containment is a property of where an entry lands, and
 // existence is the compiler's question and the registry round-trip tests'.
 
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { deploymentsOnDisk } from '../src/overlay/overlay-roots.js';
@@ -84,6 +84,7 @@ import {
 } from './generate-override-manifest.js';
 import { GENERATED_ARTIFACT_PATHS, renderAll } from './generate-composer.js';
 import { reportReadSize } from './lib/read-size.js';
+import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -205,75 +206,6 @@ function realPathOfNearestExisting(path: string): string {
   }
 }
 
-/** The `packages:` list of `pnpm-workspace.yaml`, as written. */
-function workspaceGlobs(repoRoot: string): string[] {
-  let source: string;
-  try {
-    source = readFileSync(join(repoRoot, 'pnpm-workspace.yaml'), 'utf8');
-  } catch {
-    return [];
-  }
-  const globs: string[] = [];
-  let inList = false;
-  for (const raw of source.split('\n')) {
-    const line = raw.replace(/#.*$/, '').trimEnd();
-    if (/^packages:\s*$/.test(line)) {
-      inList = true;
-      continue;
-    }
-    if (!inList) continue;
-    const item = /^\s+-\s*(.+)$/.exec(line);
-    if (item === null) {
-      if (line.trim() === '') continue;
-      break;
-    }
-    globs.push(item[1]!.trim().replace(/^['"]|['"]$/g, ''));
-  }
-  return globs;
-}
-
-/** Directories a workspace glob matches, `*` per segment and `**` any depth. */
-function expandGlob(root: string, glob: string): string[] {
-  const segments = glob.split('/').filter((s) => s.length > 0);
-  let cursor = [root];
-  for (const segment of segments) {
-    const next: string[] = [];
-    for (const dir of cursor) {
-      if (segment === '**') {
-        next.push(dir, ...directoriesUnder(dir));
-        continue;
-      }
-      for (const name of childDirectories(dir)) {
-        if (segment === '*' || segment === name) next.push(join(dir, name));
-      }
-    }
-    cursor = next;
-  }
-  return cursor;
-}
-
-function childDirectories(dir: string): string[] {
-  try {
-    return readdirSync(dir).filter(
-      (name) =>
-        name !== 'node_modules' &&
-        !name.startsWith('.') &&
-        statSync(join(dir, name)).isDirectory(),
-    );
-  } catch {
-    return [];
-  }
-}
-
-function directoriesUnder(dir: string, out: string[] = []): string[] {
-  for (const name of childDirectories(dir)) {
-    const full = join(dir, name);
-    out.push(full);
-    directoriesUnder(full, out);
-  }
-  return out;
-}
-
 /**
  * Every package this repository owns, from its own workspace declaration.
  *
@@ -283,28 +215,9 @@ function directoriesUnder(dir: string, out: string[] = []): string[] {
  * whether somebody has run `pnpm install`.
  */
 export function deriveWorkspacePackages(repoRoot: string): WorkspacePackage[] {
-  const includes = workspaceGlobs(repoRoot).filter((glob) => !glob.startsWith('!'));
-  const excludes = workspaceGlobs(repoRoot)
-    .filter((glob) => glob.startsWith('!'))
-    .flatMap((glob) => expandGlob(repoRoot, glob.slice(1)));
-  const excluded = new Set(excludes);
-  const found = new Map<string, WorkspacePackage>();
-  for (const glob of includes) {
-    for (const dir of expandGlob(repoRoot, glob)) {
-      if (excluded.has(dir)) continue;
-      const manifest = join(dir, 'package.json');
-      if (!existsSync(manifest)) continue;
-      let name: unknown;
-      try {
-        name = (JSON.parse(readFileSync(manifest, 'utf8')) as { name?: unknown }).name;
-      } catch {
-        continue;
-      }
-      if (typeof name !== 'string' || name.length === 0) continue;
-      found.set(dir, { name, dir: realPathOfNearestExisting(dir) });
-    }
-  }
-  return [...found.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return workspaceMembers(repoRoot, nodeWorkspaceFs())
+    .map((member) => ({ name: member.name, dir: realPathOfNearestExisting(member.dir) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**

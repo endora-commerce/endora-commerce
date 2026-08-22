@@ -32,8 +32,22 @@ import {
 const ROOT = '/repo';
 
 interface FakeCheckout {
-  /** Directory names under `packages/`, each getting a `@b2b/<name>` manifest. */
+  /**
+   * Directory paths relative to the root, each getting a manifest.
+   *
+   * A bare name means `packages/<name>` and `@b2b/<name>`, which is the
+   * layout this repository has today. A path with a slash is taken as written,
+   * which is what the nested case needs (feature 080, T040a).
+   */
   readonly packages: readonly string[];
+  /**
+   * The `packages:` globs the fixture's `pnpm-workspace.yaml` declares.
+   *
+   * Defaults to this repository's own. The whole point of T040a is that this
+   * list is the authority, so a fixture that wants a nested package tree says
+   * so here rather than relying on a directory scan.
+   */
+  readonly globs?: readonly string[];
   /** Consumer directory → the `@b2b/*` specifiers its manifest declares. */
   readonly workspaces: Readonly<Record<string, readonly string[]>>;
   /**
@@ -43,11 +57,36 @@ interface FakeCheckout {
   readonly links: Readonly<Record<string, string>>;
 }
 
-/** A whole checkout, as the three questions {@link ResolutionFs} asks of one. */
+const DEFAULT_GLOBS: readonly string[] = [
+  'backend',
+  'storefront',
+  'admin',
+  'packages/*',
+  'docs',
+];
+
+/** `contracts` → `packages/contracts`; `packages/modules/blog` → itself. */
+function packageDirectoryOf(entry: string): string {
+  return entry.includes('/') ? entry : `packages/${entry}`;
+}
+
+/** `packages/modules/blog` → `@b2b/blog`; `contracts` → `@b2b/contracts`. */
+function packageNameOf(entry: string): string {
+  const segments = entry.split('/');
+  return `@b2b/${segments[segments.length - 1]!}`;
+}
+
+/** A whole checkout, as the questions {@link ResolutionFs} asks of one. */
 function fakeCheckout(checkout: FakeCheckout): ResolutionFs {
+  const files = new Map<string, string>();
+  const workspaceYaml = ['packages:', ...(checkout.globs ?? DEFAULT_GLOBS).map((g) => `  - ${g}`)];
+  files.set(join(ROOT, 'pnpm-workspace.yaml'), `${workspaceYaml.join('\n')}\n`);
+
   const manifests = new Map<string, unknown>();
   for (const pkg of checkout.packages) {
-    manifests.set(join(ROOT, 'packages', pkg, 'package.json'), { name: `@b2b/${pkg}` });
+    manifests.set(join(ROOT, packageDirectoryOf(pkg), 'package.json'), {
+      name: packageNameOf(pkg),
+    });
   }
   for (const [dir, deps] of Object.entries(checkout.workspaces)) {
     const path = join(ROOT, dir, 'package.json');
@@ -58,6 +97,7 @@ function fakeCheckout(checkout: FakeCheckout): ResolutionFs {
       dependencies: Object.fromEntries(deps.map((dep) => [dep, 'workspace:^'])),
     });
   }
+  for (const [path, manifest] of manifests) files.set(path, JSON.stringify(manifest));
 
   const directories = new Map<string, Set<string>>();
   const noteDirectory = (parent: string, child: string): void => {
@@ -65,21 +105,27 @@ function fakeCheckout(checkout: FakeCheckout): ResolutionFs {
     bucket.add(child);
     directories.set(parent, bucket);
   };
-  for (const pkg of checkout.packages) noteDirectory(join(ROOT, 'packages'), pkg);
-  for (const dir of Object.keys(checkout.workspaces)) {
+  const noteTree = (dir: string): void => {
     const segments = dir.split('/');
-    if (segments.length === 1 && segments[0] !== '.') noteDirectory(ROOT, segments[0]!);
-    if (segments.length === 2) noteDirectory(join(ROOT, segments[0]!), segments[1]!);
-  }
+    let parent = ROOT;
+    for (const segment of segments) {
+      if (segment === '.' || segment === '') continue;
+      noteDirectory(parent, segment);
+      parent = join(parent, segment);
+    }
+  };
+  for (const pkg of checkout.packages) noteTree(packageDirectoryOf(pkg));
+  for (const dir of Object.keys(checkout.workspaces)) noteTree(dir);
 
   return {
+    readText: (path) => files.get(path) ?? null,
     readJson: (path) => manifests.get(path) ?? null,
     listDirectories: (path) => [...(directories.get(path) ?? [])],
     realpath: (path) => {
       for (const [link, target] of Object.entries(checkout.links)) {
         if (path === join(ROOT, link)) return target;
       }
-      return manifests.has(path) ? path : null;
+      return files.has(path) ? path : null;
     },
   };
 }
@@ -169,30 +215,38 @@ describe('workspace resolution guard', () => {
     // `@b2b/page-builder-core` is a peer *and* a devDependency of the two
     // component packages. pnpm links it because of the devDependency; a
     // peer-only entry would be reported missing on a perfectly good tree.
+    const manifestOf = (path: string): unknown => {
+      if (path === join(ROOT, 'packages', 'page-builder-core', 'package.json')) {
+        return { name: '@b2b/page-builder-core' };
+      }
+      if (path === join(ROOT, 'packages', 'cms-components', 'package.json')) {
+        return {
+          name: '@b2b/cms-components',
+          peerDependencies: { '@b2b/page-builder-core': 'workspace:^' },
+          devDependencies: { '@b2b/page-builder-core': 'workspace:^' },
+        };
+      }
+      if (path === join(ROOT, 'packages', 'email-components', 'package.json')) {
+        return {
+          name: '@b2b/email-components',
+          peerDependencies: { '@b2b/page-builder-core': 'workspace:^' },
+        };
+      }
+      return null;
+    };
     const fs: ResolutionFs = {
-      readJson: (path) => {
-        if (path === join(ROOT, 'packages', 'page-builder-core', 'package.json')) {
-          return { name: '@b2b/page-builder-core' };
-        }
-        if (path === join(ROOT, 'packages', 'cms-components', 'package.json')) {
-          return {
-            name: '@b2b/cms-components',
-            peerDependencies: { '@b2b/page-builder-core': 'workspace:^' },
-            devDependencies: { '@b2b/page-builder-core': 'workspace:^' },
-          };
-        }
-        if (path === join(ROOT, 'packages', 'email-components', 'package.json')) {
-          return {
-            name: '@b2b/email-components',
-            peerDependencies: { '@b2b/page-builder-core': 'workspace:^' },
-          };
-        }
-        return null;
+      readText: (path) => {
+        if (path === join(ROOT, 'pnpm-workspace.yaml')) return 'packages:\n  - packages/*\n';
+        const manifest = manifestOf(path);
+        return manifest === null ? null : JSON.stringify(manifest);
       },
+      readJson: manifestOf,
       listDirectories: (path) =>
         path === join(ROOT, 'packages')
           ? ['page-builder-core', 'cms-components', 'email-components']
-          : [],
+          : path === ROOT
+            ? ['packages']
+            : [],
       realpath: (path) =>
         path === join(ROOT, 'packages/cms-components/node_modules/@b2b/page-builder-core')
           ? `${ROOT}/packages/page-builder-core`
@@ -204,6 +258,48 @@ describe('workspace resolution guard', () => {
     expect(report.links).toHaveLength(1);
     expect(report.links[0]?.consumer).toBe('packages/cms-components');
     expect(workspaceResolutionRefusal(report)).toBeNull();
+  });
+
+  it('sees a package the globs nest, which a scan of `packages/` cannot (T040a)', () => {
+    // The #255 guard's population used to be `readdir('packages')` filtered by
+    // the literal `'@b2b/'`. Feature 080 puts 66 module packages one level
+    // deeper, and a package this guard cannot see is a package with **no**
+    // protection: its `node_modules` link can re-root at another checkout and
+    // the run compiles that branch while reporting a clean tick. So the fixture
+    // declares the deeper glob and plants the foreign link under it — a run
+    // that still scanned one level would report `no-links` and pass.
+    const fs = fakeCheckout({
+      globs: ['backend', 'packages/*', 'packages/modules/*'],
+      packages: ['contracts', 'packages/modules/blog'],
+      workspaces: { backend: ['@b2b/contracts', '@b2b/blog'] },
+      links: {
+        'backend/node_modules/@b2b/contracts': `${ROOT}/packages/contracts`,
+        'backend/node_modules/@b2b/blog': '/home/dev/b2b-platform/packages/modules/blog',
+      },
+    });
+
+    const report = inspectWorkspaceResolution(ROOT, fs);
+    const refusal = workspaceResolutionRefusal(report);
+
+    expect(report.packages).toEqual(['@b2b/blog', '@b2b/contracts']);
+    expect(refusal?.kind).toBe('foreign');
+    expect(refusal?.message).toContain('backend/node_modules/@b2b/blog');
+  });
+
+  it('reports the scopes its own globs produce, not a scope written down (T040a)', () => {
+    // The other half of the same defect. `WORKSPACE_SCOPE = '@b2b/'` was a
+    // constant, and a second scope — which is what an extension-package
+    // programme introduces — would have been invisible to the predicate and
+    // absent from the message. Both are derived now, so a run says which
+    // scopes it was answering about.
+    const fs = fakeCheckout({
+      globs: ['backend', 'packages/*', 'packages/modules/*'],
+      packages: ['contracts', 'packages/modules/blog'],
+      workspaces: { backend: ['@b2b/contracts'] },
+      links: { 'backend/node_modules/@b2b/contracts': `${ROOT}/packages/contracts` },
+    });
+
+    expect(inspectWorkspaceResolution(ROOT, fs).scopes).toEqual(['@b2b/']);
   });
 
   it('does not mistake a sibling directory with a shared prefix for this checkout', () => {
@@ -237,6 +333,13 @@ describe('this checkout', () => {
   });
 
   it('maps every workspace package in tsconfig.base.json paths', () => {
+    // Since feature 080's T040a `report.packages` comes from the workspace
+    // globs rather than from `readdir('packages')`, so this assertion now
+    // covers a package the globs nest as well — which is what makes it the
+    // enforcement point for the `paths` entries F4's module packages will
+    // need. No entry is added here in advance: `paths` maps a directory that
+    // exists, and writing one for a package T040b has not created yet would be
+    // a guess about a layout nobody has chosen.
     // `paths` is what makes `tsc` read the worktree's own packages instead of
     // whatever the node_modules symlink points at, and it is relative to this
     // file, so it re-roots with the checkout. It is also hand-written:

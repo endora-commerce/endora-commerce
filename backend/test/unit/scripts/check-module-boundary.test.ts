@@ -24,6 +24,7 @@ import {
   type LedgerEntry,
   type LedgerShard,
 } from '../../../scripts/check-module-boundary.js';
+import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * The module-boundary rule's own test (feature 075, FR-001…FR-005, FR-020…FR-028).
@@ -1013,9 +1014,10 @@ describe('the generated-file exemption is checked both ways', () => {
 
 describe('the tree itself', () => {
   it('has every cross-module reach ledgered, in its own shard', async () => {
+    const layout = await resolveModuleLayout();
     const shards = await loadLedgerShards(ledgerDirectory());
-    const sources = sourcesOf(collectModuleFiles());
-    const schema = sourcesOf(collectSchemaFiles());
+    const sources = sourcesOf(collectModuleFiles(layout.moduleWalkRoots), layout.keyOf);
+    const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), layout.keyOf);
     expect(sources.size, 'no module sources found — a vacuous pass').toBeGreaterThan(1000);
     expect(schema.size, 'no schema sources found — a vacuous pass').toBeGreaterThan(sources.size);
 
@@ -1034,12 +1036,18 @@ describe('the tree itself', () => {
     expect(result.shardShapeIssues).toEqual([]);
   });
 
-  it('scans the same files the CLI scans, and the walk is the shared one', () => {
+  it('scans the same files the CLI scans, and the walk is the shared one', async () => {
     // Both callers agree on the scan scope by construction rather than by two
-    // similar walks — `check-container-imports.ts`' precedent.
-    const files = collectModuleFiles();
-    const srcRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', 'src');
-    expect(files.length).toBe(countTypeScriptFiles(join(srcRoot, 'modules')) + countTypeScriptFiles(join(srcRoot, 'apps')));
+    // similar walks — `check-container-imports.ts`' precedent. Since feature
+    // 080's T040a the roots are resolved rather than spelled, so the count is
+    // taken over the roots the layout answered with and a module that has left
+    // `src/modules` is in both halves or in neither.
+    const layout = await resolveModuleLayout();
+    const files = collectModuleFiles(layout.moduleWalkRoots);
+    expect(layout.moduleWalkRoots.length).toBeGreaterThan(0);
+    expect(files.length).toBe(
+      layout.moduleWalkRoots.reduce((total, root) => total + countTypeScriptFiles(root), 0),
+    );
   });
 });
 
@@ -1096,14 +1104,12 @@ describe('the ledger shards on disk', () => {
     for (const [key, sites] of counted) expect(sites, key).toBeGreaterThan(1);
   });
 
-  it('is a directory of module-named files and nothing else', () => {
+  it('is a directory of module-named files and nothing else', async () => {
+    const layout = await resolveModuleLayout();
     const names = readdirSync(ledgerDirectory());
     expect(names.filter((name) => !name.endsWith('.ts'))).toEqual([]);
     const modules = new Set(
-      collectModuleFiles()
-        .map((file) => file.slice(file.indexOf('/src/') + '/src/'.length))
-        .map((file) => file.split('/'))
-        .map((segments) => (segments[0] === 'apps' ? segments[3] : segments[1])),
+      collectModuleFiles(layout.moduleWalkRoots).map((file) => layout.moduleIdOfPath(file)),
     );
     expect(names.map((name) => name.replace(/\.ts$/, '')).filter((id) => !modules.has(id))).toEqual(
       [],

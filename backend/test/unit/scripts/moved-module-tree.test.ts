@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   createMovedModuleTreeFixture,
+  createSplitModuleTreeFixture,
   KEPT_MODULE,
   type MovedModuleTreeFixture,
 } from '../../helpers/moved-module-tree-fixture.js';
@@ -131,6 +132,89 @@ describe('a moved module tree is refused, not reported clean (issue #215)', () =
         /produced none for/,
       );
     });
+  }
+});
+
+/**
+ * The modules the split fixture relocates.
+ *
+ * Chosen for one property and stated rather than assumed: **no artefact under
+ * `backend/scripts` and no entry in `backend/package.json` names any of them**,
+ * so relocating one changes no ledger key, no allow-list entry and no declared
+ * program. That is what lets the split tree be held to the *same* verdict as the
+ * one-root tree — the only difference between the two runs is where the sources
+ * are. A module that carried a ledger entry would move its key with it, and the
+ * resulting red would be the ledger going stale rather than anything about the
+ * roots.
+ *
+ * Six, not one: a single relocated module would leave every check's walk more
+ * than 98% inside the application tree, which is comfortably inside the shape
+ * that made #215 possible in the first place.
+ */
+const PACKAGED_MODULES: readonly string[] = [
+  'autopay',
+  'email',
+  'google_analytics',
+  'google_tag_manager',
+  'meta_ads',
+  'paypal',
+];
+
+/**
+ * The module the half-moved tree strands, and why it is not one of the six.
+ *
+ * `check-error-translations` declares an **exclusion**: its floor is the
+ * eighteen modules `ERROR_TRANSLATION_KEYS` routes a code to, because most
+ * modules ship no error sentence and asking every one of them for a bundle
+ * would make the floor a list of exceptions. So a module outside that eighteen
+ * is *correctly* absent from its expectation, and stranding one would leave
+ * that check green while the other fifteen went red — a per-check answer, which
+ * is exactly what a shared fixture must not have. `comparisons` is routed, so
+ * every floor in the estate covers it, and it is not among the packaged six, so
+ * the passing tree is unaffected.
+ */
+const STRANDED_MODULE = 'comparisons';
+
+describe('a split module tree is read in full, not in half (feature 080, T040a)', () => {
+  let split: MovedModuleTreeFixture;
+  let halfMoved: MovedModuleTreeFixture;
+
+  beforeAll(() => {
+    split = createSplitModuleTreeFixture({ packaged: PACKAGED_MODULES });
+    // One module moved to the same address with no `package.json` beside it —
+    // the state a half-finished `git mv` leaves. Nothing declares it, so no
+    // glob produces it and no root covers it.
+    halfMoved = createSplitModuleTreeFixture({
+      packaged: PACKAGED_MODULES,
+      stranded: [STRANDED_MODULE],
+    });
+  }, 120_000);
+
+  afterAll(() => {
+    split?.cleanup();
+    halfMoved?.cleanup();
+  });
+
+  for (const check of CHECKS) {
+    it(`${check.script} reads both roots and passes`, () => {
+      const result = split.run(check.script, check.args);
+      expect(result.status, result.output).toBe(0);
+      expect(result.output).toContain(check.prefix);
+      expect(result.output, 'refused a population it should have covered').not.toMatch(
+        /produced none for/,
+      );
+    }, 120_000);
+
+    it(`${check.script} exits 2 when one registered module is in neither root`, () => {
+      // The discrimination the fixture above cannot make: this tree holds every
+      // source the passing one holds, in the same two roots, minus one
+      // `package.json`. A check that walked only `src/modules` would be red on
+      // *both* trees; one that walked "whatever is under packages/" would be
+      // green on both.
+      const result = halfMoved.run(check.script, check.args);
+      expect(result.status, result.output).toBe(2);
+      expect(result.output).toContain(STRANDED_MODULE);
+    }, 120_000);
   }
 });
 

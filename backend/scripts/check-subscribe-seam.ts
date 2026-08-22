@@ -48,14 +48,14 @@
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { moduleOf } from './check-port-dependencies.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
-const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
 /** An event name the payload of which is a domain event: `a.b`, `a.b.v1`. */
 const DOMAIN_EVENT = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
@@ -218,11 +218,16 @@ export function checkSubscribeSeam(
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
-  const files = walk(SRC_ROOT);
+  // Every root a module's source can live in, derived (feature 080, T040a):
+  // the application's own tree, plus each module that has become a workspace
+  // package. Reading only the first would leave a moved module unjudged while
+  // the floor below still passed on the union.
+  const layout = await requireModuleLayout('[subscribe-seam]');
+  const files = layout.sourceRoots.flatMap((root) => walk(root));
 
   const sources = new Map<string, string>();
   for (const file of files) {
-    sources.set(relative(SRC_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
+    sources.set(layout.keyOf(file), readFileSync(file, 'utf8'));
   }
 
   // The population is `src/modules`, and the rest of `src/` is 7% of it: a walk
@@ -231,8 +236,9 @@ async function main(): Promise<void> {
   // index, so nothing here is a number anybody chose.
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[subscribe-seam]',
-    srcRoot: SRC_ROOT,
-    files: [...sources.keys()],
+    manifestIndexPath: layout.manifestIndexPath,
+    files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
   const result = checkSubscribeSeam({ sources });

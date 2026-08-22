@@ -181,7 +181,10 @@ describe('the plumbing that keeps a green honest', () => {
 
   it('finds the artefacts it declares, and nothing outside them', () => {
     const files = collectArtifacts({
-      srcRoot: new URL('../../../src/', import.meta.url).pathname,
+      moduleRoots: [
+        new URL('../../../src/modules/', import.meta.url).pathname,
+        new URL('../../../src/apps/', import.meta.url).pathname,
+      ],
       scriptsRoot: new URL('../../../scripts/', import.meta.url).pathname,
       contractsRoot: new URL('../../../../packages/contracts/src/', import.meta.url).pathname,
     });
@@ -202,7 +205,7 @@ describe('the plumbing that keeps a green honest', () => {
     const empty = mkdtempSync(join(tmpdir(), 'lock-claims-'));
     try {
       const files = collectArtifacts({
-        srcRoot: join(empty, 'src'),
+        moduleRoots: [join(empty, 'src/modules')],
         scriptsRoot: join(empty, 'scripts'),
         contractsRoot: join(empty, 'packages/contracts/src'),
       });

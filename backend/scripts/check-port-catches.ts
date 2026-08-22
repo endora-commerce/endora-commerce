@@ -243,8 +243,8 @@
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { moduleOf, providedPortNames } from './check-port-dependencies.js';
 import {
@@ -253,9 +253,9 @@ import {
   type ManifestActivationInput,
 } from './lib/switchable-modules.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
-const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
 /** A file that belongs to no module — a composition root, `http/`, `db/`. */
 const ROOT = '(root)';
@@ -1499,11 +1499,14 @@ export function checkPortCatches(
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
-  const files = walk(SRC_ROOT);
+  // Both roots, derived (feature 080, T040a): the application's source tree and
+  // every module that has become a workspace package.
+  const layout = await requireModuleLayout('[port-catches]');
+  const files = layout.sourceRoots.flatMap((root) => walk(root));
 
   const sources = new Map<string, string>();
   for (const file of files) {
-    sources.set(relative(SRC_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
+    sources.set(layout.keyOf(file), readFileSync(file, 'utf8'));
   }
 
   // The manifest read below refuses a tree whose index went missing, which
@@ -1513,8 +1516,9 @@ async function main(): Promise<void> {
   // #215). That needs a per-module floor, from the same index.
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[port-catches]',
-    srcRoot: SRC_ROOT,
-    files: [...sources.keys()],
+    manifestIndexPath: layout.manifestIndexPath,
+    files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
   // The locks, read from the manifests rather than listed here (D-63), through
@@ -1523,7 +1527,7 @@ async function main(): Promise<void> {
   // the three can disagree about which modules are locked.
   let manifests: readonly ManifestActivationInput[];
   try {
-    manifests = await loadManifestActivations(SRC_ROOT);
+    manifests = await loadManifestActivations(layout.manifestIndexPath);
   } catch (err: unknown) {
     console.error(
       `[port-catches] the manifest index could not be read (${String(err)}) — every site ` +

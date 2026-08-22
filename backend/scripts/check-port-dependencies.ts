@@ -91,7 +91,8 @@ import {
   nonBindingPortEdgesFrom,
   type NonBindingPortEdge,
 } from '../src/modules/_lifecycle/services/gating-graph.js';
-import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { moduleIdOf, refuseVacuousModulePopulation } from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import {
   loadPackageDeclarations,
   packageCoverage,
@@ -944,13 +945,30 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** The owning module id of a source file, core or overlay. */
+/**
+ * The owning module id of a source file, over every root a module can live in.
+ *
+ * Three shapes, in order. The two anchored regexes answer for the application's
+ * own trees — a deployment overlay first, then the core module tree — and both
+ * key on `/src/`, so they say nothing about a module that has become a
+ * **package** (feature 080, T040a). The third is `lib/module-population.ts`'
+ * `moduleIdOf`, the same segment reader the population floor uses, and it is
+ * what makes a path like `packages/modules/blog/src/services/x.ts` attribute to
+ * `blog` instead of to nobody.
+ *
+ * That fallback is not cosmetic. Without it a package's files are read by the
+ * walk, satisfy the floor, and are then attributed to `null` — which for every
+ * consumer here means *not a module*, so the check judges none of them and
+ * reports clean. That is issue #215's failure one layer in, and it is why
+ * `resolveModuleLayout` refuses a package root whose location the segment
+ * reader cannot attribute rather than letting it through unnamed.
+ */
 export function moduleOf(file: string): string | null {
   const overlay = /\/src\/apps\/[^/]+\/modules\/([^/]+)\//.exec(file);
   if (overlay) return overlay[1] ?? null;
   const core = /\/src\/modules\/([^/]+)\//.exec(file);
   if (core) return core[1] ?? null;
-  return null;
+  return moduleIdOf(file);
 }
 
 /** `ctx.di.register` → `di.register`; used to match on the tail, not the receiver name. */
@@ -2110,7 +2128,9 @@ export async function overlayManifestEntries(): Promise<
 }
 
 async function main(): Promise<void> {
-  const files = [...walk(join(SRC_ROOT, 'modules')), ...walk(join(SRC_ROOT, 'apps'))];
+  // Every root a module's source can live in, derived (feature 080, T040a).
+  const layout = await requireModuleLayout('[port-deps]');
+  const files = layout.moduleWalkRoots.flatMap((root) => walk(root));
   // Emptiness is only the total loss (issue #215). `src/apps` is a scan root of
   // its own, and `resolutions.length === 0` below is satisfied by a single
   // surviving `lazyPort` — so a **partial** move, which is what a package split
@@ -2118,8 +2138,9 @@ async function main(): Promise<void> {
   // is one source per registered module, derived from the manifest index.
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[port-deps]',
-    srcRoot: SRC_ROOT,
+    manifestIndexPath: layout.manifestIndexPath,
     files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
   // The third supply source (D-73). Read before anything else so its own
@@ -2192,7 +2213,7 @@ async function main(): Promise<void> {
   }
 
   const { DISCOVERED_MANIFESTS } = (await import(
-    pathToFileURL(join(SRC_ROOT, 'modules/_lifecycle/manifest-index.generated.ts')).href
+    pathToFileURL(layout.manifestIndexPath).href
   )) as { DISCOVERED_MANIFESTS: ReadonlyArray<{ id: string; manifest: ModuleManifest }> };
 
   // Every deployment's overlay manifests, merged in — issue #210.
@@ -2235,8 +2256,19 @@ async function main(): Promise<void> {
   // A host entry whose owner now registers the port itself is dead weight, and
   // dead weight in a bridging table is how the bridge outlives the gap.
   const stale = Object.entries(HOST_REGISTERED_PORTS).filter(([name, owner]) => {
-    const backend = join(SRC_ROOT, 'modules', owner, 'backend.ts');
-    return existsSync(backend) && registeredNames(readFileSync(backend, 'utf8'), backend).includes(name);
+    // The owner's directory is resolved rather than joined onto `src/modules`
+    // (feature 080, T040a); `backend.ts` is looked for in the two places a
+    // workspace member keeps it, because a package's `exports` map is not read
+    // here.
+    const directory = layout.moduleDirectoryOf(owner);
+    if (directory === null) return false;
+    const backend = [join(directory, 'backend.ts'), join(directory, 'src', 'backend.ts')].find(
+      (candidate) => existsSync(candidate),
+    );
+    return (
+      backend !== undefined &&
+      registeredNames(readFileSync(backend, 'utf8'), backend).includes(name)
+    );
   });
 
   // What each composition root registers, and what each converted module
@@ -2359,7 +2391,7 @@ async function main(): Promise<void> {
   );
   const rootNames = new Map<string, ReadonlySet<string>>();
   for (const [label, relative] of Object.entries(ROOT_FILES)) {
-    const full = join(SRC_ROOT, '..', relative);
+    const full = join(layout.applicationRoot, relative);
     if (!existsSync(full)) continue;
     rootNames.set(label, new Set(rootRegisteredNames(readFileSync(full, 'utf8'), full)));
   }

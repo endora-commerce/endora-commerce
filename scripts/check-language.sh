@@ -101,6 +101,22 @@ if [ "$index_status" -ne 0 ]; then
   exit 2
 fi
 
+# The modules themselves, one directory each (feature 080, T040a). The
+# reconciliation below asks whether the listing produced a file for every one of
+# them, and a module that has become a workspace package is under no root the
+# application owns — so the expectation is the resolved directories rather than
+# a root the index used to imply.
+module_dirs=()
+while IFS= read -r module_dir; do
+  [ -n "$module_dir" ] && module_dirs+=("$module_dir")
+done < <(module_root_module_directories "$manifest_index" || true)
+if [ "${#module_dirs[@]}" -eq 0 ]; then
+  red "✗ check-language resolved no module directory from $manifest_index, so it cannot"
+  red "  derive the population its listing is reconciled against."
+  red "  Refusing to report a vacuous pass."
+  exit 2
+fi
+
 # Polish diacritics + the common other-language diacritics that may slip
 # into source-code comments or `/docs/` pages by accident.
 pattern='[ąĄćĆęĘłŁńŃóÓśŚźŹżŻ]'
@@ -388,9 +404,10 @@ fi
 # there is no expectation to derive.
 if [[ "$listing" == "full" ]]; then
   if ! language_coverage="$(printf '%s\n' "${tracked[@]}" \
-    | read_size_module_coverage "$manifest_index")"; then
-    red "✗ check-language could not read the manifest index at $manifest_index — the"
-    red "  expected population is derived from it. Refusing to report a vacuous pass."
+    | read_size_module_coverage "$(printf '%s\n' "${module_dirs[@]}")")"; then
+    red "✗ check-language could not reconcile the listing against the modules resolved"
+    red "  from $manifest_index — the expected population is derived from them."
+    red "  Refusing to report a vacuous pass."
     exit 2
   fi
   read_size_report '[language]' "$(( ${#tracked[@]} + ${#docs_files[@]} ))" - \

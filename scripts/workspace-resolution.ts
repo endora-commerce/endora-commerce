@@ -48,11 +48,22 @@
  *
  * ## What it reads
  *
- * The population is derived, not listed: every `@b2b/*` name declared in the
- * `dependencies` or `devDependencies` of any workspace manifest, crossed with
- * the workspace that declares it. Sixteen pairs stand today. Each pair names
- * one link — `<consumer>/node_modules/<specifier>` — which is `realpath`-ed and
- * asked one question: is the file it lands on inside *this* checkout?
+ * The population is derived, not listed: every workspace-package name declared
+ * in the `dependencies` or `devDependencies` of any workspace manifest, crossed
+ * with the workspace that declares it. Sixteen pairs stand today. Each pair
+ * names one link — `<consumer>/node_modules/<specifier>` — which is
+ * `realpath`-ed and asked one question: is the file it lands on inside *this*
+ * checkout?
+ *
+ * **Which packages those are comes from `pnpm-workspace.yaml`, not from a scope
+ * written here** (feature 080, T040a). It used to be `readdir('packages')`
+ * filtered by the literal `'@b2b/'`, which is the same question answered one
+ * level deep and for one scope. Both halves were about to be wrong at once: F4
+ * moves 66 modules to packages of their own, under a directory `readdir` never
+ * reaches and a scope this constant does not name — and a package the guard
+ * cannot see is a package with **no** #255 protection at all, silently. That is
+ * the failure this whole file exists to make impossible, so the derivation is
+ * the workspace globs and the scopes are whatever they produce.
  *
  * `peerDependencies` are deliberately out: pnpm installs no link for a peer
  * that is not also a direct dependency, so a peer-only entry would report as
@@ -79,10 +90,13 @@
  */
 
 import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 
-/** The scope every workspace package of this repository is published under. */
-export const WORKSPACE_SCOPE = '@b2b/';
+import {
+  workspaceMembers,
+  workspaceScopes,
+  type WorkspaceMember,
+} from '../backend/scripts/lib/workspace-packages.js';
 
 /** Set to `1` to run anyway. Named after the run it lets through, not the check. */
 export const ALLOW_FOREIGN_ENV = 'ALLOW_FOREIGN_WORKSPACE_PACKAGES';
@@ -96,6 +110,8 @@ export const ALLOW_FOREIGN_ENV = 'ALLOW_FOREIGN_WORKSPACE_PACKAGES';
  * this interface, so a fixture exercises every one of them.
  */
 export interface ResolutionFs {
+  /** File contents, or `null` when the file is absent or unreadable. */
+  readonly readText: (path: string) => string | null;
   /** Parsed JSON, or `null` when the file is absent or unreadable. */
   readonly readJson: (path: string) => unknown;
   /** Immediate subdirectory names, or `[]` when the directory is absent. */
@@ -120,8 +136,10 @@ export interface WorkspaceLink {
 export interface WorkspaceResolutionReport {
   /** The checkout the guard is answering about, fully resolved. */
   readonly root: string;
-  /** The `@b2b/*` names `packages/*` defines here. */
+  /** The scoped package names this workspace's own globs produce. */
   readonly packages: readonly string[];
+  /** The npm scopes those names are under, each with its trailing slash. */
+  readonly scopes: readonly string[];
   /** Every declared consumer→package pair, classified. */
   readonly links: readonly WorkspaceLink[];
 }
@@ -133,14 +151,29 @@ export interface WorkspaceResolutionRefusal {
   readonly message: string;
 }
 
+/** The scopes, for a message: `@b2b/*`, or `@b2b/*, @endora-commerce/*`. */
+function scopeToken(report: WorkspaceResolutionReport): string {
+  return report.scopes.map((scope) => `${scope}*`).join(', ');
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
 }
 
-/** `@b2b/*` names in `dependencies` + `devDependencies`, sorted, deduplicated. */
-function declaredWorkspaceDependencies(manifest: unknown): readonly string[] {
+/**
+ * Workspace-package names in `dependencies` + `devDependencies`, sorted.
+ *
+ * Membership is tested against the names the globs produced rather than against
+ * a scope prefix: a scope is a good message and a poor predicate — a
+ * third-party `@b2b/…` dependency would be classified as ours, and a workspace
+ * package published under a second scope would not.
+ */
+function declaredWorkspaceDependencies(
+  manifest: unknown,
+  packages: ReadonlySet<string>,
+): readonly string[] {
   const record = asRecord(manifest);
   if (record === null) return [];
   const names = new Set<string>();
@@ -148,16 +181,10 @@ function declaredWorkspaceDependencies(manifest: unknown): readonly string[] {
     const block = asRecord(record[field]);
     if (block === null) continue;
     for (const name of Object.keys(block)) {
-      if (name.startsWith(WORKSPACE_SCOPE)) names.add(name);
+      if (packages.has(name)) names.add(name);
     }
   }
   return [...names].sort();
-}
-
-function manifestName(manifest: unknown): string | null {
-  const record = asRecord(manifest);
-  const name = record?.['name'];
-  return typeof name === 'string' ? name : null;
 }
 
 /**
@@ -172,20 +199,21 @@ export function isInsideCheckout(root: string, candidate: string): boolean {
   return candidate.startsWith(root.endsWith(sep) ? root : root + sep);
 }
 
-/** Every directory that can declare a dependency: the root, its workspaces, `packages/*`. */
-function consumerDirectories(root: string, fs: ResolutionFs): readonly string[] {
+/**
+ * Every directory that can declare a dependency: the checkout root and every
+ * workspace member the globs produce, however deep.
+ *
+ * The root is included even though it is not a member — it has a manifest and
+ * can declare a workspace package as a devDependency, and pnpm links one there
+ * exactly as it does for a member.
+ */
+function consumerDirectories(
+  root: string,
+  members: readonly WorkspaceMember[],
+): readonly string[] {
   const candidates = new Set<string>(['.']);
-  for (const entry of fs.listDirectories(root)) {
-    if (entry === 'node_modules' || entry.startsWith('.')) continue;
-    candidates.add(entry);
-  }
-  for (const entry of fs.listDirectories(join(root, 'packages'))) {
-    if (entry === 'node_modules' || entry.startsWith('.')) continue;
-    candidates.add(`packages/${entry}`);
-  }
-  return [...candidates]
-    .filter((dir) => fs.readJson(join(root, dir, 'package.json')) !== null)
-    .sort();
+  for (const member of members) candidates.add(relative(root, member.dir).split('\\').join('/'));
+  return [...candidates].sort();
 }
 
 /**
@@ -199,17 +227,24 @@ export function inspectWorkspaceResolution(
   root: string,
   fs: ResolutionFs,
 ): WorkspaceResolutionReport {
-  const packages: string[] = [];
-  for (const entry of fs.listDirectories(join(root, 'packages'))) {
-    const name = manifestName(fs.readJson(join(root, 'packages', entry, 'package.json')));
-    if (name !== null && name.startsWith(WORKSPACE_SCOPE)) packages.push(name);
-  }
-  packages.sort();
+  const members = workspaceMembers(root, {
+    readText: fs.readText,
+    listDirectories: fs.listDirectories,
+  });
+  // Only a **scoped** member is resolved by specifier and therefore linked:
+  // `backend`, `admin`, `storefront` and `docs` are applications nobody
+  // consumes by name, so there is no link of theirs to classify.
+  const packages = members
+    .map((member) => member.name)
+    .filter((name) => name.startsWith('@'))
+    .sort();
+  const declared = new Set(packages);
+  const scopes = workspaceScopes(members);
 
   const links: WorkspaceLink[] = [];
-  for (const consumer of consumerDirectories(root, fs)) {
+  for (const consumer of consumerDirectories(root, members)) {
     const manifest = fs.readJson(join(root, consumer, 'package.json'));
-    for (const specifier of declaredWorkspaceDependencies(manifest)) {
+    for (const specifier of declaredWorkspaceDependencies(manifest, declared)) {
       const linkPath = join(consumer, 'node_modules', specifier);
       const target = fs.realpath(join(root, linkPath));
       links.push({
@@ -223,7 +258,7 @@ export function inspectWorkspaceResolution(
     }
   }
 
-  return { root, packages, links };
+  return { root, packages, scopes, links };
 }
 
 const REMEDY =
@@ -247,9 +282,10 @@ export function workspaceResolutionRefusal(
     return {
       kind: 'no-packages',
       message:
-        `No workspace package was found under ${join(report.root, 'packages')}. This guard ` +
-        'answers which checkout `@b2b/*` comes from, and over an empty set it answers ' +
-        'nothing; refusing to let the run report a result it cannot vouch for.',
+        `No scoped workspace package was produced by the globs in ` +
+        `${join(report.root, 'pnpm-workspace.yaml')}. This guard answers which checkout ` +
+        'the workspace packages come from, and over an empty set it answers nothing; ' +
+        'refusing to let the run report a result it cannot vouch for.',
     };
   }
   if (report.links.length === 0) {
@@ -270,7 +306,7 @@ export function workspaceResolutionRefusal(
     return {
       kind: 'foreign',
       message:
-        `${foreign.length} of ${report.links.length} \`${WORKSPACE_SCOPE}*\` links in this ` +
+        `${foreign.length} of ${report.links.length} \`${scopeToken(report)}\` links in this ` +
         `checkout resolve outside it:\n${lines.join('\n')}\n\n` +
         `This checkout is ${report.root}. Every package under \`packages/\` has ` +
         '`"main": "./src/index.ts"`, so those links decide **whose source this run ' +
@@ -285,7 +321,7 @@ export function workspaceResolutionRefusal(
     return {
       kind: 'missing',
       message:
-        `${missing.length} of ${report.links.length} declared \`${WORKSPACE_SCOPE}*\` links ` +
+        `${missing.length} of ${report.links.length} declared \`${scopeToken(report)}\` links ` +
         `are not installed in this checkout:\n${lines.join('\n')}\n\n${REMEDY}`,
     };
   }
@@ -303,6 +339,13 @@ export function workspaceResolutionSummary(report: WorkspaceResolutionReport): s
 /** The real filesystem behind {@link ResolutionFs}. Absence is `null`, never a throw. */
 export function nodeResolutionFs(): ResolutionFs {
   return {
+    readText(path: string): string | null {
+      try {
+        return readFileSync(path, 'utf8');
+      } catch {
+        return null;
+      }
+    },
     readJson(path: string): unknown {
       try {
         return JSON.parse(readFileSync(path, 'utf8')) as unknown;

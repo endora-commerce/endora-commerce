@@ -14,13 +14,24 @@
 # leaves the other rules reading the residue and the script printing a green
 # tick over a repository whose modules it never found.
 #
-# What it derives from is the generated manifest index. That file lives *inside*
-# the module tree (`<root>/_lifecycle/manifest-index.generated.ts`), the
-# generator emits it there and nowhere else, and every other check already takes
-# its expected population from it — so the tree cannot move without taking the
-# index along, and the root is the index's grandparent. A repository that holds
-# no index, or two of them, is refused rather than judged: an ambiguous root
-# would silently narrow the scan to whichever one sorted first.
+# What it derives from is the generated manifest index. The generator emits one
+# and every other check already takes its expected population from it, so it is
+# the one artefact that answers "which modules exist" wherever they live. A
+# repository that holds no index, or two of them, is refused rather than judged:
+# an ambiguous root would silently narrow the scan to whichever one sorted first.
+#
+# **It answers with a list of module directories, not with one root** (feature
+# 080, T040a). Two things changed under it and neither is cosmetic. The index is
+# found by **name** rather than at `<root>/_lifecycle/manifest-index.generated.ts`,
+# because the owner's ruling of 2026-08-22 moves it to the host's own source root
+# once modules are packages — it is bare core by D-104 and it enumerates its
+# siblings, and a publishable package naming all of them is a cycle waiting to be
+# declared. And the root is no longer the index's grandparent, because under
+# `packages/modules/<id>/src/` that grandparent is **one module** rather than the
+# tree. So each module's own directory is resolved instead: the ancestor of a
+# `manifest.ts` whose name is a registered id. A caller that wants "every module
+# folder" iterates the list; a caller that wants "the tree" no longer has a
+# single answer to want, which is the whole of what T040a establishes.
 #
 # "In this repository" excludes a nested checkout — see the block below, which
 # is what keeps that refusal from firing on every local run of a project whose
@@ -152,7 +163,7 @@ module_root_indexes() {
   # Drop the trailing `-o`, then wrap the alternation for `-prune`.
   unset 'prune[${#prune[@]}-1]'
   find . \( "${prune[@]}" \) -prune -o \
-    -type f -name 'manifest-index.generated.ts' -path '*/_lifecycle/*' -print 2>/dev/null |
+    -type f -name 'manifest-index.generated.ts' -print 2>/dev/null |
     sed 's|^\./||' |
     module_root_drop_nested_checkouts |
     sort
@@ -183,14 +194,131 @@ module_root_manifest_index() {
   printf '%s\n' "$found"
 }
 
-# The module root itself: the index's grandparent, e.g. `backend/src/modules`.
+# Every module id the generated index registers, one per line.
 #
-# Takes the index path so the caller resolves it once and uses both halves —
-# the root for its walks, the index for the population it reconciles them
-# against. Two resolutions would be two chances to disagree.
-module_root_of_index() {
+# Read off the entry array — `{ id: 'orders', manifest: manifest42 },` — rather
+# than off the import specifiers above it. The specifiers are relative today and
+# become bare package names the moment a module ships as one, so a reader keyed
+# on them answers "no module" for exactly the layout this file exists to follow.
+# The entry array is what the generator emits in both cases.
+module_root_registered_ids() {
   local index="$1"
-  local modules_dir
-  modules_dir="$(dirname "$(dirname "$index")")"
-  printf '%s\n' "${modules_dir#./}"
+  [ -f "$index" ] || return 1
+  perl -ne "print \"\$1\n\" if m{\{\s*id:\s*'([A-Za-z0-9_]+)'\s*,\s*manifest:}" "$index" |
+    sort -u
+}
+
+# Every module's **own directory**, one per line, repository-relative.
+#
+# A module directory is the ancestor of a `manifest.ts` whose name is a
+# registered id: `backend/src/modules/orders` today, `packages/modules/blog` for
+# one that has become a package. Both halves of the predicate are load-bearing.
+# The id filter is what keeps a per-deployment overlay module out — an overlay is
+# discovered at runtime and is absent from the bare-core index (D-104), and these
+# rules are about the shared core tree. It also keeps the test fixtures'
+# module-shaped directories out. The `manifest.ts` anchor is what keeps a
+# directory that merely shares a module's name out; `backend/test/unit/orders` is
+# not a module.
+#
+# One walk of the whole repository, pruned and with nested checkouts dropped, for
+# the same reason `module_root_indexes` walks it: the layout move is the event
+# this file exists for, and a search rooted at a named directory answers "gone"
+# for a tree that merely moved.
+module_root_module_directories() {
+  local index="$1"
+  local ids source_root prune=() directory
+  ids="$(module_root_registered_ids "$index")" || return 1
+  [ -n "$ids" ] || return 1
+  source_root="$(module_root_source_root "$index")" || return 1
+  for directory in "${MODULE_ROOT_PRUNED_DIRECTORIES[@]}"; do
+    prune+=(-name "$directory" -o)
+  done
+  unset 'prune[${#prune[@]}-1]'
+  find . \( "${prune[@]}" \) -prune -o -type f -name 'manifest.ts' -print 2>/dev/null |
+    sed 's|^\./||' |
+    module_root_drop_nested_checkouts |
+    awk -v ids="$ids" '
+      BEGIN { total = split(ids, id, "\n"); for (i = 1; i <= total; i++) registered[id[i]] = 1 }
+      {
+        depth = split($0, segment, "/")
+        # The file itself is the last segment; a module directory is one of the
+        # directories above it, and the outermost match wins, so a module whose
+        # own sources hold a directory named after another module cannot
+        # re-attribute it.
+        for (i = 1; i < depth; i++) {
+          if (!(segment[i] in registered)) continue
+          path = segment[1]
+          for (j = 2; j <= i; j++) path = path "/" segment[j]
+          print path
+          break
+        }
+      }
+    ' |
+    sort -u |
+    while IFS= read -r directory; do
+      # Two admissible homes, and nothing else. Under the application's own
+      # source root, which is where a core module lives; or holding a
+      # `package.json`, which is a workspace member and therefore a module that
+      # has become a package. Everything else that carries a `<id>/manifest.ts`
+      # is a fixture — `backend/test/fixtures/manifests/basic-graph/blog` is
+      # three of them — and judging one means reporting a verdict about a
+      # deliberately malformed tree as if it were this repository's.
+      case "$directory" in
+        "$source_root"/*)
+          printf '%s\n' "$directory"
+          ;;
+        *)
+          if [ -f "$directory/package.json" ]; then
+            printf '%s\n' "$directory"
+          fi
+          ;;
+      esac
+    done
+  return 0
+}
+
+# Every directory that sits **where a module sits**, one per line.
+#
+# The module-folder rule judges names, so its population cannot be "the modules
+# the index registers": a folder that is misnamed, or that has not been through
+# `composer:generate` yet, is exactly the one the rule exists to catch and is
+# exactly the one the index does not list. So the roots are derived from the
+# resolved module directories — each one's parent — and every immediate child of
+# a root is a candidate, registered or not. On a tree with one root that is
+# `backend/src/modules/*`, which is what the rule always iterated; on a split
+# tree it is that plus each package root's own children.
+module_root_module_folders() {
+  local index="$1"
+  local dirs roots root
+  dirs="$(module_root_module_directories "$index")" || return 1
+  [ -n "$dirs" ] || return 1
+  roots="$(printf '%s\n' "$dirs" | while IFS= read -r directory; do dirname "$directory"; done | sort -u)"
+  printf '%s\n' "$roots" | while IFS= read -r root; do
+    [ -d "$root" ] || continue
+    find "$root" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sed 's|^\./||'
+  done | sort -u
+}
+
+# The application's source root — where the index sits, one level below the
+# workspace member holding it.
+#
+# `backend/src/modules/_lifecycle/manifest-index.generated.ts` and
+# `backend/src/manifest-index.generated.ts` both answer `backend/src`, which is
+# what makes the owner's ruling about where the index lives a change this
+# derivation does not have to be told about. The member is recognised by its
+# `package.json` rather than by a name: that is the file that makes a directory
+# a workspace member, and it is the only marker that travels with the layout.
+module_root_source_root() {
+  local index="$1"
+  local cursor parent
+  cursor="$(dirname "$index")"
+  while [ "$cursor" != "." ] && [ "$cursor" != "/" ]; do
+    parent="$(dirname "$cursor")"
+    if [ -f "$parent/package.json" ]; then
+      printf '%s\n' "$cursor"
+      return 0
+    fi
+    cursor="$parent"
+  done
+  return 1
 }

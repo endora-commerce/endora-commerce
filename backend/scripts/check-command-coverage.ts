@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import ts from 'typescript';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
 /**
@@ -774,8 +775,20 @@ export function isMigratedModulePath(
 
 // ---- CLI (disk-backed) ----------------------------------------------------
 
-/** The roots the CLI walks, relative to `backend/`. */
-export const SCAN_ROOTS: readonly string[] = ['src/modules', 'src/apps'];
+/**
+ * The roots the CLI walks.
+ *
+ * Derived rather than listed since feature 080's T040a: it was
+ * `['src/modules', 'src/apps']`, joined onto the working directory, which is
+ * the module tree's location written down inside the check that has to survive
+ * it moving. `resolveModuleLayout().moduleWalkRoots` answers with every root a
+ * module's source can live in — each application tree, the overlay tree, and
+ * every module that has become a workspace package.
+ */
+export async function scanRoots(): Promise<readonly string[]> {
+  const { resolveModuleLayout } = await import('./lib/module-roots.js');
+  return (await resolveModuleLayout()).moduleWalkRoots;
+}
 
 /**
  * Registered modules {@link collectScannedFiles} excludes wholesale, so the
@@ -829,7 +842,8 @@ async function main(): Promise<void> {
   }, []);
   const migrated = moduleArgs.length > 0 ? moduleArgs : MIGRATED_MODULES;
 
-  const roots = SCAN_ROOTS.map((r) => join(process.cwd(), r)).filter((r) => existsSync(r));
+  const layout = await requireModuleLayout('[command-coverage]');
+  const roots = layout.moduleWalkRoots.filter((root) => existsSync(root));
   const files = roots.flatMap((root) => collectScannedFiles(root));
   // Run from the wrong directory, or after a layout change, the walk finds
   // nothing and every write in the platform passes unexamined. Exit 2: a green
@@ -842,9 +856,10 @@ async function main(): Promise<void> {
   // is derived from the manifest index rather than counted here.
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[command-coverage]',
-    srcRoot: join(process.cwd(), 'src'),
+    manifestIndexPath: layout.manifestIndexPath,
     files,
     excluded: EXCLUDED_MODULES,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
   let blocking = 0;

@@ -128,6 +128,7 @@ import {
   type ModulePopulationCoverage,
 } from './lib/module-population.js';
 import { reportReadSize } from './lib/read-size.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 
 const RELATION_DECORATORS = new Set(['ManyToOne', 'OneToMany', 'OneToOne', 'ManyToMany']);
 
@@ -605,13 +606,17 @@ function walkKernel(dir: string, out: string[] = []): string[] {
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
-  const files = collectSources(SRC_ROOT);
+  // Rule A's population is both roots, derived (feature 080, T040a); rules B
+  // and C stay inside the application, because the platform roots are the
+  // application's own and a package is never one of them.
+  const layout = await requireModuleLayout('[kernel-boundary]');
+  const files = layout.sourceRoots.flatMap((root) => collectSources(root));
   const relationFiles = files.filter((f) => RELATION_DECORATOR_HINT.test(readFileSync(f, 'utf8')));
   const findings = relationFiles.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
   const violations = findings.filter((f) => isViolation(f) && !isPending(f));
   const pending = findings.filter((f) => isViolation(f) && isPending(f));
   const stale = stalePending(findings);
-  const rel = (p: string): string => p.replace(`${SRC_ROOT}/`, 'src/');
+  const rel = layout.displayOf;
 
   const platformFiles = PLATFORM_ROOTS.flatMap((root) => walkKernel(join(SRC_ROOT, root)));
   const outward = platformFiles.flatMap((f) => analyzePlatformImports(readFileSync(f, 'utf8'), f));
@@ -668,14 +673,20 @@ async function main(): Promise<void> {
   if (files.length === 0) vacuous.push('no sources under src/ (rule A)');
   else {
     try {
-      const population = { registered: await loadRegisteredModuleIds(SRC_ROOT), files };
+      const population = {
+        registered: await loadRegisteredModuleIds(layout.manifestIndexPath),
+        files,
+        moduleIdOf: layout.moduleIdOfPath,
+      };
       const reason = vacuousModulePopulation(population);
       if (reason !== null) vacuous.push(`${reason} (rule A)`);
       // Kept for the read line below, so the corroboration this already
       // enforces is also disclosed on a run that passes it (issue #244).
       coverage = modulePopulationCoverage(population);
     } catch (error: unknown) {
-      vacuous.push(`the module index under ${SRC_ROOT} could not be read: ${String(error)}`);
+      vacuous.push(
+        `the module index at ${layout.manifestIndexPath} could not be read: ${String(error)}`,
+      );
     }
   }
   if (platformFiles.length === 0) vacuous.push('no files under the platform roots (rule B)');

@@ -54,6 +54,7 @@ import {
   type PackageEntity,
 } from './lib/package-declarations.js';
 import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 
 const CLASSIFICATION_DECORATORS = new Set([
   'OrgScoped',
@@ -145,7 +146,11 @@ export function packageEntityFindings(
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
-  const files = walk(SRC_ROOT);
+  // Both roots, derived (feature 080, T040a). A packaged module's entities are
+  // already held to this rule through its published artefact (T034); this is
+  // the other half — the same module's *sources*, once they leave `src`.
+  const layout = await requireModuleLayout('[tenant-classification]');
+  const files = layout.sourceRoots.flatMap((root) => walk(root));
   // 216 of the 221 entities in the tree are a module's. `src/` minus
   // `src/modules` still holds the kernel's five, so an emptiness guard passes
   // on the residue and the check reports every entity classified — over a tree
@@ -153,8 +158,9 @@ async function main(): Promise<void> {
   // comes from the manifest index.
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[tenant-classification]',
-    srcRoot: SRC_ROOT,
+    manifestIndexPath: layout.manifestIndexPath,
     files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
   const entityFiles = files.filter((f) => ENTITY_DECORATOR_HINT.test(readFileSync(f, 'utf8')));
   const treeFindings = entityFiles.flatMap(analyzeFile);
