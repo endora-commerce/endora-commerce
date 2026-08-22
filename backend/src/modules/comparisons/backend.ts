@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CatalogAttributeReadPort,
+  CatalogGalleryPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
   ListingPricePort,
@@ -80,6 +81,15 @@ export function registerModule(ctx: ModuleContext): void {
             // kernel registration, so there is no module edge to declare and
             // nothing to switch off underneath it.
             lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
+            // Feature 075 / D-87 — the base image of a column, over `catalog`'s
+            // batch gallery read. It used to be a three-table join written
+            // here, reaching two of `catalog`'s tables and one of
+            // `assets_library`'s; a raw statement names no import specifier, so
+            // nothing in the tree could see it and no gate could stop it. The
+            // edge binds — `catalog` is already a dependency of this manifest,
+            // and a comparison whose products are unreadable has no column to
+            // put an image in.
+            lazyPort<CatalogGalleryPort>(ctx, 'galleryService'),
             lazyPort<SettingsService>(ctx, 'settingsReadPort'),
             // The attribute read model, now `catalog`'s published port rather
             // than a hand-made adapter over a name a root registered.

@@ -9,6 +9,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type {
   AdminNotificationRecordPort,
   CatalogCategoryReadPort,
+  CatalogGalleryPort,
   CatalogProductFilterPort,
   CatalogProductReadPort,
   ConfigurationTypeRegistryPort,
@@ -184,6 +185,13 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'catalogCategoryReadPort',
             ),
+            // Feature 075 / D-87 — the images of a hydration batch, over the
+            // owner's batch read rather than a `select … from gallery_items`
+            // this module wrote itself. Same binding argument as the two above:
+            // the images of a catalogue the platform is not serving have no
+            // business in a feed, and over the port the read stops with the
+            // rest of the run instead of publishing them.
+            catalogGallery: lazyPort<CatalogGalleryPort>(ctx, 'galleryService'),
             // The last of the seventeen, and the one Phase P escalated rather
             // than guessed at: the criteria scan. The rule compiles to
             // `CatalogProductFilter` — `catalog`'s published grammar — and the

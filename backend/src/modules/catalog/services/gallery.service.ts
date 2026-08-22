@@ -17,6 +17,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   type AssetReadPort,
+  type CatalogGalleryBatchItem,
   type GalleryItem as GalleryItemDto,
   type GalleryLabel,
   type CreateGalleryItemRequest,
@@ -91,6 +92,97 @@ export class GalleryService {
     const em = this.emFactory();
     await this.#assertProductExists(em, productId);
     return this.#fetchAllForProduct(em, productId);
+  }
+
+  /**
+   * Feature 075 / D-87 — the batch half of {@link list}, for the callers that
+   * walk a page or a whole sellable catalogue.
+   *
+   * `product_feeds` used to run this statement itself, inside its own hydration
+   * batch, against a table `catalog` owns. It named no import specifier, so the
+   * boundary compiled and returned rows; `list` could not replace it because
+   * three round-trips per product is 1500 for a 500-product batch.
+   *
+   * Two things are deliberately absent. There is **no `#assertProductExists`**:
+   * a caller asks about the ids it holds, one of which may have been removed
+   * since, and answering 404 for the batch would be answering about a different
+   * question. And there are **no labels**: neither consumer reads them here, and
+   * fetching them costs a second statement per batch.
+   */
+  async listForProducts(productIds: readonly string[]): Promise<CatalogGalleryBatchItem[]> {
+    if (productIds.length === 0) return [];
+    const ids = [...new Set(productIds)];
+    // `em.execute`, not `em.getConnection().execute`, so a caller that opens a
+    // transaction around this read sees its own uncommitted writes (issue #200).
+    const rows = await this.emFactory().execute<
+      Array<{ product_id: string; asset_id: string; position: number }>
+    >(
+      `select gi.product_id::text as product_id,
+              gi.asset_id::text as asset_id,
+              gi.position
+         from gallery_items gi
+        where gi.product_id in (${ids.map(() => '?').join(',')})
+        order by gi.product_id, gi.position asc, gi.id asc`,
+      ids,
+    );
+    return rows.map((row) => ({
+      productId: row.product_id,
+      assetId: row.asset_id,
+      position: Number(row.position),
+    }));
+  }
+
+  /**
+   * Feature 075 / D-87 — the `base_image` url of each of a batch of products.
+   *
+   * `comparisons` used to answer this with one statement joining this module's
+   * `gallery_item_labels` and `gallery_items` to `assets_library`'s `assets` —
+   * three cross-module reaches in a single join, which is why they retire
+   * together or not at all. Here the join stops at this module's own two tables
+   * and the asset row is asked of its owner through the port this service
+   * already holds, in one call for the whole batch.
+   *
+   * `base_image` only. This is not {@link resolvePrimaryAssetUrls}, which walks
+   * thumbnail → base_image → first item and answers "which image represents
+   * this product"; the comparison column names the base image explicitly
+   * (feature 007, FR-006), and a fallback here would quietly put a thumbnail in
+   * a column an operator set deliberately.
+   *
+   * The map holds one entry per requested id. `null` covers three cases the
+   * callers render identically — no label, no product, no asset row — and the
+   * inner join it replaces collapsed all three the same way.
+   */
+  async baseImageUrls(productIds: readonly string[]): Promise<Map<string, string | null>> {
+    const urlByProduct = new Map<string, string | null>();
+    for (const id of productIds) urlByProduct.set(id, null);
+    if (urlByProduct.size === 0) return urlByProduct;
+
+    const ids = [...urlByProduct.keys()];
+    const rows = await this.emFactory().execute<Array<{ product_id: string; asset_id: string }>>(
+      `select gil.product_id::text as product_id, gi.asset_id::text as asset_id
+         from gallery_item_labels gil
+         join gallery_items gi on gi.id = gil.gallery_item_id
+        where gil.label = 'base_image'
+          and gil.product_id in (${ids.map(() => '?').join(',')})`,
+      ids,
+    );
+    if (rows.length === 0) return urlByProduct;
+
+    // One call to the owner for every base image in the batch. `assets_library`
+    // is a binding dependency of this module, so an absent owner fails closed
+    // here rather than quietly answering "no product has an image".
+    const assetIds = [...new Set(rows.map((row) => row.asset_id))];
+    const urlByAsset = new Map(
+      (await this.#requireAssets().findByIds(assetIds)).map((asset) => [
+        asset.id,
+        asset.storageUrl,
+      ]),
+    );
+    for (const row of rows) {
+      const url = urlByAsset.get(row.asset_id);
+      if (url !== undefined) urlByProduct.set(row.product_id, url);
+    }
+    return urlByProduct;
   }
 
   async create(

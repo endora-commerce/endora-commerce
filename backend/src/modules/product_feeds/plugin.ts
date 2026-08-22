@@ -6,6 +6,7 @@ import {
   FEED_DELIVERY_LIMITS,
   PRODUCT_FEED_SETTING_CODES,
   type CatalogCategoryReadPort,
+  type CatalogGalleryPort,
   type CatalogProductFilterPort,
   type CatalogProductReadPort,
   type CatalogProductRecord,
@@ -251,6 +252,12 @@ export interface ProductFeedsModuleOptions {
   catalogProductFilter: CatalogProductFilterPort;
   /** The category tree the taxonomy screens and a run's provider mapping read. */
   catalogCategories: CatalogCategoryReadPort;
+  /**
+   * The gallery of a hydration batch (feature 075 / D-87). `listForProducts`,
+   * not `list`: the per-product call costs three round-trips and a run walks
+   * the whole sellable catalogue.
+   */
+  catalogGallery: CatalogGalleryPort;
   /** Feed validation refuses a price list that no longer exists (FR-021). */
   priceLists: PriceListReadPort;
   resolveAvailability: FeedAvailabilityResolver;
@@ -603,6 +610,7 @@ export function productFeedsModule(
     emFactory: options.emFactory,
     catalogProducts: options.catalogProducts,
     catalogCategories: options.catalogCategories,
+    catalogGallery: options.catalogGallery,
     selection,
     runs,
     artefactStore,

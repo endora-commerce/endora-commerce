@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CatalogCategoryReadPort,
   CatalogCategoryRecord,
+  CatalogGalleryPort,
   CatalogProductReadPort,
   CatalogProductRecord,
   CatalogProductVariantRecord,
@@ -163,6 +164,15 @@ export interface FeedGenerationDeps {
    */
   catalogProducts: CatalogProductReadPort;
   catalogCategories: CatalogCategoryReadPort;
+  /**
+   * Feature 075 / D-87 — the gallery of a hydration batch. `listForProducts`
+   * rather than `list`: the per-product call verifies the product and then runs
+   * two more queries, so a 500-product batch would cost 1500 round-trips in
+   * place of one, and a feed run walks the whole sellable catalogue. Only the
+   * asset **ids** come back — the urls are `resolvePublicImageUrls`' answer,
+   * which asks `assets_library` and drops whatever is not publicly reachable.
+   */
+  catalogGallery: CatalogGalleryPort;
   selection: ProductSelectionService;
   runs: FeedRunService;
   artefactStore: ArtefactStorePort;
@@ -642,7 +652,6 @@ export class FeedGenerationService {
     productIds: string[],
     prepared: FeedItemHydrationScope,
   ): Promise<FeedItemSource[]> {
-    const em = this.deps.emFactory();
     // The ids arrive already scoped to this channel by `ProductSelectionService`;
     // binding the channel as a local keeps that visible where the reads happen
     // (Principle XII's accessor clause), and it is what availability resolves against.
@@ -650,18 +659,19 @@ export class FeedGenerationService {
     const products = await this.deps.catalogProducts.findByIds(productIds);
     if (products.length === 0) return [];
 
-    const conn = em.getConnection();
-    const placeholders = productIds.map(() => '?').join(',');
+    // No `EntityManager` here any more: with the gallery select gone, every row
+    // this method builds a feed line from belongs to another module and arrives
+    // over that module's port.
 
     // Categories, localized root → leaf.
     //
     // `product_categories` is `catalog`'s bridge table and was joined here in
     // raw SQL — a boundary crossing that names no import specifier, two lines
     // above the `findByIds` that already asked the owner the next question
-    // (feature 075, the `product_feeds` shard). The owner answers both halves
-    // now, on its own `EntityManager`: a hydration batch writes nothing to
-    // `catalog`, so the transaction context the statement used to carry had
-    // nothing of its own to show it.
+    // (feature 075, the `product_feeds` shard). The owner answers it now, on its
+    // own `EntityManager`: a hydration batch writes nothing to `catalog`, so the
+    // transaction context the statement used to carry had nothing of its own to
+    // show it.
     //
     // No `activeOnly`. The floor a feed publishes against is
     // `catalogProductFilterPort`'s **sellable product** set, applied by the
@@ -676,15 +686,19 @@ export class FeedGenerationService {
     const categoryById = new Map(categories.map((c) => [c.id, c]));
 
     // Images: gallery order is authoritative; only publicly reachable ones survive.
-    const galleryRows = (await conn.execute(
-      `select product_id, asset_id, position from gallery_items
-        where product_id in (${placeholders}) order by product_id, position asc`,
-      productIds,
-      'all',
-      em.getTransactionContext(),
-    )) as Array<{ product_id: string; asset_id: string; position: number }>;
+    //
+    // `gallery_items` is `catalog`'s table and this was a raw `select` over it
+    // — the last of the two reaches in this file, and invisible to
+    // `check:module-boundary`'s import predicate for the same reason the
+    // category join was: a statement names no specifier (feature 075 / D-87).
+    // `listForProducts` is the owner's batch read, added because `list` costs
+    // three round-trips per product and a run walks the whole sellable
+    // catalogue. The edge binds, exactly as the two reads above it do: a feed
+    // assembled out of a module the platform is not serving is worse than a run
+    // that stops and records why.
+    const galleryRows = await this.deps.catalogGallery.listForProducts(productIds);
     const publicUrls = await this.deps.resolvePublicImageUrls([
-      ...new Set(galleryRows.map((r) => r.asset_id)),
+      ...new Set(galleryRows.map((r) => r.assetId)),
     ]);
 
     const availability = await this.deps.resolveAvailability(productIds, salesChannelId);
@@ -718,12 +732,11 @@ export class FeedGenerationService {
             mappingsByCategoryId: prepared.taxonomy.mappingsByCategoryId,
           })
         : null;
-      const images = galleryRows
-        .filter((r) => r.product_id === product.id)
-        .map((r) => publicUrls.get(r.asset_id))
+      const productGallery = galleryRows.filter((r) => r.productId === product.id);
+      const images = productGallery
+        .map((r) => publicUrls.get(r.assetId))
         .filter((url): url is string => typeof url === 'string');
-      const privateImageCount =
-        galleryRows.filter((r) => r.product_id === product.id).length - images.length;
+      const privateImageCount = productGallery.length - images.length;
       const price = await this.resolvePrice(product, null, prepared);
       const stock = availability.get(product.id) ?? null;
 
