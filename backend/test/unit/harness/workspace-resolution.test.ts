@@ -17,7 +17,11 @@
 
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import {
+  nodeWorkspaceFs,
+  workspaceMembers,
+} from '../../../scripts/lib/workspace-packages.js';
 import {
   ALLOW_FOREIGN_ENV,
   assertWorkspacePackagesAreLocal,
@@ -332,7 +336,7 @@ describe('this checkout', () => {
     expect(report.links.length).toBeGreaterThan(0);
   });
 
-  it('maps every workspace package in tsconfig.base.json paths', () => {
+  it('maps a workspace package in tsconfig.base.json paths exactly when its sources are its own', () => {
     // Since feature 080's T040a `report.packages` comes from the workspace
     // globs rather than from `readdir('packages')`, so this assertion now
     // covers a package the globs nest as well — which is what makes it the
@@ -346,17 +350,65 @@ describe('this checkout', () => {
     // `@endora-commerce/page-builder-core` was added to `packages/` without an entry, and
     // for as long as that stood, one run type-checked one branch and executed
     // another.
+    //
+    // **It is required exactly when the package's published sources live under
+    // its own directory, and refused when they do not** (feature 080, T042a).
+    // The host package `@endora-commerce/platform` is the second case and is
+    // the reason this is two-way rather than one: its `rootDir` is
+    // `backend/src`, so its sources are already this checkout's own — `tsc`
+    // compiles them directly, through no specifier, and there is nothing for a
+    // `paths` entry to redirect. An entry would not be merely idle: every
+    // tsconfig in this repository extends `tsconfig.base.json`, including
+    // `backend/acceptance/fixture-package`, whose entire purpose is a
+    // resolution path that does **not** lead back into this repository. A
+    // `paths` entry would capture that package's `@endora-commerce/platform`
+    // import, resolve it into `backend/src`, and put a file outside the
+    // fixture's `rootDir` in its program — TS6059, and the acceptance criterion
+    // stops measuring what it says it measures.
+    //
+    // Both halves are derived from each package's own `tsconfig.build.json`,
+    // never from a list here: a package that moves its sources changes this
+    // answer in the same merge request that moves them.
     const tsconfig = JSON.parse(readFileSync(join(root!, 'tsconfig.base.json'), 'utf8')) as {
       compilerOptions?: { paths?: Record<string, readonly string[]> };
     };
     const paths = tsconfig.compilerOptions?.paths ?? {};
     const report = inspectWorkspaceResolution(root!, nodeResolutionFs());
+    const members = workspaceMembers(root!, nodeWorkspaceFs());
 
-    const unmapped = report.packages.filter(
-      (name) => paths[name] === undefined || paths[`${name}/*`] === undefined,
+    const sourcesAreItsOwn = (name: string): boolean => {
+      const member = members.find((m) => m.name === name);
+      if (member === undefined) return true;
+      const build = readFileSync(join(member.dir, 'tsconfig.build.json'), 'utf8')
+        .split('\n')
+        .map((line) => (/^\s*\/\//.test(line) ? '' : line))
+        .join('\n');
+      const rootDir = (
+        JSON.parse(build) as { compilerOptions?: { rootDir?: string } }
+      ).compilerOptions?.rootDir;
+      if (rootDir === undefined) return true;
+      return isInsideCheckout(member.dir, resolve(member.dir, rootDir));
+    };
+
+    // Required means **both** entries — the bare specifier and the subpath one.
+    // Refused means **neither**: one of the two is still a capture.
+    const fullyMapped = (name: string): boolean =>
+      paths[name] !== undefined && paths[`${name}/*`] !== undefined;
+    const mappedAtAll = (name: string): boolean =>
+      paths[name] !== undefined || paths[`${name}/*`] !== undefined;
+
+    const unmapped = report.packages.filter((name) => sourcesAreItsOwn(name) && !fullyMapped(name));
+    const wronglyMapped = report.packages.filter(
+      (name) => !sourcesAreItsOwn(name) && mappedAtAll(name),
     );
 
     expect(report.packages.length).toBeGreaterThan(0);
+    // Both populations must be non-empty for this to be measuring anything, and
+    // they are: five packages compile their own `src`, and the host compiles
+    // `backend/src`.
+    expect(report.packages.filter(sourcesAreItsOwn).length).toBeGreaterThan(0);
+    expect(report.packages.filter((name) => !sourcesAreItsOwn(name)).length).toBeGreaterThan(0);
     expect(unmapped).toEqual([]);
+    expect(wronglyMapped).toEqual([]);
   });
 });

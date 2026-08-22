@@ -30,14 +30,17 @@
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { isBuiltin } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,6 +68,8 @@ interface WorkspacePackage {
 type FindingKind =
   | 'main-outside-dist'
   | 'types-outside-dist'
+  | 'main-without-root-export'
+  | 'types-without-root-export'
   | 'export-target-outside-dist'
   | 'export-without-types-condition'
   | 'files-missing-dist'
@@ -84,11 +89,29 @@ const inDist = (target: string): boolean => target.startsWith('./dist/');
 export function distShapeFindings(manifest: PackageManifest): Finding[] {
   const findings: Finding[] = [];
 
-  if (manifest.main === undefined || !inDist(manifest.main)) {
-    findings.push({ kind: 'main-outside-dist', detail: manifest.main ?? '<absent>' });
-  }
-  if (manifest.types === undefined || !inDist(manifest.types)) {
-    findings.push({ kind: 'types-outside-dist', detail: manifest.types ?? '<absent>' });
+  // `main` and `types` are the *root* entry point, so what they must be depends on whether
+  // the package has one. Four of the five packages under `packages/` do; the host package
+  // (feature 080, T042a) deliberately does not — D-160.7 gives it five enumerated subpaths
+  // and no `.`, because there is no sensible answer to "what does the whole platform
+  // export" and an unexported root produces `ERR_PACKAGE_PATH_NOT_EXPORTED` rather than a
+  // plausible guess. For that package a `main` would be worse than redundant: it is the
+  // fallback a CJS or `moduleResolution: Bundler` consumer takes when `exports` has no
+  // matching subpath, so declaring one re-opens by the back door the root the map refuses.
+  const hasRootExport = Object.keys(manifest.exports ?? {}).includes('.');
+  if (hasRootExport) {
+    if (manifest.main === undefined || !inDist(manifest.main)) {
+      findings.push({ kind: 'main-outside-dist', detail: manifest.main ?? '<absent>' });
+    }
+    if (manifest.types === undefined || !inDist(manifest.types)) {
+      findings.push({ kind: 'types-outside-dist', detail: manifest.types ?? '<absent>' });
+    }
+  } else {
+    if (manifest.main !== undefined) {
+      findings.push({ kind: 'main-without-root-export', detail: manifest.main });
+    }
+    if (manifest.types !== undefined) {
+      findings.push({ kind: 'types-without-root-export', detail: manifest.types });
+    }
   }
   if (!(manifest.files ?? []).includes('dist')) {
     findings.push({ kind: 'files-missing-dist', detail: JSON.stringify(manifest.files ?? null) });
@@ -98,6 +121,10 @@ export function distShapeFindings(manifest: PackageManifest): Finding[] {
   }
 
   for (const [subpath, target] of Object.entries(manifest.exports ?? {})) {
+    // The one subpath whose target is *not* under `dist` and cannot be: it is the manifest
+    // itself. A consumer resolving `<pkg>/package.json` — a version read, a tool locating
+    // the install — needs it exported, and it has no declarations to condition on.
+    if (subpath === './package.json') continue;
     if (typeof target === 'string') {
       if (!inDist(target)) {
         findings.push({ kind: 'export-target-outside-dist', detail: `${subpath} -> ${target}` });
@@ -193,7 +220,7 @@ describe('package distribution shape', () => {
     it('refuses an `exports` subpath that still points at source', () => {
       const findings = distShapeFindings({
         ...sound,
-        exports: { './*': { types: './src/*.ts', default: './src/*.ts' } },
+        exports: { ...sound.exports, './*': { types: './src/*.ts', default: './src/*.ts' } },
       });
       expect(findings.map((f) => f.kind)).toEqual([
         'export-target-outside-dist',
@@ -211,7 +238,10 @@ describe('package distribution shape', () => {
 
     it('accepts a non-JavaScript `exports` target with no `types` condition', () => {
       expect(
-        distShapeFindings({ ...sound, exports: { './styles.css': './dist/example.css' } }),
+        distShapeFindings({
+          ...sound,
+          exports: { ...sound.exports, './styles.css': './dist/example.css' },
+        }),
       ).toEqual([]);
     });
 
@@ -219,6 +249,46 @@ describe('package distribution shape', () => {
       expect(distShapeFindings({ ...sound, files: ['src'] }).map((f) => f.kind)).toEqual([
         'files-missing-dist',
       ]);
+    });
+
+    it('passes a root-less map that declares no `main`', () => {
+      // The host package's shape: five enumerated subpaths, no `.`, no `main`, no `types`.
+      const rootless: PackageManifest = {
+        name: '@endora-commerce/platform',
+        files: ['dist'],
+        scripts: { build: 'tsc -p tsconfig.build.json' },
+        exports: {
+          './kernel': { types: './dist/kernel/index.d.ts', default: './dist/kernel/index.js' },
+          './package.json': './package.json',
+        },
+      };
+      expect(distShapeFindings(rootless)).toEqual([]);
+    });
+
+    it('refuses a `main` beside a map with no root export', () => {
+      const rootless: PackageManifest = {
+        name: '@endora-commerce/platform',
+        main: './dist/kernel/index.js',
+        files: ['dist'],
+        scripts: { build: 'tsc -p tsconfig.build.json' },
+        exports: {
+          './kernel': { types: './dist/kernel/index.d.ts', default: './dist/kernel/index.js' },
+        },
+      };
+      expect(distShapeFindings(rootless).map((f) => f.kind)).toEqual(['main-without-root-export']);
+    });
+
+    it('refuses a `types` beside a map with no root export', () => {
+      const rootless: PackageManifest = {
+        name: '@endora-commerce/platform',
+        types: './dist/kernel/index.d.ts',
+        files: ['dist'],
+        scripts: { build: 'tsc -p tsconfig.build.json' },
+        exports: {
+          './kernel': { types: './dist/kernel/index.d.ts', default: './dist/kernel/index.js' },
+        },
+      };
+      expect(distShapeFindings(rootless).map((f) => f.kind)).toEqual(['types-without-root-export']);
     });
 
     it('refuses a package with no `build` script', () => {
@@ -257,8 +327,16 @@ describe('only the emit configuration may reach another package', () => {
       if (JSON.stringify(build.compilerOptions?.['paths']) !== '{}') {
         defects.push(`${manifest.name}: tsconfig.build.json must clear \`paths\``);
       }
-      if (build.compilerOptions?.['rootDir'] !== './src') {
-        defects.push(`${manifest.name}: tsconfig.build.json must set rootDir to ./src`);
+      // `rootDir` must be **declared**, and it is no longer required to be the literal
+      // `./src`: the host package (feature 080, T042a) compiles `backend/src`'s five
+      // platform directories where they live, with `rootDir` naming `backend/src`, so its
+      // emitted layout is `dist/{kernel,http,tenancy,commands,events}` — the layout its
+      // `exports` map names — without relocating 82 files that 1400-plus module files hold
+      // relative specifiers into. What the literal was standing in for is asserted
+      // directly below instead: every `exports` target is a file the build emits.
+      const rootDir = build.compilerOptions?.['rootDir'];
+      if (typeof rootDir !== 'string' || rootDir.length === 0) {
+        defects.push(`${manifest.name}: tsconfig.build.json must declare a rootDir`);
       }
       if (build.compilerOptions?.['noEmit'] !== false) {
         defects.push(`${manifest.name}: tsconfig.build.json must re-enable emit`);
@@ -266,8 +344,15 @@ describe('only the emit configuration may reach another package', () => {
       if (build.compilerOptions?.['noEmitOnError'] !== true) {
         defects.push(`${manifest.name}: tsconfig.build.json must set noEmitOnError`);
       }
-      if (!(build.exclude ?? []).includes('**/*.test.ts')) {
-        defects.push(`${manifest.name}: tsconfig.build.json must exclude test files from dist`);
+      // The emit must exclude test files, wherever the exclusion is written: a compiled
+      // `*.test.js` under `dist` imports `vitest`, a devDependency, so it is an
+      // unresolvable specifier in every consumer's install. `tsconfig.build.json` extends
+      // `tsconfig.json`, so an `exclude` in the parent is inherited — and an `exclude`
+      // glob is resolved against the config's own directory, so a package whose sources
+      // are elsewhere anchors the pattern there rather than writing `**/*.test.ts`.
+      const excludes = [...(build.exclude ?? typecheck.exclude ?? [])];
+      if (!excludes.some((pattern) => pattern.endsWith('*.test.ts'))) {
+        defects.push(`${manifest.name}: the emit must exclude test files from dist`);
       }
       if (manifest.scripts?.['build']?.includes('tsconfig.build.json') !== true) {
         defects.push(`${manifest.name}: the build script must use tsconfig.build.json`);
@@ -279,16 +364,69 @@ describe('only the emit configuration may reach another package', () => {
   });
 });
 
+describe('every `exports` target is a file the build emits', () => {
+  // This is the property `rootDir === './src'` used to stand in for, asserted where it can
+  // actually be wrong: the emitted layout is decided by `rootDir` and the `include` list
+  // together, and a map naming a path the compiler never writes resolves to nothing at
+  // runtime while `tsc` — answering from the `types` condition it also cannot find — says
+  // nothing either. Needs the packages built; `pnpm run build:packages` precedes every CI
+  // job that executes repository code.
+  it('resolves every non-wildcard target on disk', () => {
+    const missing: string[] = [];
+    let checked = 0;
+
+    for (const { dir, manifest } of PACKAGES) {
+      const targets: string[] = [];
+      for (const [, target] of Object.entries(manifest.exports ?? {})) {
+        if (typeof target === 'string') targets.push(target);
+        else {
+          for (const value of Object.values(target as Record<string, unknown>)) {
+            if (typeof value === 'string') targets.push(value);
+          }
+        }
+      }
+      for (const target of targets) {
+        if (target.includes('*')) continue;
+        checked += 1;
+        if (!existsSync(join(dir, target))) missing.push(`${manifest.name}: ${target}`);
+      }
+    }
+
+    expect(checked).toBeGreaterThan(0);
+    expect([...new Set(missing)].sort()).toEqual([]);
+  });
+});
+
 describe('published sources declare every dependency they import', () => {
   const isTest = (file: string): boolean => /\.(test|spec)\.tsx?$/.test(file);
 
-  function publishedSources(dir: string, out: string[] = []): string[] {
+  function walkSources(dir: string, out: string[] = []): string[] {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = join(dir, entry.name);
-      if (entry.isDirectory()) publishedSources(path, out);
+      if (entry.isDirectory()) walkSources(path, out);
       else if (/\.(ts|tsx|mts|cts)$/.test(entry.name) && !isTest(entry.name)) out.push(path);
     }
     return out;
+  }
+
+  /**
+   * The package's own sources, taken from the directories its type-check configuration
+   * includes rather than from an assumed `./src`. The host package's are the five platform
+   * directories of `backend/src` (feature 080, T042a), which is exactly the case an assumed
+   * path answers wrongly — and it answers wrongly by *reading nothing*, which is a green
+   * dependency check over a package that imports twenty things.
+   */
+  function publishedSources(dir: string): string[] {
+    const config = readJsonc<{ include?: readonly string[] }>(join(dir, 'tsconfig.json'));
+    const roots = new Set<string>();
+    for (const pattern of config.include ?? []) {
+      const head = pattern.split('*')[0]!;
+      const resolved = join(dir, head.endsWith('/') ? head.slice(0, -1) : dirname(head));
+      if (existsSync(resolved) && statSync(resolved).isDirectory()) roots.add(resolved);
+    }
+    const found: string[] = [];
+    for (const root of roots) walkSources(root, found);
+    return [...new Set(found)];
   }
 
   /**
@@ -301,7 +439,10 @@ describe('published sources declare every dependency they import', () => {
     for (const ref of ts.preProcessFile(source, true, true).importedFiles) {
       const specifier = ref.fileName;
       if (specifier.startsWith('.') || specifier.startsWith('/')) continue;
-      if (specifier.startsWith('node:')) continue;
+      // `isBuiltin` rather than a `node:` prefix test: the prefix is the spelling to
+      // prefer, not the rule. `backend/src/kernel` writes bare `crypto` and `async_hooks`
+      // in four files, and a package that declares neither is right not to.
+      if (isBuiltin(specifier)) continue;
       const parts = specifier.split('/');
       found.push(specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!);
     }
@@ -310,6 +451,7 @@ describe('published sources declare every dependency they import', () => {
 
   it('imports nothing it does not declare as a runtime dependency', () => {
     const undeclared: string[] = [];
+    const readPerPackage: Record<string, number> = {};
     let read = 0;
 
     for (const { dir, manifest } of PACKAGES) {
@@ -317,7 +459,9 @@ describe('published sources declare every dependency they import', () => {
         ...Object.keys(manifest.dependencies ?? {}),
         ...Object.keys(manifest.peerDependencies ?? {}),
       ]);
-      for (const file of publishedSources(join(dir, 'src'))) {
+      const sources = publishedSources(dir);
+      readPerPackage[manifest.name!] = sources.length;
+      for (const file of sources) {
         read += 1;
         for (const specifier of bareSpecifiers(readFileSync(file, 'utf8'))) {
           if (specifier === manifest.name || runtime.has(specifier)) continue;
@@ -326,7 +470,11 @@ describe('published sources declare every dependency they import', () => {
       }
     }
 
+    // The floor is **per package**, not per run (issue #215): five packages contributing
+    // hundreds of files each keep `read` comfortably positive while a sixth contributes
+    // nothing, and a package this analysis did not open is a package with no check at all.
     expect(read).toBeGreaterThan(0);
+    expect(Object.entries(readPerPackage).filter(([, count]) => count === 0)).toEqual([]);
     expect([...new Set(undeclared)].sort()).toEqual([]);
   });
 
