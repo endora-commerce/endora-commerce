@@ -6,6 +6,7 @@ import {
   assertRequiredModulesPresent,
   type RequiredModule,
 } from './lifecycle/required-modules.js';
+import { assertUniqueModuleIds } from './lifecycle/unique-module-ids.js';
 import { enterSystemScope } from './scope.js';
 import {
   AmbiguousDecorationError,
@@ -226,6 +227,14 @@ export function composeModules(
   entries: readonly ModuleEntry[],
   options: ComposeModulesOptions,
 ): ComposedModules {
+  // T030c / D-155.7 — module id uniqueness, in the same slot and for the same
+  // reason as the refusal below: both answers exist already, and a composition
+  // that is going to be refused must not half-run first. Unconditional, because
+  // there is no composition in which two entries claiming one id is a coherent
+  // request — see `lifecycle/unique-module-ids.ts` for what used to happen
+  // instead.
+  assertUniqueModuleIds(entries.map((entry) => entry.id));
+
   // Issue #258 — before the first module registers, because both answers this
   // needs exist already and nothing it could refuse is worth half-doing. It has
   // to land ahead of the boot phase, which is where the failure it prevents

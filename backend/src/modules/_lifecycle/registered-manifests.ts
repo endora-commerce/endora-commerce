@@ -18,6 +18,11 @@ import { fileURLToPath } from 'node:url';
 import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
 import { discoverOverlayModuleManifests } from '../../overlay/overlay-runtime.js';
 import {
+  assertNoPackageModuleIdCollisions,
+  type ModuleIdClaim,
+} from '../../packages/module-id-claims.js';
+import { discoverPackageModuleManifests } from '../../packages/package-runtime.js';
+import {
   DISCOVERED_MANIFESTS,
   type DiscoveredManifestEntry,
 } from './manifest-index.generated.js';
@@ -82,29 +87,80 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> =
   coreManifestEntries(DISCOVERED_MANIFESTS);
 
 /**
- * The **deployment-resolved** manifest set = the core registry PLUS every
- * overlay module the active deployment ships (feature 057, D-104).
+ * The **instance-resolved** manifest set = the core registry, PLUS every
+ * overlay module the active deployment ships (feature 057, D-104), PLUS every
+ * Endora module package installed in this instance's `node_modules` (feature
+ * 080, D-119/D-155).
  *
- * The overlay half is discovered at runtime, by the one implementation that
- * discovers it (`discoverOverlayModuleManifests`). There used to be two: this
- * function merged the generated index's overlay entries, `composition.ts`
- * merged the runtime scan's, and the one under test was not the one that ran.
+ * All three halves after the first are discovered at runtime, each by the one
+ * implementation that discovers it — `discoverOverlayModuleManifests` and
+ * `discoverPackageModuleManifests`. There used to be two overlay
+ * implementations: this function merged the generated index's overlay entries,
+ * `composition.ts` merged the runtime scan's, and the one under test was not
+ * the one that ran.
  *
- * Runtime discovery is not an optimisation here, it is the only correct answer:
- * an overlay module's `filePath` resolves against the deployment root, and
- * which deployment that is depends on the process, not on the tree a generator
- * was run against. For a bare-core build (`DEPLOYMENT` unset) there is nothing
- * to discover and this returns the core registry unchanged (FR-008).
+ * Runtime discovery is not an optimisation, it is the only correct answer, and
+ * D-104's predicate gives it for both: an artefact is committed when its
+ * content is a fact about *the tree*, and resolved at runtime when it is a fact
+ * about *the process*. Which deployment this process runs as is one; which
+ * packages an operator installed into this instance is the other. For a
+ * bare-core build with nothing installed — every developer checkout and every
+ * test run — both discoveries come back empty and this returns the core
+ * registry unchanged (FR-008).
+ *
+ * ## The two collisions, and why they are answered differently
+ *
+ * An **overlay** module claiming a core id is dropped (`continue`). That is the
+ * shipped answer and it is right: a deployment shadowing a module it authored
+ * is what the overlay mechanism is for, and the deployment can see both files.
+ *
+ * A **package** claiming an id that is already taken — by core, by the
+ * deployment's overlay, or by another package — is **refused**, naming every
+ * claimant's file (T030c, D-155.7). A stranger has no shadowing reading: the
+ * operator installed something that cannot run here, and dropping it silently
+ * disables a module they paid for while leaving its migrations, its settings
+ * rows and its permissions to be attributed to somebody else's module of the
+ * same id.
  */
 export async function resolvedManifestEntries(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<RegisteredManifestEntry[]> {
   const overlay = await discoverOverlayModuleManifests(env);
+  const packages = await discoverPackageModuleManifests(env);
   const byId = new Map<string, RegisteredManifestEntry>(
     REGISTERED_MANIFESTS.map((entry) => [entry.manifest.id, entry]),
   );
   for (const found of overlay) {
     if (byId.has(found.id)) continue; // core owns the id; an overlay may not shadow it here
+    byId.set(found.id, {
+      manifest: found.manifest,
+      filePath: found.filePath,
+      ...(found.installHook ? { installHook: found.installHook } : {}),
+      ...(found.uninstallHook ? { uninstallHook: found.uninstallHook } : {}),
+    });
+  }
+
+  // Every claim at once, so the refusal reports all of them rather than the
+  // first — an operator with two bad packages should have to run this once.
+  const claims: ModuleIdClaim[] = [];
+  for (const [id, entry] of byId) {
+    claims.push({
+      id,
+      origin: overlay.some((found) => found.id === id) ? 'overlay' : 'core',
+      claimedBy: entry.filePath,
+    });
+  }
+  for (const found of packages) {
+    claims.push({
+      id: found.id,
+      origin: 'package',
+      claimedBy: found.filePath,
+      name: found.packageName,
+    });
+  }
+  assertNoPackageModuleIdCollisions(claims);
+
+  for (const found of packages) {
     byId.set(found.id, {
       manifest: found.manifest,
       filePath: found.filePath,

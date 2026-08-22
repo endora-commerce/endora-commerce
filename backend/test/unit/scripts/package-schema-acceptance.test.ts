@@ -382,10 +382,34 @@ describe('the expectation ledger records a criterion that is red today', () => {
     expect(Object.keys(ledger.assertions).sort()).toEqual([...ASSERTION_IDS].sort());
   });
 
-  it('expects A1 … A7 to fail, each with a reason naming what is missing', () => {
-    for (const id of ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'] as const) {
+  it('expects the schema half — A1 … A4 — to fail, each with a reason naming what is missing', () => {
+    // The four that are about a package's **schema** reaching PostgreSQL, which
+    // is what Wave 3's T033 closes and what "a package can ship schema" means.
+    // A5 left this list when T031 landed: an installed package now reaches
+    // `resolvedManifestEntries()` and both composition roots.
+    for (const id of ['A1', 'A2', 'A3', 'A4'] as const) {
       expect(ledger.assertions[id]?.status, `${id} must be recorded as failing today`).toBe('fail');
       expect(ledger.assertions[id]?.reason.length).toBeGreaterThan(40);
+    }
+  });
+
+  it('expects A5 to pass, and A6 and A7 to fail on reasons of their own', () => {
+    // Both used to read "Follows A5", which stopped being true the moment A5
+    // did. A recorded reason that is stale is worse than none: it sends the
+    // next author to fix something that is already fixed.
+    expect(ledger.assertions['A5']?.status).toBe('pass');
+    for (const id of ['A6', 'A7'] as const) {
+      expect(ledger.assertions[id]?.status).toBe('fail');
+      expect(ledger.assertions[id]?.reason).not.toMatch(/^Follows A5/);
+    }
+  });
+
+  it('gives every entry a reason, whichever way it answers', () => {
+    // The ratchet only *requires* one for a `fail`. A `pass` needs one too, and
+    // for the same purpose: the entry has to say what earned the green, or the
+    // next reader cannot tell an earned pass from one nobody looked at.
+    for (const id of ASSERTION_IDS) {
+      expect(ledger.assertions[id]?.reason.length, `${id} must carry a reason`).toBeGreaterThan(40);
     }
   });
 

@@ -2,13 +2,16 @@
   "$comment": [
     "What the package-schema acceptance criterion answers on this tree, per assertion (D-110).",
     "A two-way ratchet: the CI job fails when a run disagrees with this file in either direction.",
-    "Seven of the nine are `fail` today and are supposed to be — a package genuinely cannot ship",
-    "schema until feature 080's Wave 3 lands. Recording that is what makes an accidental *green*",
-    "as visible as an accidental red: a change that quietly satisfied A4 without going through",
-    "the composition would show up here as drift, not as a pass nobody looked at.",
+    "Six of the nine are `fail` today and are supposed to be — a package still cannot ship SCHEMA",
+    "until feature 080's Wave 3 finishes. Recording that is what makes an accidental *green* as",
+    "visible as an accidental red: a change that quietly satisfied A4 without going through the",
+    "composition would show up here as drift, not as a pass nobody looked at.",
     "Move an entry only in the merge request that earned the move, and never to make a pipeline",
     "pass. When Wave 3 lands, every entry becomes `pass` and this file becomes the guard against",
-    "regressions rather than the record of a gap."
+    "regressions rather than the record of a gap.",
+    "T031 moved A5 to `pass` (an installed package now reaches `resolvedManifestEntries()` and",
+    "both composition roots) and corrected A6's and A7's reasons, which had both read `Follows",
+    "A5` and stopped being true the moment A5 did."
   ],
   "assertions": {
     "A1": {
@@ -28,16 +31,16 @@
       "reason": "The entity registry is emitted from a source-text probe for `@Entity(` under `backend/src` (`generate-composer.ts:603`), and compilation turns the decorator into `__decorate([...])`. A published package therefore contributes zero entities and the ORM metadata has no `AcceptanceProbeRow`. Closed by Wave 3 T033."
     },
     "A5": {
-      "status": "fail",
-      "reason": "`resolvedManifestEntries()` merges the generated core index with this deployment's overlay modules and nothing else, so an installed package has no identity, no grantable permission and no bundle path. Closed by Wave 3 T031/T032 (P1/P2)."
+      "status": "pass",
+      "reason": "Earned by T031 (P1) plus the smallest slice of T032 the assertion forces. `loadPackageModuleEntries` (`src/packages/`) enumerates the instance's `node_modules`, keeps every package carrying `endora.type === \"module\"` whose install does not link out of the tree it was found under, and both composition roots now call `composeModules([...MODULES, ...overlay, ...packages], …)`. `resolvedManifestEntries()` merges the same discovery, so the module has an identity, its permission is grantable and the palette action resolves in `en` and `pl`. The T032 slice is `filePath`: it is the resolved `package.json`, because `dirname(filePath)` is how the i18n reconciler and the orchestrator find a module's assets and the compiled root export's directory holds no `i18n/`. What is still T032's: nothing here loads a package's bundles through the platform's own reconciler — A5 reads them through `loadModuleBundles` at the path this entry reports."
     },
     "A6": {
       "status": "fail",
-      "reason": "Follows A5: with no manifest in the resolved set, the settings reconciler creates no activation row, so there is no operator control to flip and no gated route to answer 503."
+      "reason": "No longer `follows A5` — the module is in the resolved set since T031, and this is still red for two reasons of its own. (1) `composition.ts` reconciles settings from `collectRegisteredSettingsManifests(REGISTERED_MANIFESTS)`, the bare-core registry, which is stated in its own comment as a deliberate cut; so a package's (and an overlay's) `settings` manifest reaches no reconciler and the activation row is never created. (2) The probe's `gate-off` phase reads the row before it composes anything, and no earlier phase composes the application, so on a fresh database no reconciler has run at all. Fixing (1) alone moves nothing, which is why it is not fixed here. Belongs with T032/T033, where the merged registry gets an owner (D-155.3(c))."
     },
     "A7": {
       "status": "fail",
-      "reason": "Follows A5: the lifecycle registry has no `acceptance_probe`, so a hard uninstall has no module to revert migrations for."
+      "reason": "No longer `follows A5`, and the failure moved: the orchestrator now finds `acceptance_probe` in the registry and runs the hard uninstall, which answers `reverted 0 migration(s); migration row gone; table dropped`. It reverts nothing because there is nothing to revert — the package's migration never ran (A1) — so this closes with T033 and not before. The three-part detail is what makes that readable: two thirds of A7 are already true and only the count is not."
     },
     "A8": {
       "status": "pass",
