@@ -1,7 +1,11 @@
 {
+  // Type-check configuration; `tsconfig.build.json` is the emitting one. `paths` is
+  // active here, so `@b2b/contracts` resolves at its source — which is also why there is
+  // no `rootDir` in this file and why `noEmit` is set. See `tsconfig.build.json`.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
+    "noEmit": true,
     "lib": ["DOM", "ES2022"],
     "types": []
   },

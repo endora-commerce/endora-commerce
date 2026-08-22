@@ -4,21 +4,36 @@
   "private": true,
   "type": "module",
   "description": "Shared CMS Page Builder components — runtime contract between admin (editor) and storefront (renderer). Per Principle I, this is the canonical workspace home for the React components that Puck composes; backend modules contribute additional component types via the registry SPI in backend/src/modules/cms/services/page-builder-registry.ts.",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./styles.css": "./dist/cms-components.css",
-    "./*": "./src/*.ts",
-    "./components/*": "./src/components/*.tsx",
-    "./schema/*": "./src/schema/*.ts"
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    },
+    "./components/*": {
+      "types": "./dist/components/*.d.ts",
+      "default": "./dist/components/*.js"
+    },
+    "./schema/*": {
+      "types": "./dist/schema/*.d.ts",
+      "default": "./dist/schema/*.js"
+    }
   },
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">=22.17.0"
   },
   "scripts": {
-    "build": "tailwindcss -i styles/cms-components.css -o dist/cms-components.css --minify",
-    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json && tailwindcss -i styles/cms-components.css -o dist/cms-components.css --minify",
+    "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests"
   },
@@ -26,9 +41,14 @@
     "@b2b/page-builder-core": "workspace:^",
     "@measured/puck": "*",
     "@tiptap/core": "^3.22.5",
+    "@tiptap/extension-color": "3.22.5",
+    "@tiptap/extension-highlight": "3.22.5",
+    "@tiptap/extension-image": "3.22.5",
     "@tiptap/extension-text-align": "3.22.5",
+    "@tiptap/extension-text-style": "3.22.5",
     "@tiptap/react": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
+    "leaflet": "^1.9.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -36,7 +56,19 @@
     "@tiptap/core": {
       "optional": true
     },
+    "@tiptap/extension-color": {
+      "optional": true
+    },
+    "@tiptap/extension-highlight": {
+      "optional": true
+    },
+    "@tiptap/extension-image": {
+      "optional": true
+    },
     "@tiptap/extension-text-align": {
+      "optional": true
+    },
+    "@tiptap/extension-text-style": {
       "optional": true
     },
     "@tiptap/react": {
@@ -65,6 +97,7 @@
     "@tiptap/react": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
     "@types/leaflet": "^1.9.21",
+    "@types/node": "^22.9.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "leaflet": "^1.9.4",

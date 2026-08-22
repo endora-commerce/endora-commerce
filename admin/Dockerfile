@@ -30,8 +30,11 @@ RUN pnpm install --frozen-lockfile --filter admin... --filter @b2b/cms-component
 COPY packages/ packages/
 COPY admin/ admin/
 
-# admin imports '@b2b/cms-components/styles.css' (PageBuilderEditor).
-RUN pnpm --filter @b2b/cms-components run build
+# Every `@b2b/*` package resolves through its own `exports` map at `./dist` (feature 080,
+# T042), so all of admin's workspace dependencies are built, not just the one that ships a
+# stylesheet. `admin^...` is admin's dependency closure *without* admin itself — running
+# `admin`'s own build here would be `vite build` before the API base URL is set.
+RUN pnpm --filter "admin^..." run build
 
 ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL

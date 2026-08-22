@@ -35,8 +35,11 @@ RUN pnpm install --frozen-lockfile --filter storefront... --filter @b2b/cms-comp
 COPY packages/ packages/
 COPY storefront/ storefront/
 
-# cms-components exposes a prebuilt stylesheet via its "./styles.css" export.
-RUN pnpm --filter @b2b/cms-components run build
+# Every `@b2b/*` package resolves through its own `exports` map at `./dist` (feature 080,
+# T042), so all of the storefront's workspace dependencies are built, not just the one
+# that ships a stylesheet. `storefront^...` is that dependency closure *without* the
+# storefront itself — its own build has to run after the NEXT_PUBLIC_* args are set.
+RUN pnpm --filter "storefront^..." run build
 
 ARG NEXT_PUBLIC_API_BASE_URL
 ARG NEXT_PUBLIC_SALES_CHANNEL_CODE

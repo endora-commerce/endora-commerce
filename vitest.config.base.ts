@@ -7,9 +7,10 @@ import { assertWorkspacePackagesAreLocal } from './scripts/workspace-resolution.
 
 // Issue #255 — refuse a run whose `@b2b/*` source comes from another checkout.
 //
-// Every package under `packages/` has `"main": "./src/index.ts"`, so the
-// workspace symlinks decide which branch's source this run compiles and
-// executes. A `git worktree` whose `node_modules` was symlinked at the main
+// Every package under `packages/` resolves through its own `exports` map at
+// `./dist`, built from the checkout it lives in, so the workspace symlinks
+// decide which branch's code this run compiles and executes. A `git worktree`
+// whose `node_modules` was symlinked at the main
 // tree resolves them all there, and the suite then reports on `master` while
 // claiming to report on the branch. Nothing else notices: `pnpm ls` answers
 // from the manifest and never looks at the link.

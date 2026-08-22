@@ -4,11 +4,13 @@
 # Build from the REPO ROOT so the pnpm workspace is visible:
 #   docker build -f backend/Dockerfile -t backend .
 #
-# The workspace packages (@b2b/contracts, @b2b/cms-components) publish raw
-# TypeScript (`main: ./src/index.ts`), so the container runs the app through
-# `tsx` rather than a pre-compiled dist/. This mirrors how every backend script
-# (dev, migrate, seed, admin:create) already executes and avoids an AOT bundling
-# step the repository has never exercised.
+# The backend itself runs through `tsx` rather than a pre-compiled dist/. This mirrors
+# how every backend script (dev, migrate, seed, admin:create) already executes and avoids
+# an AOT bundling step the repository has never exercised.
+#
+# Its workspace packages are the opposite case since feature 080 (T042): each `@b2b/*`
+# package resolves through its own `exports` map at `./dist`, so they are compiled below,
+# before the source is anything the runtime can reach.
 
 FROM node:22.17-slim AS base
 ENV PNPM_HOME=/pnpm
@@ -43,6 +45,11 @@ RUN pnpm install --frozen-lockfile --filter backend...
 # --- Source ---
 COPY packages/ packages/
 COPY backend/ backend/
+
+# `backend^...` is the backend's workspace-dependency closure without the backend itself:
+# the packages it imports, built in topological order. The backend has a `build` script of
+# its own and it is deliberately not run — `tsx` is the runtime here.
+RUN pnpm --filter "backend^..." run build
 
 ENV NODE_ENV=production
 ENV PORT=3001

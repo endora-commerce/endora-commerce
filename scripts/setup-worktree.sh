@@ -3,9 +3,9 @@
 # Stand a `git worktree` of this repository up so that it measures **itself**
 # (issue #255).
 #
-# Every package under `packages/` has `"main": "./src/index.ts"`, so a consumer
-# that resolves `@b2b/contracts` reads source — and *which* source is decided by
-# `backend/node_modules/@b2b/contracts -> ../../../packages/contracts`, a
+# Every package under `packages/` resolves through its own `exports` map at
+# `./dist`, built from the checkout it lives in — and *which* checkout is decided
+# by `backend/node_modules/@b2b/contracts -> ../../../packages/contracts`, a
 # **relative** link. Symlink a workspace's `node_modules` at another checkout
 # and every one of those links re-roots there: `vitest` then compiles and runs
 # the other branch while the run claims to be about this one. Measured: 16 of

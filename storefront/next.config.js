@@ -20,9 +20,12 @@ const nextConfig = {
   outputFileTracingRoot: path.join(dirname, '..'),
   // Enable typed Link and route typing — surfaces missing routes at build time.
   typedRoutes: true,
-  // Workspace packages publish TypeScript source (main: "./src/index.ts") and use the
-  // NodeNext convention of `.js` extensions in relative imports that resolve to `.tsx`/`.ts`
-  // sources. Next.js needs both to be told to compile the source AND to rewrite extensions.
+  // Workspace packages resolve at `./dist` since feature 080 (T042). They stay on this
+  // list because they are still ESM emitted from this monorepo rather than a published
+  // tarball: Next.js applies its own SWC pipeline (`"use client"` boundaries, the JSX
+  // runtime) only to what it transpiles. `extensionAlias` below is the other half — the
+  // NodeNext `.js` specifiers in their relative imports resolved to `.ts`/`.tsx` before
+  // the build existed and now resolve to the emitted `.js`, so both spellings are listed.
   transpilePackages: ['@b2b/cms-components', '@b2b/page-builder-core', '@b2b/api-client', '@b2b/contracts'],
   webpack(config) {
     config.resolve.extensionAlias = {
