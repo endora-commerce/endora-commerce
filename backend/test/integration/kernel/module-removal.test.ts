@@ -285,9 +285,11 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // module used to own — now import a sibling rather than a module. What is
   // left is the boot half `composition.ts` composes (the first-boot reconciler,
   // the registry-cache warm, the worker resume, the orchestrator and the
-  // activation propagation) and the migration group named by
-  // `mikro-orm.config.ts`.
-  _lifecycle: ['src/composition.ts', 'src/db/mikro-orm.config.ts'],
+  // activation propagation) and the manifest index the migration order is
+  // built from — which issue #289 moved out of `mikro-orm.config.ts` into
+  // `configured-migrations.ts`, so that the ordering could be computed without
+  // importing a config that captures `DATABASE_URL` at import.
+  _lifecycle: ['src/composition.ts', 'src/db/configured-migrations.ts'],
   // `price_lists` (wave 3, T127). Both roots contribute the sweeper flag, the
   // cache TTL and the admin audit shape, and production contributes the pricing
   // decoration (D-28) — the seam this module exists in the feature to prove.
