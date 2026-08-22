@@ -165,7 +165,12 @@ function buildRegistry(
     });
   }
   const graph = new ModuleDepGraph([...map.values()].map((e) => e.manifest));
-  return { modules: map as never, graph };
+  // `participants: []` is the deliberate answer, not an omission: this
+  // fixture registry enumerates its modules and none of them keeps a
+  // projection of the manifest set (feature 080, T036a / D-159). A
+  // registry that could not answer would say `null`, and the orchestrator
+  // refuses an install over that rather than reconciling nothing quietly.
+  return { modules: map as never, graph, participants: [] };
 }
 
 function buildOrchestrator(opts: {
@@ -771,6 +776,7 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
         const registry: LoadedManifestRegistry = {
           modules: new Map(entries.map((e) => [e.manifest.id, e])) as never,
           graph: new ModuleDepGraph(entries.map((e) => e.manifest)),
+          participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
         };
         const { orchestrator, em } = buildOrchestrator({
           registry,
@@ -878,6 +884,7 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
         const registry: LoadedManifestRegistry = {
           modules: new Map(entries.map((e) => [e.manifest.id, e])) as never,
           graph: new ModuleDepGraph(entries.map((e) => e.manifest)),
+          participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
         };
         const { orchestrator, em } = buildOrchestrator({
           registry,

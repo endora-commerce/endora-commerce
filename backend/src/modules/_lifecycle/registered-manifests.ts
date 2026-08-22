@@ -41,6 +41,13 @@ export interface RegisteredManifestEntry {
   filePath: string;
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
+  /**
+   * This module's interest in every *other* module's install and hard
+   * uninstall — feature 080, T036a / D-159. Travels with the entry so that a
+   * `module:*` command, which composes nothing, gets the same reconcile the
+   * admin path does.
+   */
+  lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
 }
 
 /**
@@ -103,6 +110,9 @@ function entryFor(
     filePath,
     ...(discovered.installHook ? { installHook: discovered.installHook } : {}),
     ...(discovered.uninstallHook ? { uninstallHook: discovered.uninstallHook } : {}),
+    ...(discovered.lifecycleParticipant
+      ? { lifecycleParticipant: discovered.lifecycleParticipant }
+      : {}),
   };
 }
 
@@ -176,6 +186,9 @@ export async function resolvedManifestEntries(
       filePath: found.filePath,
       ...(found.installHook ? { installHook: found.installHook } : {}),
       ...(found.uninstallHook ? { uninstallHook: found.uninstallHook } : {}),
+      ...(found.lifecycleParticipant
+        ? { lifecycleParticipant: found.lifecycleParticipant }
+        : {}),
     });
   }
 
@@ -205,6 +218,9 @@ export async function resolvedManifestEntries(
       filePath: found.filePath,
       ...(found.installHook ? { installHook: found.installHook } : {}),
       ...(found.uninstallHook ? { uninstallHook: found.uninstallHook } : {}),
+      ...(found.lifecycleParticipant
+        ? { lifecycleParticipant: found.lifecycleParticipant }
+        : {}),
     });
   }
   return [...byId.values()];

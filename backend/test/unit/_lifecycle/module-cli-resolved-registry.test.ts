@@ -47,7 +47,10 @@ describe('the five module: commands read the instance-resolved manifest set', ()
     const source = sourceOf(name);
 
     expect(source.length).toBeGreaterThan(0);
-    expect(source).toMatch(/buildStaticRegistry\(\s*\(await resolvedManifestEntries\(\)\)/);
+    // The entries go in whole. T036a removed the per-field re-map that used to
+    // sit between these two calls: it was one identity function copied seven
+    // times, and the field it would have dropped is the lifecycle participant.
+    expect(source).toMatch(/buildStaticRegistry\(await resolvedManifestEntries\(\)\)/);
   });
 
   it.each(SCRIPTS)('%s neither imports nor reads bare-core REGISTERED_MANIFESTS', (name) => {

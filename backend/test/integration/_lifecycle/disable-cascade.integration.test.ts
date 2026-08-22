@@ -69,6 +69,7 @@ describe('Module disable --cascade — reverse-topological order (integration)',
         ['fixture_invoices2', { manifest: invoices, filePath: '<test>' }],
       ]) as never,
       graph: new ModuleDepGraph([pricing, quotes, invoices]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     // Seed all three as installed.

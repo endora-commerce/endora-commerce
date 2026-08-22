@@ -115,7 +115,6 @@ import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 // D-54 — the error envelope takes this map by injection: `src/http` is a
 // kernel-obeying platform peer and may not name a module (D-52). A root may.
 import { ERROR_TRANSLATION_KEYS } from './modules/_i18n/services/error-translation.js';
-import type { AdminActionsCradle } from './modules/admin_actions/backend.js';
 import type { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
@@ -2151,7 +2150,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       version: (): number => effectiveState.presenceVersion(),
     },
   });
-  const adminActionsCradle = container.cradle as unknown as AdminActionsCradle;
 
   const lifecycle = lifecycleModuleFromStaticEntries(
     {
@@ -2169,37 +2167,26 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // a hard uninstall of a module that registry cannot enumerate — which is
       // exactly the fail-closed a package's `uninstall --hard` needs.
       migrationOwnership: (await configuredMigrations()).ownership,
-      // Feature 019: hand the i18n reconciler to the orchestrator so
-      // module:install and module:uninstall --hard keep
-      // translation_bundles aligned with the lifecycle.
-      i18nReconciler: adminI18nCradle.adminI18nReconciler,
-      // Feature 020: hand the admin-actions reconciler to the
-      // orchestrator so module:install and module:uninstall --hard keep
-      // module_actions aligned with the lifecycle.
+      // Feature 080 (T036a, D-159) — the two reconcilers this root used to hand
+      // over are gone. `_i18n` and `admin_actions` declare a
+      // `lifecycleParticipant` in their own `manifest.ts` and the orchestrator
+      // collects it from the registry below, which is the one shape that also
+      // reaches a `module:*` command (a platform command composes nothing, so
+      // it could resolve neither service) and an installed package.
       //
-      // Forwarded rather than resolved, because `adminActionsReconciler` is a
-      // gated port and `admin_actions` is deactivatable: reading it here asked
-      // whether the command palette was on *at boot*, and an operator who had
-      // switched it off could not start the backend at all. Forwarding moves
-      // the question to `module:install` / `module:uninstall --hard`, where a
-      // switched-off palette aborts that one operation — inside its
-      // transaction, so nothing half-reconciled survives it.
-      adminActionsReconciler: {
-        install: (args) => adminActionsCradle.adminActionsReconciler.install(args),
-        remove: (moduleId) => adminActionsCradle.adminActionsReconciler.remove(moduleId),
-      },
-      // `_i18n` is read directly, one line above, and stays that way: it
-      // declares itself non-deactivatable and the orchestrator refuses to
-      // disable such a module on either axis, so that resolution has no state
-      // in which it can throw. Same for `auth`'s `requireAdmin` at the top of
-      // this function.
+      // **This changes the admin path's behaviour, deliberately** (D-159 §9,
+      // owner's ruling of 2026-08-22). `adminActionsReconciler` was forwarded
+      // through a lambda because it is a gated port and `admin_actions` is
+      // deactivatable, so a switched-off command palette *aborted* the install
+      // of an unrelated module — chosen over the only alternative then on the
+      // table, a backend that would not start. The participant is gated on
+      // nothing, so the install succeeds and the rows are written whether or
+      // not anything is serving them, which is what a projection of manifest
+      // data should do.
     },
-    resolvedRegistry.map((e) => ({
-      manifest: e.manifest,
-      filePath: e.filePath,
-      ...(e.installHook ? { installHook: e.installHook } : {}),
-      ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
-    })),
+    // Handed over unmapped: an identity map here is where a field added to
+    // `RegisteredManifestEntry` later gets silently dropped, and one just was.
+    resolvedRegistry,
   );
   lifecycleRef = lifecycle;
   // Feature 072 (T125) — `_lifecycle` registers its own routes now, through

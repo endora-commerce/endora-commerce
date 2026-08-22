@@ -62,6 +62,7 @@ describe('Module uninstall — hard reverts only target module migrations (integ
         ['fixture_scoped', { manifest, filePath: '<test>' }],
       ]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     const em = db.em();

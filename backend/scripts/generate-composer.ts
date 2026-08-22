@@ -408,6 +408,7 @@ interface DiscoveredManifest {
   importPath: string;
   hasInstallHook: boolean;
   hasUninstallHook: boolean;
+  hasLifecycleParticipant: boolean;
 }
 
 /**
@@ -467,6 +468,9 @@ function discoverManifests(): DiscoveredManifest[] {
       importPath: `../${id}/manifest.js`,
       hasInstallHook: detectHookExport('installHook', source, id),
       hasUninstallHook: detectHookExport('uninstallHook', source, id),
+      // Feature 080, T036a / D-159 — a module's interest in *every other*
+      // module's install, wired by the same walk and the same detector.
+      hasLifecycleParticipant: detectHookExport('lifecycleParticipant', source, id),
     });
   }
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
@@ -478,6 +482,9 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
       const named = [`manifest as manifest${i}`];
       if (m.hasInstallHook) named.push(`installHook as installHook${i}`);
       if (m.hasUninstallHook) named.push(`uninstallHook as uninstallHook${i}`);
+      if (m.hasLifecycleParticipant) {
+        named.push(`lifecycleParticipant as lifecycleParticipant${i}`);
+      }
       return `import { ${named.join(', ')} } from '${m.importPath}';`;
     })
     .join('\n');
@@ -487,6 +494,9 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
       const fields = [`id: '${m.id}'`, `manifest: manifest${i}`];
       if (m.hasInstallHook) fields.push(`installHook: installHook${i}`);
       if (m.hasUninstallHook) fields.push(`uninstallHook: uninstallHook${i}`);
+      if (m.hasLifecycleParticipant) {
+        fields.push(`lifecycleParticipant: lifecycleParticipant${i}`);
+      }
       return `  { ${fields.join(', ')} },`;
     })
     .join('\n');
@@ -494,7 +504,8 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
   return `${HEADER('generate-composer.ts')}//
 // The manifest registry — the **only** file that imports a **core** module's
 // manifest. Every core module that ships a lifecycle-shape \`manifest.ts\` is
-// here, with the install hooks it exports.
+// here, with the lifecycle exports it declares — its install hooks and its
+// lifecycle participant.
 //
 // Bare core under every value of \`DEPLOYMENT\` (D-104). A deployment's overlay
 // manifests are discovered at runtime and merged on top of this index by
@@ -519,6 +530,7 @@ export interface DiscoveredManifestEntry {
   manifest: ModuleManifest;
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
+  lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
 }
 
 export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [

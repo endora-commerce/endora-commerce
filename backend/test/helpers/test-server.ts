@@ -649,12 +649,12 @@ const SEEDED_TABLES = [
  */
 let cachedManifestRegistry: LoadedManifestRegistry | undefined;
 function harnessManifestRegistry(): LoadedManifestRegistry {
-  cachedManifestRegistry ??= buildStaticRegistry(
-    REGISTERED_MANIFESTS.map((entry) => ({
-      manifest: entry.manifest,
-      filePath: entry.filePath,
-    })),
-  );
+  // Handed over unmapped (feature 080, T036a): this map dropped both install
+  // hooks and, once it existed, would have dropped the lifecycle participant —
+  // the seventh copy of one identity map, wrong in its own way like the other
+  // six. The two types are structurally compatible so that there is nothing to
+  // copy.
+  cachedManifestRegistry ??= buildStaticRegistry(REGISTERED_MANIFESTS);
   return cachedManifestRegistry;
 }
 

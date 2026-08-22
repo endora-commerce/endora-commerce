@@ -49,6 +49,7 @@ describe('Module install — restore from soft uninstall (integration)', () => {
         ['fixture_restore', { manifest, filePath: '<test>' }],
       ]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
     const orchestrator = new ModuleLifecycleOrchestrator({
       orm: db.orm,

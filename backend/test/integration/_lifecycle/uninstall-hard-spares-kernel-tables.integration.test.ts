@@ -110,6 +110,7 @@ describe('Module uninstall — hard uninstall spares kernel-owned schema (integr
     const registry: LoadedManifestRegistry = {
       modules: new Map([[moduleId, { manifest, filePath: '<test>' }]]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
     return new ModuleLifecycleOrchestrator({
       orm: db.orm,

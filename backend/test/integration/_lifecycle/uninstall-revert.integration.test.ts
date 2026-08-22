@@ -114,6 +114,7 @@ describe('Module uninstall — migration revert resolves from the registry (inte
     const registry: LoadedManifestRegistry = {
       modules: new Map([[moduleId, { manifest, filePath: '<test>' }]]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
     return new ModuleLifecycleOrchestrator({
       orm: db.orm,
@@ -188,6 +189,7 @@ describe('Module uninstall — migration revert resolves from the registry (inte
       registry: {
         modules: new Map([['fixture_no_migs', { manifest, filePath: '<test>' }]]) as never,
         graph: new ModuleDepGraph([manifest]),
+        participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
       },
       // Feature 080 (T033): covered, and owns nothing — the branch this test
       // is about. Without the declaration the orchestrator answers from the

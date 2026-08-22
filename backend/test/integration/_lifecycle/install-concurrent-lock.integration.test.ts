@@ -64,6 +64,7 @@ describe('Module install — concurrent lock (integration)', () => {
         ],
       ]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     const makeOrchestrator = (): ModuleLifecycleOrchestrator =>

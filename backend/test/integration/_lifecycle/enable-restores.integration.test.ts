@@ -51,6 +51,7 @@ describe('Module enable — restores disabled module (integration)', () => {
         ['fixture_enable', { manifest, filePath: '<test>' }],
       ]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     const em = db.em();

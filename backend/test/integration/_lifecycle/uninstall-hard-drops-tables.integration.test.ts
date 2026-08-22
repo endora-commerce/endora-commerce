@@ -65,6 +65,7 @@ describe('Module uninstall — hard deletes registry row (integration)', () => {
         ],
       ]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     const em = db.em();
