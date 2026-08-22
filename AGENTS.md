@@ -634,7 +634,30 @@ no index is exit 2, and one with two indexes is exit 2 as well rather than a sca
 narrowed to whichever sorted first. If you are writing a shell check that walks modules, take
 the root from that helper; do not add a ninth literal. `read_size_module_coverage` derives the
 same root from the index path it is already given, so its `manifest-index:<covered>/<expected>`
-token moves with the tree too.
+token moves with the tree too. **`check:language` resolves it the same way**, and did not until
+the nested-worktree repair below: it spelled the index path, so a moved tree ended its run on
+"could not read the manifest index" — a refusal rather than #215's silent green, but still a
+check that stops working for a layout change it should follow. The two are one job and one pair
+of modes; deriving the population twice is two answers waiting to disagree.
+
+**"This repository" excludes a checkout nested inside it, and that is what makes the refusal
+survivable here.** Agents in this project work in `git worktree`s created *under* the
+repository directory, so from the main checkout the repo-wide walk finds one index per
+worktree plus its own — eleven when this was measured — and `check:naming` exited 2 on every
+local run while CI stayed green, which is to say it became unrunnable exactly where
+verification happens. Pruning a nested work tree is not a weakening of the refusal: another
+commit of this same repository is not this one's source, so scanning it means judging another
+branch's tree and reporting the verdict as ours. **The discriminator is the `.git` entry**,
+derived per run and never a path name — a rule keyed on `.claude/worktrees` would be a derived
+fact written down (D-100) and would miss the first worktree somebody put elsewhere.
+`git worktree list --porcelain` was the alternative and was rejected: the walk sees files, and
+the `.git` marker travels with them while git's registry can disagree with the filesystem in
+both directions; the registry knows nothing of a nested clone or a submodule; and it needs
+`git` on `PATH`, which a sourced library cannot assume. What it cannot see is stated in
+`scripts/lib/module-root.sh` — a checkout whose marker is elsewhere (`GIT_DIR`, a
+`--separate-git-dir` whose gitfile is gone) reads as ordinary source and is walked, which is
+the direction to be wrong in. Two genuine module roots in one checkout are still exit 2, and
+`shell-checks.test.ts` proves both halves over real fixture trees.
 
 ### The full inventory
 

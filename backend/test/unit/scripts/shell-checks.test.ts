@@ -2,6 +2,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  BASELINE_MODULE_SOURCE,
   createShellCheckFixture,
   type ShellCheckFixture,
 } from '../../helpers/shell-check-fixture.js';
@@ -221,6 +222,82 @@ describe('check-naming.sh', () => {
     expect(result.output).toContain('more than one generated manifest index');
   });
 
+  it('resolves the outer root when a work tree is nested inside the checkout', () => {
+    // The refusal above is right and stays; this is the population it was
+    // running over. Agents here work in `git worktree`s created *under* the
+    // repository directory, so on a working machine the repo-wide walk finds
+    // one index per worktree plus the checkout's own — eleven of them when
+    // this was measured — and the check became unrunnable exactly while work
+    // was happening. A nested work tree is another checkout of this same
+    // repository: scanning it means judging another branch's tree and
+    // reporting on this one, which is the harm the refusal names. Pruning it
+    // therefore *removes* an ambiguity rather than resolving one by guessing.
+    fixture.nestCheckout('.claude/worktrees/agent-x');
+    const result = fixture.run('check-naming.sh');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).not.toContain('more than one generated manifest index');
+    expect(result.output).toMatch(/\[naming] read: files=1 sources=manifest-index:1\/1/);
+  });
+
+  it('prunes a nested clone too, not only the gitfile a work tree carries', () => {
+    // The two markers git writes for the same fact: `git worktree add` leaves
+    // a `.git` *file*, a clone and a submodule a `.git` *directory*. A rule
+    // that saw one of them would prune half the nested checkouts and refuse on
+    // the rest, which is the same unrunnable check with a smaller number.
+    fixture.nestCheckout('vendor/fork', 'clone');
+    const result = fixture.run('check-naming.sh');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toMatch(/\[naming] read: files=1 sources=manifest-index:1\/1/);
+  });
+
+  it('judges the outer tree rather than the nested one', () => {
+    // The discrimination the exit code cannot make: with the nested root
+    // picked instead of the outer one, this run would exit 0 as well — every
+    // rule would have judged a module tree, just not this repository's. The
+    // finding is planted in the nested tree, so a run that reports it has
+    // resolved the wrong root, and a run that reports the outer tree's own
+    // finding has resolved the right one.
+    const nested = fixture.nestCheckout('.claude/worktrees/agent-x');
+    fixture.write(`${nested}/NestedBadName/thing.ts`, 'export const a = 1;\n');
+    fixture.write('backend/src/modules/OuterBadName/thing.ts', 'export const a = 1;\n');
+    const result = fixture.run('check-naming.sh');
+    expect(result.status, result.output).toBe(1);
+    expect(result.output).toContain('OuterBadName');
+    expect(result.output).not.toContain('NestedBadName');
+  });
+
+  it('does not count a nested work tree among the files it read', () => {
+    // The other half, and the one an exit code hides completely: `git ls-files
+    // --others` answers for a nested checkout with the gitfile marker as a
+    // single directory entry, and for one whose gitdir has been pruned away
+    // with every file under it. Either way those paths are another commit's,
+    // so counting them makes the recorded read size mean one thing on a clean
+    // checkout and another on a working machine — which is what stops the
+    // number being worth recording (issue #248, measured on `check-nul-bytes`).
+    const nested = fixture.nestCheckout('.claude/worktrees/agent-x');
+    fixture.listsExactly([
+      BASELINE_MODULE_SOURCE,
+      '.claude/worktrees/agent-x/',
+      `${nested}/orders/order-service.ts`,
+    ]);
+    const result = fixture.run('check-naming.sh');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toMatch(/\[naming] read: files=1 sources=manifest-index:1\/1/);
+  });
+
+  it('exits 2 when the only index left belongs to a nested work tree', () => {
+    // The prune must not double as a fallback. With this checkout's own module
+    // tree gone, the answer is still "there is no index here" — resolving the
+    // nested one would put every rule to work on another branch's tree and
+    // report the verdict as this repository's.
+    fixture.removeModuleTree();
+    fixture.nestCheckout('.claude/worktrees/agent-x');
+    fixture.lists(['backend/src/kernel/thing.ts']);
+    const result = fixture.run('check-naming.sh');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain('no generated manifest index');
+  });
+
   it('follows the module tree when it moves, instead of reporting a clean repository', () => {
     // The one T012 is for, and the discrimination against the two refusals
     // above: the tree has *moved*, not gone, and the check must go on judging
@@ -356,6 +433,44 @@ describe('check-language.sh', () => {
     const result = fixture.run('check-language.sh', ['--diff'], { FAKE_GIT_HAS_BASE_REF: '0' });
     expect(result.status, result.output).toBe(0);
     expect(result.output).toContain('[language] read: files=0 sources=self-reported');
+  });
+
+  it('follows the module tree when it moves, instead of refusing to run', () => {
+    // The T012 conversion, arriving one feature late: this script spelled
+    // `backend/src/modules/_lifecycle/manifest-index.generated.ts` where
+    // `check-naming.sh` resolves it, so a moved tree took its expectation with
+    // it and the run ended on "could not read the manifest index" — a refusal,
+    // so not the silent green #215 measured, but still a check that stops
+    // working for a layout change it should follow. The two are one job and
+    // one pair of modes; they now derive the root the same way.
+    const moved = fixture.moveModuleTree('domain_modules');
+    fixture.listsExactly([`${moved}/orders/order-service.ts`]);
+    const result = fixture.run('check-language.sh');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toMatch(/\[language] read: files=2 sources=manifest-index:1\/1/);
+  });
+
+  it('resolves the outer root when a work tree is nested inside the checkout', () => {
+    fixture.nestCheckout('.claude/worktrees/agent-x');
+    const result = fixture.run('check-language.sh');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).not.toContain('more than one generated manifest index');
+    expect(result.output).toMatch(/\[language] read: files=2 sources=manifest-index:1\/1/);
+  });
+
+  it('neither scans nor counts the sources of a nested work tree', () => {
+    // The over-reading half. A nested checkout whose gitdir has been pruned
+    // away is listed by `git ls-files --others` file by file, so its comments
+    // arrive in this scan — and a finding there is another branch's, reported
+    // against a path no merge request on this one can change. Asserted on the
+    // count as well as on the verdict: an exit code of 0 is also what a run
+    // that read the file and happened to like it would print.
+    const nested = fixture.nestCheckout('.claude/worktrees/agent-x');
+    fixture.write(`${nested}/orders/order-service.ts`, POLISH_COMMENT);
+    fixture.listsExactly([BASELINE_MODULE_SOURCE, `${nested}/orders/order-service.ts`]);
+    const result = fixture.run('check-language.sh');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toMatch(/\[language] read: files=2 sources=manifest-index:1\/1/);
   });
 });
 

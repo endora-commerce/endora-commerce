@@ -4399,6 +4399,34 @@ const CHECKS: readonly CheckEntry[] = [
           ]);
         }),
       ),
+      // And the population `module-root-ambiguous` was refusing on every local
+      // run: a checkout nested inside this one, which is the normal state of a
+      // machine whose agents work in `git worktree`s created under the
+      // repository directory.
+      //
+      // A red rather than a pass, and the finding is planted in the **outer**
+      // tree with the nested one left clean, so the proof discriminates in both
+      // directions at once: exit 2 if the prune is missing, exit 0 if the prune
+      // resolved the nested root instead, and this finding only if the outer
+      // root is the one every rule ran against. A proof that planted findings
+      // in both trees would report the same 1 for two of those three.
+      'nested-checkout-pruned': top(() =>
+        shellRed('check-naming.sh', (fixture) => {
+          fixture.nestCheckout('.claude/worktrees/agent-x');
+          fixture.write('backend/src/modules/OuterBadName/thing.ts', 'export const a = 1;\n');
+        }),
+      ),
+      // The prune is not a fallback. With this checkout's own module tree gone
+      // and a nested one standing, the answer is still "there is no index
+      // here" — the alternative is every rule at work on another branch's tree,
+      // reporting the verdict as this repository's.
+      'nested-checkout-not-a-fallback': top(() =>
+        shellRefusal('check-naming.sh', (fixture) => {
+          fixture.removeModuleTree();
+          fixture.nestCheckout('.claude/worktrees/agent-x');
+          fixture.lists(['backend/src/kernel/thing.ts']);
+        }),
+      ),
     },
   },
   {
@@ -4433,6 +4461,50 @@ const CHECKS: readonly CheckEntry[] = [
       'short-listing': top(() =>
         shellRefusal('check-language.sh', (fixture) => {
           fixture.listsExactly(['backend/src/kernel/thing.ts']);
+        }),
+      ),
+      // The four shapes this script gained when its module root stopped being
+      // spelled and started being resolved, the same way `check-naming.sh`
+      // resolves it. They are one job and one pair of modes; a population
+      // derived two ways is two answers waiting to disagree.
+      'module-root-unresolvable': top(() =>
+        shellRefusal('check-language.sh', (fixture) => {
+          fixture.removeModuleTree();
+          fixture.lists(['backend/src/kernel/thing.ts']);
+        }),
+      ),
+      'module-root-ambiguous': top(() =>
+        shellRefusal('check-language.sh', (fixture) => {
+          fixture.write(
+            'backend/src/legacy-modules/_lifecycle/manifest-index.generated.ts',
+            "import { manifest as manifest0 } from '../orders/manifest.js';\n",
+          );
+        }),
+      ),
+      // The direction a pair of refusals cannot prove: the tree moved, and the
+      // scan went on judging it there. Red rather than green, so a resolution
+      // that refused everything cannot pass this one.
+      'module-root-followed': top(() =>
+        shellRed('check-language.sh', (fixture) => {
+          const moved = fixture.moveModuleTree('domain_modules');
+          fixture.write(`${moved}/orders/order-service.ts`, `// Zwraca zamówienie.\n`);
+          fixture.listsExactly([`${moved}/orders/order-service.ts`]);
+        }),
+      ),
+      // And the nested checkout, in the same shape as `check-naming.sh`'s: the
+      // Polish comment is in the outer tree and the nested tree is clean, so
+      // this proof is red only if the prune left the outer scan intact. That a
+      // nested tree's own comments are *not* read is the other half, and it
+      // cannot be a red proof — a red map counts findings, and the claim there
+      // is that a finding does not exist. It is asserted on the read count in
+      // `shell-checks.test.ts`, where a pass alone would not have been enough.
+      'nested-checkout-pruned': top(() =>
+        shellRed('check-language.sh', (fixture) => {
+          fixture.nestCheckout('.claude/worktrees/agent-x');
+          fixture.write(
+            'backend/src/modules/orders/order-service.ts',
+            `// Zwraca zamówienie klienta.\nexport const a = 1;\n`,
+          );
         }),
       ),
     },
@@ -4670,10 +4742,14 @@ describe('every red proof enters at the top of the analysis', () => {
       // filesystem, and issue #244's short listing — the shape every one of
       // this script's other floors is green on. Plus feature 080's three for
       // the resolved module root: the two shapes it refuses, and the moved tree
-      // it follows, which is the one a pair of refusals cannot prove.
-      'scripts/check-naming.sh': 9,
-      // Two scopes, plus the short listing both of them are read out of.
-      'scripts/check-language.sh': 3,
+      // it follows, which is the one a pair of refusals cannot prove. Plus two
+      // for the nested checkout: the outer root resolved past one, and the
+      // refusal that must survive it rather than fall back to it.
+      'scripts/check-naming.sh': 11,
+      // Two scopes, the short listing both of them are read out of, and the
+      // four this script gained when its module root stopped being spelled:
+      // the two refusals, the moved tree, and the nested checkout.
+      'scripts/check-language.sh': 7,
       'scripts/check-pdfmake-footprint.sh': 2,
     });
   });
