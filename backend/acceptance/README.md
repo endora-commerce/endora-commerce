@@ -30,9 +30,9 @@ leaves: `pnpm pack` → `pnpm add ./x.tgz` into `os.tmpdir()` → boot this plat
 | Path | What it is |
 | --- | --- |
 | `fixture-package/` | `@endora-commerce/mod-acceptance-probe` — a synthetic third-party module: one entity, one migration, one permission, an activation block, one palette action, flat `en`/`pl` bundles. **Not a `pnpm-workspace.yaml` member**, so pnpm cannot link it. Publishes `dist` + `i18n` with comments stripped, so a source-text probe for `@Entity(` finds nothing. |
-| `expected-state.json` | The two-way ratchet: what the criterion answers on this tree today, per assertion, with a reason for every non-`pass`. |
-| `../scripts/acceptance/package-schema.ts` | The runner: build, pack, install, A8/A9, database, four probe phases, report. |
-| `../scripts/acceptance/instance-probe.ts` | One platform process per phase — it boots the real composition root and answers A1 … A7. |
+| `expected-state.json` | The two-way ratchet: what the criterion answers on this tree today, per assertion, with a reason for every entry. |
+| `../scripts/acceptance/package-schema.ts` | The runner: build, pack, install, A8/A9, database, six probe phases, report. |
+| `../scripts/acceptance/instance-probe.ts` | One platform process per phase — `schema`, `boot`, `install`, `gate-off`, `gate-on`, `uninstall`. It boots the real composition root and answers A1 … A7. |
 | `../scripts/acceptance/assertions.ts` | Every judgement, pure. Unit-tested in `test/unit/scripts/package-schema-acceptance.test.ts`. |
 
 ## Reading the result
@@ -41,11 +41,13 @@ Three exit codes, and the third is the point: **0** the criterion is met, **1** 
 could not be measured (no PostgreSQL, no `pnpm`, a database name the guard refuses, a phase that
 threw). "The services were missing" is not spellable as either colour.
 
-Today the run prints two `FAIL` and seven `PASS`, and CI is green. That is not a contradiction:
-the criterion is *supposed* to be red until feature 080's Wave 3 finishes, so what CI enforces is
-drift against `expected-state.json` in **both** directions. A8 or A9 going red fails the job; A6
-going green fails it too, and the remedy is to record the green in the merge request that earned
-it. Never edit that file to make a pipeline pass.
+Today the run prints nine `PASS` and no `FAIL`, and the criterion is **met**. What CI enforces is
+unchanged and is still drift against `expected-state.json` in **both** directions — the ratchet was
+never "is it red", it was "does it answer what this repository says it answers". The direction that
+matters has simply flipped: while the criterion was red, the case to catch was an assertion going
+green without going through the composition; now that every entry is `pass`, the file is the guard
+against a regression, and any newly-red assertion fails the job. Both remedies are the same one:
+record the move in the merge request that earned it. Never edit that file to make a pipeline pass.
 
 **A5 was the first to move**, in the merge request that landed T031: an installed package now
 reaches `resolvedManifestEntries()` and both composition roots, so its identity, its grantable
@@ -76,13 +78,40 @@ its sibling `configured-entities.ts` merge each installed package's exports at r
 migrations tagged `origin: 'external'` so a stranger's stamp cannot join the frozen historical
 prefix.
 
-**A6 and A7 are the two that remain, and they are one defect.** A6's activation Setting is never
-created, because `composition.ts` reconciles settings from bare-core `REGISTERED_MANIFESTS` and
-because the probe's `gate-off` phase reads the row before any phase has composed anything. A7
-then short-circuits on `already-uninstalled`: the `module_registrations` row it would revert from
-is written during composition, and nothing composed. Fix the ordering and A7 follows without the
-revert being touched. That is T036's, and its own precondition is T033a — the first-boot
-reconciler must stop converging a package nobody installed (§D-157.6(b)).
+**T046 closed A6 and A7, and the fix was a phase rather than a mechanism.** Both were recorded as
+one defect and they were, but not the one the reasons named. The platform half of each already
+worked: `install` reconciles the installed module's `manifest.settings` (step 2) and reverts
+exactly its own migrations (T033's injected `MigrationOwnership`), and since D-157.6(b) `install`
+is a package's **only** author — of its settings rows and of its `module_registrations` row alike,
+because no boot may converge a package before its migrations have run. What was missing was the
+call: no phase installed. The probe now runs the sequence an operator runs — `schema`, then `boot`
+(one `composeApp()`, which converges `module_registrations` for what this *build* ships, so the
+package's `auth` dependency is installed, and which asserts the package itself is still absent),
+then `install` in the shape `scripts/install.ts` builds it, then the two gate phases and the hard
+uninstall.
+
+Two things moved with it and neither is what made the criterion green, which is worth saying
+plainly because a reader will otherwise take the bigger change for the load-bearing one:
+
+- The **boot** settings reconcile stopped reading bare-core `REGISTERED_MANIFESTS` in both
+  composition roots. Its population is `deploymentShippedEntries(resolvedRegistry)` — core plus
+  this deployment's overlay, never an installed package, the same split D-157.6(b) ruled for the
+  first-boot presence insert and the same function rather than a second copy of the origin test.
+  That cut had a live cost on an **overlay** module, whose presence is converged at boot and which
+  therefore has no `install` to author its settings: `example_overlay` declares an activation
+  control and had no row for it, so it was installed, gated and switchable in every respect except
+  that the operator had nothing to switch. It was measured not to move this criterion — with the
+  fix in and the probe's two new phases reverted, the run still answers 7 pass / 2 fail.
+- The `uninstall` phase's registry was built from an identity map written before
+  `lifecycleParticipant` existed, so a hard uninstall took the package's schema away and left its
+  `translation_bundles` and `module_actions` rows behind — the one case D-159 §7 records as having
+  no other cure. The entries are handed over unmapped now, the way `composition.ts` hands its own
+  registry over.
+
+**A5's fourth quarter is now measured for the first time**, without moving: `gate-off` used to
+return early on the missing activation Setting and `gate-on` with it, so *"and enforced"* — an
+anonymous `GET` on the package's own route answering 401 — was never reached. Same colour,
+stronger claim, exactly as T032 did to the other three quarters.
 
 **A8 and A9 carry the contract.** A1 … A7 are satisfiable by a moved directory, which is the trap.
 A8 says the installed package's resolution path stays inside the instance; A9 runs A8's own

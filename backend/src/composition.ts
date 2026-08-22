@@ -99,7 +99,7 @@ import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
 import { loadModulePresence } from './modules/_lifecycle/services/presence-load.js';
 import {
-  REGISTERED_MANIFESTS,
+  deploymentShippedEntries,
   resolvedManifestEntries,
 } from './modules/_lifecycle/registered-manifests.js';
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
@@ -2253,11 +2253,28 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // their manifests is enough.
   // Feature 075, Phase C — the registry is passed in rather than imported by
   // `settings`. Which modules a deployment ships is this root's input, which is
-  // why `resolvedModuleRegistry` is a platform-owned name; the reconciliation
-  // keeps reading the **core** registry, exactly as it did before the argument
-  // existed, so this is a cut and not a widening.
-  const settingsManifests: ModuleSettingsManifest[] =
-    collectRegisteredSettingsManifests(REGISTERED_MANIFESTS);
+  // why `resolvedModuleRegistry` is a platform-owned name.
+  //
+  // Feature 080 (T046) — the argument was bare-core `REGISTERED_MANIFESTS`,
+  // recorded here as "a cut and not a widening". The cut had a live cost on the
+  // operator axis (Principle XVII): an **overlay** module's presence is
+  // converged by `loadModulePresence` above, so no `install` ever runs for it
+  // and this reconcile is the only author its activation Setting can have.
+  // `example_overlay` declares one and never got a row — it was installed,
+  // gated and switchable in every respect except that the operator had nothing
+  // to switch.
+  //
+  // The population is therefore `deploymentShippedEntries`, the same split
+  // D-157.6(b) ruled for the first-boot insert and the same function, not a
+  // second copy of the origin test (D-100). A **package** is excluded for a
+  // reason of its own rather than for symmetry: since D-157.6(b) it has exactly
+  // one author, `install`, which reconciles its settings inside the operation
+  // that also applies its migrations — so reconciling them here as well would
+  // let a `SettingCodeConflict` in something an operator merely `pnpm add`ed
+  // abort this boot.
+  const settingsManifests: ModuleSettingsManifest[] = collectRegisteredSettingsManifests(
+    deploymentShippedEntries(resolvedRegistry),
+  );
   const reconcilerEm = em();
   const reconciler = new ManifestReconciler(reconcilerEm);
   const reconciliation = await enterSystemScope(

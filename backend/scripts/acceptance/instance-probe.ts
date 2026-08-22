@@ -12,10 +12,11 @@
  *
  * Everything it asks, it asks through the platform's own seams — the ORM
  * configuration, `resolvedManifestEntries()`, the permission catalogue, the
- * bundle loader, `composeApp()` and the lifecycle orchestrator. None of them is
- * package-aware today, which is why the criterion is red; none of them has to
- * be *changed* for it to go green, which is what makes it a criterion rather
- * than a mirror of one implementation.
+ * bundle loader, `composeApp()` and the lifecycle orchestrator. Not one of them
+ * was written for this file, which is what makes it a criterion rather than a
+ * mirror of one implementation: the phases below are the sequence an operator
+ * runs — migrate, boot, `module:install`, flip the control, `uninstall --hard`
+ * — and the assertions read what that sequence left behind.
  *
  * Contract: `specs/080-f4-real-scope/contracts/package-schema-acceptance.md`.
  */
@@ -313,6 +314,133 @@ async function identityAndAssets(em: () => EntityManager): Promise<AssertionResu
 }
 
 // ---------------------------------------------------------------------------
+// Phase `boot` — the platform start every later phase stands on
+// ---------------------------------------------------------------------------
+
+/**
+ * Compose the application once and throw it away.
+ *
+ * It answers no assertion, and it is not scaffolding either: it is the step an
+ * operator's sequence actually has between `pnpm add` and `module:install`. The
+ * first boot is what converges `module_registrations` for everything this
+ * **build** ships (`loadModulePresence`), so `auth` — which the package declares
+ * as a dependency — is installed by the time the install below asks. Without it
+ * `install` answers `missing-deps` about a module that has been in the tree all
+ * along.
+ *
+ * It is deliberately **not** what converges the package: D-157.6(b) narrowed
+ * that reconciler's insert population to core plus the deployment's overlay,
+ * because a boot that marked a package installed before its migrations ran
+ * turned `module:install` into a no-op that applied nothing and exited 0. So a
+ * boot here must leave the package absent from the platform axis, and the phase
+ * says so rather than assuming it — a boot that converged it would make the
+ * install below a no-op and every assertion after it a claim about the wrong
+ * mechanism.
+ */
+async function phaseBoot(): Promise<AssertionResult[]> {
+  const { composeApp } = await import('../../src/composition.js');
+  const { ModuleRegistration } = await import(
+    '../../src/kernel/lifecycle/module-registration.entity.js'
+  );
+
+  let composition: Awaited<ReturnType<typeof composeApp>>;
+  try {
+    composition = await composeApp();
+  } catch (error) {
+    classifyError(error);
+  }
+  try {
+    const converged = await composition.orm.em
+      .fork()
+      .findOne(ModuleRegistration, { moduleId: MODULE_ID });
+    if (converged) {
+      throw new Error(
+        `the first boot converged "${MODULE_ID}" to state=${converged.state} before anything ` +
+          'installed it. D-157.6(b) narrows that reconciler to core plus overlay precisely so ' +
+          'that `module:install` still has the work to do',
+      );
+    }
+  } finally {
+    await composition.dispose();
+  }
+  return [];
+}
+
+// ---------------------------------------------------------------------------
+// Phase `install` — the one author of a package's registration row
+// ---------------------------------------------------------------------------
+
+/**
+ * `module:install acceptance_probe`, in the shape the CLI script builds it.
+ *
+ * Since D-157.6(b) this is the **only** author of a package's
+ * `module_registrations` row, and step 2 of `install` is the only author of its
+ * settings rows — so it is the precondition of both remaining assertions: A6
+ * needs the activation Setting to have a row the operator can flip, A7 needs a
+ * registration to uninstall. The probe reached neither through any phase, which
+ * is why both were red with the platform half of each already working.
+ *
+ * Composed by nothing, exactly like the real command: a platform command must
+ * not compose (D-157.4), because composition's own reconciler would decide the
+ * state this command exists to establish.
+ */
+async function phaseInstall(): Promise<AssertionResult[]> {
+  const { initOrm, closeOrm } = await import('../../src/db/index.js');
+  const { AuditLogService } = await import('../../src/kernel/audit/audit-log-service.js');
+  const { ModuleLifecycleOrchestrator } = await import(
+    '../../src/modules/_lifecycle/services/orchestrator.js'
+  );
+  const { buildStaticRegistry } = await import(
+    '../../src/modules/_lifecycle/services/static-registry.js'
+  );
+  const { resolvedManifestEntries } = await import(
+    '../../src/modules/_lifecycle/registered-manifests.js'
+  );
+  const { enterSystemScope } = await import('../../src/kernel/scope.js');
+  const { default: Redis } = await import('ioredis');
+
+  let orm: Awaited<ReturnType<typeof initOrm>>;
+  try {
+    orm = await initOrm();
+  } catch (error) {
+    classifyError(error);
+  }
+  const redis = new Redis(process.env['REDIS_URL'] ?? 'redis://localhost:6379', {
+    maxRetriesPerRequest: 1,
+    lazyConnect: true,
+  });
+  try {
+    const em = (): ReturnType<typeof orm.em.fork> => orm.em.fork();
+    const orchestrator = new ModuleLifecycleOrchestrator({
+      orm,
+      redis,
+      em,
+      auditLog: new AuditLogService(em),
+      // Handed over unmapped, the way `composition.ts` hands its own registry
+      // over: an identity map here is where the `lifecycleParticipant` a module
+      // declares gets silently dropped, and the install would then reconcile no
+      // bundle and no palette action while reporting success.
+      registry: buildStaticRegistry(await resolvedManifestEntries()),
+    });
+    const result = await enterSystemScope(
+      'acceptance: install the package',
+      () => orchestrator.install(MODULE_ID),
+      { entryPoint: 'cli' },
+    );
+    if (result.state !== 'installed') {
+      throw new Error(
+        `install answered state=${result.state}; the package was expected to be installed by ` +
+          'this command and by nothing before it',
+      );
+    }
+    return [];
+  } finally {
+    redis.disconnect();
+    await closeOrm().catch(() => undefined);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Phase `gate-off` / `gate-on` — A6, plus A5's "enforced" quarter
 // ---------------------------------------------------------------------------
 
@@ -362,8 +490,9 @@ async function phaseGate(active: boolean): Promise<AssertionResult[]> {
         status: 'fail',
         detail:
           `no settings row "${ACTIVATION_SETTING}" exists, so the operator has no control to ` +
-          'flip. The row is reconciled from a module manifest at install; no installed package ' +
-          'is reconciled',
+          'flip. Step 2 of `install` reconciles the manifest that declares it, and `install` is ' +
+          "a package's only author since D-157.6(b) — so either the install phase did not run " +
+          'or it reconciled nothing',
       },
     ];
   }
@@ -484,16 +613,14 @@ async function phaseUninstall(): Promise<AssertionResult[]> {
       redis,
       em,
       auditLog: new AuditLogService(em),
-      // `exactOptionalPropertyTypes`: an absent hook is an absent key, not a
-      // key holding `undefined` — the same spread the registry's own callers use.
-      registry: buildStaticRegistry(
-        entries.map((entry) => ({
-          manifest: entry.manifest,
-          filePath: entry.filePath,
-          ...(entry.installHook ? { installHook: entry.installHook } : {}),
-          ...(entry.uninstallHook ? { uninstallHook: entry.uninstallHook } : {}),
-        })),
-      ),
+      // Handed over unmapped, the way `composition.ts` hands its own registry
+      // over: an identity map here is where a field added to
+      // `RegisteredManifestEntry` later gets silently dropped, and one already
+      // was — this spread predated `lifecycleParticipant`, so the hard uninstall
+      // below removed the package's schema and left its translation bundles and
+      // palette actions behind, which is the one case D-159 §7 records as having
+      // no other cure.
+      registry: buildStaticRegistry(entries),
       // The merged ownership, exactly as a composition root supplies it. Left
       // out, the orchestrator answers from the committed core registry and
       // refuses to hard-uninstall a package it cannot enumerate — which is the
@@ -553,6 +680,12 @@ async function main(): Promise<void> {
     switch (phase) {
       case 'schema':
         results = await phaseSchema();
+        break;
+      case 'boot':
+        results = await phaseBoot();
+        break;
+      case 'install':
+        results = await phaseInstall();
         break;
       case 'gate-off':
         results = await phaseGate(false);

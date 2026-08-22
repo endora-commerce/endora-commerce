@@ -28,12 +28,12 @@
  *
  * ## Today
  *
- * It is **red on purpose**, and the failures name what is missing: nothing in
- * this repository discovers an installed package, so its migration is in no
- * registry, its entity is in no ORM metadata, and its manifest is in no
- * resolved set. A8 and A9 pass today, which is the point of them — they are the
- * two assertions that measure the *harness* rather than the platform, and if
- * they could not pass now they would never be trusted later.
+ * All nine pass (feature 080, T046): the criterion is met. It was red on
+ * purpose for the length of Wave 3, and `acceptance/expected-state.json` carries
+ * the history of each move plus what every pass now means. A8 and A9 passed
+ * throughout, which is the point of them — they are the two assertions that
+ * measure the *harness* rather than the platform, and if they could not pass
+ * while everything else was red they would never be trusted now.
  *
  * Contract: `specs/080-f4-real-scope/contracts/package-schema-acceptance.md`.
  * Usage: `pnpm --filter backend run acceptance:package-schema`.
@@ -400,7 +400,21 @@ async function main(): Promise<void> {
     };
 
     const inconclusive: string[] = [];
-    for (const phase of ['schema', 'gate-off', 'gate-on', 'uninstall'] as const) {
+    // The operator's own sequence, one process each. `boot` and `install` are
+    // not scaffolding for the two gate phases: they are the steps a real
+    // instance has between `pnpm add` and an operator flipping a control.
+    // `install` is a package's only author — of its `module_registrations` row
+    // since D-157.6(b), and of its settings rows through step 2 of the same
+    // operation — and the probe reached it through no phase at all, which is
+    // what left A6 and A7 red with the platform half of each already working.
+    for (const phase of [
+      'schema',
+      'boot',
+      'install',
+      'gate-off',
+      'gate-on',
+      'uninstall',
+    ] as const) {
       const outcome = runPhase(phase, probeEnv);
       if ('inconclusive' in outcome) inconclusive.push(outcome.inconclusive);
       else results.push(...outcome.results);
@@ -420,10 +434,10 @@ async function main(): Promise<void> {
 
     if (!ratchet) process.exit(criterion);
 
-    // Ratchet mode (CI). The criterion is red today and is meant to be, so a
-    // job that failed on the red would block every merge request touching a
-    // migration registry. What is enforced instead is drift against the
-    // committed expectation, in both directions.
+    // Ratchet mode (CI). What is enforced is drift against the committed
+    // expectation, in both directions — never the colour itself. That was
+    // written when the criterion was red on purpose, and it is what keeps
+    // working now that all nine pass: a regression is drift too.
     const expectation = JSON.parse(readFileSync(EXPECTATION_FILE, 'utf8')) as {
       assertions: AcceptanceExpectation;
     };

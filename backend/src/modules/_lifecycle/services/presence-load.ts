@@ -5,7 +5,7 @@ import { activationDeclarationsFrom } from '../../../kernel/lifecycle/activation
 import { installGatingGraph } from './gating-graph.js';
 import { registryCache } from '../../../kernel/lifecycle/registry-cache.js';
 import { loadReducedDeploymentDeclarations } from './reduced-deployment.js';
-import { manifestEntryOrigin } from '../registered-manifests.js';
+import { deploymentShippedEntries } from '../registered-manifests.js';
 
 /** One module that needs an absent one, and how it says so. */
 export interface NeededBy {
@@ -305,13 +305,16 @@ export interface ShippedModuleEntry {
  * {@link assertLockedModulesPresent} is: the harness never calls
  * {@link loadModulePresence}, so a rule written into that body would be proved
  * by nothing that runs.
+ *
+ * The origin split itself is `deploymentShippedEntries` and is deliberately not
+ * spelled here (feature 080, T046): the boot settings reconcile has to stop at
+ * the same line, for reasons of its own, and a second copy of an origin test is
+ * two answers waiting to disagree (D-100).
  */
 export function firstBootInsertPopulation(
   entries: readonly ShippedModuleEntry[],
 ): ModuleManifest[] {
-  return entries
-    .filter((entry) => manifestEntryOrigin(entry.filePath) !== 'package')
-    .map((entry) => entry.manifest);
+  return deploymentShippedEntries(entries).map((entry) => entry.manifest);
 }
 
 /**

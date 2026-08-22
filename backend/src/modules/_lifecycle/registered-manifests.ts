@@ -97,6 +97,36 @@ export function manifestEntryOrigin(filePath: string): ModuleIdClaimOrigin {
 }
 
 /**
+ * The entries **this build ships**: core plus the deployment's overlay modules,
+ * never an installed package.
+ *
+ * The single spelling of D-157.6(b)'s split, because it now has two readers and
+ * a derived fact written down twice is two answers waiting to disagree (D-100).
+ * Both readers converge state at boot for a module nobody ran a command for, and
+ * both must stop at the same line:
+ *
+ *   - `firstBootInsertPopulation` — the `module_registrations` insert. A package
+ *     converged here is a package `module:install` will answer
+ *     `already-installed` about, having applied none of its migrations.
+ *   - the **boot settings reconcile** (`composition.ts`, and the harness beside
+ *     it). An overlay module has no `install` at all, so boot is the only author
+ *     its activation Setting can have; a package has exactly one author,
+ *     `install`, which reconciles its settings inside the operation that also
+ *     runs its migrations. Reconciling a package's manifest at boot would let a
+ *     `SettingCodeConflict` in something an operator merely `pnpm add`ed abort
+ *     the platform's start.
+ *
+ * Generic over the entry, so a caller keeps whatever fields it had: the presence
+ * load hands it `{ manifest, filePath }` and a composition root hands it whole
+ * {@link RegisteredManifestEntry} values.
+ */
+export function deploymentShippedEntries<E extends { readonly filePath: string }>(
+  entries: readonly E[],
+): E[] {
+  return entries.filter((entry) => manifestEntryOrigin(entry.filePath) !== 'package');
+}
+
+/**
  * A hook key is set only when the module exports one: with
  * `exactOptionalPropertyTypes`, `{ installHook: undefined }` is not the same
  * value as an absent key, and the lifecycle asks `entry.installHook !== undefined`.

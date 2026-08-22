@@ -68,6 +68,7 @@ import type { AdminRoleService } from '../../src/modules/admin_roles/services/ad
 import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import {
   REGISTERED_MANIFESTS,
+  deploymentShippedEntries,
   resolvedManifestEntries,
 } from '../../src/modules/_lifecycle/registered-manifests.js';
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
@@ -2465,8 +2466,14 @@ export async function setupBackendServer(
   // Same derivation the production composition uses, so the harness cannot
   // drift from it — it previously carried its own hand-maintained copy, which
   // is why tests saw KSeF/MFA settings that production never created.
+  //
+  // Feature 080 (T046) — and the same **population**, which is the half that had
+  // drifted: `deploymentShippedEntries(resolvedRegistry)` is core plus this
+  // deployment's overlay and never an installed package. Both roots passed
+  // bare-core `REGISTERED_MANIFESTS`, so an overlay module's activation Setting
+  // was created by nothing, here or in production.
   await new ManifestReconciler(em()).apply(
-    collectRegisteredSettingsManifests(REGISTERED_MANIFESTS),
+    collectRegisteredSettingsManifests(deploymentShippedEntries(resolvedRegistry)),
   );
 
   // The explicit boot phase (FR-021), run **once**, after every registration

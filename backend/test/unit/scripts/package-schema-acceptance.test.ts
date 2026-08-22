@@ -409,16 +409,15 @@ describe('the expectation ledger records a criterion that is red today', () => {
     }
   });
 
-  it('expects A5 to pass, and A6 and A7 to fail on reasons of their own', () => {
-    // Both used to read "Follows A5", which stopped being true the moment A5
-    // did. A recorded reason that is stale is worse than none: it sends the
-    // next author to fix something that is already fixed. A7's reason moved
-    // again with T033 — its migration count is settled and what stops it now is
-    // A6's missing activation row, so nothing composes and no registration row
-    // is written for the package to be uninstalled from.
-    expect(ledger.assertions['A5']?.status).toBe('pass');
-    for (const id of ['A6', 'A7'] as const) {
-      expect(ledger.assertions[id]?.status).toBe('fail');
+  it('records every assertion as passing, and none of them on a stale reason', () => {
+    // T046 moved the last two. A5, A6 and A7 all carried "Follows A5" at some
+    // point, which stopped being true the moment A5 moved: a recorded reason
+    // that is stale is worse than none, because it sends the next author to fix
+    // something that is already fixed. The file is the guard against a
+    // regression now rather than the record of a gap, and this is the assertion
+    // that says so — a `fail` reappearing here is a status nobody earned.
+    for (const id of ASSERTION_IDS) {
+      expect(ledger.assertions[id]?.status, `${id} must be recorded as passing today`).toBe('pass');
       expect(ledger.assertions[id]?.reason).not.toMatch(/^Follows A5/);
     }
   });
@@ -443,24 +442,27 @@ describe('the expectation ledger records a criterion that is red today', () => {
     );
     expect(exitCodeForExpectation(compareToExpectation(measured, ledger.assertions))).toBe(0);
 
-    // Forward drift: an assertion the ledger records as `fail` coming back
-    // green. A6 is the example now that T033 turned A1 green — and the
-    // remedy is unchanged, which is the point: record the green in the merge
-    // request that earned it, never edit the ledger to make a pipeline pass.
-    const forward = measured.map((r) => (r.id === 'A6' ? result('A6', 'pass') : r));
-    const forwardDrift = compareToExpectation(forward, ledger.assertions);
+    // Forward drift: an assertion a ledger records as `fail` coming back green.
+    // The committed ledger holds no `fail` since T046, so the case is proved
+    // over one that does — deleting the proof with the last red entry would
+    // leave the direction the ratchet was *built* for unexercised, and it is the
+    // direction the next author will meet when a Wave-4 assertion is added red.
+    // The remedy is unchanged: record the green in the merge request that earned
+    // it, never edit the ledger to make a pipeline pass.
+    const withARedEntry = { ...ledger.assertions, A6: { status: 'fail' as const, reason: 'not yet' } };
+    const forwardDrift = compareToExpectation(measured, withARedEntry);
     expect(forwardDrift.drift.map((d) => d.id)).toEqual(['A6']);
     expect(exitCodeForExpectation(forwardDrift)).toBe(1);
 
-    // Backward drift on an assertion T033 earned: a green that stops being
-    // green must fail exactly as loudly as one that arrives unannounced.
-    const regressed = measured.map((r) => (r.id === 'A1' ? result('A1', 'fail') : r));
-    const regressedDrift = compareToExpectation(regressed, ledger.assertions);
-    expect(regressedDrift.drift.map((d) => d.id)).toEqual(['A1']);
-    expect(exitCodeForExpectation(regressedDrift)).toBe(1);
-
-    const backward = measured.map((r) => (r.id === 'A8' ? result('A8', 'fail') : r));
-    expect(exitCodeForExpectation(compareToExpectation(backward, ledger.assertions))).toBe(1);
+    // Backward drift, which is the direction that bites on today's ledger: a
+    // green that stops being green must fail exactly as loudly as one that
+    // arrives unannounced.
+    for (const id of ['A1', 'A6', 'A7', 'A8'] as const) {
+      const regressed = measured.map((r) => (r.id === id ? result(id, 'fail') : r));
+      const regressedDrift = compareToExpectation(regressed, ledger.assertions);
+      expect(regressedDrift.drift.map((d) => d.id)).toEqual([id]);
+      expect(exitCodeForExpectation(regressedDrift)).toBe(1);
+    }
   });
 
   it('refuses a run that measured less than the ledger covers', () => {
@@ -505,5 +507,67 @@ describe('the runner and the probe are importable without running', () => {
     await import('../../../scripts/acceptance/package-schema.js');
     await import('../../../scripts/acceptance/instance-probe.js');
     expect(Date.now() - before).toBeLessThan(5_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The runner's phase list and the probe's phases are one set
+// ---------------------------------------------------------------------------
+
+/**
+ * Feature 080, T046 — the two halves of the phase list agree, both ways.
+ *
+ * The runner names the phases it spawns and the probe's `switch` names the
+ * phases it can answer, and nothing connected them. The two failures are not
+ * symmetric, which is why both directions are asserted: a phase the runner
+ * names and the probe does not know answers `unknown phase` and the run exits 2
+ * — loud — while a phase the probe implements and the runner never spawns is
+ * **silent**, and that is the shape this task found. `install` had no
+ * implementation and no caller, so A6 and A7 were red on a platform whose two
+ * halves both worked, and every reader who looked at the probe saw four phases
+ * that covered everything they claimed to.
+ *
+ * Read from the source text, because these two lists are the interface between
+ * two processes: the runner spawns `tsx instance-probe.ts <phase>` and gets one
+ * JSON line back, so there is no value either side could export for the other.
+ */
+describe('the runner spawns exactly the phases the probe implements', () => {
+  const runnerSource = readFileSync(
+    join(BACKEND_ROOT, 'scripts', 'acceptance', 'package-schema.ts'),
+    'utf8',
+  );
+  const probeSource = readFileSync(
+    join(BACKEND_ROOT, 'scripts', 'acceptance', 'instance-probe.ts'),
+    'utf8',
+  );
+
+  const spawned = [
+    ...(runnerSource.match(/for \(const phase of \[([\s\S]*?)\] as const\)/)?.[1] ?? '').matchAll(
+      /'([a-z-]+)'/g,
+    ),
+  ].map((m) => m[1]!);
+  const implemented = [...probeSource.matchAll(/^ {6}case '([a-z-]+)':$/gm)].map((m) => m[1]!);
+
+  it('reads both lists rather than reporting a vacuous agreement', () => {
+    // Two empty lists are equal. Either regex going stale would make every
+    // assertion below pass while measuring nothing.
+    expect(spawned.length).toBeGreaterThan(3);
+    expect(implemented.length).toBeGreaterThan(3);
+  });
+
+  it('names no phase the probe cannot answer', () => {
+    expect(spawned.filter((phase) => !implemented.includes(phase))).toEqual([]);
+  });
+
+  it('leaves no phase implemented and never spawned', () => {
+    expect(implemented.filter((phase) => !spawned.includes(phase))).toEqual([]);
+  });
+
+  it('runs the operator sequence in order: install before the gates, uninstall last', () => {
+    // The order is the claim. `boot` converges what this build ships so the
+    // package's dependency is installed; `install` is the package's only author
+    // (D-157.6(b)); the gates need the row `install` writes; the hard uninstall
+    // needs the registration it wrote.
+    expect(spawned).toEqual(['schema', 'boot', 'install', 'gate-off', 'gate-on', 'uninstall']);
   });
 });

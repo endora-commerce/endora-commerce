@@ -397,13 +397,15 @@ export function exitCodeFor(results: readonly AssertionResult[]): 0 | 1 | 2 {
  * What the criterion is expected to answer **today**, per assertion, with the
  * reason for every answer that is not `pass`.
  *
- * The criterion is red on `master` by construction: a package genuinely cannot
- * ship schema yet, and it is not supposed to until Wave 3 lands. A job that
- * simply failed would block every merge request touching a migration registry —
- * so what CI enforces is the **two-way ratchet** this repository uses
- * everywhere else: the run must answer exactly what this file says, and drift
- * in either direction fails. A newly-red A8 fails; a newly-green A1 fails too,
- * and its remedy is to record the green, in the merge request that earned it.
+ * What CI enforces is the **two-way ratchet** this repository uses everywhere
+ * else: the run must answer exactly what the committed file says, and drift in
+ * either direction fails. It was written while the criterion was red by
+ * construction — a package genuinely could not ship schema until Wave 3, and a
+ * job that simply failed on the red would have blocked every merge request
+ * touching a migration registry — and it is unchanged now that all nine pass
+ * (T046). Only the direction that bites has moved: a newly-red assertion fails
+ * the job, and a newly-green one still would, its remedy being to record the
+ * green in the merge request that earned it.
  *
  * Never edit an entry to make a pipeline pass. Either the platform changed —
  * and the entry moves with it — or something is broken.
