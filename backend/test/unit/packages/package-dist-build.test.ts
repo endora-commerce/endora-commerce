@@ -21,7 +21,13 @@
  *    `.d.ts` turns every type flowing through it into `any` with no diagnostic, because
  *    `skipLibCheck: true` (`tsconfig.base.json`) suppresses the error in a dependency's
  *    declarations. Properties 1–3 pass just as happily against an all-`any` build; the
- *    last test in this file is the only thing here that does not.
+ *    `describe` below them is the only thing here that does not.
+ * 5. **The built declarations compile under `moduleResolution: NodeNext`** (D-162), which
+ *    is what `tsc --init` writes and therefore what a third-party author actually has.
+ *    Property 4 compiles under `Bundler` — this repository's own setting — and `Bundler`
+ *    is the lenient model: it accepts declarations that describe a CJS package as if it
+ *    had an ESM default export. NodeNext does not, and the resulting `TS2709` lands
+ *    *inside the published `.d.ts`*, where the consumer cannot fix it.
  *
  * The manifest analysis takes a manifest **object**, so each red proof enters above the
  * predicate rather than being handed a finding somebody already computed.
@@ -34,12 +40,13 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { findCheckoutRoot } from '../../../../scripts/workspace-resolution.js';
@@ -420,4 +427,210 @@ describe('the built declarations are real types, not `any`', () => {
       rmSync(consumer, { recursive: true, force: true });
     }
   }, 60_000);
+});
+
+/**
+ * D-162 — the same built `dist`, compiled by a consumer configured the way `tsc --init`
+ * configures one.
+ *
+ * The probe above uses `moduleResolution: Bundler`, which is this repository's setting and
+ * the lenient of the two models. `tsc --init` on TypeScript 5.9 writes
+ * `"module": "nodenext"`, so a third-party author's starting point is the strict one — and
+ * the two disagree about a package whose declarations do not describe its own runtime.
+ * `ioredis` is the worked example and the reason this exists: `built/index.js` reassigns
+ * `module.exports` to the class while `built/index.d.ts` writes `export { default }`, so
+ * under NodeNext the default binding is the module namespace, which has no type meaning.
+ * `tsc` copies an import into the declarations it emits verbatim, so a platform source that
+ * writes `import type Redis from 'ioredis'` publishes `TS2709` into its own `.d.ts` — an
+ * error inside a dependency, which the author who hits it cannot repair.
+ *
+ * Two properties, and the first is the control: it builds a package that carries each
+ * spelling and measures which one a strict consumer refuses. Without it the second test is
+ * the shape that cannot go red, because no package in this repository imports `ioredis`
+ * *today* and one that never can proves nothing about the one that will.
+ *
+ * `skipLibCheck` is `false` here — with it on, the error is invisible, which is exactly how
+ * a published defect of this shape survives. Diagnostics are then filtered to the probed
+ * packages' **own** files: a strict consumer with no `@types/node` also reports a
+ * `NodeJS`-namespace reference inside `@measured/puck`, and this asserts a property of what
+ * *this repository emits*, not of its transitive declaration graph. The filter is derived
+ * from the package directories under test, never a list of tolerated files.
+ */
+describe('the built declarations compile under `moduleResolution: NodeNext` (D-162)', () => {
+  interface ProbedPackage {
+    readonly name: string;
+    readonly dir: string;
+  }
+
+  /**
+   * A strict NodeNext consumer outside the workspace, over the given packages, returning
+   * only the diagnostics that land inside one of those packages.
+   */
+  function nodeNextDiagnostics(
+    packages: readonly ProbedPackage[],
+    sources: Readonly<Record<string, string>>,
+    alsoLink: Readonly<Record<string, string>> = {},
+  ): string[] {
+    const consumer = mkdtempSync(join(tmpdir(), 'd162-nodenext-'));
+    try {
+      mkdirSync(join(consumer, 'src'), { recursive: true });
+      for (const [name, dir] of [
+        ...packages.map((p) => [p.name, p.dir] as const),
+        ...Object.entries(alsoLink),
+      ]) {
+        const target = join(consumer, 'node_modules', name);
+        mkdirSync(dirname(target), { recursive: true });
+        symlinkSync(dir, target);
+      }
+      writeFileSync(
+        join(consumer, 'package.json'),
+        JSON.stringify({ name: 'd162-consumer', type: 'module', private: true }),
+      );
+      writeFileSync(
+        join(consumer, 'tsconfig.json'),
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module: 'NodeNext',
+            moduleResolution: 'NodeNext',
+            lib: ['ES2022', 'DOM'],
+            jsx: 'react-jsx',
+            strict: true,
+            skipLibCheck: false,
+            noEmit: true,
+            types: [],
+          },
+          include: ['src/**/*'],
+        }),
+      );
+      for (const [file, body] of Object.entries(sources)) {
+        writeFileSync(join(consumer, 'src', file), body);
+      }
+
+      let output = '';
+      try {
+        execFileSync(join(ROOT!, 'node_modules', '.bin', 'tsc'), ['-p', 'tsconfig.json', '--pretty', 'false'], {
+          cwd: consumer,
+          encoding: 'utf8',
+        });
+      } catch (error) {
+        output = (error as { stdout?: string }).stdout ?? String(error);
+      }
+
+      const owned = packages.map((p) => realpathSync(p.dir) + sep);
+      return output
+        .split('\n')
+        .filter((line) => /error TS\d+/.test(line))
+        .filter((line) => {
+          const path = line.slice(0, line.lastIndexOf('('));
+          let real: string;
+          try {
+            real = realpathSync(resolve(consumer, path));
+          } catch {
+            return false;
+          }
+          return owned.some((dir) => real.startsWith(dir));
+        })
+        .map((line) => line.trim());
+    } finally {
+      rmSync(consumer, { recursive: true, force: true });
+    }
+  }
+
+  it('refuses a package whose emitted declarations default-import ioredis, and accepts its named-import twin', () => {
+    // The fixture enters as *source*, and is emitted by a real `tsc` run configured the way
+    // a package in this repository is configured — `Bundler`, which compiles both spellings
+    // happily. Hand-writing the `.d.ts` would hand the consumer a value this control is
+    // supposed to derive, and would not show that `tsc` copies the import through.
+    const fixture = mkdtempSync(join(tmpdir(), 'd162-host-'));
+    try {
+      mkdirSync(join(fixture, 'src'), { recursive: true });
+      mkdirSync(join(fixture, 'node_modules'), { recursive: true });
+      symlinkSync(join(ROOT!, 'backend', 'node_modules', 'ioredis'), join(fixture, 'node_modules', 'ioredis'));
+      writeFileSync(
+        join(fixture, 'package.json'),
+        JSON.stringify({
+          name: '@d162/fixture-host',
+          version: '0.0.0',
+          type: 'module',
+          private: true,
+          exports: {
+            './default-import': { types: './dist/default-import.d.ts', default: './dist/default-import.js' },
+            './named-import': { types: './dist/named-import.d.ts', default: './dist/named-import.js' },
+          },
+        }),
+      );
+      writeFileSync(
+        join(fixture, 'src', 'default-import.ts'),
+        "import type Redis from 'ioredis';\nexport interface DefaultImportContext { readonly redis: Redis }\n",
+      );
+      writeFileSync(
+        join(fixture, 'src', 'named-import.ts'),
+        "import type { Redis } from 'ioredis';\nexport interface NamedImportContext { readonly redis: Redis }\n",
+      );
+      writeFileSync(
+        join(fixture, 'tsconfig.json'),
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module: 'ESNext',
+            moduleResolution: 'Bundler',
+            lib: ['ES2022'],
+            strict: true,
+            skipLibCheck: true,
+            esModuleInterop: true,
+            declaration: true,
+            rootDir: './src',
+            outDir: './dist',
+            types: [],
+          },
+          include: ['src/**/*'],
+        }),
+      );
+      execFileSync(join(ROOT!, 'node_modules', '.bin', 'tsc'), ['-p', 'tsconfig.json'], {
+        cwd: fixture,
+        encoding: 'utf8',
+      });
+
+      // `tsc` published the spelling it was given, unchanged.
+      expect(readFileSync(join(fixture, 'dist', 'default-import.d.ts'), 'utf8')).toContain(
+        "import type Redis from 'ioredis'",
+      );
+
+      const probed: ProbedPackage[] = [{ name: '@d162/fixture-host', dir: fixture }];
+      const links = { ioredis: join(ROOT!, 'backend', 'node_modules', 'ioredis') };
+
+      const bad = nodeNextDiagnostics(
+        probed,
+        { 'probe.ts': "export type { DefaultImportContext } from '@d162/fixture-host/default-import';\n" },
+        links,
+      );
+      expect(bad.join('\n')).toContain('error TS2709');
+      expect(bad).toHaveLength(1);
+
+      const good = nodeNextDiagnostics(
+        probed,
+        { 'probe.ts': "export type { NamedImportContext } from '@d162/fixture-host/named-import';\n" },
+        links,
+      );
+      expect(good).toEqual([]);
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it("every workspace package's built dist compiles in a strict NodeNext consumer", () => {
+    const probed: ProbedPackage[] = PACKAGES.filter(
+      ({ manifest }) => typeof manifest.name === 'string' && manifest.exports?.['.'] !== undefined,
+    ).map(({ dir, manifest }) => ({ name: manifest.name!, dir }));
+
+    // `export *` pulls the whole entry declaration graph in, which a bare `import type`
+    // of one symbol would not.
+    const sources = Object.fromEntries(
+      probed.map((p, index) => [`p${index}.ts`, `export * from '${p.name}';\n`]),
+    );
+
+    expect(probed.length).toBeGreaterThan(0);
+    expect(nodeNextDiagnostics(probed, sources)).toEqual([]);
+  }, 120_000);
 });

@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 
 /**
  * Redis-backed per-cart pricing-recompute cache (feature 027 §R5).

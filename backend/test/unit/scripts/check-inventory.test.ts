@@ -139,13 +139,16 @@ import { reportsOnlyTheSourceFile } from '../../helpers/nul-bytes-check-fixture.
 import { createShellCheckFixture } from '../../helpers/shell-check-fixture.js';
 import { RECORDED_READ_SIZES } from '../../helpers/check-read-sizes.js';
 import {
+  checkPublishedSurfaceIntent,
   checkReleaseIntent,
+  type BranchDiff,
   type ReleaseIntentFindingKind,
 } from '../../../scripts/check-release-intent.js';
 import {
   checkout as releaseIntentCheckout,
   configuredAs as releaseIntentConfiguredAs,
   FIXTURE_ROOT as RELEASE_INTENT_ROOT,
+  HOST_SOURCED_PACKAGE,
   type FileMap as ReleaseIntentFiles,
 } from '../../helpers/release-intent-check-fixture.js';
 
@@ -393,6 +396,30 @@ function releaseIntentRefusal(overrides: ReleaseIntentFiles, expected: string): 
   const tree = releaseIntentCheckout(overrides);
   const result = checkReleaseIntent(RELEASE_INTENT_ROOT, tree.fs, tree.listChangesets);
   return 'reason' in result && result.reason.includes(expected) ? 1 : 0;
+}
+
+/**
+ * The `--since` half, over the same synthetic checkout plus a branch diff.
+ *
+ * The fixture is the pair of tsconfigs, not a list of "these files are
+ * published": the whole defect is that a package's sources are decided by its
+ * compilation and the gate decides them by a directory name, so a proof handed
+ * the resolved source set would leave that derivation unproven.
+ */
+function publishedSurfaceFindings(
+  overrides: ReleaseIntentFiles,
+  diff: BranchDiff,
+  kind: ReleaseIntentFindingKind,
+): number {
+  const tree = releaseIntentCheckout(overrides);
+  const result = checkPublishedSurfaceIntent(
+    RELEASE_INTENT_ROOT,
+    tree.fs,
+    tree.listChangesets,
+    diff,
+  );
+  if ('reason' in result) return 0;
+  return result.findings.filter((finding) => finding.kind === kind).length;
 }
 
 function bundleResidueRefusal(bundleFiles: readonly string[]): number {
@@ -5093,6 +5120,31 @@ const CHECKS: readonly CheckEntry[] = [
         }),
         'glob grammar',
       )),
+      // The `--since` finding, and the one the CLI structurally cannot produce:
+      // a package whose `tsconfig.build.json` compiles an ignored application's
+      // sources. The fixture is the pair of tsconfigs — `include` in the
+      // extended one, exactly as !891 writes it — so the derivation runs.
+      'unattributed-published-change': top(() =>
+        publishedSurfaceFindings(
+          HOST_SOURCED_PACKAGE,
+          {
+            changedPaths: ['apps/host/src/kernel/settings/settings-cache.ts'],
+            addedChangesets: [],
+          },
+          'unattributed-published-change',
+        ),
+      ),
+      // A build configuration it cannot read must be a refusal: read as absent,
+      // it says the package publishes nothing outside its own directory, which
+      // is the answer that leaves the gate exactly as quiet as it was.
+      'unreadable-build-configuration': top(() => {
+        const tree = releaseIntentCheckout({ 'packages/alpha/tsconfig.build.json': null });
+        const result = checkPublishedSurfaceIntent(RELEASE_INTENT_ROOT, tree.fs, tree.listChangesets, {
+          changedPaths: ['apps/host/src/a.ts'],
+          addedChangesets: [],
+        });
+        return 'reason' in result && result.reason.includes('could not be read') ? 1 : 0;
+      }),
     },
   },
 ];
@@ -5314,7 +5366,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // question) and a pattern grammar it does not implement. `version-disabled`
       // gets two, because the value that produces the defect arrives twice —
       // written as `false`, and by deleting a block that reads as boilerplate.
-      'backend/scripts/check-release-intent.ts': 11,
+      // Plus D-162's two for `--since`: the ninth finding, and the build
+      // configuration it could not read, which read as absent would say the
+      // package publishes nothing outside its own directory.
+      'backend/scripts/check-release-intent.ts': 13,
       // Three spellings of a whole-table wipe, plus the baseline's second
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,

@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import type {

@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { EventBus } from '../../../src/events/bus.js';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';

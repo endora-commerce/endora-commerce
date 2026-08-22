@@ -1,7 +1,7 @@
 import { dirname } from 'node:path';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { IMigrator } from '@mikro-orm/core';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type {
   ModuleInstallHook,
   ModuleUninstallHook,

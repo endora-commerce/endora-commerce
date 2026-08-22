@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { CustomFieldDefinitionReadPort, CustomFieldValuePort } from '@endora-commerce/contracts';
 import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';

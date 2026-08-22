@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import { inProcessCaches } from '../cache/in-process-cache-registry.js';
 import { SettingsCache, SETTINGS_CACHE_NAMESPACE } from './settings-cache.js';
 import { SettingsService } from './settings.service.js';

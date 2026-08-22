@@ -1,5 +1,5 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import { FEED_DELIVERY_LIMITS } from '@endora-commerce/contracts';
 import { enterSystemScope } from '../../../../kernel/scope.js';
 

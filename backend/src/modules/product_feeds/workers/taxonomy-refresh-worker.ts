@@ -1,5 +1,5 @@
 import type { Queue, Worker } from 'bullmq';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import { DEFAULT_TAXONOMY_FETCH_CRON } from '../manifest.js';
 import { defineModuleWorker } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { TaxonomyProviderCode } from '@endora-commerce/contracts';

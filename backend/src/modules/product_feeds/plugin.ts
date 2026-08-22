@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import { z } from 'zod';
 import {
   FEED_DELIVERY_LIMITS,

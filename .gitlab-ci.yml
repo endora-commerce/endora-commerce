@@ -376,6 +376,15 @@ quality:static:
 # and a `privatePackages.version` of `false` makes the command below exit 0
 # over a branch that changed a package and carries no changeset.
 #
+# **And it decides "which package changed" by directory**, which is right only
+# while a package's sources are its own directory. `@endora-commerce/platform`
+# compiles `backend/src`, so the CLI reports nothing for a commit editing the
+# code it publishes and reports a violation for one editing its README — the
+# gate inverted with respect to what it protects (D-162). The second command
+# below closes that edge, deriving each versionable package's real sources from
+# its own `tsconfig.build.json`. It runs here rather than in `quality` because
+# it needs a diff, and this is the job that has git and the target branch.
+#
 # **A release branch is the one branch this gate would otherwise refuse for
 # doing its job.** `pnpm run version:packages` consumes the pending changesets,
 # so the resulting merge request changes every bumped `packages/*/package.json`
@@ -425,6 +434,14 @@ release:changeset:
         exit 1
       fi
       pnpm exec changeset status --since="origin/$base"
+      # D-162 — the edge the command above structurally cannot see. It
+      # attributes a changed file to a package by the package **directory**,
+      # and `@endora-commerce/platform` compiles `backend/src`, which is in
+      # `ignore`. So the gate waives a changeset for the files that reach a
+      # consumer and demands one for the files that do not. The population is
+      # derived from each versionable package's own `tsconfig.build.json`;
+      # this mode lives here rather than in `quality` because it needs git.
+      pnpm --filter backend run check:release-intent -- --since "origin/$base"
     # Feature 080 (T043) — the gate above, measured over real branches, in the
     # one job that has git. Every backend job runs `node:22.17-slim`, which
     # ships none (`test/helpers/shell-check-fixture.ts` fakes `git ls-files` for

@@ -17,7 +17,7 @@ import {
   type ToolContext,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import { HttpError } from '../../http/error-envelope.js';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';

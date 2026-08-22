@@ -86,6 +86,16 @@ function fixture(options: FixtureOptions = {}): string {
       `packages/${name}/package.json`,
       readFileSync(join(REPO_ROOT, 'packages', name, 'package.json'), 'utf8'),
     );
+    // The real emit configuration, because `--since` derives what a package
+    // publishes from it. Copied rather than invented: the property under test
+    // is that these five publish only their own directories today, which is
+    // what makes the host package's arrival the change D-162 exists for.
+    for (const config of ['tsconfig.json', 'tsconfig.build.json']) {
+      write(
+        `packages/${name}/${config}`,
+        readFileSync(join(REPO_ROOT, 'packages', name, config), 'utf8'),
+      );
+    }
     write(`packages/${name}/src/index.ts`, 'export const marker = 1;\n');
   }
   for (const name of APPLICATIONS) {
@@ -312,5 +322,149 @@ describe('a release branch is the one branch the gate would refuse for doing its
     expect(git(vacuous, 'diff', '-U0', 'master...HEAD', '--', '*/package.json')).not.toMatch(
       /^\+\s*"version"\s*:/m,
     );
+  });
+});
+
+/**
+ * D-162 — the gate inverted with respect to what it protects, and its closure.
+ *
+ * `changeset status` decides which package a changed file belongs to by asking
+ * which package **directory** it sits under. `@endora-commerce/platform` (!891)
+ * keeps its manifest and tsconfigs under `packages/platform` and compiles five
+ * directories of `backend/src`, which is in `ignore` — so the CLI reports
+ * nothing for a commit editing the code the package publishes and reports a
+ * violation for one editing its README, which ships in nothing.
+ *
+ * Both halves are measured here over real branches, because the inversion is a
+ * property of a `git diff` against a workspace and a fake would prove the fake.
+ * The second command of `release:changeset` is what closes it, and it derives
+ * the package's real sources from its own `tsconfig.build.json`.
+ */
+describe('a package whose sources are not its own directory (D-162)', () => {
+  const HOST_SOURCE = 'backend/src/kernel/settings/settings-cache.ts';
+
+  /** The host package, in the shape !891 gives it. */
+  const hostPackageFiles = (): Readonly<Record<string, string>> => ({
+    'packages/platform/package.json': JSON.stringify(
+      { name: '@endora-commerce/platform', version: '0.0.0', private: true, main: './dist/index.js' },
+      null,
+      2,
+    ),
+    'packages/platform/tsconfig.json': JSON.stringify(
+      {
+        include: ['../../backend/src/kernel/**/*'],
+        exclude: ['../../backend/src/**/*.test.ts'],
+      },
+      null,
+      2,
+    ),
+    'packages/platform/tsconfig.build.json': JSON.stringify(
+      {
+        extends: './tsconfig.json',
+        compilerOptions: { rootDir: '../../backend/src', noEmit: false, noEmitOnError: true },
+      },
+      null,
+      2,
+    ),
+    'packages/platform/README.md': 'The host package.\n',
+    [HOST_SOURCE]: 'export const marker = 1;\n',
+  });
+
+  function branch(mutate: (dir: string) => void): string {
+    const dir = fixture({ files: hostPackageFiles() });
+    initialCommit(dir);
+    git(dir, 'checkout', '-q', '-b', 'topic');
+    mutate(dir);
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', 'topic');
+    return dir;
+  }
+
+  /** The second command of `release:changeset`, run the way the job runs it. */
+  function publishedSurfaceGate(dir: string): { status: number; output: string } {
+    const result = spawnSync(
+      join(REPO_ROOT, 'backend/node_modules/.bin/tsx'),
+      [
+        join(REPO_ROOT, 'backend/scripts/check-release-intent.ts'),
+        '--root',
+        dir,
+        '--since',
+        'master',
+      ],
+      { cwd: dir, encoding: 'utf8' },
+    );
+    return { status: result.status ?? -1, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
+  }
+
+  it('is invisible to `changeset status` when its published source changes', () => {
+    const dir = branch((root) => {
+      writeFileSync(join(root, HOST_SOURCE), 'export const marker = 2;\n');
+    });
+
+    const run = runChangeset(dir, ['status', '--since=master']);
+
+    // The measurement, not the aspiration: the CLI passes a branch that changes
+    // what the package publishes.
+    expect(run.status).toBe(0);
+  });
+
+  it('fires `changeset status` for its README, which ships in nothing', () => {
+    const dir = branch((root) => {
+      writeFileSync(join(root, 'packages/platform/README.md'), 'The host package. Edited.\n');
+    });
+
+    expect(runChangeset(dir, ['status', '--since=master']).status).toBe(1);
+  });
+
+  it('is refused by the published-surface gate, which is what closes the edge', () => {
+    const dir = branch((root) => {
+      writeFileSync(join(root, HOST_SOURCE), 'export const marker = 2;\n');
+    });
+
+    const run = publishedSurfaceGate(dir);
+
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('unattributed-published-change');
+    expect(run.output).toContain('@endora-commerce/platform');
+    expect(run.output).toContain(HOST_SOURCE);
+  });
+
+  it('passes the same branch once it carries a changeset', () => {
+    const dir = branch((root) => {
+      writeFileSync(join(root, HOST_SOURCE), 'export const marker = 2;\n');
+      writeFileSync(join(root, '.changeset/a.md'), changeset('@endora-commerce/platform', 'patch'));
+    });
+
+    expect(publishedSurfaceGate(dir).status).toBe(0);
+  });
+
+  /**
+   * The other direction, and the reason the two commands are complementary
+   * rather than redundant: a change inside a package's own directory is the
+   * CLI's question, and the second gate says nothing about it.
+   */
+  it('says nothing about a change `changeset status` already refuses', () => {
+    const dir = branch((root) => {
+      writeFileSync(join(root, 'packages/contracts/src/index.ts'), 'export const marker = 2;\n');
+    });
+
+    expect(runChangeset(dir, ['status', '--since=master']).status).toBe(1);
+    expect(publishedSurfaceGate(dir).status).toBe(0);
+  });
+
+  /** An application file no package compiles stays an application file. */
+  it('says nothing about an application change outside every published surface', () => {
+    const dir = branch((root) => {
+      writeFileSync(join(root, 'backend/src/index.ts'), 'export const marker = 2;\n');
+    });
+
+    expect(runChangeset(dir, ['status', '--since=master']).status).toBe(0);
+    expect(publishedSurfaceGate(dir).status).toBe(0);
+  });
+
+  /** `release:changeset` names the command, or the edge is closed by nothing. */
+  it('is named by the `release:changeset` job', () => {
+    const ci = readFileSync(join(REPO_ROOT, '.gitlab-ci.yml'), 'utf8');
+    expect(ci).toContain('run check:release-intent -- --since "origin/$base"');
   });
 });

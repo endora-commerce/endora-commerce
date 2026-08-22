@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type {
   AdminActionView,
   AdminI18nTranslatePort,

@@ -1,5 +1,5 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type {
   AdminI18nTranslatePort,
   ModuleAction,

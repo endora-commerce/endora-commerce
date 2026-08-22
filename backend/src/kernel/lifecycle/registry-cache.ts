@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { RegistryState } from '@endora-commerce/contracts';
 import { ModuleRegistration } from './module-registration.entity.js';

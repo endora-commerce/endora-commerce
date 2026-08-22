@@ -1,5 +1,5 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { ModulePlugin } from '../../http/server.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import {

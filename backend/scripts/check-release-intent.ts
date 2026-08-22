@@ -69,6 +69,43 @@
  *     the workspace, and a disagreement between them means somebody's release
  *     intent will be dropped on the floor by `changeset version`.
  *
+ * ## The ninth, and the one that needs a diff — `--since <ref>`
+ *
+ * `changeset status` decides *which* packages a branch changed by asking which
+ * package **directory** each changed file sits under. That is right for a
+ * package whose sources are its own directory, and it is wrong — silently, and
+ * in the dangerous direction — for one whose sources are not.
+ *
+ * `@endora-commerce/platform` is the case. Its `tsconfig.build.json` sets
+ * `rootDir` to `../../backend/src` and includes five directories of it, so
+ * `packages/platform/` holds a manifest, two tsconfigs and a README while the
+ * code it publishes lives under `backend` — which is in `ignore`. Measured on
+ * `origin/feat/080-t042a-host-package`: a commit editing
+ * `backend/src/kernel/settings/settings-cache.ts`, compiled straight into the
+ * published `dist`, reports `Packages to be bumped:` **empty** and exits 0,
+ * while a commit editing `packages/platform/README.md`, which ships in nothing,
+ * exits 1. The gate demands a changeset for the changes that cannot reach a
+ * consumer and waives it for the changes that can.
+ *
+ *   * `unattributed-published-change` — this branch changes a file that a
+ *     versionable package compiles into its published `dist`, that file is
+ *     outside the package's own directory, and the branch adds no changeset.
+ *
+ * The population is derived from each versionable package's own
+ * `tsconfig.build.json` — its `include` and `exclude`, following `extends` —
+ * because the answer to *"does this commit change what a package emits?"* is a
+ * function of the compilation and not of a directory name, and a second copy of
+ * the include list written into a check is the derived fact D-100 forbids.
+ *
+ * It is the same question the CLI asks, at the CLI's granularity: *did a
+ * versionable package change while this branch carries zero changesets*, not
+ * *is there a changeset per package*. One rule, one grammar; reviewers close the
+ * per-package gap for both halves.
+ *
+ * This mode needs a git diff, so it runs in `release:changeset` — the one job
+ * that installs git and resolves the target branch — rather than in `quality`.
+ * The default mode is untouched by it and reads no build configuration at all.
+ *
  * ## Family or application, derived
  *
  * `pnpm-workspace.yaml` is the authority and the discriminator is the **shape of
@@ -110,10 +147,18 @@
  * does not, and a pattern it cannot read must not be reported as matching
  * nothing; and a `.changeset/` directory this check could not list.
  *
- * Usage: `tsx scripts/check-release-intent.ts [--root <dir>]`
+ * `--since` adds four of its own, for the same reason: a versionable package
+ * with no readable `tsconfig.build.json`, a build configuration with no
+ * `include` at all, an `extends` chain this file cannot follow, and a git
+ * invocation that failed. Each of them would otherwise mean "this package
+ * publishes nothing outside its own directory", which is the answer that lets
+ * the gate stay quiet.
+ *
+ * Usage: `tsx scripts/check-release-intent.ts [--root <dir>] [--since <ref>]`
  * Exit 0 = the flow can still go red; 1 = a finding; 2 = it did not read.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
+import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -172,7 +217,8 @@ export type ReleaseIntentFindingKind =
   | 'unignored-application'
   | 'stale-ignore-entry'
   | 'stale-group-member'
-  | 'unversionable-changeset';
+  | 'unversionable-changeset'
+  | 'unattributed-published-change';
 
 export interface ReleaseIntentFinding {
   readonly kind: ReleaseIntentFindingKind;
@@ -557,6 +603,276 @@ export function checkReleaseIntent(
   return { findings: analyzeReleaseIntent(inputs), inputs, sites, coverage };
 }
 
+// --- the published surface, and the diff that reaches it -------------------
+
+/** What one versionable package compiles into its published `dist`. */
+export interface PublishedSurface {
+  readonly name: string;
+  /** Repository-relative package directory — what `changeset status` watches. */
+  readonly dir: string;
+  /** Repository-relative `include` patterns, resolved from the build config. */
+  readonly include: readonly string[];
+  /** Repository-relative `exclude` patterns, same resolution. */
+  readonly exclude: readonly string[];
+  /** How many tsconfigs the `extends` chain opened to answer. */
+  readonly filesRead: number;
+}
+
+/** The branch, as two lists of repository-relative paths. */
+export interface BranchDiff {
+  /** Every file the branch changes, relative to the repository root. */
+  readonly changedPaths: readonly string[];
+  /** The `.changeset/*.md` files the branch **adds** (README excluded). */
+  readonly addedChangesets: readonly string[];
+}
+
+export interface PublishedSurfaceResult {
+  readonly findings: readonly ReleaseIntentFinding[];
+  readonly surfaces: readonly PublishedSurface[];
+  readonly files: number;
+  readonly sites: number;
+  readonly coverage: readonly ReadCoverage[];
+}
+
+/**
+ * Strip `//` line comments — the tsconfigs in this repository carry them, and
+ * `packages/platform/tsconfig.json` carries more comment than configuration.
+ * Line comments only: no block comment is written in one here.
+ */
+function stripLineComments(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => (/^\s*\/\//.test(line) ? '' : line))
+    .join('\n');
+}
+
+/**
+ * Collapse `.` and `..` in a POSIX path. Deliberately string-only: the patterns
+ * being resolved are `include` entries relative to a tsconfig, and turning them
+ * into absolute filesystem paths would make the analysis depend on where the
+ * checkout is rather than on what it declares.
+ */
+export function normalizeRelative(path: string): string {
+  const out: string[] = [];
+  for (const segment of path.split('/')) {
+    if (segment === '' || segment === '.') continue;
+    if (segment === '..') out.pop();
+    else out.push(segment);
+  }
+  return out.join('/');
+}
+
+/**
+ * Whether `path` matches a tsconfig `include`/`exclude` pattern.
+ *
+ * The three constructs tsconfig defines: `**` spans any number of segments
+ * including none, `*` any run inside one segment, `?` one character inside one.
+ * A pattern with no glob character at all names a directory, which tsconfig
+ * reads as everything under it — the shape `"include": ["src"]` takes.
+ */
+export function matchesTsGlob(pattern: string, path: string): boolean {
+  const effective = /[*?]/.test(pattern) ? pattern : `${pattern}/**/*`;
+  const patternSegments = effective.split('/');
+  const pathSegments = path.split('/');
+
+  const walk = (p: number, s: number): boolean => {
+    if (p === patternSegments.length) return s === pathSegments.length;
+    const head = patternSegments[p]!;
+    if (head === '**') {
+      for (let skip = s; skip <= pathSegments.length; skip += 1) {
+        if (walk(p + 1, skip)) return true;
+      }
+      return false;
+    }
+    if (s === pathSegments.length) return false;
+    const source = head
+      .split(/([*?])/)
+      .map((part) => (part === '*' ? '[^/]*' : part === '?' ? '[^/]' : escapeRegExp(part)))
+      .join('');
+    if (!new RegExp(`^${source}$`).test(pathSegments[s]!)) return false;
+    return walk(p + 1, s + 1);
+  };
+
+  return walk(0, 0);
+}
+
+/**
+ * The `include`/`exclude` of one package's emit configuration, resolved to
+ * repository-relative patterns.
+ *
+ * Follows `extends` because that is where the answer actually lives: !891 puts
+ * `include` in `tsconfig.json` and `rootDir` in the `tsconfig.build.json` that
+ * extends it, so a reader of the build file alone would find no `include` and
+ * conclude the package publishes nothing outside itself — the exact silence
+ * this mode exists to remove. Only relative `extends` is followed; a package
+ * reference (`extends: "@scope/tsconfig/base"`) is reported as unreadable
+ * rather than treated as absent.
+ */
+export function readPublishedSurface(
+  repoRoot: string,
+  packageDir: string,
+  packageName: string,
+  fs: WorkspaceFs,
+): PublishedSurface | ReleaseIntentRefusal {
+  const seen = new Set<string>();
+  let current = `${packageDir}/tsconfig.build.json`;
+  let include: readonly string[] | null = null;
+  let exclude: readonly string[] = [];
+  let excludeFrom = '';
+
+  while (current !== '') {
+    if (seen.has(current)) {
+      return { reason: `\`${current}\` is part of an \`extends\` cycle` };
+    }
+    seen.add(current);
+    const text = fs.readText(join(repoRoot, current));
+    if (text === null) {
+      return { reason: `\`${current}\` could not be read, so what \`${packageName}\` publishes is unknown` };
+    }
+    let config: Record<string, unknown>;
+    try {
+      config = JSON.parse(stripLineComments(text)) as Record<string, unknown>;
+    } catch (error) {
+      return { reason: `\`${current}\` does not parse: ${String(error)}` };
+    }
+
+    const dir = current.slice(0, current.lastIndexOf('/'));
+    const resolve = (pattern: string): string => normalizeRelative(`${dir}/${pattern}`);
+    if (include === null && Array.isArray(config['include'])) {
+      include = stringList(config['include']).map(resolve);
+    }
+    if (excludeFrom === '' && Array.isArray(config['exclude'])) {
+      exclude = stringList(config['exclude']).map(resolve);
+      excludeFrom = current;
+    }
+    // The nearest `include` wins and there is nothing further to learn: a base
+    // config above it describes a different compilation. Stopping here is also
+    // what keeps the chain short — `tsconfig.base.json` declares no `include`
+    // and is not this package's statement about what it publishes.
+    if (include !== null) break;
+
+    const parent = config['extends'];
+    if (parent === undefined) break;
+    if (typeof parent !== 'string' || !parent.startsWith('.')) {
+      return {
+        reason:
+          `\`${current}\` extends \`${String(parent)}\`, which is not a relative path — this ` +
+          `check cannot follow it, and treating it as absent would report \`${packageName}\` ` +
+          'as publishing nothing outside its own directory',
+      };
+    }
+    current = normalizeRelative(`${dir}/${parent}`);
+  }
+
+  if (include === null) {
+    return {
+      reason:
+        `\`${packageDir}/tsconfig.build.json\` and its \`extends\` chain declare no \`include\`, ` +
+        `so every file in the checkout is a candidate source of \`${packageName}\` and none of ` +
+        'them can be attributed',
+    };
+  }
+
+  // `dist` is never a source. Without this a rebuilt artefact under a package
+  // whose `include` is written broadly reads as a published-source change.
+  return {
+    name: packageName,
+    dir: packageDir,
+    include,
+    exclude: [...exclude, `${packageDir}/dist`],
+    filesRead: seen.size,
+  };
+}
+
+/** Whether the package's build configuration compiles `path`. */
+export function compilesPath(surface: PublishedSurface, path: string): boolean {
+  if (!surface.include.some((pattern) => matchesTsGlob(pattern, path))) return false;
+  return !surface.exclude.some((pattern) => matchesTsGlob(pattern, path));
+}
+
+/**
+ * The findings `changeset status` structurally cannot produce.
+ *
+ * Pure over the resolved surfaces and the diff, so a red proof drives it with a
+ * synthetic repository rather than with a pre-computed verdict.
+ */
+export function analyzePublishedSurfaceIntent(
+  surfaces: readonly PublishedSurface[],
+  diff: BranchDiff,
+): readonly ReleaseIntentFinding[] {
+  if (diff.addedChangesets.length > 0) return [];
+
+  const findings: ReleaseIntentFinding[] = [];
+  for (const surface of surfaces) {
+    const unseen = diff.changedPaths.filter(
+      (path) => !path.startsWith(`${surface.dir}/`) && compilesPath(surface, path),
+    );
+    if (unseen.length === 0) continue;
+    findings.push({
+      kind: 'unattributed-published-change',
+      subject: surface.name,
+      message:
+        `compiles ${unseen.length} changed file(s) into its published \`dist\` from outside ` +
+        `\`${surface.dir}/\`, and this branch adds no changeset: ` +
+        `${unseen.slice(0, 5).join(', ')}${unseen.length > 5 ? ', …' : ''}. ` +
+        '`changeset status` attributes a change to a package by the package\'s own directory, ' +
+        'so it reports nothing for these — the gate waives a changeset for the files that ' +
+        'reach a consumer while demanding one for the files that do not. Write the changeset, ' +
+        'or an empty one if the change carries no release meaning.',
+    });
+  }
+  return findings;
+}
+
+/** The `--since` mode over a checkout: resolve every published surface, then analyse. */
+export function checkPublishedSurfaceIntent(
+  repoRoot: string,
+  fs: WorkspaceFs,
+  listChangesets: (dir: string) => readonly string[] | null,
+  diff: BranchDiff,
+): PublishedSurfaceResult | ReleaseIntentRefusal {
+  const inputs = readReleaseIntent(repoRoot, fs, listChangesets);
+  if ('reason' in inputs) return inputs;
+
+  const ignorePatterns = stringList(inputs.config['ignore']);
+  const versionable = inputs.members.filter(
+    (member) => member.family && !ignorePatterns.some((p) => matchesPattern(p, member.name)),
+  );
+  if (versionable.length === 0) {
+    return { reason: 'no versionable package — there is no published surface to attribute a diff to' };
+  }
+
+  const surfaces: PublishedSurface[] = [];
+  for (const member of versionable) {
+    const surface = readPublishedSurface(repoRoot, member.dir, member.name, fs);
+    if ('reason' in surface) return surface;
+    surfaces.push(surface);
+  }
+
+  if (diff.changedPaths.length === 0) {
+    return {
+      reason:
+        'the branch changes no file at all — every question below would be vacuously true, ' +
+        'and a merge request with an empty diff is not the input this mode was asked about',
+    };
+  }
+
+  const coverage: readonly ReadCoverage[] = [
+    { source: 'versionable-packages', expected: versionable.length, covered: surfaces.length },
+  ];
+  // Every tsconfig each `extends` chain actually opened, on top of what the
+  // default mode opened. Files, not chains: `files` is what the walk opened.
+  const files = inputs.files + surfaces.reduce((total, surface) => total + surface.filesRead, 0);
+  // One decision per (surface, changed path) pair: does this package compile it,
+  // and can the CLI see that it does.
+  const sites = surfaces.length * diff.changedPaths.length;
+
+  const short = readSizeRefusal({ prefix: PREFIX, files, sites, coverage });
+  if (short !== null) return { reason: short.message };
+
+  return { findings: analyzePublishedSurfaceIntent(surfaces, diff), surfaces, files, sites, coverage };
+}
+
 // --- CLI -------------------------------------------------------------------
 
 function listDirectoryFiles(dir: string): readonly string[] | null {
@@ -569,12 +885,105 @@ function listDirectoryFiles(dir: string): readonly string[] | null {
   }
 }
 
+/**
+ * The branch, read with git. A failure here is exit 2 rather than an empty
+ * diff: "nothing changed" and "git could not answer" are the same silence the
+ * whole file exists to refuse.
+ */
+function readBranchDiff(repoRoot: string, since: string): BranchDiff | ReleaseIntentRefusal {
+  const run = (args: readonly string[]): string[] | null => {
+    try {
+      return execFileSync('git', [...args], { cwd: repoRoot, encoding: 'utf8' })
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line !== '');
+    } catch {
+      return null;
+    }
+  };
+
+  if (run(['rev-parse', '--verify', '--quiet', `${since}^{commit}`]) === null) {
+    return { reason: `\`${since}\` does not resolve to a commit` };
+  }
+  if (run(['merge-base', since, 'HEAD']) === null) {
+    return { reason: `there is no merge base between HEAD and \`${since}\`` };
+  }
+  const changedPaths = run(['diff', '--no-renames', '--name-only', `${since}...HEAD`]);
+  if (changedPaths === null) return { reason: `\`git diff ${since}...HEAD\` failed` };
+  const added = run([
+    'diff',
+    '--no-renames',
+    '--diff-filter=A',
+    '--name-only',
+    `${since}...HEAD`,
+    '--',
+    '.changeset',
+  ]);
+  if (added === null) return { reason: `\`git diff --diff-filter=A ${since}...HEAD\` failed` };
+
+  return {
+    changedPaths,
+    addedChangesets: added.filter(
+      (path) => path.endsWith('.md') && !path.toLowerCase().endsWith('readme.md'),
+    ),
+  };
+}
+
+/** The `--since` half of the CLI. Returns the process exit code. */
+function reportPublishedSurface(repoRoot: string, since: string): number {
+  const diff = readBranchDiff(repoRoot, since);
+  if ('reason' in diff) {
+    console.error(`${PREFIX} ${diff.reason}; refusing to report a verdict it did not measure.`);
+    return 2;
+  }
+
+  const result = checkPublishedSurfaceIntent(repoRoot, nodeWorkspaceFs(), listDirectoryFiles, diff);
+  if ('reason' in result) {
+    console.error(`${PREFIX} ${result.reason}; refusing to report a verdict it did not measure.`);
+    return 2;
+  }
+
+  reportReadSize({
+    prefix: PREFIX,
+    files: result.files,
+    sites: result.sites,
+    coverage: result.coverage,
+  });
+  console.log(
+    `${PREFIX} --since=${since} surfaces=${result.surfaces.length} ` +
+      `changed=${diff.changedPaths.length} changesets-added=${diff.addedChangesets.length} ` +
+      `violations=${result.findings.length}`,
+  );
+
+  if (result.findings.length > 0) {
+    console.error(
+      '\nThis branch changes a published surface that `changeset status` cannot attribute to ' +
+        'its package, so the gate exits 0 over a change a consumer will receive:',
+    );
+    for (const finding of result.findings) {
+      console.error(`  - [${finding.kind}] ${finding.subject} ${finding.message}`);
+    }
+  }
+
+  return result.findings.length === 0 ? 0 : 1;
+}
+
 function main(): void {
   const rootFlag = process.argv.indexOf('--root');
   const repoRoot =
     rootFlag >= 0 && process.argv[rootFlag + 1] !== undefined
       ? process.argv[rootFlag + 1]!
       : fileURLToPath(new URL('../../', import.meta.url)).replace(/\/$/, '');
+
+  const sinceFlag = process.argv.indexOf('--since');
+  if (sinceFlag >= 0) {
+    const since = process.argv[sinceFlag + 1];
+    if (since === undefined || since.startsWith('--')) {
+      console.error(`${PREFIX} \`--since\` needs a ref; refusing to report a verdict it did not measure.`);
+      process.exit(2);
+    }
+    process.exit(reportPublishedSurface(repoRoot, since));
+  }
 
   const result = checkReleaseIntent(repoRoot, nodeWorkspaceFs(), listDirectoryFiles);
   if ('reason' in result) {

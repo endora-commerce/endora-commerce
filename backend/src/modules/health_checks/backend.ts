@@ -1,5 +1,5 @@
 import type { MikroORM } from '@mikro-orm/postgresql';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { ModuleContext } from '../../kernel/index.js';
 
 import { registerHealthRoutes, type HealthDeps } from './routes.js';

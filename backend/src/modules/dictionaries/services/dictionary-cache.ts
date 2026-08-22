@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 
 export const DICTIONARY_CACHE_KEY_PREFIX = 'dictionary:';
 export const DICTIONARY_CACHE_DEFAULT_TTL_SECONDS = 60 * 60;

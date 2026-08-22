@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import {
   ModuleRegistryCache,
   STATE_CHANGED_CHANNEL,

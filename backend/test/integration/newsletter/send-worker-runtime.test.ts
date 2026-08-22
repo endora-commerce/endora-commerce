@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
 import { NewsletterTokenHelper } from '../../../src/modules/newsletter/services/token.helper.js';
