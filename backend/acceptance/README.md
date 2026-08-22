@@ -54,6 +54,16 @@ with it, because both had read *"follows A5"* and stopped being true the moment 
 particular now runs the hard uninstall for real and fails only on the migration count. What is
 still red is the **schema** half, A1 … A4, which is what T033 closes.
 
+**T032 finished A5 without moving it**, which is the shape a two-way ratchet is least good at
+showing. It passed reading the package's `en`/`pl` files with `loadModuleBundles` at a path the
+assertion computed itself — which proves the files were published and says nothing about the code
+that actually populates `translation_bundles`. It now runs `reconcileBundles` over the whole
+resolved manifest set and reads the action keys back out of `getMergedBundleForLanguage`, the read
+the Admin SPA and the command palette serve from. Same colour, different claim: a package whose
+bundles the reconciler cannot reach now fails A5 with its `i18n/` sitting in `node_modules`. The
+recorded reason in `expected-state.json` is the only artefact that carries that difference, so it
+was rewritten in the same merge request — a stale reason is drift the ratchet cannot detect.
+
 **A8 and A9 carry the contract.** A1 … A7 are satisfiable by a moved directory, which is the trap.
 A8 says the installed package's resolution path stays inside the instance; A9 runs A8's own
 predicate over the same package consumed by link from inside this repository and passes only when
