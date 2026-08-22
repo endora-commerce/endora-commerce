@@ -96,6 +96,13 @@ import {
 } from '../../../scripts/check-port-dependencies.js';
 import { buildDeactivationLedger } from '../../../src/modules/_lifecycle/services/deactivation-ledger.js';
 import { nonBindingPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
+import {
+  checkPlatformSurface,
+  platformSurfaceRefusal,
+  type PlatformSurfaceFindingKind,
+  type PlatformSurfaceInput,
+} from '../../../scripts/check-platform-surface.js';
+import { publishedSurface } from '../../../scripts/lib/platform-surface.js';
 import { checkPortShape } from '../../../scripts/check-port-shape.js';
 import { checkSubscribeSeam } from '../../../scripts/check-subscribe-seam.js';
 import { checkTransactionContext } from '../../../scripts/check-transaction-context.js';
@@ -277,6 +284,43 @@ interface CheckEntry extends ProvenCheck {
  * both defects this file exists for.
  */
 const PROOFS_ENTERING_BELOW: Readonly<Record<string, string>> = {};
+
+/**
+ * `check-platform-surface` over module source text, barrel source text and a
+ * file list — every input a real run has, and none of its answers (feature 080,
+ * T042d).
+ *
+ * The barrel is written out rather than imported so the proof also drives the
+ * derivation the check's verdict rests on: `HttpError` is published *of*
+ * `http/error-envelope.ts`, and the same name taken from anywhere else is a
+ * finding.
+ */
+function platformSurfaceInput(sources: Record<string, string>): PlatformSurfaceInput {
+  return {
+    sources: new Map(Object.entries(sources)),
+    files: new Set([
+      ...Object.keys(sources),
+      'backend/src/kernel/index.ts',
+      'backend/src/kernel/settings/settings-cache.ts',
+      'backend/src/http/index.ts',
+      'backend/src/http/error-envelope.ts',
+      'backend/src/db/index.ts',
+    ]),
+    surface: publishedSurface(
+      new Map([['backend/src/http/index.ts', "export { HttpError } from './error-envelope.js';"]]),
+    ),
+  };
+}
+
+/** Findings of exactly one kind, so no signal goes blind behind another's red. */
+function platformSurfaceFindings(
+  sources: Record<string, string>,
+  kind: PlatformSurfaceFindingKind,
+): number {
+  return checkPlatformSurface(platformSurfaceInput(sources), {}).violations.filter(
+    (finding) => finding.kind === kind,
+  ).length;
+}
 
 /** The fixture enters the check where a real run does: source text in, findings out. */
 const top = (prove: () => number): RedProof => ({ enters: 'top', prove });
@@ -3485,6 +3529,104 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // Six shapes over one population, and the fixture for every one of them is
+    // **barrel source text plus module source text plus a file list** — the
+    // three inputs a real run hands the analysis. Nothing here is pre-computed:
+    // the published surface is derived from the barrel by the same parse
+    // `published-surface.test.ts` uses, the module attribution is read off the
+    // key, and the specifier is resolved through the `.js` to `.ts` rewrite. A
+    // proof handed a ready-made "these symbols are published" set would leave
+    // all three unproven, and the first of them is where a wrong answer would
+    // be *quiet*: a short published set turns correct reaches into findings,
+    // whose obvious repair is to widen the barrel.
+    //
+    // `unpublished-symbol` is the rule. `whole-file-reach` is the shape a
+    // symbol-level verdict cannot see — a namespace or side-effect import names
+    // no symbol, so it reaches the file's internals whatever they are. The last
+    // two are #215 one layer in (!879): a specifier that resolves to nothing and
+    // a walked file no module owns are both files the `read:` line counts and
+    // nothing judges, so each is a finding rather than a skip. The ledger gets
+    // both directions of its own — a key describing no reach, and a symbol an
+    // entry names that the walk no longer sees — because the second is the one a
+    // per-target count could not express: swapping one unpublished name for
+    // another leaves the key and the site total unchanged.
+    script: 'backend/scripts/check-platform-surface.ts',
+    npmScript: 'check:platform-surface',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-platform-surface.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    residueGuard: 'derived-population',
+    red: {
+      'unpublished-symbol': top(() =>
+        platformSurfaceFindings(
+          {
+            'backend/src/modules/blog/backend.ts':
+              "import { SettingsCache } from '../../kernel/settings/settings-cache.js';",
+          },
+          'unpublished-symbol',
+        ),
+      ),
+      'whole-file-reach': top(() =>
+        platformSurfaceFindings(
+          {
+            'backend/src/modules/blog/backend.ts':
+              "import * as cache from '../../kernel/settings/settings-cache.js';",
+          },
+          'whole-file-reach',
+        ),
+      ),
+      'unresolvable-reach': top(() =>
+        platformSurfaceFindings(
+          { 'backend/src/modules/blog/backend.ts': "import { X } from '../../kernel/gone.js';" },
+          'unresolvable-reach',
+        ),
+      ),
+      'unattributed-source': top(() =>
+        platformSurfaceFindings(
+          { 'backend/src/apps/example/reduced-deployment.ts': '' },
+          'unattributed-source',
+        ),
+      ),
+      'stale-ledger-key': top(
+        () =>
+          checkPlatformSurface(platformSurfaceInput({}), {
+            'backend/src/modules/blog/backend.ts|backend/src/db/index.ts': { symbols: ['initOrm'], reason: 'gone' },
+          }).staleKeys.length,
+      ),
+      'stale-ledger-symbol': top(
+        () =>
+          checkPlatformSurface(
+            platformSurfaceInput({
+              'backend/src/modules/blog/backend.ts': "import { initOrm } from '../../db/index.js';",
+            }),
+            {
+              'backend/src/modules/blog/backend.ts|backend/src/db/index.ts': {
+                symbols: ['initOrm', 'closeOrm'],
+                reason: 'one of these is gone',
+              },
+            },
+          ).staleSymbols.length,
+      ),
+      'unreadable-barrel': top(() =>
+        platformSurfaceRefusal({
+          missingBarrels: [],
+          surface: publishedSurface(new Map([['backend/src/events/index.ts', "export * from './bus.js';"]])),
+        }) === null
+          ? 0
+          : 1,
+      ),
+      'missing-barrel': top(() =>
+        platformSurfaceRefusal({
+          missingBarrels: ['backend/src/tenancy/index.ts'],
+          surface: publishedSurface(new Map()),
+        }) === null
+          ? 0
+          : 1,
+      ),
+    },
+  },
+  {
     // Three signals, eight shapes.
     //
     // Signal 1 (D-97.3) bites in two places and only one of them was ever hit:
@@ -5159,6 +5301,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // reported the contribution seams would be turned off within a week, and
       // one that saw neither shape would read identically green — and the
       // resolution ledger's stale direction.
+      // Four findings, the ledger's two stale directions, and the two refusals.
+      // The refusals are proofs rather than bookkeeping: both make the published
+      // surface come back **short**, which is the direction that reports *more*
+      // findings, so neither would ever be noticed as a defect — an author would
+      // read the extra finding as real and widen the barrel to clear it.
+      'backend/scripts/check-platform-surface.ts': 8,
       'backend/scripts/check-port-shape.ts': 8,
       // Eight findings, plus the two refusals that are decisions rather than
       // printing: the short walk (issue #215 over a workspace, where losing the

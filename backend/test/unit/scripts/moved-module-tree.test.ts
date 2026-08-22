@@ -89,6 +89,7 @@ const CHECKS: readonly MovedTreeCheck[] = [
   { script: 'check-port-catches.ts', args: [], prefix: '[port-catches]' },
   { script: 'check-port-dependencies.ts', args: [], prefix: '[port-deps]' },
   { script: 'check-port-shape.ts', args: [], prefix: '[port-shape]' },
+  { script: 'check-platform-surface.ts', args: [], prefix: '[platform-surface]' },
   { script: 'check-subscribe-seam.ts', args: [], prefix: '[subscribe-seam]' },
   { script: 'check-transaction-context.ts', args: [], prefix: '[transaction-context]' },
 ];

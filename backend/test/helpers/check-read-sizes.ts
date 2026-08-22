@@ -311,6 +311,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     sites: 1278,
     sources: ['manifest-index'],
   },
+  // Two derivations, deliberately, because the check has two inputs that can be
+  // silently missing and they have different authors: `manifest-index` is the
+  // generated composer artefact (issue #215's floor over the module walk), and
+  // `platform-barrels` reconciles D-160.7's five published subpaths against what
+  // the tree actually holds. A barrel that vanished would make the published
+  // surface short, which turns correct reaches into findings rather than hiding
+  // them — so it is exit 2 in the check itself, and the 5/5 here is what makes a
+  // *quietly narrowed* surface visible in the recorded line.
+  // `sites` is every (specifier, symbol) reach into the platform the walk
+  // judged, cleared ones included, so it does not move with the findings.
+  'backend/scripts/check-platform-surface.ts': {
+    prefix: '[platform-surface]',
+    run: { kind: 'tsx', path: 'scripts/check-platform-surface.ts', args: [] },
+    files: 1422,
+    sites: 1642,
+    sources: ['manifest-index', 'platform-barrels'],
+  },
   'backend/scripts/check-port-shape.ts': {
     prefix: '[port-shape]',
     run: { kind: 'tsx', path: 'scripts/check-port-shape.ts', args: [] },

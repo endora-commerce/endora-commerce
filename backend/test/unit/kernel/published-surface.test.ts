@@ -36,6 +36,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { parseBarrel } from '../../../scripts/lib/platform-surface.js';
+
 const SRC = fileURLToPath(new URL('../../../src/', import.meta.url));
 
 /**
@@ -45,24 +47,23 @@ const SRC = fileURLToPath(new URL('../../../src/', import.meta.url));
  * `import()` cannot see a type-only export at all, and more than half of a
  * port-based surface is types. It would report a green over a surface it is
  * blind to.
+ *
+ * **The parse is `scripts/lib/platform-surface.ts`', not this file's** (feature
+ * 080, T042d). It was a regular expression here until `check:platform-surface`
+ * needed the same answer — and two independently written parses of "what does
+ * `kernel/index.ts` export" are two answers, whose disagreement would be
+ * invisible: this file would hold the barrel to §1.3 while the check judged
+ * module reaches against a different reading of it. The shared parse is the
+ * compiler's, so it also sees the three shapes the regular expression silently
+ * dropped (`export *`, `export * as`, and an `export { … }` with no `from`),
+ * and it reports them rather than returning a short list.
  */
 function barrelExports(relativePath: string): string[] {
-  const text = readFileSync(join(SRC, relativePath), 'utf8');
-  const names: string[] = [];
-  for (const block of text.matchAll(/export\s*\{([^}]*)\}\s*from\s*'[^']+'/gs)) {
-    for (const raw of (block[1] ?? '').split(',')) {
-      const written = raw.trim();
-      if (written === '') continue;
-      // `type X`, `X as Y`, `type X as Y` — the exported name is the tail.
-      const name = written
-        .replace(/^type\s+/, '')
-        .split(/\s+as\s+/)
-        .pop()
-        ?.trim();
-      if (name !== undefined && name !== '') names.push(name);
-    }
-  }
-  return names;
+  const parsed = parseBarrel(readFileSync(join(SRC, relativePath), 'utf8'), relativePath);
+  expect(parsed.unreadable, `${relativePath} holds a re-export the parse cannot enumerate`).toEqual(
+    [],
+  );
+  return parsed.published.map((symbol) => symbol.name);
 }
 
 /**
