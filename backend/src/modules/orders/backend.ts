@@ -39,7 +39,7 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { commerceModule, type OrdersModuleOptions } from './plugin.js';
 import { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { emitOrderStatusAfter } from './events/order-status-events.js';
@@ -114,7 +114,7 @@ export interface OrdersCradle {
   readonly eventBus: EventBus;
   readonly commandBus: CommandBus;
   readonly auditLogService: AuditLogService;
-  readonly settingsReadPort: SettingsService;
+  readonly settingsReadPort: SettingsReadPort;
   /**
    * The platform Redis connection, **not** `moduleQueueRedis`.
    *
@@ -240,7 +240,7 @@ export function registerModule(ctx: ModuleContext): void {
     code: string,
     /** `null` = read it platform-wide; only the two business-ID affixes do. */
     salesChannelId: string | null,
-    schema: Parameters<SettingsService['get']>[2],
+    schema: Parameters<SettingsReadPort['get']>[2],
     fallback: T,
   ): Promise<T> => {
     try {

@@ -9,7 +9,7 @@ import {
   type ShipmentUsageCounter,
 } from './commands/delivery-method.commands.js';
 import { DeliveryMethod } from './entities/delivery-method.entity.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import type { ShippingAdapterRegistry } from './services/shipping-adapter-registry.js';
 import type { ShippingMethodEligibilityService } from './services/shipping-method-eligibility.js';
 import {
@@ -45,7 +45,7 @@ export interface DeliveryMethodsAdminDeps {
   /** Issue #125 — the two admin writes run on the bus (Principle XIII). */
   commandBus: CommandBus;
   /** Feature 005 / T027b — new delivery methods auto-bind to the system default. */
-  salesChannelMembership?: SalesChannelMembershipService;
+  salesChannelMembership?: SalesChannelMembershipPort;
   /** Feature 035 — validates `adapter` against the registered adapters. */
   registry?: ShippingAdapterRegistry;
   /** Feature 035 — validates `statusOn*` references + powers /admin/order-statuses. */
@@ -199,7 +199,7 @@ function assertValidStatus(registry: OrderStatusRegistry, ref: string): void {
 }
 
 async function replaceChannelMembership(
-  membership: SalesChannelMembershipService,
+  membership: SalesChannelMembershipPort,
   methodId: string,
   desiredChannelIds: string[],
 ): Promise<void> {

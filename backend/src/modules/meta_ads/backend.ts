@@ -4,7 +4,7 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { MetaConfigService } from './services/meta-config.service.js';
 import {
@@ -52,7 +52,7 @@ interface MetaAdsServices {
 export interface MetaAdsCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditLogService;
-  readonly settingsReadPort: SettingsService;
+  readonly settingsReadPort: SettingsReadPort;
   readonly requireAdmin: RequireAdminFactory;
   /** How this composition names the acting admin; `null` for a non-admin caller. */
   readonly adminAuditActorResolver: (request: FastifyRequest) => MetaAuditContext;
@@ -77,7 +77,7 @@ export function registerModule(ctx: ModuleContext): void {
             invalidateConfig,
           );
           const configService = new MetaConfigService(
-            lazyPort<SettingsService>(ctx, 'settingsReadPort'),
+            lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
             (channelId) =>
             mappings.loadForChannel(channelId),
           );

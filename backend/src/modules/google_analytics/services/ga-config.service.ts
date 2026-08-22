@@ -4,7 +4,7 @@ import {
   type GaStorefrontConfig,
   type GaStorefrontCustomEvent,
 } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 /**
  * Loader for a channel's enabled custom events, resolved into the storefront
@@ -27,7 +27,7 @@ export type CustomEventsLoader = (
  */
 export class GaConfigService {
   constructor(
-    private readonly settings: SettingsService,
+    private readonly settings: SettingsReadPort,
     private readonly loadCustomEvents: CustomEventsLoader = async () => [],
   ) {}
 

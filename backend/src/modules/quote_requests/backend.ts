@@ -23,7 +23,7 @@ import {
 } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from './manifest.js';
 import { quoteRequestsModule, type QuoteRequestsModuleOptions } from './plugin.js';
 
@@ -62,7 +62,7 @@ export interface QuoteRequestsCradle {
   readonly auditLogService: AuditLogService;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: QuoteRequestsModuleOptions['requireCustomer'];
-  readonly settingsReadPort: SettingsService;
+  readonly settingsReadPort: SettingsReadPort;
   /**
    * The channel a global-scope settings read resolves against: the deployment's
    * system-default sales channel, or `null` when it has none. A root input

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { NEWSLETTER_SETTING_CODES, type ProviderConfig, type PutProviderRequest } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import type { AdminAuditContext } from './provider-admin.types.js';
 import type { NewsletterProviderRegistry } from './provider/provider-registry.js';
 
@@ -24,7 +24,7 @@ export interface SettingsWriter {
  */
 export class NewsletterProviderAdminService {
   constructor(
-    private readonly settings: SettingsService,
+    private readonly settings: SettingsReadPort,
     private readonly writer: SettingsWriter,
     private readonly providers: NewsletterProviderRegistry,
   ) {}

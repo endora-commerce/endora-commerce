@@ -23,7 +23,7 @@ import { lazyPort } from '../../kernel/index.js';
 import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { abandonmentSettingsReaders } from './services/cart-abandonment-settings.js';
 import { CartQueryService } from './services/cart-query-service.js';
 import { CartReadService, createCartWritePort } from './services/cart-read-port.js';
@@ -100,7 +100,7 @@ export interface CartsCradle {
   readonly auditLogService: AuditLogService;
   readonly redis: Redis;
   readonly requireAdmin: RequireAdminFactory;
-  readonly settingsReadPort: SettingsService;
+  readonly settingsReadPort: SettingsReadPort;
   /**
    * Feature 075, Phase C — the six ports every service here used to reach by
    * importing another module's class or entity. Each is a contract type from

@@ -1,4 +1,4 @@
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 const ENABLED_CODE = 'storefront.speculation_rules.enabled';
 const EAGERNESS_CODE = 'storefront.speculation_rules.eagerness';
@@ -21,7 +21,7 @@ export interface SpeculationRulesConfig {
  * effect depends on the active Storefront UI theme implementing the mechanism.
  */
 export class SpeculationRulesResolver {
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(private readonly settingsService: SettingsReadPort) {}
 
   /**
    * Feature 075 / D-87 — the resolved request channel's id, passed in by the

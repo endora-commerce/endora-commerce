@@ -12,8 +12,8 @@ import { ThresholdAdminService } from './services/threshold-admin-service.js';
 import { LowStockAlertService, type InventoryTemplateEmailPort } from './services/low-stock-alert-service.js';
 import { registerInventoryRoutes } from './routes.js';
 import { registerInventoryAdminRoutes } from './routes.admin.js';
-import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SalesChannelResolutionPort } from '../../kernel/ports/sales-channel.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type {
   CatalogCategoryReadPort,
@@ -64,10 +64,10 @@ export interface InventoryModuleOptions {
   eventBus?: EventBus;
   /** Optional channel resolver — when supplied, storefront-public stock
    *  reads scope cumulative on-hand to the caller's channel binding. */
-  channelResolver?: SalesChannelResolverService;
+  channelResolver?: SalesChannelResolutionPort;
   /** Optional settings service used to read the inventory.display_mode key
    *  for the storefront-public display-mode endpoint. */
-  settingsService?: SettingsService;
+  settingsService?: SettingsReadPort;
   /**
    * `emailMailer`, owned by `email`, as its published contract (feature 075).
    * Required: the `ConsoleMailer` default this used to fall back to was a value

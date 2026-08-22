@@ -34,8 +34,8 @@ import type {
   RequireAdminAnyFactory,
   RequireAdminFactory,
 } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SalesChannelResolutionPort } from '../../kernel/ports/sales-channel.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { ORGANIZATIONS_SETTING_CODES } from './manifest.js';
 import {
   creditInheritanceModeSchema,
@@ -158,8 +158,8 @@ export interface OrganizationsCradle {
   readonly eventBus: EventBus;
   readonly commandBus: CommandBus;
   readonly auditLogService: AuditLogService;
-  readonly settingsReadPort: SettingsService;
-  readonly salesChannelResolutionPort: SalesChannelResolverService;
+  readonly settingsReadPort: SettingsReadPort;
+  readonly salesChannelResolutionPort: SalesChannelResolutionPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireAdminAny: RequireAdminAnyFactory;
   readonly requireCustomer: OrganizationsModuleOptions['requireCustomer'];
@@ -261,7 +261,7 @@ export function registerModule(ctx: ModuleContext): void {
    */
   const readSetting = async <T>(
     code: string,
-    schema: Parameters<SettingsService['get']>[2],
+    schema: Parameters<SettingsReadPort['get']>[2],
     fallback: T,
   ): Promise<T> => {
     try {

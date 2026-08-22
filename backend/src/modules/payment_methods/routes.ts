@@ -20,7 +20,7 @@ import {
   toModulePresenceDto,
 } from '../../kernel/lifecycle/effective-state.js';
 import { PaymentMethod } from './entities/payment-method.entity.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import type { PaymentAdapterRegistry } from './services/payment-adapter-registry.js';
 import type { PaymentMethodEligibilityService } from './services/payment-method-eligibility.js';
 import {
@@ -55,7 +55,7 @@ export interface PaymentMethodsAdminDeps {
   /** Issue #125 — the two admin writes run on the bus (Principle XIII). */
   commandBus: CommandBus;
   /** Feature 005 / T027b — new payment methods auto-bind to the system default. */
-  salesChannelMembership?: SalesChannelMembershipService;
+  salesChannelMembership?: SalesChannelMembershipPort;
   /** Feature 034 — validates `adapter` against the registered adapters. */
   registry?: PaymentAdapterRegistry;
   /** Feature 034 — validates `statusOn*` references + powers /admin/order-statuses. */
@@ -253,7 +253,7 @@ function assertValidStatus(registry: OrderStatusRegistry, ref: string): void {
 }
 
 async function replaceChannelMembership(
-  membership: SalesChannelMembershipService,
+  membership: SalesChannelMembershipPort,
   methodId: string,
   desiredChannelIds: string[],
 ): Promise<void> {

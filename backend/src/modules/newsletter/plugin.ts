@@ -4,7 +4,7 @@ import type Redis from 'ioredis';
 import { NEWSLETTER_SETTING_CODES, type EmailMailerPort } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { NewsletterTokenHelper } from './services/token.helper.js';
@@ -42,7 +42,7 @@ import { registerNewsletterSelfRoutes } from './routes.self.js';
 
 export interface NewsletterModuleOptions {
   emFactory: () => EntityManager;
-  settings: SettingsService;
+  settings: SettingsReadPort;
   tokenSecret: string;
   /**
    * The channel a subscriber with no origin channel belongs to — the

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Processor, Queue } from 'bullmq';
 import { GOOGLE_TAG_MANAGER_SETTING_CODES, type GtmCollectRequest } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import type { GtmIngestContext, GtmRelayJobData } from './ss-relay-queue.js';
 import type { SgtmClient, SgtmEvent } from './sgtm-client.js';
 
@@ -54,7 +54,7 @@ export function makeEnqueuer(queue: Queue<GtmRelayJobData>) {
 }
 
 export interface GtmRelayProcessorDeps {
-  settings: SettingsService;
+  settings: SettingsReadPort;
   client: SgtmClient;
 }
 
@@ -97,7 +97,7 @@ export function makeProcessor(deps: GtmRelayProcessorDeps): Processor<GtmRelayJo
 
 /** A destination read must never fail the job on an unregistered setting. */
 async function read(
-  settings: SettingsService,
+  settings: SettingsReadPort,
   code: string,
   salesChannelId: string,
 ): Promise<string> {

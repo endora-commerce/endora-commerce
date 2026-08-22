@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SearchPhraseRecord } from '../entities/search-phrase-record.entity.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import {
   SEARCH_SETTING_CODES,
   DEFAULT_POPUP_MINIMUM_QUERY_LENGTH,
@@ -41,7 +41,7 @@ export interface RecordPhraseInput {
 export class SearchPhraseRecorder {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly settingsService?: SettingsService,
+    private readonly settingsService?: SettingsReadPort,
     private readonly onError: (err: unknown) => void = defaultLogger,
   ) {}
 

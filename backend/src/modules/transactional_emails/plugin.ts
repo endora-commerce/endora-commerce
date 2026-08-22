@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@b2b/contracts';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../commands/index.js';
 import type {
@@ -21,7 +21,7 @@ import { registerTransactionalEmailsAdminRoutes } from './routes.admin.js';
 
 export interface TransactionalEmailsModuleOptions {
   emFactory: () => EntityManager;
-  settingsService: SettingsService;
+  settingsService: SettingsReadPort;
   requireAdmin: (permission?: string) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
   resolveAdminUserId: (req: FastifyRequest) => string | null;
   /** All registered module manifests — drives boot reconciliation of definitions. */

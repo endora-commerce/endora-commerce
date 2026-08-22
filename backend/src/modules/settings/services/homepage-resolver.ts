@@ -1,5 +1,5 @@
 import type { HomepageConfig } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 const HOMEPAGE_SETTING_CODE = 'homepage_cms_page_slug';
 
@@ -14,7 +14,7 @@ const HOMEPAGE_SETTING_CODE = 'homepage_cms_page_slug';
  * or inactive one before a handler runs.
  */
 export class HomepageResolver {
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(private readonly settingsService: SettingsReadPort) {}
 
   /**
    * Feature 075 / D-87 — the resolved request channel's id, passed in by the

@@ -25,7 +25,7 @@ import {
   BULK_OPERATION_JOB_NAME,
 } from './services/bulk-operation-queue.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import {
   CatalogAdminService,
@@ -141,7 +141,7 @@ export interface CatalogModuleOptions {
    * Production composition.ts always provides this; tests omit it for
    * pre-feature-005 fixtures.
    */
-  salesChannelMembership?: SalesChannelMembershipService;
+  salesChannelMembership?: SalesChannelMembershipPort;
   /**
    * Issue #185 — `inventory`'s per-warehouse threshold copy, used by product
    * duplication. Contributed as a presence-decided closure rather than resolved
@@ -435,7 +435,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     }
     // Feature 022 — scope editor services. Conditional on the
     // composition root providing both LanguageService and the
-    // SalesChannelMembershipService, since the context endpoint needs
+    // SalesChannelMembershipPort, since the context endpoint needs
     // both to assemble its response.
     const editorPreferencesService = new ProductEditorPreferencesService(
       options.emFactory,

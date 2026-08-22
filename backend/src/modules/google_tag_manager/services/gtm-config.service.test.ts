@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { GOOGLE_TAG_MANAGER_SETTING_CODES } from '@b2b/contracts';
 import { GtmConfigService } from './gtm-config.service.js';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 /**
- * Fake SettingsService — resolves from a per-code map; unknown codes throw
+ * Fake SettingsReadPort — resolves from a per-code map; unknown codes throw
  * (mirroring SettingNotRegistered) so the service's graceful fallbacks are
  * exercised.
  */
-function fakeSettings(values: Record<string, unknown>): SettingsService {
+function fakeSettings(values: Record<string, unknown>): SettingsReadPort {
   return {
     async get(code: string): Promise<unknown> {
       if (!(code in values)) throw new Error(`not registered: ${code}`);
       return values[code];
     },
-  } as unknown as SettingsService;
+  } as unknown as SettingsReadPort;
 }
 
 const C = GOOGLE_TAG_MANAGER_SETTING_CODES;

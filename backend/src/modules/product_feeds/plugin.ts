@@ -19,7 +19,7 @@ import {
 import type { CommandBus } from '../../commands/index.js';
 import type { ModulePlugin } from '../../http/server.js';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import {
   ArtefactStore,
   type ArtefactStorageAdapterProvider,
@@ -232,7 +232,7 @@ export interface ProductFeedsModuleOptions {
   /** Assets Library storage adapters — bytes only, never an `Asset` row (FR-043). */
   storageAdapters: ArtefactStorageAdapterProvider;
   /** The ONE sanctioned channel accessor (Principle XII). */
-  salesChannelMembership: SalesChannelMembershipService;
+  salesChannelMembership: SalesChannelMembershipPort;
   pricingService: FeedPricingPort;
   taxService: TaxServicePort;
   /**

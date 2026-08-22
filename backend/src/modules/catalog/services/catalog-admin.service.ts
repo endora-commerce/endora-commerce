@@ -60,7 +60,7 @@ import {
   ProductTypeValidationError,
 } from './product-type-validations.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import type { CustomFieldDefinitionWithOptions } from '@b2b/contracts';
 import type { Command, CommandBus } from '../../../commands/index.js';
 // D-77 — the apply seam is named once in this module, by `attribute-commands.ts`
@@ -145,7 +145,7 @@ export class CatalogAdminService {
      * existing tests that construct this service without sales-channels
      * keep compiling; production composition.ts always provides it.
      */
-    private readonly salesChannelMembership?: SalesChannelMembershipService,
+    private readonly salesChannelMembership?: SalesChannelMembershipPort,
     /**
      * Feature 054 — when injected, `updateProductAudited` records the admin
      * single-update through the Command Bus (co-transactional audit + event).

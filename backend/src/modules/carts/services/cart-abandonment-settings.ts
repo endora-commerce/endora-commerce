@@ -1,9 +1,6 @@
 import { z } from 'zod';
-import {
-  SettingNotRegistered,
-  SettingOutOfScopeForChannel,
-  type SettingsService,
-} from '../../../kernel/settings/settings.service.js';
+import { SettingNotRegistered, SettingOutOfScopeForChannel } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import {
   CARTS_SETTING_CODES,
   DEFAULT_ABANDONMENT_INACTIVITY_MINUTES,
@@ -60,7 +57,7 @@ function warnOnce(condition: string, message: string): void {
  * once, because that scoping cannot be intentional for a platform-wide value).
  */
 async function readPlatformSetting<T>(
-  settings: SettingsService,
+  settings: SettingsReadPort,
   code: string,
   schema: z.ZodType<T>,
   fallback: T,
@@ -88,7 +85,7 @@ async function readPlatformSetting<T>(
  * its owner is switched off.
  */
 export function abandonmentSettingsReaders(
-  settings: () => SettingsService,
+  settings: () => SettingsReadPort,
 ): AbandonmentSettingsReaders {
   return {
     resolveInactivityMinutes: async () =>

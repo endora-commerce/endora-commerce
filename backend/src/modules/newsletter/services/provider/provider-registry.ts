@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
 import type { NewsletterSendProvider, ResolveResult } from '@b2b/contracts';
-import type { SettingsService } from '../../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../../kernel/ports/settings.js';
 import { ConsoleNewsletterProvider } from './console-provider.js';
 import { SmtpProvider } from './smtp-provider.js';
 
@@ -29,7 +29,7 @@ export interface CredentialResolvePort {
  */
 export class NewsletterProviderRegistry {
   constructor(
-    private readonly settings: SettingsService,
+    private readonly settings: SettingsReadPort,
     private readonly credentials?: CredentialResolvePort,
   ) {}
 

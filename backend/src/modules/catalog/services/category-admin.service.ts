@@ -11,7 +11,7 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import type { CommandBus, CommandEvent } from '../../../commands/index.js';
-import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { Category } from '../entities/category.entity.js';
 
 /** Result of a category write closure: the entity + its audit snapshot. */
@@ -84,7 +84,7 @@ export class CategoryAdminService {
      * existing tests that construct this service without sales-channels
      * keep compiling; production composition.ts always provides it.
      */
-    private readonly salesChannelMembership?: SalesChannelMembershipService,
+    private readonly salesChannelMembership?: SalesChannelMembershipPort,
     /** Feature 054 — audits category writes co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
     /** Feature 055 — validates + merges custom-field values on category write. */

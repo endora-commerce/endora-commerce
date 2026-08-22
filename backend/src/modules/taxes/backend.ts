@@ -3,7 +3,7 @@ import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import type {
   TaxServicePort, DictionaryValidator,
   DictionaryReferenceRegistryPort,
@@ -35,7 +35,7 @@ export interface TaxesCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditLogService;
   readonly requireAdmin: RequireAdminFactory;
-  readonly salesChannelMembershipPort: SalesChannelMembershipService;
+  readonly salesChannelMembershipPort: SalesChannelMembershipPort;
   readonly dictionaryValidator: DictionaryValidator | undefined;
   readonly taxService: TaxService;
 }
@@ -51,7 +51,7 @@ export function registerModule(ctx: ModuleContext): void {
         }: TaxesCradle) =>
           new TaxService(
             emFactory,
-            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
             auditLogService,
           ),

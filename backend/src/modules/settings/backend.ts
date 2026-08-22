@@ -8,7 +8,7 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsCacheInvalidation } from '../../kernel/settings/settings-cache.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import {
   SettingsAdminService,
   type AdminAuditContext,
@@ -31,8 +31,9 @@ import { registerSettingsSpeculationRulesRoutes } from './routes.speculation-rul
  * `settings` — the admin surface, after the kernel took the reader (feature
  * 072, wave 2, T118).
  *
- * `SettingsService`, its cache and the cache invalidator are composed by a root
- * through `composeSettingsKernel`: a settings read backs behaviour in nearly
+ * The kernel's settings reader behind `settingsReadPort`, its cache and the
+ * cache invalidator are composed by a root through `composeSettingsKernel`: a
+ * settings read backs behaviour in nearly
  * every module, so it must not be gated on whether an operator wants the
  * settings screens. What is left here is genuinely this module's — the admin
  * write service, the cache-clear action, the four storefront resolvers and six
@@ -64,7 +65,7 @@ export interface SettingsCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly adminAuditActorResolver: (req: FastifyRequest) => AdminAuditContext;
   /** The kernel reader, so the resolvers read through the same cache. */
-  readonly settingsReadPort: SettingsService;
+  readonly settingsReadPort: SettingsReadPort;
   /**
    * The kernel cache the reader reads through, so the **write seam** can drop
    * it and await the drop (issue #45). Root-supplied alongside
@@ -106,19 +107,19 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
 
     settingsShopInfoResolver: ctx
-      .asFunction(() => new ShopInfoResolver(lazyPort<SettingsService>(ctx, 'settingsReadPort')))
+      .asFunction(() => new ShopInfoResolver(lazyPort<SettingsReadPort>(ctx, 'settingsReadPort')))
       .singleton(),
 
     settingsHomepageResolver: ctx
-      .asFunction(() => new HomepageResolver(lazyPort<SettingsService>(ctx, 'settingsReadPort')))
+      .asFunction(() => new HomepageResolver(lazyPort<SettingsReadPort>(ctx, 'settingsReadPort')))
       .singleton(),
 
     settingsProductCardButtonsResolver: ctx
-      .asFunction(() => new ProductCardButtonsResolver(lazyPort<SettingsService>(ctx, 'settingsReadPort')))
+      .asFunction(() => new ProductCardButtonsResolver(lazyPort<SettingsReadPort>(ctx, 'settingsReadPort')))
       .singleton(),
 
     settingsSpeculationRulesResolver: ctx
-      .asFunction(() => new SpeculationRulesResolver(lazyPort<SettingsService>(ctx, 'settingsReadPort')))
+      .asFunction(() => new SpeculationRulesResolver(lazyPort<SettingsReadPort>(ctx, 'settingsReadPort')))
       .singleton(),
   });
 

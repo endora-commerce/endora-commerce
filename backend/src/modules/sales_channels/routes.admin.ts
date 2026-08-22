@@ -13,7 +13,7 @@ import type {
   AdminAuditContext,
   SalesChannelsService,
 } from './services/sales-channels.service.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import type { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
@@ -77,7 +77,7 @@ const ExpectedVersionShape = z.object({
 
 export interface SalesChannelsAdminDeps {
   salesChannelsService: SalesChannelsService;
-  membershipService: SalesChannelMembershipService;
+  membershipService: SalesChannelMembershipPort;
   requireAdmin: RequireAdminFactory;
   resolveAdminAuditContext?: (req: FastifyRequest) => AdminAuditContext;
 }

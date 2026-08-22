@@ -15,7 +15,7 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
@@ -128,7 +128,7 @@ export class PromotionService {
      * platform-owned container name besides, so absence is not a state a
      * composition can reach.
      */
-    private readonly salesChannelMembership: SalesChannelMembershipService,
+    private readonly salesChannelMembership: SalesChannelMembershipPort,
     /**
      * Feature 037 — the dictionary reference validator, owned by
      * `dictionaries`: it is what makes a promotion's `currency` a code the
@@ -377,7 +377,7 @@ export class PromotionService {
     //   - `null`  → the cart resolved to no channel → nothing matches (fail closed);
     //   - absent  → a legacy caller that does not participate in channel scoping →
     //               the gate is skipped (neutrality; every real caller sends the field).
-    // The bridge is read only through SalesChannelMembershipService (Principle
+    // The bridge is read only through SalesChannelMembershipPort (Principle
     // XII's accessor clause, enforced by `check:module-boundary`'s `sql`
     // predicate since D-87). The accessor is required since issue #251: it used
     // to be optional, and "not wired ⇒ no channel filtering" is the shape

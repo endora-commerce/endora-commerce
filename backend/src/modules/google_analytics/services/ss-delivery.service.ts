@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Processor } from 'bullmq';
 import type { Queue } from 'bullmq';
 import { GOOGLE_ANALYTICS_SETTING_CODES, type GaCollectRequest } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import type { GaDeliveryJobData } from './ss-delivery-queue.js';
 import type { Ga4MpClient } from './ga4-mp-client.js';
 
@@ -43,7 +43,7 @@ export function makeEnqueuer(queue: Queue<GaDeliveryJobData>) {
 }
 
 export interface ProcessorDeps {
-  settings: SettingsService;
+  settings: SettingsReadPort;
   client: Ga4MpClient;
 }
 

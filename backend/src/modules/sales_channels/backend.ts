@@ -14,7 +14,7 @@ import type {
   SalesChannelsCache,
   SalesChannelsCacheInvalidation,
 } from '../../kernel/sales-channels/sales-channels-cache.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { SalesChannelAttributionRegistry } from './services/sales-channel-attribution-registry.js';
 import { SalesChannelsService } from './services/sales-channels.service.js';
 import type { AdminAuditContext } from './services/sales-channels.service.js';
@@ -53,7 +53,7 @@ export interface SalesChannelsCradle {
   readonly adminAuditActorResolver: (req: FastifyRequest) => AdminAuditContext;
   /** Kernel-composed, so it is the same cache the resolver reads through. */
   readonly salesChannelsCache: SalesChannelsCache;
-  readonly salesChannelMembershipPort: SalesChannelMembershipService;
+  readonly salesChannelMembershipPort: SalesChannelMembershipPort;
   readonly dictionaryValidator: DictionaryValidator;
   /**
    * Owned here, contributed to from `orders` and `quote_requests` (feature 075,

@@ -28,8 +28,8 @@ import { CustomerAddressReadService } from './services/customer-address-read-por
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SalesChannelResolutionPort } from '../../kernel/ports/sales-channel.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { CUSTOMERS_SETTING_CODES } from './manifest.js';
 import { customersModule, type CustomersModuleOptions } from './plugin.js';
 
@@ -78,8 +78,8 @@ import { customersModule, type CustomersModuleOptions } from './plugin.js';
 export interface CustomersCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditLogService;
-  readonly settingsReadPort: SettingsService;
-  readonly salesChannelResolutionPort: SalesChannelResolverService;
+  readonly settingsReadPort: SettingsReadPort;
+  readonly salesChannelResolutionPort: SalesChannelResolutionPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: CustomersModuleOptions['requireCustomer'];
   readonly customerAuthService: CustomersModuleOptions['customerAuthService'];
@@ -112,7 +112,7 @@ export function registerModule(ctx: ModuleContext): void {
    */
   const readChannelSetting = async <T>(
     code: string,
-    schema: Parameters<SettingsService['get']>[2],
+    schema: Parameters<SettingsReadPort['get']>[2],
     fallback: T,
   ): Promise<T> => {
     try {

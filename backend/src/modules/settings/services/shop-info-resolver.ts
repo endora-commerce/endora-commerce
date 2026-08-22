@@ -1,5 +1,5 @@
 import type { ShopInfo } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 /**
  * Maps the `shop.*` settings to the public {@link ShopInfo} surface consumed
@@ -16,7 +16,7 @@ const FIELD_TO_CODE: Record<keyof ShopInfo, string> = {
 };
 
 export class ShopInfoResolver {
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(private readonly settingsService: SettingsReadPort) {}
 
   /**
    * Feature 075 / D-87 — the resolved request channel's id, passed in by the

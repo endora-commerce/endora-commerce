@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ResolveResult } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import { SEARCH_SETTING_CODES } from '../manifest.js';
 
 /** Narrow port over CredentialsService.resolve (feature 058, Principle I). */
@@ -29,7 +29,7 @@ const stringSchema = z.string();
  * process.
  */
 export async function resolveEmbedderConfig(
-  settings: SettingsService,
+  settings: SettingsReadPort,
   channelId: string,
   credentials?: CredentialResolvePort,
 ): Promise<EmbedderConfig> {

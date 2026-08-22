@@ -6,8 +6,8 @@ import type { CommandBus } from '../../commands/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SalesChannelResolutionPort } from '../../kernel/ports/sales-channel.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { transactionalEmailsModule, type TransactionalEmailsModuleOptions } from './plugin.js';
 import type { BrandingService, AssetUrlResolver } from './services/branding.service.js';
 import type { TransactionalEmailService } from './services/transactional-email.service.js';
@@ -47,8 +47,8 @@ export interface TransactionalEmailsCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditLogService;
   readonly commandBus: CommandBus;
-  readonly settingsReadPort: SettingsService;
-  readonly salesChannelResolutionPort: SalesChannelResolverService;
+  readonly settingsReadPort: SettingsReadPort;
+  readonly salesChannelResolutionPort: SalesChannelResolutionPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string | null };
   readonly resolvedModuleRegistry: ReadonlyArray<{ manifest: ModuleManifest }>;
@@ -115,7 +115,7 @@ export function registerModule(ctx: ModuleContext): void {
             commandBus,
             manifests: resolvedModuleRegistry.map((entry) => entry.manifest),
             defaultsRegistry: cradle().emailDefaultsRegistryInstance,
-            settingsService: lazyPort<SettingsService>(ctx, 'settingsReadPort'),
+            settingsService: lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
             settingsAdmin: lazyPort<TransactionalEmailsCradle['settingsAdminService']>(
               ctx,
               'settingsAdminService',

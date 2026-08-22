@@ -11,7 +11,7 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { ComparisonService } from './services/comparison-service.js';
 import { ComparisonAdminService } from './services/comparison-admin.service.js';
 import { ComparableAttributeProjection } from './services/comparable-attribute-projection.js';
@@ -55,7 +55,7 @@ import { registerComparisonsAdminRoutes } from './routes.admin.js';
 export interface ComparisonsCradle {
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
-  readonly settingsReadPort: SettingsService;
+  readonly settingsReadPort: SettingsReadPort;
   readonly comparisonService: ComparisonService;
   readonly comparisonAdminService: ComparisonAdminService;
   readonly comparisonShareTokens: ShareTokenGenerator;
@@ -90,7 +90,7 @@ export function registerModule(ctx: ModuleContext): void {
             // and a comparison whose products are unreadable has no column to
             // put an image in.
             lazyPort<CatalogGalleryPort>(ctx, 'galleryService'),
-            lazyPort<SettingsService>(ctx, 'settingsReadPort'),
+            lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
             // The attribute read model, now `catalog`'s published port rather
             // than a hand-made adapter over a name a root registered.
             lazyPort<CatalogAttributeReadPort>(ctx, 'catalogAttributeReadPort'),
