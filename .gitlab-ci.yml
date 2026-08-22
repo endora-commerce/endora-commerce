@@ -273,6 +273,20 @@ quality:
     # Per-deployment builds add `DEPLOYMENT=<name>` and run this same check plus
     # the DB-backed suite (see the overlay matrix note above `test:backend`).
     - pnpm --filter backend run overlay:check
+    # Feature 080 (T043) — the release-intent gate below cannot silently stop
+    # asking. `release:changeset` is the changesets CLI's own command, so there
+    # is nothing of ours in it to keep correct — and that was the stated reason
+    # it needed no check, which is backwards: the CLI is right, and what decides
+    # whether it is *looking* is `.changeset/config.json`. Measured, with a
+    # branch that changes `packages/` and carries no changeset: at
+    # `privatePackages.version: true` the gate exits 1, at `false` — the
+    # `@changesets/config@4` default — it exits 0 with an empty release plan,
+    # and with the block deleted it exits 0 too. Four lines of apparent
+    # boilerplate, and nothing in the tree read them. It runs HERE rather than
+    # in `release:changeset` deliberately: `quality` has no `changes:` filter,
+    # so it also runs on the merge request whose only diff is that file, which
+    # matches no rung of `.backend-test-rules`.
+    - pnpm --filter backend run check:release-intent
   cache:
     key:
       files:
@@ -342,7 +356,22 @@ quality:static:
 # asks "did any versionable package change while the branch carries zero
 # changesets", not "is there a changeset for each package that changed". A
 # branch touching two packages satisfies it with one file. Reviewers close
-# that gap; the gate closes the one that is mechanical.
+# that gap; the gate closes the one that is mechanical. Nor can it see the
+# config it runs under — `check:release-intent` in the `quality` job does that,
+# and a `privatePackages.version` of `false` makes the command below exit 0
+# over a branch that changed a package and carries no changeset.
+#
+# **A release branch is the one branch this gate would otherwise refuse for
+# doing its job.** `pnpm run version:packages` consumes the pending changesets,
+# so the resulting merge request changes every bumped `packages/*/package.json`
+# and carries zero changeset files — which is, to the CLI, precisely the shape
+# it exists to fail. Measured: exit 1, "Some packages have been changed but no
+# changesets were found". The discriminator below is the **diff**, not a branch
+# name: a branch that deletes changeset files and adds none has consumed them,
+# and nothing else in this repository does that. On such a branch the question
+# is inverted rather than skipped — a release that bumped no version is the
+# `changeset version` no-op arriving through the other door, and it is refused
+# here for the same reason `version-packages.mjs` refuses it locally.
 # ---------------------------------------------------------------------------
 release:changeset:
   stage: quality
@@ -368,7 +397,28 @@ release:changeset:
         echo "release:changeset — no merge base between HEAD and origin/$base; refusing to report a pass measured against nothing." >&2
         exit 2
       fi
+      consumed=$(git diff --no-renames --diff-filter=D --name-only "origin/$base...HEAD" -- '.changeset/*.md' | grep -viE '/readme\.md$' || true)
+      written=$(git diff --no-renames --diff-filter=A --name-only "origin/$base...HEAD" -- '.changeset/*.md' | grep -viE '/readme\.md$' || true)
+      if [ -n "$consumed" ] && [ -z "$written" ]; then
+        echo "release:changeset — this branch deletes changeset files and adds none, so it is a release branch; asking whether it released anything instead."
+        echo "$consumed" | sed 's/^/  consumed: /'
+        if git diff -U0 "origin/$base...HEAD" -- '*/package.json' | grep -qE '^\+[[:space:]]*"version"[[:space:]]*:'; then
+          git diff -U0 "origin/$base...HEAD" -- '*/package.json' | grep -E '^\+[[:space:]]*"version"[[:space:]]*:' | sed 's/^/  released: /'
+          exit 0
+        fi
+        echo "release:changeset — it consumed the changesets above and moved no package version. That is what \`changeset version\` does when \`.changeset/config.json\` cannot see the packages: it exits 0, reports success and bumps nothing. Run \`pnpm --filter backend run check:release-intent\`." >&2
+        exit 1
+      fi
       pnpm exec changeset status --since="origin/$base"
+    # Feature 080 (T043) — the gate above, measured over real branches, in the
+    # one job that has git. Every backend job runs `node:22.17-slim`, which
+    # ships none (`test/helpers/shell-check-fixture.ts` fakes `git ls-files` for
+    # that reason), and the release-branch discriminator IS a `git diff`, so a
+    # fake would prove the fake. It reaches no service and imports no `@b2b/*`
+    # package, which is why this job still needs neither containers nor
+    # `build:packages`. `check-release-intent.test.ts` fails in the unit suite
+    # if this line goes away, so the file cannot become one nothing runs.
+    - pnpm --filter backend run test:release-gate
   cache:
     key:
       files:
@@ -405,6 +455,15 @@ release:changeset:
         - pnpm-lock.yaml
         - tsconfig.base.json
         - .gitlab-ci.yml
+        # Feature 080 (T043) — `test/unit/release/changeset-flow.test.ts` spawns
+        # the real changesets CLI over this repository's own manifests and this
+        # file, and it is the only thing that measures what the release flow
+        # does rather than what its config says. Without this entry an MR whose
+        # only diff is `.changeset/config.json` matches no rung: not rung 1, and
+        # not rung 2 either, since it is not `*.md`. The changeset *files* are
+        # deliberately not here — a documentation MR carrying one empty
+        # changeset would otherwise pull in the whole backend suite.
+        - .changeset/config.json
     # 2 — nothing on that list changed and the diff IS documentation. Ten of the
     #     last sixty merges to master touched nothing outside `docs/`, `specs/`
     #     and `*.md`, and each one ran the whole backend suite. This skips them

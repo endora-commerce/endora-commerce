@@ -752,6 +752,7 @@ of this table: it enumerates every `check-*` script and fails on one it does not
 | `check:port-catches` | `quality` | A `catch` that swallows `ModuleDisabledError` — see composition checklist item 7. Since D-88 it also follows the gate **one hop backwards**: a method of the same class whose body reaches a port carries, for a `catch` around `this.<method>()`, transitively inside the class. That is not the propagation the header refuses — that one carries a call's *result* **forward** into every downstream and produced 39 false findings; this carries a callee's *body* **backward** to the call site, through `this` and nothing else. A free function in another file, a callback from outside the class and a method on a non-port collaborator are all outside it, deliberately; a class method also **shadows** a module-scoped alias of the same spelling. Since issue #278 an alias is visible **where its binding is**: a constructor or function parameter is scoped to the file that *declares* it rather than the module the call site sits in, and a bare identifier resolves lexically, so a nearer binding that *manifestly* holds no port — a literal, a `new` over those — hides a wider alias. The old module-wide scoping was not merely noisy: an author who names a parameter `transitionService` reds an unrelated local of that spelling two files away, and the rename that clears it hid a live fail-open (`orders/prompt-tools.ts`). "The analysis cannot follow this" is **not** "this is not a port", so a call-bound local shadows nothing; and the `OWNER LOCKED` gate merge stays deliberately over-approximating, because that argument is about which owners a site rests on, never about which sites exist. |
 | `check:port-dependencies` | `quality` | A cross-module port edge the resolver's manifest does not declare, and an edge with no deactivation-consequence classification — see checklist items 4 and 4a. Also verifies `PLATFORM_OWNED_NAMES`, which grants both of those exemptions, against the three supply sources a composition really has — the two roots and `src/kernel/**` — for four findings: unsupplied, one-root divergence, owned-by-a-module and stale (issue #49). The list stays hand-written; every consequence of being on it is derived. Since feature 080's T034 the port→owner map has a **fourth** supply source, the container names an **installed extension package** registers: without it a name a package owns resolved to nobody and the *consumer* was reported as `unowned-name` — a wiring bug — when the wiring is right and the map was short, which is the ordinary case of the F4 endgame. Read statically, with this file's own `providedPortNames` / `registeredNames`, from the package's `./backend` artefact; an artefact whose own source does not declare the `registerModule` it hands out is bundled or re-exported and is **exit 2**, never credited with zero names. |
 | `check:port-shape` | `quality` | **Three signals on a published port, over one population.** (1) An **optional method** on a published port, or on an interface `extends`-ing one (D-97.3). Feature detection through a port is impossible by construction: `lazyPort`'s proxy answers every property with a function, so `if (port.maybe)` is always true and the forward throws when the provider has none — and the proxy cannot be repaired, because an honest property read on a gated name throws. Optional *parameters* and optional *data properties* are untouched. No ledger for it: the single occurrence (`catalog` widening the custom-field read port with `publishInvalidate?`) is deleted, so an entry could only license re-opening it. (2) A **container name** in a port's doc block that is not the name the port is registered under (issue #192) — §1.2 makes that name contract, it is the literal a consumer copies into `lazyPort`, and nothing read it: on the tree the signal landed against, eight of 98 were wrong. Two shapes, and they fail differently: a name nothing registers throws `is not registered in this composition` at first call, while a name that resolves to the **ungated** legacy twin does not fail at all — `AdminRolePort` documented `adminRoleService`, a plain `di.register` whose `list()` returns entities structurally assignable to the record type, so a consumer following the doc got no `MODULE_DISABLED` gate and no `tsc` error. The second shape needs the registration's type argument, so it sees only the `providePort<T>` calls that carry one. A doc block may name **more than one** container, because a published shape may have more than one provider (`OrderStatusRegistry`, registered by `payment_methods` and by `delivery_methods`); `PORTS_WITHOUT_A_REGISTRATION` answers for a port with *no* provider, is two-way, and is empty since D-98.5. (3) A module **resolving, cross-module, a container name no contract publishes** (issue #196, D-98.2) — signal 2's edge walked the other way. It has to be checked on the *name*, at the *resolution*: `lazyPort<T>` is `new Proxy({} as T, …)`, so `T` is asserted and nothing compares it to the registration, which is why branding the record types was rejected — a brand bites only where the compiler compares, and here it never does. !698 corrected the docs and three consumers went on resolving the class name, invisible to everything. 33 sites over 10 names when it was written; the two-way `RESOLUTIONS_OF_UNPUBLISHED_NAMES` ledger keeps 3, and issue #209 drained the last that were repairs rather than rulings. One of them was **two answers under one key**: `catalog` named `customFieldDefinitionService` four times because both roots had handed the owner's one service to two different options, so the definition *read* and the transactional *apply* seam were indistinguishable from the container's side. The read half re-points to the published `customFieldDefinitionReadPort`; the apply half stays, because every method of `CustomFieldDefinitionApplyApi` takes the caller's `EntityManager` (D-77, FR-034). The three that remain are all of that shape — a seam a foreign key holds co-transactional — and retire with F4 package entry points, not with a doc fix. Self-resolutions and **cradle** reads are out of the population and both are proven by a discrimination fixture, the second because a cradle name is a contribution seam a root supplies. Exit 2 five ways, one per input a signal could be silently missing: no sources, no port type, no registration, no published container name, no `lazyPort` resolution. |
+| `check:release-intent` | `quality` | A `.changeset/config.json` under which the release gate below stops asking (feature 080, T043). The gate is `changeset status`, the CLI's own command, and *that* is why there was no check of it — which is backwards: the CLI is right, and what decides whether it is **looking** is the config. Measured, over the real five manifests, on a branch that changes `packages/contracts/src/index.ts` and carries no changeset — `privatePackages.version: true` exits **1**; `false` exits **0**; the block deleted exits **0**, and `false` is the `@changesets/config@4` default. Four lines of apparent boilerplate that nothing in the tree read, on a file no rung of `.backend-test-rules` matches. It runs in `quality`, which has no `changes:` filter, so it also runs on the merge request whose only diff is that file. Eight findings, none of them a list written down: `version-disabled` (the measurement above, required only while a versionable package is actually private); `publishable-package` (D-160.5 — everything stays private through Wave 4, and this is what makes the tag question land in the merge request that creates it); `tag-without-publication`; `ignored-family-member` and `unignored-application`, the two directions of the ignore list; `stale-ignore-entry`; `stale-group-member`; and `unversionable-changeset`, the reconciliation of written intent against derived classification. **Family or application is derived from the shape of the `pnpm-workspace.yaml` entry** — a glob enumerates a library family, a literal names one deployable — so 66 module packages arriving under a second scope and a directory deeper are versionable by default and the `ignore` list does not grow. That is also where the 67-package failure mode lives: `ignore` is glob-matched against **names**, so one entry reading `@endora-commerce/*` would exempt every module package at once while `changeset status` went on exiting 0, and `ignored-family-member` is the finding for it. The pattern reader implements `*` and `?` and **refuses** anything richer with exit 2 rather than reporting it as matching nothing — `@` and `+` are metacharacters only before a `(`, so `@endora-commerce/*` reads fine, which it has to, being the pattern the most valuable finding exists to catch. **No ledger, deliberately**: every finding is a configuration that makes the gate silent, and an entry could only license one. Exit 2 six ways — a missing or unparseable config, a `pnpm-workspace.yaml` that yields no globs (a flow-style list reads as none, and an empty workspace makes every predicate vacuously true), no member at all, a workspace entry that produced no member (#215 over this population: move the library tree and four application manifests still answer every question), and an unreadable `ignore` pattern. The floor lives **inside the analysis** rather than in `reportReadSize`, because a red proof entering where a real run enters could not otherwise reach it. |
 | `check:shared-table-wipes` | `quality` | A test that empties a shared table instead of scoping its fixtures (issue #166). Eight comparison files ran `nativeDelete(Comparison, {})` in a `beforeEach`, which is what let four of them assert `toHaveLength(1)` over the whole table — a claim about the platform, not about the row the test created. Sees all three spellings: the ORM filter left empty, a `truncate`, and a `delete from` with no `where`; a filtered delete of any size is the repair and is not reported, and the harness's own `SEEDED_TABLES` truncate is the seam rather than an instance of it. `UNSCOPED_WIPES_BASELINE` is a **per-file two-way ratchet** over the 197 wipes standing when it landed — a new one fails, and so does a number left standing after the deletes under it were scoped. Never raise a number to make the build pass. |
 | `check:subscribe-seam` | `quality` | A bare `eventBus.on` in a module instead of `ctx.subscribe` (issue #107). Empty two-way ledger. |
 | `check:transaction-context` | `quality` | SQL written inside a transaction that does not run inside it (issue #200). `em.getKnex()` is `getConnection().getKnex()` and a connection is not a transaction: the statement takes its own pooled connection and commits immediately, so the enclosing rollback cannot reach it and a read cannot see the transaction's own writes. `PromotionUsageService.finalize` incremented usage counters that way — a cap hit rolled the order back and left a redemption row pointing at an order that never existed (D-94) — and the sweep found 65 more (51 of them writes), including a megamenu tree a refused save deleted outright. Two shapes: a `getKnex()` call, and a `getConnection().execute(sql, params)` with no transaction context as its fourth argument. The population is only what is **lexically** decidable — the body of a `transactional(` callback and a Command's `run`, which `CommandBus.run` executes inside a transaction — because whether an arbitrary method has one open is a question about its callers; the repair (`em.execute(sql, params)`) needs no such knowledge, being identical outside a transaction. `CONNECTION_LEVEL_SQL_IN_TRANSACTIONS` is an empty two-way ledger. |
@@ -760,7 +761,7 @@ of this table: it enumerates every `check-*` script and fails on one it does not
 | `pnpm run check:naming` | `quality:static` | Principle VI, above. |
 | `pnpm run check:language` | `quality:static` | Principle VIII, above. |
 | `pnpm run check:pdfmake-footprint` | `quality` | A pdfmake font bundle over the single-VPS disk budget (Constitution IV). |
-| `pnpm changeset:status --since=…` | `release:changeset` | A merge request that changes a package under `packages/` and carries no changeset (D-107). Not a `check-*` script and deliberately not one: `changeset status` is the changesets CLI's own command for the question, so there is nothing of ours to keep correct and nothing for `check-inventory` to name — its `script` field must resolve to a file in this tree, and a vendored CLI is not one. See *Release intent — changesets* below. |
+| `pnpm changeset:status --since=…` | `release:changeset` | A merge request that changes a package under `packages/` and carries no changeset (D-107). Not a `check-*` script and deliberately not one: `changeset status` is the changesets CLI's own command for the question, so there is nothing of ours to keep correct and nothing for `check-inventory` to name — its `script` field must resolve to a file in this tree, and a vendored CLI is not one. That holds for the *question* and not for the *configuration* it is asked under, which is `check:release-intent`'s row above. The job also recognises a **release branch** — one that deletes changeset files and adds none, read off the diff with `--no-renames`, never off a branch name — and asks it the inverted question: a release that consumed changesets and moved no `version` is `changeset version`'s no-op arriving through the other door. See *Release intent — changesets* below. |
 
 Two more run in the same job with no npm script of their own, through
 `pnpm --filter backend exec tsx scripts/<name>.ts`: `check-entity-tenant-classification`
@@ -790,8 +791,13 @@ That is the entire trigger. `backend`, `admin`, `storefront` and `docs` are in t
 pnpm changeset             # write one (interactive)
 pnpm changeset --empty     # record "this change carries no release meaning"
 pnpm changeset:status      # what would be bumped
-pnpm changeset:version     # consume the changesets: bump versions, write CHANGELOG.md
+pnpm run version:packages  # cut a release branch: consume the changesets, bump, commit
 ```
+
+`pnpm changeset:version` is the bare CLI underneath and is **not** the step to run by hand:
+it exits 0 when it bumps nothing, which is exactly what a broken `.changeset/config.json`
+produces. `version:packages` wraps it with the two refusals that turn that silence into a
+failure.
 
 Where a change genuinely has no release meaning — a comment, a test, a rename crossing no
 export — write the empty changeset rather than looking for a way past the gate. It puts a
@@ -810,11 +816,50 @@ and inert for `@b2b/cms-components`, and no commit prefix knows which.
 number whenever a release includes more than one of them. `page-builder-core` is a **peer**
 dependency of the other two and ships React contexts and hooks, so the consuming application
 resolves exactly one copy; ranges that disagree resolve two, and a provider in one copy against
-a consumer in the other is a `null` context at runtime, not a type error. A release of
-`page-builder-core` therefore always carries all three; a patch on `cms-components` alone moves
-only itself, which is correct — it carries no runtime the app resolves once.
+a consumer in the other is a `null` context at runtime, not a type error.
 `@b2b/contracts` and `@b2b/api-client` version independently — Changesets patch-bumps a
 dependent on its own (`updateInternalDependencies: "patch"`).
+
+**Read `linked` precisely, because the sentence that used to stand here was measured wrong**
+(feature 080, T043). It said *"a release of `page-builder-core` therefore always carries all
+three"*, and that is true today for a reason nobody wrote down: `linked` **raises a package
+that is already in a release** to the group's highest number, and it never *adds* one. What
+puts `cms-components` and `email-components` into a `page-builder-core` release is their
+`peerDependencies` range going **out of range** — and every package sits at `0.0.0`, where
+`workspace:^` resolves to `^0.0.0` and any bump at all breaks it. Measured over the real
+manifests: at `0.0.0` a minor on `page-builder-core` moves all three to `0.1.0`; seeded at
+`1.4.2`, the same minor moves `page-builder-core` to `1.5.0` and leaves the other two where
+they are, while a **major** takes them out of range and moves all three to `2.0.0`.
+
+That divergence is correct, not a defect: the requirement is that the application resolve one
+copy, and `^1.4.2` satisfied by `1.5.0` resolves one copy. The shared number was the
+mechanism, never the requirement. It is asserted in both regimes by
+`backend/test/unit/release/changeset-flow.test.ts`, so the first real release does not
+discover it in a merge request. A patch on `cms-components` alone moves only itself, at every
+version — it carries no runtime the app resolves once.
+
+**The version step is `pnpm run version:packages`, and it runs locally.** It cuts a
+`release/version-<date>` branch, runs `changeset version`, and refuses two things a bare
+`pnpm changeset:version` cannot: a run with no changeset to consume, and a run that exited 0
+having moved nothing it consumed. The second is the whole reason it exists — see the
+`check:release-intent` row in the inventory. It runs locally rather than in CI because a
+version bump changes `packages/`, every change to `packages/` lands through a merge request,
+and a CI job that could open one needs a push credential that D-160.5 defers to the merge
+request that makes a package public. The reasoning is in the script's own header, in full.
+`release:changeset` recognises the resulting branch from the **diff** — it deletes changeset
+files and adds none — and asks it the inverted question: did anything's `version` actually
+move.
+
+**Tags: there are none, and `privatePackages.tag` stays `false` until something publishes.**
+While every package is private, a tag naming a package version anchors nothing a reader
+cannot re-derive from the commit that wrote the `version` field — D-100's shape, written into
+a ref every clone then fetches, 67 of them per release once the module packages land. What
+would make a tag *anchor* something is publication: a tag is how you assert that this exact
+tree is what a registry serves under that version, which git history alone cannot say about a
+registry. So the answer is coupled rather than written down — `check:release-intent` requires
+`tag: false` exactly while every versionable package is private, and reports the first package
+that stops being private — which puts the tag decision in the merge request that creates the
+need for it.
 
 Two things about `.changeset/config.json` that are load-bearing and look like boilerplate:
 
@@ -827,12 +872,19 @@ Two things about `.changeset/config.json` that are load-bearing and look like bo
   `backend` / `admin` / `storefront` / `docs`, the names in those manifests. The
   `pnpm-workspace.yaml` globs decide only what is discovered as a workspace; they do not reach
   `ignore`, and `packages/*` written there would match nothing. A typo fails safe — the app
-  stops being ignored and starts demanding changesets, loudly.
+  stops being ignored and starts demanding changesets, loudly. **An over-broad pattern does
+  not**: one entry reading `@endora-commerce/*` would exempt all 66 module packages at once,
+  silently, and that is what `check:release-intent` refuses as `ignored-family-member`.
+
+Neither bullet is enforced by being written here — both are `check:release-intent` findings,
+in the `quality` job, on every merge request. They were written here and read by nothing until
+feature 080's T043.
 
 Nothing is published yet: the five packages are `"private": true`, there is no `release`
 script, and `access` is `restricted`. Making a package public is a separate merge request,
-with the meta-package / supported-set question D-108 defers. The longer guide, for the moment
-you are writing the file, is `.changeset/README.md`.
+with the meta-package / supported-set question D-108 defers — and `check:release-intent` goes
+red the moment `private` comes off one, so that merge request cannot be a drive-by. The longer
+guide, for the moment you are writing the file, is `.changeset/README.md`.
 
 ## Overlay modules (per-deployment customization, feature 057)
 
