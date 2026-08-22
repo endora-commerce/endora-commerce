@@ -24,6 +24,7 @@
     "test:watch": "vitest",
     "test:unit": "vitest run test/unit",
     "test:unit:fast": "vitest run --config vitest.unit.config.ts",
+    "test:release-gate": "vitest run --config vitest.release.config.ts",
     "test:contract": "vitest run test/contract",
     "test:integration": "vitest run test/integration",
     "test:perf": "PERF_RUN=true vitest run test/perf",
@@ -71,7 +72,8 @@
     "check:diacritic-folds": "tsx scripts/check-diacritic-folds.ts",
     "check:port-shape": "tsx scripts/check-port-shape.ts",
     "check:transaction-context": "tsx scripts/check-transaction-context.ts",
-    "check:action-route-permissions": "tsx scripts/check-action-route-permissions.ts"
+    "check:action-route-permissions": "tsx scripts/check-action-route-permissions.ts",
+    "check:release-intent": "tsx scripts/check-release-intent.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

@@ -310,6 +310,29 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     sites: 581,
     sources: ['manifest-index'],
   },
+  // Small on purpose: this population is the *workspace*, not a source tree —
+  // `.changeset/config.json`, `pnpm-workspace.yaml`, one manifest per member
+  // (9) and the pending changesets (11). Two moves are foreseeable and both are
+  // legitimate re-records rather than defects, stated here so that whoever
+  // meets one is not deciding under pressure whether to widen the band:
+  //
+  //   * **The first release.** `pnpm run version:packages` consumes every
+  //     pending changeset, so `files` drops 22 → 11 and `sites` 28 → 18, well
+  //     under the floor. The population genuinely changed; re-record it in the
+  //     release merge request.
+  //   * **66 module packages.** One manifest each takes it past the ceiling in
+  //     one merge request. Same answer.
+  //
+  // `READ_SIZE_SLACK` covers the ordinary case of a single changeset landing.
+  // Never widen the band: the floor is what catches a `packages/` tree that
+  // moved, which is the only way this check can silently read a residue.
+  'backend/scripts/check-release-intent.ts': {
+    prefix: '[release-intent]',
+    run: { kind: 'tsx', path: 'scripts/check-release-intent.ts', args: [] },
+    files: 22,
+    sites: 28,
+    sources: ['workspace-globs'],
+  },
   'backend/scripts/check-shared-table-wipes.ts': {
     prefix: '[shared-table-wipes]',
     run: { kind: 'tsx', path: 'scripts/check-shared-table-wipes.ts', args: [] },

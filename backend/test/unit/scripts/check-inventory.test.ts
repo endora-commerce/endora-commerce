@@ -131,6 +131,16 @@ import { reportsClaimInAPublishedContract } from '../../helpers/lock-claims-chec
 import { reportsOnlyTheSourceFile } from '../../helpers/nul-bytes-check-fixture.js';
 import { createShellCheckFixture } from '../../helpers/shell-check-fixture.js';
 import { RECORDED_READ_SIZES } from '../../helpers/check-read-sizes.js';
+import {
+  checkReleaseIntent,
+  type ReleaseIntentFindingKind,
+} from '../../../scripts/check-release-intent.js';
+import {
+  checkout as releaseIntentCheckout,
+  configuredAs as releaseIntentConfiguredAs,
+  FIXTURE_ROOT as RELEASE_INTENT_ROOT,
+  type FileMap as ReleaseIntentFiles,
+} from '../../helpers/release-intent-check-fixture.js';
 
 /**
  * The inventory of static checks, and the two properties none of them had
@@ -309,6 +319,38 @@ function errorSentenceTree(bundles: Record<string, Record<string, string>>): Tra
  * silently covered everything would switch the floor off while looking like a
  * normal run.
  */
+/**
+ * `check-release-intent` over a whole synthetic checkout, counting findings of
+ * one kind (feature 080, T043).
+ *
+ * The fixture is the file map, because every one of this check's eight findings
+ * is a disagreement *between* files — `pnpm-workspace.yaml` against the
+ * manifests, `.changeset/config.json` against both. A proof handed a
+ * pre-classified "these are the versionable packages" list would leave the
+ * derivation unproven, and that derivation is the part that has to survive 66
+ * module packages arriving under a second scope (D-160.2).
+ *
+ * Counting **by kind** rather than in total is the other half: eight signals
+ * over one configuration is exactly the shape where seven go blind behind the
+ * eighth's red.
+ */
+function releaseIntentFindings(
+  overrides: ReleaseIntentFiles,
+  kind: ReleaseIntentFindingKind,
+): number {
+  const tree = releaseIntentCheckout(overrides);
+  const result = checkReleaseIntent(RELEASE_INTENT_ROOT, tree.fs, tree.listChangesets);
+  if ('reason' in result) return 0;
+  return result.findings.filter((finding) => finding.kind === kind).length;
+}
+
+/** The same check, over an input it must refuse rather than report a verdict on. */
+function releaseIntentRefusal(overrides: ReleaseIntentFiles, expected: string): number {
+  const tree = releaseIntentCheckout(overrides);
+  const result = checkReleaseIntent(RELEASE_INTENT_ROOT, tree.fs, tree.listChangesets);
+  return 'reason' in result && result.reason.includes(expected) ? 1 : 0;
+}
+
 function bundleResidueRefusal(bundleFiles: readonly string[]): number {
   const keys = {
     BLOG_POST_NOT_FOUND: { moduleId: 'blog', key: 'errors.BLOG_POST_NOT_FOUND' },
@@ -4803,6 +4845,114 @@ const CHECKS: readonly CheckEntry[] = [
       ),
     },
   },
+  {
+    // Feature 080 (T043). The gate it guards — `release:changeset` — is the
+    // changesets CLI's own command, which is why AGENTS.md records that it is
+    // deliberately not a `check-*` script. That stays true of the *question*
+    // and was read as covering the *configuration*: measured, with a branch
+    // that changes `packages/` and carries no changeset, the gate exits 1 at
+    // `privatePackages.version: true`, exits 0 at `false` and exits 0 with the
+    // block deleted, which is the `@changesets/config@4` default. Four lines
+    // of apparent boilerplate that nothing in the tree read.
+    script: 'backend/scripts/check-release-intent.ts',
+    npmScript: 'check:release-intent',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-release-intent.test.ts',
+    vacuousGuard: 'exit-2',
+    // Its population is the workspace: the config, `pnpm-workspace.yaml`, one
+    // manifest per member and the changeset files.
+    readSize: 'reported',
+    // The members it reads will *include* the module packages when they land,
+    // but the floor is per `pnpm-workspace.yaml` entry rather than per
+    // registered module: what this check can lose is a whole family glob, and
+    // the manifest index would not report that.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      // The headline, and the one shape whose absence is worth the whole file.
+      'version-disabled': top(() => releaseIntentFindings(
+        releaseIntentConfiguredAs((config) => {
+          config['privatePackages'] = { version: false, tag: false };
+        }),
+        'version-disabled',
+      )),
+      // The same value written the way it actually arrives — by deletion.
+      'version-disabled-by-omission': top(() => releaseIntentFindings(
+        releaseIntentConfiguredAs((config) => {
+          delete config['privatePackages'];
+        }),
+        'version-disabled',
+      )),
+      // D-160.5: everything stays private through Wave 4, and this is what
+      // makes the tag decision land in the merge request that changes it.
+      'publishable-package': top(() =>
+        releaseIntentFindings(
+          { 'packages/alpha/package.json': '{ "name": "@fx/alpha", "version": "1.0.0" }' },
+          'publishable-package',
+        ),
+      ),
+      'tag-without-publication': top(() => releaseIntentFindings(
+        releaseIntentConfiguredAs((config) => {
+          config['privatePackages'] = { version: true, tag: true };
+        }),
+        'tag-without-publication',
+      )),
+      // The 67-package failure mode, written as it would arrive: one `ignore`
+      // entry under the new scope, and every module package stops needing a
+      // changeset while the gate goes on exiting 0.
+      'ignored-family-member': top(() => releaseIntentFindings(
+        releaseIntentConfiguredAs((config) => {
+          config['ignore'] = ['host', '@fx/*'];
+        }),
+        'ignored-family-member',
+      )),
+      'unignored-application': top(() => releaseIntentFindings(
+        releaseIntentConfiguredAs((config) => {
+          config['ignore'] = [];
+        }),
+        'unignored-application',
+      )),
+      // A path written where a name belongs. `ignore` is glob-matched against
+      // names, so this matches nothing at all.
+      'stale-ignore-entry': top(() => releaseIntentFindings(
+        releaseIntentConfiguredAs((config) => {
+          config['ignore'] = ['host', 'packages/*'];
+        }),
+        'stale-ignore-entry',
+      )),
+      'stale-group-member': top(() => releaseIntentFindings(
+        releaseIntentConfiguredAs((config) => {
+          config['linked'] = [['@fx/alpha', '@fx/gone']];
+        }),
+        'stale-group-member',
+      )),
+      // The reconciliation: written intent against derived classification.
+      'unversionable-changeset': top(() =>
+        releaseIntentFindings(
+          { '.changeset/x.md': '---\n"host": minor\n---\n\nsomething\n' },
+          'unversionable-changeset',
+        ),
+      ),
+      // Issue #215 over this population. Moving the library tree does not empty
+      // the walk — the four application manifests are still there and every
+      // predicate still answers over them — so the floor is per workspace
+      // entry, and it lives inside the analysis rather than in the printing.
+      'short-walk-refusal': top(() =>
+        releaseIntentRefusal(
+          { 'packages/alpha/package.json': null, 'packages/beta/package.json': null },
+          'residue of its population',
+        ),
+      ),
+      // A pattern grammar it does not implement must be a refusal: reported as
+      // matching nothing, `@(a|b)` would turn an ignored application into an
+      // `unignored-application` finding and an over-broad extglob into silence.
+      'unreadable-ignore-pattern': top(() => releaseIntentRefusal(
+        releaseIntentConfiguredAs((config) => {
+          config['ignore'] = ['{backend,admin}'];
+        }),
+        'glob grammar',
+      )),
+    },
+  },
 ];
 
 // --- the enumeration --------------------------------------------------------
@@ -5010,6 +5160,13 @@ describe('every red proof enters at the top of the analysis', () => {
       // one that saw neither shape would read identically green — and the
       // resolution ledger's stale direction.
       'backend/scripts/check-port-shape.ts': 8,
+      // Eight findings, plus the two refusals that are decisions rather than
+      // printing: the short walk (issue #215 over a workspace, where losing the
+      // library glob leaves four application manifests answering every
+      // question) and a pattern grammar it does not implement. `version-disabled`
+      // gets two, because the value that produces the defect arrives twice —
+      // written as `false`, and by deleting a block that reads as boilerplate.
+      'backend/scripts/check-release-intent.ts': 11,
       // Three spellings of a whole-table wipe, plus the baseline's second
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,
