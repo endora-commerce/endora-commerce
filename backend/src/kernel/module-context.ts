@@ -258,6 +258,35 @@ export class AmbiguousDecorationError extends Error {
  * (feature 072 replaced file shadowing with it). It is not a claim a module can
  * make about itself — the generated composer sets it from the root the module
  * was discovered under, `backend/src/apps/<deployment>/modules/`.
+ *
+ * **The exemption is total, and this paragraph is here because the one above it
+ * reads as though it were not** (D-156.4, D-156.11 item 3). `overlay` is a
+ * per-module boolean and the check below is name-unscoped, so an overlay module
+ * may wrap *anything the container holds* — not merely "core", but the
+ * root-registered set no module owns: `commandBus`, `auditLogService`,
+ * `eventBus`, `emFactory`. Those are precisely the names this error was
+ * introduced to defend — `commandBus` to observe every audited write,
+ * `auditLogService` to change what the audit records — so the rule as stated
+ * and the code as written disagree, and the code is the one that runs.
+ *
+ * **That is deliberate and it stays.** A deployment owns its instance outright.
+ * It already ships file-based decorations under
+ * `backend/src/apps/<deployment>/decorations/` that can wrap any registration,
+ * it edits its own `apps/<deployment>/` tree, and it answers to nobody but
+ * itself — so refusing it `commandBus` would defend the audit path against the
+ * one party entitled to change it, while a deployment that wanted to could
+ * simply do it another way. The defended set is a boundary against *strangers*,
+ * and a deployment is not one.
+ *
+ * **An installed extension package is** (D-156.1–D-156.9). `loadPackageModuleEntries`
+ * therefore sets no `overlay` flag, and that is the ruled behaviour rather than
+ * a placeholder: if a grant is ever built it is keyed per
+ * `(package, registration name)`, read from an artefact the instance owns and
+ * the package cannot write, and refused outright for any name whose owner is
+ * `undefined`. This flag is not the mechanism — widening it, re-typing it to an
+ * origin enum or setting it from a declaration hands a stranger the audit path
+ * along with whatever it asked for. Do not narrow the check below to match the
+ * older prose; the prose was what was wrong.
  */
 export class ForeignDecorationError extends Error {
   constructor(
@@ -713,9 +742,19 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
         //
         // An owner of `undefined` means nobody claimed the name — a
         // composition root registered it (`commandBus`, `auditLogService`,
-        // `redis`) — and that is refused like any other foreign registration.
-        // Reading "unowned" as "fair game" would leave the highest-value
-        // targets in the platform the only undefended ones.
+        // `redis`) — and for a module that is refused like any other foreign
+        // registration. Reading "unowned" as "fair game" would leave the
+        // highest-value targets in the platform the only undefended ones.
+        //
+        // `isDeploymentOverlay` is exempt from **both** halves, not just the
+        // core-owned one, and the condition says so by being name-unscoped: a
+        // deployment's overlay module may wrap `commandBus` too. That is the
+        // ruled behaviour (D-156.4) — a deployment owns its instance and is not
+        // the stranger this guard defends against — and it is why the flag is
+        // never the mechanism by which an installed *package* would be granted
+        // decoration. See `ForeignDecorationError`'s doc block; it is written
+        // out there rather than here because the older prose said otherwise and
+        // the next reader's instinct is to "fix" this line.
         const owner = ownerOf(name);
         if (owner !== module.id && !isDeploymentOverlay) {
           throw new ForeignDecorationError(name, module.id, owner);

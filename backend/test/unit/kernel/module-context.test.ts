@@ -259,6 +259,41 @@ describe('ModuleContext — decoration is owner-scoped (issue #203)', () => {
 
     expect(container.resolve<string>('pricingService')).toBe('acme:core');
   });
+
+  it("lets a deployment's overlay module decorate a name no module owns", () => {
+    // The half of the exemption nothing asserted, and the load-bearing one
+    // (D-156.4). The case above proves an overlay may wrap a *core module's*
+    // registration, which is the act `ForeignDecorationError`'s doc argues
+    // for. But `overlay` is a per-module boolean and the check is
+    // name-unscoped, so the exemption also covers the root-registered set no
+    // module claimed — `commandBus`, `auditLogService`, `eventBus`,
+    // `emFactory` — which the same doc calls the highest-value targets in the
+    // platform. The doc said one thing and the code did another; D-156.11
+    // records the code as correct.
+    //
+    // Pinned rather than left merely true. A deployment owns its instance and
+    // is not the stranger this guard defends against, so the exemption stays —
+    // and a later reader narrowing the condition to match the older prose
+    // should meet a red test carrying the reason, not a silent behaviour
+    // change. It is also the measurement behind D-156.4: because the flag
+    // reaches this set, it can never be the vehicle for granting an installed
+    // *package* decoration.
+    const container = createRootContainer();
+    const ownership = createRegistrationOwnership();
+    registerValues(container, { commandBus: { run: (): string => 'audited' } });
+
+    // The discrimination: an ordinary module is refused the same name, so this
+    // asserts the exemption rather than the guard being absent.
+    const core = contextsSharing(container, ownership, 'promotions').ctx;
+    expect(() => core.di.decorate('commandBus', (inner) => inner)).toThrow(ForeignDecorationError);
+
+    const client = contextsSharing(container, ownership, 'acme_audit', { overlay: true }).ctx;
+    client.di.decorate<{ run: () => string }>('commandBus', (inner) => ({
+      run: () => `acme:${inner.run()}`,
+    }));
+
+    expect(container.resolve<{ run: () => string }>('commandBus').run()).toBe('acme:audited');
+  });
 });
 
 /**
