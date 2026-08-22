@@ -41,9 +41,9 @@ Three exit codes, and the third is the point: **0** the criterion is met, **1** 
 could not be measured (no PostgreSQL, no `pnpm`, a database name the guard refuses, a phase that
 threw). "The services were missing" is not spellable as either colour.
 
-Today the run prints six `FAIL` and three `PASS`, and CI is green. That is not a contradiction:
+Today the run prints two `FAIL` and seven `PASS`, and CI is green. That is not a contradiction:
 the criterion is *supposed* to be red until feature 080's Wave 3 finishes, so what CI enforces is
-drift against `expected-state.json` in **both** directions. A8 or A9 going red fails the job; A1
+drift against `expected-state.json` in **both** directions. A8 or A9 going red fails the job; A6
 going green fails it too, and the remedy is to record the green in the merge request that earned
 it. Never edit that file to make a pipeline pass.
 
@@ -63,6 +63,26 @@ the Admin SPA and the command palette serve from. Same colour, different claim: 
 bundles the reconciler cannot reach now fails A5 with its `i18n/` sitting in `node_modules`. The
 recorded reason in `expected-state.json` is the only artefact that carries that difference, so it
 was rewritten in the same merge request — a stale reason is drift the ratchet cannot detect.
+
+**T033 moved the whole schema half.** A1 … A4 went green together, and they are kept as four
+assertions rather than one because each is satisfiable without the one below it: A1 says the
+package's class is in the applied order, A2 that the table exists *because the migration body
+ran*, A3 that the tenant column and the named index are in `information_schema` as declared — the
+assertion that separates a migration that ran from a row in `mikro_orm_migrations` standing in for
+one — and A4 that the host's own ORM answers `em.find` against the package's entity. The committed
+registries did not move and are not supposed to: what moved is that the *configured* order and the
+*configured* entity set are no longer the committed ones. `src/db/configured-migrations.ts` and
+its sibling `configured-entities.ts` merge each installed package's exports at runtime, the
+migrations tagged `origin: 'external'` so a stranger's stamp cannot join the frozen historical
+prefix.
+
+**A6 and A7 are the two that remain, and they are one defect.** A6's activation Setting is never
+created, because `composition.ts` reconciles settings from bare-core `REGISTERED_MANIFESTS` and
+because the probe's `gate-off` phase reads the row before any phase has composed anything. A7
+then short-circuits on `already-uninstalled`: the `module_registrations` row it would revert from
+is written during composition, and nothing composed. Fix the ordering and A7 follows without the
+revert being touched. That is T036's, and its own precondition is T033a — the first-boot
+reconciler must stop converging a package nobody installed (§D-157.6(b)).
 
 **A8 and A9 carry the contract.** A1 … A7 are satisfiable by a moved directory, which is the trap.
 A8 says the installed package's resolution path stays inside the instance; A9 runs A8's own

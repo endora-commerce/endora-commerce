@@ -2,8 +2,8 @@
   "$comment": [
     "What the package-schema acceptance criterion answers on this tree, per assertion (D-110).",
     "A two-way ratchet: the CI job fails when a run disagrees with this file in either direction.",
-    "Six of the nine are `fail` today and are supposed to be — a package still cannot ship SCHEMA",
-    "until feature 080's Wave 3 finishes. Recording that is what makes an accidental *green* as",
+    "Two of the nine are `fail` today and are supposed to be — a package still cannot be installed",
+    "end to end until feature 080's Wave 3 finishes. Recording that is what makes an accidental *green* as",
     "visible as an accidental red: a change that quietly satisfied A4 without going through the",
     "composition would show up here as drift, not as a pass nobody looked at.",
     "Move an entry only in the merge request that earned the move, and never to make a pipeline",
