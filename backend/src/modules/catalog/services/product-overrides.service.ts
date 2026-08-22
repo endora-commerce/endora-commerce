@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CommandBus } from '../../../commands/index.js';
-import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductValueOverride } from '../entities/product-value-override.entity.js';
@@ -64,7 +64,7 @@ export type ApplyOverridesResult = {
 export class ProductOverridesService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly salesChannelMembership: SalesChannelMembershipService,
+    private readonly salesChannelMembership: SalesChannelMembershipPort,
     /** Feature 054 — audits the override apply co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
     /** Feature 061 — composed attribute read model (scope + value-type lookups). */

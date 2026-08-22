@@ -14,7 +14,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AvailabilityNotificationService } from './services/availability-notification-service.js';
 import type { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import type { StockLevelService } from './services/stock-level-service.js';
-import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
+import type { SalesChannelResolutionPort } from '../../kernel/ports/sales-channel.js';
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import { productAudienceOf } from '../../http/product-audience.js';
 import { StockLevel } from './entities/stock-level.entity.js';
@@ -22,7 +22,7 @@ import { resolveDisplayBand } from './services/display-band-resolver.js';
 import { resolveThresholds } from './services/threshold-resolver.js';
 import { InventoryThreshold } from './entities/inventory-threshold.entity.js';
 import { INVENTORY_SETTING_CODES } from './manifest.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 
 export interface InventoryRoutesDeps {
   emFactory: () => EntityManager;
@@ -40,10 +40,10 @@ export interface InventoryRoutesDeps {
   };
   /** Optional — present in production composition. Used to resolve the
    *  channel for the storefront-public stock readout. */
-  channelResolver?: SalesChannelResolverService;
+  channelResolver?: SalesChannelResolutionPort;
   warehouseChannelService?: WarehouseChannelService;
   stockLevelService?: StockLevelService;
-  settingsService?: SettingsService;
+  settingsService?: SettingsReadPort;
   /**
    * Feature 026 US4 — Per-request resolver that returns the warehouse-id
    * allow-list for the caller's Organization, or `null` when no restriction
@@ -288,7 +288,7 @@ export async function registerInventoryRoutes(
 
 async function resolveChannelId(
   request: FastifyRequest,
-  _resolver?: SalesChannelResolverService,
+  _resolver?: SalesChannelResolutionPort,
 ): Promise<string> {
   // The canonical sales-channel resolver middleware already performed
   // header/host/system-default resolution and active-channel validation on
@@ -298,7 +298,7 @@ async function resolveChannelId(
 
 async function readDisplayMode(
   channelId: string,
-  settingsService?: SettingsService,
+  settingsService?: SettingsReadPort,
 ): Promise<InventoryDisplayMode> {
   if (settingsService && channelId) {
     try {
@@ -323,7 +323,7 @@ async function readDisplayMode(
  */
 async function readAllowNegativeStock(
   channelId: string,
-  settingsService?: SettingsService,
+  settingsService?: SettingsReadPort,
 ): Promise<boolean> {
   if (settingsService && channelId) {
     try {

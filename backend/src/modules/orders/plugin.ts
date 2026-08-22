@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import type Redis from 'ioredis';
 import type { EmailMailerPort } from '@b2b/contracts';
 import {
@@ -104,7 +104,7 @@ export interface OrdersModuleOptions {
    * Feature 005 / T027b — when injected, newly-created PaymentMethods and
    * DeliveryMethods auto-bind to the system-default Sales Channel (FR-011).
    */
-  salesChannelMembership?: SalesChannelMembershipService;
+  salesChannelMembership?: SalesChannelMembershipPort;
   /**
    * The pricing engine. Cart-line creation uses
    * `PricingService.resolveLinePrice()` for the unit price and the

@@ -14,7 +14,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderPlacementIntent } from '../entities/order-placement-intent.entity.js';
@@ -56,7 +56,7 @@ export interface OrderApiIntakeDeps {
    * published assortment gate. Absent (legacy rigs) ⇒ fail closed: every SKU
    * is out of assortment.
    */
-  salesChannelMembership?: SalesChannelMembershipService | undefined;
+  salesChannelMembership?: SalesChannelMembershipPort | undefined;
   /**
    * The SAME resolver cart pricing uses.
    *

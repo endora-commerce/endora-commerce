@@ -3,7 +3,7 @@ import { GOOGLE_ANALYTICS_SETTING_CODES } from '@b2b/contracts';
 import type { Queue } from 'bullmq';
 import { makeEnqueuer, makeProcessor } from './ss-delivery.service.js';
 import type { GaDeliveryJobData } from './ss-delivery-queue.js';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import type { Ga4MpClient } from './ga4-mp-client.js';
 
 const C = GOOGLE_ANALYTICS_SETTING_CODES;
@@ -50,12 +50,12 @@ describe('makeProcessor (consumer)', () => {
       },
     }) as never;
 
-  function fakeSettings(values: Record<string, unknown>): SettingsService {
+  function fakeSettings(values: Record<string, unknown>): SettingsReadPort {
     return {
       async get(code: string): Promise<unknown> {
         return values[code] ?? '';
       },
-    } as unknown as SettingsService;
+    } as unknown as SettingsReadPort;
   }
 
   it('forwards to the MP client with the resolved per-channel destination', async () => {

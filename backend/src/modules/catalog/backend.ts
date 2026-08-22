@@ -38,7 +38,7 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { catalogModule, type CatalogModuleOptions } from './plugin.js';
 import { CatalogAdminService } from './services/catalog-admin.service.js';
 import { CatalogBulkImportService } from './services/catalog-bulk-import.service.js';
@@ -119,7 +119,7 @@ export interface CatalogCradle {
    */
   readonly redis: Redis;
   readonly requireAdmin: RequireAdminFactory;
-  readonly salesChannelMembershipPort: SalesChannelMembershipService;
+  readonly salesChannelMembershipPort: SalesChannelMembershipPort;
   readonly customFieldValueService: NonNullable<CatalogModuleOptions['customFieldValues']>;
   /**
    * `custom_fields`' published definition read model — the definitions this
@@ -344,7 +344,7 @@ export function registerModule(ctx: ModuleContext): void {
               'catalogAttributeReadPort',
             ),
             pricingService: lazyPort<CatalogCradle['pricingService']>(ctx, 'pricingService'),
-            salesChannelMembership: lazyPort<SalesChannelMembershipService>(
+            salesChannelMembership: lazyPort<SalesChannelMembershipPort>(
               ctx,
               'salesChannelMembershipPort',
             ),
@@ -486,7 +486,7 @@ export function registerModule(ctx: ModuleContext): void {
         ({ commandBus }: CatalogCradle) =>
           new CatalogBulkImportService(
             commandBus,
-            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
           ),
       )
       .singleton(),
@@ -564,7 +564,7 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
             lazyPort<ListingPricePort>(ctx, 'pricingService'),
             lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
-            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
             lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
             // Feature 086 — the ordering slice, off the same container and the
             // same declared edge. Two `lazyPort` calls rather than one widened
@@ -586,7 +586,7 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             eventBus as unknown as CatalogEventBus,
             auditLogService,
-            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
             commandBus,
             lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
             // The apply seam, not the definition source — `CatalogAdminService`
@@ -613,7 +613,7 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory, commandBus }: CatalogCradle) =>
           new CategoryAdminService(
             emFactory,
-            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
             commandBus,
             lazyPort<CatalogCradle['customFieldValueService']>(ctx, 'customFieldValueService'),
           ),
@@ -673,7 +673,7 @@ export function registerModule(ctx: ModuleContext): void {
             commandBus,
             lazyPort<ListingPricePort>(ctx, 'pricingService'),
             lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
-            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
             lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
           ),
       )

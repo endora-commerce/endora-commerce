@@ -4,7 +4,7 @@ import type {
   CatalogProductRecord,
   EmailMailerPort,
 } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import { z } from 'zod';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { INVENTORY_SETTING_CODES } from '../manifest.js';
@@ -61,7 +61,7 @@ export class LowStockAlertService {
      * produced low-stock alerts about it.
      */
     private readonly catalogProducts: CatalogProductReadPort,
-    private readonly settingsService?: SettingsService,
+    private readonly settingsService?: SettingsReadPort,
     /** Channel id used to read inventory settings — typically the
      *  system default. */
     private readonly settingsChannelId?: string,

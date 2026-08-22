@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { NEWSLETTER_SETTING_CODES, newsletterOptInModeSchema } from '@b2b/contracts';
 import type { NewsletterOptInMode } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import type { NewsletterTokenHelper } from './token.helper.js';
 
 /**
@@ -11,7 +11,7 @@ import type { NewsletterTokenHelper } from './token.helper.js';
  */
 export class NewsletterOptInService {
   constructor(
-    private readonly settings: SettingsService,
+    private readonly settings: SettingsReadPort,
     private readonly tokens: NewsletterTokenHelper,
   ) {}
 

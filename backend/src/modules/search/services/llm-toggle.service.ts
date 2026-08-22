@@ -5,7 +5,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { SEARCH_SETTING_CODES } from '../manifest.js';
 import {
@@ -45,7 +45,7 @@ export interface LlmToggleResult {
 export class LlmToggleService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly settingsService: SettingsService,
+    private readonly settingsService: SettingsReadPort,
     private readonly settingsAdminService: SettingsAdminPort,
     /** Feature 058 — resolves `search.llm.embedder_credentials` (optional). */
     private readonly credentials?: CredentialResolvePort,

@@ -31,7 +31,7 @@ import {
   BULK_OPERATION_JOB_NAME,
   createBulkOperationQueue,
 } from './services/bulk-operation-queue.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 
 /**
  * Catalog's contribution to the prompt-assistant tool catalogue
@@ -51,7 +51,7 @@ export interface CatalogPromptToolsDeps {
   emFactory: () => EntityManager;
   events: EventBus;
   auditLogService?: AuditLogService;
-  salesChannelMembership?: SalesChannelMembershipService;
+  salesChannelMembership?: SalesChannelMembershipPort;
   /** Enables queue delegation for > BULK_ASYNC_THRESHOLD selections. */
   redis?: Redis;
 }

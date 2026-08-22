@@ -19,7 +19,7 @@ import {
 import { withSystemScope } from '../../../tenancy/index.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import { Comparison } from '../entities/comparison.entity.js';
 import { ComparisonProduct } from '../entities/comparison-product.entity.js';
 import type { ShareTokenGenerator } from './share-token-generator.js';
@@ -35,7 +35,7 @@ import {
  * Stateful service owning the Comparison resource. Every cross-module read
  * goes through a published port — {@link CatalogProductReadPort},
  * {@link CatalogAttributeReadPort}, {@link ListingPricePort} and
- * {@link SettingsService}. The products a comparison holds are `catalog`'s
+ * {@link SettingsReadPort}. The products a comparison holds are `catalog`'s
  * rows, not this module's: reading them with `em.find(Product, …)` was a query
  * nothing could gate, so a comparison kept resolving names and availability
  * out of a module an operator had switched off (feature 075, Phase C).
@@ -127,7 +127,7 @@ export class ComparisonService {
      * defaults to {@link DEFAULT_COMPARE_MAX_PRODUCTS} on every call —
      * useful for foundation tests that pre-date Settings wiring.
      */
-    private readonly settingsService?: SettingsService,
+    private readonly settingsService?: SettingsReadPort,
     /**
      * Feature 061 — the catalog's composed attribute read model (Principle I:
      * replaces the former direct `ProductAttribute` entity find).

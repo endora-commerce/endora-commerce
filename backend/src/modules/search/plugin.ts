@@ -29,11 +29,8 @@ import {
   type SuggestionPricingEnricher,
 } from './routes.public.js';
 import { registerSearchAdminRoutes } from './routes.admin.js';
-import {
-  SettingNotRegistered,
-  SettingOutOfScopeForChannel,
-  type SettingsService,
-} from '../../kernel/settings/settings.service.js';
+import { SettingNotRegistered, SettingOutOfScopeForChannel } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { enterSystemScope } from '../../kernel/scope.js';
 import { DEFAULT_REINDEX_INTERVAL_MINUTES, SEARCH_SETTING_CODES } from './manifest.js';
@@ -111,7 +108,7 @@ export interface SearchModuleOptions {
    * defaults with no LLM reactor — a state nothing asked for and nothing
    * detected.
    */
-  settingsService: SettingsService;
+  settingsService: SettingsReadPort;
   /**
    * Feature 058 — resolves the `search.llm.embedder_credentials` reference into
    * the embedder config, falling back per field to the legacy embedder settings.

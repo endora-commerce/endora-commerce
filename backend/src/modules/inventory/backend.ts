@@ -25,8 +25,8 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelResolverService } from '../../kernel/sales-channels/sales-channel-resolver.service.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SalesChannelResolutionPort } from '../../kernel/ports/sales-channel.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { inventoryModule, type InventoryModuleOptions } from './plugin.js';
 import type { AdjustedPayload } from './services/availability-worker.js';
 import type { SettingsValueChangedPayload } from './services/threshold-settings-mirror.js';
@@ -79,8 +79,8 @@ export interface InventoryCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: InventoryModuleOptions['requireCustomer'];
   readonly customerContextResolver: InventoryModuleOptions['resolveCustomerContext'];
-  readonly settingsReadPort: SettingsService;
-  readonly salesChannelResolutionPort: SalesChannelResolverService;
+  readonly settingsReadPort: SettingsReadPort;
+  readonly salesChannelResolutionPort: SalesChannelResolutionPort;
   readonly settingsChannelResolver: () => Promise<string | null>;
   readonly dictionaryValidator: DictionaryValidator;
   /** Root-shaped: the two compositions name a non-admin caller differently. */
@@ -139,8 +139,8 @@ export function registerModule(ctx: ModuleContext): void {
           emFactory,
           eventBus,
           auditLogService,
-          settingsService: lazyPort<SettingsService>(ctx, 'settingsReadPort'),
-          channelResolver: lazyPort<SalesChannelResolverService>(
+          settingsService: lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
+          channelResolver: lazyPort<SalesChannelResolutionPort>(
             ctx,
             'salesChannelResolutionPort',
           ),

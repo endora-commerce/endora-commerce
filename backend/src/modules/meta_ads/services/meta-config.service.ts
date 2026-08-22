@@ -5,7 +5,7 @@ import {
   type MetaStorefrontConfig,
   type MetaStorefrontMapping,
 } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 /** Loader for a channel's enabled custom-event mappings in the storefront shape. */
 export type MetaCustomEventsLoader = (
@@ -23,7 +23,7 @@ export type MetaCustomEventsLoader = (
  */
 export class MetaConfigService {
   constructor(
-    private readonly settings: SettingsService,
+    private readonly settings: SettingsReadPort,
     private readonly loadCustomEvents: MetaCustomEventsLoader = async () => [],
   ) {}
 

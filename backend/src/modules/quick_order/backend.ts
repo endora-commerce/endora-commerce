@@ -22,11 +22,8 @@ import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
-import {
-  SettingNotRegistered,
-  SettingOutOfScopeForChannel,
-  type SettingsService,
-} from '../../kernel/settings/settings.service.js';
+import { SettingNotRegistered, SettingOutOfScopeForChannel } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import {
   QUICK_ORDER_SETTING_CODES,
   DEFAULT_IMPORT_MAX_ROWS,
@@ -97,7 +94,7 @@ export interface QuickOrderCradle {
     organizationId: string;
   };
   readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string };
-  readonly settingsReadPort: SettingsService;
+  readonly settingsReadPort: SettingsReadPort;
   readonly quickOrderPipeline: QuickOrderImportPipeline;
   readonly quickOrderBuildService: QuickOrderBuildService;
   readonly quickOrderPreferenceService: DefaultPreferenceService;

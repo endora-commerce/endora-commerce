@@ -12,7 +12,7 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { PromotionService } from './services/promotion-service.js';
 import type { PromotionUsageFinalizer } from './services/promotion-usage-finalizer.js';
 import { PromotionCodeService } from './services/promotion-code-port.js';
@@ -65,7 +65,7 @@ export interface PromotionsCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditLogService;
   readonly requireAdmin: RequireAdminFactory;
-  readonly salesChannelMembershipPort: SalesChannelMembershipService;
+  readonly salesChannelMembershipPort: SalesChannelMembershipPort;
   readonly dictionaryValidator: DictionaryValidator;
   /** Owned by `catalog`: the two promo-attribute questions the Rule Builder asks. */
   readonly catalogPromoAttributePort: CatalogPromoAttributePort;
@@ -171,7 +171,7 @@ export function registerModule(ctx: ModuleContext): void {
             // catalogue), not gates an omission opens.
             lazyPort<CatalogPromoAttributePort>(ctx, 'catalogPromoAttributePort'),
             lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
-            lazyPort<SalesChannelMembershipService>(ctx, 'salesChannelMembershipPort'),
+            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
             async (orgId: string) =>
               (

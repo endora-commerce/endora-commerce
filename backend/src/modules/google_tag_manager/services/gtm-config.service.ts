@@ -5,7 +5,7 @@ import {
   gtmContainerIdSchema,
   type GtmStorefrontConfig,
 } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 /**
  * Resolves the per-sales-channel Google Tag Manager configuration exposed to
@@ -25,7 +25,7 @@ import type { SettingsService } from '../../../kernel/settings/settings.service.
  * browser only needs to know *that* it should relay, never *where* to.
  */
 export class GtmConfigService {
-  constructor(private readonly settings: SettingsService) {}
+  constructor(private readonly settings: SettingsReadPort) {}
 
   async getConfig(salesChannelId: string): Promise<GtmStorefrontConfig> {
     const [enabled, containerRaw, requireConsent] = await Promise.all([

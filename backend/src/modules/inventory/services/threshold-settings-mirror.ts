@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import { InventoryThreshold } from '../entities/inventory-threshold.entity.js';
 import { INVENTORY_SETTING_CODES } from '../manifest.js';
 
@@ -39,7 +39,7 @@ const KEY_TO_FIELD: Record<string, 'thresholdHigh' | 'thresholdMedium' | 'thresh
 export class ThresholdSettingsMirror {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly settingsService: SettingsService,
+    private readonly settingsService: SettingsReadPort,
     /** Resolves the channel id used to read the settings value. System
      *  default is fine because the global thresholds are not per-channel.
      *  Resolved lazily so the mirror does not block module construction

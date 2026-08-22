@@ -5,7 +5,7 @@ import {
   type LinkedInStorefrontConfig,
   type LinkedInStorefrontMapping,
 } from '@b2b/contracts';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 /**
  * Loader for a channel's enabled conversion mappings in the storefront shape.
@@ -28,7 +28,7 @@ export type ConversionMappingsLoader = (
  */
 export class LinkedInConfigService {
   constructor(
-    private readonly settings: SettingsService,
+    private readonly settings: SettingsReadPort,
     private readonly loadMappings: ConversionMappingsLoader = async () => [],
   ) {}
 

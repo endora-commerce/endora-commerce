@@ -1,7 +1,7 @@
 import type Redis from 'ioredis';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
 import { GtmConfigService } from './services/gtm-config.service.js';
 import { createGtmRelayQueue, createGtmRelayWorker } from './services/ss-relay-queue.js';
@@ -43,7 +43,7 @@ interface GtmServices {
 }
 
 export interface GoogleTagManagerCradle {
-  readonly settingsReadPort: SettingsService;
+  readonly settingsReadPort: SettingsReadPort;
   /**
    * The connection this module may build its relay queue on. Absent in a
    * composition that does not want a queue — which is the harness, and any
@@ -65,7 +65,7 @@ export function registerModule(ctx: ModuleContext): void {
           const invalidateConfig = (): void => {
             void revalidator.revalidate(['gtm:config']);
           };
-          const configService = new GtmConfigService(lazyPort<SettingsService>(ctx, 'settingsReadPort'));
+          const configService = new GtmConfigService(lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'));
           // Producer side: the API needs it to enqueue whether or not this
           // process also runs the consumer.
           const relayQueue = moduleQueueRedis

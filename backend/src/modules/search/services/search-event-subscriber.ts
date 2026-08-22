@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBase } from '../../../events/bus.js';
 import type { SearchIndexer } from './search-indexer.js';
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 import { z } from 'zod';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { SEARCH_SETTING_CODES } from '../manifest.js';
@@ -86,7 +86,7 @@ export interface SearchEventSubscriberDeps {
    * handler is not attached; foundation tests that don't have settings
    * wired stay green.
    */
-  settingsService?: SettingsService;
+  settingsService?: SettingsReadPort;
   /**
    * Feature 058 — resolves `search.llm.embedder_credentials` into the embedder
    * config, falling back per field to the legacy embedder settings. Optional.

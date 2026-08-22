@@ -1,4 +1,4 @@
-import type { SettingsService } from '../../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
 
 const ADD_TO_CART_CODE = 'storefront.product_card.show_add_to_cart';
 const ADD_TO_SHOPPING_LIST_CODE = 'storefront.product_card.show_add_to_shopping_list';
@@ -19,7 +19,7 @@ export interface ProductCardButtonsConfig {
  * storefront affordance and never 500s a public page.
  */
 export class ProductCardButtonsResolver {
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(private readonly settingsService: SettingsReadPort) {}
 
   /**
    * Feature 075 / D-87 — the resolved request channel's id, passed in by the

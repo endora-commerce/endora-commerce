@@ -7,7 +7,7 @@ import type {
   ProductImportRow,
 } from '@b2b/contracts';
 import type { CommandBus } from '../../../commands/index.js';
-import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { Category } from '../entities/category.entity.js';
 import { Product } from '../entities/product.entity.js';
 
@@ -59,7 +59,7 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
      * behaviour change: the defect is only fixed here because this is where the
      * write becomes `catalog`'s.
      */
-    private readonly salesChannelMembership?: SalesChannelMembershipService,
+    private readonly salesChannelMembership?: SalesChannelMembershipPort,
   ) {}
 
   async importCategories(rows: readonly CategoryImportRow[]): Promise<BulkImportReport> {

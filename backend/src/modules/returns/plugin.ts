@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type { EventBus } from '../../events/bus.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { RETURNS_SETTING_CODES } from './manifest.js';
 import { ReturnStatusGraphService } from './services/return-status-graph-service.js';
@@ -36,7 +36,7 @@ const DEFAULT_FREE_RETURN_DAYS = 14;
 export interface ReturnsModuleOptions {
   emFactory: () => EntityManager;
   eventBus: EventBus;
-  settingsService: SettingsService;
+  settingsService: SettingsReadPort;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: (permission?: string) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
   resolveCustomerAccountId: (req: FastifyRequest) => string;

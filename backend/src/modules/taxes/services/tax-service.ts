@@ -10,7 +10,7 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
-import type { SalesChannelMembershipService } from '../../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { Tax } from '../entities/tax.entity.js';
 
 /**
@@ -36,7 +36,7 @@ export class TaxService {
   constructor(
     private readonly emFactory: () => EntityManager,
     /** Feature 005 / T027b — auto-bind newly-created Taxes to the system default. */
-    private readonly salesChannelMembership?: SalesChannelMembershipService,
+    private readonly salesChannelMembership?: SalesChannelMembershipPort,
     private readonly dictionaryValidator?: DictionaryValidator,
     private readonly auditLog?: AuditLogService,
   ) {}

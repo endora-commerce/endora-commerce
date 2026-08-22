@@ -6,7 +6,7 @@ import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipService } from '../../kernel/sales-channels/sales-channel-membership.service.js';
+import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { builtInShippingAdapters } from './adapters/built-in-adapters.js';
 import {
   registerDeliveryMethodsAdminRoutes,
@@ -45,7 +45,7 @@ export interface DeliveryMethodsCradle {
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
   readonly commandBus: CommandBus;
-  readonly salesChannelMembershipPort: SalesChannelMembershipService | undefined;
+  readonly salesChannelMembershipPort: SalesChannelMembershipPort | undefined;
   /** The two halves the allow-list is composed from — see the payment twin (T138). */
   readonly customerOrganizationIdResolver: (req: FastifyRequest) => string | null;
   readonly organizationRestrictionPort: {

@@ -26,7 +26,7 @@ import { lazyPort } from '../../kernel/index.js';
 import { registerCustomerAccountAuditReferences } from './services/audit-references.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SettingsService } from '../../kernel/settings/settings.service.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 // Feature 075, Phase C — a pure function, so the kernel rather than `auth`.
 import { hashPassword } from '../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from './entities/customer-account.entity.js';
@@ -110,7 +110,7 @@ export interface CustomerAccountsCradle {
   readonly commandBus: CommandBus;
   /** `auth`'s admin guard, for the customer-group admin routes. */
   readonly requireAdmin: RequireAdminFactory;
-  readonly settingsReadPort: SettingsService;
+  readonly settingsReadPort: SettingsReadPort;
   /**
    * Which channel a global-scope settings read resolves against — the
    * deployment's system-default channel. A property of the deployment, so a
