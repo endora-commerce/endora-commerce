@@ -409,6 +409,7 @@ interface DiscoveredManifest {
   hasInstallHook: boolean;
   hasUninstallHook: boolean;
   hasLifecycleParticipant: boolean;
+  hasCliCommands: boolean;
 }
 
 /**
@@ -471,6 +472,9 @@ function discoverManifests(): DiscoveredManifest[] {
       // Feature 080, T036a / D-159 — a module's interest in *every other*
       // module's install, wired by the same walk and the same detector.
       hasLifecycleParticipant: detectHookExport('lifecycleParticipant', source, id),
+      // Feature 080, T042b / D-160.9 — the operator commands a module declares
+      // and the host runs, wired by the same walk and the same detector.
+      hasCliCommands: detectHookExport('cliCommands', source, id),
     });
   }
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
@@ -485,6 +489,7 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
       if (m.hasLifecycleParticipant) {
         named.push(`lifecycleParticipant as lifecycleParticipant${i}`);
       }
+      if (m.hasCliCommands) named.push(`cliCommands as cliCommands${i}`);
       return `import { ${named.join(', ')} } from '${m.importPath}';`;
     })
     .join('\n');
@@ -497,6 +502,7 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
       if (m.hasLifecycleParticipant) {
         fields.push(`lifecycleParticipant: lifecycleParticipant${i}`);
       }
+      if (m.hasCliCommands) fields.push(`cliCommands: cliCommands${i}`);
       return `  { ${fields.join(', ')} },`;
     })
     .join('\n');
@@ -531,6 +537,7 @@ export interface DiscoveredManifestEntry {
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
   lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
+  cliCommands?: ModuleManifestExports['cliCommands'];
 }
 
 export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [

@@ -36,15 +36,29 @@ import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
 // window because there is nothing to overwrite.
 import { MODULES } from './composition.generated.js';
 // The published half — `configuredPublicApiBaseUrl` and `resolvePublicApiBaseUrl`
-// are on the barrel because five modules read them (§1.3 row 6's "+4").
-import { configuredPublicApiBaseUrl, resolvePublicApiBaseUrl } from './kernel/index.js';
+// are on the barrel because five modules read them (§1.3 row 6's "+4"), and
+// `ModuleContext` because 67 do: `ComposeAppHandle.contextFor` hands one out, so
+// a CLI command's body resolves with `lazyPort(ctx, …)` exactly as `backend.ts`
+// does (T042b, D-157.12 item 2).
+import {
+  configuredPublicApiBaseUrl,
+  resolvePublicApiBaseUrl,
+  type ModuleContext,
+} from './kernel/index.js';
 // The composition machinery, by relative path. T042c took it off the barrel: a
 // packaged module never builds a container, composes a module list or refuses a
 // boot, so publishing these would put the host's own wiring into
 // `@endora-commerce/platform`'s contract. This root is *inside* that package,
 // which is exactly why the relative path is available to it and not to a module.
+// `KernelContainer` is here for the same reason — `ComposeAppHandle` exposes the
+// container to the CLI entry point, which is host code, not a module.
 import { composeModules } from './kernel/compose.js';
-import { createRootContainer, registerOrm, registerValues } from './kernel/container.js';
+import {
+  createRootContainer,
+  registerOrm,
+  registerValues,
+  type KernelContainer,
+} from './kernel/container.js';
 import { createRegistrationOwnership } from './kernel/module-context.js';
 import { platformLogger } from './kernel/logging.js';
 import { requiredModulesFrom } from './kernel/lifecycle/required-modules.js';
@@ -103,6 +117,7 @@ import { loadModulePresence } from './modules/_lifecycle/services/presence-load.
 import {
   deploymentShippedEntries,
   resolvedManifestEntries,
+  type RegisteredManifestEntry,
 } from './modules/_lifecycle/registered-manifests.js';
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
 import { loadOverlayDecorations, loadOverlayModuleEntries } from './overlay/overlay-runtime.js';
@@ -145,6 +160,41 @@ export interface ComposeAppHandle {
    * factory options / OverlayModuleContext and register during composition.
    */
   apiInterceptors: ApiInterceptorRegistry;
+  /**
+   * Feature 080 (T042b, D-157.12 item 1) — the composed kernel container.
+   *
+   * The harness handle has exposed it since feature 072 and this one did not,
+   * which made the production root the odd one out among the two roots
+   * `harness-parity.test.ts` holds to each other. Passing it is mandatory
+   * rather than convenient for anything that opens a scope over this
+   * composition: `composeApp` deliberately does **not** call `setRootContainer`
+   * (see the reason at the container's construction below), so an
+   * `enterSystemScope` with no `container` branches off a process-wide root
+   * that has nothing registered.
+   */
+  container: KernelContainer;
+  /**
+   * Feature 080 (T042b, D-157.12 item 2) — a post-registration `ModuleContext`
+   * for one composed module, forwarded from `ComposedModules.contextFor`.
+   *
+   * The host's CLI runner is its caller: a module-declared command receives a
+   * `ModuleContext` rather than a cradle, so its body resolves with
+   * `lazyPort<T>(ctx, 'literalName')` and `check:port-dependencies` keeps its
+   * line of sight (D-157.7).
+   */
+  contextFor: (moduleId: string) => ModuleContext;
+  /**
+   * Feature 080 (T042b) — the instance-resolved manifest set this composition
+   * was actually built from: core, this deployment's overlay modules and every
+   * installed package.
+   *
+   * Exposed rather than re-derived by the caller. `resolvedManifestEntries()`
+   * is memoised per `node_modules` root and would answer the same, but a
+   * second call is a second answer waiting to disagree with the first — and the
+   * property that makes a package's declared command reachable at all is that
+   * the host reads the commands off the **same** entries it composed.
+   */
+  resolvedModules: readonly RegisteredManifestEntry[];
   /** Closes the ORM + redis connection; call from a SIGTERM handler. */
   dispose: () => Promise<void>;
 }
@@ -2367,6 +2417,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     modules,
     commandBus,
     apiInterceptors,
+    container,
+    // Bound to the composed object rather than re-implemented: a second way to
+    // build a module's context is a second answer about what that module
+    // resolves (T042b).
+    contextFor: (moduleId) => composedModules.contextFor(moduleId),
+    resolvedModules: resolvedRegistry,
     errorEnvelope: {
       errorTranslationTargets: ERROR_TRANSLATION_KEYS,
       // Issue #234 — the ladder is one kernel function, and the root keeps the

@@ -1,5 +1,5 @@
 /**
- * `audit:read` — the audit trail, read from the host (D-102).
+ * `audit_logs read` — the audit trail, read from the host (D-102).
  *
  * ## Why this exists at all
  *
@@ -42,29 +42,29 @@
  * Usage: `pnpm --filter backend run audit:read -- [filters]`. Exit 0 on a read,
  * 1 on argv this tool does not understand — a read that did not happen must not
  * look like an empty one.
+ *
+ * ## What the host running it changed (feature 080, T042b)
+ *
+ * Only the plumbing: the `EntityManager` comes off the composition's `emFactory`
+ * instead of an `initOrm()` this file owned and closed. The reach is unchanged —
+ * one `em.find` over `AuditLogEntry`, which is a **kernel** entity, so it
+ * crosses no module boundary and never appeared in a ledger.
  */
-/* eslint-disable no-console -- CLI: stdout/stderr is the interface. */
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import { closeOrm, initOrm } from '../../../db/index.js';
+import type { ModuleCliCommandContext } from '@b2b/contracts';
 import { AuditLogEntry } from '../../../kernel/audit/audit-log-entry.entity.js';
-import { enterSystemScope } from '../../../kernel/scope.js';
+import type { ModuleContext } from '../../../kernel/index.js';
 
-const HELP = `usage: audit:read [--actor=<uuid>] [--action=<code>] [--object-type=<type>]
-                  [--object-id=<id>] [--limit=<n>] [--json]
-
-This tool reads the audit log without writing to it. A read performed here leaves
-no record in the trail; the credential is access to this host and its database,
-which already grants the same read through \`psql\`.
-
-Filters — the same ones the admin HTTP route takes:
-  --actor=<uuid>         the admin user who acted
-  --action=<code>        e.g. product.update, module.disabled
-  --object-type=<type>   e.g. product, module
-  --object-id=<id>       the affected row
-  --limit=<n>            1..500, default 100
-  --json                 the rows as JSON instead of a table
-`;
+/**
+ * The full `--help` text is the command's `help` declaration in `manifest.ts`,
+ * printed by the host before it composes (D-102 — the credential is host
+ * access, not a working connection string). This is the one line the error path
+ * needs, so a refused argument still says where to look.
+ */
+const USAGE_LINE =
+  'usage: audit_logs read [--actor] [--action] [--object-type] [--object-id] ' +
+  '[--limit] [--json] — run with --help for the filters';
 
 const ArgsSchema = z.object({
   actor: z.string().uuid().optional(),
@@ -113,8 +113,8 @@ export function parseArgv(argv: readonly string[]): Args | { error: string } {
   return parsed.data;
 }
 
-function formatTable(rows: readonly AuditLogEntry[]): string {
-  if (rows.length === 0) return '(no entries match)\n';
+export function formatTable(rows: readonly AuditLogEntry[]): string {
+  if (rows.length === 0) return '(no entries match)';
   const width = (pick: (row: AuditLogEntry) => string, header: string): number =>
     Math.max(header.length, ...rows.map((row) => pick(row).length));
   const actor = (row: AuditLogEntry): string => row.actorAdminUserId ?? '—';
@@ -127,54 +127,47 @@ function formatTable(rows: readonly AuditLogEntry[]): string {
   };
   const pad = (value: string, to: number): string => value.padEnd(to);
   const lines = [
-    `${pad('ACTED AT', widths.at)}  ${pad('ACTOR', widths.actor)}  ${pad('ACTION', widths.action)}  ${pad('OBJECT', widths.object)}`,
+    `${pad('ACTED AT', widths.at)}  ${pad('ACTOR', widths.actor)}  ` +
+      `${pad('ACTION', widths.action)}  ${pad('OBJECT', widths.object)}`,
     ...rows.map(
       (row) =>
         `${pad(row.actedAt.toISOString(), widths.at)}  ${pad(actor(row), widths.actor)}  ` +
         `${pad(row.action, widths.action)}  ${pad(object(row), widths.object)}`,
     ),
   ];
-  return `${lines.join('\n')}\n`;
+  return lines.join('\n');
 }
 
-async function main(): Promise<number> {
-  const argv = process.argv.slice(2);
-  if (argv.includes('--help') || argv.includes('-h')) {
-    process.stdout.write(HELP);
-    return 0;
-  }
+/** The EntityManager factory every composition supplies. */
+interface AuditReadCradle {
+  readonly emFactory: () => EntityManager;
+}
+
+export async function read({
+  ctx,
+  argv,
+  out,
+  err,
+}: ModuleCliCommandContext<ModuleContext>): Promise<number> {
   const parsed = parseArgv(argv);
   if ('error' in parsed) {
-    process.stderr.write(`${HELP}\nerror: ${parsed.error}\n`);
+    err(`${USAGE_LINE}\n\nerror: ${parsed.error}`);
     return 1;
   }
 
-  const orm = await initOrm();
-  try {
-    const em = orm.em.fork() as EntityManager;
-    // A read, and only a read: no `em.create`, no `persist`, no `flush`. The
-    // trail is append-only and the Command Bus is its one writer.
-    const rows = await em.find(
-      AuditLogEntry,
-      {
-        ...(parsed.actor ? { actorAdminUserId: parsed.actor } : {}),
-        ...(parsed.action ? { action: parsed.action } : {}),
-        ...(parsed.objectType ? { objectType: parsed.objectType } : {}),
-        ...(parsed.objectId ? { objectId: parsed.objectId } : {}),
-      },
-      { orderBy: { actedAt: 'desc' }, limit: parsed.limit },
-    );
-    process.stdout.write(parsed.json ? `${JSON.stringify(rows, null, 2)}\n` : formatTable(rows));
-    return 0;
-  } finally {
-    await closeOrm();
-  }
+  const em = ctx.cradle<AuditReadCradle>().emFactory();
+  // A read, and only a read: no `em.create`, no `persist`, no `flush`. The
+  // trail is append-only and the Command Bus is its one writer.
+  const rows = await em.find(
+    AuditLogEntry,
+    {
+      ...(parsed.actor ? { actorAdminUserId: parsed.actor } : {}),
+      ...(parsed.action ? { action: parsed.action } : {}),
+      ...(parsed.objectType ? { objectType: parsed.objectType } : {}),
+      ...(parsed.objectId ? { objectId: parsed.objectId } : {}),
+    },
+    { orderBy: { actedAt: 'desc' }, limit: parsed.limit },
+  );
+  out(parsed.json ? JSON.stringify(rows, null, 2) : formatTable(rows));
+  return 0;
 }
-
-// The scope every non-HTTP entry point establishes explicitly (feature 072,
-// FR-020). `AuditLogEntry` is `@GlobalEntity()`, so there is no tenant filter to
-// resolve — the scope is here because a CLI reading the platform's trail should
-// say, in the one place the platform records escape hatches, that it did.
-void enterSystemScope('cli: read the audit log', main, { entryPoint: 'cli' }).then((code) =>
-  process.exit(code),
-);

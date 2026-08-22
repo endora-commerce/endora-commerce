@@ -291,8 +291,16 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
   });
 
   it('opens CLI entry points and boot-time seeds', () => {
-    expect(has('/admin_users/scripts/create-admin.ts')).toBe(true);
+    // `cli/` since feature 080's T042b: a module's operator command is a
+    // manifest declaration the host runs (D-160.9), so its body no longer sits
+    // under `scripts/`. The population never named a directory — it is every
+    // `.ts` under `src/modules/` minus four reasoned exclusions — so the move
+    // costs the walk nothing, and this is the assertion that says so.
+    expect(has('/admin_users/cli/create-admin.ts')).toBe(true);
     expect(has('/product_feeds/seeds/predefined-templates.ts')).toBe(true);
+    // The five `module:*` platform commands stay hand-built scripts, and stay
+    // in the population (D-157.2/.4 — a platform command must not compose).
+    expect(has('/_lifecycle/scripts/install.ts')).toBe(true);
   });
 
   it('still excludes migrations, tests, declarations and the audit writer', () => {

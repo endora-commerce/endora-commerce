@@ -190,8 +190,12 @@ surfaces `couponDroppedThisRead`. Wiring into the read path is a follow-up.
   follow-up.
 - **Abandonment scheduler** — the worker is constructed in production
   composition but not yet wired to a cron / BullMQ schedule. The ops CLI
-  `pnpm --filter backend run cart:abandonment-sweep` runs one tick by hand;
-  see `backend/src/modules/carts/scripts/abandonment-sweep.ts`.
+  `pnpm --filter backend run cart:abandonment-sweep` runs one tick by hand.
+  It is a manifest-declared command the host runs, so it sweeps through the
+  composition's own `cartAbandonmentWorker` — see
+  `backend/src/modules/carts/cli/abandonment-sweep.ts` for the body and the
+  `cliCommands` export in `backend/src/modules/carts/manifest.ts` for the
+  declaration.
 
 ## Audit retention
 

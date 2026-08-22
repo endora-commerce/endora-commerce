@@ -98,6 +98,12 @@ export interface OverlayModuleManifest {
    * and an installed package declare one on exactly core's terms.
    */
   lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
+  /**
+   * The operator commands this module declares — feature 080, T042b / D-160.9.
+   * Read here for the same reason the hooks are: the export travels with the
+   * manifest, so an overlay module declares one on exactly core's terms.
+   */
+  cliCommands?: ModuleManifestExports['cliCommands'];
 }
 
 /** Ids of client-only overlay modules for the active deployment (absent from core). */
@@ -138,6 +144,7 @@ export async function discoverOverlayModuleManifests(
     const lifecycleParticipant = mod['lifecycleParticipant'] as
       | ModuleManifestExports['lifecycleParticipant']
       | undefined;
+    const cliCommands = mod['cliCommands'] as ModuleManifestExports['cliCommands'] | undefined;
     out.push({
       id,
       manifest,
@@ -145,6 +152,7 @@ export async function discoverOverlayModuleManifests(
       ...(installHook ? { installHook } : {}),
       ...(uninstallHook ? { uninstallHook } : {}),
       ...(lifecycleParticipant ? { lifecycleParticipant } : {}),
+      ...(cliCommands ? { cliCommands } : {}),
     });
   }
   return out;

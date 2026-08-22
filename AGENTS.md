@@ -415,12 +415,29 @@ joined and was named nowhere. A list wrong in both directions is worse than no l
    the entry point that has **no port and no request** — a `module:*` CLI script, a one-off
    maintenance entry. This item used to instruct every module author to call it, which is how it
    came to be cited far more often than used; the correction then overshot into *"zero call sites
-   in `src/` today"*, which D-157.5 measured false. There is **one**, and it is the worked example
-   of the whole rule: `carts/scripts/abandonment-sweep.ts` asks it for **its own** module id,
-   after composition and outside every `try`. It never asks it for an owner's id — that answer is
-   the port gate's, and asking it twice is how the two come to disagree.
+   in `src/` today"*, which D-157.5 measured false. It has **one** call site, and since feature
+   080's T042b that call site is the **host**, not a module: `src/cli/module-commands.ts` asks it
+   about the module that **declared** the command it is about to run — first, before it builds a
+   context and outside every `try`. That is the same question the one module that used to ask it
+   (`carts`' abandonment sweep) asked about itself, applied once for every command instead of a
+   line each author has to remember, which is what this item's first paragraph says a gate is
+   for. It is never asked for an **owner's** id: that answer is the port gate's, and asking it
+   twice is how the two come to disagree.
    `check-port-catches.ts` knows the spelling, so a `catch` around one is refused like a `catch`
    around a port.
+
+   **A module's own operator command is a manifest declaration the host runs** (D-160.9,
+   D-157.8), not a script that bootstraps the host. Export `cliCommands` from `manifest.ts`
+   beside `installHook` — the same tree walk picks it up, so core, an overlay module and an
+   installed package all declare one on identical terms — and keep the body in
+   `backend/src/modules/<id>/cli/<name>.ts`, `await import()`ed from the declaration so the
+   generated manifest index stays light. The handler receives a `ModuleContext` and resolves
+   with `lazyPort<T>(ctx, 'literalName')`, byte-identical to `backend.ts`; a
+   `scope.cradle.someForeignPort` read would be an undeclared edge `check:port-dependencies`
+   reports clean. `pnpm --filter backend run cli -- --list` prints every command an instance
+   offers. The five `module:*` scripts are the **other** family and must not convert: they
+   operate *on* the platform, and composing runs the reconciler that would make
+   `module:install` a silent no-op (D-157.2/.4).
 
    **Where nothing can catch the throw, presence is *decided* before the work — not caught after
    it.** A timer callback is the standing example: it has nowhere to throw *to*, so a

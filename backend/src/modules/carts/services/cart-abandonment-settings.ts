@@ -11,12 +11,16 @@ import {
  * The two `carts.abandonment.*` reads, in one place (issue #54).
  *
  * They stood twice: once in `backend.ts`, for the composed sweep, and once in
- * `scripts/abandonment-sweep.ts`, for the operator running it by hand. Two
- * copies of "which channel does this read name, and what does it fall back to"
- * is precisely the drift the composition checklist's item 6 is about, and this
+ * the hand-built ops CLI, for the operator running it by hand. Two copies of
+ * "which channel does this read name, and what does it fall back to" is
+ * precisely the drift the composition checklist's item 6 is about, and this
  * pair has drifted before — both copies once passed the literal `'default'` as
  * a channel id against a `uuid` column and both fell back to `0`, which the
  * sweep reads as "sweep nothing" (feature 072, D-41/D-43).
+ *
+ * There is one reader now and no second copy to drift: since feature 080's
+ * T042b the operator command resolves the composition's own
+ * `cartAbandonmentWorker`, which this file already supplies.
  *
  * The reads are **platform-wide** (`null` channel) on purpose: an abandonment
  * threshold and an ops mailbox are properties of the platform, not of a

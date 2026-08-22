@@ -227,6 +227,33 @@ export interface ComposedModules {
    */
   contribute(values: Readonly<Record<string, unknown>>): void;
   /**
+   * A **post-registration** `ModuleContext` for one composed module — D-157.7,
+   * beside `ownerOf` and `contribute`, which are the two accessors this object
+   * already exists to provide.
+   *
+   * It exists for the host's CLI runner (D-160.9): a module-declared command
+   * receives a `ModuleContext`, not a cradle, so its body resolves with
+   * `lazyPort<T>(ctx, 'literalName')` — character-for-character what
+   * `backend.ts` writes, which is what keeps `check:port-dependencies` able to
+   * see the edge. A `scope.cradle.someForeignPort` read would be an undeclared
+   * port edge that reports clean.
+   *
+   * Two properties of the context it returns, both deliberate:
+   *
+   *  - `isRegistering` is **false**, so the phase guard permits resolution.
+   *    That is the whole difference from the context `registerModule` was
+   *    given, and it is correct here: every module has registered.
+   *  - its registration **sink is a throwaway**. A command is invoked after the
+   *    composition is built, so a route or a worker pushed into it is read by
+   *    nobody. The sink is not shared with the composition's, so a command
+   *    cannot half-register a surface into a running platform either.
+   *
+   * @throws {Error} when `moduleId` is not one of the composed entries — a
+   * caller asking for a context by id has to be told the id is wrong, rather
+   * than handed a context for a module that is not there.
+   */
+  contextFor(moduleId: string): ModuleContext;
+  /**
    * Run the explicit boot phase (FR-021): every module's `onBoot` hook, in
    * registration order, each inside its own `enterSystemScope`.
    *
@@ -339,6 +366,34 @@ export function composeModules(
     sink: combined,
     ownerOf: (name) => ownership.ownerOf(name),
     decorations: decorations.entries,
+    contextFor(moduleId: string): ModuleContext {
+      const entry = entries.find((candidate) => candidate.id === moduleId);
+      if (entry === undefined) {
+        throw new Error(
+          `[kernel] no module '${moduleId}' in this composition, so there is no context to ` +
+            `build for it. Composed: ${entries.map((e) => e.id).join(', ')}.`,
+        );
+      }
+      return createModuleContext({
+        module: { id: entry.id, version: entry.version },
+        container: options.container,
+        eventBus: options.eventBus,
+        // Throwaway — see the interface comment. Nothing reads it, and that is
+        // better than handing over the composition's, which a command could
+        // push a route into after the server was built.
+        sink: createModuleRegistrationSink(),
+        log: options.log,
+        ownership,
+        decorations,
+        // The one difference from the registration pass: every module has
+        // registered, so resolving is exactly what this context is for.
+        isRegistering: () => false,
+        ...(entry.overlay === undefined ? {} : { overlay: entry.overlay }),
+        ...(options.interceptorRegistry
+          ? { interceptorRegistry: options.interceptorRegistry }
+          : {}),
+      });
+    },
     contribute(values: Readonly<Record<string, unknown>>): void {
       if (!contributionWindowOpen) {
         throw new ContributionWindowClosedError(Object.keys(values));

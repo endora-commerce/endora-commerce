@@ -1159,6 +1159,94 @@ uninstall — and cannot carry services.** A hook that needs a collaborator
 constructs it from `em`. Nothing resolves from the container here, because there
 is no container in the process running it.
 
+## Operator commands: a declaration the host runs
+
+A module's operator command — a reindex, a sweep, a bootstrap — is a
+`cliCommands` export of the same `manifest.ts` the install hooks live in, and
+the host invokes it. It is never a script that bootstraps the platform for
+itself.
+
+```ts
+// backend/src/modules/search/manifest.ts
+export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
+  {
+    name: 'reindex',
+    summary: "Rebuild every sales channel's Meilisearch index from PostgreSQL.",
+    run: async (context) => (await import('./cli/reindex.js')).reindex(context),
+  },
+];
+```
+
+```bash
+pnpm --filter backend run cli -- --list          # every command this instance offers
+pnpm --filter backend run cli -- search reindex  # or the alias: pnpm search:reindex
+```
+
+The same tree walk and the same `detectHookExport` that carry `installHook`
+pick this up, so it reaches core, a per-deployment overlay module and an
+**installed extension package** on identical terms — which is the whole reason
+for the shape. A file under `node_modules` can name no specifier that resolves
+to the instance's `backend/src/composition.ts`, and a core script that names one
+is a module → root → module cycle. So the invocation inverts: `backend/src/cli.ts`
+composes once, and calls the module. That is one-to-one with Magento 2, where a
+module ships a command class plus a declaration under `CommandListInterface` and
+`bin/magento` bootstraps the application and constructs the command with its
+dependencies injected.
+
+Five things about it that are decisions rather than detail:
+
+**1. The body lives in `backend/src/modules/<id>/cli/<name>.ts`, and the
+declaration `await import()`s it.** The generated manifest index is imported by
+every static check script and by `src/db/configured-migrations.ts`; a static
+import of a Meilisearch client or an ORM-dependent service graph would pull it
+into all of them. This is the rule `lifecycleParticipant` already follows.
+
+**2. The handler receives a `ModuleContext`, not a cradle.** It resolves with
+`lazyPort<T>(ctx, 'literalName')`, character-for-character what `backend.ts`
+writes, so `check:port-dependencies` sees the cross-module edge. A
+`scope.cradle.someForeignPort` read is an undeclared edge that reports clean —
+the failure the `port(ctx, name)` helper produced, where fourteen resolutions
+hid behind a variable. Reading your **own** module's registration off
+`ctx.cradle<T>()` is fine and sometimes necessary: `lazyPort` returns a proxy
+that answers every property with a function so it can forward a method call, so
+a nested reach like `handle.indexer.reindexAll()` type-checks and then fails
+with *"is not a function"*.
+
+**3. Presence is decided by the host, before a context exists.** A command has
+no route to gate, no worker to wrap and no port resolution to hang a transient
+gate on, so the **declaration** is the seam:
+`src/cli/module-commands.ts` calls `requireModuleEnabled` for the module that
+declared the command — first, outside every `try`, before it asks for a context.
+A module author writes no presence check and cannot forget one, which is what
+Constitution XVII item 3 says a gate is for. It is asked for the declaring
+module's id and never for an owner's: that answer belongs to the owner's
+`providePort` gate, and asking it twice is how the two come to disagree.
+
+**4. `--list` and `--help` are answered before anything is opened.** They are
+questions about the *declaration*, so the host reads
+`resolvedManifestEntries()` — manifests only, no database — and answers. That is
+why `help` is a data property on the declaration rather than something the body
+prints: `audit_logs read`'s credential is host access, not a working connection
+string (D-102), so it has to be able to say what it does before it can do it.
+
+**5. The five `module:*` commands are a different family and must not convert.**
+`install`, `uninstall`, `enable`, `disable` and `status` operate **on** the
+platform rather than with it. Composing runs `reconcileExistingModules`, which
+inserts `state='installed'` for every shipped manifest with no row — so a
+composing `module:install X` would find `X` already installed and return
+`already-installed`, applying no migration, reconciling no setting and running no
+install hook, at exit code 0. A platform command must be able to run against a
+platform that is not yet in the state the command is about to create.
+
+What composing **does** cost is worth stating so it is not discovered late: every
+boot hook runs (they are idempotent convergences, so this is latency and log
+noise rather than new state), a failing one takes the command down naming its
+own module, and the deployment's environment becomes a precondition — a reachable
+PostgreSQL and, in production, a configured public origin. What it does **not**
+cost is a queue consumer or a timer: every `ctx.worker(` call site and every
+module timer sits inside a `ctx.routes(…)` body that runs at Fastify
+registration, and this process never builds a server.
+
 ## The checks
 
 | Script | What it refuses |

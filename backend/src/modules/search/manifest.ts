@@ -1,7 +1,9 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  type ModuleCliCommand,
 } from '@b2b/contracts';
+import type { ModuleContext } from '../../kernel/module-context.js';
 
 /**
  * Built-in settings manifest for the search module — feature 006.
@@ -133,3 +135,26 @@ export const manifest = defineModuleManifest({
 
 /** Legacy export retained for backward compatibility. */
 export const searchManifest = settings;
+
+/**
+ * The operator command this module declares — feature 080, T042b / D-160.9.
+ *
+ * It was `scripts/reindex.ts`, which hand-built a second `SearchIndexer` out of
+ * five services owned by `catalog` and `custom_fields`. The body is
+ * `await import()`ed because this file is imported by the generated manifest
+ * index, and through it by every static check script and by
+ * `src/db/configured-migrations.ts`; a static import of the indexer would pull a
+ * Meilisearch client into all of them.
+ *
+ * `search` is switchable (`search.enabled` above), so this is also the command
+ * that shows what the host does with a switched-off module's declaration: the
+ * runner asks `requireModuleEnabled('search')` before it builds a context, and
+ * the command does not run.
+ */
+export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
+  {
+    name: 'reindex',
+    summary: "Rebuild every sales channel's Meilisearch index from PostgreSQL.",
+    run: async (context) => (await import('./cli/reindex.js')).reindex(context),
+  },
+];

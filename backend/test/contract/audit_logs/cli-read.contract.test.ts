@@ -4,10 +4,15 @@ import { readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collectModuleCommands, helpFor } from '../../../src/cli/module-commands.js';
+import { cliCommands } from '../../../src/modules/audit_logs/manifest.js';
+import { read } from '../../../src/modules/audit_logs/cli/read.js';
+import type { ModuleContext } from '../../../src/kernel/module-context.js';
 
 const exec = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
-const script = resolve(here, '../../../src/modules/audit_logs/scripts/read.ts');
+const backendRoot = resolve(here, '../../..');
+const body = resolve(backendRoot, 'src/modules/audit_logs/cli/read.ts');
 
 /**
  * `audit:read` — the surface D-102 ships, and the sentence it must not lose.
@@ -21,37 +26,30 @@ const script = resolve(here, '../../../src/modules/audit_logs/scripts/read.ts');
  *
  * The cost of that answer is that **a read performed here leaves no record in
  * the trail it reads**, and it is written in three places — the ruling, the
- * script header, and the first paragraph of `--help`. This file pins the third,
+ * file header, and the first paragraph of `--help`. This file pins the third,
  * because `--help` text is the copy most likely to be trimmed by somebody
  * shortening the output, and the second, because the header is where the next
  * person changing the file will look.
+ *
+ * ## What T042b moved, and the condition it had to keep
+ *
+ * The tool is a manifest-declared command the host runs (D-160.9), so its
+ * `--help` is a `help` **declaration** rather than a string the body prints —
+ * and that is not a convenience. D-102's credential is host access, **not a
+ * working connection string**: a tool has to be able to say what it does before
+ * it can do it. Running a command composes the platform, so if `--help` went
+ * through the body it would need a database. The host therefore answers `--list`
+ * and `--help` from `resolvedManifestEntries()`, which reads manifests and opens
+ * nothing, and the last test below is what holds that.
  */
 
-async function run(
-  args: string[],
-  env: NodeJS.ProcessEnv = {},
-): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  try {
-    const { stdout, stderr } = await exec('pnpm', ['exec', 'tsx', script, ...args], {
-      env: { ...process.env, ...env },
-    });
-    return { exitCode: 0, stdout, stderr };
-  } catch (e) {
-    const err = e as { code?: number; stdout?: string; stderr?: string };
-    return {
-      exitCode: typeof err.code === 'number' ? err.code : 1,
-      stdout: err.stdout ?? '',
-      stderr: err.stderr ?? '',
-    };
-  }
-}
+const [declared] = collectModuleCommands([{ manifest: { id: 'audit_logs' }, cliCommands }]);
 
 describe('audit:read — the CLI says what it costs', () => {
-  it('states the unaudited read in the first paragraph of --help, not a footnote', async () => {
-    const { exitCode, stdout } = await run(['--help']);
-    expect(exitCode).toBe(0);
-
-    const paragraphs = stdout.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
+  it('states the unaudited read in the first paragraph of --help, not a footnote', () => {
+    const paragraphs = helpFor(declared as never)
+      .split(/\n\s*\n/)
+      .filter((p) => p.trim().length > 0);
     // The usage line, then the cost. Anything further down is a footnote, which
     // is exactly what the ruling refuses.
     // Whitespace-normalised: a line wrap is not a trim, and the sentence is
@@ -60,29 +58,33 @@ describe('audit:read — the CLI says what it costs', () => {
     expect(opening).toMatch(/leaves no record/i);
     expect(opening).toMatch(/psql/);
     expect(opening).toMatch(/host/i);
-  }, 60_000);
-
-  it('answers --help without reaching the database', async () => {
-    // The credential is host access, not a working connection string: the tool
-    // has to be able to tell somebody what it does before it can do it.
-    const { exitCode } = await run(['--help'], {
-      DATABASE_URL: 'postgres://nobody:nobody@127.0.0.1:1/definitely_not_a_database',
-    });
-    expect(exitCode).toBe(0);
-  }, 60_000);
+  });
 
   it('refuses an argument it does not understand rather than reading something else', async () => {
-    const { exitCode, stderr } = await run(['--bogus']);
-    expect(exitCode).toBe(1);
-    expect(stderr).toMatch(/usage/i);
-  }, 60_000);
+    // A read that did not happen must not look like an empty one, so the exit
+    // code is 1 and the stream carries the usage line — and the body reaches no
+    // EntityManager on that path, which is what the throwing cradle proves.
+    const err: string[] = [];
+    const code = await read({
+      ctx: {
+        cradle: () => {
+          throw new Error('argv is refused before anything is read');
+        },
+      } as unknown as ModuleContext,
+      argv: ['--bogus'],
+      out: () => {},
+      err: (line) => err.push(line),
+    });
+    expect(code).toBe(1);
+    expect(err.join('\n')).toMatch(/usage/i);
+  });
 
   it('carries the cost and the must-not-grow list in its header, where the next editor reads', () => {
     // Four growth directions re-open the owner's E2 ruling rather than being
     // follow-up tickets, because each one makes host access stop being a
     // sufficient credential. The list lives at the top of the file so it is read
     // before the change, not after the review.
-    const source = readFileSync(script, 'utf8');
+    const source = readFileSync(body, 'utf8');
     const header = source.slice(0, source.indexOf('\nimport '));
 
     expect(header).toMatch(/leaves no record/i);
@@ -91,4 +93,25 @@ describe('audit:read — the CLI says what it costs', () => {
       expect(header, `the header does not refuse: ${growth}`).toMatch(growth);
     }
   });
+
+  it('answers --help without reaching the database', async () => {
+    // The credential is host access, not a working connection string. The host
+    // answers this from the manifest declarations, so it must survive a
+    // `DATABASE_URL` that points at nothing — which is also what proves the
+    // answer is not coming from a composed platform.
+    const { stdout } = await exec(
+      'pnpm',
+      ['exec', 'tsx', 'src/cli.ts', 'audit_logs', 'read', '--help'],
+      {
+        cwd: backendRoot,
+        env: {
+          ...process.env,
+          DATABASE_URL: 'postgres://nobody:nobody@127.0.0.1:1/definitely_not_a_database',
+        },
+      },
+    );
+    // Whitespace-normalised for the same reason the first test is: the sentence
+    // is long enough to be wrapped, and a line wrap is not a trim.
+    expect(stdout.replace(/\s+/g, ' ')).toMatch(/leaves no record/i);
+  }, 60_000);
 });

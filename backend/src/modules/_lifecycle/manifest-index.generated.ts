@@ -24,21 +24,21 @@
 
 import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
 
-import { manifest as manifest0, lifecycleParticipant as lifecycleParticipant0 } from '../_i18n/manifest.js';
+import { manifest as manifest0, lifecycleParticipant as lifecycleParticipant0, cliCommands as cliCommands0 } from '../_i18n/manifest.js';
 import { manifest as manifest1 } from '../_lifecycle/manifest.js';
 import { manifest as manifest2 } from '../addresses/manifest.js';
 import { manifest as manifest3, lifecycleParticipant as lifecycleParticipant3 } from '../admin_actions/manifest.js';
 import { manifest as manifest4 } from '../admin_notifications/manifest.js';
 import { manifest as manifest5 } from '../admin_roles/manifest.js';
-import { manifest as manifest6 } from '../admin_users/manifest.js';
+import { manifest as manifest6, cliCommands as cliCommands6 } from '../admin_users/manifest.js';
 import { manifest as manifest7 } from '../analytics/manifest.js';
 import { manifest as manifest8 } from '../api_keys/manifest.js';
 import { manifest as manifest9 } from '../assets_library/manifest.js';
-import { manifest as manifest10 } from '../audit_logs/manifest.js';
+import { manifest as manifest10, cliCommands as cliCommands10 } from '../audit_logs/manifest.js';
 import { manifest as manifest11 } from '../auth/manifest.js';
 import { manifest as manifest12 } from '../autopay/manifest.js';
 import { manifest as manifest13 } from '../blog/manifest.js';
-import { manifest as manifest14 } from '../carts/manifest.js';
+import { manifest as manifest14, cliCommands as cliCommands14 } from '../carts/manifest.js';
 import { manifest as manifest15 } from '../catalog/manifest.js';
 import { manifest as manifest16 } from '../cms/manifest.js';
 import { manifest as manifest17 } from '../comparisons/manifest.js';
@@ -80,9 +80,9 @@ import { manifest as manifest52 } from '../quick_order/manifest.js';
 import { manifest as manifest53 } from '../quote_requests/manifest.js';
 import { manifest as manifest54 } from '../returns/manifest.js';
 import { manifest as manifest55 } from '../sales_channels/manifest.js';
-import { manifest as manifest56 } from '../search/manifest.js';
+import { manifest as manifest56, cliCommands as cliCommands56 } from '../search/manifest.js';
 import { manifest as manifest57 } from '../seo/manifest.js';
-import { manifest as manifest58 } from '../settings/manifest.js';
+import { manifest as manifest58, cliCommands as cliCommands58 } from '../settings/manifest.js';
 import { manifest as manifest59 } from '../shipments/manifest.js';
 import { manifest as manifest60 } from '../shopping_lists/manifest.js';
 import { manifest as manifest61 } from '../stripe/manifest.js';
@@ -97,24 +97,25 @@ export interface DiscoveredManifestEntry {
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
   lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
+  cliCommands?: ModuleManifestExports['cliCommands'];
 }
 
 export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
-  { id: '_i18n', manifest: manifest0, lifecycleParticipant: lifecycleParticipant0 },
+  { id: '_i18n', manifest: manifest0, lifecycleParticipant: lifecycleParticipant0, cliCommands: cliCommands0 },
   { id: '_lifecycle', manifest: manifest1 },
   { id: 'addresses', manifest: manifest2 },
   { id: 'admin_actions', manifest: manifest3, lifecycleParticipant: lifecycleParticipant3 },
   { id: 'admin_notifications', manifest: manifest4 },
   { id: 'admin_roles', manifest: manifest5 },
-  { id: 'admin_users', manifest: manifest6 },
+  { id: 'admin_users', manifest: manifest6, cliCommands: cliCommands6 },
   { id: 'analytics', manifest: manifest7 },
   { id: 'api_keys', manifest: manifest8 },
   { id: 'assets_library', manifest: manifest9 },
-  { id: 'audit_logs', manifest: manifest10 },
+  { id: 'audit_logs', manifest: manifest10, cliCommands: cliCommands10 },
   { id: 'auth', manifest: manifest11 },
   { id: 'autopay', manifest: manifest12 },
   { id: 'blog', manifest: manifest13 },
-  { id: 'carts', manifest: manifest14 },
+  { id: 'carts', manifest: manifest14, cliCommands: cliCommands14 },
   { id: 'catalog', manifest: manifest15 },
   { id: 'cms', manifest: manifest16 },
   { id: 'comparisons', manifest: manifest17 },
@@ -156,9 +157,9 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'quote_requests', manifest: manifest53 },
   { id: 'returns', manifest: manifest54 },
   { id: 'sales_channels', manifest: manifest55 },
-  { id: 'search', manifest: manifest56 },
+  { id: 'search', manifest: manifest56, cliCommands: cliCommands56 },
   { id: 'seo', manifest: manifest57 },
-  { id: 'settings', manifest: manifest58 },
+  { id: 'settings', manifest: manifest58, cliCommands: cliCommands58 },
   { id: 'shipments', manifest: manifest59 },
   { id: 'shopping_lists', manifest: manifest60 },
   { id: 'stripe', manifest: manifest61 },

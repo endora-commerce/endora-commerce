@@ -76,4 +76,39 @@ export const manifest = {
   ],
 };
 
+/**
+ * The operator command this package declares — feature 080, T042b / D-160.9.
+ *
+ * A package's CLI can only ever be a declaration the host invokes: a file under
+ * `node_modules` can name no specifier that resolves to the instance's
+ * `backend/src/composition.ts`, and `backend` is an application, not a
+ * dependency anything can depend on. So the host composes once, decides this
+ * module's presence, and calls this `run` with the module's own
+ * `ModuleContext` — which is one-to-one with Magento 2's
+ * `CommandListInterface`, where `bin/magento` bootstraps the application and
+ * constructs each module's command with its dependencies injected.
+ *
+ * The context is typed structurally and not imported, for the same reason the
+ * manifest above is a plain object: a published module package carries no
+ * runtime dependency on this repository, and not even a type import, which
+ * would drag the contracts sources into this package's own build.
+ */
+export const cliCommands = [
+  {
+    name: 'probe',
+    summary: 'Report that a package-declared command reached a composed container.',
+    help: 'usage: acceptance_probe probe\n\nPrints the module id the host resolved a context for.',
+    async run(context: {
+      ctx: unknown;
+      argv: readonly string[];
+      out: (line: string) => void;
+      err: (line: string) => void;
+    }): Promise<number> {
+      context.out(`acceptance_probe: ran with argv=[${context.argv.join(' ')}]`);
+      context.out(`acceptance_probe: context resolved = ${String(context.ctx !== undefined)}`);
+      return 0;
+    },
+  },
+];
+
 export default manifest;

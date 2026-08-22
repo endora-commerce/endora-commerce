@@ -200,7 +200,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     prefix: '[entry-scope]',
     run: { kind: 'tsx', path: 'scripts/check-entry-scope.ts', args: [] },
     files: 1541,
-    sites: 47,
+    // Re-recorded by feature 080's T042b, downward and deliberately: 47 → 41.
+    // Seven module CLI scripts became manifest-declared commands the host runs
+    // (D-160.9), so their files left `scripts/` — they no longer start a process
+    // and are no longer entry points — and one new declared program, `src/cli.ts`,
+    // replaced them. `package-scripts` fell 18 → 12 for the same reason: seven
+    // `backend/package.json` programs now name one path instead of seven.
+    // A downward move is the direction this band exists to refuse, so the number
+    // is moved in the merge request that shrank the population and nowhere else.
+    sites: 41,
     sources: ['manifest-index', 'package-scripts'],
   },
   'backend/scripts/check-error-translations.ts': {

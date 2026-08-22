@@ -1,24 +1,41 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartAuditEntry } from '../../../src/modules/carts/entities/cart-audit-entry.entity.js';
+import { cliCommands } from '../../../src/modules/carts/manifest.js';
+import { CartAbandonmentWorker } from '../../../src/modules/carts/services/cart-abandonment-worker.js';
+import { CartAuditService } from '../../../src/modules/carts/services/cart-audit-service.js';
+import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { sweepAbandonedCarts } from '../../../src/modules/carts/scripts/abandonment-sweep.js';
+import type { ModuleContext } from '../../../src/kernel/module-context.js';
+import { runModuleCommand } from '../../../src/cli/module-commands.js';
 import { enterSystemScope } from '../../../src/kernel/scope.js';
 
 /**
- * Issue #54 — the ops CLI decides module presence before it works.
+ * Issue #54, re-proved at the seam feature 080's T042b moved it to.
  *
- * The entry point has no route to gate, no worker to gate and no port to
- * resolve, so nothing gated it: it ran whatever `module_registrations` said.
- * Constitution XVII item 3 names `requireModuleEnabled` for exactly that shape,
- * and these two cases are the two answers it can give.
+ * The question is unchanged: an operator command has no route to gate, no worker
+ * to gate and no port to resolve, so without a decision of its own it ran
+ * whatever `module_registrations` said. What changed is **who asks**. The command
+ * is now a manifest declaration the host runs (D-160.9), and
+ * `runModuleCommand` asks `requireModuleEnabled` about the **declaring** module —
+ * first, before it builds a context and outside every `try` — so a module author
+ * writes no presence check and cannot forget one.
  *
- * The tests drive {@link sweepAbandonedCarts}, not `runAbandonmentSweep`: the
- * latter owns the `initOrm` singleton the backend harness also boots, so
- * calling it here would close the server's ORM for the rest of the run.
+ * Both cases below therefore drive `runModuleCommand` over `carts`' own
+ * `cliCommands` declaration, which is what an operator's
+ * `pnpm cart:abandonment-sweep` reaches through `src/cli.ts`.
+ *
+ * `contextFor` is a stub rather than a real composition, and that is the point
+ * of the first assertion: it **records whether it was called**. A presence
+ * answer that arrives after the context is built is a presence answer that
+ * arrives after the module's services have been resolved, which is the
+ * difference between failing closed and failing closed loudly enough to have
+ * already done something.
  *
  * `registryCache` is a process singleton the harness seeds with
  * `__setEnabledForTesting`. Loading it from the database is the point of the
@@ -26,7 +43,7 @@ import { enterSystemScope } from '../../../src/kernel/scope.js';
  * `setupBackendServer` sets it.
  */
 
-describe('cart abandonment sweep CLI — module presence', () => {
+describe('cart abandonment-sweep command — module presence', () => {
   let db: TestDb;
   let systemDefaultChannelId: string;
 
@@ -58,6 +75,65 @@ describe('cart abandonment sweep CLI — module presence', () => {
     });
   }
 
+  /**
+   * A `ModuleContext` carrying the one registration the command reads, plus a
+   * record of whether the host asked for it at all.
+   *
+   * The worker is built here rather than composed for the reason the old file
+   * gave for `sweepAbandonedCarts`: `composeApp()` owns the `initOrm` singleton
+   * this harness also boots, so composing here would close the server's ORM out
+   * from under the rest of the single-fork run. What is under test is the
+   * host's gate and the command's body; the composition's own `contextFor` is
+   * covered by `test/unit/cli/module-commands.test.ts`.
+   */
+  function stubContext(em: EntityManager): {
+    contextFor: (moduleId: string) => ModuleContext;
+    built: () => string[];
+  } {
+    const built: string[] = [];
+    const worker = new CartAbandonmentWorker({
+      emFactory: () => em,
+      cartAuditService: new CartAuditService(() => em, new AuditLogService(() => em)),
+      resolveInactivityMinutes: async () => 60,
+      resolveNotificationRecipient: async () => '',
+    });
+    return {
+      built: () => built,
+      contextFor: (moduleId) => {
+        built.push(moduleId);
+        return {
+          cradle: () => ({ cartAbandonmentWorker: worker }),
+        } as unknown as ModuleContext;
+      },
+    };
+  }
+
+  async function run(em: EntityManager, stub: ReturnType<typeof stubContext>): Promise<number> {
+    // The registry has to be loaded from the database for the presence answer
+    // to be about the rows this test wrote. `src/cli.ts` gets this from
+    // `composeApp()`; here it is the same two kernel ingredients.
+    await registryCache.load({
+      em: () => em,
+      activationDeclarations: activationDeclarationsFrom(
+        REGISTERED_MANIFESTS.map((e) => e.manifest),
+      ),
+    });
+    return enterSystemScope(
+      'test: cli sweep',
+      () =>
+        runModuleCommand({
+          entries: [{ manifest: { id: 'carts' }, cliCommands }],
+          moduleId: 'carts',
+          name: 'abandonment-sweep',
+          argv: [],
+          contextFor: stub.contextFor,
+          out: () => {},
+          err: () => {},
+        }),
+      { entryPoint: 'cli' },
+    );
+  }
+
   it('refuses with MODULE_DISABLED when the platform registry has no installed carts', async () => {
     const em = db.em();
     // Stated rather than assumed: both cases set the registry row they are
@@ -66,12 +142,17 @@ describe('cart abandonment sweep CLI — module presence', () => {
     await em.nativeDelete(ModuleRegistration, { moduleId: 'carts' });
     const cart = seedIdleCart(`cli-absent-${Date.now()}`);
     await em.flush();
+    const stub = stubContext(em);
 
-    await expect(
-      enterSystemScope('test: cli sweep', () => sweepAbandonedCarts(() => em), {
-        entryPoint: 'cli',
-      }),
-    ).rejects.toMatchObject({ statusCode: 503, code: 'MODULE_DISABLED', moduleId: 'carts' });
+    await expect(run(em, stub)).rejects.toMatchObject({
+      statusCode: 503,
+      code: 'MODULE_DISABLED',
+      moduleId: 'carts',
+    });
+
+    // Decided *before* the work, not caught after it: the host never asked for
+    // the module's context, so nothing was resolved and nothing ran.
+    expect(stub.built()).toEqual([]);
 
     // Fail closed means nothing moved, not "moved and then complained".
     const reload = await em.findOneOrFail(Cart, { id: cart.id });
@@ -91,14 +172,11 @@ describe('cart abandonment sweep CLI — module presence', () => {
     });
     const cart = seedIdleCart(`cli-present-${Date.now()}`);
     await em.flush();
+    const stub = stubContext(em);
 
-    const result = await enterSystemScope(
-      'test: cli sweep',
-      () => sweepAbandonedCarts(() => em),
-      { entryPoint: 'cli' },
-    );
+    expect(await run(em, stub)).toBe(0);
+    expect(stub.built()).toEqual(['carts']);
 
-    expect(result.abandonedCount).toBeGreaterThanOrEqual(1);
     const reload = await em.findOneOrFail(Cart, { id: cart.id });
     expect(reload.status).toBe('abandoned');
     const audit = await em.find(CartAuditEntry, { cartId: cart.id });

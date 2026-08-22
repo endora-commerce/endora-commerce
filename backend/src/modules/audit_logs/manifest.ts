@@ -1,4 +1,5 @@
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest, type ModuleCliCommand } from '@b2b/contracts';
+import type { ModuleContext } from '../../kernel/module-context.js';
 
 /**
  * Audit Logs module — manifest backfill (Module Lifecycle, feature 018).
@@ -52,3 +53,38 @@ export const manifest = defineModuleManifest({
       'viewer, and hiding who did what is a governance regression.',
   },
 });
+
+/**
+ * The operator command this module declares — feature 080, T042b / D-160.9.
+ *
+ * It was `scripts/read.ts`, which owned its own `initOrm()`. Only the plumbing
+ * moved: the `EntityManager` comes off the composition now, and the reach is
+ * still one read of the kernel's `AuditLogEntry`. The conditions D-102 attached
+ * to this tool are unchanged and are restated at the top of `cli/read.ts`.
+ */
+export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
+  {
+    name: 'read',
+    summary: 'Read the audit trail from the host, without writing to it (D-102).',
+    // The cost is in the **first paragraph**, not a footnote, and it is declared
+    // here rather than printed from the body so the host can answer `--help`
+    // before it composes. That is D-102's condition: the credential is host
+    // access, not a working connection string, so the tool has to be able to say
+    // what it does before it can do it.
+    help: `usage: audit_logs read [--actor=<uuid>] [--action=<code>] [--object-type=<type>]
+                       [--object-id=<id>] [--limit=<n>] [--json]
+
+This tool reads the audit log without writing to it. A read performed here leaves
+no record in the trail; the credential is access to this host and its database,
+which already grants the same read through \`psql\`.
+
+Filters — the same ones the admin HTTP route takes:
+  --actor=<uuid>         the admin user who acted
+  --action=<code>        e.g. product.update, module.disabled
+  --object-type=<type>   e.g. product, module
+  --object-id=<id>       the affected row
+  --limit=<n>            1..500, default 100
+  --json                 the rows as JSON instead of a table`,
+    run: async (context) => (await import('./cli/read.js')).read(context),
+  },
+];

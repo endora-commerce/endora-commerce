@@ -1,5 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { defineModuleManifest, type ModuleLifecycleParticipant } from '@b2b/contracts';
+import {
+  defineModuleManifest,
+  type ModuleCliCommand,
+  type ModuleLifecycleParticipant,
+} from '@b2b/contracts';
+import type { ModuleContext } from '../../kernel/module-context.js';
 
 /**
  * Admin UI i18n subsystem — feature 019.
@@ -86,3 +91,30 @@ export const lifecycleParticipant: ModuleLifecycleParticipant<EntityManager> = {
     await new I18nService({ em: () => em }).removeBundlesForModule(moduleId, em);
   },
 };
+
+/**
+ * The two operator commands this module declares — feature 080, T042b /
+ * D-160.9.
+ *
+ * They were `scripts/reload.ts` and `scripts/coverage.ts`, each opening its own
+ * ORM and building its own `I18nService`. The host composes now and hands the
+ * body this module's `ModuleContext`, which is what retired this module's one
+ * `check:module-boundary` key: `reload` needed the deployment's module registry,
+ * and the registry is a root-supplied name any module may read off its cradle.
+ *
+ * The bodies are `await import()`ed for the reason the participant above gives:
+ * this file is imported by the generated manifest index, and through it by every
+ * static check script and by `src/db/configured-migrations.ts`.
+ */
+export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
+  {
+    name: 'reload',
+    summary: "Re-read every module's on-disk i18n bundles into translation_bundles.",
+    run: async (context) => (await import('./cli/reload.js')).reload(context),
+  },
+  {
+    name: 'coverage',
+    summary: 'Print the per-module, per-language translation coverage snapshot.',
+    run: async (context) => (await import('./cli/coverage.js')).coverage(context),
+  },
+];

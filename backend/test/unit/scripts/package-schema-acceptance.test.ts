@@ -23,6 +23,12 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineModuleManifest } from '@b2b/contracts';
 import {
+  collectModuleCommands,
+  helpFor,
+  runModuleCommand,
+} from '../../../src/cli/module-commands.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import {
   ASSERTION_IDS,
   classifyResolutionPath,
   evaluateA8,
@@ -312,6 +318,64 @@ describe('the fixture package is the thing the contract describes', () => {
     // `docs/docs/architecture/migrations.md` § *How to create a migration in an
     // extension package* teaches that the door is not there. A green test must
     // not be able to mean something it does not mean; do not add it back.
+  });
+
+  it('declares a CLI command the host can enumerate and run (T042b, D-160.9)', async () => {
+    // The fixture is the canonical example a package author copies, so the
+    // declaration is exercised here rather than described. It enters at the top
+    // of the analysis — the manifest module is imported, its export is handed to
+    // the host's own collector, and the host's own runner invokes it — so the
+    // enumeration, the name validation and the presence gate all run.
+    const module = (await import(join(FIXTURE_DIR, 'src', 'manifest.ts'))) as {
+      cliCommands: unknown;
+    };
+    const declared = collectModuleCommands([
+      { manifest: { id: 'acceptance_probe' }, cliCommands: module.cliCommands as never },
+    ]);
+    expect(declared.map((c) => `${c.moduleId} ${c.name}`)).toEqual(['acceptance_probe probe']);
+    expect(helpFor(declared[0]!)).toMatch(/usage: acceptance_probe probe/);
+
+    registryCache.__setEnabledForTesting(['acceptance_probe']);
+    try {
+      const out: string[] = [];
+      const code = await runModuleCommand({
+        entries: [
+          { manifest: { id: 'acceptance_probe' }, cliCommands: module.cliCommands as never },
+        ],
+        moduleId: 'acceptance_probe',
+        name: 'probe',
+        argv: ['--dry-run'],
+        contextFor: () => ({ marker: 'probe' }) as never,
+        out: (line) => out.push(line),
+        err: () => {},
+      });
+      expect(code).toBe(0);
+      expect(out).toEqual([
+        'acceptance_probe: ran with argv=[--dry-run]',
+        'acceptance_probe: context resolved = true',
+      ]);
+
+      // And the other answer, which is the one that matters for a stranger's
+      // command: switched off, the host never builds a context.
+      registryCache.__setEnabledForTesting([]);
+      await expect(
+        runModuleCommand({
+          entries: [
+            { manifest: { id: 'acceptance_probe' }, cliCommands: module.cliCommands as never },
+          ],
+          moduleId: 'acceptance_probe',
+          name: 'probe',
+          argv: [],
+          contextFor: () => {
+            throw new Error('contextFor must not be called for an absent module');
+          },
+          out: () => {},
+          err: () => {},
+        }),
+      ).rejects.toMatchObject({ code: 'MODULE_DISABLED', moduleId: 'acceptance_probe' });
+    } finally {
+      registryCache.__setEnabledForTesting([]);
+    }
   });
 
   it('ships flat i18n bundles covering the action keys in both languages', () => {

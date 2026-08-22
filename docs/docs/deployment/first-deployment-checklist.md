@@ -215,7 +215,7 @@ wildcard `*` permission. Everything else is the client's own design.
 ```bash
 cd /opt/b2b
 docker compose --env-file .env -f compose.prod.yml run --rm backend \
-  pnpm exec tsx src/modules/admin_users/scripts/create-admin.ts \
+  pnpm exec tsx src/cli.ts admin_users create \
   --email=… --password=… --first-name=… --last-name=…
 ```
 
@@ -482,10 +482,12 @@ search returns nothing and no error.
 
 ```bash
 docker compose --env-file .env -f compose.prod.yml run --rm backend \
-  pnpm exec tsx src/modules/search/scripts/reindex.ts
+  pnpm exec tsx src/cli.ts search reindex
 ```
 
-(the same script the `search:reindex` package script runs). See `docs/docs/modules/search.md`.
+(the same invocation the `search:reindex` package script makes — `src/cli.ts` is the host
+binary that runs the commands modules declare in their `manifest.ts`; `--list` prints every
+one this instance offers). See `docs/docs/modules/search.md`.
 
 **Verify.** Search for a product you know exists and find it; compare the indexed document count
 against the product count.

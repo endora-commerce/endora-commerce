@@ -48,6 +48,13 @@ export interface RegisteredManifestEntry {
    * admin path does.
    */
   lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
+  /**
+   * The operator commands this module declares — feature 080, T042b / D-160.9.
+   * Travels with the entry for the same reason the hooks do: the host's CLI
+   * runner reads them off the resolved set, so a core module, an overlay module
+   * and an installed package are reachable by one path.
+   */
+  cliCommands?: ModuleManifestExports['cliCommands'];
 }
 
 /**
@@ -143,6 +150,7 @@ function entryFor(
     ...(discovered.lifecycleParticipant
       ? { lifecycleParticipant: discovered.lifecycleParticipant }
       : {}),
+    ...(discovered.cliCommands ? { cliCommands: discovered.cliCommands } : {}),
   };
 }
 
@@ -219,6 +227,7 @@ export async function resolvedManifestEntries(
       ...(found.lifecycleParticipant
         ? { lifecycleParticipant: found.lifecycleParticipant }
         : {}),
+      ...(found.cliCommands ? { cliCommands: found.cliCommands } : {}),
     });
   }
 
@@ -251,6 +260,7 @@ export async function resolvedManifestEntries(
       ...(found.lifecycleParticipant
         ? { lifecycleParticipant: found.lifecycleParticipant }
         : {}),
+      ...(found.cliCommands ? { cliCommands: found.cliCommands } : {}),
     });
   }
   return [...byId.values()];

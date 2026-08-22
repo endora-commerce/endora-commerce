@@ -85,6 +85,15 @@ export interface PackageModuleManifest {
    * and an installed package declare one on exactly core's terms.
    */
   lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
+  /**
+   * The operator commands this module declares — feature 080, T042b / D-160.9.
+   *
+   * This is the origin the shape was designed for: a file under `node_modules`
+   * can name no specifier that resolves to the instance's
+   * `backend/src/composition.ts`, so a package's CLI can only ever be a
+   * declaration the host invokes. Read here on exactly core's terms.
+   */
+  cliCommands?: ModuleManifestExports['cliCommands'];
 }
 
 /**
@@ -213,6 +222,7 @@ async function manifestEntryFor(
   const lifecycleParticipant = module['lifecycleParticipant'] as
     | ModuleManifestExports['lifecycleParticipant']
     | undefined;
+  const cliCommands = module['cliCommands'] as ModuleManifestExports['cliCommands'] | undefined;
 
   return {
     id: installed.id,
@@ -222,6 +232,7 @@ async function manifestEntryFor(
     ...(installHook ? { installHook } : {}),
     ...(uninstallHook ? { uninstallHook } : {}),
     ...(lifecycleParticipant ? { lifecycleParticipant } : {}),
+    ...(cliCommands ? { cliCommands } : {}),
   };
 }
 

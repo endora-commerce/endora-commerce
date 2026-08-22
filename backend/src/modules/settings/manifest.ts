@@ -1,7 +1,9 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  type ModuleCliCommand,
 } from '@b2b/contracts';
+import type { ModuleContext } from '../../kernel/module-context.js';
 
 /**
  * Built-in settings manifest for the settings module itself — feature 004.
@@ -264,3 +266,17 @@ export const manifest = defineModuleManifest({
 
 /** Legacy export retained for backward compatibility. */
 export const settingsManifest = settings;
+
+/**
+ * The operator command this module declares — feature 080, T042b / D-160.9.
+ *
+ * It was `scripts/cache-clear.ts`, which opened its own Redis connection and
+ * built its own `CacheAdminService`. It flushes through the composition's now.
+ */
+export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
+  {
+    name: 'cache-clear',
+    summary: 'Flush selected (or all) Redis cache namespaces.',
+    run: async (context) => (await import('./cli/cache-clear.js')).cacheClear(context),
+  },
+];

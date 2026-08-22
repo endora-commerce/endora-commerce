@@ -1,7 +1,9 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  type ModuleCliCommand,
 } from '@b2b/contracts';
+import type { ModuleContext } from '../../kernel/module-context.js';
 
 /**
  * Carts module — feature 027 consolidation pass.
@@ -158,3 +160,20 @@ export const manifest = defineModuleManifest({
 
 /** Legacy export retained for backward compatibility. */
 export const cartsManifest = settings;
+
+/**
+ * The operator command this module declares — feature 080, T042b / D-160.9.
+ *
+ * It was `scripts/abandonment-sweep.ts`, the tree's one call site of
+ * `requireModuleEnabled` and the worked example D-157 was written around. The
+ * host asks that question now, at the declaration seam, for every command; see
+ * `cli/abandonment-sweep.ts` for what the move changed and what it did not.
+ */
+export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
+  {
+    name: 'abandonment-sweep',
+    summary: 'Run one pass of the cart abandonment sweep against the live database.',
+    run: async (context) =>
+      (await import('./cli/abandonment-sweep.js')).abandonmentSweep(context),
+  },
+];

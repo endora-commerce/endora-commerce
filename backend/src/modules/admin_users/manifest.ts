@@ -1,4 +1,5 @@
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest, type ModuleCliCommand } from '@b2b/contracts';
+import type { ModuleContext } from '../../kernel/module-context.js';
 
 /**
  * Admin Users module — manifest backfill (Module Lifecycle, feature 018).
@@ -87,3 +88,30 @@ export const manifest = defineModuleManifest({
       'to the Admin UI at all — including to switch it back on.',
   },
 });
+
+/**
+ * The operator command this module declares — feature 080, T042b / D-160.9.
+ *
+ * It was `scripts/create-admin.ts`, whose one `check:module-boundary` key was an
+ * `AdminRole` **entity** import: with no container there was nothing to resolve
+ * `adminRolePort` from. Composing reaches it, and D-157.5 is why that is safe on
+ * a database with no administrator in it — `loadModulePresence` runs before the
+ * first module registers and its reconciler is what puts the presence rows
+ * there, so a composed bootstrap resolves a working port on a virgin schema.
+ */
+export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
+  {
+    name: 'create',
+    summary: 'Create or update an admin user, bootstrapping the platform_admin role.',
+    help: `usage: admin_users create --email=<e> --password=<p> --first-name=<f> --last-name=<l>
+                          [--role=<code>] [--skip-role-bootstrap]
+
+Idempotent: re-running with the same email updates the password and the role
+assignment. The first admin created gets the \`platform_admin\` role with the
+wildcard \`*\` permission; narrower roles are defined from the Admin UI.
+
+  --role=<code>            an existing role code (default: platform_admin)
+  --skip-role-bootstrap    do not create platform_admin when it is missing`,
+    run: async (context) => (await import('./cli/create-admin.js')).createAdmin(context),
+  },
+];

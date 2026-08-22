@@ -539,8 +539,120 @@ export interface ModuleLifecycleParticipant<EM = unknown> {
   onModuleHardUninstalled(event: ModuleHardUninstalledEvent<EM>): Promise<void>;
 }
 
+// ---------------------------------------------------------------------------
+// Module CLI commands (feature 080, T042b / D-160.9)
+// ---------------------------------------------------------------------------
+
+/**
+ * The shape a command's name has to take: lowercase, hyphen-separated.
+ *
+ * A command is addressed as `<module id> <command name>` on the host's argv, so
+ * the name shares the module id's alphabet minus the underscore — an operator
+ * types `carts abandonment-sweep`, and `check:naming`'s route-segment rule is
+ * the same shape for the same reason. The host validates against this rather
+ * than accepting whatever a package declared: a name with a space in it is
+ * unaddressable, and a name that differs from the one printed by `--list` is
+ * worse than one that is refused.
+ */
+export const MODULE_CLI_COMMAND_NAME_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+
+/**
+ * What a command handler is given.
+ *
+ * `ctx` is the module's own `ModuleContext` — a kernel type this package
+ * deliberately does not import, so it arrives through the generic exactly as an
+ * `EntityManager` does on the lifecycle hooks above. A handler resolves what it
+ * needs from it with
+ * `lazyPort<T>(ctx, 'literalName')`, character-for-character what `backend.ts`
+ * writes, which is what keeps `check:port-dependencies` able to see the edge. A
+ * cradle read would be invisible to it.
+ *
+ * `out` and `err` are the command's interface, injected rather than reached for:
+ * a handler that writes to `process.stdout` directly cannot be driven from a
+ * test without capturing the process's streams, and the host is the one place
+ * that knows whether this invocation has a terminal.
+ */
+export interface ModuleCliCommandContext<Ctx = unknown> {
+  /** The module's own composed `ModuleContext`. */
+  ctx: Ctx;
+  /** Everything the operator typed after `<module id> <command name>`. */
+  argv: readonly string[];
+  /** One line of human-readable output. The host adds the newline. */
+  out(line: string): void;
+  /** One line of diagnostics. The host adds the newline. */
+  err(line: string): void;
+}
+
+/**
+ * An operator command a module declares and **the host runs** (D-160.9).
+ *
+ * Checked against Magento 2, which is this repository's module benchmark: a
+ * Magento module ships a command class plus a declaration in its `di.xml` under
+ * `CommandListInterface`, and `bin/magento` — the host binary — bootstraps the
+ * application and constructs each command with its dependencies injected. The
+ * module never bootstraps the host. That is one-to-one with what D-157.8 had
+ * already ruled here: the command is declared where `installHook` is declared,
+ * an export of the module's `manifest.ts`, picked up by the same tree walk, and
+ * one shape covers core, overlay and package.
+ *
+ * A package could not do it any other way. A file under `node_modules` can name
+ * no specifier that resolves to the instance's `backend/src/composition.ts`, and
+ * a core script that names it creates a module → root → module cycle. So the
+ * invocation inverts: the host composes once and calls the module.
+ *
+ * **It is not a Command Bus Command** (Constitution XIII), and the field is
+ * spelled `cliCommands` rather than `commands` so that the two cannot be read
+ * for one another — `backend/src/commands/` and every module's own `commands/`
+ * directory already hold the audited domain writes. A CLI command that performs
+ * a domain write runs one of those, resolved from `ctx`, exactly as a route
+ * handler does.
+ *
+ * Keep the declaration in `manifest.ts` **light**, for the reason
+ * {@link ModuleLifecycleParticipant} gives: the generated manifest index is
+ * imported by the check scripts and by `src/db/configured-migrations.ts`, so
+ * `run` should `await import()` the file that holds the body rather than
+ * pulling a service graph into all of them.
+ */
+export interface ModuleCliCommand<Ctx = unknown> {
+  /** Unique within the module. Must match {@link MODULE_CLI_COMMAND_NAME_RE}. */
+  name: string;
+  /** One line, printed by the host's `--list`. Written for an operator. */
+  summary: string;
+  /**
+   * The full usage text, printed by the host for `--help`.
+   *
+   * A **data property**, not a method, and answered by the host **before it
+   * composes**: `--list` and `--help` are questions about the declaration, and
+   * a tool has to be able to say what it does before it can do it. D-102 made
+   * that a condition rather than a nicety for `audit_logs read` — its credential
+   * is host access, not a working connection string — and the same property is
+   * why D-157.8 rejected path-convention dispatch, which *"nothing can list …
+   * for `--help`"*.
+   *
+   * Omit it and the host prints {@link summary}. An optional *data* property is
+   * outside what D-97.3 refuses: that rule is about optional **methods** on a
+   * published port, where `lazyPort`'s proxy makes feature detection impossible
+   * by construction.
+   */
+  help?: string;
+  /**
+   * The body. Returns the process exit code — `0` for success, non-zero for a
+   * failure the command itself detected (bad argv, a strict-mode violation).
+   *
+   * Required to return one rather than `void`: a command that means "1" and
+   * returns nothing is indistinguishable from one that succeeded, and the shell
+   * that runs it in a deploy hook reads only the code.
+   *
+   * A throw is the other failure channel and needs no handling here: the host
+   * reports it and exits non-zero. In particular a command must **not** wrap a
+   * port call in a `catch` — that swallows `ModuleDisabledError` and turns
+   * fail-closed into fail-open (`check:port-catches`).
+   */
+  run(context: ModuleCliCommandContext<Ctx>): Promise<number>;
+}
+
 /** Aggregate of what a module's `manifest.ts` may export at runtime. */
-export interface ModuleManifestExports<EM = unknown, Redis = unknown> {
+export interface ModuleManifestExports<EM = unknown, Redis = unknown, Ctx = unknown> {
   manifest: ModuleManifest;
   installHook?: ModuleInstallHook<EM, Redis>;
   uninstallHook?: ModuleUninstallHook<EM, Redis>;
@@ -551,6 +663,12 @@ export interface ModuleManifestExports<EM = unknown, Redis = unknown> {
    * every other module's `manifest.ts` is unchanged.
    */
   lifecycleParticipant?: ModuleLifecycleParticipant<EM>;
+  /**
+   * The operator commands this module declares — see {@link ModuleCliCommand}.
+   * Additive and optional: a module with no operator command exports nothing
+   * and is unchanged.
+   */
+  cliCommands?: readonly ModuleCliCommand<Ctx>[];
 }
 
 // ---------------------------------------------------------------------------

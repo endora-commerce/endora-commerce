@@ -236,14 +236,21 @@ the page awaits `listProducts` (so `resultCount` is meaningful), then
 
 ## Reindex CLI
 
-`backend/src/modules/search/scripts/reindex.ts` walks every Sales
-Channel and pushes its public product surface into Meilisearch.
-Idempotent — safe to run after a fresh `seed:dev` or whenever the
-index drifts from Postgres.
+`search reindex` walks every Sales Channel and pushes its public
+product surface into Meilisearch. Idempotent — safe to run after a
+fresh `seed:dev` or whenever the index drifts from Postgres.
+
+It is a command this module declares in its `manifest.ts` and the host
+runs, so it reindexes through the one `SearchIndexer` the composition
+holds rather than building a second one:
 
 ```bash
-pnpm --filter backend exec ts-node src/modules/search/scripts/reindex.ts
+pnpm --filter backend run search:reindex
+# or, addressing the host binary directly:
+pnpm --filter backend exec tsx src/cli.ts search reindex
 ```
+
+The body is `backend/src/modules/search/cli/reindex.ts`.
 
 ## Testing
 
