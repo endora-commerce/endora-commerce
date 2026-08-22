@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModulePlugin } from '../../http/server.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
 import { CustomerAddressService } from './services/customer-address-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
@@ -139,7 +139,7 @@ export interface CustomersModuleOptions {
    */
   orderList: OrderListPort;
   rfqService: RfqCustomerPort;
-  auditLogService: AuditLogService;
+  auditLogService: AuditPort;
   /**
    * `quick_order`'s ordering defaults, which the customer-detail screen and
    * self-service profile render and edit (issue #216).

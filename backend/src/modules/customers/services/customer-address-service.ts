@@ -3,7 +3,7 @@ import { ERROR_CODES, type AddressReadPort, type AddressRecord } from '@b2b/cont
 import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * CustomerAddressService — the personal address book (feature 040, US2).
@@ -45,7 +45,7 @@ export class CustomerAddressService {
      * every read by organisation.
      */
     private readonly organizationAddresses: AddressReadPort,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {

@@ -5,7 +5,7 @@ import { NEWSLETTER_SETTING_CODES, type EmailMailerPort } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { NewsletterTokenHelper } from './services/token.helper.js';
 import { NewsletterOptInService } from './services/opt-in.service.js';
@@ -76,7 +76,7 @@ export interface NewsletterModuleOptions {
    * the compile-time coupling Principle I forbids even when nothing is called.
    */
   mailer?: EmailMailerPort;
-  auditLog: AuditLogService;
+  auditLog: AuditPort;
   /** Optional observability emitter (wraps the in-process EventBus). */
   emitEvent?: (name: string, payload: Record<string, unknown>) => void;
   /** Redis connection — when present, dispatch is queue-backed (Principle X). */

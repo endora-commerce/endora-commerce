@@ -24,7 +24,7 @@ import {
   createBulkOperationWorker,
   BULK_OPERATION_JOB_NAME,
 } from './services/bulk-operation-queue.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import {
@@ -87,7 +87,7 @@ export interface CatalogModuleOptions {
   categoryRevalidator?: StorefrontRevalidator;
   requireAdmin?: RequireAdminFactory;
   /** Audit-log writer; if provided, mutations land an AuditLogEntry. */
-  auditLogService?: AuditLogService;
+  auditLogService?: AuditPort;
   /** Resolver for who's acting — used for audit attribution. */
   resolveAdminAuditContext?: (req: FastifyRequest) => {
     actorAdminUserId: string;

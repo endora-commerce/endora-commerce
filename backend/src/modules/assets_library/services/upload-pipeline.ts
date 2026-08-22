@@ -22,7 +22,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { Asset } from '../entities/asset.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { AdapterRegistry } from './storage/adapter-registry.js';
 import type { AssetVisibility } from './storage/storage-adapter.js';
 
@@ -56,7 +56,7 @@ export interface UploadPipelineDeps {
   /** Loader called once per upload; lets routes pre-resolve from settings. */
   loadPolicy: () => Promise<UploadPolicy>;
   /** Feature 054 — audits the asset insert co-transactionally when provided. */
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
 }
 
 const KIND_BY_MIME_PREFIX: Array<[string, Asset['kind']]> = [

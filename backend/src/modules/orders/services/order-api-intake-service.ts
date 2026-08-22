@@ -15,7 +15,7 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderPlacementIntent } from '../entities/order-placement-intent.entity.js';
 import type { OrderService } from './order-service.js';
@@ -79,7 +79,7 @@ export interface OrderApiIntakeDeps {
     deliveryMethodIds: string[];
   } | null>) | undefined;
   /** Audit attribution of key placements (`order.place_via_api_key`). */
-  auditLogService?: AuditLogService | undefined;
+  auditLogService?: AuditPort | undefined;
 }
 
 export interface IntakeResult {

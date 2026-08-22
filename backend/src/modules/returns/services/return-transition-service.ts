@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import {
@@ -43,7 +43,7 @@ export class ReturnTransitionService {
     private readonly emFactory: () => EntityManager,
     private readonly events: EventBus,
     private readonly graphService: ReturnStatusGraphService,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   onReturnTransitionGuard(match: { from?: string; to?: string }, guard: TransitionGuard): () => void {

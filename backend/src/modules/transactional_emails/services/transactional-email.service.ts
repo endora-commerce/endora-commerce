@@ -31,7 +31,7 @@ import type {
   EmailDeliveryReason,
   EmailMailerPort,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import { TransactionalEmailContent } from '../entities/transactional-email-content.entity.js';
 import type { ContentResolver} from './content-resolver.js';
@@ -90,7 +90,7 @@ export interface TransactionalEmailServiceDeps {
    * send, which is the same tolerance the recorder itself states.
    */
   deliveryRecorder?: EmailDeliveryRecorder;
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
 }
 
 export class TransactionalEmailService implements TransactionalEmailSender {
@@ -101,7 +101,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   private readonly defaults: EmailDefaultsRegistry;
   private readonly mailer: EmailMailerPort | undefined;
   private readonly deliveryRecorder: EmailDeliveryRecorder | undefined;
-  private readonly auditLog: AuditLogService | undefined;
+  private readonly auditLog: AuditPort | undefined;
 
   constructor(deps: TransactionalEmailServiceDeps) {
     this.emFactory = deps.emFactory;

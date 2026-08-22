@@ -9,7 +9,7 @@ import {
   type SubscriberSummary,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
 import { NewsletterSubscriberTag } from '../entities/newsletter-subscriber-tag.entity.js';
@@ -33,7 +33,7 @@ function csvCell(value: string): string {
 export class NewsletterSubscriberAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   private async buildWhere(em: EntityManager, query: SubscriberFilter): Promise<FilterQuery<NewsletterSubscriber>> {

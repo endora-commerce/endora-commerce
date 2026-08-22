@@ -10,14 +10,14 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { AssetFolder } from '../entities/asset-folder.entity.js';
 import { Asset } from '../entities/asset.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { AssetReferenceRegistry } from './reference-registry.js';
 
 export class FoldersService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly referenceRegistry: AssetReferenceRegistry,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(

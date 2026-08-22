@@ -4,7 +4,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Webhook } from '../entities/webhook.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { WebhookDelivery } from '../entities/webhook-delivery.entity.js';
 import { subscriptionReceivesOrganization } from './event-bridge.js';
 
@@ -18,7 +18,7 @@ import { subscriptionReceivesOrganization } from './event-bridge.js';
 export class WebhookService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {

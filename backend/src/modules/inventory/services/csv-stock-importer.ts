@@ -8,7 +8,7 @@ import type { EventBus } from '../../../events/bus.js';
 import { randomUUID } from 'crypto';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { Warehouse } from '../entities/warehouse.entity.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface CsvImportInput {
@@ -49,7 +49,7 @@ export class CsvStockImporter {
      */
     private readonly catalogProducts: CatalogProductReadPort,
     private readonly eventBus?: EventBus,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   async run(

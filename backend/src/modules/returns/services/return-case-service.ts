@@ -8,7 +8,7 @@ import type {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { ReturnCaseComment } from '../entities/return-case-comment.entity.js';
@@ -35,7 +35,7 @@ export interface ReturnCaseServiceDeps {
   /** Injected for deterministic tests; defaults to `new Date()`. */
   now?: () => Date;
   /** Feature 054 — audits case creation co-transactionally when provided. */
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
 }
 
 /**

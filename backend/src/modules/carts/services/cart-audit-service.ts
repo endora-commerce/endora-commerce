@@ -4,7 +4,7 @@ import type {
   CartAuditAction,
   CartAuditActorType,
 } from '../entities/cart-audit-entry.entity.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * Single writer for cart audit landings (feature 027 §R10). Every call
@@ -23,7 +23,7 @@ import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js
  *
  * That claim used to hold only where `emFactory` returned the same manager
  * twice (issue #152). `record()` took one fork for the cart row and
- * `AuditLogService.record()` took another for the platform row and flushed it
+ * `AuditPort.record()` took another for the platform row and flushed it
  * itself, so in production — where the factory forks per call — the two rows
  * were two transactions, and a failure between them landed the platform row
  * without its cart-detail counterpart. Both rows are built on ONE manager now
@@ -51,7 +51,7 @@ export interface CartAuditRecordInput {
 export class CartAuditService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog: AuditLogService,
+    private readonly auditLog: AuditPort,
   ) {}
 
   /** One landing, on this service's own manager, flushed. The default form. */
@@ -79,7 +79,7 @@ export class CartAuditService {
    * audit rows are the end of the batch — and for the sweep they are not: the
    * status flip is dirty on the same manager and belongs in the same commit.
    *
-   * The name is {@link AuditLogService.recordWithin}'s, deliberately: `Within`
+   * The name is {@link AuditPort.recordWithin}'s, deliberately: `Within`
    * is the repository's word for "on the caller's manager, no flush", and it is
    * the word `check-command-coverage` reads as an audit landing. A name of its
    * own would have made this method invisible to that check while it was doing

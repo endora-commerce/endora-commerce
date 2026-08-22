@@ -35,18 +35,20 @@ import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
 // `registerValues` stays for the host values no module defaults, which have no
 // window because there is nothing to overwrite.
 import { MODULES } from './composition.generated.js';
-import {
-  assertPublicApiBaseUrlConfigured,
-  composeModules,
-  configuredPublicApiBaseUrl,
-  createRootContainer,
-  createRegistrationOwnership,
-  platformLogger,
-  registerOrm,
-  registerValues,
-  requiredModulesFrom,
-  resolvePublicApiBaseUrl,
-} from './kernel/index.js';
+// The published half — `configuredPublicApiBaseUrl` and `resolvePublicApiBaseUrl`
+// are on the barrel because five modules read them (§1.3 row 6's "+4").
+import { configuredPublicApiBaseUrl, resolvePublicApiBaseUrl } from './kernel/index.js';
+// The composition machinery, by relative path. T042c took it off the barrel: a
+// packaged module never builds a container, composes a module list or refuses a
+// boot, so publishing these would put the host's own wiring into
+// `@endora-commerce/platform`'s contract. This root is *inside* that package,
+// which is exactly why the relative path is available to it and not to a module.
+import { composeModules } from './kernel/compose.js';
+import { createRootContainer, registerOrm, registerValues } from './kernel/container.js';
+import { createRegistrationOwnership } from './kernel/module-context.js';
+import { platformLogger } from './kernel/logging.js';
+import { requiredModulesFrom } from './kernel/lifecycle/required-modules.js';
+import { assertPublicApiBaseUrlConfigured } from './kernel/public-api-base-url.js';
 import { promoteAdminActor } from './modules/auth/plugin.js';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
 import { publishStateChanged, registryCache } from './kernel/lifecycle/registry-cache.js';
@@ -103,10 +105,7 @@ import {
   resolvedManifestEntries,
 } from './modules/_lifecycle/registered-manifests.js';
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
-import {
-  loadOverlayDecorations,
-  loadOverlayModuleEntries,
-} from './overlay/overlay-runtime.js';
+import { loadOverlayDecorations, loadOverlayModuleEntries } from './overlay/overlay-runtime.js';
 // Feature 080 — installed extension packages, discovered at runtime (D-155).
 import { loadPackageModuleEntries } from './packages/package-runtime.js';
 import { configuredMigrations } from './db/configured-migrations.js';
@@ -339,12 +338,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // that one throwing 401/422 for both. Catching that to mean "unrestricted"
     // is the fail-open hazard this split exists to remove.
     customerOrganizationIdResolver: (request: FastifyRequest): string | null => {
-      const actor = (request as { actor?: { kind: string; organizationId?: string | null } })
-        .actor;
-      return actor?.kind === 'customer' ? actor.organizationId ?? null : null;
+      const actor = (request as { actor?: { kind: string; organizationId?: string | null } }).actor;
+      return actor?.kind === 'customer' ? (actor.organizationId ?? null) : null;
     },
-    storefrontBaseUrl:
-      process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+    storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     // No verification-token probe outside the harness.
     organizationsExposeTestProbe: false,
   });
@@ -594,7 +591,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `effectiveState.isPresent('mfa')` probe and declare the edge
   // `degrades-without`, so neither root binds anything here.
 
-
   // Feature 056 — organization tree + inheritance resolution. Both are
   // `organizations`' own services and both are gated ports since T138; this
   // root reads them lazily for the hand-wired remainder that still takes them
@@ -727,35 +723,59 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   composedModules.contribute({
     promotionRuleTargets: {
       salesChannels: async () => {
-        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
+        const { items } = await (
+          container.cradle as unknown as SalesChannelsCradle
+        ).salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: anyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await (container.cradle as unknown as CustomerAccountsCradle).customerGroupService.list();
+        const groups = await (
+          container.cradle as unknown as CustomerAccountsCradle
+        ).customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
-        )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
+          )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
         return res.rows.map((r) => ({ id: r.id, name: r.name, taxId: r.tax_id ?? null }));
       },
       categories: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
-        )) as { rows: Array<{ id: string; slug: string; name: unknown; parent_category_id: string | null }> };
-        return res.rows.map((r) => ({ id: r.id, slug: r.slug, name: anyLabel(r.name), parentCategoryId: r.parent_category_id ?? null }));
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
+          )) as {
+          rows: Array<{
+            id: string;
+            slug: string;
+            name: unknown;
+            parent_category_id: string | null;
+          }>;
+        };
+        return res.rows.map((r) => ({
+          id: r.id,
+          slug: r.slug,
+          name: anyLabel(r.name),
+          parentCategoryId: r.parent_category_id ?? null,
+        }));
       },
       paymentMethods: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
-        )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
+          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
         return res.rows.map((r) => ({ id: r.id, code: r.code, name: anyLabel(r.name) }));
       },
       deliveryMethods: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
-        )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
+          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
         return res.rows.map((r) => ({ id: r.id, code: r.code, name: anyLabel(r.name) }));
       },
     },
@@ -829,12 +849,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveByEmail(email: string): Promise<{ id: string } | null>;
     autoCreate(email: string): Promise<{ id: string } | null>;
   } =>
-    (container.cradle as never as {
-      customerSocialLoginPort: {
-        resolveByEmail(email: string): Promise<{ id: string } | null>;
-        autoCreate(email: string): Promise<{ id: string } | null>;
-      };
-    }).customerSocialLoginPort;
+    (
+      container.cradle as never as {
+        customerSocialLoginPort: {
+          resolveByEmail(email: string): Promise<{ id: string } | null>;
+          autoCreate(email: string): Promise<{ id: string } | null>;
+        };
+      }
+    ).customerSocialLoginPort;
 
   const mfaSocialResolvers = {
     resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
@@ -862,8 +884,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // D-48 — the system-default channel, which always exists. It used to be
     // `?? null`, which switched MFA policy resolution to the platform-wide
     // settings tier on a branch that cannot be taken.
-    mfaDefaultChannelIdResolver: async () =>
-      (await salesChannels.resolver.getSystemDefault()).id,
+    mfaDefaultChannelIdResolver: async () => (await salesChannels.resolver.getSystemDefault()).id,
     mfaSocialAccountResolvers: mfaSocialResolvers,
     mfaActorBridge: {
       resolveCustomerActor: (request: FastifyRequest) => {
@@ -892,7 +913,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }
         const c = await em().findOne(CustomerAccount, { id: request.actor.customerAccountId });
         if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-          throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+          throw new HttpError(
+            403,
+            ERROR_CODES.FORBIDDEN,
+            'Organization administrator role required.',
+          );
         }
         return { organizationId: c.organizationId, actor: c.id };
       },
@@ -950,7 +975,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // could not address a `setting_values` row at all. "No channel" is now `null`
   // and the read decides what that means.
 
-
   // Feature 056 — subtree-aware assignment scope. When a scoped sales-rep actor
   // holds the `organizations:rollup` capability, `listAssignedOrganizationIds`
   // expands each assignment to its subtree (with per-descendant override,
@@ -964,11 +988,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const salesRepScope = (): {
     listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
   } =>
-    (container.cradle as never as {
-      organizationSalesRepScopePort: {
-        listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
-      };
-    }).organizationSalesRepScopePort;
+    (
+      container.cradle as never as {
+        organizationSalesRepScopePort: {
+          listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+        };
+      }
+    ).organizationSalesRepScopePort;
 
   /**
    * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
@@ -1000,8 +1026,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     return { allowAll: false, allowedOrganizationIds };
   };
 
-
-
   // Feature 047 — late-bound transactional-email sender. `orders` (and
   // other owning modules) read it via a getter; the transactional_emails module
   // sets it through exposeSender once built.
@@ -1009,9 +1033,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // publishes both services as accessor ports; this root reads them like any
   // other consumer instead of holding the variables its callbacks filled in.
   const emailCradle = (): {
-    transactionalEmailSenderAccessor: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
+    transactionalEmailSenderAccessor: () =>
+      | import('@b2b/contracts').TransactionalEmailSender
+      | undefined;
     emailBrandingAccessor: () =>
-      | { resolve(salesChannelId: string | null): Promise<{ logoUrl: string; accentColor: string }> }
+      | {
+          resolve(salesChannelId: string | null): Promise<{ logoUrl: string; accentColor: string }>;
+        }
       | undefined;
   } => container.cradle as never;
 
@@ -1204,31 +1232,36 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   composedModules.contribute({
     megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from categories where id = ? limit 1',
-          [categoryId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from categories where id = ? limit 1', [categoryId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       cmsPageExists: async (pageId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from cms_pages where id = ? limit 1',
-          [pageId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from cms_pages where id = ? limit 1', [pageId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       cmsBlockExists: async (blockId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from cms_blocks where id = ? limit 1',
-          [blockId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from cms_blocks where id = ? limit 1', [blockId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       assetIs: async (assetId, expected) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from assets where id = ? and kind = ? limit 1',
-          [assetId, expected],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from assets where id = ? and kind = ? limit 1', [
+            assetId,
+            expected,
+          ])) as Array<{ '?column?': number }>;
         return rows.length > 0;
       },
     } satisfies TargetValidatorDeps,
@@ -1236,24 +1269,29 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCategoryUrl: async (categoryId) => {
         // Feature 068 — a megamenu item pointing at a deactivated (or deleted)
         // category resolves to null, which drops the item from the menu.
-        const rows = (await em().getConnection().execute(
-          'select slug from categories where id = ? and is_active = true and deleted_at is null limit 1',
-          [categoryId],
-        )) as Array<{ slug: string }>;
+        const rows = (await em()
+          .getConnection()
+          .execute(
+            'select slug from categories where id = ? and is_active = true and deleted_at is null limit 1',
+            [categoryId],
+          )) as Array<{ slug: string }>;
         return rows[0]?.slug ? `/c/${rows[0].slug}` : null;
       },
       resolveCmsPageUrl: async (pageId) => {
-        const rows = (await em().getConnection().execute(
-          'select slug from cms_pages where id = ? limit 1',
-          [pageId],
-        )) as Array<{ slug: string }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select slug from cms_pages where id = ? limit 1', [pageId])) as Array<{
+          slug: string;
+        }>;
         return rows[0]?.slug ? `/${rows[0].slug}` : null;
       },
       resolveAsset: async (assetId) => {
-        const rows = (await em().getConnection().execute(
-          'select kind, label from assets where id = ? limit 1',
-          [assetId],
-        )) as Array<{ kind: string; label: string | null }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select kind, label from assets where id = ? limit 1', [assetId])) as Array<{
+          kind: string;
+          label: string | null;
+        }>;
         const row = rows[0];
         if (!row) return null;
         if (row.kind !== 'image' && row.kind !== 'video') return null;
@@ -1261,10 +1299,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return { url: resolved.url, label: row.label, kind: row.kind };
       },
       resolveCmsBlock: async (blockId, language) => {
-        const rows = (await em().getConnection().execute(
-          'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
-          [blockId],
-        )) as Array<{
+        const rows = (await em()
+          .getConnection()
+          .execute(
+            'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
+            [blockId],
+          )) as Array<{
           id: string;
           code: string;
           content: { languages?: Record<string, unknown> };
@@ -1343,10 +1383,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // Feature 072 (wave 2) — the sales-channel code⇄id lookup `google_analytics`
     // resolves. Owned by `sales_channels`; this is a root bridge to its port.
     salesChannelCodeIdPort: {
-      idByCode: async (code: string) =>
-        (await salesChannels.resolver.getByCode(code))?.id ?? null,
+      idByCode: async (code: string) => (await salesChannels.resolver.getByCode(code))?.id ?? null,
       codeById: async (id: string) => {
-        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
+        const { items } = await (
+          container.cradle as unknown as SalesChannelsCradle
+        ).salesChannelsService.list({});
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
@@ -1474,8 +1515,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         // so the default channel's value is the wanted answer, not the
         // platform-wide one the old `?? null` quietly switched to.
         const channelId =
-          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)?.id ??
-          (await salesChannels.resolver.getSystemDefault()).id;
+          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)
+            ?.id ?? (await salesChannels.resolver.getSystemDefault()).id;
         const url = await settings.settingsService.get(
           'product_image_placeholder_url',
           channelId,
@@ -1621,75 +1662,75 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // asking, the organization's tax rate, and the subtree the RFQ admin scope
   // rolls up over.
   composedModules.contribute({
-      rfqCustomerContextResolver: async (request: FastifyRequest) => {
-        if (request.actor.kind !== 'customer') {
-          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-        }
-        if (!request.actor.organizationId) {
-          throw new HttpError(
-            422,
-            ERROR_CODES.VALIDATION_FAILED,
-            'Quote Requests require an Organization attached to your account.',
-            { code: 'organization_required' },
-          );
-        }
-        const account = await em().findOne(CustomerAccount, {
-          id: request.actor.customerAccountId,
-        });
-        return {
-          customerAccountId: request.actor.customerAccountId,
-          organizationId: request.actor.organizationId,
-          isOrgAdmin: account?.role === 'organization_admin',
-        };
-      },
-      rfqAdminContextResolver: async (request: FastifyRequest) => {
-        if (request.actor.kind !== 'admin') {
-          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-        }
-        const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
-        const role = adminUser?.adminRoleId
-          ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
-          : null;
-        return {
-          adminUserId: request.actor.adminUserId,
-          isPlatformAdmin: role?.code === 'platform_admin',
-          roleLabel:
-            role?.code === 'platform_admin'
-              ? 'Platform administrator'
-              : role?.code === 'sales_representative'
-                ? 'Sales representative'
-                : (role?.name ?? 'Administrator'),
-        };
-      },
-      // No `catch` (issue #84). `taxRateFor` answers "nothing applies" as a
-      // value — `{ source: 'none' }`, with no rate to read — so the only errors
-      // left here are a failing database and `taxes` being switched off.
-      // Returning 0 for either quoted a zero-VAT price on an operator's behalf
-      // and called it an answer.
-      // T143c — the Organization is read through `organizations`' own port
-      // rather than by loading its entity here. Both roots spelled the same
-      // query, and being a root's it answered with `organizations` switched
-      // off: a quote priced from a tenancy row the platform was refusing to
-      // serve. The refusal now reaches the same place a database failure does.
-      rfqTaxRateResolver: async (organizationId: string) => {
-        const org = await (
-          container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
-        ).organizationTaxProfilePort.taxProfileOf(organizationId);
-        const vatStatus = org?.vatStatus ?? 'vat_payer';
-        if (vatStatus !== 'vat_payer') return 0;
-        const country = org?.country ?? 'PL';
-        const resolved = await taxesCradle.taxService.taxRateFor({
-          country,
-          productType: 'simple',
-          vatStatus,
-        });
-        // `none` is the operator's own configuration state — `taxes` is present
-        // and holds no rule that applies and no default — so a quote is priced
-        // net, and the quote view drops its VAT row rather than printing a 0%
-        // one. An *absent* `taxes` never reaches this line: the port gate above
-        // throws (issue #124).
-        return resolved.source === 'none' ? 0 : resolved.rate;
-      },
+    rfqCustomerContextResolver: async (request: FastifyRequest) => {
+      if (request.actor.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      if (!request.actor.organizationId) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.VALIDATION_FAILED,
+          'Quote Requests require an Organization attached to your account.',
+          { code: 'organization_required' },
+        );
+      }
+      const account = await em().findOne(CustomerAccount, {
+        id: request.actor.customerAccountId,
+      });
+      return {
+        customerAccountId: request.actor.customerAccountId,
+        organizationId: request.actor.organizationId,
+        isOrgAdmin: account?.role === 'organization_admin',
+      };
+    },
+    rfqAdminContextResolver: async (request: FastifyRequest) => {
+      if (request.actor.kind !== 'admin') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      }
+      const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
+      const role = adminUser?.adminRoleId
+        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+        : null;
+      return {
+        adminUserId: request.actor.adminUserId,
+        isPlatformAdmin: role?.code === 'platform_admin',
+        roleLabel:
+          role?.code === 'platform_admin'
+            ? 'Platform administrator'
+            : role?.code === 'sales_representative'
+              ? 'Sales representative'
+              : (role?.name ?? 'Administrator'),
+      };
+    },
+    // No `catch` (issue #84). `taxRateFor` answers "nothing applies" as a
+    // value — `{ source: 'none' }`, with no rate to read — so the only errors
+    // left here are a failing database and `taxes` being switched off.
+    // Returning 0 for either quoted a zero-VAT price on an operator's behalf
+    // and called it an answer.
+    // T143c — the Organization is read through `organizations`' own port
+    // rather than by loading its entity here. Both roots spelled the same
+    // query, and being a root's it answered with `organizations` switched
+    // off: a quote priced from a tenancy row the platform was refusing to
+    // serve. The refusal now reaches the same place a database failure does.
+    rfqTaxRateResolver: async (organizationId: string) => {
+      const org = await (
+        container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
+      ).organizationTaxProfilePort.taxProfileOf(organizationId);
+      const vatStatus = org?.vatStatus ?? 'vat_payer';
+      if (vatStatus !== 'vat_payer') return 0;
+      const country = org?.country ?? 'PL';
+      const resolved = await taxesCradle.taxService.taxRateFor({
+        country,
+        productType: 'simple',
+        vatStatus,
+      });
+      // `none` is the operator's own configuration state — `taxes` is present
+      // and holds no rule that applies and no default — so a quote is priced
+      // net, and the quote view drops its VAT row rather than printing a 0%
+      // one. An *absent* `taxes` never reaches this line: the port gate above
+      // throws (issue #124).
+      return resolved.source === 'none' ? 0 : resolved.rate;
+    },
   });
 
   // Feature 072 (T138) — what a login does beyond logging in. Points *outward*
@@ -1798,7 +1839,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
       getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
       resolveRecipientEmail: async (order) =>
-        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
+        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ??
+        null,
       resolveLanguage: async (salesChannelId) =>
         (salesChannelId
           ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
@@ -1903,8 +1945,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // it stops answering when `catalog` is switched off, which the root's
       // copy never did.
       expandCategoryProductIds: (categoryIds: string[]) =>
-        (container.cradle as never as { catalogQueryPort: CatalogQueryService })
-          .catalogQueryPort.expandCategoryProductIds(categoryIds),
+        (
+          container.cradle as never as { catalogQueryPort: CatalogQueryService }
+        ).catalogQueryPort.expandCategoryProductIds(categoryIds),
       resolvePublicImageUrls: async (assetIds: string[]) => {
         const out = new Map<string, string>();
         if (assetIds.length === 0) return out;
@@ -2034,11 +2077,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // admin routes. Coupling (settings, sales channels, default channel) is
   // injected so the module stays isolated (Principle I).
 
-
-
-
-  modules.push(
-  );
+  modules.push();
 
   // Feature 048 — Newsletter. Own-infrastructure bulk email: subscriber
   // signup (per-channel opt-in), campaigns, automations, and a configurable

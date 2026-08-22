@@ -7,7 +7,7 @@ import {
 } from '@b2b/contracts';
 import type { MfaSubjectRef } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
@@ -30,7 +30,7 @@ export interface MfaSelfServiceOptions {
   enrolmentService: MfaEnrolmentService;
   policyResolver: MfaPolicyResolver;
   socialLinkService: SocialLinkService;
-  auditLogService: AuditLogService;
+  auditLogService: AuditPort;
   resolveAccountEmail?: (
     subjectType: 'customer' | 'admin',
     subjectId: string,

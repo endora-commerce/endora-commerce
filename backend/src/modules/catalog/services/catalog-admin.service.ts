@@ -59,7 +59,7 @@ import {
   assertVirtualDownloadFields,
   ProductTypeValidationError,
 } from './product-type-validations.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import type { CustomFieldDefinitionWithOptions } from '@b2b/contracts';
 import type { Command, CommandBus } from '../../../commands/index.js';
@@ -137,7 +137,7 @@ export class CatalogAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: CatalogEventBus,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
     /**
      * Feature 005 / T027 — when injected, every newly-created Product
      * that does not declare explicit channel membership lands in the

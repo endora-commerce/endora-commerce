@@ -13,7 +13,7 @@ import {
 } from '../entities/warehouse.entity.js';
 import { WarehouseChannelAssignment } from '../entities/warehouse-channel-assignment.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface WarehouseContact {
@@ -76,7 +76,7 @@ export class WarehouseService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly dictionaryValidator?: DictionaryValidator,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   async list(options: {

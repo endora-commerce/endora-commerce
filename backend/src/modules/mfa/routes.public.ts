@@ -8,7 +8,7 @@ import {
 } from '@b2b/contracts';
 import type { AuthSessionPort } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { MfaLoginService } from './services/mfa-login-service.js';
 import type { ChallengeStore } from './services/challenge-store.js';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
@@ -24,7 +24,7 @@ export interface MfaPublicDeps {
   sessionService: AuthSessionPort;
   challengeStore: ChallengeStore;
   enrolmentService: MfaEnrolmentService;
-  auditLogService: AuditLogService;
+  auditLogService: AuditPort;
 }
 
 interface SurfaceCfg {

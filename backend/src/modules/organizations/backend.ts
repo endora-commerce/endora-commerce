@@ -24,7 +24,7 @@ import type {
   VatValidator,
   DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
@@ -157,7 +157,7 @@ export interface OrganizationsCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
   readonly commandBus: CommandBus;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly settingsReadPort: SettingsReadPort;
   readonly salesChannelResolutionPort: SalesChannelResolutionPort;
   readonly requireAdmin: RequireAdminFactory;

@@ -6,7 +6,7 @@ import type {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { InventoryThreshold } from '../entities/inventory-threshold.entity.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface ThresholdTriple {
@@ -57,7 +57,7 @@ export class ThresholdAdminService {
     private readonly catalogCategoryWrites: CatalogCategoryWritePort,
     /** `catalogProductReadPort`, owned by `catalog` — the per-product existence check. */
     private readonly catalogProducts: CatalogProductReadPort,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   async read(): Promise<ThresholdsView> {

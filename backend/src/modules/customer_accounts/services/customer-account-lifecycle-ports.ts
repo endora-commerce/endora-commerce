@@ -14,7 +14,7 @@ import {
 import type { Command, CommandBus } from '../../../commands/index.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { toCustomerAccountRecord } from './customer-account-ports.js';
@@ -67,7 +67,7 @@ function blockSnapshot(account: CustomerAccount): Record<string, unknown> {
 export class CustomerAccountLifecycleWriteService implements CustomerAccountLifecycleWritePort {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog: AuditLogService,
+    private readonly auditLog: AuditPort,
     /**
      * Only {@link setCustomFieldValues} needs it, because that one write is a
      * read-modify-write and has to stay in one transaction. The method says so

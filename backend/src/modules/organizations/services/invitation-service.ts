@@ -13,7 +13,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Organization } from '../entities/organization.entity.js';
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { buildInvitationEmail } from '../email-templates/invitation.js';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
 import {
@@ -78,7 +78,7 @@ export class InvitationService {
     options?: InvitationServiceOptions,
     private readonly events?: OrganizationEventBus,
     templateEmail?: OrgTemplateEmail,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {
     this.mailer = mailer ?? null;
     this.acceptBaseUrl = options?.acceptBaseUrl ?? 'https://storefront.local';

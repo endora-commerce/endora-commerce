@@ -1,5 +1,5 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../kernel/ports/audit.js';
 import { forkScopedEm } from '../tenancy/index.js';
 import type { EventBus } from '../events/bus.js';
 import { resolveCommandActor } from './actor.js';
@@ -37,7 +37,7 @@ export interface CommandBusOptions {
 export class CommandBus {
   constructor(
     private readonly orm: MikroORM,
-    private readonly audit: AuditLogService,
+    private readonly audit: AuditPort,
     private readonly events: EventBus,
     private readonly options: CommandBusOptions = {},
   ) {}

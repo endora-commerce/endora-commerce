@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import {
   LANGUAGE_CHANGED_EVENT,
   type CurrencyAdminPort,
@@ -58,7 +58,7 @@ export { LANGUAGE_CHANGED_EVENT };
 
 export interface LanguagesCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   /** Narrowed the same way `currencies` narrows it: announce, do not type. */
   readonly eventBus: { emit: (event: string, payload: unknown) => void };
   readonly requireAdmin: RequireAdminFactory;

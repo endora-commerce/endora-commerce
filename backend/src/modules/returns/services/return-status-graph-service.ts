@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { ReturnStatus } from '../entities/return-status.entity.js';
 import { ReturnStatusTransition } from '../entities/return-status-transition.entity.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
@@ -27,7 +27,7 @@ export class ReturnStatusGraphService {
   constructor(
     private readonly emFactory: () => EntityManager,
     /** Feature 054 — audits status-graph writes co-transactionally when provided. */
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(

@@ -20,7 +20,7 @@ import {
   type DisplayModeCategoryCandidate,
 } from './display-mode-resolver.js';
 import { randomUUID } from 'crypto';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
 import type { PriceListsAuditContext } from '../plugin.js';
 
@@ -108,7 +108,7 @@ export class PriceListService {
     private readonly pricingCache?: { invalidateAll: () => void },
     /** Feature 024 — optional audit log writer. When omitted, no audit
      *  rows are emitted (tests that don't care about audit pass nothing). */
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
     /**
      * Feature 054 — when injected, `patch` runs through the Command Bus so the
      * update is audited co-transactionally (Principle XIII). Optional: bus-less

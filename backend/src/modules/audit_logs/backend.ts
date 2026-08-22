@@ -1,6 +1,6 @@
 import type { AuditReferenceRegistryPort } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
@@ -20,7 +20,7 @@ import { RecentActivityService } from './services/recent-activity-service.js';
  * `RecentActivityService` itself and mounted the lot inside its own plugin, so
  * the audit log existed for exactly as long as the admin-users module happened
  * to be composed. Its service and entity moved to the kernel in T016 —
- * `AuditLogService` is what every module writes through — and what is left here
+ * `AuditPort` is what every module writes through — and what is left here
  * is the *reading* half, which is this module's own.
  *
  * **`auditActorResolver` is a contribution, not a dependency**, and the
@@ -57,7 +57,7 @@ import { RecentActivityService } from './services/recent-activity-service.js';
 
 export interface AuditLogsCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly auditActorResolver:
     | ((ids: string[]) => Promise<AuditActorIdentity[]>)

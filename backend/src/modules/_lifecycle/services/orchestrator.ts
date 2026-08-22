@@ -12,7 +12,7 @@ import type {
 import { ManifestReconciler } from '../../../kernel/settings/manifest-reconciler.js';
 import { Setting } from '../../../kernel/settings/setting.entity.js';
 import { SettingGroup } from '../../../kernel/settings/setting-group.entity.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { ModuleRegistration } from '../../../kernel/lifecycle/module-registration.entity.js';
 import {
   acquireLifecycleLock,
@@ -44,7 +44,7 @@ export interface OrchestratorDeps {
   orm: MikroORM;
   redis: Redis;
   em: () => EntityManager;
-  auditLog: AuditLogService;
+  auditLog: AuditPort;
   /**
    * The loaded manifest registry — built once at boot or per CLI run.
    *

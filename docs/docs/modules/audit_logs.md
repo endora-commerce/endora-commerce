@@ -17,11 +17,19 @@ Gated by the `audit_log:read` permission.
 
 ## Recording
 
-`AuditLogService.record({ ... })` is invoked from every sensitive
+`AuditPort.record({ ... })` is invoked from every sensitive
 mutation: catalog price change, role change, credit-limit adjust, order
 status / payment status change "on behalf", impersonation start/end, API
 key out-of-scope, and others. Adding a new sensitive mutation is a
 two-line change at the call site.
+
+The port is what a module types on and what the kernel publishes
+(`backend/src/kernel/ports/audit.ts`, D-160.10); the container name it is
+registered under is `auditLogService` and has not changed. The
+implementation behind it, `AuditLogService`, is the platform's own and is
+reachable only by its relative path — a module that named the class would
+be depending on a writer shape Principle XIII routes around, since a
+domain write goes through `CommandBus.run` and the bus writes the row.
 
 ## Entities
 

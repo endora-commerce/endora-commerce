@@ -13,7 +13,7 @@ import {
   type QuickOrderResolvedDefaults,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { QuickOrderDefaultPreference } from '../entities/quick-order-default-preference.entity.js';
 import type { PreferenceAuditContext } from '@b2b/contracts';
 import { canManagePreference, type PreferenceActor } from './default-preference-authz.js';
@@ -72,7 +72,7 @@ export interface DefaultPreferenceCollaborators {
 export class DefaultPreferenceService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog: AuditLogService,
+    private readonly auditLog: AuditPort,
     private readonly ports: DefaultPreferenceCollaborators,
   ) {}
 

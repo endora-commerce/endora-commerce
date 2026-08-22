@@ -10,7 +10,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * AdminUserService (T193 / FR-080..FR-083). Backs the admin panel's
@@ -72,7 +72,7 @@ export class AdminUserService {
      * belong to `auth`.
      */
     private readonly sessions: AuthSessionPort,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {

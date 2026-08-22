@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type {
   AdminRolePort,
   AdminUserReadPort,
@@ -42,7 +42,7 @@ import { PermissionService } from './services/permission-service.js';
 
 export interface AdminRolesCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   /**
    * Core manifests + this deployment's overlay modules (feature 057).
    *

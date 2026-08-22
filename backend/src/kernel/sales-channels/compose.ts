@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance } from 'fastify';
 import type Redis from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
-import type { AuditLogService } from '../audit/audit-log-service.js';
+import type { AuditPort } from '../ports/audit.js';
 import { inProcessCaches } from '../cache/in-process-cache-registry.js';
 import {
   SALES_CHANNELS_CACHE_NAMESPACE,
@@ -32,7 +32,7 @@ export interface SalesChannelsKernelOptions {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
   readonly redis: Redis;
-  readonly auditLogService?: AuditLogService;
+  readonly auditLogService?: AuditPort;
   /**
    * Forwarded to the resolver middleware. Defaults to `false` so admin routes
    * keep working without `X-Sales-Channel`.

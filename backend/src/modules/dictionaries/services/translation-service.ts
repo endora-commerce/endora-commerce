@@ -9,7 +9,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Country } from '../entities/country.entity.js';
 import { DictionaryTranslation } from '../entities/dictionary-translation.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 export interface UpsertTranslationInput {
   entryType: DictionaryEntryType;
@@ -30,7 +30,7 @@ export class TranslationService {
     private readonly currencies: CurrencyReadPort,
     private readonly languages: LanguageReadPort,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   async upsert(input: UpsertTranslationInput): Promise<DictionaryTranslation> {

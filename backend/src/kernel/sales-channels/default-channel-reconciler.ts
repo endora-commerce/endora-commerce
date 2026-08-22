@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../audit/audit-log-service.js';
+import type { AuditPort } from '../ports/audit.js';
 import { SALES_CHANNEL_AUDIT_ACTIONS } from '@b2b/contracts';
 import { SalesChannel } from './sales-channel.entity.js';
 
@@ -66,7 +66,7 @@ export interface DefaultChannelReconcilerOptions {
 export class DefaultChannelReconciler {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLogService?: AuditLogService,
+    private readonly auditLogService?: AuditPort,
     private readonly options: DefaultChannelReconcilerOptions = {},
   ) {}
 

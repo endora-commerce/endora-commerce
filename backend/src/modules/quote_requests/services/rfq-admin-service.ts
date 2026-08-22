@@ -17,7 +17,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import type { RfqService} from './rfq-service.js';
@@ -67,7 +67,7 @@ export interface RfqAdminServiceDeps {
   notificationService: RfqNotificationService;
   salesRepAssignment: SalesRepAssignmentPort;
   /** Feature 054 — audits RFQ admin writes co-transactionally when provided. */
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
   /** Feature 055 — validates + merges custom-field values on RFQ edit. */
   customFieldValues?: CustomFieldValuePort;
   /**

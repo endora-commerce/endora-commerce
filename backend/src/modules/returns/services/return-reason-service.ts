@@ -3,7 +3,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import type { ReturnReasonDto } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { ReturnReason } from '../entities/return-reason.entity.js';
 
 /**
@@ -15,7 +15,7 @@ import { ReturnReason } from '../entities/return-reason.entity.js';
 export class ReturnReasonService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(

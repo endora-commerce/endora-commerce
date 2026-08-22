@@ -4,7 +4,7 @@ import type {
   CatalogProductReadPort,
   CmsPageReadPort,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -45,7 +45,7 @@ import { registerSeoRoutes } from './routes.js';
 
 export interface SeoCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: SitemapSettingsPort;
   /** Composition-specific sitemap tuning; `{}` in production. */

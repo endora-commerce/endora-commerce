@@ -10,7 +10,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { ApiKey } from '../entities/api-key.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * ApiKeyService (T227, extended by feature 062 — distributor binding).
@@ -70,7 +70,7 @@ export class ApiKeyService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly bindingPorts: ApiKeyBindingPorts,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {

@@ -4,7 +4,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { InvoiceTemplate } from '../entities/invoice-template.entity.js';
 import { pickLanguageTree } from '../pdf-components/tree-mapper.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import {
   GENERIC_INVOICE_TEMPLATE_CODE,
   GENERIC_INVOICE_TEMPLATE_CONTENT,
@@ -44,7 +44,7 @@ function summary(t: InvoiceTemplate): InvoiceTemplateSummary {
 export class InvoiceTemplateService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string, stateAfter: Record<string, unknown>): void {

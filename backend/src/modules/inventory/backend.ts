@@ -3,7 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type { DictionaryValidator,
   DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
 import type {
@@ -73,7 +73,7 @@ import { registerInventoryAuditReferences } from './services/audit-references.js
 export interface InventoryCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   /** D-74 — the bulk stock import is one Command and one audit row per run. */
   readonly commandBus: CommandBus;
   readonly requireAdmin: RequireAdminFactory;

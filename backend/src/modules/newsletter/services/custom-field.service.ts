@@ -8,13 +8,13 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterCustomField } from '../entities/newsletter-custom-field.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /** Newsletter custom-field definition CRUD (feature 048, US3). */
 export class NewsletterCustomFieldService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string, stateAfter: Record<string, unknown> | null): void {

@@ -13,11 +13,11 @@
 
 import { asValue } from 'awilix';
 import { describe, it, expect } from 'vitest';
+import { createRootContainer } from '../../../src/kernel/container.js';
 import {
   createModuleContext,
   createModuleRegistrationSink,
-  createRootContainer,
-} from '../../../src/kernel/index.js';
+} from '../../../src/kernel/module-context.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { registerModule } from '../../../src/modules/dictionaries/backend.js';
 

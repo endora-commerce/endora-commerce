@@ -102,7 +102,7 @@ Role gate: `CustomerAccount.role === 'organization_admin'` for every
   `recomputed_*` columns).
 - `CartAuditEntry` (typed per-cart feed; indexed on `(cart_id, occurred_at
   DESC)`). Every state transition also lands a row in the existing
-  `audit_log_entries` table via `AuditLogService` for the platform-wide
+  `audit_log_entries` table via `AuditPort` for the platform-wide
   audit timeline.
 
 ## Settings (feature 027)

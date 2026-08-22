@@ -5,7 +5,7 @@ import type {
   EmailMailerPort,
   TransactionalEmailSender,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { EventBus } from '../../events/bus.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -72,7 +72,7 @@ export interface ReturnsBridge {
 export interface ReturnsCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   readonly settingsReadPort: ReturnsModuleOptions['settingsService'];

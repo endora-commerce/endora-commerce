@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AuditLogEntry } from './audit-log-entry.entity.js';
+import type { AuditLogFilter, AuditPort, RecordAuditInput } from '../ports/audit.js';
 
 /**
  * Append-only audit log writer. Every sensitive operation (FR-084) calls `record()`
@@ -8,22 +9,17 @@ import { AuditLogEntry } from './audit-log-entry.entity.js';
  *
  * This service is deliberately narrow: it only appends rows. Queries are the concern
  * of the admin-panel audit viewer (US4 / T195).
+ *
+ * **The class is the host's implementation and not the platform's contract**
+ * (D-160.10). {@link AuditPort} is what a module types on and what the kernel
+ * barrel publishes; this file is reachable only by its relative path, which the
+ * composition roots and the tests have and a packaged module does not. The
+ * shapes it used to declare — `RecordAuditInput` and `AuditLogFilter` — moved to
+ * the port beside the methods that take them, so the class cannot widen the
+ * contract by growing a field.
  */
 
-export interface RecordAuditInput {
-  actorAdminUserId?: string | null;
-  impersonatedCustomerAccountId?: string | null;
-  action: string;
-  objectType: string;
-  objectId: string;
-  stateBefore?: Record<string, unknown> | null;
-  stateAfter?: Record<string, unknown> | null;
-  ipAddress?: string | null;
-  userAgent?: string | null;
-  requestId?: string | null;
-}
-
-export class AuditLogService {
+export class AuditLogService implements AuditPort {
   constructor(private readonly emFactory: () => EntityManager) {}
 
   async record(input: RecordAuditInput): Promise<AuditLogEntry> {
@@ -116,13 +112,4 @@ export class AuditLogService {
       { orderBy: { actedAt: 'asc' } },
     );
   }
-}
-
-export interface AuditLogFilter {
-  actorAdminUserId?: string;
-  impersonatedCustomerAccountId?: string;
-  action?: string;
-  objectType?: string;
-  objectId?: string;
-  limit?: number;
 }

@@ -9,7 +9,7 @@ import { AssetsLibraryService } from './services/assets-library.service.js';
 import { FoldersService } from './services/folders.service.js';
 import { AssetReferenceRegistry } from './services/reference-registry.js';
 import { HmacSigner } from './services/hmac.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import { createSettingsView } from './services/storage/settings-view.js';
 import { Setting } from '../../kernel/settings/setting.entity.js';
 import { SettingValue } from '../../kernel/settings/setting-value.entity.js';
@@ -30,7 +30,7 @@ export interface AssetsLibraryModuleOptions {
    */
   requireAdmin: RequireAdminFactory;
   /** Feature 054 — audits asset/folder writes co-transactionally when provided. */
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
 }
 
 export interface AssetsLibraryModuleHandle {

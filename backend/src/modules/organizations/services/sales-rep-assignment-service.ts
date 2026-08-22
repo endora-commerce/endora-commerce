@@ -5,7 +5,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { SalesRepAssignmentPort, SalesRepAssignmentRow } from '@b2b/contracts';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { OrganizationTreeService } from './organization-tree-service.js';
 
 /**
@@ -57,7 +57,7 @@ export type { SalesRepAssignmentPort, SalesRepAssignmentRow };
 export class SalesRepAssignmentService implements SalesRepAssignmentPort {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
     private readonly subtree?: SalesRepSubtreeDeps,
   ) {}
 

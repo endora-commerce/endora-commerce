@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { Order } from '../entities/order.entity.js';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import {
@@ -65,7 +65,7 @@ export class OrderTransitionService {
      * flush is unchanged (before-guards, before/after bus emits keep their
      * ordering), so this does not route through the Command Bus's own scope.
      */
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   /**

@@ -17,7 +17,7 @@ import type {
   CustomerTotpEnrolmentPort,
   MfaLoginPort,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import { recordAuditFromContext } from '../../commands/index.js';
 import { withSystemScope } from '../../tenancy/index.js';
@@ -105,7 +105,7 @@ import { TotpEnrolmentService } from './services/totp-enrolment-service.js';
 
 export interface CustomerAccountsCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   /** Feature 054 — the customer-group writes audit co-transactionally. */
   readonly commandBus: CommandBus;
   /** `auth`'s admin guard, for the customer-group admin routes. */

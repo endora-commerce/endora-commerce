@@ -3,7 +3,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import type { ReturnShipmentDto } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnShipment } from '../entities/return-shipment.entity.js';
 import { RETURN_STATUS_RECEIVED } from '../domain/return-status-graph.js';
@@ -13,7 +13,7 @@ export interface ReturnShipmentServiceDeps {
   emFactory: () => EntityManager;
   transitions: ReturnTransitionService;
   /** Feature 054 — audits shipment writes co-transactionally when provided. */
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
 }
 
 /**

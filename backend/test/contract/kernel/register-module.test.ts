@@ -5,13 +5,9 @@ import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ApiInterceptorRegistry } from '../../../src/http/interceptors/index.js';
-import {
-  composeModules,
-  createRootContainer,
-  registerValues,
-  type ModuleContext,
-  type ModuleEntry,
-} from '../../../src/kernel/index.js';
+import { composeModules, type ModuleEntry } from '../../../src/kernel/compose.js';
+import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
+import type { ModuleContext } from '../../../src/kernel/index.js';
 
 /**
  * Contract — `registerModule` (feature 072, T039 / FR-030…FR-035).

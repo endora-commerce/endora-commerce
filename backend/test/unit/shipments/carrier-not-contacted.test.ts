@@ -22,7 +22,7 @@ import type {
   OrderRecord,
   ShippingAdapter,
 } from '@b2b/contracts';
-import type { AuditLogService, RecordAuditInput } from '../../../src/kernel/audit/audit-log-service.js';
+import type { AuditPort, RecordAuditInput } from '../../../src/kernel/ports/audit.js';
 import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
 import {
   ShipmentService,
@@ -125,7 +125,7 @@ function harness(opts: {
       audited.push(input);
       return input;
     },
-  } as unknown as AuditLogService;
+  } as unknown as AuditPort;
 
   const events = {
     async run<T>(fn: () => Promise<T>): Promise<T> {

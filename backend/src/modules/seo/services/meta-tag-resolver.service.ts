@@ -12,7 +12,7 @@ import type {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { SeoMetaOverride } from '../entities/seo-meta-override.entity.js';
 
 /**
@@ -47,7 +47,7 @@ export interface RuleBuilderInput {
 export class MetaTagResolverService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog: AuditLogService | undefined,
+    private readonly auditLog: AuditPort | undefined,
     /** The three rows a rule is derived from, asked of the modules that own them. */
     private readonly catalogProducts: CatalogProductReadPort,
     private readonly catalogCategories: CatalogCategoryReadPort,

@@ -11,7 +11,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { NewsletterAutomation } from '../entities/newsletter-automation.entity.js';
 import { NewsletterAutomationRun } from '../entities/newsletter-automation-run.entity.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
@@ -33,7 +33,7 @@ export interface AutomationServiceDeps {
   /** Enqueue the next step (production: BullMQ delayed job). */
   enqueueStep: (runId: string, stepIndex: number, delayMs: number) => Promise<void>;
   /** Feature 054 — audits automation lifecycle writes co-transactionally when provided. */
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
   resolveEmailBranding?: EmailBrandingResolver;
 }
 

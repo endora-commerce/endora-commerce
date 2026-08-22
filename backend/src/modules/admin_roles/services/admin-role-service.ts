@@ -3,7 +3,7 @@ import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { ERROR_CODES, type AdminUserReadPort } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { AdminRole } from '../entities/admin-role.entity.js';
 import type { PermissionCatalogueService } from './permission-catalogue.service.js';
 
@@ -112,7 +112,7 @@ export class AdminRoleService {
     private readonly permissionCatalogue: PermissionCatalogueService,
     /** `adminUserReadPort` — who still holds a role (feature 075, Phase C). */
     private readonly adminUsers: AdminUserReadPort,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {

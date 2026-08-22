@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { OptimisticLockError } from '@mikro-orm/core';
 import { Organization, type OrganizationStatus } from '../entities/organization.entity.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { CustomerAccountReadPort, EmailMailerPort } from '@b2b/contracts';
 import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 import type { OrganizationEventBus } from './registration-service.js';
@@ -61,7 +61,7 @@ export interface UnblockOptions extends ModerationActorContext {
 export class OrganizationModerationService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLogService: AuditLogService,
+    private readonly auditLogService: AuditPort,
     private readonly events: OrganizationEventBus,
     private readonly mailer: EmailMailerPort,
     /**

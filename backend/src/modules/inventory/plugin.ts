@@ -14,7 +14,7 @@ import { registerInventoryRoutes } from './routes.js';
 import { registerInventoryAdminRoutes } from './routes.admin.js';
 import type { SalesChannelResolutionPort } from '../../kernel/ports/sales-channel.js';
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type {
   CatalogCategoryReadPort,
   CatalogCategoryWritePort,
@@ -87,7 +87,7 @@ export interface InventoryModuleOptions {
   /** Feature 024 — optional cross-module hook so warehouse / stock /
    *  threshold / CSV-import mutations land in the audit log. Tests that
    *  don't care about audit can omit it. */
-  auditLogService?: AuditLogService;
+  auditLogService?: AuditPort;
   /** Feature 024 — resolves the admin actor identity for audit entries. */
   resolveAdminAuditContext?: (request: FastifyRequest) => {
     actorAdminUserId: string;

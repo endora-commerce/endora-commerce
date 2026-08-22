@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@b2b/contracts';
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type {
   EmailDeliveryRecorder,
@@ -42,7 +42,7 @@ export interface TransactionalEmailsModuleOptions {
    * (D-59). The transport records the ones it is handed; these never reach it.
    */
   deliveryRecorder?: EmailDeliveryRecorder;
-  auditLog?: AuditLogService;
+  auditLog?: AuditPort;
   resolveAssetUrl?: AssetUrlResolver;
   /** Settings admin service used to persist branding values (US2). */
   settingsAdmin?: SettingsAdminPort;

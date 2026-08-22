@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type Redis from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { SettingsAdminPort } from '@b2b/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -61,7 +61,7 @@ import { registerSettingsSpeculationRulesRoutes } from './routes.speculation-rul
 export interface SettingsCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly adminAuditActorResolver: (req: FastifyRequest) => AdminAuditContext;
   /** The kernel reader, so the resolvers read through the same cache. */

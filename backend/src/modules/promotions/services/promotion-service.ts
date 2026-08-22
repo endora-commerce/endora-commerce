@@ -14,7 +14,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
@@ -172,7 +172,7 @@ export class PromotionService {
      * container name that every composition supplies, so there was never a
      * composition the absent branch described.
      */
-    private readonly auditLog: AuditLogService,
+    private readonly auditLog: AuditPort,
     /** Feature 012 / US8 — audit sink for FR-039 skip-on-toggle events. */
     private readonly auditLogger: PromotionAuditLogger = {
       info: (message, fields) => console.warn(`[audit] ${message}`, fields ?? {}),

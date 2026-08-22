@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -58,7 +58,7 @@ import type { FetchLike } from './services/llm/provider.js';
 
 export interface PromptActionsCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly settingsReadPort: SettingsReadPort;
   readonly settingsChannelResolver: () => Promise<string>;
   readonly requireAdmin: RequireAdminFactory;

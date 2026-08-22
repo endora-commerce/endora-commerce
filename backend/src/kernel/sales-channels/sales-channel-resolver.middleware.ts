@@ -4,7 +4,7 @@ import { HttpError } from '../../http/error-envelope.js';
 import { getCurrentPlatformScope } from '../scope.js';
 import type { CachedChannel } from './sales-channels-cache.js';
 import type { SalesChannelResolverService } from './sales-channel-resolver.service.js';
-import type { AuditLogService } from '../audit/audit-log-service.js';
+import type { AuditPort } from '../ports/audit.js';
 
 /**
  * Sales-channel resolver middleware — feature 005 / T015.
@@ -58,7 +58,7 @@ export interface SalesChannelResolverPluginOptions {
    * (bound key named a channel other than its bound one). Optional so
    * minimal test composition roots keep working.
    */
-  auditLogService?: AuditLogService;
+  auditLogService?: AuditPort;
 }
 
 /**

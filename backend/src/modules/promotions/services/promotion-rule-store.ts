@@ -4,7 +4,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
 import { Promotion } from '../entities/promotion.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 
 /**
  * Feature 045 (US6) — CRUD for standalone, named promotion rules and the
@@ -13,7 +13,7 @@ import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js
 export class PromotionRuleStore {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   #audit(

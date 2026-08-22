@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type {
   AddressReadPort,
   CartWritePort,
@@ -86,7 +86,7 @@ import { registerQuickOrderOneClickRoutes } from './routes.one-click.js';
 /** What `quick_order` resolves from the container, and the names it owns. */
 export interface QuickOrderCradle {
   readonly emFactory: () => EntityManager;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   readonly customerContextResolver: (req: FastifyRequest) => {

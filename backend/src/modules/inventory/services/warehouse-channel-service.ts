@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { actorFromContext } from '../../../commands/index.js';
 import { getTenantContext } from '../../../tenancy/index.js';
 import { Warehouse } from '../entities/warehouse.entity.js';
@@ -42,7 +42,7 @@ export class WarehouseChannelService {
   constructor(
     private readonly emFactory: () => EntityManager,
     /** Feature 054 — audits assignment writes co-transactionally when provided. */
-    private readonly auditLog?: AuditLogService,
+    private readonly auditLog?: AuditPort,
   ) {}
 
   /**

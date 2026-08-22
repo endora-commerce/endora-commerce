@@ -29,7 +29,7 @@ import type {
   LanguageReadPort,
   OrganizationDetailsPort,
 } from '@b2b/contracts';
-import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { EventBus } from '../../events/bus.js';
 import { HttpError } from '../../http/error-envelope.js';
@@ -110,7 +110,7 @@ export interface CatalogCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
   readonly commandBus: CommandBus;
-  readonly auditLogService: AuditLogService;
+  readonly auditLogService: AuditPort;
   readonly moduleQueueRedis: Redis | undefined;
   /**
    * The process connection, distinct from `moduleQueueRedis`: the assistant's

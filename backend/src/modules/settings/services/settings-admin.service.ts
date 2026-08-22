@@ -8,7 +8,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { EventBus } from '../../../events/bus.js';
-import type { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { SettingGroup } from '../../../kernel/settings/setting-group.entity.js';
 import { Setting } from '../../../kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../kernel/settings/setting-value.entity.js';
@@ -29,7 +29,7 @@ import { SecretKeyMissing, SecretKeyInvalid, encryptSecretValue } from '../../..
  *
  * Every successful mutation, in this order:
  *   - flushes;
- *   - records an `audit_log_entries` row via {@link AuditLogService};
+ *   - records an `audit_log_entries` row via {@link AuditPort};
  *   - **drops the settings cache** through {@link SettingsCacheInvalidation};
  *   - emits an EventBus event (see contract section E).
  *
@@ -114,7 +114,7 @@ export class SettingsAdminService {
      * which is the shape every previous defect in this area had.
      */
     private readonly cache: SettingsCacheInvalidation,
-    private readonly auditLogService?: AuditLogService,
+    private readonly auditLogService?: AuditPort,
     /** Base64 32-byte key for `secret` settings (feature 043, FR-021). */
     private readonly secretEncryptionKey?: string,
     /**
