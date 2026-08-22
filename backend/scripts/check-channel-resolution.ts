@@ -93,11 +93,12 @@
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { readdirSync, statSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
 import { reportReadSize } from './lib/read-size.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 
 /**
  * The whole of `src/` is scanned, not `modules/` plus `kernel/`.
@@ -109,7 +110,6 @@ import { reportReadSize } from './lib/read-size.js';
  * `composition.ts` and two in a module's `scripts/` directory, so a
  * `modules/**`-only scan would have missed nearly half of it.
  */
-const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
 /** Header names that only the canonical resolver may read. */
 const CHANNEL_HEADERS = new Set(['x-sales-channel', 'x-sales-channel-id']);
@@ -440,12 +440,14 @@ export function analyzeSource(source: string, relPath: string): Violation[] {
 async function main(): Promise<void> {
   const enforce = process.argv.includes('--enforce');
   const listMode = process.argv.includes('--list');
-  const files = walk(SRC_ROOT);
+  // Both roots, derived (feature 080, T040a).
+  const layout = await requireModuleLayout('[channel-resolution]');
+  const files = layout.sourceRoots.flatMap((root) => walk(root));
 
   const all: Violation[] = [];
   const scanned: string[] = [];
   for (const file of files) {
-    const relPath = relative(SRC_ROOT, file).split('\\').join('/');
+    const relPath = layout.keyOf(file);
     scanned.push(relPath);
     all.push(...analyzeSource(readFileSync(file, 'utf8'), relPath));
   }
@@ -456,8 +458,9 @@ async function main(): Promise<void> {
   // per registered module, derived from the manifest index.
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[channel-resolution]',
-    srcRoot: SRC_ROOT,
-    files: scanned,
+    manifestIndexPath: layout.manifestIndexPath,
+    files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
   const offendingFiles = new Set(all.map((v) => v.file));

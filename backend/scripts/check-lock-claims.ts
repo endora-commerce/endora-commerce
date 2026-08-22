@@ -123,6 +123,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
 import {
   ManifestIndexUnreadableError,
@@ -133,7 +134,6 @@ import {
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const REPO_ROOT = join(BACKEND_ROOT, '..');
-const SRC_ROOT = join(BACKEND_ROOT, 'src');
 const SCRIPTS_ROOT = join(BACKEND_ROOT, 'scripts');
 const CONTRACTS_ROOT = join(REPO_ROOT, 'packages', 'contracts', 'src');
 
@@ -401,7 +401,13 @@ function walk(dir: string, accept: (path: string) => boolean, out: string[] = []
  * being repaired is a population that was short without anybody noticing.
  */
 export function collectArtifacts(roots: {
-  srcRoot: string;
+  /**
+   * Every directory a module manifest can live under (feature 080, T040a):
+   * the application's own module trees, the overlay tree, and each module that
+   * has become a workspace package. A manifest is exactly what this check
+   * reads, so a root missing here is claims nobody judges.
+   */
+  moduleRoots: readonly string[];
   scriptsRoot: string;
   contractsRoot: string;
 }): string[] {
@@ -409,10 +415,9 @@ export function collectArtifacts(roots: {
   const checks = walk(roots.scriptsRoot, (path) => /(^|\/|\\)check-[a-z-]+\.ts$/.test(path)).filter(
     (path) => !path.includes(`${'ledgers'}/`),
   );
-  const manifests = [
-    ...walk(join(roots.srcRoot, 'modules'), (path) => path.endsWith('/manifest.ts')),
-    ...walk(join(roots.srcRoot, 'apps'), (path) => path.endsWith('/manifest.ts')),
-  ];
+  const manifests = roots.moduleRoots.flatMap((root) =>
+    walk(root, (path) => path.endsWith('/manifest.ts')),
+  );
   // A `.test.ts` beside a contract is a test's prose, not a published one, and
   // a `.d.ts` is emitted rather than written — the same two exclusions
   // `check-port-shape` makes over this tree, for the same reason.
@@ -510,8 +515,9 @@ function displayPath(file: string): string {
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
 
+  const layout = await requireModuleLayout('[lock-claims]');
   const files = collectArtifacts({
-    srcRoot: SRC_ROOT,
+    moduleRoots: layout.moduleWalkRoots,
     scriptsRoot: SCRIPTS_ROOT,
     contractsRoot: CONTRACTS_ROOT,
   });
@@ -519,7 +525,7 @@ async function main(): Promise<void> {
   let manifests: readonly ManifestActivationInput[] = [];
   if (files.length > 0) {
     try {
-      manifests = await loadManifestActivations(SRC_ROOT);
+      manifests = await loadManifestActivations(layout.manifestIndexPath);
     } catch (err: unknown) {
       if (err instanceof ManifestIndexUnreadableError) {
         console.error(`[lock-claims] ${err.message} — refusing to report a vacuous pass`);
@@ -540,8 +546,9 @@ async function main(): Promise<void> {
   // short, and it sees it without anybody choosing a number.
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[lock-claims]',
-    srcRoot: SRC_ROOT,
+    manifestIndexPath: layout.manifestIndexPath,
     files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
   // Issue #279's floor, for the source a module move does not touch either: the
   // barrel is the contracts package's own statement of what it publishes.

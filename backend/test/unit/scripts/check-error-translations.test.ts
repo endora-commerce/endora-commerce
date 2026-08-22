@@ -3,6 +3,7 @@ import {
   analyseErrorTranslations,
   findUnreachableSentences,
   findUntranslatedErrorCodes,
+  treeTranslationInput,
   routedBundleDirectories,
   UNTRANSLATED_ERROR_CODES,
   unroutedModules,
@@ -158,8 +159,8 @@ describe('the ledger, as a two-way ratchet', () => {
 });
 
 describe('the tree itself', () => {
-  it('has a routing table with codes in it, and no unledgered untranslated code', () => {
-    const findings = findUntranslatedErrorCodes();
+  it('has a routing table with codes in it, and no unledgered untranslated code', async () => {
+    const findings = findUntranslatedErrorCodes(await treeTranslationInput());
     // The routing table is the whole input: an empty one would report every
     // code translated. `main` exits 2 on it; here the floor is the assertion.
     expect(findings.length + UNTRANSLATED_ERROR_CODES.size).toBeGreaterThan(0);
@@ -344,17 +345,19 @@ describe('the two vacuity guards, which are independent', () => {
 });
 
 describe('the tree itself, under P2', () => {
-  it('writes every error sentence in the bundle the routing table points at', () => {
-    const findings = findUnreachableSentences();
+  it('writes every error sentence in the bundle the routing table points at', async () => {
+    const findings = findUnreachableSentences(await treeTranslationInput());
     expect(
       findings.map((f) => `${f.kind}: ${f.moduleId}/${f.language} ${f.key}`),
     ).toEqual([]);
   });
 
-  it('read a real tree while doing so', () => {
+  it('read a real tree while doing so', async () => {
     // The population is a filesystem walk; an empty one reports no finding for
-    // the same reason a clean tree does.
-    const walked = [...analyseErrorTranslations().keysWalked];
+    // the same reason a clean tree does. Since feature 080's T040a the walk is
+    // over the module directories the layout resolves, so this also covers a
+    // module whose bundle has moved into a package with it.
+    const walked = [...analyseErrorTranslations(await treeTranslationInput()).keysWalked];
     expect(walked.length).toBeGreaterThan(100);
   });
 });

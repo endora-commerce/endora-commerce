@@ -62,6 +62,21 @@ export const BASELINE_MODULE_SOURCE = 'backend/src/modules/orders/order-service.
 /** Where the fixture's generated manifest index lives, as both scripts read it. */
 const MANIFEST_INDEX = 'backend/src/modules/_lifecycle/manifest-index.generated.ts';
 
+/**
+ * The generated index, in the shape the composer emits and the shape
+ * `lib/module-root.sh` reads (feature 080, T040a).
+ *
+ * The specifier lines are kept because that is what the file really looks like;
+ * the **entry array** is what the ids are read from, because a specifier is
+ * relative today and becomes a bare package name the moment a module ships as
+ * one.
+ */
+function manifestIndexSource(ids: readonly string[]): string {
+  const imports = ids.map((id, i) => `import { manifest as manifest${i} } from '../${id}/manifest.js';`);
+  const entries = ids.map((id, i) => `  { id: '${id}', manifest: manifest${i} },`);
+  return `${[...imports, 'export const DISCOVERED_MANIFESTS = [', ...entries, '];'].join('\n')}\n`;
+}
+
 /** Where a pdfmake install sits: pnpm's hoisted store, or a plain top-level one. */
 export type PdfmakeLayout = 'hoisted' | 'top-level';
 
@@ -197,14 +212,18 @@ export function createShellCheckFixture(): ShellCheckFixture {
   };
 
   write(BASELINE_MODULE_SOURCE, '// English comment.\nexport const a = 1;\n');
-  // The generated manifest index, in the one shape both scripts read it in: the
-  // module id is the directory segment of each `../<id>/manifest.js` specifier.
-  // Without it a full-mode run has no expectation to reconcile its listing
-  // against and exits 2 rather than reporting on a residue (issue #244).
-  write(
-    MANIFEST_INDEX,
-    "import { manifest as manifest0 } from '../orders/manifest.js';\nexport const MANIFEST_INDEX = [manifest0];\n",
-  );
+  // The workspace member the module tree lives in. Its `package.json` is what
+  // marks `backend/src` as the application's source root — the marker that
+  // travels with the layout, rather than a directory name (feature 080, T040a).
+  write('backend/package.json', '{ "name": "backend" }\n');
+  // A module directory is the ancestor of a `manifest.ts` named after a
+  // registered id, so the fixture's one module carries one. Without it the
+  // resolver answers "no module directory" and every case below exits 2.
+  write('backend/src/modules/orders/manifest.ts', "export const manifest = { id: 'orders' };\n");
+  // The generated manifest index. Without it a full-mode run has no expectation
+  // to reconcile its listing against and exits 2 rather than reporting on a
+  // residue (issue #244).
+  write(MANIFEST_INDEX, manifestIndexSource(['orders']));
   // A correctly module-scoped migration. `check-naming.sh`'s class-scope rule
   // reads the filesystem, not the listing, and exits 2 on a tree with no
   // migration at all — so without this file every red case above would come
@@ -226,10 +245,9 @@ export function createShellCheckFixture(): ShellCheckFixture {
 
   const nestCheckout = (path: string, kind: NestedCheckoutKind = 'worktree'): string => {
     const nestedRoot = `${path}/backend/src/modules`;
-    write(
-      `${nestedRoot}/_lifecycle/manifest-index.generated.ts`,
-      "import { manifest as manifest0 } from '../orders/manifest.js';\nexport const MANIFEST_INDEX = [manifest0];\n",
-    );
+    write(`${path}/backend/package.json`, '{ "name": "backend" }\n');
+    write(`${nestedRoot}/_lifecycle/manifest-index.generated.ts`, manifestIndexSource(['orders']));
+    write(`${nestedRoot}/orders/manifest.ts`, "export const manifest = { id: 'orders' };\n");
     write(`${nestedRoot}/orders/order-service.ts`, '// English comment.\nexport const a = 1;\n');
     if (kind === 'worktree') {
       write(`${path}/.git`, `gitdir: ${join(root, '.git', 'worktrees', 'nested')}\n`);

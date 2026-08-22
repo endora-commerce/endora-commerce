@@ -264,6 +264,7 @@ import { dirname as posixDirname, join as posixJoin, normalize as posixNormalize
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { moduleOf } from './check-container-imports.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
 import {
   declaredTableNames,
@@ -286,7 +287,6 @@ import {
 import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
-const SRC_ROOT = join(BACKEND_ROOT, 'src');
 const TEST_ROOT = join(BACKEND_ROOT, 'test');
 const LEDGER_ROOT = join(BACKEND_ROOT, 'scripts', 'ledgers', 'cross-module-imports');
 
@@ -1097,6 +1097,8 @@ export function vacuousReason(input: {
   readonly moduleFiles: readonly string[];
   /** Module ids the generated manifest index registers (issue #215). */
   readonly registeredModules: readonly string[];
+  /** How a walked path is attributed, where the layout knows better (T040a). */
+  readonly moduleIdOf?: (path: string) => string | null;
   readonly ledgerDirectoryExists: boolean;
   /** Tables the `@Entity()` pass resolved. */
   readonly entityTables: number;
@@ -1115,6 +1117,7 @@ export function vacuousReason(input: {
   const population = vacuousModulePopulation({
     registered: input.registeredModules,
     files: input.moduleFiles,
+    ...(input.moduleIdOf === undefined ? {} : { moduleIdOf: input.moduleIdOf }),
   });
   if (population !== null) return population;
   if (!input.ledgerDirectoryExists) {
@@ -1189,8 +1192,8 @@ export async function loadLedgerShards(directory: string): Promise<LedgerShard[]
  * test file living under `src/` and is therefore in scope (it moves to
  * `backend/test/`). Declaration files are not, because they are emitted.
  */
-export function collectModuleFiles(srcRoot: string = SRC_ROOT): string[] {
-  return [...walk(join(srcRoot, 'modules')), ...walk(join(srcRoot, 'apps'))];
+export function collectModuleFiles(roots: readonly string[]): string[] {
+  return roots.flatMap((root) => walk(root));
 }
 
 /**
@@ -1201,8 +1204,8 @@ export function collectModuleFiles(srcRoot: string = SRC_ROOT): string[] {
  * (`sales_channels` alone carries 25 findings) and 21 more are declared only by
  * DDL under `src/db/migrations`, which no module walk reaches.
  */
-export function collectSchemaFiles(srcRoot: string = SRC_ROOT): string[] {
-  return walk(srcRoot);
+export function collectSchemaFiles(roots: readonly string[]): string[] {
+  return roots.flatMap((root) => walk(root));
 }
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -1219,11 +1222,21 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** Absolute paths → the source map the analysis reads, keyed under `src/`. */
-export function sourcesOf(files: readonly string[], srcRoot: string = SRC_ROOT): Map<string, string> {
+/**
+ * Absolute paths → the source map the analysis reads, keyed under `src/`.
+ *
+ * `keyOf` is `resolveModuleLayout().keyOf` from the CLI (feature 080, T040a):
+ * `modules/<id>/…` for the application's own tree, byte-for-byte as before, and
+ * the repository-relative path for a module that has become a workspace
+ * package, which has no `src/` of the application's to be relative to.
+ */
+export function sourcesOf(
+  files: readonly string[],
+  keyOf: (file: string) => string,
+): Map<string, string> {
   const sources = new Map<string, string>();
   for (const file of files) {
-    sources.set(relative(srcRoot, file).split('\\').join('/'), readFileSync(file, 'utf8'));
+    sources.set(keyOf(file), readFileSync(file, 'utf8'));
   }
   return sources;
 }
@@ -1381,9 +1394,14 @@ async function main(): Promise<void> {
   const moduleAt = process.argv.indexOf('--module');
   const only = moduleAt === -1 ? null : (process.argv[moduleAt + 1] ?? null);
 
-  const files = collectModuleFiles();
-  const sources = sourcesOf(files);
-  const schema = sourcesOf(collectSchemaFiles());
+  // Both roots, derived (feature 080, T040a): the module walk covers each
+  // application tree and every module that has become a workspace package; the
+  // owner map is built over the wider source list, for the same reason it was
+  // always wider than the module walk.
+  const layout = await requireModuleLayout('[module-boundary]');
+  const files = collectModuleFiles(layout.moduleWalkRoots);
+  const sources = sourcesOf(files, layout.keyOf);
+  const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), layout.keyOf);
   // The third owner-map source (T034). It is read before the vacuous guard so
   // that a package whose schema cannot be enumerated stops the run instead of
   // leaving its tables attributed to nobody — the silence that would let every
@@ -1393,10 +1411,10 @@ async function main(): Promise<void> {
   const owners = buildTableOwners(schema, packages.tables).report;
   let registeredModules: readonly string[];
   try {
-    registeredModules = await loadRegisteredModuleIds(SRC_ROOT);
+    registeredModules = await loadRegisteredModuleIds(layout.manifestIndexPath);
   } catch (error: unknown) {
     console.error(
-      `[module-boundary] the module index under ${SRC_ROOT} could not be read ` +
+      `[module-boundary] the module index at ${layout.manifestIndexPath} could not be read ` +
         `(${String(error)}) — the expected population is derived from it; ` +
         'refusing to report a vacuous pass',
     );
@@ -1404,8 +1422,9 @@ async function main(): Promise<void> {
     return;
   }
   const vacuous = vacuousReason({
-    moduleFiles: [...sources.keys()],
+    moduleFiles: files,
     registeredModules,
+    moduleIdOf: layout.moduleIdOfPath,
     ledgerDirectoryExists: existsSync(LEDGER_ROOT),
     entityTables: owners.entityTables,
     migrationTables: owners.migrationTables,

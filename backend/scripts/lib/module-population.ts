@@ -19,11 +19,12 @@
  * derived fact and goes stale in silence, which is what D-100 was written
  * about. Two properties fall out of reading it, and the check needs both:
  *
- *   1. **The index is a path that must resolve.** It lives at
- *      `src/modules/_lifecycle/manifest-index.generated.ts`, so a tree that
- *      moved without it is an error rather than an empty result — the whole
- *      module directory going missing is refused before a single file is
- *      analysed.
+ *   1. **The index is a path that must resolve.** Where it lives is
+ *      `lib/module-roots.ts`' answer since feature 080's T040a — searched for
+ *      over the workspace members rather than joined onto a source root — so a
+ *      tree that moved without it is an error rather than an empty result, and
+ *      the whole module directory going missing is refused before a single file
+ *      is analysed.
  *   2. **Every module it registers must contribute a source.** A *partial*
  *      move — the one a package split actually performs, index regenerated and
  *      pointing at the new home — leaves the index readable and the walk
@@ -58,6 +59,18 @@ export interface ModulePopulationInput {
    * check makes in its header, not a convenience.
    */
   readonly excluded?: readonly string[];
+  /**
+   * How a path is attributed to a module, where the `modules/<id>/` segment is
+   * not the answer (feature 080, T040a).
+   *
+   * A module that has become a **package** lives at a path of its own choosing
+   * — `packages/modules/blog/src/…` today, whatever the workspace globs allow
+   * tomorrow — and its id is read from its manifest's `endora.id` rather than
+   * from a directory name. `lib/module-roots.ts` supplies the function; the
+   * default is {@link moduleIdOf}, so a caller with only an application tree
+   * gets exactly the behaviour it had before this field existed.
+   */
+  readonly moduleIdOf?: (path: string) => string | null;
 }
 
 /**
@@ -76,9 +89,10 @@ export function moduleIdOf(path: string): string | null {
 /** Registered modules the walk produced no file for. */
 export function modulesWithoutSources(input: ModulePopulationInput): string[] {
   const excluded = new Set(input.excluded ?? []);
+  const idOf = input.moduleIdOf ?? moduleIdOf;
   const seen = new Set<string>();
   for (const file of input.files) {
-    const id = moduleIdOf(file);
+    const id = idOf(file);
     if (id !== null) seen.add(id);
   }
   return input.registered.filter((id) => !excluded.has(id) && !seen.has(id)).sort();
@@ -139,13 +153,13 @@ export function vacuousModulePopulation(input: ModulePopulationInput): string | 
 }
 
 /**
- * Ids of every module the generated index under `srcRoot` registers.
+ * Ids of every module the generated index at `indexPath` registers.
  *
  * Throws `ManifestIndexUnreadableError` when the index is missing or empty; a
  * caller turns that into exit 2, never into a pass.
  */
-export async function loadRegisteredModuleIds(srcRoot: string): Promise<readonly string[]> {
-  return (await loadManifestActivations(srcRoot)).map((manifest) => manifest.id);
+export async function loadRegisteredModuleIds(indexPath: string): Promise<readonly string[]> {
+  return (await loadManifestActivations(indexPath)).map((manifest) => manifest.id);
 }
 
 /**
@@ -164,17 +178,18 @@ export async function loadRegisteredModuleIds(srcRoot: string): Promise<readonly
 export async function refuseVacuousModulePopulation(input: {
   /** The check's log prefix, e.g. `[subscribe-seam]`. */
   readonly prefix: string;
-  /** Where `modules/_lifecycle/manifest-index.generated.ts` is looked for. */
-  readonly srcRoot: string;
+  /** The generated manifest index, as `lib/module-roots.ts` resolved it. */
+  readonly manifestIndexPath: string;
   readonly files: readonly string[];
   readonly excluded?: readonly string[];
+  readonly moduleIdOf?: (path: string) => string | null;
 }): Promise<ModulePopulationCoverage> {
   let registered: readonly string[];
   try {
-    registered = await loadRegisteredModuleIds(input.srcRoot);
+    registered = await loadRegisteredModuleIds(input.manifestIndexPath);
   } catch (error: unknown) {
     console.error(
-      `${input.prefix} the module index under ${input.srcRoot} could not be read ` +
+      `${input.prefix} the module index at ${input.manifestIndexPath} could not be read ` +
         `(${String(error)}) — the expected population is derived from it, so there is ` +
         'nothing to compare the walk against; refusing to report a vacuous pass',
     );
@@ -184,6 +199,7 @@ export async function refuseVacuousModulePopulation(input: {
     registered,
     files: input.files,
     ...(input.excluded === undefined ? {} : { excluded: input.excluded }),
+    ...(input.moduleIdOf === undefined ? {} : { moduleIdOf: input.moduleIdOf }),
   };
   const reason = vacuousModulePopulation(population);
   if (reason !== null) {

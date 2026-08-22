@@ -124,10 +124,10 @@ import {
   stringLiteralOf,
 } from './lib/repeating-timers.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
-const SRC_ROOT = join(BACKEND_ROOT, 'src');
 
 /** The two functions that open a scope. Nothing else counts as establishing one. */
 const SCOPE_ENTRY_FUNCTIONS: ReadonlySet<string> = new Set([
@@ -337,11 +337,23 @@ const NOTHING_DECLARED: ReadonlySet<string> = new Set();
  * The path as the ledger spells it: everything from the last `/src/` on.
  * Derived from the path itself rather than from `SRC_ROOT` so the predicates
  * here are testable without knowing where the checkout lives.
+ *
+ * **It is the default and no longer the only answer** (feature 080, T040a). A
+ * module that has become a workspace package lives at
+ * `packages/modules/<id>/src/…`, where "everything from the last `/src/` on"
+ * drops the module and leaves `src/services/x.ts` — a key two packages would
+ * share. The CLI therefore passes `resolveModuleLayout().displayOf`, which
+ * keeps the application's own spelling byte-for-byte and answers repo-relative
+ * for anything outside it. The default stays for the predicates' own tests,
+ * which have no checkout to resolve.
  */
 export function relative(file: string): string {
   const marker = file.lastIndexOf('/src/');
   return marker === -1 ? file : file.slice(marker + 1);
 }
+
+/** How a walked file becomes the key a site and a ledger entry are spelled with. */
+export type PathSpelling = (file: string) => string;
 
 /**
  * Which file-level class this file belongs to, or `null` for neither.
@@ -352,9 +364,10 @@ export function relative(file: string): string {
 export function fileLevelKind(
   file: string,
   declared: ReadonlySet<string> = NOTHING_DECLARED,
+  pathOf: PathSpelling = relative,
 ): 'cli' | 'program' | null {
   if (/\/scripts\//.test(file)) return 'cli';
-  if (declared.has(relative(file))) return 'program';
+  if (declared.has(pathOf(file))) return 'program';
   return null;
 }
 
@@ -482,11 +495,12 @@ export function findEntrySites(
   file: string,
   source: string,
   declared: ReadonlySet<string> = NOTHING_DECLARED,
+  pathOf: PathSpelling = relative,
 ): EntrySite[] {
-  const fileKind = fileLevelKind(file, declared);
+  const fileKind = fileLevelKind(file, declared, pathOf);
   if (fileKind === null && !mayHoldSite(source)) return [];
 
-  const path = relative(file);
+  const path = pathOf(file);
   const sf = parseScript(file, source);
   const bindings = localFunctions(sf);
 
@@ -548,20 +562,23 @@ export function staleAllowances(sites: readonly EntrySite[]): string[] {
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
-  const files = walk(SRC_ROOT);
+  // Both roots, derived (feature 080, T040a).
+  const layout = await requireModuleLayout('[entry-scope]');
+  const files = layout.sourceRoots.flatMap((root) => walk(root));
   // Every CLI script, worker and sweep this check classifies is a module's, and
   // its exemptions are keyed by `src/modules/**` paths — so a walk over the
   // residue left when the module tree moves recognises almost no entry point at
   // all and still clears the `sites.length === 0` floor (issue #215).
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[entry-scope]',
-    srcRoot: SRC_ROOT,
+    manifestIndexPath: layout.manifestIndexPath,
     files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
   const declaredPaths = declaredProgramEntryPoints(
     readFileSync(join(BACKEND_ROOT, 'package.json'), 'utf8'),
   );
-  const walked = new Set(files.map(relative));
+  const walked = new Set(files.map(layout.displayOf));
   // The second population source can go short the same two ways the walk can:
   // a `scripts` block this cannot read at all, and a declaration whose file has
   // been renamed away underneath it. The first is "not looking" and exits 2;
@@ -584,7 +601,9 @@ async function main(): Promise<void> {
   }
   const declared = new Set(declaredPaths);
 
-  const sites = files.flatMap((file) => findEntrySites(file, readFileSync(file, 'utf8'), declared));
+  const sites = files.flatMap((file) =>
+    findEntrySites(file, readFileSync(file, 'utf8'), declared, layout.displayOf),
+  );
   const violations = violationsOf(sites);
   const stale = staleAllowances(sites);
 

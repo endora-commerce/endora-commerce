@@ -1,7 +1,4 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -240,52 +237,33 @@ describe('the shell half refuses the same three shapes', () => {
     expect(output).toContain('covered 3 of the 65');
   });
 
-  it('derives the expectation from the manifest index rather than a number', () => {
-    // Enters at the top: a file list on stdin and the real index, which is what
-    // a run hands it. A fixture that passed `covered/expected` straight in would
-    // prove the formatting and leave the derivation — the part #215 is about —
-    // unexercised.
-    const index = `${REPO_ROOT}backend/src/modules/_lifecycle/manifest-index.generated.ts`;
+  it('derives the expectation from the module directories rather than a number', () => {
+    // Enters at the top: a file list on stdin and the directories a run
+    // resolved, which is what a run hands it. A fixture that passed
+    // `covered/expected` straight in would prove the formatting and leave the
+    // derivation — the part #215 is about — unexercised.
     const { output } = bash(
       `printf 'backend/src/modules/blog/backend.ts\\nbackend/src/kernel/x.ts\\n' | ` +
-        `read_size_module_coverage '${index}'`,
+        "read_size_module_coverage \"$(printf 'backend/src/modules/blog\\nbackend/src/modules/cms\\n')\"",
     );
-    const [covered, expected] = output.trim().split('/').map(Number);
-    expect(covered).toBe(1);
-    expect(expected).toBeGreaterThan(60);
+    expect(output.trim()).toBe('1/2');
   });
 
-  it('reads the module root off the index rather than a path written into it', () => {
-    // Feature 080, T012. The coverage used to `grep` for `backend/src/modules/`
-    // and would have answered `0/1` for the tree below — a refusal, on a
-    // repository whose only fault was that its modules had moved. The root is
-    // the index's own grandparent, so the expectation moves with the tree.
-    const moved = mkdtempSync(join(tmpdir(), 'read-size-root-'));
-    try {
-      const index = join(moved, 'backend/src/domain_modules/_lifecycle/manifest-index.generated.ts');
-      mkdirSync(dirname(index), { recursive: true });
-      writeFileSync(
-        index,
-        "import { manifest as manifest0 } from '../orders/manifest.js';\n",
-        'utf8',
-      );
-
-      const { output } = bash(
-        `printf 'backend/src/domain_modules/orders/x.ts\\nbackend/src/kernel/x.ts\\n' | ` +
-          `read_size_module_coverage '${index}'`,
-        moved,
-      );
-
-      expect(output.trim()).toBe('1/1');
-    } finally {
-      rmSync(moved, { recursive: true, force: true });
-    }
+  it('counts a module that has left the application tree (feature 080, T040a)', () => {
+    // The directories are a **list** now, and the reason is this case: a module
+    // that has become a workspace package is under no root the application
+    // owns, so a coverage keyed on one root answers `0/1` for a repository
+    // whose only fault is that the move is half done — the very shortfall this
+    // reconciliation exists to refuse, reported against a tree that is fine.
+    const { output } = bash(
+      `printf 'packages/modules/blog/src/backend.ts\\nbackend/src/kernel/x.ts\\n' | ` +
+        "read_size_module_coverage \"$(printf 'packages/modules/blog\\n')\"",
+    );
+    expect(output.trim()).toBe('1/1');
   });
 
-  it('fails rather than answering when the index is not there', () => {
-    const { status } = bash(
-      "printf 'x\\n' | read_size_module_coverage /nowhere/manifest-index.generated.ts",
-    );
+  it('fails rather than answering when no directory was resolved', () => {
+    const { status } = bash("printf 'x\\n' | read_size_module_coverage ''");
     expect(status).not.toBe(0);
   });
 });

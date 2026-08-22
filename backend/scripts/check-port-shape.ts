@@ -145,10 +145,10 @@ import {
   resolvedNames,
 } from './check-port-dependencies.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
-const BACKEND_SRC = join(HERE, '..', 'src');
 const CONTRACTS_SRC = join(HERE, '..', '..', 'packages', 'contracts', 'src');
 
 /** The line every port's doc block carries, and the only marker that finds one. */
@@ -709,6 +709,13 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/** Absolute paths → sources, keyed by the layout's own spelling (T040a). */
+function keyed(files: readonly string[], keyOf: (file: string) => string): Map<string, string> {
+  const sources = new Map<string, string>();
+  for (const file of files) sources.set(keyOf(file), readFileSync(file, 'utf8'));
+  return sources;
+}
+
 function read(root: string, files: string[], prefix: string): Map<string, string> {
   const sources = new Map<string, string>();
   for (const file of files) {
@@ -720,11 +727,10 @@ function read(root: string, files: string[], prefix: string): Map<string, string
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
 
+  // Every root a module's source can live in, derived (feature 080, T040a).
+  const layout = await requireModuleLayout('[port-shape]');
   const contractFiles = walk(CONTRACTS_SRC);
-  const moduleFiles = [
-    ...walk(join(BACKEND_SRC, 'modules')),
-    ...walk(join(BACKEND_SRC, 'apps')),
-  ];
+  const moduleFiles = layout.moduleWalkRoots.flatMap((root) => walk(root));
   if (contractFiles.length === 0) {
     console.error(
       '[port-shape] no sources under packages/contracts/src — ' +
@@ -738,13 +744,14 @@ async function main(): Promise<void> {
   // surviving registration or resolution. The floor is per registered module.
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[port-shape]',
-    srcRoot: BACKEND_SRC,
+    manifestIndexPath: layout.manifestIndexPath,
     files: moduleFiles,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
   const input: PortShapeInput = {
     contracts: read(CONTRACTS_SRC, contractFiles, 'contracts/'),
-    modules: read(BACKEND_SRC, moduleFiles, ''),
+    modules: keyed(moduleFiles, layout.keyOf),
   };
   const result = checkPortShape(input);
 

@@ -144,8 +144,12 @@ Getting it wrong no longer produces a wrong measurement: `vitest.config.base.ts`
 file every workspace's vitest config merges — refuses the run, naming each foreign link and
 its target. It covers `backend`, `admin` and `storefront` in one place; `tsc` is covered
 instead by `paths` in `tsconfig.base.json` being complete, which
-`backend/test/unit/harness/workspace-resolution.test.ts` keeps true for every package under
-`packages/`. `ALLOW_FOREIGN_WORKSPACE_PACKAGES=1` is the override for deliberately
+`backend/test/unit/harness/workspace-resolution.test.ts` keeps true for every package the
+workspace globs produce — **however deep** they nest it (feature 080, T040a). Both halves of
+that population used to be written down: `readdir('packages')`, one level, filtered by the
+literal scope `'@b2b/'`. Neither survives 66 module packages a directory deeper under a second
+scope, and a package this guard cannot see is a package with no protection at all — which is
+the one way a #255 repair can regress in silence. `ALLOW_FOREIGN_WORKSPACE_PACKAGES=1` is the override for deliberately
 measuring another checkout. What neither covers is `eslint` and the `check-*` scripts —
 stated here rather than discovered later. See `scripts/workspace-resolution.ts`.
 
@@ -627,6 +631,26 @@ check (D-100). `backend/test/unit/scripts/moved-module-tree.test.ts` spawns each
 over a fixture backend whose modules are gone and whose registry still lists them; the
 inventory's `residueGuard` field is the two-way link to it.
 
+**Refusing a moved tree is not following one, and the difference is what makes F4's layout
+move reviewable** (feature 080, T040a). Because that floor is *per module*, the first module
+to leave `backend/src/modules` reds all sixteen checks at once — the index still registers it
+and no walk produces a file for it — so before this the move was one commit or nothing. The
+module root is therefore a **derived list**, `backend/scripts/lib/module-roots.ts`: the
+generated index is *located* (searched for over the workspace members, so it is found where it
+is today and equally at `backend/src/` after the ruling that makes it host-owned), the
+application's source root is the index's own ancestor one level inside the member holding it,
+and each module's directory is either a directory under that root named after a registered id
+or a **workspace member declaring `endora: { type: 'module', id }`** — the package's own
+statement about itself, the same one the runtime discovery reads. Which directories are members
+comes from `pnpm-workspace.yaml`, never from a path written down: `packages/modules` appears in
+no check and in no ledger. A check takes `layout.moduleWalkRoots` (module sources) or
+`layout.sourceRoots` (the whole application tree plus each package), and `layout.keyOf` /
+`layout.displayOf` for the two key shapes the ledgers already use — both byte-identical for a
+tree that has not moved. The split half of `moved-module-tree.test.ts` is the proof: sixteen
+checks over a fixture with six modules in packages and the rest in `src/modules` exit **0**,
+and over the same tree with one module's `package.json` removed — nothing else changed — all
+sixteen exit **2**.
+
 Both run in CI as GitLab's `quality:static` job — full tree, every MR and every push to
 `master`. They need only bash, grep, perl and POSIX awk (no `pnpm install`), so keep them
 free of gawk-isms and of anything that assumes a node toolchain. Neither script may pass on
@@ -657,21 +681,30 @@ column default, an external vendor's wire format) is marked with `naming:allow-s
 plus a reason in a comment directly above the field — see `cmsContentEnvelopeSchema` in
 `packages/contracts/src/cms.ts`. Do not use it to skip a genuine API-shape fix.
 
-**Its module root is resolved, never spelled** (feature 080, T012). Three of the five rules
-walk the module tree, and the path used to be written into the script eight times, so a tree
-that moved took them with it: the rules iterated nothing, the other two reported on what was
-left, and the script printed a green tick. The root is now the **generated manifest index's
-own grandparent** — `scripts/lib/module-root.sh`, the bash twin of
-`backend/scripts/lib/module-population.ts` — so a layout move is *followed*, a repository with
-no index is exit 2, and one with two indexes is exit 2 as well rather than a scan silently
-narrowed to whichever sorted first. If you are writing a shell check that walks modules, take
-the root from that helper; do not add a ninth literal. `read_size_module_coverage` derives the
-same root from the index path it is already given, so its `manifest-index:<covered>/<expected>`
-token moves with the tree too. **`check:language` resolves it the same way**, and did not until
-the nested-worktree repair below: it spelled the index path, so a moved tree ended its run on
-"could not read the manifest index" — a refusal rather than #215's silent green, but still a
-check that stops working for a layout change it should follow. The two are one job and one pair
-of modes; deriving the population twice is two answers waiting to disagree.
+**Its module root is resolved, never spelled** (feature 080, T012), and since T040a it is a
+**list of module directories** rather than one root. Three of the five rules walk the module
+tree, and the path used to be written into the script eight times, so a tree that moved took
+them with it: the rules iterated nothing, the other two reported on what was left, and the
+script printed a green tick. `scripts/lib/module-root.sh` — the bash twin of
+`backend/scripts/lib/module-roots.ts` — resolves it instead: the generated manifest index is
+found by **name** anywhere under the checkout (T012 keyed on `<root>/_lifecycle/`, which stops
+being where it lives once the index is host-owned), the ids come off its entry array rather
+than off its import specifiers (a specifier is relative today and a bare package name
+tomorrow), and a module's directory is the ancestor of a `manifest.ts` named after one of those
+ids that either sits under the application's source root or carries a `package.json` of its
+own. A repository with no index is exit 2 and one with two is exit 2 as well, rather than a
+scan silently narrowed to whichever sorted first. If you are writing a shell check that walks
+modules, iterate that list; do not add a ninth literal. Rule 1 is the one exception and says
+so in place: it judges *names*, so its population is every directory that sits **where** a
+module sits (`module_root_module_folders`), because a misnamed folder is the one the index does
+not list. `read_size_module_coverage` takes the same directories, so its
+`manifest-index:<covered>/<expected>` token counts a module that has become a package instead
+of reporting the shortfall it exists to refuse. **`check:language` resolves it the same way**,
+and did not until the nested-worktree repair below: it spelled the index path, so a moved tree
+ended its run on "could not read the manifest index" — a refusal rather than #215's silent
+green, but still a check that stops working for a layout change it should follow. The two are
+one job and one pair of modes; deriving the population twice is two answers waiting to
+disagree.
 
 **"This repository" excludes a checkout nested inside it, and that is what makes the refusal
 survivable here.** Agents in this project work in `git worktree`s created *under* the
@@ -689,8 +722,8 @@ both directions; the registry knows nothing of a nested clone or a submodule; an
 `git` on `PATH`, which a sourced library cannot assume. What it cannot see is stated in
 `scripts/lib/module-root.sh` — a checkout whose marker is elsewhere (`GIT_DIR`, a
 `--separate-git-dir` whose gitfile is gone) reads as ordinary source and is walked, which is
-the direction to be wrong in. Two genuine module roots in one checkout are still exit 2, and
-`shell-checks.test.ts` proves both halves over real fixture trees.
+the direction to be wrong in. Two generated manifest indexes in one checkout are still exit 2,
+and `shell-checks.test.ts` proves both halves over real fixture trees.
 
 ### The full inventory
 

@@ -17,58 +17,48 @@
 # Source it, do not execute it:
 #   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/read-size.sh"
 
-# The module ids the generated manifest index registers, one per line.
-#
-# The index is a TypeScript file and this is a shell script, so the read is a
-# regex over the import lines rather than a load — the ids are the directory
-# segment of each `../<id>/manifest.js` specifier, which is the one thing the
-# generator cannot emit differently without every module's manifest moving.
-# Returns 1 when the file is not there, which its caller turns into exit 2: an
-# expectation derived from a missing file is not an expectation.
-read_size_registered_modules() {
-  local index="$1"
-  [ -f "$index" ] || return 1
-  perl -ne "print \"\$1\n\" if m{from '\\.\\./([A-Za-z0-9_]+)/manifest\\.js'}" "$index" \
-    | sort -u
-}
+# The module ids used to be read here, off the index's import specifiers. They
+# are read in `lib/module-root.sh` instead (feature 080, T040a), off the entry
+# array, because a specifier is relative today and becomes a bare package name
+# the moment a module ships as one — and because that file already has to
+# resolve each module's directory, so two readers of the same artefact would be
+# two answers waiting to disagree.
 
-# `covered/expected` for a file list on stdin, against the manifest index.
+# `covered/expected` for a file list on stdin, against the module directories.
 #
-# Expected is every registered module; covered is those the listing produced at
-# least one file for. This is #215's predicate: a walk that comes back *short*
-# — the module tree half-moved, a glob that stopped matching one subtree — is
-# invisible to an emptiness test and visible to this one, without anybody
-# choosing a number.
+# Expected is every module directory the caller resolved; covered is those the
+# listing produced at least one file under. This is #215's predicate: a walk
+# that comes back *short* — the module tree half-moved, a glob that stopped
+# matching one subtree — is invisible to an emptiness test and visible to this
+# one, without anybody choosing a number.
 #
-# The module root is the index's own grandparent rather than a path written here
-# (feature 080, T012): the index lives inside the module tree, so one resolution
-# answers both halves and a tree that moves takes the expectation with it. The
-# id is matched with POSIX awk's `index()`, which is literal — a `grep -E`
-# pattern built from a path would need the caller's separators escaped, and the
-# one that got away would match more than it was asked to.
+# **It takes the directories rather than deriving a root from the index**
+# (feature 080, T040a). It used to take the index and read its grandparent,
+# which is one root; a module that has become a package is under no root of the
+# application's, so a listing full of its files would have counted for nothing
+# and the reconciliation would have reported the very shortfall it exists to
+# refuse. `module_root_module_directories` is the one derivation, and passing its
+# answer here is what keeps the two from disagreeing.
+#
+# Containment is matched with POSIX awk's `index()`, which is literal — a
+# `grep -E` pattern built from a path would need the caller's separators
+# escaped, and the one that got away would match more than it was asked to.
 read_size_module_coverage() {
-  local index="$1"
-  local ids expected covered modules_root
-  ids="$(read_size_registered_modules "$index")" || return 1
-  modules_root="$(dirname "$(dirname "$index")")"
-  # The listing is repository-relative (`git ls-files` emits nothing else), so
-  # an index given as an absolute path has to lose the working directory or the
-  # two never meet. Both callers `cd` to the repository root first.
-  modules_root="${modules_root#"$PWD"/}"
-  modules_root="${modules_root#./}"
-  expected=$(printf '%s\n' "$ids" | grep -c '[^[:space:]]' || true)
+  local directories="$1"
+  local expected covered
+  [ -n "$directories" ] || return 1
+  expected=$(printf '%s\n' "$directories" | grep -c '[^[:space:]]' || true)
+  [ "$expected" -gt 0 ] || return 1
   covered=$(
-    awk -v root="$modules_root/" '
+    awk -v dirs="$directories" '
+      BEGIN { total = split(dirs, dir, "\n") }
       {
-        at = index($0, root)
-        if (at == 0) next
-        rest = substr($0, at + length(root))
-        slash = index(rest, "/")
-        if (slash > 1) print substr(rest, 1, slash - 1)
+        for (i = 1; i <= total; i++) {
+          if (length(dir[i]) > 0 && index($0, dir[i] "/") == 1) { seen[dir[i]] = 1; break }
+        }
       }
+      END { for (d in seen) print d }
     ' \
-      | sort -u \
-      | grep -Fx -f <(printf '%s\n' "$ids") \
       | grep -c '[^[:space:]]' || true
   )
   printf '%s/%s' "$covered" "$expected"

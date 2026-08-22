@@ -71,19 +71,27 @@
  * modules ship one — which is the claim {@link unroutedModules} makes and the
  * only exclusion the floor takes.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { ERROR_TRANSLATION_KEYS } from '../src/modules/_i18n/services/error-translation.js';
 import {
   loadRegisteredModuleIds,
   refuseVacuousModulePopulation,
 } from './lib/module-population.js';
 import { reportReadSize } from './lib/read-size.js';
+import { requireModuleLayout, resolveModuleLayout } from './lib/module-roots.js';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const srcRoot = resolve(here, '../src');
-const modulesRoot = join(srcRoot, 'modules');
+/**
+ * Every module's own directory, by id (feature 080, T040a).
+ *
+ * It used to be `join(srcRoot, 'modules')` plus a `readdirSync` — one root,
+ * listed. A module that has become a workspace package keeps its bundle at
+ * `<package>/i18n/<language>.json` and is under no such root, so a listing
+ * answers for the modules that stayed and silently for none of the others.
+ * `resolveModuleLayout().moduleDirectories` is the enumeration instead.
+ */
+export type ModuleDirectories = ReadonlyMap<string, string>;
 
 /** The languages every user-facing string ships in (Principle VIII). */
 const LANGUAGES = ['en', 'pl'] as const;
@@ -254,9 +262,13 @@ export function unroutedModules(
   return registered.filter((id) => !routed.has(id));
 }
 
-function bundlePath(moduleId: string, language: string): string {
-  const dir = moduleId === 'core' ? CORE_BUNDLE_MODULE : moduleId;
-  return join(modulesRoot, dir, 'i18n', `${language}.json`);
+function bundlePath(
+  directories: ModuleDirectories,
+  moduleId: string,
+  language: string,
+): string | null {
+  const dir = directories.get(moduleId === 'core' ? CORE_BUNDLE_MODULE : moduleId);
+  return dir === undefined ? null : join(dir, 'i18n', `${language}.json`);
 }
 
 function loadBundle(path: string): Record<string, unknown> {
@@ -271,11 +283,15 @@ function loadBundle(path: string): Record<string, unknown> {
   }
 }
 
-/** Reads a module's on-disk bundle, memoised — the default {@link TranslationInput}. */
-export function diskBundleReader(): TranslationInput['readBundle'] {
+/** Reads a module's on-disk bundle, memoised — the tree's {@link TranslationInput}. */
+export function diskBundleReader(directories: ModuleDirectories): TranslationInput['readBundle'] {
   const cache = new Map<string, Record<string, unknown>>();
   return (moduleId: string, language: string): Record<string, unknown> => {
-    const path = bundlePath(moduleId, language);
+    // A module the layout does not know is a module with no directory to read a
+    // bundle from, which is the same answer `loadBundle` gives for a file that
+    // is not there — and P1 reports every code routed to it, loudly.
+    const path = bundlePath(directories, moduleId, language);
+    if (path === null) return {};
     let bundle = cache.get(path);
     if (!bundle) {
       bundle = loadBundle(path);
@@ -294,15 +310,13 @@ export function diskBundleReader(): TranslationInput['readBundle'] {
  * today, and if one ever ships a bundle the extension is one path and the
  * findings are the same findings.
  */
-export function diskBundleKeyWalker(): TranslationInput['listBundleKeys'] {
+export function diskBundleKeyWalker(
+  directories: ModuleDirectories,
+): TranslationInput['listBundleKeys'] {
   return function* walk(): Generator<BundleKey> {
-    const directories = readdirSync(modulesRoot, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort();
-    for (const moduleId of directories) {
+    for (const moduleId of [...directories.keys()].sort()) {
       for (const language of LANGUAGES) {
-        const bundle = loadBundle(join(modulesRoot, moduleId, 'i18n', `${language}.json`));
+        const bundle = loadBundle(join(directories.get(moduleId)!, 'i18n', `${language}.json`));
         for (const key of Object.keys(bundle)) {
           if (key.startsWith('errors.')) yield { moduleId, language, key };
         }
@@ -311,15 +325,29 @@ export function diskBundleKeyWalker(): TranslationInput['listBundleKeys'] {
   };
 }
 
-function defaultInput(): TranslationInput {
+/**
+ * The tree's own input, over the layout's module directories.
+ *
+ * Async since feature 080's T040a, because "where does module `x` keep its
+ * bundle" is now a question about the workspace rather than about one path.
+ * Every caller that means *this repository* — the CLI and the tree tests —
+ * goes through it, so there is one derivation and not a default beside it.
+ */
+export async function treeTranslationInput(): Promise<TranslationInput> {
+  const layout = await resolveModuleLayout();
+  return translationInputFor(layout.moduleDirectories);
+}
+
+/** The same input over a given set of module directories. */
+export function translationInputFor(directories: ModuleDirectories): TranslationInput {
   return {
     keys: ERROR_TRANSLATION_KEYS,
-    readBundle: diskBundleReader(),
-    listBundleKeys: diskBundleKeyWalker(),
+    readBundle: diskBundleReader(directories),
+    listBundleKeys: diskBundleKeyWalker(directories),
   };
 }
 
-export function findUntranslatedErrorCodes(input: TranslationInput = defaultInput()): Finding[] {
+export function findUntranslatedErrorCodes(input: TranslationInput): Finding[] {
   const read = input.readBundle;
 
   const findings: Finding[] = [];
@@ -350,9 +378,7 @@ const ERROR_KEY = /^errors\.([A-Z][A-Z0-9_]*)(?:\.([a-z][a-z0-9_]*))?$/;
  * routing table's `core` is mapped onto it here rather than in the walk, because
  * `core` is a routing answer and never a place on disk.
  */
-export function findUnreachableSentences(
-  input: TranslationInput = defaultInput(),
-): SentenceFinding[] {
+export function findUnreachableSentences(input: TranslationInput): SentenceFinding[] {
   const findings: SentenceFinding[] = [];
   for (const written of input.listBundleKeys()) {
     const match = ERROR_KEY.exec(written.key);
@@ -411,7 +437,7 @@ export interface AnalysisResult {
  * of re-deriving half of it (issue #130).
  */
 export function analyseErrorTranslations(
-  input: TranslationInput = defaultInput(),
+  input: TranslationInput,
   ledger: ReadonlySet<string> = UNTRANSLATED_ERROR_CODES,
 ): AnalysisResult {
   const findings = findUntranslatedErrorCodes(input);
@@ -474,17 +500,18 @@ export function analyseErrorTranslations(
  * The paths are absolute and keep their `modules/<id>/` segment, which is what
  * the population floor reads them by.
  */
-function bundleFilesOnDisk(): string[] {
-  return readdirSync(modulesRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .flatMap((entry) =>
-      LANGUAGES.map((language) => join(modulesRoot, entry.name, 'i18n', `${language}.json`)),
-    )
+function bundleFilesOnDisk(directories: ModuleDirectories): string[] {
+  return [...directories.values()]
+    .flatMap((dir) => LANGUAGES.map((language) => join(dir, 'i18n', `${language}.json`)))
     .filter((path) => existsSync(path));
 }
 
 async function main(): Promise<void> {
-  const files = bundleFilesOnDisk();
+  // Every module's own directory, derived (feature 080, T040a) — the bundle of
+  // a module that has become a package is under the package, not under a root
+  // this file could list.
+  const layout = await requireModuleLayout('[error-translations]');
+  const files = bundleFilesOnDisk(layout.moduleDirectories);
 
   // The floor, before any finding is printed (issue #215). `refuseVacuous…`
   // loads the index itself, so the pair below is one read done twice rather
@@ -492,10 +519,10 @@ async function main(): Promise<void> {
   // and the shared guard is the only place the refusal is written.
   let registered: readonly string[];
   try {
-    registered = await loadRegisteredModuleIds(srcRoot);
+    registered = await loadRegisteredModuleIds(layout.manifestIndexPath);
   } catch (error: unknown) {
     console.error(
-      `[error-translations] the module index under ${srcRoot} could not be read ` +
+      `[error-translations] the module index at ${layout.manifestIndexPath} could not be read ` +
         `(${String(error)}) — the routed bundles are derived from it, so there is nothing ` +
         'to compare the walk against; refusing to report a vacuous pass',
     );
@@ -503,12 +530,13 @@ async function main(): Promise<void> {
   }
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[error-translations]',
-    srcRoot,
+    manifestIndexPath: layout.manifestIndexPath,
     files,
     excluded: unroutedModules(ERROR_TRANSLATION_KEYS, registered),
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
-  const result = analyseErrorTranslations();
+  const result = analyseErrorTranslations(translationInputFor(layout.moduleDirectories));
   if (result.exitCode === 2) {
     console.error(result.summary);
     process.exit(2);

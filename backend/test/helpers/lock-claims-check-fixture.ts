@@ -34,8 +34,10 @@ const SCRIPT = join(REPO_ROOT, 'backend', 'scripts', 'check-lock-claims.ts');
 /** The libraries the check imports by relative path. */
 const LIBS: readonly string[] = [
   'module-population.ts',
+  'module-roots.ts',
   'read-size.ts',
   'switchable-modules.ts',
+  'workspace-packages.ts',
 ];
 
 /** The module the fixture manifests declare `nonDeactivatable`. */
@@ -98,6 +100,20 @@ export function createLockClaimsFixture(): LockClaimsFixture {
   writeFileSync(
     join(scripts, 'ledgers', 'fixture-shard.ts'),
     "export const FIXTURE_LEDGER: Record<string, string> = {};\n",
+    'utf8',
+  );
+  // The fixture is a pnpm workspace, because that is what the module-root
+  // resolver derives from since feature 080's T040a: the globs say which
+  // directories are members, and the member holding the generated index is the
+  // application whose source root the module directories are looked for under.
+  writeFileSync(
+    join(root, 'pnpm-workspace.yaml'),
+    'packages:\n  - backend\n  - packages/*\n',
+    'utf8',
+  );
+  writeFileSync(
+    join(contracts, '..', 'package.json'),
+    `${JSON.stringify({ name: '@b2b/contracts', private: true }, null, 2)}\n`,
     'utf8',
   );
   const modules = join(root, 'backend', 'src', 'modules');

@@ -15,6 +15,7 @@ import {
   loadLockedOwners,
   lockedOwners,
 } from '../../../scripts/lib/switchable-modules.js';
+import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * The entry-presence rule's own test (issues #126 and #146).
@@ -423,7 +424,10 @@ describe('the tree itself', () => {
   it('has no ungated entry point left, and no stale ledger entry', async () => {
     const sources = readTree(srcRoot());
     expect(sources.size, 'no sources found — a vacuous pass').toBeGreaterThan(100);
-    const lockedModules = await loadLockedOwners(srcRoot());
+    // The index is located rather than joined onto a source root (feature 080,
+    // T040a), so this reads the same file the CLI reads whichever root the
+    // modules are under.
+    const lockedModules = await loadLockedOwners((await resolveModuleLayout()).manifestIndexPath);
     expect(lockedModules.size, 'no module read as locked — the manifests did not load').toBeGreaterThan(
       0,
     );

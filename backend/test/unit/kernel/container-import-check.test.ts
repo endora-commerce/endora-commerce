@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   analyzeSource,
@@ -7,6 +6,7 @@ import {
   isContainerSpecifier,
   moduleOf,
 } from '../../../scripts/check-container-imports.js';
+import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * The container-import rule (feature 072, T041 / FR-032).
@@ -107,13 +107,15 @@ describe('analyzeSource', () => {
 });
 
 describe('the tree itself', () => {
-  it('has no module importing the container', () => {
-    const srcRoot = fileURLToPath(new URL('../../../src', import.meta.url));
-    const findings = collectModuleFiles(srcRoot).flatMap((file) =>
+  it('has no module importing the container', async () => {
+    // The roots are resolved rather than spelled (feature 080, T040a), and the
+    // CLI resolves the same ones — so a module that has left `src/modules` for
+    // a package of its own is judged here too, instead of being a module this
+    // assertion silently stopped covering.
+    const layout = await resolveModuleLayout();
+    const findings = collectModuleFiles(layout.moduleWalkRoots).flatMap((file) =>
       analyzeSource(readFileSync(file, 'utf8'), file),
     );
-    expect(
-      findings.map((f) => `${f.moduleId}: ${f.file.replace(srcRoot, 'src')}:${f.line}`),
-    ).toEqual([]);
+    expect(findings.map((f) => `${f.moduleId}: ${layout.displayOf(f.file)}:${f.line}`)).toEqual([]);
   });
 });

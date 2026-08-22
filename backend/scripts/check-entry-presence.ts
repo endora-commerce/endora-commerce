@@ -113,8 +113,8 @@
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { moduleOf } from './check-port-dependencies.js';
 import {
@@ -131,9 +131,9 @@ import {
 } from './lib/repeating-timers.js';
 import { loadLockedOwners } from './lib/switchable-modules.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
-const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
 /** Process-lifecycle events: a handler for one of these has no caller either. */
 const PROCESS_EVENTS = new Set([
@@ -572,15 +572,18 @@ function walk(dir: string, out: string[] = []): string[] {
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
-  const files = walk(SRC_ROOT);
+  // Both roots, derived (feature 080, T040a).
+  const layout = await requireModuleLayout('[entry-presence]');
+  const files = layout.sourceRoots.flatMap((root) => walk(root));
   // The locked-owner read below refuses a tree whose index went missing. It
   // does not refuse a **partial** move — index regenerated, half the modules
   // elsewhere — where the timers and boot hooks in the modules that left are
   // simply never classified and the run reports on what stayed (issue #215).
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[entry-presence]',
-    srcRoot: SRC_ROOT,
+    manifestIndexPath: layout.manifestIndexPath,
     files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
   // Which modules an operator can switch off, read from their manifests at check
@@ -589,7 +592,7 @@ async function main(): Promise<void> {
   // one derived from nothing, so it exits 2 rather than reporting either colour.
   let locked: ReadonlySet<string>;
   try {
-    locked = await loadLockedOwners(SRC_ROOT);
+    locked = await loadLockedOwners(layout.manifestIndexPath);
   } catch (err: unknown) {
     console.error(
       `[entry-presence] the module manifests could not be read (${String(err)}) — ` +
@@ -601,7 +604,7 @@ async function main(): Promise<void> {
 
   const sources = new Map<string, string>();
   for (const file of files) {
-    sources.set(relative(SRC_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
+    sources.set(layout.keyOf(file), readFileSync(file, 'utf8'));
   }
 
   const input = { sources, lockedModules: locked };
