@@ -21,7 +21,14 @@
     "`reconcileBundles` and `translation_bundles` rather than reading the files itself, which is",
     "what its own recorded reason named as still missing. A reason that has stopped being true is",
     "drift this file cannot detect — only the status is compared — so it is corrected by hand in",
-    "the merge request that made it false, exactly as T031 did for A6 and A7."
+    "the merge request that made it false, exactly as T031 did for A6 and A7.",
+    "T033a/T036 moved no status and rewrote A7's reason, which its own change falsified. A7 said",
+    "the missing `module_registrations` row 'is written by `loadModulePresence` during",
+    "`composeApp()`' and would follow from fixing A6's ordering. It will not: D-157.6(b) narrows",
+    "that reconciler's insert population to core plus overlay, so no boot will ever converge a",
+    "package. That is the ruled-correct behaviour — a boot that marks a package installed before",
+    "its migrations run is what made `module:install` a silent no-op — and it means A7's row now",
+    "has exactly one author, `install`, which since T036 the CLI can finally name."
   ],
   "assertions": {
     "A1": {
@@ -50,7 +57,7 @@
     },
     "A7": {
       "status": "fail",
-      "reason": "The failure moved again, and its remaining blocker is A6's rather than T033's. The migration count is settled: the package's migration now runs (A1), and the orchestrator can enumerate its chain — `revertMigrationsFor` takes an injected `MigrationOwnership` and `composition.ts` supplies the merged one. What stops the revert is upstream of it: `uninstall` short-circuits on `already-uninstalled` because no `module_registrations` row for `acceptance_probe` exists. That row is written by `loadModulePresence` during `composeApp()`, and no phase reaches a composition — `gate-off` returns early on A6's missing activation Setting, so nothing composes and nothing reconciles. Fix A6's ordering and this follows without touching the revert. T033 deliberately did not widen into it: the settings reconciliation still reads bare-core `REGISTERED_MANIFESTS` (A6 item 1), and correcting that alone moves nothing, exactly as A6 says. What T033 did close is the fail-open underneath: the empty case now distinguishes \"this module owns no migration\" from \"the registry I was handed cannot answer for this module's origin\" and **refuses** the second, so a package can no longer hard-uninstall to a warning and leave its table behind."
+      "reason": "The blocker is still the missing `module_registrations` row — `uninstall` short-circuits on `already-uninstalled` because none exists for `acceptance_probe` — but **who is supposed to write it has changed, and this reason is rewritten by the merge request that changed it** (T033a, D-157.6(b)). It used to say the row is written by `loadModulePresence` during `composeApp()` and would follow from fixing A6's ordering. It will not, and must not: that reconciler inserts `state='installed'` for every manifest with no row, so a boot after `pnpm add` marked a package installed *before* any migration of its had run and turned `module:install` into a no-op that applied nothing and exited 0. Its insert population is now core plus the deployment's overlay. So A7's row has exactly one author — `install`, which applies the migrations, reconciles the settings and runs the hook — and the probe reaches it through no phase today: `gate-off` returns early on A6's missing activation Setting, and no phase installs. T036 removed the other half of that gap, the CLI answering `unknown module` for a package id, so the command that must write this row can at least name the module. The migration count itself is settled (T033): `revertMigrationsFor` takes an injected `MigrationOwnership`, `composition.ts` supplies the merged one, and the empty case refuses rather than warning, so a package cannot hard-uninstall to a warning and leave its table behind."
     },
     "A8": {
       "status": "pass",

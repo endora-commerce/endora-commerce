@@ -5,6 +5,7 @@ import { activationDeclarationsFrom } from '../../../kernel/lifecycle/activation
 import { installGatingGraph } from './gating-graph.js';
 import { registryCache } from '../../../kernel/lifecycle/registry-cache.js';
 import { loadReducedDeploymentDeclarations } from './reduced-deployment.js';
+import { manifestEntryOrigin } from '../registered-manifests.js';
 
 /** One module that needs an absent one, and how it says so. */
 export interface NeededBy {
@@ -223,9 +224,18 @@ export function assertLockedModulesPresent(
  */
 export async function loadModulePresence(opts: {
   em: () => EntityManager;
-  /** Every manifest this deployment ships — core registry plus overlay modules. */
-  manifests: readonly ModuleManifest[];
+  /**
+   * The **instance-resolved** manifest set: core, this deployment's overlay
+   * modules, and every installed Endora module package
+   * (`resolvedManifestEntries()`).
+   *
+   * Entries rather than bare manifests because one of the four things done with
+   * them — the first-boot insert — is narrower than the other three, and
+   * `filePath` is what says which entry belongs to it (D-157.6(b)).
+   */
+  entries: readonly ShippedModuleEntry[];
 }): Promise<void> {
+  const manifests = opts.entries.map((entry) => entry.manifest);
   // D-101 — two refusals, in the order the two questions can be answered.
   //
   // The **shipping** question needs no database, so it is asked first: a
@@ -240,20 +250,68 @@ export async function loadModulePresence(opts: {
   const declared = new Set(
     (await loadReducedDeploymentDeclarations()).map((entry) => entry.moduleId),
   );
-  assertLockedModulesPresent(opts.manifests, null, declared);
-  const rows = await reconcileExistingModules(opts.em, opts.manifests);
-  assertLockedModulesPresent(opts.manifests, rows, declared);
+  assertLockedModulesPresent(manifests, null, declared);
+  // D-157.6(b) — and this is the one place the resolved set is narrowed. The
+  // insert converges the registry to what this **build** ships; a package is
+  // converged by `module:install`, which is also what runs its migrations.
+  const rows = await reconcileExistingModules(
+    opts.em,
+    firstBootInsertPopulation(opts.entries),
+  );
+  assertLockedModulesPresent(manifests, rows, declared);
   // Feature 073 (T045/T046) — the graph the flip-time refusals read. Installed
   // from the same manifest list as the activation declarations, so an overlay
   // module's edges count for a refusal exactly as a core module's do (FR-027).
-  installGatingGraph(opts.manifests);
+  installGatingGraph(manifests);
   await registryCache.load({
     em: opts.em,
     // Feature 073 — the operator-activation axis. Declarations come from the
     // shipped manifests, so there is no hand-maintained list: a module that
     // declares no control is governed by the platform axis alone.
-    activationDeclarations: activationDeclarationsFrom(opts.manifests),
+    activationDeclarations: activationDeclarationsFrom(manifests),
   });
+}
+
+/**
+ * A manifest plus the file that claims it. The minimum
+ * {@link loadModulePresence} needs, so a caller can hand it
+ * `resolvedManifestEntries()`' output and a test can hand it two fields.
+ */
+export interface ShippedModuleEntry {
+  readonly manifest: ModuleManifest;
+  readonly filePath: string;
+}
+
+/**
+ * The first-boot reconciler's insert population: **core plus this deployment's
+ * overlay**, never the instance-resolved set (D-157.6(b)).
+ *
+ * T031 made `composeApp` hand the resolved set — which since then includes every
+ * installed Endora module package — to {@link loadModulePresence}, and the
+ * reconciler inserts `state='installed'` for every manifest with no row. So the
+ * next boot after `pnpm add @vendor/some-module` converged that package before
+ * one migration of its had run, `module:install` answered `already-installed`
+ * and returned 0, and the operator was left with a module whose tables do not
+ * exist. A package is installed by `install` — the mechanism that applies its
+ * migrations, reconciles its settings and runs its install hook — and
+ * converging it silently is the one thing that mechanism cannot survive.
+ *
+ * **Only the insert is narrowed.** The presence *cache* still loads over the
+ * full resolved set, so a package that **has** been installed is present, gated
+ * and deactivatable exactly like a core module. Narrowing the cache too would
+ * trade a silent install for a silent absence.
+ *
+ * Pure, and separate from the boot step for the same reason
+ * {@link assertLockedModulesPresent} is: the harness never calls
+ * {@link loadModulePresence}, so a rule written into that body would be proved
+ * by nothing that runs.
+ */
+export function firstBootInsertPopulation(
+  entries: readonly ShippedModuleEntry[],
+): ModuleManifest[] {
+  return entries
+    .filter((entry) => manifestEntryOrigin(entry.filePath) !== 'package')
+    .map((entry) => entry.manifest);
 }
 
 /**

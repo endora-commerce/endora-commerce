@@ -13,10 +13,13 @@
 //   - `resolvedManifestEntries` is a `Map` keyed by id: core won silently and
 //     among the rest the last writer won, silently. So the manifest set carried
 //     one module while the container ran two.
-//   - `buildStaticRegistry` does throw the right refusal, and is reached only
-//     by the `module:*` CLI scripts, each of which feeds bare-core
-//     `REGISTERED_MANIFESTS`. The right refusal, wired where a package cannot
-//     reach it.
+//   - `buildStaticRegistry` does throw the right refusal, and was reached only
+//     by the `module:*` CLI scripts, each of which fed bare-core
+//     `REGISTERED_MANIFESTS`. The right refusal, wired where a package could not
+//     reach it. Since T036 those five read the resolved set — but they reach
+//     *this* file's refusal, not that one, because the resolver keys a `Map` by
+//     id and no duplicate survives to `buildStaticRegistry`. That is the better
+//     of the two: this one still holds both vendors and can name them.
 //
 // Two vendors' `blog` packages therefore produced correctly-scoped,
 // differently-stamped migration class names — no `duplicate-name`, no
