@@ -152,14 +152,29 @@ export interface ComposeModulesOptions {
    */
   readonly decorations?: DecorationLedger | undefined;
   /**
-   * Declared wrapping order per registration name — `endora.config.ts`'s
-   * `overrides.order` (D-28), reaching the composer as data.
+   * Declared wrapping order per registration name, reaching the composer as
+   * data.
    *
    * Only needed where **two different modules** decorate one name; below that
    * there is nothing to decide. It is checked rather than applied: the composer
    * emits modules in topological order, so the declaration's job is to say that
    * this order is the intended one, and composition fails when the two
    * disagree.
+   *
+   * **No composition root passes this, and nothing an author can edit supplies
+   * it** (D-156.7). The field was written against `endora.config.ts`'s
+   * `overrides.order` (D-28) — an instance-repository artefact specified in
+   * `specs/071-modular-packaging/contracts/instance-and-distribution.md` and
+   * scheduled for F11, which **does not exist as a file anywhere in this
+   * repository**. Both roots omit the option; every other reference to it is in
+   * `test/integration/kernel/decoration.test.ts`.
+   *
+   * So today this is a seam with no supply, and the consequence is reachable
+   * without any package: a deployment shipping two overlay modules that decorate
+   * one name gets `AmbiguousDecorationError` and cannot declare its way out. That
+   * fails closed, so nothing is unsafe — and the error says what an author can do
+   * instead rather than naming this field. Keep the two in step: the day a root
+   * starts passing this, that message is what has to change with it.
    */
   readonly decorationOrder?: Readonly<Record<string, readonly string[]>> | undefined;
   /**

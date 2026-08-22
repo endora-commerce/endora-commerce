@@ -285,6 +285,15 @@ describe('T064 — two modules decorating one name must declare their order', ()
     expect((thrown as Error).message).toContain('acme_pricing');
     expect((thrown as Error).message).toContain('beta_pricing');
     expect((thrown as Error).message).toContain('pricingService');
+    // And the remedy it names has to be reachable. It used to say "declare it
+    // as `decorationOrder['pricingService']` in the composer" — a field no
+    // composition root passes, sourced from an `endora.config.ts` that exists
+    // in no checkout of this repository (D-156.7/D-156.11). The one thing an
+    // author can do today is make both wraps one module's, which the case
+    // below proves is legal.
+    expect((thrown as Error).message).not.toContain('endora.config');
+    expect((thrown as Error).message).not.toContain("decorationOrder['pricingService']");
+    expect((thrown as Error).message).toContain('one module');
   });
 
   it('one module decorating the same name twice is not ambiguous', () => {

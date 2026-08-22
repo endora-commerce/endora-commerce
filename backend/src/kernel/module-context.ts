@@ -201,6 +201,17 @@ export interface DecorationRecord {
  *
  * A module decorating the same name twice is *not* ambiguous — it wrote both
  * wraps, in the order it wrote them — so this fires only across modules.
+ *
+ * **The remedy is the one that exists today, not the one that is designed**
+ * (D-156.7, D-156.11 item 2). This message used to send its reader to
+ * `decorationOrder`, which is a real field on `ComposeModulesOptions` and is
+ * passed by no composition root — its declared source, `endora.config.ts`, is
+ * an F11 artefact and no file of that name exists anywhere in the repository.
+ * So the instruction was unfollowable: an author could satisfy it only by
+ * editing core's own `composition.ts`, which is the one thing an overlay is
+ * built to avoid. What an author can actually do is make both wraps one
+ * module's — which is exactly the case this error already exempts, for the
+ * reason the paragraph above gives.
  */
 export class AmbiguousDecorationError extends Error {
   constructor(
@@ -211,8 +222,16 @@ export class AmbiguousDecorationError extends Error {
     super(
       `[kernel] modules ${modules.map((m) => `'${m}'`).join(' and ')} both decorate ` +
         `'${registrationName}', and ${detail} Which override wraps which decides what the ` +
-        `platform runs, so it cannot be left to the order the modules happen to compose in: ` +
-        `declare it as \`decorationOrder['${registrationName}']\` in the composer.`,
+        `platform runs, so it cannot be left to the order the modules happen to compose in. ` +
+        `There is no way to declare that order today: no composition root passes ` +
+        `\`decorationOrder\`, and the instance-owned configuration that would supply one is ` +
+        `planned (F11) rather than built — so this composition refuses, deliberately. ` +
+        `What works now: make both wraps one module's. A module decorating the same name ` +
+        `more than once is not ambiguous — it wraps in the order it writes the calls — so ` +
+        `merge the two decorations of '${registrationName}' into a single overlay module ` +
+        `under backend/src/apps/<deployment>/modules/, which puts the order in the code that ` +
+        `depends on it. If the two wraps genuinely belong to different owners, one of them ` +
+        `is asking for a seam rather than a wrap: ask that owner for a strategy port.`,
     );
     this.name = 'AmbiguousDecorationError';
   }
