@@ -87,9 +87,17 @@ export const manifest = defineModuleManifest({
   description:
     'Own-infrastructure newsletter: subscribers with tags + custom fields, campaigns, linear automations, email-safe templates and variables, engagement stats, and a configurable bulk-sending provider.',
   version: '1.0.0',
+  // `cms` owns `cmsBlockSeedPort`, the seam this module's registration-consent
+  // block is kept in place through (feature 075 / D-87). Declared here rather
+  // than withheld as non-binding because the edge is binding in the direction
+  // that matters to an operator: the consent label the storefront renders on
+  // the registration form *is* that block, and a `newsletter` with no consent
+  // text to show is not a reduced newsletter but a form that cannot lawfully
+  // collect the consent.
   dependencies: [
     'audit_logs',
     'auth',
+    'cms',
     'credentials',
     'customers',
     'email',

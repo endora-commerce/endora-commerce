@@ -97,7 +97,14 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port the admin routes are gated by; feature
   // 072 made it a container resolution rather than a constructor argument.
-  dependencies: ['audit_logs', 'sales_channels', 'settings', 'auth'],
+  //
+  // `cms` owns `cmsBlockSeedPort`, the seam the cookie-consent banner message
+  // is kept in place through (feature 075 / D-87). Declared rather than withheld
+  // as non-binding because the edge is binding in the direction that matters to
+  // an operator: the banner text *is* that block, and a consent banner with no
+  // message is not a reduced banner — it is a consent this deployment cannot
+  // show it asked for.
+  dependencies: ['audit_logs', 'cms', 'sales_channels', 'settings', 'auth'],
   settings: googleAnalyticsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

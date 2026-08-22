@@ -465,3 +465,61 @@ export interface CmsPageReadPort {
   /** Published pages only, ordered by path — the platform-wide enumeration. */
   listPublished(): Promise<CmsPageRecord[]>;
 }
+
+/**
+ * A predefined block a module asks `cms` to keep in place — feature 075 / D-87.
+ *
+ * Two modules ship one: `newsletter` owns the registration-form consent label
+ * and `google_analytics` owns the cookie-banner message. In both the *text* is
+ * the asking module's business and the *storage* is this one's, which is why
+ * the descriptor carries content and nothing else — no channel list, no block
+ * id, no version. The seam is "keep this block in place", not "write to my
+ * tables".
+ */
+export interface CmsSeededBlock {
+  /**
+   * The block's stable code, and the only identity this seam has. A second call
+   * under the same code inserts nothing and updates nothing, so an operator who
+   * has edited the seeded text keeps that edit across every restart.
+   */
+  readonly code: string;
+  /** The admin-facing block name. Used only where the block is first created. */
+  readonly name: string;
+  /** The language codes the block ships content for, e.g. `['en-US', 'pl-PL']`. */
+  readonly languages: readonly string[];
+  /** The per-language Puck trees, in the envelope the CMS stores. */
+  readonly content: CmsContentEnvelope;
+}
+
+/**
+ * Container name: `cmsBlockSeedPort`. Owner: `cms`.
+ *
+ * The idempotent seeding seam for a predefined block, and deliberately nothing
+ * wider: a module that ships one needs it to exist and to resolve on every
+ * sales channel, and needs no other write into the CMS. `newsletter` and
+ * `google_analytics` reached `cms_blocks` and `cms_block_sales_channels` in raw
+ * SQL until feature 075 — four ledgered reaches that named no import specifier,
+ * so the boundary they crossed compiled and returned rows.
+ *
+ * **Called once per boot, from the asking module's route registration.** There
+ * rather than from a migration because a block resolves per sales channel and
+ * the system-default channel is created at boot rather than by schema; and
+ * re-run every boot because a channel created later has to be bound too.
+ *
+ * **When `cms` is switched off**, the gate on this registration answers 503
+ * `MODULE_DISABLED` instead of handing back a live service. A caller reaching
+ * it before the first request — which is where a seed runs — therefore decides
+ * presence first with `effectiveState.isPresent('cms')` and skips the seed: a
+ * gate's "no" at route registration stops the next start rather than one
+ * request. Skipping costs nothing that is not recovered. Deactivation drops no
+ * rows, so an already-seeded block outlives the flip, and the first boot after
+ * `cms` comes back binds it to whatever channels appeared meanwhile.
+ */
+export interface CmsBlockSeedPort {
+  /**
+   * Insert `block` where no block carries its code, then bind it to every sales
+   * channel it is not already bound to. Both halves are idempotent, so the call
+   * is: a re-run inserts nothing and binds nothing.
+   */
+  ensureSeededBlock(block: CmsSeededBlock): Promise<void>;
+}

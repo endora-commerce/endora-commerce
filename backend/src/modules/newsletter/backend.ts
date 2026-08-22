@@ -1,11 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { FastifyRequest } from 'fastify';
+import type { CmsBlockSeedPort } from '@b2b/contracts';
 import type { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { newsletterModule, type NewsletterModuleOptions } from './plugin.js';
+import { ensureNewsletterConsentBlock } from './services/consent-block-seeder.js';
 
 /**
  * `newsletter` — the module whose secret the harness pins (feature 072, wave 2,
@@ -129,6 +131,26 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.routes(async (app) => {
+    // Seed the predefined consent CMS block (idempotent; runs after channels
+    // exist). It sat inside `plugin.ts`'s route registrar until feature 075,
+    // where it wrote `cms`' two tables in raw SQL under a `try/catch` that
+    // downgraded every failure to a warning so a CMS-less platform could still
+    // boot (D-87). `cms` owns the write now, behind `cmsBlockSeedPort`, and the
+    // seeder decides that module's presence before it calls — so the absence is
+    // an answer logged here rather than an exception a `catch` has to be
+    // trusted to tell apart from a real one. The call moves up to `backend.ts`
+    // with the port, because a `ModuleContext` is what resolves one; relative
+    // order is unchanged, since the plugin's own registrar runs below.
+    //
+    // `lazyPort` built in a `ctx.routes` body resolves nothing: it defers to
+    // the method call, which happens only after the presence decision.
+    const seeded = await ensureNewsletterConsentBlock(
+      lazyPort<CmsBlockSeedPort>(ctx, 'cmsBlockSeedPort'),
+    );
+    if (seeded === 'cms-absent') {
+      app.log.info('[newsletter] consent CMS block seed skipped — cms is not present');
+    }
+
     await ctx.cradle<NewsletterCradle>().newsletter(app);
   });
 }

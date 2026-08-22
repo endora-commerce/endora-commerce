@@ -4,11 +4,13 @@ import { z } from 'zod';
 import {
   cmsColorPaletteSchema,
   type AssetReferenceRegistryPort,
+  type CmsBlockSeedPort,
   type CmsColorPalette,
   type DictionaryReferenceRegistryPort,
 } from '@b2b/contracts';
 import { CMS_PAGE_BUILDER_SETTING_CODES } from './manifest.js';
 import type { CmsPageReadPort } from '@b2b/contracts';
+import { CmsBlockSeedService } from './services/cms-block-seed-port.js';
 import { CmsPageReadService } from './services/cms-page-read-port.js';
 import { lazyPort, type ModuleContext } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
@@ -232,6 +234,24 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<CmsPageReadPort>(
     'cmsPageReadPort',
     ctx.asFunction(({ emFactory }: CmsCradle) => new CmsPageReadService(emFactory)).singleton(),
+  );
+
+  /**
+   * Feature 075 / D-87 — the predefined-block seeding seam.
+   *
+   * `newsletter` and `google_analytics` each ship a block whose *text* is
+   * theirs and whose *storage* is this module's, and both used to write these
+   * two tables in raw SQL. A port rather than an ungated contribution seam,
+   * because a seed is a write into this module's schema: an operator who has
+   * switched the CMS off has switched off the thing that owns those rows, and
+   * the gate is what says so. The callers decide presence in front of it — the
+   * seed runs at route registration, where a gate's "no" would stop the next
+   * start rather than one request — which is the shape the port's own doc block
+   * in `packages/contracts` states.
+   */
+  ctx.di.providePort<CmsBlockSeedPort>(
+    'cmsBlockSeedPort',
+    ctx.asFunction(({ emFactory }: CmsCradle) => new CmsBlockSeedService(emFactory)).singleton(),
   );
 
   ctx.onBoot(async () => {
