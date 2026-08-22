@@ -44,6 +44,8 @@
  * below, each with its reason:
  *
  *   - `SKIPPED_DIRECTORIES` — trees that are not this repository's source.
+ *   - `GENERATED_FILE_EXTENSIONS` — tool output written beside the source it
+ *     came from, so no directory prune reaches it.
  *   - `BINARY_EXTENSIONS` and `BINARY_FILENAMES` — file types whose content is
  *     bytes by definition. A PNG is not a source file with a NUL problem; it is
  *     not a source file.
@@ -198,6 +200,39 @@ export const BINARY_FILENAMES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Extensions of **generated** files that a tool writes beside the source it was
+ * generated from, and why each is not this repository's source.
+ *
+ * A fourth category, and it exists because the other three cannot hold these
+ * honestly. `SKIPPED_DIRECTORIES` prunes a directory, and these files sit in a
+ * source directory rather than under a `dist/`. `BINARY_EXTENSIONS` says
+ * "bytes by definition", and a `.tsbuildinfo` is JSON — filing it there would
+ * put a false sentence in a reason field, which is the one thing this file's
+ * discipline cannot afford. `NUL_BYTES_ALLOWED` is for a file that *carries* a
+ * NUL and is right to.
+ *
+ * This is `.docusaurus`' case one granularity down. That entry exists because a
+ * tree that had built the docs site scanned it as source (issue #248); this one
+ * exists because a tree that has type-checked the storefront scans
+ * `tsconfig.tsbuildinfo` as source. Both are gitignored output a tool drops
+ * where it works.
+ *
+ * **The cost is not a false green** — a `.tsbuildinfo` holds no NUL, so nothing
+ * was being missed. It is that the file count moved on any tree where a
+ * type-check had run, and the estate's `read:` lines are what four Wave 4 merge
+ * requests used to prove a change touched nothing it should not. Two agents
+ * chased this `+1` to ground independently before it was written down. A
+ * verification tool whose baseline shifts under you is worth less than one that
+ * does not, which is the whole argument for the entry.
+ */
+export const GENERATED_FILE_EXTENSIONS: Readonly<Record<string, string>> = {
+  '.tsbuildinfo':
+    "TypeScript's incremental build state, written beside the `tsconfig.json` it " +
+    'belongs to rather than into an output directory. Gitignored, reproduced by ' +
+    'the next `tsc`, and present or absent depending on whether anyone has run one.',
+};
+
+/**
  * Text files allowed to keep a raw NUL, with the reason it is right.
  *
  * **Two-way**, in the idiom of `BARE_SUBSCRIPTIONS_TO_DRAIN`: an unledgered NUL
@@ -278,7 +313,9 @@ export function isScannablePath(path: string): boolean {
   if (isUnderSkippedPrefix(path)) return false;
   const basename = segments[segments.length - 1] ?? '';
   if (BINARY_FILENAMES[basename] !== undefined) return false;
-  return BINARY_EXTENSIONS[extensionOf(path)] === undefined;
+  const extension = extensionOf(path);
+  if (GENERATED_FILE_EXTENSIONS[extension] !== undefined) return false;
+  return BINARY_EXTENSIONS[extension] === undefined;
 }
 
 /** Every NUL-carrying file among the scannable ones, first occurrence located. */
