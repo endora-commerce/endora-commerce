@@ -9,7 +9,7 @@ import {
   runWithTenantContext,
   runWithoutTenantContext,
   type TenantContext,
-} from '../../../src/tenancy/index.js';
+} from '../../../src/tenancy/tenant-context.js';
 
 /**
  * Unit-level verification of the transactional composition (feature 054, FR-003).

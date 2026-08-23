@@ -5,7 +5,7 @@ import {
   runWithTenantContext,
   runWithoutTenantContext,
   type TenantContext,
-} from '../../../src/tenancy/index.js';
+} from '../../../src/tenancy/tenant-context.js';
 
 describe('command actor mapping (feature 054, FR-001 / Principle XI)', () => {
   it('maps a plain admin actor to its admin id, no impersonation', () => {

@@ -78,13 +78,22 @@
  * whether the tree obeys it, and both read the barrel through
  * `scripts/lib/platform-surface.ts` so they cannot disagree about what it says.
  *
- * **The one gap in that arrangement**, stated because it is real: `!883` prunes
- * and ratchets three of the five barrels (`kernel`, `http`, `events`).
- * `tenancy/index.ts` and `commands/index.ts` are published surface by D-160.7
- * and are **not** yet in `published-surface.test.ts`' expected sets, so for
- * those two directories this check's authority is a barrel nothing holds to
- * §1.3. It retires when they are pruned to their **P** columns (§1.3 rows 2, 5,
- * 12, 21, 28, 30, 33), which is the remainder of T042c's step 3.
+ * **That gap is closed** (T042f). It read, until then: `!883` prunes and
+ * ratchets three of the five barrels, and `tenancy/index.ts` and
+ * `commands/index.ts` are published surface by D-160.7 with no expected set at
+ * all — so for two of this check's five subpaths its authority was a barrel
+ * nothing held to §1.3. Both are now pruned to their **P** columns (§1.3 rows
+ * 2, 5, 12, 21, 28, 30, 33) and ratcheted two-way, and
+ * `published-surface.test.ts` derives its own population from
+ * {@link PUBLISHED_SUBPATHS} rather than a list, so a sixth published directory
+ * cannot arrive unratcheted the way these two did.
+ *
+ * Worth recording, because a green that moves nothing is the outcome most
+ * likely to be misread: closing it moved **no** ledger key and no finding. The
+ * 37 names the two barrels shed are reached by no module, and every name a
+ * module reaches stayed published — so nothing had been hiding behind the
+ * unratcheted barrels. The value bought is prospective: a 38th name added to
+ * either now has to move an expected set.
  *
  * ## Four findings
  *

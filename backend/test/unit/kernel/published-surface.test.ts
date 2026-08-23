@@ -1,5 +1,6 @@
 /**
- * The platform's published surface, as a two-way ratchet (feature 080, T042c).
+ * The platform's published surface, as a two-way ratchet (feature 080, T042c
+ * for `kernel` / `http` / `events`; T042f for `tenancy` and `commands`).
  *
  * `specs/080-f4-real-scope/contracts/host-package.md` §1.3 classifies every
  * platform file a module reaches as **P** (the host publishes it), **A**
@@ -15,6 +16,13 @@
  * feature 072 until T042c while §1.3 row 46 classified it **A**, and
  * `AuditLogService` sat there while Principle XIII routes every domain write
  * around it (D-160.10). Neither was noticed by a check, a type or a review.
+ *
+ * **T042c covered three of the five subpaths and T042f covers the other two.**
+ * That gap was not cosmetic: `check:platform-surface` (T042d) judges every
+ * module reach against these barrels, so for `tenancy` and `commands` its
+ * authority was a barrel nothing held to §1.3 — it said so in its own header
+ * and this file is the retiring condition. All five are here now, which is the
+ * only reason a set comparison over any one of them means anything.
  *
  * **The ratchet is two-way and deliberately duplicates nothing.** The expected
  * sets below are the *only* place the published surface is written down — the
@@ -36,7 +44,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseBarrel } from '../../../scripts/lib/platform-surface.js';
+import {
+  barrelKeyOf,
+  parseBarrel,
+  PUBLISHED_SUBPATHS,
+} from '../../../scripts/lib/platform-surface.js';
 
 const SRC = fileURLToPath(new URL('../../../src/', import.meta.url));
 
@@ -186,6 +198,73 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
   ],
 };
 
+/**
+ * `src/tenancy/index.ts` — the `./tenancy` subpath (T042f).
+ *
+ * Every file of this directory that a module reaches is **P**: rows 2, 21, 28,
+ * 30 and 45. So the classification's work here is entirely per *symbol*, which
+ * is the shape !883 measured on the kernel and this directory reproduces at its
+ * sharpest — the barrel carried 38 names over seven files and modules take six
+ * across five, while the same directory is reached 237 times by relative path.
+ * Two of the seven files, `resolve-tenant-context.ts` and `scoped-em.ts`, have
+ * no §1.3 row at all: no module reaches either.
+ */
+const PUBLISHED_TENANCY_SURFACE: Readonly<Record<string, readonly string[]>> = {
+  /**
+   * Row 45 — `getTenantContext`. `TenantContext` is its return and every
+   * derived-scope helper's parameter; `MissingTenantContextError` is what a
+   * tenant-scoped query with no ambient context raises, which is the
+   * fail-closed guarantee a packaged module's entities are subject to.
+   */
+  'tenant-context.js': ['TenantContext', 'MissingTenantContextError', 'getTenantContext'],
+  /** Row 2 — 219 reaches from 59 modules, the largest single reach in §1.3. */
+  'org-scoped.decorator.js': [
+    'OrgScoped',
+    'CustomerScoped',
+    'GlobalEntity',
+    'TransitivelyScoped',
+    'RuleScoped',
+  ],
+  /** Row 21 — the one symbol of the escape hatch a module takes. */
+  'escape-hatch.js': ['withSystemScope'],
+  /** Row 28, plus `orgConstraintFor`'s return shape. */
+  'derived-scope.js': ['orgConstraintFor', 'isOrgInScope', 'ruleVisibleForScope', 'OrgConstraint'],
+};
+
+/**
+ * `src/commands/index.ts` — the `./commands` subpath (T042f).
+ *
+ * Rows 5, 12 and 33, all **P**. Ten distinct names are reached across them and
+ * the other five here are the argument, return and actor shapes of those ten —
+ * `Command` is an interface a module *implements*, so its members'
+ * (`CommandContext`, `CommandOutcome`) types are as load-bearing as a
+ * `@throws`.
+ *
+ * Three shapes a consumer needs are **not** here and that is the §2.6
+ * constraint working: `AuditPort` is the kernel's, `TenantContext` is
+ * `tenancy`'s and `EventBase` is `events`'. A barrel that re-exported them to
+ * save an import line would spend the split option D-160.6 kept open.
+ */
+const PUBLISHED_COMMANDS_SURFACE: Readonly<Record<string, readonly string[]>> = {
+  /** Row 12, plus the shapes `Command`'s own members name. */
+  'command.js': [
+    'Command',
+    'CommandContext',
+    'CommandOutcome',
+    'CommandEvent',
+    'AuditState',
+    'CommandActor',
+  ],
+  /** Row 5's "+5" — two of the five. */
+  'actor.js': ['resolveCommandActor', 'actorFromContext'],
+  /** Row 5's second-largest symbol (51 reaches), plus its input shape. */
+  'audit-from-context.js': ['recordAuditFromContext', 'AuditFromContextInput'],
+  /** Rows 5 and 33 — the class 75 module files name. */
+  'command-bus.js': ['CommandBus'],
+  /** Row 5's "+5" — the undo helper, its parameters and its return. */
+  'reversible.js': ['applyUndo', 'RevertRecord', 'RevertHandlers', 'UndoResult'],
+};
+
 /** `src/http/index.ts` — the `./http` subpath, as MR !880 built it. */
 const PUBLISHED_HTTP_SURFACE: readonly string[] = [
   'HttpError',
@@ -200,7 +279,8 @@ const PUBLISHED_HTTP_SURFACE: readonly string[] = [
 const PUBLISHED_EVENTS_SURFACE: readonly string[] = ['EventBus', 'EventBase'];
 
 /**
- * Every name T042c took off the kernel barrel, and why it is not published.
+ * Every name T042c took off the kernel barrel and T042f off the other two, and
+ * why it is not published.
  *
  * Four reasons, and the distinction is the point of writing them down:
  *
@@ -218,6 +298,23 @@ const PUBLISHED_EVENTS_SURFACE: readonly string[] = ['EventBus', 'EventBase'];
  *    verdict is per file and its symbol column is per symbol; publishing the
  *    rest of a P file's exports because the file is P would publish the
  *    internals of every one of them.
+ *
+ * **Where "the argument, return and thrown shapes travel too" stops: one hop.**
+ * T042f is the first directory where the question had to be answered, because
+ * `TenantContext` and `UndoResult` are published shapes whose own members are
+ * named types. A direct argument, return or thrown type is published — a
+ * `@throws` a caller cannot name is a method a caller cannot call. A type one
+ * further in is `unreached` and stays off, because a consumer reads
+ * `ctx.mode` and `res.undoStatus` structurally without naming either; the
+ * evidence is in the tree, where the one `applyUndo` consumer declares its own
+ * `BulkOperationUndoStatus` rather than importing `UndoStatus`. The line is
+ * arbitrary in the way every line is, and it is the cheap direction to be wrong
+ * in: adding a name to a barrel is not a breaking change, removing one is.
+ *
+ * The map is keyed by **name alone**, across all five barrels. That is sound
+ * only while no two directories publish the same spelling, which is true today
+ * and is the reason the per-barrel set comparisons above are the primary
+ * ratchet and this is the named half.
  */
 const NOT_PUBLISHED: Readonly<Record<string, string>> = {
   // --- composition ------------------------------------------------------
@@ -295,6 +392,64 @@ const NOT_PUBLISHED: Readonly<Record<string, string>> = {
   decryptSecretValue: 'unreached — the store decrypts; a module writes and asks "is it set?".',
   isSecretEnvelope: 'unreached — as above.',
   SecretEnvelope: 'unreached — as above.',
+
+  // --- tenancy (T042f) --------------------------------------------------
+  // The request pipeline: a context is derived server-side from the
+  // authenticated actor and established by the host. A module reads it or
+  // widens it, and `enterSystemScope` (kernel, row 13) is the module-facing
+  // entry for an execution that starts outside a request.
+  resolveTenantContext: 'composition — the host derives the context from the authenticated actor.',
+  systemTenantContext: 'composition — an input to the escape hatch and the CLI scope entry.',
+  orgPinnedTenantContext: 'composition — as above.',
+  TenantActorInput: 'composition — the argument of `resolveTenantContext`.',
+  CustomerActorInput: 'composition — as above.',
+  AdminActorInput: 'composition — as above.',
+  AdminScopeInput: 'composition — as above.',
+  runWithTenantContext: 'composition — the host establishes the ambient context for a request.',
+  runInTenantContext: 'composition — the Fastify callback-style form of the above.',
+  enterTenantContext: 'composition — the synchronous form, for a worker bootstrap the host owns.',
+  runWithoutTenantContext: 'composition — clearing the context is a harness and host affordance.',
+  forkScopedEm: 'composition — the host forks; a module gets `ctx.em` or `CommandContext.em`.',
+  // The runtime classification registry: the decorators write into it and
+  // attach the MikroORM filters; the host and
+  // `check-entity-tenant-classification` read it. A module applies a decorator
+  // and never names what it wrote.
+  tenantClassifications: 'unreached — the decorators write the registry; the host reads it.',
+  ClassificationMeta: 'unreached — a row of that registry.',
+  ScopeClass: 'unreached — the `scope` field of a row of that registry.',
+  ORG_FILTER: 'unreached — the decorators attach the filter; a module never names it.',
+  CUSTOMER_FILTER: 'unreached — as above.',
+  withOrgScope: 'unreached — every module reach into the escape hatch is `withSystemScope`.',
+  setEscapeHatchAuditSink: 'composition — the host wires the escape hatch to the audit sink.',
+  EscapeHatchAuditRecord: 'composition — the argument of that sink.',
+  EscapeHatchAuditSink: 'composition — the type of that sink.',
+  orgScopeWhere:
+    'unreached — modules take `orgConstraintFor` and build their own `where`; ' +
+    'publishing a MikroORM fragment builder would freeze that shape into the contract.',
+  TenantScopeMode: 'unreached — a member of `TenantContext`, read as `ctx.mode`, never declared.',
+  TenantActor: 'unreached — a member of `TenantContext`, read as `ctx.actor`.',
+  TenantImpersonation: 'unreached — as above.',
+
+  // --- commands (T042f) -------------------------------------------------
+  CommandBusOptions: 'composition — a root builds the one bus and supplies its metadata resolver.',
+  CommandRequestMeta: 'composition — the return of that resolver.',
+  // The command registry is a host-owned allow-list of every module's actions,
+  // read by `check:command-coverage` and by the undo affordance. No module
+  // reaches any of it, and publishing the list would not answer the question a
+  // packaged module raises about it — it would let a package read a table it
+  // cannot appear in.
+  COMMAND_REGISTRY: 'unreached — a host-owned allow-list of actions, not a module-facing API.',
+  CommandRegistryEntry: 'unreached — a row of that allow-list.',
+  KnownCommandAction: 'unreached — the key space of that allow-list.',
+  isRegisteredCommand: 'unreached — read by `check:command-coverage` and the undo affordance.',
+  isReversibleCommand: 'unreached — as above.',
+  registeredCommandActions: 'unreached — as above.',
+  UndoStatus:
+    'unreached — a member of `UndoResult`; catalog, its one consumer, reads `res.undoStatus` ' +
+    'and declares its own `BulkOperationUndoStatus` for the column.',
+  RevertConflict: 'unreached — a member of `UndoResult`, read structurally.',
+  RevertConflictReason: 'unreached — a member of `RevertConflict`.',
+  shallowFieldEquals: 'unreached — the default for `RevertHandlers.equals`, applied by `applyUndo`.',
 };
 
 describe('the platform’s published surface', () => {
@@ -316,18 +471,61 @@ describe('the platform’s published surface', () => {
     );
   });
 
+  it('the tenancy barrel exports exactly the classification’s P set (T042f)', () => {
+    const expected = [...new Set(Object.values(PUBLISHED_TENANCY_SURFACE).flat())].sort();
+    expect([...new Set(barrelExports('tenancy/index.ts'))].sort()).toEqual(expected);
+  });
+
+  it('the commands barrel exports exactly the classification’s P set (T042f)', () => {
+    const expected = [...new Set(Object.values(PUBLISHED_COMMANDS_SURFACE).flat())].sort();
+    expect([...new Set(barrelExports('commands/index.ts'))].sort()).toEqual(expected);
+  });
+
+  /**
+   * The per-*file* half of the two T042f sets, which the flattened comparisons
+   * above cannot see: `parseBarrel` records the file each name is re-exported
+   * out of, and §1.3's verdict is per file. A name that moved between files —
+   * or a barrel that re-exported a symbol from a directory that is not its own,
+   * which §2.6 forbids because every barrel is a package boundary in waiting —
+   * passes a flattened set comparison and fails here.
+   */
+  it('publishes each tenancy and commands name out of the file §1.3 classifies', () => {
+    const byFile = (subpath: string): Record<string, string[]> => {
+      const parsed = parseBarrel(
+        readFileSync(join(SRC, `${subpath}/index.ts`), 'utf8'),
+        `${subpath}/index.ts`,
+      );
+      const out: Record<string, string[]> = {};
+      const prefix = `${subpath}/`;
+      for (const symbol of parsed.published) {
+        // Keyed as the expected sets are: the target file's name inside the
+        // barrel's own directory, with the `.js` specifier spelling restored.
+        // A target *outside* that directory keeps its full key on purpose — it
+        // matches no expected group, and the failure then reads
+        // `kernel/ports/audit.ts` rather than a plausible-looking bare filename.
+        const key = symbol.target.startsWith(prefix)
+          ? `${symbol.target.slice(prefix.length, -'.ts'.length)}.js`
+          : symbol.target;
+        (out[key] ??= []).push(symbol.name);
+      }
+      for (const names of Object.values(out)) names.sort();
+      return out;
+    };
+    const sorted = (surface: Readonly<Record<string, readonly string[]>>) =>
+      Object.fromEntries(Object.entries(surface).map(([file, names]) => [file, [...names].sort()]));
+
+    expect(byFile('tenancy')).toEqual(sorted(PUBLISHED_TENANCY_SURFACE));
+    expect(byFile('commands')).toEqual(sorted(PUBLISHED_COMMANDS_SURFACE));
+  });
+
   /**
    * The named half of the ratchet. The set comparison above already fails when
    * one of these returns, but it fails as a diff of ninety names; this one says
    * which name came back and why it was taken off, which is the sentence the
    * author of that merge request needs.
    */
-  it('publishes none of the names T042c removed, and each carries its reason', () => {
-    const exported = new Set([
-      ...barrelExports('kernel/index.ts'),
-      ...barrelExports('http/index.ts'),
-      ...barrelExports('events/index.ts'),
-    ]);
+  it('publishes none of the names T042c and T042f removed, each with its reason', () => {
+    const exported = new Set(PUBLISHED_SUBPATHS.flatMap((s) => barrelExports(barrelKeyOf(s))));
     const returned = Object.entries(NOT_PUBLISHED)
       .filter(([name]) => exported.has(name))
       .map(([name, reason]) => `${name} — removed because: ${reason}`);
@@ -351,10 +549,35 @@ describe('the platform’s published surface', () => {
    * path; a barrel that moved, was renamed or stopped matching the
    * `export { … } from '…'` shape would make `barrelExports` return `[]`, and
    * an empty set compared against an empty set is a green that read nothing.
+   *
+   * The population is {@link PUBLISHED_SUBPATHS}, not a list written here: a
+   * sixth subpath ruled published gets a barrel this guard reads and no
+   * expected set, which is the failure the whole file exists to produce.
    */
-  it('read a non-empty barrel for each of the three published directories', () => {
+  it('read a non-empty barrel for every published directory (D-160.7)', () => {
+    for (const subpath of PUBLISHED_SUBPATHS) {
+      expect(barrelExports(barrelKeyOf(subpath)).length, subpath).toBeGreaterThan(0);
+    }
     expect(barrelExports('kernel/index.ts').length).toBeGreaterThan(50);
-    expect(barrelExports('http/index.ts').length).toBeGreaterThan(0);
-    expect(barrelExports('events/index.ts').length).toBeGreaterThan(0);
+  });
+
+  /**
+   * The other half of that guard, and the reason T042f exists: a directory
+   * D-160.7 publishes with **no expected set** here is a barrel nothing holds
+   * to §1.3, which is exactly the state `tenancy` and `commands` were in while
+   * `check:platform-surface` judged module reaches against them.
+   */
+  it('holds every published subpath to an expected set', () => {
+    const declared: Readonly<Record<string, readonly string[]>> = {
+      kernel: Object.values(PUBLISHED_KERNEL_SURFACE).flat(),
+      http: PUBLISHED_HTTP_SURFACE,
+      tenancy: Object.values(PUBLISHED_TENANCY_SURFACE).flat(),
+      commands: Object.values(PUBLISHED_COMMANDS_SURFACE).flat(),
+      events: PUBLISHED_EVENTS_SURFACE,
+    };
+    expect(Object.keys(declared).sort()).toEqual([...PUBLISHED_SUBPATHS].sort());
+    for (const subpath of PUBLISHED_SUBPATHS) {
+      expect(declared[subpath]?.length ?? 0, subpath).toBeGreaterThan(0);
+    }
   });
 });

@@ -1,6 +1,6 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { AuditPort } from '../kernel/ports/audit.js';
-import { forkScopedEm } from '../tenancy/index.js';
+import { forkScopedEm } from '../tenancy/scoped-em.js';
 import type { EventBus } from '../events/bus.js';
 import { resolveCommandActor } from './actor.js';
 import type { Command } from './command.js';
