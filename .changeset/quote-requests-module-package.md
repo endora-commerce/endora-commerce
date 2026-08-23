@@ -22,8 +22,9 @@ Three subpaths, no root wildcard, every one of them compiled output (D-164):
   `mikro_orm_migrations` persists, so every already-migrated database holds them as strings.
 
 `@endora-commerce/platform` is a `peerDependency` (D-160.2), and so are `@mikro-orm/*`,
-`fastify` and `zod`. Unlike `mod-blog` this package needs no `ioredis`: it holds no cache of
-its own, and its BullMQ worker is registered through `ctx.worker`, which is the host's queue.
+`fastify` and `zod`. Unlike `mod-blog` this package declares no `ioredis` peer, because it
+imports none: it keeps no cache of its own, and `RfqExpiryWorker` is a plain `sweep()` a
+caller drives — the name is historical, there is no BullMQ consumer behind it.
 
 The manifest id stays `quote_requests` — identity of record for the lifecycle registry, the
 settings store, the `rfqs:handle` permission code, the i18n bundle paths and the ownership of
