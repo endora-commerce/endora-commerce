@@ -7,10 +7,8 @@ import type {
   SystemRoleCodePort,
   DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { ModuleContext, RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
 
 import { BlogCacheService } from './services/blog-cache.js';
 import {
@@ -239,3 +237,30 @@ export function registerModule(ctx: ModuleContext): void {
     );
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath.
+ *
+ * The host's ORM registry (`db/entities-registry.generated.ts`) names each of
+ * them through this package's `exports` map, so they have to leave the package
+ * by a declared subpath rather than by a deep path into `dist/`. Re-exporting
+ * them here rather than declaring an `./entities` subpath keeps the map at the
+ * three keys `module-package-layout.md` §2 names, and it is what the composer's
+ * "a barrel covers its directory" rule already resolves to.
+ *
+ * Identity matters more here than anywhere else in the package: MikroORM keys
+ * its metadata on the class, so a consumer that reached these files by a second
+ * specifier would register a second `BlogPost` and lose one of them at
+ * discovery (D-160.6, measured).
+ */
+export * from './entities/blog-category.entity.js';
+export * from './entities/blog-category-language.entity.js';
+export * from './entities/blog-category-sales-channel.entity.js';
+export * from './entities/blog-post.entity.js';
+export * from './entities/blog-post-category.entity.js';
+export * from './entities/blog-post-language.entity.js';
+export * from './entities/blog-post-related-post.entity.js';
+export * from './entities/blog-post-related-product.entity.js';
+export * from './entities/blog-post-sales-channel.entity.js';
+export * from './entities/blog-post-tag.entity.js';
+export * from './entities/blog-tag.entity.js';

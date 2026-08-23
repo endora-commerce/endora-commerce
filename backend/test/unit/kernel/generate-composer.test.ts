@@ -15,7 +15,7 @@ import { MODULES } from '../../../src/composition.generated.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
-const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
 /**
  * The generated composer (feature 072, T046–T049).
@@ -86,7 +86,17 @@ describe('F2 — a single generated manifest registry', () => {
       'utf8',
     );
     expect(registry).not.toMatch(/from '\.\.\/[a-z_]+\/manifest\.js'/);
-    expect(renderManifestIndex().content).toMatch(/from '\.\.\/blog\/manifest\.js'/);
+    // The control: the index really does import manifests, so the assertion
+    // above is about `registered-manifests.ts` and not about an empty file. The
+    // module is derived rather than named — it read `blog` until that module
+    // became a package (feature 080, T040b) and the index started naming it
+    // `@endora-commerce/mod-blog`, at which point a named module is an expiry
+    // date with 64 more moves behind it.
+    const index = renderManifestIndex().content;
+    const inTheApplicationTree = DISCOVERED_MANIFESTS.map((entry) => entry.id).find((id) =>
+      new RegExp(`from '\\.\\./${id}/manifest\\.js'`).test(index),
+    );
+    expect(inTheApplicationTree, 'the index imports no manifest by relative path').toBeDefined();
   });
 
   it('carries the install hooks the registry used to import a second time', () => {
@@ -110,8 +120,14 @@ describe('F2 — a single generated manifest registry', () => {
   });
 
   it('gives every entry a filePath that exists on disk', () => {
+    // Under this checkout, and not under `backend/` — a module that has become
+    // a workspace package is anchored on its own `package.json`, which is a
+    // sibling of `backend/` rather than a descendant (feature 080, T040b). The
+    // property that matters to every consumer is unchanged and is the second
+    // assertion: `dirname()` of this reaches the module's own directory, so its
+    // `i18n/` bundles load and its palette labels resolve.
     for (const entry of REGISTERED_MANIFESTS) {
-      expect(entry.filePath.startsWith(BACKEND_ROOT), entry.filePath).toBe(true);
+      expect(entry.filePath.startsWith(REPO_ROOT), entry.filePath).toBe(true);
       expect(existsSync(entry.filePath), entry.filePath).toBe(true);
     }
   });

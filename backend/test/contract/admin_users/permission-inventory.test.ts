@@ -5,7 +5,11 @@ import {
   REGISTERED_MANIFESTS,
   resolvedManifestEntries,
 } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { scanEnforcedPermissionGates } from '../../../src/modules/admin_roles/permission-inventory.js';
+import {
+  defaultScanRoots,
+  scanEnforcedPermissionGates,
+} from '../../../src/modules/admin_roles/permission-inventory.js';
+import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
 import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
 
 /**
@@ -43,8 +47,36 @@ function bundleFor(language: string): Record<string, string> {
  */
 const RESOLVED_MANIFESTS = await resolvedManifestEntries();
 
+/**
+ * Every directory this build enforces gates in — the application's own tree and
+ * the active overlay, plus one root per module that has become a workspace
+ * package (feature 080, T040b).
+ *
+ * The package half is supplied **here** rather than inside the scanner because
+ * the layout derivation lives in `scripts/lib/module-roots.ts`, which a module
+ * may not import — `permission-inventory.ts` belongs to `admin_roles`, and
+ * `check:module-boundary` is right to refuse the edge. The scanner has no
+ * runtime caller, so the caller that already resolves the layout is the right
+ * place for the answer.
+ *
+ * Leaving a packaged module out is not a smaller sweep: its codes stay
+ * grantable and stop being enforced *anywhere the scan can see*, so the
+ * reverse direction reports a checkbox on `/admin-roles` that grants nothing —
+ * which is what this file said about `blog.read` and `blog.write` the day
+ * `blog` moved, with both gates sitting in `routes.admin.ts` untouched.
+ */
+const SCAN_ROOTS = await (async () => {
+  const layout = await resolveModuleLayout();
+  return [
+    ...defaultScanRoots(),
+    ...layout.moduleRoots
+      .filter((root) => root.moduleId !== null)
+      .map((root) => ({ dir: root.directory, moduleId: root.moduleId as string })),
+  ];
+})();
+
 describe('permission inventory (SC-001)', () => {
-  const scan = scanEnforcedPermissionGates();
+  const scan = scanEnforcedPermissionGates(SCAN_ROOTS);
   const assignable = listAssignablePermissionCodes(RESOLVED_MANIFESTS);
   /**
    * The `adminRoles.permission.<code>` keys live in the `core` namespace, and

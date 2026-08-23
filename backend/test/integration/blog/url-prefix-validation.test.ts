@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BlogSettingsResolver } from '../../../src/modules/blog/services/blog-settings-resolver.js';
+import { BlogSettingsResolver } from '../../../../packages/modules/blog/src/backend/services/blog-settings-resolver.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 
 /**

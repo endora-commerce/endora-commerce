@@ -33,10 +33,10 @@ import { LanguageReferenceRegistry } from '../../../src/modules/languages/servic
 const seedDefaultCategory = vi.fn(async () => undefined);
 const seedBlogRoles = vi.fn(async () => undefined);
 
-vi.mock('../../../src/modules/blog/services/seed-default-category.js', () => ({
+vi.mock('../../../../packages/modules/blog/src/backend/services/seed-default-category.js', () => ({
   seedDefaultCategory: (...args: unknown[]) => seedDefaultCategory(...(args as [])),
 }));
-vi.mock('../../../src/modules/blog/services/seed-roles.js', () => ({
+vi.mock('../../../../packages/modules/blog/src/backend/services/seed-roles.js', () => ({
   seedBlogRoles: (...args: unknown[]) => seedBlogRoles(...(args as [])),
 }));
 
@@ -49,7 +49,7 @@ interface Composed {
 }
 
 async function composeBlog(): Promise<Composed> {
-  const { registerModule } = await import('../../../src/modules/blog/backend.js');
+  const { registerModule } = await import('../../../../packages/modules/blog/src/backend/index.js');
   const container = createRootContainer();
   const assetReferenceRegistry = new AssetReferenceRegistry();
   // What the hooks reach, and nothing more: no database connection, no Redis

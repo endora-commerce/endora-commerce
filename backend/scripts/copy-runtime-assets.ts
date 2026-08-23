@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 import { DISCOVERED_MANIFESTS } from '../src/modules/_lifecycle/manifest-index.generated.js';
 import {
   auditBuiltBundles,
+  bundleModulesUnder,
   collectRuntimeAssets,
   copyRuntimeAssets,
   describeBundleFinding,
@@ -93,9 +94,9 @@ function main(): number {
   }
   if (assets.length === 0) {
     console.error(
-      `[runtime-assets] no runtime asset found under ${SRC_ROOT}. The tree ships 90 ` +
-        'translation bundles and 4 taxonomy files; finding none means the walk did not ' +
-        'read what it thinks it read.',
+      `[runtime-assets] no runtime asset found under ${SRC_ROOT}. Every module that ` +
+        'declares `i18n.bundlesDir` ships two of them and `product_feeds` ships four ' +
+        'taxonomy files; finding none means the walk did not read what it thinks it read.',
     );
     return 2;
   }
@@ -122,9 +123,13 @@ function main(): number {
     return 1;
   }
 
+  // `compiled` is the half this build ships; the rest are module packages,
+  // whose bundles travel with the package (`bundleModulesUnder`). Printing both
+  // is what keeps "44 of 45" from reading as a shortfall.
+  const compiled = bundleModulesUnder(bundleModules, SRC_ROOT);
   console.log(
     `[runtime-assets] copied: files=${copied} into ${outRoot} ` +
-      `bundles=${bundleModules.length}/${bundleModules.length} (manifest-index)`,
+      `bundles=${compiled.length}/${bundleModules.length} (manifest-index)`,
   );
   return 0;
 }

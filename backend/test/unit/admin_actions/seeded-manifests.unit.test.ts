@@ -4,7 +4,7 @@ import { manifest as importExportManifest } from '../../../src/modules/import_ex
 import { manifest as inventoryManifest } from '../../../src/modules/inventory/manifest.js';
 import { manifest as quoteRequestsManifest } from '../../../src/modules/quote_requests/manifest.js';
 import { manifest as cmsManifest } from '../../../src/modules/cms/manifest.js';
-import { manifest as blogManifest } from '../../../src/modules/blog/manifest.js';
+import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';
 import { manifest as megamenuManifest } from '../../../src/modules/megamenu/manifest.js';
 import { manifest as salesChannelsManifest } from '../../../src/modules/sales_channels/manifest.js';
 import { manifest as settingsManifest } from '../../../src/modules/settings/manifest.js';

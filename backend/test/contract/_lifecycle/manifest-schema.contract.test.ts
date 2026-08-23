@@ -9,7 +9,7 @@ import { manifest as quoteRequestsManifest } from '../../../src/modules/quote_re
 import { manifest as inventoryManifest } from '../../../src/modules/inventory/manifest.js';
 import { manifest as priceListsManifest } from '../../../src/modules/price_lists/manifest.js';
 import { manifest as assetsLibraryManifest } from '../../../src/modules/assets_library/manifest.js';
-import { manifest as blogManifest } from '../../../src/modules/blog/manifest.js';
+import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';
 
 /**
  * Regression net for Pass A retrofit (T026–T034). Every manifest exported

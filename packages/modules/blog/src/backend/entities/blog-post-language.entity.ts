@@ -1,5 +1,5 @@
 import { Entity, PrimaryKey } from '@mikro-orm/core';
-import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
+import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 
 /**
  * BlogPostLanguage — per-Post language scope. Mirrors the shape of

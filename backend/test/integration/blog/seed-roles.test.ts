@@ -8,7 +8,7 @@ import { PermissionCatalogueService } from '../../../src/modules/admin_roles/ser
 import {
   BLOG_ROLE_CODES,
   seedBlogRoles,
-} from '../../../src/modules/blog/services/seed-roles.js';
+} from '../../../../packages/modules/blog/src/backend/services/seed-roles.js';
 
 /**
  * `admin_roles`' deletion-protection registry, as the seeder receives it since

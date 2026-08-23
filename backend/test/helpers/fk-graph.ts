@@ -59,10 +59,23 @@ export interface FkEdge {
  * algorithm cannot come to disagree about what "core" means.
  */
 export interface ModuleRoot {
-  /** Absolute or `sourceRoot`-relative directory holding `<id>/` per module. */
+  /**
+   * Absolute or `sourceRoot`-relative directory. It holds one subdirectory per
+   * module, unless {@link ModuleRoot.moduleId} says it *is* one module's.
+   */
   readonly directory: string;
   /** Where every module under this root comes from. */
   readonly origin: MigrationOrigin;
+  /**
+   * The one module this directory belongs to, for a root that is a workspace
+   * **package** rather than a tree of modules (feature 080, T040b).
+   *
+   * A package's id is its own `endora.id` declaration and never a path segment
+   * (D-142), and its parent directory is not a module root — nothing says a
+   * second package has to be its sibling. So the caller names the module, and
+   * this file makes no assumption about the layout above it.
+   */
+  readonly moduleId?: string;
 }
 
 /** The one root a bare core checkout has: `<src>/modules`, origin `core`. */
@@ -230,6 +243,34 @@ function listTsFilesRecursive(path: string): string[] {
   return found;
 }
 
+/**
+ * Every `.ts` under a directory of the given name, at any depth below `root`.
+ *
+ * `<module>/entities` and `<module>/migrations` are where an application module
+ * keeps them, and they are found at depth 1 here exactly as before. A module
+ * **package** keeps its own layout — `src/backend/entities/`,
+ * `src/migrations/` — and nothing in the estate spells that (D-141 makes only
+ * the *directory name* the id), so the search is by name rather than by
+ * position. It is the same predicate `generate-composer.ts` applies to a
+ * packaged migration. `dist` is skipped: a built package holds the same files
+ * compiled, and reading both would count every entity twice.
+ */
+function listTsFilesUnderDirectoriesNamed(root: string, name: string): string[] {
+  const found: string[] = [];
+  const visit = (dir: string): void => {
+    if (!existsSync(dir) || !statSync(dir).isDirectory()) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === 'dist' || entry.name === 'node_modules') continue;
+      const child = join(dir, entry.name);
+      if (entry.name === name) found.push(...listTsFilesRecursive(child));
+      else visit(child);
+    }
+  };
+  visit(root);
+  return found;
+}
+
 /** Rule 1 of contract §2.1 — the module whose entities/ declares the tableName. */
 /**
  * The owner id for a table declared by a kernel entity (feature 072). The
@@ -263,6 +304,22 @@ export function resolveModuleDirectories(
 
   const resolved = new Map<string, ScannedModule>();
   for (const root of roots) {
+    if (root.moduleId !== undefined) {
+      const already = resolved.get(root.moduleId);
+      if (already !== undefined) {
+        throw new FkGraphRootError(
+          `module "${root.moduleId}" is claimed by two roots (${already.directory} and ` +
+            `${root.directory}) — one of them would silently win, taking its origin with it`,
+        );
+      }
+      resolved.set(root.moduleId, {
+        id: root.moduleId,
+        directory: root.directory,
+        origin: root.origin,
+        files: 0,
+      });
+      continue;
+    }
     for (const id of listDirectories(root.directory)) {
       const already = resolved.get(id);
       if (already !== undefined) {
@@ -295,7 +352,7 @@ function collectEntityOwners(
 ): Map<string, string> {
   const owners = new Map<string, string>();
   for (const scanned of [...modules.values()]) {
-    for (const file of listTsFilesRecursive(join(scanned.directory, 'entities'))) {
+    for (const file of listTsFilesUnderDirectoriesNamed(scanned.directory, 'entities')) {
       countFile(modules, scanned.id);
       const source = readFileSync(file, 'utf8');
       for (const match of source.matchAll(ENTITY_TABLE_RE)) {
@@ -331,7 +388,7 @@ function collectMigrationFiles(
       origin: 'core' as const,
     }));
   for (const scanned of [...modules.values()]) {
-    for (const path of listTsFilesRecursive(join(scanned.directory, 'migrations'))) {
+    for (const path of listTsFilesUnderDirectoriesNamed(scanned.directory, 'migrations')) {
       countFile(modules, scanned.id);
       found.push({ path, moduleId: scanned.id, origin: scanned.origin });
     }

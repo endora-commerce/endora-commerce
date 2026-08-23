@@ -285,7 +285,28 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // built from — which issue #289 moved out of `mikro-orm.config.ts` into
   // `configured-migrations.ts`, so that the ordering could be computed without
   // importing a config that captures `DATABASE_URL` at import.
-  _lifecycle: ['src/composition.ts', 'src/db/configured-migrations.ts'],
+  //
+  // **`src/cli.ts` is a *new reference*, which by this ledger's own rule is the
+  // regression half and not the conversion half — so it is named rather than
+  // absorbed.** It arrived with T042b (!884, 2026-08-22), which made the host's
+  // CLI runner read the deployment-resolved manifest set so that a packaged
+  // module's declared command is reachable by the same path a core module's is
+  // (D-160.9). The ledger was not updated with it, so this assertion has been
+  // red on `master` since that merge request — **not** since the platform
+  // relocation (!908, 2026-08-23), which is a day later and which
+  // `git log -S` over `src/cli.ts` rules out.
+  //
+  // It stands rather than being cut because it is the shape D-160.9 chose: the
+  // host runs a module's command, so the host's CLI entry point holds the
+  // resolved manifest set, and `_lifecycle` is where that set is derived. It
+  // retires with the same D-37 A2 relocation as the two entries beside it.
+  //
+  // `blog` needs no entry and gets none. Its move to a workspace package
+  // (feature 080, T040b) removed nothing from this map: the only file that ever
+  // named `modules/blog/` was `composition.generated.ts`, and a generated file
+  // is excluded here by construction — deleting the directory and regenerating
+  // removes the reference, which is the whole point of generating it (FR-030).
+  _lifecycle: ['src/cli.ts', 'src/composition.ts', 'src/db/configured-migrations.ts'],
   // `price_lists` (wave 3, T127). Both roots contribute the sweeper flag, the
   // cache TTL and the admin audit shape, and production contributes the pricing
   // decoration (D-28) — the seam this module exists in the feature to prove.

@@ -11,7 +11,9 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { discoverModulePackages } from '../../../scripts/lib/module-packages.js';
 import {
+  coreModuleRoot,
   deriveFkGraph,
   KERNEL_OWNER,
   type FkEdge,
@@ -43,9 +45,29 @@ const backendSrc = resolve(here, '../../../src');
  */
 const platformKernel = resolve(here, '../../../../packages/platform/src/kernel');
 
+/**
+ * Every module, over both roots the tree now has (feature 080, T040b).
+ *
+ * A module that has become a workspace package is not under `src/modules`, so
+ * without its root here the walk produces no entity and no migration for it and
+ * `modulesWithoutDirectories` reports it — which is the refusal below working,
+ * and the repair is to read the second root rather than to soften it. The
+ * packages are found through their own `endora: { type: 'module', id }` blocks,
+ * the same declaration `lib/module-roots.ts` and the composer read; the origin
+ * is `core` because these sources are committed in this repository, unlike an
+ * installed package's.
+ */
 const graph = deriveFkGraph(backendSrc, {
   overrides: TABLE_OWNER_OVERRIDES,
   kernelRoot: platformKernel,
+  moduleRoots: [
+    coreModuleRoot(backendSrc),
+    ...discoverModulePackages(resolve(backendSrc, '../..')).map((pkg) => ({
+      directory: pkg.dir,
+      origin: 'core' as const,
+      moduleId: pkg.moduleId,
+    })),
+  ],
 });
 
 const MANIFEST_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map(

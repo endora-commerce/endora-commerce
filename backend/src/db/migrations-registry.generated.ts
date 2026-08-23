@@ -61,7 +61,7 @@ import { Migration20260816T053835AutopaySeedPaymentMethods } from '../modules/au
 import { Migration20260821T084925AutopayFailureStatusOnHold } from '../modules/autopay/migrations/20260821T084925_autopay_failure_status_on_hold.js';
 
 // ── blog ────────────────────────────────────────────────────────────────────
-import { Migration20260506T081055BlogInit } from '../modules/blog/migrations/20260506T081055_blog_init.js';
+import { Migration20260506T081055BlogInit } from '@endora-commerce/mod-blog/migrations';
 
 // ── carts ───────────────────────────────────────────────────────────────────
 import { Migration20260611T140352CartsConsolidation } from '../modules/carts/migrations/20260611T140352_carts_consolidation.js';

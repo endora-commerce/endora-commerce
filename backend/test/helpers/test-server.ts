@@ -122,7 +122,7 @@ import type { StorefrontDeps } from '../../src/modules/megamenu/services/storefr
 // Feature 072 — the harness is a second composition root, so a module left
 // hand-wired here would keep passing against wiring nobody changed. It composes
 // the same generated list production does; only the host values differ.
-import type { BlogCradle } from '../../src/modules/blog/backend.js';
+import type { BlogCradle } from '../../../packages/modules/blog/src/backend/index.js';
 import type { DictionariesCradle } from '../../src/modules/dictionaries/backend.js';
 import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
 import type { TaxesCradle } from '../../src/modules/taxes/backend.js';

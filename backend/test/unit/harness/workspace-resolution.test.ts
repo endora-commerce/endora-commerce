@@ -436,8 +436,9 @@ describe('this checkout', () => {
     // another.
     //
     // **It is required exactly when the package's published sources live under
-    // its own directory, and refused for the host package, whose sources are
-    // its own and must stay unmapped anyway** (feature 080, the relocation).
+    // its own directory, and refused for a package the running process composes
+    // — the host and every module package** (feature 080, the relocation and
+    // T040b).
     //
     // The refusal used to follow from the derivation: `@endora-commerce/platform`
     // compiled `backend/src`, so there was nothing for a `paths` entry to
@@ -458,6 +459,22 @@ describe('this checkout', () => {
     // entity class, `Duplicate entity names are not allowed`), `effectiveState`
     // and `getResolvedChannel` (module-scoped singletons), and every one of them
     // is wrong in a way `tsc` cannot see.
+    //
+    // **A module package is refused on the same grounds, one step sharper**
+    // (T040b). It exports `@Entity()` classes, which the ORM keys its metadata
+    // on, so a second copy is `Duplicate entity names are not allowed` or —
+    // measured, D-160.6 — a silent drop from discovery. And a module package
+    // ships `dist` *because* its decorated source cannot be loaded by a `tsx`
+    // process at all (D-164): `tsx` applies one tsconfig per process and lowers
+    // a file outside it with standard decorator semantics, so an entry here
+    // would point every `tsx` entry point — `dev`, `db:fresh`, the composer
+    // itself — at eleven entity files that die on load.
+    //
+    // The refusal is **derived, not listed**: a member that declares an
+    // `endora` block is one this platform composes into its own process, and
+    // that is the whole predicate. The other five declare none, and a 66th
+    // module package changes this answer by existing rather than by being added
+    // here.
     // `test/unit/kernel/platform-single-copy.test.ts` measures the property this
     // protects.
     //
@@ -498,22 +515,28 @@ describe('this checkout', () => {
       const member = members.find((m) => m.name === name);
       return member !== undefined && platformDir !== null && platformDir.startsWith(member.dir);
     };
+    /** A member the running platform composes: the host, or a module package. */
+    const isComposed = (name: string): boolean => {
+      const member = members.find((m) => m.name === name);
+      return member !== undefined && member.manifest['endora'] !== undefined;
+    };
 
     const unmapped = report.packages.filter(
-      (name) => publishesItsOwnSources(name) && !isPlatform(name) && !fullyMapped(name),
+      (name) => publishesItsOwnSources(name) && !isComposed(name) && !fullyMapped(name),
     );
     const wronglyMapped = report.packages.filter(
-      (name) => (!publishesItsOwnSources(name) || isPlatform(name)) && mappedAtAll(name),
+      (name) => (!publishesItsOwnSources(name) || isComposed(name)) && mappedAtAll(name),
     );
 
     expect(report.packages.length).toBeGreaterThan(0);
     // Both populations must be non-empty for this to be measuring anything:
     // five packages are mapped because their sources are their own, and the
-    // platform is refused because of what its exports are.
+    // composed ones are refused because of what their exports are.
     expect(
-      report.packages.filter((name) => publishesItsOwnSources(name) && !isPlatform(name)).length,
+      report.packages.filter((name) => publishesItsOwnSources(name) && !isComposed(name)).length,
     ).toBeGreaterThan(0);
     expect(report.packages.filter(isPlatform).length).toBe(1);
+    expect(report.packages.filter(isComposed).length).toBeGreaterThan(1);
     expect(unmapped).toEqual([]);
     expect(wronglyMapped).toEqual([]);
   });

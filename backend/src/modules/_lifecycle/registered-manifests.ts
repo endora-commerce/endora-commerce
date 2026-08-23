@@ -13,8 +13,6 @@
 // genuinely cannot be baked into a committed array — an overlay module's
 // directory, which depends on the deployment the process runs as.
 
-import { dirname, join, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
 import { discoverOverlayModuleManifests } from '../../overlay/overlay-runtime.js';
 import {
@@ -22,6 +20,14 @@ import {
   type ModuleIdClaim,
   type ModuleIdClaimOrigin,
 } from '../../packages/module-id-claims.js';
+/**
+ * Re-exported for this module's own files. `presence-load.ts` types
+ * `ShippedModuleEntry.origin` on it, and reaching the host directly for a
+ * second copy of the same type is a second unpublished-surface edge for
+ * `check:platform-surface` to ledger — one seam is enough, and this file
+ * already owns it.
+ */
+export type { ModuleIdClaimOrigin };
 import { discoverPackageModuleManifests } from '../../packages/package-runtime.js';
 import {
   DISCOVERED_MANIFESTS,
@@ -39,6 +45,27 @@ import {
 export interface RegisteredManifestEntry {
   manifest: ModuleManifest;
   filePath: string;
+  /**
+   * Where this entry came from — set where it is **constructed**, never derived
+   * from {@link RegisteredManifestEntry.filePath} (feature 080, T040b).
+   *
+   * D-157.6(b) read the origin off the path, on the ground that everything this
+   * build ships is under `backend/src`. That stopped being true with the first
+   * module package: `packages/modules/blog` is under neither root, so it read as
+   * `'package'`, and the two decisions resting on the answer — the first-boot
+   * `module_registrations` insert and the boot settings reconcile — silently
+   * skipped it. A module the build composes, whose migrations the committed
+   * registry runs, would have had no activation Setting and no registry row, so
+   * it would not have appeared on `/platform/modules` at all: Principle XVII
+   * defeated by a path test, with nothing raised.
+   *
+   * There is no containment test that could be right here, which is why this is
+   * a field. A workspace module package and an installed one are the same
+   * directory shape, and in a deployed build both sit under `node_modules`. What
+   * separates them is *which discovery produced the entry*, and that is known
+   * exactly once — at the three construction sites below.
+   */
+  origin: ModuleIdClaimOrigin;
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
   /**
@@ -67,54 +94,28 @@ export interface RegisteredManifestEntry {
 }
 
 /**
- * `backend/src/modules` — the application's own module tree.
+ * `manifestEntryOrigin(filePath)` used to live here and is **deleted** (feature
+ * 080, T040b).
  *
- * It is **not** where a module's manifest path comes from any more (feature
- * 080, T041a): that is emitted data on the index entry, see
- * {@link coreManifestEntries}. What it is still for is
- * {@link manifestEntryOrigin}'s containment test, which asks the opposite
- * question — *is this path one this build ships* — and for which a root of the
- * running build is exactly the right input.
- */
-const MODULES_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-
-/**
- * `backend/src` under `tsx`/`vitest`, `backend/dist` in production — whichever
- * this file was loaded from. Both roots below are derived from it, so a build
- * that runs from `dist/` classifies its own modules exactly as a source run
- * does.
- */
-const BUILD_ROOT = dirname(MODULES_ROOT);
-
-/** `backend/src/apps` — every deployment's overlay lives under it (D-104). */
-const OVERLAY_APPS_ROOT = join(BUILD_ROOT, 'apps');
-
-const isUnder = (path: string, root: string): boolean =>
-  path === root || path.startsWith(root + sep);
-
-/**
- * Where a resolved entry came from, read off the `filePath` every entry already
- * carries.
+ * It answered "where did this entry come from" with a containment test against
+ * `backend/src/modules` and `backend/src/apps`, on D-157.6(b)'s ground that
+ * *"`filePath` origin is already on every entry, so the split needs no new
+ * field"*. The premise held for exactly as long as every module this build ships
+ * sat under `backend/src`. The first module package sits at
+ * `packages/modules/<id>` and read as `'package'` — a module the composer bakes
+ * in, whose migrations the committed registry runs, classified as something an
+ * operator installed. Both readers of the answer skip a package, so the module
+ * got no first-boot `module_registrations` row and no boot settings reconcile,
+ * which means no activation Setting and no row on `/platform/modules`: it was
+ * absent from the one screen that decides whether it runs, silently.
  *
- * D-157.6(b) — *"`filePath` origin is already on every entry, so the split needs
- * no new field"*. It is a **containment** test against the two roots this build
- * owns, not a `node_modules` segment test: pnpm links a workspace member into
- * `node_modules` too, so that segment is wrong in both directions, while
- * everything this build ships is under {@link BUILD_ROOT} by construction —
- * `backend/src/modules/<id>/manifest.ts` for core, and
- * `backend/src/apps/<deployment>/modules/<id>/manifest.ts` for an overlay. An
- * installed package anchors on the resolved `package.json` that claimed the id
- * (`PackageModuleManifest.filePath`), which is never inside either.
- *
- * `'package'` is therefore the answer for anything this build does not ship,
- * which is the direction to be wrong in: the one decision resting on it — the
- * first-boot insert — must not converge a module the platform did not install.
+ * No containment test can replace it. A workspace module package and an
+ * installed one are the same directory shape, and in a **deployed** build both
+ * resolve under `node_modules` — so the path cannot carry the answer at all.
+ * What separates them is which discovery produced the entry, which is known at
+ * construction and nowhere else; {@link RegisteredManifestEntry.origin} is that
+ * knowledge, written once, by the three sites that have it.
  */
-export function manifestEntryOrigin(filePath: string): ModuleIdClaimOrigin {
-  if (isUnder(filePath, MODULES_ROOT)) return 'core';
-  if (isUnder(filePath, OVERLAY_APPS_ROOT)) return 'overlay';
-  return 'package';
-}
 
 /**
  * The entries **this build ships**: core plus the deployment's overlay modules,
@@ -140,10 +141,10 @@ export function manifestEntryOrigin(filePath: string): ModuleIdClaimOrigin {
  * load hands it `{ manifest, filePath }` and a composition root hands it whole
  * {@link RegisteredManifestEntry} values.
  */
-export function deploymentShippedEntries<E extends { readonly filePath: string }>(
+export function deploymentShippedEntries<E extends { readonly origin: ModuleIdClaimOrigin }>(
   entries: readonly E[],
 ): E[] {
-  return entries.filter((entry) => manifestEntryOrigin(entry.filePath) !== 'package');
+  return entries.filter((entry) => entry.origin !== 'package');
 }
 
 /**
@@ -158,6 +159,11 @@ function entryFor(
   return {
     manifest: discovered.manifest,
     filePath,
+    // The generated index is bare core under every value of `DEPLOYMENT`
+    // (D-104), so every entry it carries is one this build ships — including a
+    // module that has become a workspace package, which the composer bakes in
+    // with a bare specifier (D-149).
+    origin: 'core',
     ...(discovered.installHook ? { installHook: discovered.installHook } : {}),
     ...(discovered.uninstallHook ? { uninstallHook: discovered.uninstallHook } : {}),
     ...(discovered.lifecycleParticipant
@@ -271,6 +277,7 @@ export async function resolvedManifestEntries(
     byId.set(found.id, {
       manifest: found.manifest,
       filePath: found.filePath,
+      origin: 'overlay',
       ...(found.installHook ? { installHook: found.installHook } : {}),
       ...(found.uninstallHook ? { uninstallHook: found.uninstallHook } : {}),
       ...(found.lifecycleParticipant
@@ -285,11 +292,7 @@ export async function resolvedManifestEntries(
   // first — an operator with two bad packages should have to run this once.
   const claims: ModuleIdClaim[] = [];
   for (const [id, entry] of byId) {
-    claims.push({
-      id,
-      origin: overlay.some((found) => found.id === id) ? 'overlay' : 'core',
-      claimedBy: entry.filePath,
-    });
+    claims.push({ id, origin: entry.origin, claimedBy: entry.filePath });
   }
   for (const found of packages) {
     claims.push({
@@ -305,6 +308,7 @@ export async function resolvedManifestEntries(
     byId.set(found.id, {
       manifest: found.manifest,
       filePath: found.filePath,
+      origin: 'package',
       ...(found.installHook ? { installHook: found.installHook } : {}),
       ...(found.uninstallHook ? { uninstallHook: found.uninstallHook } : {}),
       ...(found.lifecycleParticipant

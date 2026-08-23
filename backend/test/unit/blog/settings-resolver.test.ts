@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { BlogSettingsResolver } from '../../../src/modules/blog/services/blog-settings-resolver.js';
-import type { SettingsServicePort } from '../../../src/modules/blog/services/blog-settings-resolver.js';
+import { BlogSettingsResolver } from '../../../../packages/modules/blog/src/backend/services/blog-settings-resolver.js';
+import type { SettingsServicePort } from '../../../../packages/modules/blog/src/backend/services/blog-settings-resolver.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import {
   BLOG_DEFAULT_ENABLED,
   BLOG_DEFAULT_LATEST_COUNT,
   BLOG_DEFAULT_POSTS_PER_PAGE,
   BLOG_DEFAULT_URL_PREFIX,
-} from '../../../src/modules/blog/manifest.js';
+} from '../../../../packages/modules/blog/src/manifest.js';
 
 const CHANNEL_ID = '11111111-1111-1111-1111-111111111111';
 

@@ -242,13 +242,25 @@ describe('containmentSites', () => {
 
   it('reads every specifier the committed entity registry actually carries', () => {
     // Not a synthetic case: the registry on disk, whose entries are the
-    // population this verdict exists over. All of them are in the core tree
-    // today, and a run that classified none of them would be the vacuous pass
-    // the floor below refuses.
+    // population this verdict exists over. A run that classified none of them
+    // would be the vacuous pass the floor below refuses.
+    //
+    // **Two verdicts are correct here and one is not.** `core` is the
+    // application's own tree; `workspace-package` is a module this repository
+    // has moved into `packages/` and baked in with a bare specifier, which
+    // D-149 commits and D-155.6 permits by **real path**. `foreign` is the one
+    // that must never appear: an installed package is discovered at runtime and
+    // baking it in registers it twice. Both permitted verdicts are asserted as
+    // present, so this cannot pass by the classification collapsing to one.
     const entities = renderEntitiesRegistry().content;
     const sites = containmentSites(REGISTRY_PATH, entities, ROOTS);
     expect(sites.length).toBeGreaterThan(100);
-    expect(sites.every((site) => site.verdict === 'core')).toBe(true);
+    expect(sites.filter((site) => site.verdict === 'core').length).toBeGreaterThan(100);
+    expect(sites.filter((site) => site.verdict === 'workspace-package').length).toBeGreaterThan(0);
+    expect(sites.filter((site) => site.verdict === 'foreign')).toEqual([]);
+    expect(
+      sites.every((site) => site.verdict === 'core' || site.verdict === 'workspace-package'),
+    ).toBe(true);
   });
 });
 

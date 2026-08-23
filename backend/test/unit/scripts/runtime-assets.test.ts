@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   auditBuiltBundles,
+  bundleModulesUnder,
   collectRuntimeAssets,
   copyRuntimeAssets,
   describeBundleFinding,
@@ -82,10 +83,19 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
     const { assets } = collectRuntimeAssets(SRC_ROOT);
 
     const bundles = assets.filter((path) => /\/i18n\/(en|pl)\.json$/.test(path));
-    // One per shipped language, for every module that declares bundles. Derived
-    // from the registry rather than written down, so a module that starts or
-    // stops shipping translations moves both sides of this together.
-    expect(bundles).toHaveLength(registeredBundleModules().length * 2);
+    // One per shipped language, for every module that declares bundles **and
+    // whose sources this build compiles**. Derived from the registry rather than
+    // written down, so a module that starts or stops shipping translations moves
+    // both sides of this together.
+    //
+    // `bundleModulesUnder` is the narrowing, and it is the audit's own — a
+    // module package's bundles sit beside its `dist` and travel with it, so this
+    // copier neither reads nor ships them. Without it the two sides disagreed by
+    // exactly the packaged modules (90 against 88, when `blog` moved), which
+    // reads as a dropped bundle and is not one.
+    const compiled = bundleModulesUnder(registeredBundleModules(), SRC_ROOT);
+    expect(compiled.length).toBeGreaterThan(0);
+    expect(bundles).toHaveLength(compiled.length * 2);
 
     expect(assets.filter((path) => path.endsWith('.txt'))).toEqual([
       'modules/product_feeds/data/taxonomies/google_merchant/2021-09-21/en.txt',

@@ -8,8 +8,8 @@ import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registr
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
 import {
-  manifestEntryOrigin,
   REGISTERED_MANIFESTS,
+  type RegisteredManifestEntry,
 } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { buildStaticRegistry } from '../../../src/modules/_lifecycle/services/static-registry.js';
 import { ModuleLifecycleOrchestrator } from '../../../src/modules/_lifecycle/services/orchestrator.js';
@@ -55,9 +55,11 @@ const ACTIVATION_CODE = `${MODULE_ID}.activation`;
 
 /**
  * A package's anchor is the resolved `package.json` that claimed the id
- * (`PackageModuleManifest.filePath`), which is never inside this build. The
- * fixture enters the analysis here (issue #130) — the origin is derived from
- * this path by the same function `composeApp()` uses, and asserted below.
+ * (`PackageModuleManifest.filePath`). The origin used to be *derived* from this
+ * path and is a field on the entry since feature 080's T040b — the derivation
+ * classified a workspace module package as an installed one, which is the whole
+ * of that row's regression. The path stays because the entry is the shape
+ * `resolvedManifestEntries()` hands over.
  */
 const PACKAGE_MANIFEST_PATH = join(
   repoRoot(),
@@ -89,11 +91,15 @@ const fixtureManifest = defineModuleManifest({
 });
 
 /** Exactly what `scripts/install.ts` hands the orchestrator, plus the fixture. */
-function cliShapedOrchestrator(db: TestDb, redis: Redis): ModuleLifecycleOrchestrator {
-  const registry = buildStaticRegistry([
+function registeredEntries(): RegisteredManifestEntry[] {
+  return [
     ...REGISTERED_MANIFESTS,
-    { manifest: fixtureManifest, filePath: PACKAGE_MANIFEST_PATH },
-  ]);
+    { manifest: fixtureManifest, filePath: PACKAGE_MANIFEST_PATH, origin: 'package' },
+  ];
+}
+
+function cliShapedOrchestrator(db: TestDb, redis: Redis): ModuleLifecycleOrchestrator {
+  const registry = buildStaticRegistry(registeredEntries());
   return new ModuleLifecycleOrchestrator({
     orm: db.orm,
     redis,
@@ -148,8 +154,11 @@ describe('an installed package gets an activation control [integration]', () => 
 
   it('classifies the fixture as a package, so every case below is about one', () => {
     // Not decoration: if this reads `core`, the three cases below are a core
-    // module's asymmetry re-asserted under a package's name.
-    expect(manifestEntryOrigin(PACKAGE_MANIFEST_PATH)).toBe('package');
+    // module's asymmetry re-asserted under a package's name. The entry the
+    // orchestrator is actually given is what is read, not a re-derivation of
+    // it — the registry is built above and this asks it what it holds.
+    const entry = registeredEntries().find((candidate) => candidate.manifest.id === MODULE_ID);
+    expect(entry?.origin).toBe('package');
   });
 
   it('creates the activation Setting at the manifest default when it is installed', async () => {
