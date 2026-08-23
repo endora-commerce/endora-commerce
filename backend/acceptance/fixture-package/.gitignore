@@ -1,1 +1,6 @@
 dist/
+# The acceptance script links the host package in here before it builds the
+# fixture, so `@endora-commerce/platform/kernel` resolves the way a third-party
+# author's install resolves it — a bare specifier through a `node_modules`
+# entry, never a `paths` alias and never a relative path into this repository.
+node_modules/

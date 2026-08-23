@@ -1,0 +1,38 @@
+{
+  // Emit configuration — the only configuration in this package allowed to write files.
+  //
+  // `tsconfig.json` is the type-check half: it keeps `tsconfig.base.json`'s `paths`
+  // block, which maps `@endora-commerce/contracts` at the sibling package's *source*,
+  // and it carries `noEmit: true` so it can never produce an artefact. This file is the
+  // mirror image — `paths` is cleared, so the sibling resolves through its own `exports`
+  // map to its built `.d.ts`, and emit is switched back on. `pnpm run build:packages`
+  // builds `contracts` before this package, which is what makes that resolution real.
+  //
+  // The split is structural, not stylistic. `rootDir` with an active `paths` block is
+  // the TS6059 trap: `tsc` reports the sibling's source as outside `rootDir`, exits 2,
+  // and emits that sibling's `.js`/`.d.ts` *beside its source* anyway. `dist/` is
+  // git-ignored, so the same accident landing at its configured destination would leave
+  // no trace at all. Emit therefore lives only where `paths` is empty.
+  //
+  // **`rootDir` is `backend/src`, and the sources are compiled where they live.** §2.1 of
+  // `specs/080-f4-real-scope/contracts/host-package.md` points every subpath at
+  // `./dist/<dir>/index.js`, which only says the emitted layout must be
+  // `dist/{kernel,http,tenancy,commands,events}` — it does not say those directories must
+  // sit under this package. Naming `backend/src` as the root and including exactly the
+  // five published directories produces that layout without relocating 53 platform files
+  // and rewriting every relative specifier the 1400-plus module files aim at them. The
+  // five directories are closed under relative imports (measured: 82 files, **zero**
+  // specifiers escaping the set), so the include list is the whole compilation and
+  // nothing outside it is dragged in.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "../../backend/src",
+    "noEmit": false,
+    // A compile that failed must ship nothing (feature 080, R11). Without this a
+    // diagnostic is not a stop — the artefacts are written before the exit code is.
+    "noEmitOnError": true
+  }
+  // `exclude` is inherited from `tsconfig.json`: the two co-located test files are out of
+  // both configurations, for the reason stated there.
+}

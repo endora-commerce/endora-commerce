@@ -43,6 +43,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { isBuiltin } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -69,8 +70,34 @@ const PACKAGE_NAME = '@endora-commerce/mod-acceptance-probe';
 const DEFAULT_DSN = 'postgresql://b2b:b2b@localhost:5432/b2b_acceptance_test';
 const EXPECTATION_FILE = join(BACKEND_ROOT, 'acceptance', 'expected-state.json');
 
-/** Strings that must not survive into the published artefact. */
-const ARTEFACT_MUST_NOT_CONTAIN = ['@Entity(', '@endora-commerce/', 'backend/src'] as const;
+/**
+ * Strings that must not survive into the published artefact.
+ *
+ * **`'@endora-commerce/'` was a member of this list and cannot be one any more**
+ * (feature 080, T042a). It meant *"the workspace's scope, so a specifier that
+ * resolves into this repository"* — and since T042e that is also the scope of
+ * the fixture's own name, of the host package it now legitimately peer-depends
+ * on, and of every module package that will ever exist. One needle cannot mean
+ * "the workspace's scope" and "not this package's own dependencies" at the same
+ * time; it passed until this merge request only because nothing the fixture
+ * emitted happened to name the scope.
+ *
+ * What it was approximating is asserted directly instead, by
+ * {@link undeclaredSpecifiers}: **every bare specifier in the artefact is one
+ * the fixture's own manifest declares**. That is the property — an installed
+ * package reaches what its manifest says the instance must supply, and nothing
+ * else — and it is stronger in both directions. `@endora-commerce/contracts`
+ * would still be refused, because the fixture declares no such dependency; a
+ * stray `fastify` in a package that had stopped declaring it would be refused,
+ * which the scope needle never saw; and `@endora-commerce/platform` passes
+ * exactly because it is declared, which is what makes it different from a reach
+ * into the tree.
+ *
+ * The two that remain are literal text with no legitimate spelling: `@Entity(`
+ * is the decorated **source** the composer's tree walk looks for, and
+ * `backend/src` is a path into the repository that hosts the fixture.
+ */
+const ARTEFACT_MUST_NOT_CONTAIN = ['@Entity(', 'backend/src'] as const;
 
 const notes: string[] = [];
 
@@ -126,11 +153,82 @@ function walkFiles(root: string, out: string[] = []): string[] {
 // The procedure
 // ---------------------------------------------------------------------------
 
+/**
+ * Every bare specifier in the built artefact that the fixture's own manifest
+ * does not declare — see {@link ARTEFACT_MUST_NOT_CONTAIN} for why this replaced
+ * a scope needle.
+ *
+ * Read as syntax rather than by regex (`ts.preProcessFile` is TypeScript's own
+ * scanner-level import reader), so a string that happens to contain the word
+ * `import` is out of the population by construction. Node builtins are not
+ * declared by anybody and the package's own name is a self-reference, which
+ * Node resolves through the package's own `exports` map.
+ */
+async function undeclaredSpecifiers(
+  files: readonly string[],
+  manifest: { name?: string; dependencies?: Record<string, string>; peerDependencies?: Record<string, string> },
+): Promise<{ readonly findings: string[]; readonly seen: number }> {
+  const ts = (await import('typescript')).default;
+  const declared = new Set([
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...Object.keys(manifest.peerDependencies ?? {}),
+  ]);
+  const findings: string[] = [];
+  let seen = 0;
+  for (const file of files) {
+    if (!/\.(js|mjs|cjs|d\.ts)$/.test(file)) continue;
+    for (const ref of ts.preProcessFile(readFileSync(file, 'utf8'), true, true).importedFiles) {
+      const specifier = ref.fileName;
+      if (specifier.startsWith('.') || specifier.startsWith('/')) continue;
+      if (isBuiltin(specifier)) continue;
+      seen += 1;
+      const owner = specifier.startsWith('@')
+        ? specifier.split('/').slice(0, 2).join('/')
+        : specifier.split('/')[0]!;
+      if (owner === manifest.name || declared.has(owner)) continue;
+      findings.push(`${file}: ${specifier}`);
+    }
+  }
+  return { findings, seen };
+}
+
+/**
+ * The host package, supplied to the fixture's **build** the way a third-party
+ * author's install supplies it: a `node_modules` entry, resolved by walking up
+ * from the importing file, never a `paths` alias and never a relative path.
+ *
+ * The fixture is not a `pnpm-workspace.yaml` member, so pnpm links nothing into
+ * it — which is the property the whole criterion rests on and is not weakened
+ * here: this link is on a **peer's** path, exactly as `provisionHostPeers` does
+ * for the two ORM peers in the instance, and A8 measures the path of the
+ * package's **own** directory. The link is created under the fixture's own
+ * git-ignored `node_modules`, so nothing lands in the working tree.
+ */
+function provisionFixturePeers(): void {
+  const hostDir = join(REPO_ROOT, 'packages', 'platform');
+  if (!existsSync(join(hostDir, 'dist'))) {
+    refuse(
+      `the host package at ${hostDir} is not built — run \`pnpm run build:packages\` first. ` +
+        'The fixture imports `@endora-commerce/platform/kernel`, which resolves through that ' +
+        "package's own `exports` map at `./dist`",
+    );
+  }
+  const scoped = join(FIXTURE_DIR, 'node_modules', '@endora-commerce');
+  mkdirSync(scoped, { recursive: true });
+  const link = join(scoped, 'platform');
+  if (!existsSync(link)) symlinkSync(hostDir, link, 'dir');
+  notes.push(
+    'fixture build peer: @endora-commerce/platform linked into the fixture\'s own ' +
+      'node_modules, resolved as a bare specifier through its `exports` map',
+  );
+}
+
 /** Step 1 — build the fixture, and refuse an artefact that gives the game away. */
-function buildFixture(): string {
+async function buildFixture(): Promise<string> {
   if (!existsSync(join(FIXTURE_DIR, 'package.json'))) {
     refuse(`the fixture package is not at ${FIXTURE_DIR}`);
   }
+  provisionFixturePeers();
   const tsc = binary('tsc');
   rmSync(join(FIXTURE_DIR, 'dist'), { recursive: true, force: true });
   const built = run(tsc, ['-p', join(FIXTURE_DIR, 'tsconfig.json')], { cwd: FIXTURE_DIR });
@@ -167,9 +265,23 @@ function buildFixture(): string {
       }
     }
   }
+  const manifest = JSON.parse(readFileSync(join(FIXTURE_DIR, 'package.json'), 'utf8')) as {
+    name?: string;
+    dependencies?: Record<string, string>;
+    peerDependencies?: Record<string, string>;
+  };
+  const { findings, seen } = await undeclaredSpecifiers(files, manifest);
+  if (findings.length > 0) {
+    refuse(
+      `the built artefact reaches ${findings.length} specifier(s) the fixture's manifest does ` +
+        `not declare: ${findings.join('; ')}. An installed package reaches what its manifest ` +
+        'says the instance must supply, and nothing else',
+    );
+  }
   notes.push(
     `fixture built: ${files.length} file(s) in dist/, none containing ` +
-      ARTEFACT_MUST_NOT_CONTAIN.map((n) => `"${n}"`).join(', '),
+      `${ARTEFACT_MUST_NOT_CONTAIN.map((n) => `"${n}"`).join(', ')}; ` +
+      `${seen} bare specifier(s) read, all declared by the fixture's manifest`,
   );
   return dist;
 }
@@ -190,13 +302,26 @@ function packFixture(destination: string): string {
 /**
  * Step 3/4 — a real install into a throwaway instance.
  *
- * The host supplies the two MikroORM peers by link, which is what a peer
- * dependency *means* and what a real instance does: the platform and the
- * package must share one `@mikro-orm/core`, or the package's decorators write
- * into a `MetadataStorage` the host's ORM never reads and A4 goes red for a
- * reason that has nothing to do with packaging. The links are on the peers'
- * paths, never on the package's own — which is exactly the distinction A8
- * measures, and A9 proves that distinction can still say no.
+ * The host supplies the MikroORM peers **and the host package itself** by link,
+ * which is what a peer dependency *means* and what a real instance does: the
+ * platform and the package must share one `@mikro-orm/core` and one
+ * `@endora-commerce/platform`. The links are on the peers' paths, never on the
+ * package's own — which is exactly the distinction A8 measures, and A9 proves
+ * that distinction can still say no.
+ *
+ * **What a second copy actually does was measured, and it is not what this
+ * comment used to say** (feature 080, T042a §0c; D-160.6). It said the package's
+ * decorators "write into a `MetadataStorage` the host's ORM never reads", i.e.
+ * two copies produce two registries. They do not:
+ * `MetadataStorage.metadata = Utils.getGlobalStorage('metadata')`, and
+ * `getGlobalStorage` is `globalThis['mikro-orm-' + namespace]` with **no version
+ * in the key**, so two copies of `@mikro-orm/core` share **one** registry. What
+ * happens instead is worse in the way that matters: the package's entity is
+ * registered and then **silently dropped from discovery** — no throw, no
+ * warning, exit 0, and a table that never gets created. A split registry would
+ * at least have been visible from the package's side. Two copies of the *host*
+ * are the loud case, `MetadataError: Duplicate entity names are not allowed`.
+ * The remedy below was always right; only its stated mechanism was wrong.
  */
 function installInto(instance: string, spec: string): void {
   mkdirSync(instance, { recursive: true });
@@ -227,9 +352,36 @@ function provisionHostPeers(instance: string): void {
     const link = join(scoped, peer);
     if (!existsSync(link)) symlinkSync(hostCopy, link, 'dir');
   }
+  // The third peer, and the one the fixture names in its own sources: the host
+  // package. It is supplied here rather than installed, for the reason the ORM
+  // peers are — the instance must hold exactly one copy — and it is a *peer*
+  // rather than a workspace `link:` on the package's own path, which is the
+  // condition T042a §6 attaches to the fixture dropping its structural
+  // re-declaration of `ModuleContext`.
+  //
+  // **Everything the fixture takes from the host is type-only today, and that is
+  // load-bearing rather than incidental.** This link resolves to
+  // `packages/platform/dist`, while the platform process below runs
+  // `backend/src` through `tsx` — the same sources, compiled twice, so they are
+  // two copies in exactly the sense §3 means. Types are erased, so nothing
+  // crosses. A **value** import would cross, and the first one anybody reaches
+  // for is `@GlobalEntity()` from `./tenancy` (219 specifiers in the tree): the
+  // package's class would be classified in the `dist` copy's registry and the
+  // running platform would read the other one, silently, which is the
+  // fail-quiet shape the whole singleton rule exists to refuse. Do not add a
+  // value import here until the platform process itself runs the built host.
+  const hostPackage = join(REPO_ROOT, 'packages', 'platform');
+  if (!existsSync(join(hostPackage, 'dist'))) {
+    refuse('the host package is not built — run `pnpm run build:packages` first');
+  }
+  const hostScope = join(instance, 'node_modules', '@endora-commerce');
+  mkdirSync(hostScope, { recursive: true });
+  const hostLink = join(hostScope, 'platform');
+  if (!existsSync(hostLink)) symlinkSync(hostPackage, hostLink, 'dir');
   notes.push(
-    'host-provided peers: @mikro-orm/core and @mikro-orm/migrations are linked from the ' +
-      'platform, so package and host share one copy (see installInto for why)',
+    'host-provided peers: @mikro-orm/core, @mikro-orm/migrations and ' +
+      '@endora-commerce/platform are linked from the platform, so package and host share ' +
+      'one copy (see installInto for what a second one does)',
   );
 }
 
@@ -313,7 +465,7 @@ async function main(): Promise<void> {
 
   const results: AssertionResult[] = [];
   try {
-    buildFixture();
+    await buildFixture();
     const tarball = packFixture(tarballDir);
 
     installInto(instance, tarball);

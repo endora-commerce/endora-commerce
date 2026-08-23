@@ -1,0 +1,41 @@
+{
+  // Type-check configuration. `tsconfig.base.json`'s `paths` block is active here, so
+  // `@endora-commerce/contracts` resolves at its *source* and this package type-checks
+  // against the branch it is on (issue #255). `noEmit` is set for that reason: with
+  // `paths` active an emit would land beside another package's source. The emitting
+  // configuration is `tsconfig.build.json`.
+  //
+  // `rootDir` is deliberately **absent** here and set only in the build config. With
+  // `paths` active, `@endora-commerce/contracts` resolves to `packages/contracts/src`,
+  // which is outside any `rootDir` this package could name — that is TS6059, the exact
+  // trap the two-config split exists to make unreachable.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  // The package's sources are the five platform directories of `backend/src`; see
+  // `tsconfig.build.json` for why they are compiled from where they live rather than
+  // relocated into this directory.
+  "include": [
+    "../../backend/src/kernel/**/*",
+    "../../backend/src/http/**/*",
+    "../../backend/src/tenancy/**/*",
+    "../../backend/src/commands/**/*",
+    "../../backend/src/events/**/*"
+  ],
+  // Two co-located test files sit in those directories. They are never published — a
+  // compiled `*.test.js` under `dist` imports `vitest`, a devDependency, so it would be
+  // an unresolvable specifier in every consumer's install — and they are not this
+  // package's to type-check either: they belong to `backend`, whose `tsconfig.json`
+  // includes `test/**/*` and therefore carries the harness's ambient declarations. The
+  // patterns are anchored at `backend/src` because an `exclude` glob is resolved against
+  // *this* directory, where a bare `**/*.test.ts` matches nothing.
+  "exclude": [
+    "../../backend/src/**/*.test.ts",
+    "../../backend/src/**/*.test.tsx",
+    "../../backend/src/**/*.spec.ts",
+    "../../backend/src/**/*.spec.tsx"
+  ]
+}

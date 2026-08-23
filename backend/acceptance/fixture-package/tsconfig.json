@@ -1,6 +1,17 @@
 {
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
+    // `paths` is cleared, and that is the point of this file rather than a
+    // detail of it: a synthetic third-party package must resolve **nothing**
+    // into the repository that hosts it, which is what assertion A8 measures.
+    // The inherited block maps `@core/*` at `backend/src`, so without this line
+    // a fixture author reaching for `@core/kernel/...` would compile against
+    // this tree, land a file outside `rootDir`, and get TS6059 from a build
+    // whose failure looks like a packaging problem. It also keeps the
+    // `@endora-commerce/*` family honest the day one of them is mapped: a
+    // package the fixture peer-depends on is resolved through `node_modules`
+    // and its own `exports` map, exactly as an installed one is.
+    "paths": {},
     "outDir": "./dist",
     "rootDir": "./src",
     "types": [],
