@@ -7,7 +7,6 @@ import {
   fileLevelKind,
   findEntrySites,
   keyOf,
-  relative,
   staleAllowances,
   violationsOf,
   NO_SCOPE_NEEDED,
@@ -29,6 +28,20 @@ import { findUngatedEntries } from '../../../scripts/check-entry-presence.js';
  */
 
 const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+
+/**
+ * How a real run spells a walked file — `layout.displayOf`'s two bases, written
+ * out here because these fixtures call the analysis directly.
+ *
+ * The module-scoped {@link relative} default finds the last `/src/` and slices,
+ * which answers `src/kernel/container.ts` for a file that now lives in
+ * `packages/platform/src/kernel/`. That is the application's spelling for a
+ * package's file, and it is the spelling of the *shim* — two files under one
+ * key, in a ledger keyed on paths.
+ */
+const displayOf = (file: string): string =>
+  file.startsWith(BACKEND_ROOT) ? file.slice(BACKEND_ROOT.length) : file.slice(REPO_ROOT.length);
 const CLI = '/repo/backend/src/modules/search/scripts/reindex.ts';
 const SERVICE = '/repo/backend/src/modules/search/services/indexer.ts';
 
@@ -297,9 +310,18 @@ describe('the real tree', () => {
   const declared = new Set(
     declaredProgramEntryPoints(readFileSync(join(BACKEND_ROOT, 'package.json'), 'utf8')),
   );
+  /**
+   * A path is resolved against `backend/` when it names one of the
+   * application's files and against the repository when it names the platform's
+   * — the two bases `layout.displayOf` gives a real run, and the reason a key
+   * for a platform file is spelled `packages/platform/src/…` since the
+   * relocation.
+   */
+  const absoluteOf = (path: string): string =>
+    path.startsWith('packages/') ? join(BACKEND_ROOT, '..', path) : join(BACKEND_ROOT, path);
   const sitesIn = (path: string): EntrySite[] => {
-    const absolute = join(BACKEND_ROOT, path);
-    return findEntrySites(absolute, readFileSync(absolute, 'utf8'), declared);
+    const absolute = absoluteOf(path);
+    return findEntrySites(absolute, readFileSync(absolute, 'utf8'), declared, displayOf);
   };
 
   it('declares the dev seed as a program this check has to see', () => {
@@ -316,7 +338,7 @@ describe('the real tree', () => {
   });
 
   it('reports both of registry-cache.ts\'s sites, and would have caught issue #235', () => {
-    const path = 'src/kernel/lifecycle/registry-cache.ts';
+    const path = 'packages/platform/src/kernel/lifecycle/registry-cache.ts';
     const sites = sitesIn(path);
     expect(sites.map((s) => s.kind)).toEqual(['message', 'interval']);
     expect(sites.every((s) => s.scoped)).toBe(true);
@@ -324,14 +346,14 @@ describe('the real tree', () => {
     // Put the file back the way it was: the pub/sub handler refreshing from the
     // database with no scope, the degraded-mode timer wrapped correctly 130
     // lines below. The file-level check reported that `scoped`.
-    const source = readFileSync(join(BACKEND_ROOT, path), 'utf8');
+    const source = readFileSync(absoluteOf(path), 'utf8');
     const before235 = source.replace(
       /enterSystemScope\(\s*'_lifecycle: registry refresh on state-change notification'/,
       "notAScopeAtAll('_lifecycle: registry refresh on state-change notification'",
     );
     expect(before235, 'the site this replacement targets has moved').not.toBe(source);
 
-    const regressed = findEntrySites(join(BACKEND_ROOT, path), before235, declared);
+    const regressed = findEntrySites(absoluteOf(path), before235, declared, displayOf);
     expect(regressed.map((s) => `${s.kind}:${s.scoped}`)).toEqual(['message:false', 'interval:true']);
     expect(violationsOf(regressed).map((s) => s.kind)).toEqual(['message']);
   });
@@ -341,8 +363,8 @@ describe('the real tree', () => {
     // constructs no `Worker` and starts no timer. The file-classifying check had
     // nowhere to put it, so `process.once(SIGINT/SIGTERM, …)` was outside its
     // population entirely — not exempt, not reported, absent.
-    const path = 'src/kernel/container.ts';
-    expect(fileLevelKind(join(BACKEND_ROOT, path), declared)).toBeNull();
+    const path = 'packages/platform/src/kernel/container.ts';
+    expect(fileLevelKind(absoluteOf(path), declared, displayOf)).toBeNull();
     const sites = sitesIn(path);
     expect(sites.map((s) => s.kind)).toEqual(['process']);
     expect(sites[0]?.scheduler).toBe('installShutdownDisposal');
@@ -386,11 +408,16 @@ describe('the ledger ratchet', () => {
     expect(keyOf(site('src/worker.ts', false, 'main'))).toBe('src/worker.ts:main:cli');
   });
 
-  it('spells every key the way `relative` reports a walked file', () => {
+  it('spells every key the way the walk reports a walked file', () => {
+    // Two bases, as `layout.displayOf` has: `src/…` for the application's own
+    // files, `packages/…` for the platform's, which are a workspace package's
+    // since the relocation and outside `backend/` entirely.
+    const base = (path: string): string =>
+      path.startsWith('packages/') ? join(BACKEND_ROOT, '..') : BACKEND_ROOT;
     for (const key of Object.keys(NO_SCOPE_NEEDED)) {
       const path = key.slice(0, key.indexOf(':'));
-      expect(relative(join(BACKEND_ROOT, path))).toBe(path);
-      expect(existsSync(join(BACKEND_ROOT, path)), `${path} is ledgered but absent`).toBe(true);
+      expect(displayOf(join(base(path), path))).toBe(path);
+      expect(existsSync(join(base(path), path)), `${path} is ledgered but absent`).toBe(true);
     }
   });
 
@@ -407,7 +434,7 @@ describe('the ledger ratchet', () => {
     const falsifiable = [
       "src/modules/admin_actions/services/admin-actions-service.ts:<module scope>:on('message')",
       "src/modules/custom_fields/services/custom-field-definitions-cache.ts:start:on('message')",
-      'src/kernel/container.ts:installShutdownDisposal:process.once',
+      'packages/platform/src/kernel/container.ts:installShutdownDisposal:process.once',
     ];
     for (const key of falsifiable) {
       expect(NO_SCOPE_NEEDED[key], `${key} is not ledgered`).toMatch(/Falsified|Retire this entry/);

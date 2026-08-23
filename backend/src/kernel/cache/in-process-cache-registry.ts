@@ -1,65 +1,22 @@
 /**
- * The caches that keep a per-process layer in front of Redis, by the namespace
- * key the operator-facing "clear cache" surface uses.
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * Six of the eight clearable namespaces are Redis-only, so SCAN+DEL over the
- * key space is a complete clear for them. Two are not: `settings` and
- * `sales_channels` each hold a per-process LRU, and dropping only the Redis
- * keys leaves every warm process serving the value it had already resolved —
- * which the next read then re-pins into Redis. The operator gets a green
- * confirmation and an unchanged system.
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
  *
- * The clear therefore has to reach the object that owns both layers, and this
- * is how it finds it. A registry rather than an injected dependency because
- * the two caches live in the kernel while the clear surface is a route of the
- * `settings` module: a module may not reach into another module for an
- * instance, and threading two handles through every composition root to reach
- * one maintenance button is a lot of wiring for a rare action.
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
  *
- * Nothing here is required: a process that registered no layer — the
- * `cache:clear` CLI, a unit test — clears the Redis keys and is correct,
- * because it has no in-memory layer to be stale.
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-export interface InProcessCacheLayer {
-  /**
-   * Drop every entry in this namespace across **both** layers, shared layer
-   * first and with the key prefix marked for the whole operation. Returns the
-   * number of shared keys deleted, which is what the operator is shown.
-   */
-  invalidateAll(): Promise<number>;
-}
-
-export class InProcessCacheRegistry {
-  private readonly layers = new Map<string, InProcessCacheLayer>();
-
-  /**
-   * Register this process's layer for `namespace`. Returns the unregister
-   * function; a second composition root in the same process (the test harness
-   * builds one per file) replaces the entry, so the registry always names the
-   * live cache rather than a discarded one.
-   */
-  register(namespace: string, layer: InProcessCacheLayer): () => void {
-    this.layers.set(namespace, layer);
-    return () => {
-      if (this.layers.get(namespace) === layer) this.layers.delete(namespace);
-    };
-  }
-
-  has(namespace: string): boolean {
-    return this.layers.has(namespace);
-  }
-
-  /**
-   * Clear the namespace through its owning cache, or `undefined` when nothing
-   * registered one — the caller then falls back to clearing the shared layer
-   * by key pattern.
-   */
-  async clear(namespace: string): Promise<number | undefined> {
-    const layer = this.layers.get(namespace);
-    if (!layer) return undefined;
-    return layer.invalidateAll();
-  }
-}
-
-/** Process singleton, read by the settings module's cache-maintenance service. */
-export const inProcessCaches = new InProcessCacheRegistry();
+export * from '../../../../packages/platform/dist/kernel/cache/in-process-cache-registry.js';

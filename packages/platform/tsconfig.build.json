@@ -14,25 +14,19 @@
   // git-ignored, so the same accident landing at its configured destination would leave
   // no trace at all. Emit therefore lives only where `paths` is empty.
   //
-  // **`rootDir` is `backend/src`, and the sources are compiled where they live.** §2.1 of
-  // `specs/080-f4-real-scope/contracts/host-package.md` points every subpath at
-  // `./dist/<dir>/index.js`, which only says the emitted layout must be
-  // `dist/{kernel,http,tenancy,commands,events}` — it does not say those directories must
-  // sit under this package. Naming `backend/src` as the root and including exactly the
-  // five published directories produces that layout without relocating 53 platform files
-  // and rewriting every relative specifier the 1400-plus module files aim at them. The
-  // five directories are closed under relative imports (measured: 82 files, **zero**
-  // specifiers escaping the set), so the include list is the whole compilation and
-  // nothing outside it is dragged in.
+  // **`rootDir` is this package's own `src`, because the sources are this package's.**
+  // It named `backend/src` until the relocation, with an `include` of the five published
+  // directories — so `dist/` was those directories compiled a *second* time while the
+  // application ran the originals. Nothing shared a runtime value across that boundary
+  // (host-package.md §3.5: 59 values, 0 shared), which is what stopped the first module
+  // package. See `tsconfig.json` for where `include` and `exclude` now come from.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "paths": {},
-    "rootDir": "../../backend/src",
+    "rootDir": "./src",
     "noEmit": false,
     // A compile that failed must ship nothing (feature 080, R11). Without this a
     // diagnostic is not a stop — the artefacts are written before the exit code is.
     "noEmitOnError": true
   }
-  // `exclude` is inherited from `tsconfig.json`: the two co-located test files are out of
-  // both configurations, for the reason stated there.
 }

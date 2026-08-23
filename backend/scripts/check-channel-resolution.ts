@@ -139,9 +139,15 @@ const ALLOW_LIST = new Set<string>([]);
  * Resolution is owned by the kernel's `sales-channels/` directory and by what
  * is left of the `sales_channels` module (its admin CRUD service and routes,
  * which legitimately query channels) — never scanned.
+ *
+ * The kernel half is matched **wherever the kernel is**, not at one prefix. The
+ * relocation moved it into `@endora-commerce/platform`, so `layout.keyOf` spells
+ * it `packages/platform/src/kernel/sales-channels/…`; an anchored prefix stopped
+ * matching and the canonical resolver reported *itself* for reading the
+ * `x-sales-channel` header, which is the one file whose whole job that is.
  */
 function isResolverOwned(relPath: string): boolean {
-  return relPath.startsWith('modules/sales_channels/') || relPath.startsWith('kernel/sales-channels/');
+  return relPath.startsWith('modules/sales_channels/') || /(^|\/)kernel\/sales-channels\//.test(relPath);
 }
 
 /** Storefront surfaces where re-resolving the request channel is forbidden. */

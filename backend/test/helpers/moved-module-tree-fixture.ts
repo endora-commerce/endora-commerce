@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -201,6 +202,47 @@ function stubManifestIndex(ids: readonly string[], backendRoot: string): string 
   ].join('\n');
 }
 
+/**
+ * The platform package, copied whole — manifest, `src` and `dist`.
+ *
+ * Three things need it and each fails differently without it. The residue
+ * includes `backend/src/{kernel,http,tenancy,commands,events}`, which since the
+ * relocation are re-export shims naming `packages/platform/dist/…`, so a check
+ * that *imports* one — `check-entity-tenant-classification` reads the tenancy
+ * decorators as code — dies at module resolution and its proof passes for the
+ * wrong reason. `scripts/lib/platform-root.ts` finds the platform by its own
+ * `endora: { type: 'platform' }` block over the workspace members, so a fixture
+ * without the manifest has no platform root and the checks that refuse on
+ * `null` refuse for the wrong reason. And `src` is what those checks walk.
+ *
+ * `dist` is a build artefact and may legitimately be absent in a fresh
+ * checkout; the fixture refuses rather than staging a tree whose shims resolve
+ * to nothing, because that failure is indistinguishable from a moved module
+ * tree, which is the one thing this fixture exists to tell apart.
+ */
+function copyPlatformPackage(root: string): void {
+  const source = join(REPO_ROOT, 'packages', 'platform');
+  const built = join(source, 'dist');
+  if (!existsSync(built)) {
+    throw new Error(
+      `${built} does not exist — the platform package is not built, and the residue's ` +
+        're-export shims name it. Run `pnpm run build:packages`; without it every proof ' +
+        'under this fixture would fail at module resolution rather than on what it measures.',
+    );
+  }
+  const destination = join(root, 'packages', 'platform');
+  mkdirSync(destination, { recursive: true });
+  // The copied `dist` imports `@mikro-orm/core`, `fastify` and `awilix` by bare
+  // specifier, and node resolves those by walking up from the *importing* file —
+  // a path that never passes through `backend/`, where the fixture's other
+  // borrowed tree is. Without this the residue's shims die at module resolution
+  // and every proof under them fails for a reason that is not the residue.
+  symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(destination, 'node_modules'));
+  cpSync(join(source, 'package.json'), join(destination, 'package.json'));
+  cpSync(join(source, 'src'), join(destination, 'src'), { recursive: true });
+  cpSync(built, join(destination, 'dist'), { recursive: true });
+}
+
 export function createMovedModuleTreeFixture(
   options: MovedModuleTreeOptions = {},
 ): MovedModuleTreeFixture {
@@ -243,6 +285,7 @@ export function createMovedModuleTreeFixture(
     join(REPO_ROOT, 'packages', 'contracts', 'package.json'),
     join(root, 'packages', 'contracts', 'package.json'),
   );
+  copyPlatformPackage(root);
   for (const directory of RESIDUE_ROOTS) {
     cpSync(join(BACKEND_ROOT, 'src', directory), join(backend, 'src', directory), {
       recursive: true,
@@ -479,6 +522,7 @@ export function createSplitModuleTreeFixture(
     join(REPO_ROOT, 'packages', 'contracts', 'package.json'),
     join(root, 'packages', 'contracts', 'package.json'),
   );
+  copyPlatformPackage(root);
 
   const relocate = (id: string, declared: boolean): void => {
     const from = join(backend, 'src', 'modules', id);

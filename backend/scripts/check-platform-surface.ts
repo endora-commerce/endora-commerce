@@ -210,9 +210,17 @@ export interface LedgeredReach {
 /**
  * The reaches into unpublished platform surface that stand today.
  *
- * Keyed `<module file>|<platform file>`, both relative to the source root — so
- * moving code inside a file does not invalidate an entry, and re-opening a
+ * Keyed `<module file>|<platform file>`, both relative to the repository root —
+ * so moving code inside a file does not invalidate an entry, and re-opening a
  * closed reach does not silently inherit one.
+ *
+ * The platform half is spelled at `packages/platform/src/…` since the
+ * relocation, which is where the file is. A module still writes the old relative
+ * specifier and still lands on a re-export shim at `backend/src/<subpath>/…`;
+ * {@link PlatformSurfaceInput.canonicalTargetOf} follows the shim, because a
+ * shim publishes nothing and judging one would refuse every reach in the tree.
+ * Forty of these keys were re-spelled by the move and not one entry, symbol or
+ * count moved with them.
  *
  * **Two-way and draining**, in the idiom of `PORT_CATCHES_TO_DRAIN`: an
  * unledgered reach fails the build, a key that no longer describes one fails it,
@@ -381,11 +389,11 @@ const TOTP_SHIM =
 
 export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach>> = {
   // === CONTAINERLESS_CLI (5) ===
-  'backend/src/modules/_lifecycle/scripts/disable.ts|backend/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/modules/_lifecycle/scripts/enable.ts|backend/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/modules/_lifecycle/scripts/install.ts|backend/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/modules/_lifecycle/scripts/status.ts|backend/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/modules/_lifecycle/scripts/uninstall.ts|backend/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
+  'backend/src/modules/_lifecycle/scripts/disable.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
+  'backend/src/modules/_lifecycle/scripts/enable.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
+  'backend/src/modules/_lifecycle/scripts/install.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
+  'backend/src/modules/_lifecycle/scripts/status.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
+  'backend/src/modules/_lifecycle/scripts/uninstall.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
 
   // === DEPLOYMENT_FILE (3) ===
   'backend/src/apps/example/decorations/pricing-service.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
@@ -393,33 +401,33 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/apps/example/reduced-deployment.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
 
   // === LIFECYCLE_HOST_HALF (16) ===
-  'backend/src/modules/_lifecycle/backend.ts|backend/src/http/interceptors/index.ts': { symbols: ['ApiInterceptorRegistry'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/commands/activation.commands.ts|backend/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/plugin.ts|backend/src/kernel/lifecycle/registry-cache.ts': { symbols: ['ModuleRegistryCache', 'registryCache'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/modules/_lifecycle/backend.ts|packages/platform/src/http/interceptors/index.ts': { symbols: ['ApiInterceptorRegistry'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/modules/_lifecycle/commands/activation.commands.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/modules/_lifecycle/plugin.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['ModuleRegistryCache', 'registryCache'], reason: LIFECYCLE_HOST_HALF },
   'backend/src/modules/_lifecycle/registered-manifests.ts|backend/src/overlay/overlay-runtime.ts': { symbols: ['discoverOverlayModuleManifests'], reason: LIFECYCLE_HOST_HALF },
   'backend/src/modules/_lifecycle/registered-manifests.ts|backend/src/packages/module-id-claims.ts': { symbols: ['ModuleIdClaim', 'ModuleIdClaimOrigin', 'assertNoPackageModuleIdCollisions'], reason: LIFECYCLE_HOST_HALF },
   'backend/src/modules/_lifecycle/registered-manifests.ts|backend/src/packages/package-runtime.ts': { symbols: ['discoverPackageModuleManifests'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/routes.admin.ts|backend/src/http/interceptors/index.ts': { symbols: ['ApiInterceptorRegistry'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/modules/_lifecycle/routes.admin.ts|packages/platform/src/http/interceptors/index.ts': { symbols: ['ApiInterceptorRegistry'], reason: LIFECYCLE_HOST_HALF },
   'backend/src/modules/_lifecycle/services/orchestrator.ts|backend/src/db/configured-migrations.ts': { symbols: ['MigrationOwnership', 'coreMigrationOwnership'], reason: LIFECYCLE_HOST_HALF },
   'backend/src/modules/_lifecycle/services/orchestrator.ts|backend/src/db/migration-order.ts': { symbols: ['findModuleCycles'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/orchestrator.ts|backend/src/kernel/lifecycle/module-registration.entity.ts': { symbols: ['ModuleRegistration'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/orchestrator.ts|backend/src/kernel/lifecycle/registry-cache.ts': { symbols: ['publishStateChanged', 'registryCache'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/orchestrator.ts|backend/src/kernel/settings/manifest-reconciler.ts': { symbols: ['ManifestReconciler'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/presence-load.ts|backend/src/kernel/lifecycle/activation-resolver.ts': { symbols: ['activationDeclarationsFrom'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/presence-load.ts|backend/src/kernel/lifecycle/module-registration.entity.ts': { symbols: ['ModuleRegistration'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/presence-load.ts|backend/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/modules/_lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': { symbols: ['ModuleRegistration'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/modules/_lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['publishStateChanged', 'registryCache'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/modules/_lifecycle/services/orchestrator.ts|packages/platform/src/kernel/settings/manifest-reconciler.ts': { symbols: ['ManifestReconciler'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/modules/_lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/activation-resolver.ts': { symbols: ['activationDeclarationsFrom'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/modules/_lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': { symbols: ['ModuleRegistration'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/modules/_lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
   'backend/src/modules/_lifecycle/services/reduced-deployment.ts|backend/src/overlay/overlay-roots.ts': { symbols: ['selectedDeployment'], reason: LIFECYCLE_HOST_HALF },
 
   // === MODULE_PLUGIN (9) ===
-  'backend/src/modules/_lifecycle/plugin.ts|backend/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/admin_actions/plugin.ts|backend/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/customers/plugin.ts|backend/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/invoices/plugin.ts|backend/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/ksef/plugin.ts|backend/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/mfa/plugin.ts|backend/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/newsletter/plugin.ts|backend/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/pim_ergonode/plugin.ts|backend/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/product_feeds/plugin.ts|backend/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
+  'backend/src/modules/_lifecycle/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
+  'backend/src/modules/admin_actions/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
+  'backend/src/modules/customers/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
+  'backend/src/modules/invoices/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
+  'backend/src/modules/ksef/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
+  'backend/src/modules/mfa/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
+  'backend/src/modules/newsletter/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
+  'backend/src/modules/pim_ergonode/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
+  'backend/src/modules/product_feeds/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
 
   // === ORM_BOOTSTRAP (6) ===
   'backend/src/modules/_lifecycle/scripts/disable.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
@@ -433,28 +441,28 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/modules/admin_roles/permission-inventory.ts|backend/src/overlay/overlay-roots.ts': { symbols: ['activeOverlayModulesRoot'], reason: OVERLAY_ROOTS },
 
   // === REGISTRY_CACHE (1) ===
-  'backend/src/modules/admin_actions/services/admin-actions-service.ts|backend/src/kernel/lifecycle/registry-cache.ts': { symbols: ['STATE_CHANGED_CHANNEL'], reason: REGISTRY_CACHE },
+  'backend/src/modules/admin_actions/services/admin-actions-service.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['STATE_CHANGED_CHANNEL'], reason: REGISTRY_CACHE },
 
   // === TEST_ACTOR_CARRIER (4) ===
-  'backend/src/modules/admin_users/routes.impersonation.ts|backend/src/http/test-actor-carrier.ts': { symbols: ['TestActorCarrier'], reason: TEST_ACTOR_CARRIER },
-  'backend/src/modules/api_keys/routes.ts|backend/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
-  'backend/src/modules/credit_limits/routes.ts|backend/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
-  'backend/src/modules/webhooks/routes.ts|backend/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
+  'backend/src/modules/admin_users/routes.impersonation.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['TestActorCarrier'], reason: TEST_ACTOR_CARRIER },
+  'backend/src/modules/api_keys/routes.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
+  'backend/src/modules/credit_limits/routes.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
+  'backend/src/modules/webhooks/routes.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
 
   // === TOTP_SHIM (1) ===
-  'backend/src/modules/auth/services/totp-service.ts|backend/src/kernel/crypto/totp.ts': { symbols: ['EnrolmentResult', 'hashBackupCode', 'matchBackupCode'], reason: TOTP_SHIM },
+  'backend/src/modules/auth/services/totp-service.ts|packages/platform/src/kernel/crypto/totp.ts': { symbols: ['EnrolmentResult', 'hashBackupCode', 'matchBackupCode'], reason: TOTP_SHIM },
 
   // === WORKER_WRAPPERS (10) ===
-  'backend/src/modules/_lifecycle/services/orchestrator.ts|backend/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['pauseWorkersFor', 'resumeWorkersFor'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/catalog/plugin.ts|backend/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/ksef/plugin.ts|backend/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker', 'subscribeForModule'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/newsletter/plugin.ts|backend/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/pim_ergonode/workers/import-reaper-worker.ts|backend/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/pim_ergonode/workers/import-worker.ts|backend/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/feed-delivery-worker.ts|backend/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/feed-generation-worker.ts|backend/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/feed-run-reaper-worker.ts|backend/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/taxonomy-refresh-worker.ts|backend/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
+  'backend/src/modules/_lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['pauseWorkersFor', 'resumeWorkersFor'], reason: WORKER_WRAPPERS },
+  'backend/src/modules/catalog/plugin.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
+  'backend/src/modules/ksef/plugin.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker', 'subscribeForModule'], reason: WORKER_WRAPPERS },
+  'backend/src/modules/newsletter/plugin.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
+  'backend/src/modules/pim_ergonode/workers/import-reaper-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
+  'backend/src/modules/pim_ergonode/workers/import-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
+  'backend/src/modules/product_feeds/workers/feed-delivery-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
+  'backend/src/modules/product_feeds/workers/feed-generation-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
+  'backend/src/modules/product_feeds/workers/feed-run-reaper-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
+  'backend/src/modules/product_feeds/workers/taxonomy-refresh-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
 };
 
 export interface PlatformSurfaceInput {
@@ -476,6 +484,19 @@ export interface PlatformSurfaceInput {
    * attribution, which reads a package's declared id instead.
    */
   readonly moduleIdOf?: (key: string) => string | null;
+  /**
+   * A resolved target's canonical key — the file a specifier really lands on.
+   *
+   * Identity for every reach but one: the platform relocation left a re-export
+   * shim at each old `backend/src/{kernel,http,tenancy,commands,events}/…` path,
+   * so a module's relative specifier resolves to a file whose whole content is
+   * `export * from` the platform's own. Judging the shim would compare a module's
+   * symbol against a barrel that lives one tree over and publish nothing, turning
+   * all 1642 reaches into findings. Judging the file the shim forwards to is the
+   * effective truth and keeps this check's answer the same across the move — the
+   * ledger's platform half is spelled at the platform, which is where it is.
+   */
+  readonly canonicalTargetOf?: (key: string) => string;
 }
 
 /** `<module file>|<platform file>` — the ledger key and the identity of a reach. */
@@ -513,6 +534,7 @@ export interface PlatformSurfaceScan {
  */
 export function scanPlatformSurface(input: PlatformSurfaceInput): PlatformSurfaceScan {
   const attribute = input.moduleIdOf ?? moduleIdOf;
+  const canonical = input.canonicalTargetOf ?? ((key: string): string => key);
   const findings: PlatformSurfaceFinding[] = [];
   let reaches = 0;
 
@@ -536,7 +558,8 @@ export function scanPlatformSurface(input: PlatformSurfaceInput): PlatformSurfac
 
     for (const specifier of namedSpecifiers(text, file)) {
       if (!specifier.text.startsWith('.')) continue;
-      const target = resolveTarget(file, specifier.text, input.files);
+      const resolved = resolveTarget(file, specifier.text, input.files);
+      const target = resolved === null ? null : canonical(resolved);
       if (target === null) {
         findings.push({
           kind: 'unresolvable-reach',
@@ -742,10 +765,31 @@ async function main(): Promise<void> {
   // The published surface, read out of the barrels — the same parse
   // `published-surface.test.ts` holds those barrels to §1.3 with, resolved
   // against the same file list a module reach is resolved against.
+  // The platform's own sources, wherever the workspace says they are. `null` is
+  // a stop and not an empty surface: this check *is* the platform's barrels, so
+  // a run without them would refuse every reach in the tree.
+  const platformRoot = layout.platformRoot;
+  if (platformRoot === null) {
+    console.error(
+      `${prefix} no workspace member declares \`endora.type: "platform"\` — there are no ` +
+        'barrels to read and no published surface to judge a reach against',
+    );
+    process.exit(2);
+  }
+  // Shim key → the platform file it forwards to. Built from the platform tree,
+  // so a shim with no counterpart is simply absent from it rather than mapped
+  // to a file that is not there.
+  const canonicalTargets = new Map<string, string>();
+  for (const file of walk(platformRoot)) {
+    const withinPlatform = relative(platformRoot, file).split('\\').join('/');
+    canonicalTargets.set(`${repoKeyOf(layout.srcRoot)}/${withinPlatform}`, repoKeyOf(file));
+  }
+  const canonicalTargetOf = (key: string): string => canonicalTargets.get(key) ?? key;
+
   const barrelSources = new Map<string, string>();
   const missing: string[] = [];
   for (const subpath of PUBLISHED_SUBPATHS) {
-    const absolute = join(layout.srcRoot, barrelKeyOf(subpath));
+    const absolute = join(platformRoot, barrelKeyOf(subpath));
     if (!existsSync(absolute)) {
       missing.push(barrelKeyOf(subpath));
       continue;
@@ -775,7 +819,13 @@ async function main(): Promise<void> {
     moduleIdOf: attribute,
   });
 
-  const result = checkPlatformSurface({ sources, files, surface, moduleIdOf: attribute });
+  const result = checkPlatformSurface({
+    sources,
+    files,
+    surface,
+    moduleIdOf: attribute,
+    canonicalTargetOf,
+  });
 
   if (listMode) {
     for (const finding of result.findings) {

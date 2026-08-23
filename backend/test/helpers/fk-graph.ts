@@ -184,6 +184,19 @@ export interface DeriveFkGraphOptions {
    * a question only the caller's registry can answer.
    */
   moduleRoots?: readonly ModuleRoot[];
+  /**
+   * The kernel's own source directory, holding the entity classes whose tables
+   * core migrations create.
+   *
+   * Defaults to `<sourceRoot>/kernel`, which is where it was and where every
+   * fixture tree still puts it. The real tree passes the platform package's,
+   * because the relocation moved those six classes out of `backend/src` and left
+   * re-export shims carrying no `@Entity()` — a walk of the shims finds no
+   * `tableName` and reports `audit_log_entries`, `module_registrations`,
+   * `sales_channels`, `setting_groups`, `setting_values` and `settings` as
+   * owned by nobody, and with them every foreign key that points at one.
+   */
+  kernelRoot?: string;
 }
 
 /** `tableName: 'products'` in an @Entity decorator. */
@@ -277,8 +290,8 @@ function countFile(modules: Map<string, ScannedModule>, id: string): void {
 }
 
 function collectEntityOwners(
-  sourceRoot: string,
   modules: Map<string, ScannedModule>,
+  kernelRoot: string,
 ): Map<string, string> {
   const owners = new Map<string, string>();
   for (const scanned of [...modules.values()]) {
@@ -293,7 +306,7 @@ function collectEntityOwners(
   // Feature 072 — entities the kernel absorbed under D-32. Their tables are
   // still created by core migrations; what changed is who owns the class, and
   // the ownership map must follow or the table reads as unclaimed.
-  for (const file of listTsFilesRecursive(join(sourceRoot, KERNEL_OWNER))) {
+  for (const file of listTsFilesRecursive(kernelRoot)) {
     if (!file.endsWith('.entity.ts')) continue;
     const source = readFileSync(file, 'utf8');
     for (const match of source.matchAll(ENTITY_TABLE_RE)) {
@@ -392,7 +405,10 @@ export function deriveFkGraph(sourceRoot: string, options: DeriveFkGraphOptions 
     })),
   );
 
-  const entityOwners = collectEntityOwners(root, modules);
+  const entityOwners = collectEntityOwners(
+    modules,
+    resolve(root, options.kernelRoot ?? KERNEL_OWNER),
+  );
   const owners = new Map(entityOwners);
   for (const [table, moduleId] of Object.entries(overrides)) {
     if (!owners.has(table)) owners.set(table, moduleId);

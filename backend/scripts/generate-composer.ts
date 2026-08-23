@@ -58,6 +58,11 @@ import {
   packageSpecifierFor,
   type ModulePackage,
 } from './lib/module-packages.js';
+import {
+  platformSourceRootAt,
+  platformSubpathsAt,
+  PlatformRootUnresolvableError,
+} from './lib/platform-root.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const srcRoot = resolve(here, '../src');
@@ -774,13 +779,15 @@ function readTree(
   owner: ModulePackage | null,
   prefix = '',
   out = new Map<string, SourceFile>(),
+  skipTopLevel: ReadonlySet<string> = new Set(),
 ): Map<string, SourceFile> {
   for (const name of readdirSync(root).sort()) {
     if (name === 'node_modules' || name === 'dist' || name.startsWith('.')) continue;
+    if (prefix === '' && skipTopLevel.has(name)) continue;
     const full = join(root, name);
     const relativePath = prefix === '' ? name : `${prefix}/${name}`;
     if (statSync(full).isDirectory()) {
-      readTree(full, owner, relativePath, out);
+      readTree(full, owner, relativePath, out, skipTopLevel);
     } else if (
       name.endsWith('.ts') &&
       !name.endsWith('.d.ts') &&
@@ -794,16 +801,54 @@ function readTree(
 }
 
 /**
- * The application's own sources, plus every module package's.
+ * The application's own sources — the platform's read where they now live —
+ * plus every module package's.
  *
  * The package half is what makes the two `db/` registries survive the layout
  * move: an entity or a migration that has become a package's is read here, is
  * attributed to its package's declared module id, and is emitted with a bare
  * specifier. Without it the walk narrows silently and a migration stops running
  * — which is the exact failure the registries were consolidated to prevent.
+ *
+ * **The platform is the one tree read from outside `src/` and keyed inside it**
+ * (the relocation, D-160/D-164/D-165). Its five directories moved into
+ * `@endora-commerce/platform` and left re-export shims at their old paths, so a
+ * plain walk of `src/` would find six `*.entity.ts` files carrying no decorator
+ * — the generator's own "either the decorator is missing or the file is
+ * misnamed" refusal, raised on files that are neither — and would drop
+ * `sales_channels`, `settings`, `audit_logs` and `module_registrations` from the
+ * entity registry. Reading the package's `src` under the same five keys keeps
+ * the tree exactly what it was, which is why the committed artefacts do not move
+ * a byte.
+ *
+ * The **owner** stays `null` and the emitted specifier therefore stays relative,
+ * naming the shim rather than a bare subpath. That is deliberate and it is not
+ * the D-149 case: a module package's entity is named bare because the artefact
+ * must survive that package ceasing to be a workspace member, while the host is
+ * a peer every instance already has one of, two of its six entity classes are
+ * off the published barrels by ruling (`ModuleRegistration` is **A** in
+ * host-package.md §1.3), and a deep bare specifier is exactly what D-160.7's
+ * enumerated `exports` map refuses. The shim forwards to the package's build
+ * output, so the class in the registry is the class the package exports.
  */
 function readSourceTree(packages: readonly ModulePackage[] = modulePackages()): SourceTree {
-  const out = readTree(srcRoot, null);
+  const platformRoot = platformSourceRootAt(repoRoot);
+  if (platformRoot === null) {
+    throw new PlatformRootUnresolvableError(
+      'no workspace member declares `endora.type: "platform"`. Six persisted entity classes ' +
+        'live there — a walk without it emits an entity registry missing `sales_channels`, ' +
+        '`settings`, `audit_logs` and `module_registrations`, and the schema it produces is ' +
+        'wrong rather than absent.',
+    );
+  }
+  const out = readTree(
+    srcRoot,
+    null,
+    '',
+    new Map<string, SourceFile>(),
+    new Set(platformSubpathsAt(repoRoot)),
+  );
+  readTree(platformRoot, null, '', out);
   for (const pkg of packages) readTree(pkg.dir, pkg, '', out);
   return out;
 }

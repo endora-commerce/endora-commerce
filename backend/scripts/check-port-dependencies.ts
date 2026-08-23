@@ -2146,11 +2146,28 @@ async function main(): Promise<void> {
   // The third supply source (D-73). Read before anything else so its own
   // vacuous guard fires before the platform sweep can turn an unreadable kernel
   // directory into a screenful of false `platform-name-unsupplied`.
-  const kernelFiles = walk(join(SRC_ROOT, 'kernel'));
+  // The kernel's own sources, wherever the workspace says they are. Spelling the
+  // path here was how this guard nearly went silent at the relocation: the five
+  // platform directories moved into `@endora-commerce/platform` and left
+  // re-export shims at the old paths, so `walk(join(SRC_ROOT, 'kernel'))` came
+  // back with 48 files that register nothing — a non-empty walk clearing the
+  // refusal below and an empty `kernelNames` reporting `orm`, `em` and
+  // `emFactory` as unsupplied. That is issue #113 with a full-length file count.
+  const platformRoot = layout.platformRoot;
+  if (platformRoot === null) {
+    console.error(
+      '[port-deps] no workspace member declares `endora.type: "platform"` — the ' +
+        'kernel-supplied names cannot be read and every one of them would report as ' +
+        'unsupplied; refusing to report anything',
+    );
+    process.exit(2);
+  }
+  const kernelFiles = walk(join(platformRoot, 'kernel'));
   if (kernelFiles.length === 0) {
     console.error(
-      '[port-deps] no kernel sources under src/kernel — the platform-name sweep would ' +
-        'report every kernel-supplied name as unsupplied; refusing to report anything',
+      `[port-deps] no kernel sources under ${join(platformRoot, 'kernel')} — the ` +
+        'platform-name sweep would report every kernel-supplied name as unsupplied; ' +
+        'refusing to report anything',
     );
     process.exit(2);
   }

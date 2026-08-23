@@ -22,6 +22,7 @@ import {
   nodeWorkspaceFs,
   workspaceMembers,
 } from '../../../scripts/lib/workspace-packages.js';
+import { platformSourceRootOf } from '../../../scripts/lib/platform-root.js';
 import {
   ALLOW_FOREIGN_ENV,
   assertWorkspacePackagesAreLocal,
@@ -435,34 +436,43 @@ describe('this checkout', () => {
     // another.
     //
     // **It is required exactly when the package's published sources live under
-    // its own directory, and refused when they do not** (feature 080, T042a).
-    // The host package `@endora-commerce/platform` is the second case and is
-    // the reason this is two-way rather than one: its `rootDir` is
-    // `backend/src`, so its sources are already this checkout's own — `tsc`
-    // compiles them directly, through no specifier, and there is nothing for a
-    // `paths` entry to redirect *into the package*, which is what every one of
-    // the ten entries above is.
+    // its own directory, and refused for the host package, whose sources are
+    // its own and must stay unmapped anyway** (feature 080, the relocation).
+    //
+    // The refusal used to follow from the derivation: `@endora-commerce/platform`
+    // compiled `backend/src`, so there was nothing for a `paths` entry to
+    // redirect *into* the package. The relocation moved those five directories
+    // into `packages/platform/src`, so `sourcesAreItsOwn` now answers `true` for
+    // it and the derivation alone would **require** the entry. It is still
+    // refused, and for a reason the other five packages do not have.
+    //
+    // `paths` is honoured by `tsc` and by `tsx`, and **not** by `vitest` or by
+    // `node`. An entry pointing at `packages/platform/src` would therefore make
+    // the application resolve the platform's *source* under `tsx` and its
+    // *`dist`* under vitest and in production — two module records for one set
+    // of files, which is precisely the duplication this package was relocated to
+    // end. For `contracts`, `api-client` and the three component packages that
+    // split costs nothing: they export schemas, types and React components, and
+    // nothing compares one of those by identity. The platform exports
+    // `HttpError` (`instanceof`, at two dispatch sites), `SalesChannel` (an ORM
+    // entity class, `Duplicate entity names are not allowed`), `effectiveState`
+    // and `getResolvedChannel` (module-scoped singletons), and every one of them
+    // is wrong in a way `tsc` cannot see.
+    // `test/unit/kernel/platform-single-copy.test.ts` measures the property this
+    // protects.
     //
     // **The reason recorded here until feature 080's T041a was false, and is
     // corrected rather than dropped.** It said an entry would capture
     // `backend/acceptance/fixture-package`'s host import and produce TS6059.
     // It would not: that tsconfig sets `"paths": {}` and says so in its own
-    // comment, so nothing in `tsconfig.base.json` reaches it. The refusal is
-    // still right, for the reason the fixture's comment states from the other
-    // side — a package the fixture peer-depends on is resolved *through
-    // `node_modules` and its own `exports` map, exactly as an installed one
-    // is*. A `paths` entry for the host has only two possible targets and both
-    // break that: `./packages/platform/dist`, which is a build artefact no
-    // other entry points at and which is stale between builds, or
-    // `./backend/src`, which is not the package's directory at all and gives
-    // the same files a second identity — the 2632 relative specifiers and the
-    // bare one would then name one tree by two routes, and the resolution this
-    // repository type-checks would stop being the resolution it ships.
+    // comment, so nothing in `tsconfig.base.json` reaches it.
     //
-    // Both halves are derived from each package's own `tsconfig.build.json`,
-    // never from a list here: a package that moves its sources changes this
-    // answer in the same merge request that moves them. A member with **no**
-    // build config answers `true` — see {@link sourcesAreItsOwn}.
+    // Both halves are derived — `sourcesAreItsOwn` from each package's own
+    // `tsconfig.build.json`, and which member is the platform from its own
+    // `endora: { type: 'platform' }` block, the same declaration every walk in
+    // `scripts/lib/platform-root.ts` reads. Neither is a list here: a package
+    // that moves its sources, or a repository that stops shipping a platform,
+    // changes this answer in the merge request that does it.
     const tsconfig = JSON.parse(readFileSync(join(root!, 'tsconfig.base.json'), 'utf8')) as {
       compilerOptions?: { paths?: Record<string, readonly string[]> };
     };
@@ -483,21 +493,27 @@ describe('this checkout', () => {
     const mappedAtAll = (name: string): boolean =>
       paths[name] !== undefined || paths[`${name}/*`] !== undefined;
 
+    const platformDir = platformSourceRootOf(members);
+    const isPlatform = (name: string): boolean => {
+      const member = members.find((m) => m.name === name);
+      return member !== undefined && platformDir !== null && platformDir.startsWith(member.dir);
+    };
+
     const unmapped = report.packages.filter(
-      (name) => publishesItsOwnSources(name) && !fullyMapped(name),
+      (name) => publishesItsOwnSources(name) && !isPlatform(name) && !fullyMapped(name),
     );
     const wronglyMapped = report.packages.filter(
-      (name) => !publishesItsOwnSources(name) && mappedAtAll(name),
+      (name) => (!publishesItsOwnSources(name) || isPlatform(name)) && mappedAtAll(name),
     );
 
     expect(report.packages.length).toBeGreaterThan(0);
-    // Both populations must be non-empty for this to be measuring anything, and
-    // they are: five packages compile their own `src`, and the host compiles
-    // `backend/src`.
-    expect(report.packages.filter(publishesItsOwnSources).length).toBeGreaterThan(0);
+    // Both populations must be non-empty for this to be measuring anything:
+    // five packages are mapped because their sources are their own, and the
+    // platform is refused because of what its exports are.
     expect(
-      report.packages.filter((name) => !publishesItsOwnSources(name)).length,
+      report.packages.filter((name) => publishesItsOwnSources(name) && !isPlatform(name)).length,
     ).toBeGreaterThan(0);
+    expect(report.packages.filter(isPlatform).length).toBe(1);
     expect(unmapped).toEqual([]);
     expect(wronglyMapped).toEqual([]);
   });

@@ -24,7 +24,7 @@ key out-of-scope, and others. Adding a new sensitive mutation is a
 two-line change at the call site.
 
 The port is what a module types on and what the kernel publishes
-(`backend/src/kernel/ports/audit.ts`, D-160.10); the container name it is
+(`packages/platform/src/kernel/ports/audit.ts`, D-160.10); the container name it is
 registered under is `auditLogService` and has not changed. The
 implementation behind it, `AuditLogService`, is the platform's own and is
 reachable only by its relative path — a module that named the class would

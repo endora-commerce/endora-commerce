@@ -49,7 +49,7 @@ co-transactional audit entry and derive the actor from the ambient `TenantContex
   the write can be expressed as a self-contained unit of work (the default, and the
   only path that supports reversibility/undo and buffered domain events).
 - **`recordAuditFromContext(auditLog, em, input)`** — the lightweight companion
-  (`backend/src/commands/audit-from-context.ts`). It records the audit entry on an
+  (`packages/platform/src/commands/audit-from-context.ts`). It records the audit entry on an
   `em` the caller already owns, committed by the caller's existing `flush()`. Use it
   when a write already runs inside its own transaction or `persistAndFlush(...)` and
   cannot be wrapped in the bus's transaction without restructuring. The actor is

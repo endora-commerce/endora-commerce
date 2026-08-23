@@ -1,87 +1,22 @@
-import { getTenantContext, MissingTenantContextError, type TenantContext } from './tenant-context.js';
-
 /**
- * Derived-scope helpers for entities with no direct tenant column
- * (feature 050, research.md §R7):
- *  - transitively-scoped (e.g. Invoice → Order.organizationId), and
- *  - rule-scoped (e.g. price_lists targeted via applicationRule),
- * whose admin queries must intersect the actor's org scope explicitly because the
- * automatic column filter cannot reach them.
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
+ *
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
+ *
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
+ *
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-
-/** The org restriction implied by the ambient context, as a discriminated union. */
-export type OrgConstraint =
-  | { readonly kind: 'all' } // platform admin / system — no restriction
-  | { readonly kind: 'single'; readonly organizationId: string | null }
-  | { readonly kind: 'set'; readonly organizationIds: readonly string[] };
-
-/** Compute the org constraint from a context (defaults to the ambient one). */
-export function orgConstraintFor(ctx: TenantContext | undefined = getTenantContext()): OrgConstraint {
-  if (!ctx) throw new MissingTenantContextError('derived-scope');
-  switch (ctx.mode) {
-    case 'all':
-    case 'system':
-      return { kind: 'all' };
-    case 'single-org':
-      return { kind: 'single', organizationId: ctx.organizationId ?? null };
-    case 'allowed-set':
-      return { kind: 'set', organizationIds: ctx.allowedOrganizationIds ?? [] };
-  }
-}
-
-/**
- * Build a MikroORM `where` fragment that constrains an organization-id field to
- * the ambient scope, for transitively/rule-scoped entities. `field` is the path
- * to the org id (e.g. `'order.organizationId'` for Invoice, or `'organizationId'`).
- * Returns `{}` (no restriction) for platform-admin / system scope.
- */
-export function orgScopeWhere(field: string, ctx?: TenantContext): Record<string, unknown> {
-  const constraint = orgConstraintFor(ctx);
-  switch (constraint.kind) {
-    case 'all':
-      return {};
-    case 'single':
-      return { [field]: constraint.organizationId };
-    case 'set':
-      return { [field]: { $in: [...constraint.organizationIds] } };
-  }
-}
-
-/**
- * Whether the ambient scope may act on `organizationId`. Platform-admin/system
- * see all; a single-org actor only their org; a scoped admin only assigned orgs.
- * Use to gate writes (inserts) that the column filter cannot reach — respond
- * indistinguishably from "not found" (FR-008) when this returns false.
- */
-export function isOrgInScope(organizationId: string, ctx?: TenantContext): boolean {
-  const constraint = orgConstraintFor(ctx);
-  switch (constraint.kind) {
-    case 'all':
-      return true;
-    case 'single':
-      return constraint.organizationId === organizationId;
-    case 'set':
-      return constraint.organizationIds.includes(organizationId);
-  }
-}
-
-/**
- * For rule-scoped entities (price_lists): given the set of organizations a rule
- * targets, decide whether the ambient scope may see it. Platform-admin/system
- * see everything; a scoped admin sees a rule only if it targets at least one of
- * their assigned orgs (or targets no org at all — a channel/global rule).
- */
-export function ruleVisibleForScope(ruleTargetOrgIds: readonly string[], ctx?: TenantContext): boolean {
-  const constraint = orgConstraintFor(ctx);
-  switch (constraint.kind) {
-    case 'all':
-      return true;
-    case 'single':
-      return ruleTargetOrgIds.length === 0 || (constraint.organizationId != null && ruleTargetOrgIds.includes(constraint.organizationId));
-    case 'set': {
-      if (ruleTargetOrgIds.length === 0) return true;
-      const allowed = new Set(constraint.organizationIds);
-      return ruleTargetOrgIds.some((id) => allowed.has(id));
-    }
-  }
-}
+export * from '../../../packages/platform/dist/tenancy/derived-scope.js';

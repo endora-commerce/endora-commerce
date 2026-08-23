@@ -1,115 +1,22 @@
-import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
-import type { CachedChannel } from '../sales-channels/sales-channels-cache.js';
-import type {
-  MembershipMutationOptions,
-  MembershipMutationResult,
-} from '../sales-channels/sales-channel-membership.service.js';
-import type { SalesChannel } from '../sales-channels/sales-channel.entity.js';
-
 /**
- * Kernel port — sales-channel resolution and the membership/bridge accessors
- * (feature 072, D-32; Constitution XII).
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * Channel resolution is a platform concern: 49 call sites read the resolved
- * channel, and the resolution order is a refusal contract, not a module
- * preference. The resolver, its cache and the bridge accessors move into the
- * kernel; `sales-channels.service.ts` (the admin CRUD surface, zero external
- * importers) and `routes.admin.ts` stay in the module.
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
  *
- * Resolution order and refusal behaviour are unchanged by this port: bound
- * API-key binding → `X-Sales-Channel` header → `?salesChannel=` (ignored on
- * `/api/v1/admin/*`) → host map → system default. An unknown or inactive channel
- * refuses and never falls back.
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
+ *
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-export interface SalesChannelResolutionPort {
-  /** Lookup by code; `null` when the code is unknown. */
-  getByCode(code: string): Promise<CachedChannel | null>;
-
-  /** Lookup by id — a bound API key pins its channel by id, not code. */
-  getById(id: string): Promise<CachedChannel | null>;
-
-  /** Resolve a code to an *active* channel, distinguishing unknown from inactive. */
-  resolveActive(
-    code: string,
-  ): Promise<
-    | { ok: true; channel: CachedChannel }
-    | { ok: false; error: 'unknown_sales_channel' | 'inactive_sales_channel'; code: string }
-  >;
-
-  /**
-   * The system-default channel, used as the storefront/integration fallback.
-   * Never `null` (D-48): exactly one row holds the flag on a booted deployment,
-   * so a caller has nothing to branch on. Throws `NoSystemDefaultChannel` when
-   * the registry has none, which means composition has not run the reconciler.
-   */
-  getSystemDefault(): Promise<CachedChannel>;
-
-  /** Map a `Host` header onto a channel code via the env-configured host map. */
-  resolveHost(host: string | undefined): string | null;
-}
-
-/**
- * The membership bridge tables (`sales_channel_<entity>`). Every module that
- * scopes its own rows to a channel goes through this rather than writing the
- * bridge table itself — the sanctioned bridge accessor of Constitution XII.
- */
-export interface SalesChannelMembershipPort {
-  addToChannel(
-    channelId: string,
-    entityType: ChannelMemberEntityType,
-    entityId: string,
-    options?: MembershipMutationOptions,
-  ): Promise<MembershipMutationResult>;
-
-  removeFromChannel(
-    channelId: string,
-    entityType: ChannelMemberEntityType,
-    entityId: string,
-    options?: MembershipMutationOptions,
-  ): Promise<MembershipMutationResult>;
-
-  /** Bind an entity to the system-default channel when it belongs to none (FR-008). */
-  bindToDefaultIfEmpty(
-    entityType: ChannelMemberEntityType,
-    entityId: string,
-  ): Promise<MembershipMutationResult>;
-
-  /**
-   * Give the target every channel the source belongs to, one audited add per
-   * membership (issue #185). `catalog`'s product duplication is the caller.
-   */
-  copyMemberships(
-    entityType: ChannelMemberEntityType,
-    sourceEntityId: string,
-    targetEntityId: string,
-    options?: MembershipMutationOptions,
-  ): Promise<{ copied: number }>;
-
-  /**
-   * Narrow a known set of entity ids to those bound to `channelId`. The
-   * intersection, not the enumeration — see the service's note on why this is
-   * a separate method from {@link listEntityIdsForChannel}.
-   */
-  filterEntityIdsInChannel(
-    channelId: string,
-    entityType: ChannelMemberEntityType,
-    entityIds: readonly string[],
-  ): Promise<string[]>;
-
-  /** Channels an entity currently belongs to. */
-  listChannelsForEntity(
-    entityType: ChannelMemberEntityType,
-    entityId: string,
-  ): Promise<SalesChannel[]>;
-
-  /** Entity ids of `entityType` that currently belong to `channelId`. */
-  listEntityIdsForChannel(
-    channelId: string,
-    entityType: ChannelMemberEntityType,
-    page?: number,
-    pageSize?: number,
-  ): Promise<{ entityIds: string[]; total: number }>;
-}
-
-/** The channel resolved for the current scoped execution, or `null` outside HTTP. */
-export type ResolvedChannel = CachedChannel;
+export * from '../../../../packages/platform/dist/kernel/ports/sales-channel.js';

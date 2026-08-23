@@ -177,7 +177,7 @@ not guaranteed across event types.
 ### Available events
 
 The catalogue of stable events is the exhaustive list of strings emitted by
-the in-process event bus and bridged to webhooks (`backend/src/events/`).
+the in-process event bus and bridged to webhooks (`packages/platform/src/events/`).
 US-relevant examples:
 
 - `product.created.v1`, `product.updated.v1`, `product.archived.v1`

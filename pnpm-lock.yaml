@@ -171,6 +171,9 @@ importers:
       '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../packages/page-builder-core
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../packages/platform
       '@fastify/cookie':
         specifier: ^11.0.2
         version: 11.0.2

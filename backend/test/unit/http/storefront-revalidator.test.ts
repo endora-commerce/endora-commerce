@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { StorefrontRevalidator } from './storefront-revalidator.js';
+import { StorefrontRevalidator } from '../../../src/http/storefront-revalidator.js';
 
 describe('StorefrontRevalidator', () => {
   it('is disabled (no-op) without a base URL or secret', async () => {

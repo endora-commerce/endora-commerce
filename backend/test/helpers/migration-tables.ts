@@ -102,8 +102,19 @@ export function collectMigrationTables(
 export function kernelOwnedTables(
   sourceRoot: string,
   moduleRoots: readonly ModuleRoot[] = [coreModuleRoot(sourceRoot)],
+  /**
+   * Where the kernel's entity classes are. The relocation moved them into
+   * `@endora-commerce/platform`; `<sourceRoot>/kernel` holds re-export shims
+   * with no `@Entity()`, so the default would resolve an empty kernel table set
+   * — which `kernel-migration-ownership.test.ts` refuses as a silent empty scan.
+   */
+  kernelRoot: string = join(sourceRoot, '..', '..', 'packages', 'platform', 'src', 'kernel'),
 ): ReadonlySet<string> {
-  const graph = deriveFkGraph(sourceRoot, { overrides: TABLE_OWNER_OVERRIDES, moduleRoots });
+  const graph = deriveFkGraph(sourceRoot, {
+    overrides: TABLE_OWNER_OVERRIDES,
+    moduleRoots,
+    kernelRoot,
+  });
   const owned = new Set<string>();
   for (const [table, owner] of graph.owners) {
     if (owner === KERNEL_OWNER) owned.add(table);

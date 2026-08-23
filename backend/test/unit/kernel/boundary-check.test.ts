@@ -231,14 +231,26 @@ describe('the pending-relocation ratchet', () => {
  * fixtures are synthetic, so the check has to be able to go **red** on shapes
  * the tree does not contain yet — every specifier form of the plan's §4.2 table.
  */
-const kernelFile = (relative: string): string => join(BACKEND_ROOT, 'src/kernel', relative);
-const srcFile = (relative: string): string => join(BACKEND_ROOT, 'src', relative);
+/**
+ * The platform root the fixtures are written against.
+ *
+ * Rules B and C read the platform's own sources, which since the relocation are
+ * `@endora-commerce/platform`'s and not `backend/src`'s — and the root is passed
+ * in rather than matched by name, because a `/src/<root>/` substring test now
+ * matches two trees: the platform's, and the re-export shims left at the old
+ * paths. These fixtures name the real one so that the resolution they exercise
+ * is the resolution a run performs.
+ */
+const PLATFORM_ROOT = join(BACKEND_ROOT, '..', 'packages', 'platform', 'src');
+const kernelFile = (relative: string): string => join(PLATFORM_ROOT, 'kernel', relative);
+const srcFile = (relative: string): string => join(PLATFORM_ROOT, relative);
 
 describe('analyzePlatformImports', () => {
   it('finds a value import into a module and names its bindings', () => {
     const findings = analyzePlatformImports(
       "import { ModuleDisabledError } from '../../modules/_lifecycle/plugin-helpers.js';",
       kernelFile('ports/provide.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
@@ -254,6 +266,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import type { Organization } from '../../modules/organizations/entities/organization.entity.js';",
       kernelFile('ports/organizations.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('organizations');
@@ -264,6 +277,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       'export type Org = import("../../modules/organizations/entities/organization.entity.js").Organization;',
       kernelFile('ports/organizations.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'organizations', kind: 'import-type' });
@@ -274,6 +288,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "export { Category } from '../modules/catalog/entities/category.entity.js';",
       kernelFile('index.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'catalog', kind: 'export' });
@@ -284,6 +299,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "const m = await import('../modules/catalog/backend.js');",
       kernelFile('compose.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'catalog', kind: 'dynamic' });
@@ -293,6 +309,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "const m = require('../modules/catalog/backend.js');",
       kernelFile('compose.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'catalog', kind: 'require' });
@@ -302,6 +319,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { thing } from '../apps/example/modules/example_overlay/service.js';",
       kernelFile('compose.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('example_overlay');
@@ -312,6 +330,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { decorate } from '../apps/example/decorations/catalog-service.js';",
       kernelFile('compose.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('apps/example');
@@ -322,6 +341,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { scopedEm } from '../tenancy/scoped-em.js';",
       kernelFile('container.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBeNull();
@@ -332,6 +352,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       ["import { asFunction } from 'awilix';", "import { x } from './container.js';"].join('\n'),
       kernelFile('ports/provide.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toEqual([]);
   });
@@ -340,6 +361,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { registerPort } from '../../kernel/ports/provide.js';",
       join(BACKEND_ROOT, 'src/modules/catalog/backend.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toEqual([]);
   });
@@ -348,6 +370,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { gone } from '../modules/catalog/services/deleted-yesterday.js';",
       kernelFile('compose.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(isImportViolation(findings[0]!)).toBe(true);
@@ -367,18 +390,19 @@ describe('analyzePlatformImports over the platform roots', () => {
   });
 
   it('names the root a file belongs to, and nothing outside them', () => {
-    expect(platformRootOf(kernelFile('compose.ts'))).toBe('kernel');
-    expect(platformRootOf(srcFile('http/error-envelope.ts'))).toBe('http');
-    expect(platformRootOf(srcFile('events/bus.ts'))).toBe('events');
-    expect(platformRootOf(srcFile('tenancy/scoped-em.ts'))).toBe('tenancy');
-    expect(platformRootOf(srcFile('db/entities-registry.generated.ts'))).toBeNull();
-    expect(platformRootOf(moduleFile('catalog/backend.ts'))).toBeNull();
+    expect(platformRootOf(kernelFile('compose.ts'), PLATFORM_ROOT)).toBe('kernel');
+    expect(platformRootOf(srcFile('http/error-envelope.ts'), PLATFORM_ROOT)).toBe('http');
+    expect(platformRootOf(srcFile('events/bus.ts'), PLATFORM_ROOT)).toBe('events');
+    expect(platformRootOf(srcFile('tenancy/scoped-em.ts'), PLATFORM_ROOT)).toBe('tenancy');
+    expect(platformRootOf(srcFile('db/entities-registry.generated.ts'), PLATFORM_ROOT)).toBeNull();
+    expect(platformRootOf(moduleFile('catalog/backend.ts'), PLATFORM_ROOT)).toBeNull();
   });
 
   it('refuses the one hop that made the kernel rule cosmetic — a peer naming a module', () => {
     const findings = analyzePlatformImports(
       "import { ERROR_TRANSLATION_KEYS } from '../modules/_i18n/services/error-translation.js';",
       srcFile('http/error-envelope.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: '_i18n', kind: 'import', line: 1 });
@@ -389,6 +413,7 @@ describe('analyzePlatformImports over the platform roots', () => {
     const fromTenancy = analyzePlatformImports(
       "import type { Organization } from '../modules/organizations/entities/organization.entity.js';",
       srcFile('tenancy/org-scoped.decorator.ts'),
+      PLATFORM_ROOT,
     );
     expect(fromTenancy).toHaveLength(1);
     expect(fromTenancy[0]?.targetOwner).toBe('organizations');
@@ -396,6 +421,7 @@ describe('analyzePlatformImports over the platform roots', () => {
     const fromEvents = analyzePlatformImports(
       "const m = await import('../modules/catalog/backend.js');",
       srcFile('events/bus.ts'),
+      PLATFORM_ROOT,
     );
     expect(fromEvents).toHaveLength(1);
     expect(fromEvents[0]).toMatchObject({ targetOwner: 'catalog', kind: 'dynamic' });
@@ -405,6 +431,7 @@ describe('analyzePlatformImports over the platform roots', () => {
     const outward = analyzePlatformImports(
       "import { HttpError } from '../kernel/index.js';",
       srcFile('http/server.ts'),
+      PLATFORM_ROOT,
     );
     expect(outward).toHaveLength(1);
     expect(outward[0]?.targetOwner).toBeNull();
@@ -414,6 +441,7 @@ describe('analyzePlatformImports over the platform roots', () => {
       analyzePlatformImports(
         "import { HttpError } from './error-envelope.js';",
         srcFile('http/server.ts'),
+        PLATFORM_ROOT,
       ),
     ).toEqual([]);
   });
@@ -422,9 +450,10 @@ describe('analyzePlatformImports over the platform roots', () => {
     const [finding] = analyzePlatformImports(
       "import { ERROR_TRANSLATION_KEYS } from '../modules/_i18n/services/error-translation.js';",
       srcFile('http/error-envelope.ts'),
+      PLATFORM_ROOT,
     );
     expect(importFindingKey(finding!)).toBe(
-      'src/http/error-envelope.ts:../modules/_i18n/services/error-translation.js -> _i18n',
+      'packages/platform/src/http/error-envelope.ts:../modules/_i18n/services/error-translation.js -> _i18n',
     );
   });
 
@@ -438,12 +467,14 @@ describe('analyzePlatformImports over the platform roots', () => {
       analyzePlatformImports(
         "import { Category } from '../modules/catalog/entities/category.entity.js';",
         srcFile('db/entities-registry.generated.ts'),
+        PLATFORM_ROOT,
       ),
     ).toEqual([]);
     expect(
       analyzePlatformImports(
         "import { Category } from '../modules/catalog/entities/category.entity.js';",
         srcFile('commands/command-bus.ts'),
+        PLATFORM_ROOT,
       ),
     ).toEqual([]);
   });
@@ -475,9 +506,13 @@ describe('analyzeClosure', () => {
     expect(violations).toHaveLength(1);
     expect(violations[0]).toMatchObject({ targetOwner: '_i18n', line: 1 });
     expect(violations[0]?.chain).toEqual([
-      'src/kernel/compose.ts',
-      'src/http/error-envelope.ts',
-      'src/modules/_i18n/services/error-translation.ts',
+      'packages/platform/src/kernel/compose.ts',
+      'packages/platform/src/http/error-envelope.ts',
+      // The fixture's specifiers are resolved against the platform root, so the
+      // module it reaches is keyed there too. Synthetic on both ends: the rule
+      // under test is that the chain is followed and printed, not where this
+      // repository's `_i18n` lives.
+      'packages/platform/src/modules/_i18n/services/error-translation.ts',
     ]);
   });
 
@@ -493,8 +528,8 @@ describe('analyzeClosure', () => {
     );
     expect(violations).toHaveLength(1);
     expect(violations[0]?.chain).toEqual([
-      'src/kernel/ports/organizations.ts',
-      'src/modules/organizations/entities/organization.entity.ts',
+      'packages/platform/src/kernel/ports/organizations.ts',
+      'packages/platform/src/modules/organizations/entities/organization.entity.ts',
     ]);
   });
 
@@ -528,7 +563,7 @@ describe('analyzeClosure', () => {
       ),
     );
     expect(violations).toEqual([]);
-    expect([...files].sort()).toEqual(['src/kernel/container.ts', 'src/tenancy/scoped-em.ts']);
+    expect([...files].sort()).toEqual(['packages/platform/src/kernel/container.ts', 'packages/platform/src/tenancy/scoped-em.ts']);
   });
 
   it('reports a module edge whose target is not on disk, and walks on', () => {
@@ -563,7 +598,7 @@ describe('analyzeClosure', () => {
 
 describe('the kernel→module import ledger', () => {
   const ORGANIZATION_ENTRY =
-    'src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations';
+    'packages/platform/src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations';
 
   it('is empty — D-54 and D-55 dissolved the last two edges', () => {
     // The completion signal for D-53. D-37 A1 seeded four entries and dissolved
@@ -578,6 +613,7 @@ describe('the kernel→module import ledger', () => {
     const [organization] = analyzePlatformImports(
       "import type { Organization } from '../../modules/organizations/entities/organization.entity.js';",
       kernelFile('ports/organizations.ts'),
+      PLATFORM_ROOT,
     );
     expect(importFindingKey(organization!)).toBe(ORGANIZATION_ENTRY);
     expect(isDraining(organization!)).toBe(false);

@@ -486,7 +486,14 @@ function staleClaims(source: string, kind: 'stale-lock-claim' | 'stale-switchabl
 
 const MODULE_FILE = join(BACKEND_ROOT, 'src/modules/blog/backend.ts');
 const SEARCH_ENTITY = join(BACKEND_ROOT, 'src/modules/search/entities/search-phrase-record.entity.ts');
-const KERNEL_FILE = join(BACKEND_ROOT, 'src/kernel/thing.ts');
+/**
+ * The platform's own source root, and a synthetic file inside it. Rule B is
+ * scoped by the root it is given since the relocation — a `/src/kernel/`
+ * substring test now matches the re-export shims too — so a proof entering at
+ * the top of the analysis has to name the root a real run names.
+ */
+const PLATFORM_ROOT = join(BACKEND_ROOT, '..', 'packages', 'platform', 'src');
+const KERNEL_FILE = join(PLATFORM_ROOT, 'kernel/thing.ts');
 const CROSS_MODULE_RELATION = [
   "import { Category } from '../../catalog/entities/category.entity.js';",
   '@Entity()',
@@ -2733,16 +2740,17 @@ const CHECKS: readonly CheckEntry[] = [
           analyzePlatformImports(
             "import { blogService } from '../modules/blog/services/blog.service.js';\n",
             KERNEL_FILE,
+            PLATFORM_ROOT,
           ).filter(isImportViolation).length,
       ),
       'rule-c-closure': top(() => {
         const sources: Record<string, string> = {
-          [join(BACKEND_ROOT, 'src/kernel/index.ts')]: "export { a } from './hop.js';\n",
-          [join(BACKEND_ROOT, 'src/kernel/hop.ts')]:
+          [join(PLATFORM_ROOT, 'kernel/index.ts')]: "export { a } from './hop.js';\n",
+          [join(PLATFORM_ROOT, 'kernel/hop.ts')]:
             "import { b } from '../modules/blog/services/blog.service.js';\n",
         };
         return analyzeClosure({
-          roots: [join(BACKEND_ROOT, 'src/kernel/index.ts')],
+          roots: [join(PLATFORM_ROOT, 'kernel/index.ts')],
           read: (file) => sources[file] ?? null,
         }).violations.length;
       }),

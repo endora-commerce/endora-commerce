@@ -7,7 +7,7 @@ import {
   encryptSecretValue,
   isSecretEnvelope,
   secretValueIsSet,
-} from './secret-value-codec.js';
+} from '../../../src/kernel/settings/secret-value-codec.js';
 
 /**
  * T004 — unit tests for the settings secret-value codec (feature 043, FR-021).

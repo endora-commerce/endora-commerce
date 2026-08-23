@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
+  "endora": {
+    "type": "platform"
+  },
   "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7).",
   "exports": {
     "./kernel": {
@@ -36,7 +39,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",
