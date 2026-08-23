@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import {
   MegamenuCache,
   MEGAMENU_CACHE_KEY_PREFIX,

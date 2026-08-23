@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance } from 'fastify';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditPort } from '../ports/audit.js';
 import { inProcessCaches } from '../cache/in-process-cache-registry.js';

@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { ResolvedMegamenu } from '@endora-commerce/contracts';
 
 /**

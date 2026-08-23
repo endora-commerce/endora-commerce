@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import {
   SettingsCache,
   SETTINGS_CACHE_KEY_PREFIX,

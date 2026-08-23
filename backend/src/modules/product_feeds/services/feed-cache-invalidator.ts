@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 
 /**
  * Token → published-artefact cache and its invalidator — feature 067 / FR-064,

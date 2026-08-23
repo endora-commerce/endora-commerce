@@ -37,6 +37,15 @@ export const DEFAULT_CHECKOUT: FileMap = {
   'apps/host/package.json': '{ "name": "host", "version": "0.0.0", "private": true }',
   'packages/alpha/package.json': '{ "name": "@fx/alpha", "version": "1.0.0", "private": true }',
   'packages/beta/package.json': '{ "name": "@fx/beta", "version": "1.0.0", "private": true }',
+  // The emit configuration of each versionable package. `--since` reads it to
+  // answer "which files does this package publish", and both defaults are the
+  // ordinary shape: sources inside the package, which is the shape
+  // `changeset status` already sees. The host-sourced shape is an override, so
+  // a proof of it enters as a *configuration* rather than as a verdict.
+  'packages/alpha/tsconfig.build.json':
+    '{ "compilerOptions": { "rootDir": "./src" }, "include": ["src/**/*"] }',
+  'packages/beta/tsconfig.build.json':
+    '{ "compilerOptions": { "rootDir": "./src" }, "include": ["src/**/*"] }',
   '.changeset/config.json': JSON.stringify(
     {
       baseBranch: 'master',
@@ -87,6 +96,21 @@ export function checkout(overrides: FileMap = {}): Checkout {
     },
   };
 }
+
+/**
+ * `@fx/beta` re-shaped the way `@endora-commerce/platform` is (!891): the
+ * manifest and both tsconfigs stay under `packages/beta`, and the code it
+ * publishes lives in the application directory that `ignore` exempts. `include`
+ * sits in the **extended** `tsconfig.json`, which is where !891 puts it — a
+ * reader of the build file alone finds none and concludes the package publishes
+ * nothing outside its own directory, which is the silence under test.
+ */
+export const HOST_SOURCED_PACKAGE: FileMap = {
+  'packages/beta/tsconfig.build.json':
+    '{ "extends": "./tsconfig.json", "compilerOptions": { "rootDir": "../../apps/host/src", "noEmit": false } }',
+  'packages/beta/tsconfig.json':
+    '{ "include": ["../../apps/host/src/kernel/**/*"], "exclude": ["../../apps/host/src/**/*.test.ts"] }',
+};
 
 /** The `.changeset/config.json` of the default checkout, with `mutate` applied. */
 export function configuredAs(mutate: (config: Record<string, unknown>) => void): FileMap {

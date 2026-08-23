@@ -1,5 +1,5 @@
 import type { Job, Worker } from 'bullmq';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import { defineModuleWorker } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { FeedGenerationService } from '../services/feed-generation.service.js';
 import type { FeedRunService } from '../services/feed-run.service.js';

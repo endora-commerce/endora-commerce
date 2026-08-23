@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 
 /**
  * Storefront read-through cache for the Blog module — feature 016 / T020.

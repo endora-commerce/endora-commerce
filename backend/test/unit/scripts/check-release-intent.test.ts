@@ -4,12 +4,18 @@ import { describe, expect, it } from 'vitest';
 
 import {
   analyzeReleaseIntent,
+  checkPublishedSurfaceIntent,
   checkReleaseIntent,
+  compilesPath,
   groupMembers,
   matchesPattern,
+  matchesTsGlob,
+  normalizeRelative,
   parseChangeset,
+  readPublishedSurface,
   readReleaseIntent,
   unreadablePattern,
+  type BranchDiff,
   type ReleaseIntentFinding,
   type ReleaseIntentFindingKind,
 } from '../../../scripts/check-release-intent.js';
@@ -18,6 +24,8 @@ import {
   checkout,
   configuredAs,
   FIXTURE_ROOT,
+  HOST_SOURCED_PACKAGE,
+  type FileMap,
 } from '../../helpers/release-intent-check-fixture.js';
 
 /**
@@ -430,5 +438,169 @@ describe('check-release-intent — the analysis is pure over what the reader pro
   it('collects every group member from both `linked` and `fixed`', () => {
     expect(groupMembers({ linked: [['a', 'b']], fixed: [['c']] })).toEqual(['a', 'b', 'c']);
     expect(groupMembers({})).toEqual([]);
+  });
+});
+
+/**
+ * `--since` — the finding `changeset status` structurally cannot produce.
+ *
+ * The CLI attributes a changed file to a package by the package's own
+ * directory. `@endora-commerce/platform` compiles `backend/src`, so on !891's
+ * branch a commit editing a file the host publishes exits 0 and a commit editing
+ * `packages/platform/README.md`, which ships in nothing, exits 1. The fixture
+ * reproduces that shape as a *configuration* — two tsconfigs, with `include` in
+ * the extended one — so the derivation under test runs rather than being handed
+ * its own answer.
+ */
+describe('check-release-intent --since — a published surface the gate cannot see', () => {
+  const diff = (
+    changedPaths: readonly string[],
+    addedChangesets: readonly string[] = [],
+  ): BranchDiff => ({ changedPaths, addedChangesets });
+
+  function surfaceFindings(overrides: FileMap, branch: BranchDiff): readonly ReleaseIntentFinding[] {
+    const tree = checkout(overrides);
+    const result = checkPublishedSurfaceIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets, branch);
+    if ('reason' in result) throw new Error(`expected a verdict, got a refusal: ${result.reason}`);
+    return result.findings;
+  }
+
+  function surfaceRefusal(overrides: FileMap, branch: BranchDiff): string {
+    const tree = checkout(overrides);
+    const result = checkPublishedSurfaceIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets, branch);
+    if (!('reason' in result)) throw new Error('expected a refusal, got a verdict');
+    return result.reason;
+  }
+
+  it('reports a change to a package whose sources live in an ignored application', () => {
+    const found = surfaceFindings(
+      HOST_SOURCED_PACKAGE,
+      diff(['apps/host/src/kernel/settings/settings-cache.ts']),
+    );
+
+    expect(kinds(found)).toEqual(['unattributed-published-change']);
+    expect(found[0]?.subject).toBe('@fx/beta');
+    expect(found[0]?.message).toContain('apps/host/src/kernel/settings/settings-cache.ts');
+  });
+
+  it('reports nothing once the branch carries a changeset', () => {
+    expect(
+      surfaceFindings(
+        HOST_SOURCED_PACKAGE,
+        diff(['apps/host/src/kernel/settings/settings-cache.ts'], ['.changeset/a.md']),
+      ),
+    ).toEqual([]);
+  });
+
+  /**
+   * The other half of the inversion, and why this is a *second* question rather
+   * than a replacement: a change inside the package's own directory is already
+   * the CLI's, and reporting it here would demand a changeset twice.
+   */
+  it('says nothing about a change the CLI can already attribute', () => {
+    expect(surfaceFindings({}, diff(['packages/alpha/src/index.ts']))).toEqual([]);
+  });
+
+  it('says nothing about an application file no package compiles', () => {
+    expect(surfaceFindings(HOST_SOURCED_PACKAGE, diff(['apps/host/src/routes/index.ts']))).toEqual([]);
+  });
+
+  /** `exclude` is part of the compilation, so a test file the build drops is not published. */
+  it('honours `exclude`, so a file the build drops is not a published change', () => {
+    expect(
+      surfaceFindings(HOST_SOURCED_PACKAGE, diff(['apps/host/src/kernel/settings/cache.test.ts'])),
+    ).toEqual([]);
+  });
+
+  it('refuses a versionable package whose build configuration it cannot read', () => {
+    expect(
+      surfaceRefusal({ 'packages/alpha/tsconfig.build.json': null }, diff(['apps/host/src/a.ts'])),
+    ).toContain('could not be read');
+  });
+
+  it('refuses a build configuration whose `extends` chain declares no `include`', () => {
+    expect(
+      surfaceRefusal(
+        { 'packages/alpha/tsconfig.build.json': '{ "compilerOptions": { "rootDir": "./src" } }' },
+        diff(['apps/host/src/a.ts']),
+      ),
+    ).toContain('declare no `include`');
+  });
+
+  it('refuses an `extends` it cannot follow rather than reading it as absent', () => {
+    expect(
+      surfaceRefusal(
+        { 'packages/alpha/tsconfig.build.json': '{ "extends": "@fx/tsconfig/base" }' },
+        diff(['apps/host/src/a.ts']),
+      ),
+    ).toContain('not a relative path');
+  });
+
+  it('refuses a branch with an empty diff rather than reporting a vacuous pass', () => {
+    expect(surfaceRefusal({}, diff([]))).toContain('changes no file at all');
+  });
+});
+
+describe('check-release-intent --since — the derivation underneath', () => {
+  it('resolves a build configuration through its `extends`', () => {
+    const tree = checkout(HOST_SOURCED_PACKAGE);
+    const surface = readPublishedSurface(FIXTURE_ROOT, 'packages/beta', '@fx/beta', tree.fs);
+    if ('reason' in surface) throw new Error(surface.reason);
+
+    expect(surface.include).toEqual(['apps/host/src/kernel/**/*']);
+    expect(surface.exclude).toContain('apps/host/src/**/*.test.ts');
+    // `dist` is never a source: a rebuilt artefact is not a published change.
+    expect(surface.exclude).toContain('packages/beta/dist');
+    expect(compilesPath(surface, 'apps/host/src/kernel/a.ts')).toBe(true);
+    expect(compilesPath(surface, 'apps/host/src/kernel/a.test.ts')).toBe(false);
+    expect(compilesPath(surface, 'apps/host/src/http/a.ts')).toBe(false);
+  });
+
+  it('reads the three tsconfig glob constructs, and a bare directory as all of it', () => {
+    expect(matchesTsGlob('src/**/*', 'src/a/b/c.ts')).toBe(true);
+    expect(matchesTsGlob('src/**/*', 'src/a.ts')).toBe(true);
+    expect(matchesTsGlob('src/**/*', 'test/a.ts')).toBe(false);
+    expect(matchesTsGlob('src/*.ts', 'src/a/b.ts')).toBe(false);
+    expect(matchesTsGlob('src/*.ts', 'src/a.ts')).toBe(true);
+    expect(matchesTsGlob('src/a?.ts', 'src/ab.ts')).toBe(true);
+    expect(matchesTsGlob('src', 'src/a/b.ts')).toBe(true);
+    expect(matchesTsGlob('src/**/*.test.ts', 'src/a/b.test.ts')).toBe(true);
+    expect(matchesTsGlob('src/**/*.test.ts', 'src/a/b.ts')).toBe(false);
+  });
+
+  it('collapses `..` without asking the filesystem where the checkout is', () => {
+    expect(normalizeRelative('packages/platform/../../backend/src/kernel/**/*')).toBe(
+      'backend/src/kernel/**/*',
+    );
+    expect(normalizeRelative('packages/alpha/./src/**/*')).toBe('packages/alpha/src/**/*');
+  });
+
+  /**
+   * The tree CI runs it over, so a green in the pipeline is a statement about
+   * this repository: every versionable package resolves, and each publishes only
+   * its own directory today — which is exactly what makes the host package's
+   * arrival the change this mode exists for.
+   */
+  it('resolves every versionable package in this repository', () => {
+    const result = checkPublishedSurfaceIntent(
+      REPO_ROOT.replace(/\/$/, ''),
+      nodeWorkspaceFs(),
+      (dir) =>
+        readdirSync(dir, { withFileTypes: true })
+          .filter((entry) => entry.isFile())
+          .map((entry) => entry.name),
+      { changedPaths: ['README.md'], addedChangesets: [] },
+    );
+    if ('reason' in result) throw new Error(result.reason);
+
+    expect(result.surfaces.length).toBeGreaterThan(0);
+    expect(result.coverage).toEqual([
+      {
+        source: 'versionable-packages',
+        expected: result.surfaces.length,
+        covered: result.surfaces.length,
+      },
+    ]);
+    expect(result.findings).toEqual([]);
   });
 });

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 
 export const LOCK_KEY = 'b2b:module:lifecycle:lock';
 export const LOCK_TTL_SECONDS = 300; // 5 minutes

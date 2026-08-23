@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { CustomFieldDefinition } from '../entities/custom-field-definition.entity.js';
 import type { CustomFieldOption } from '../entities/custom-field-option.entity.js';
 

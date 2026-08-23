@@ -1,5 +1,5 @@
 import type { Job, Worker } from 'bullmq';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import { FEED_DELIVERY_LIMITS } from '@endora-commerce/contracts';
 import { defineModuleWorker } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { DeliveryService } from '../services/delivery/delivery.service.js';

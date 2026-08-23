@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import { Session } from '../entities/session.entity.js';
 
 /**

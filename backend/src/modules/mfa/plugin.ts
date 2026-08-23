@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { AuthSessionPort, CustomerPasswordStatePort, MfaLoginPort } from '@endora-commerce/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';

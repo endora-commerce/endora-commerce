@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import {
   LifecycleError,

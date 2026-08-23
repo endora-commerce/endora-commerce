@@ -4,7 +4,7 @@ import type { EventBus } from '../../events/bus.js';
 import type { CommandBus } from '../../commands/index.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { EmailMailerPort } from '@endora-commerce/contracts';
 import {
   OrderService,

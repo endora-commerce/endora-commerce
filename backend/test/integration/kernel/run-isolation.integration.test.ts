@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import {
   formatTemplateProvenance,
   redisUrlWithDatabase,

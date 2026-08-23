@@ -5,7 +5,7 @@ import type { CredentialsService } from '../../src/modules/credentials/services/
 import type { AdminNotificationService } from '../../src/modules/admin_notifications/services/admin-notification-service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 
 /**
  * A subscriber-shaped object that subscribes to nothing.

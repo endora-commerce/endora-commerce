@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { Queue } from 'bullmq';
 import { z } from 'zod';
 import type {

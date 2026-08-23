@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import { ChallengeStore } from '../../../src/modules/mfa/services/challenge-store.js';
 
 /**

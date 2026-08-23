@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import { SharedDropMarks } from '../cache/shared-drop-marks.js';
 
 /**

@@ -2,7 +2,7 @@ import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
 import type { CartShoppingListBridge, CartsCradle } from './modules/carts/backend.js';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { z } from 'zod';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
 import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/services/customer-rollup-scope.js';
