@@ -27,10 +27,15 @@ tools read this file directly; Claude Code reaches it through the `@AGENTS.md` i
   `api-client`, `page-builder-core`, `cms-components`, `email-components`, and
   **`platform`** — the host package (feature 080), which owns
   `src/{kernel,http,tenancy,commands,events}` and publishes them as five enumerated subpaths.
-  All six build a
-  real `dist` and resolve there through their own `exports` maps (feature 080, T042), so
+  **`packages/modules/<id>/`** is the module tree F4 is draining `backend/src/modules/` into —
+  `blog` is the first one there (T040b), and the workspace glob that reaches it is
+  `packages/modules/*`.
+  Every one of them builds a
+  real `dist` and resolves there through its own `exports` map (feature 080, T042/D-164), so
   **`pnpm run build:packages` is a precondition for running anything** — tests, `dev`, both
-  frontend builds. `tsc` is the exception and stays on source through `tsconfig.base.json`'s
+  frontend builds. Its filter is `./packages/**`, not `./packages/*`: the single star does not
+  cross a directory separator, so a module package would silently not be built and every
+  specifier naming it would be unresolvable. `tsc` is the exception and stays on source through `tsconfig.base.json`'s
   `paths`; see *Building the packages* under *Commands*.
 
 **A published `@endora-commerce/*` package compiles under `moduleResolution: NodeNext` *and*
@@ -68,8 +73,8 @@ is already in the stack.
 ## Commands
 
 ```bash
-pnpm run build:packages                  # FIRST, after any install: the six packages
-                                         # under packages/ resolve at ./dist
+pnpm run build:packages                  # FIRST, after any install: every package
+                                         # under packages/ resolves at ./dist
 pnpm -r run typecheck                    # or: pnpm --filter <app> run typecheck
 pnpm -r run lint
 pnpm --filter backend run test:unit:fast # FAST: test/unit minus its 16 service-dependent
@@ -83,9 +88,11 @@ pnpm --filter backend run db:fresh       # rebuild the schema from migrations
 pnpm run check:naming && pnpm run check:language
 ```
 
-**Building the packages** (feature 080, T042). The six packages under `packages/` ship a
-compiled `dist` and their `exports` maps point at it, with a `types` condition on every
-subpath. So `pnpm run build:packages` is not an optional step — until it has run in a fresh
+**Building the packages** (feature 080, T042). Every package under `packages/` ships a
+compiled `dist` and its `exports` map points at it, with a `types` condition on every
+subpath. A **module** package does so for a second reason of its own (D-164): `tsx` applies one
+tsconfig per process, so a decorated file outside it is lowered with standard decorator
+semantics while MikroORM's are legacy, and a source-shipping module's entities die at load. So `pnpm run build:packages` is not an optional step — until it has run in a fresh
 checkout, every `@endora-commerce/*` specifier is unresolvable at **runtime**, which is
 `vitest`, `tsx`, `vite` and `next` alike. Every CI job that executes repository code runs it
 after the install;
@@ -150,8 +157,8 @@ bash ../wt-<slug>/scripts/setup-worktree.sh          # pnpm install --frozen-loc
 bash ../wt-<slug>/scripts/setup-worktree.sh --link   # only off the store's filesystem
 ```
 
-All six packages under `packages/` resolve through their own `exports` map at `./dist`,
-built from the checkout they live in — and which checkout that is comes down to one relative
+Every package under `packages/` resolves through its own `exports` map at `./dist`,
+built from the checkout it lives in — and which checkout that is comes down to one relative
 symlink, `backend/node_modules/@endora-commerce/contracts -> ../../../packages/contracts`.
 Point a workspace's `node_modules` at another checkout and every one of those links re-roots
 there. Measured on this repository, in a worktree whose `packages/contracts` carried a
@@ -178,16 +185,20 @@ file every workspace's vitest config merges — refuses the run, naming each for
 its target. It covers `backend`, `admin` and `storefront` in one place; `tsc` is covered
 instead by `paths` in `tsconfig.base.json` being complete, which
 `backend/test/unit/harness/workspace-resolution.test.ts` keeps true for every package the
-workspace globs produce — **however deep** they nest it (feature 080, T040a) — with one
-package refused an entry rather than required one. `@endora-commerce/platform` keeps its
-sources in its own directory like the other five, so the derivation alone would demand a
-`paths` entry; it must not have one, because `paths` is honoured by `tsc` and `tsx` and not by
-`vitest` or `node`, so an entry would make the application resolve the platform's *source*
-under `tsx` and its *`dist`* everywhere else. For schemas and React components that split costs
-nothing; for `HttpError`, `SalesChannel` and `effectiveState` it is the duplication the platform
-relocation removed, and `test/unit/kernel/platform-single-copy.test.ts` is what measures it.
-Which member is the platform comes off its own `endora: { type: 'platform' }` block, so the
-exception is derived rather than listed. Both halves of
+workspace globs produce — **however deep** they nest it (feature 080, T040a) — with the
+packages the running platform **composes** refused an entry rather than required one. Those
+packages keep their sources in their own directories like the other five, so the derivation
+alone would demand a `paths` entry; they must not have one, because `paths` is honoured by
+`tsc` and `tsx` and not by `vitest` or `node`, so an entry would make the application resolve
+their *source* under `tsx` and their *`dist`* everywhere else. For schemas and React components
+that split costs nothing; for `HttpError`, `SalesChannel` and `effectiveState` it is the
+duplication the platform relocation removed, and
+`test/unit/kernel/platform-single-copy.test.ts` is what measures it. For a **module** package
+it is worse than a duplication: `paths` would point every `tsx` entry point at eleven decorated
+entity files that D-164 measured dying on load, which is the reason that package ships `dist`
+at all. Which members those are comes off their own `endora` block — `type: 'platform'` for the
+host, `type: 'module'` for a module package — so the exception is derived rather than listed,
+and the 66th module package changes the answer by existing. Both halves of
 that population used to be written down: `readdir('packages')`, one level, filtered by the
 literal scope `'@b2b/'` — the one the packages carried before T042e renamed them. Neither
 survives 66 module packages a directory deeper under a second scope, and a package this guard
@@ -974,8 +985,8 @@ need for it.
 
 Two things about `.changeset/config.json` that are load-bearing and look like boilerplate:
 
-- **`privatePackages: { "version": true, "tag": false }`.** All six packages are
-  `"private": true` and stay that way in this repository. `@changesets/config@4` defaults
+- **`privatePackages: { "version": true, "tag": false }`.** Every package under `packages/`
+  is `"private": true` and stays that way in this repository. `@changesets/config@4` defaults
   `privatePackages` to `false`, which makes every changesets command skip all five and report
   a cheerful nothing — including the CI gate. `version: true` is what makes the tooling see
   them; `tag: false` keeps it from tagging things nobody publishes.
@@ -991,8 +1002,8 @@ Neither bullet is enforced by being written here — both are `check:release-int
 in the `quality` job, on every merge request. They were written here and read by nothing until
 feature 080's T043.
 
-Nothing is published yet: the six packages are `"private": true`, there is no `release`
-script, and `access` is `restricted`. Making a package public is a separate merge request,
+Nothing is published yet: every package under `packages/` is `"private": true`, there is no
+`release` script, and `access` is `restricted`. Making a package public is a separate merge request,
 with the meta-package / supported-set question D-108 defers — and `check:release-intent` goes
 red the moment `private` comes off one, so that merge request cannot be a drive-by. The longer
 guide, for the moment you are writing the file, is `.changeset/README.md`.
