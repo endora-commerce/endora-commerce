@@ -104,6 +104,12 @@ export interface OverlayModuleManifest {
    * manifest, so an overlay module declares one on exactly core's terms.
    */
   cliCommands?: ModuleManifestExports['cliCommands'];
+  /**
+   * The module's recent-activity eligibility — feature 080, T042j / D-163.1.
+   * Read here for the same reason the hooks are: the export travels with the
+   * manifest, so an overlay module declares one on exactly core's terms.
+   */
+  recentActivity?: ModuleManifestExports['recentActivity'];
 }
 
 /** Ids of client-only overlay modules for the active deployment (absent from core). */
@@ -145,6 +151,9 @@ export async function discoverOverlayModuleManifests(
       | ModuleManifestExports['lifecycleParticipant']
       | undefined;
     const cliCommands = mod['cliCommands'] as ModuleManifestExports['cliCommands'] | undefined;
+    const recentActivity = mod['recentActivity'] as
+      | ModuleManifestExports['recentActivity']
+      | undefined;
     out.push({
       id,
       manifest,
@@ -153,6 +162,7 @@ export async function discoverOverlayModuleManifests(
       ...(uninstallHook ? { uninstallHook } : {}),
       ...(lifecycleParticipant ? { lifecycleParticipant } : {}),
       ...(cliCommands ? { cliCommands } : {}),
+      ...(recentActivity ? { recentActivity } : {}),
     });
   }
   return out;

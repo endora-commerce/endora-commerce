@@ -417,6 +417,24 @@
         }
       }
     },
+    "/api/v1/admin/audit-log/recent-activity/visibility": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit-log/recent-activity/visibility/{moduleId}": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/autopay/config": {
       "get": {
         "responses": {

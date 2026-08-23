@@ -617,5 +617,10 @@
   "bulkOperations.undo.confirm": "Cofnąć tę edycję masową i przywrócić {count} produkt(ów) do poprzednich wartości?",
   "bulkOperations.undo.result": "Cofnięcie zakończone: przywrócono {reverted}, nie udało się cofnąć {conflicts} (zmienione po edycji).",
   "bulkOperations.undo.error": "Nie udało się cofnąć operacji.",
-  "bulkOperations.undo.alreadyReverted": "Ta edycja masowa została już cofnięta."
+  "bulkOperations.undo.alreadyReverted": "Ta edycja masowa została już cofnięta.",
+  "activity.verb.product.archive": "zarchiwizował(a) produkt",
+  "activity.verb.product.bulk_update": "zaktualizował(a) masowo produkty",
+  "activity.verb.product.create": "utworzył(a) produkt",
+  "activity.verb.product.unarchive": "przywrócił(a) produkt",
+  "activity.verb.product.update": "zaktualizował(a) produkt"
 }

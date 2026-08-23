@@ -617,5 +617,10 @@
   "bulkOperations.undo.confirm": "Undo this bulk edit and restore {count} product(s) to their previous values?",
   "bulkOperations.undo.result": "Undo complete: {reverted} restored, {conflicts} could not be reverted (changed since the edit).",
   "bulkOperations.undo.error": "The undo could not be completed.",
-  "bulkOperations.undo.alreadyReverted": "This bulk edit has already been undone."
+  "bulkOperations.undo.alreadyReverted": "This bulk edit has already been undone.",
+  "activity.verb.product.archive": "archived product",
+  "activity.verb.product.bulk_update": "bulk-updated products",
+  "activity.verb.product.create": "created product",
+  "activity.verb.product.unarchive": "unarchived product",
+  "activity.verb.product.update": "updated product"
 }

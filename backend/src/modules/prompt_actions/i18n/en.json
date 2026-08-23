@@ -35,5 +35,6 @@
   "panel.planExpired": "This plan has expired without confirmation. Submit the prompt again.",
   "capability.disabled": "The prompt assistant is disabled on this platform.",
   "capability.notConfigured": "The prompt assistant is not configured yet — set the provider and API key in Settings.",
-  "palette.group.label": "Assistant"
+  "palette.group.label": "Assistant",
+  "activity.verb.prompt_action.execute": "ran a prompt action"
 }

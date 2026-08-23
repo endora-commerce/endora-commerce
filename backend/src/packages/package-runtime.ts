@@ -94,6 +94,15 @@ export interface PackageModuleManifest {
    * declaration the host invokes. Read here on exactly core's terms.
    */
   cliCommands?: ModuleManifestExports['cliCommands'];
+  /**
+   * The module's recent-activity eligibility — feature 080, T042j / D-163.1.
+   *
+   * The declaration axis of D-163.1, and the reason it is a manifest export:
+   * the four host-owned action tables it replaced were closed lists of core
+   * module ids, so a package's audit row was silently absent from the dashboard
+   * card rather than refused. Read here on exactly core's terms.
+   */
+  recentActivity?: ModuleManifestExports['recentActivity'];
 }
 
 /**
@@ -223,6 +232,9 @@ async function manifestEntryFor(
     | ModuleManifestExports['lifecycleParticipant']
     | undefined;
   const cliCommands = module['cliCommands'] as ModuleManifestExports['cliCommands'] | undefined;
+  const recentActivity = module['recentActivity'] as
+    | ModuleManifestExports['recentActivity']
+    | undefined;
 
   return {
     id: installed.id,
@@ -233,6 +245,7 @@ async function manifestEntryFor(
     ...(uninstallHook ? { uninstallHook } : {}),
     ...(lifecycleParticipant ? { lifecycleParticipant } : {}),
     ...(cliCommands ? { cliCommands } : {}),
+    ...(recentActivity ? { recentActivity } : {}),
   };
 }
 

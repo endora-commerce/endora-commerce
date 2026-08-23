@@ -1,13 +1,13 @@
-import type { AuditReferenceLabel, AuditReferenceRegistryPort } from '@endora-commerce/contracts';
+import type {
+  AuditReferenceLabel,
+  AuditReferenceRegistryPort,
+  KnownIconName,
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AuditLogEntry } from '../../../kernel/audit/audit-log-entry.entity.js';
 import type { AuditActorIdentity } from '../routes.admin.js';
-import {
-  RECENT_ACTIVITY_ACTIONS,
-  moduleForAction,
-  type RecentActivityAction,
-  type RecentActivityModule,
-} from '../action-catalog.js';
+import type { RecentActivityCatalog } from './recent-activity-catalog.js';
+import type { RecentActivityVisibility } from './recent-activity-visibility.js';
 
 /**
  * Feature 024 — Dashboard "Recent Activity" read service.
@@ -16,6 +16,19 @@ import {
  * dashboard's Recent Activity card. Server-enforced allowlist of action
  * tokens; bulk-resolves actor + target display labels in at most a small
  * fixed number of round-trips (one per object-type bucket).
+ *
+ * **Where the action list comes from — feature 080, T042j / D-163.1.** It used
+ * to come from `action-catalog.ts`: a 23-token array a host maintained by hand,
+ * a prefix table beside it, and a `RecentActivityModule` union closed over four
+ * core module ids. A module the host had not written could not appear in any of
+ * the three, so a package's audit row was **silently absent** from this card
+ * rather than refused. Both are derived from the composed manifests now, and
+ * what a row's `module` is comes from the module that declared its token.
+ *
+ * The declaration is only half of it. Whether a declared module's rows appear
+ * is the operator's, read per request through {@link RecentActivityVisibility}
+ * — per request, because a flip must take effect without a restart, and because
+ * a captured answer is a preference frozen at boot.
  *
  * **Where the labels come from — feature 075, D-87.** They used to come from
  * five hand-written SQL statements naming `admin_users`, `products`,
@@ -31,8 +44,21 @@ import {
 export interface RecentActivityItem {
   id: string;
   actedAt: string;
-  action: RecentActivityAction;
-  module: RecentActivityModule;
+  action: string;
+  /** The module that declared this action token. Any composed module's id. */
+  module: string;
+  /**
+   * What the card renders for this row, from the declaring module's manifest.
+   *
+   * They travel on the item because the admin's `ACTIVITY_RENDERING` — the
+   * fourth hand-maintained table — was the only thing that knew them, and it
+   * knew nothing about a module the SPA was not built with. `labelKey` is
+   * relative to `module`'s i18n namespace, so the card resolves it as
+   * `t(module, labelKey)` and a package's verb arrives in the operator's
+   * language from the package's own bundle.
+   */
+  icon: KnownIconName;
+  labelKey: string;
   actorDisplayName: string;
   actorKind: 'admin' | 'system';
   targetType: string;
@@ -58,6 +84,10 @@ const MAX_LIMIT = 12;
 export class RecentActivityService {
   constructor(
     private readonly emFactory: () => EntityManager,
+    /** Every declared action token, derived from the composed manifests. */
+    private readonly catalog: RecentActivityCatalog,
+    /** The operator's half of D-163.1, asked per request. */
+    private readonly visibility: RecentActivityVisibility,
     /**
      * The contribution point this module owns and defaults absent. Called per
      * request, never captured: a resolver held once would go on naming actors
@@ -70,6 +100,14 @@ export class RecentActivityService {
   async list(input: ListRecentActivityInput = {}): Promise<RecentActivityResponse> {
     const limit = clampLimit(input.limit);
 
+    // The conjunction of the two axes. Empty is answered here rather than by
+    // an unfiltered query: with every eligible module hidden, `$in: []` and
+    // "no filter" differ by the whole audit trail.
+    const actions = await this.visibility.visibleActions();
+    if (actions.length === 0) {
+      return { data: [], pagination: { limit, fetchedAt: new Date().toISOString() } };
+    }
+
     const em = this.emFactory();
 
     // The existing `actedAt DESC` index handles the sort; the secondary `id DESC`
@@ -78,7 +116,7 @@ export class RecentActivityService {
     // so the extra sort key has negligible cost at our volumes.
     const rows = await em.find(
       AuditLogEntry,
-      { action: { $in: RECENT_ACTIVITY_ACTIONS as unknown as string[] } },
+      { action: { $in: actions } },
       {
         orderBy: { actedAt: 'desc', id: 'desc' },
         limit,
@@ -123,7 +161,9 @@ export class RecentActivityService {
       for (const [id, label] of bucket) targets.set(id, label);
     }
 
-    return rows.map((r) => buildItem(r, { adminNames, customerNames, targets }));
+    return rows
+      .map((r) => buildItem(r, this.catalog, { adminNames, customerNames, targets }))
+      .filter((item): item is RecentActivityItem => item !== null);
   }
 }
 
@@ -179,9 +219,24 @@ interface Lookups {
   targets: ReadonlyMap<string, AuditReferenceLabel>;
 }
 
-function buildItem(r: AuditLogEntry, lookups: Lookups): RecentActivityItem {
-  const action = r.action as RecentActivityAction;
-  const module = moduleForAction(action);
+/**
+ * `null` for a token no composed module declares.
+ *
+ * The row can only be here by having matched the `$in` built from the same
+ * catalog, so this is unreachable in a stable composition — but the alternative
+ * is `moduleForAction`'s, which threw with a comment calling itself
+ * "defensive: unreachable as long as the allowlist and the prefix table stay
+ * aligned". They were not aligned, and a throw here would take the whole card
+ * down for one row.
+ */
+function buildItem(
+  r: AuditLogEntry,
+  catalog: RecentActivityCatalog,
+  lookups: Lookups,
+): RecentActivityItem | null {
+  const action = r.action;
+  const descriptor = catalog.descriptorFor(action);
+  if (!descriptor) return null;
 
   // --- Actor ---
   const actorKind: 'admin' | 'system' = r.actorAdminUserId ? 'admin' : 'system';
@@ -205,7 +260,9 @@ function buildItem(r: AuditLogEntry, lookups: Lookups): RecentActivityItem {
     id: r.id,
     actedAt: r.actedAt.toISOString(),
     action,
-    module,
+    module: descriptor.moduleId,
+    icon: descriptor.icon,
+    labelKey: descriptor.labelKey,
     actorDisplayName,
     actorKind,
     targetType: r.objectType,
@@ -279,10 +336,14 @@ function resolveTarget(
       const fileName = pickStr(after, 'fileName');
       const warehouseCode =
         pickStr(after, 'warehouseCode') ?? pickStr(before, 'warehouseCode');
+      // The last fallback used to test `r.action === 'product.bulk_update'` and
+      // render the untranslated English string "bulk product update" for it.
+      // Two things wrong with one line, and both are D-163's shape one layer
+      // down: a host file naming another module's action token, and a
+      // user-visible sentence with no `pl`. The id is what every other
+      // unlabelled row falls back to, including this switch's own `default`.
       const display =
-        fileName && warehouseCode
-          ? `${fileName} → ${warehouseCode}`
-          : fileName ?? (r.action === 'product.bulk_update' ? 'bulk product update' : r.objectId);
+        fileName && warehouseCode ? `${fileName} → ${warehouseCode}` : fileName ?? r.objectId;
       // Bulk operations don't have a single canonical detail page in v1.
       return { targetDisplayName: display, targetUrl: null };
     }
@@ -320,11 +381,17 @@ function pickStr(snapshot: Record<string, unknown> | null, key: string): string 
 function extractSummary(r: AuditLogEntry): Record<string, unknown> | null {
   // Surface only a compact summary for bulk-style rows. Never the full
   // stateBefore/stateAfter blobs (FR-030).
+  //
+  // **The key list is the filter**, and it always was. There used to be a
+  // pre-test above it — `objectType !== 'bulk_operation' && action !==
+  // 'price_list.products_replace'` — which is a second, hand-written answer to
+  // "which rows are bulk-shaped", drifting against the very list below it and
+  // naming another module's action token in this host file (D-163's shape, one
+  // layer down from the four tables T042j retired). FR-030 is satisfied by the
+  // allow-list: a row that carries none of these keys still returns `null`,
+  // and a row that carries one is bulk-shaped by the only evidence there is.
   const after = r.stateAfter as Record<string, unknown> | null | undefined;
   if (!after) return null;
-  if (r.objectType !== 'bulk_operation' && r.action !== 'price_list.products_replace') {
-    return null;
-  }
   const keys = [
     'fileName',
     'warehouseId',

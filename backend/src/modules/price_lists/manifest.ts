@@ -1,5 +1,6 @@
 import {
   defineModuleManifest,
+  defineModuleRecentActivity,
   defineModuleSettingsManifest,
   PRICING_SETTING_CODES,
 } from '@endora-commerce/contracts';
@@ -113,3 +114,45 @@ export const manifest = defineModuleManifest({
 
 /** Legacy export retained for backward compatibility. */
 export const priceListsManifest = settings;
+
+/**
+ * What this module offers the admin home dashboard's Recent Activity card —
+ * feature 080, T042j / D-163.1.
+ *
+ * The **declaration** axis: eligibility, never a decision. Whether these rows
+ * appear is the operator's, held in `price_lists.recent_activity_visible` and
+ * defaulting to visible, flipped beside this module's activation control on the
+ * platform modules screen.
+ */
+export const recentActivity = defineModuleRecentActivity({
+  entries: [
+    {
+      action: 'price_list.create',
+      icon: 'CircleDollarSign',
+      labelKey: 'activity.verb.price_list.create',
+    },
+    { action: 'price_list.update', icon: 'Edit', labelKey: 'activity.verb.price_list.update' },
+    {
+      action: 'price_list.activate',
+      icon: 'CircleDollarSign',
+      labelKey: 'activity.verb.price_list.activate',
+    },
+    { action: 'price_list.draftify', icon: 'Edit', labelKey: 'activity.verb.price_list.draftify' },
+    {
+      action: 'price_list.duplicate',
+      icon: 'Plus',
+      labelKey: 'activity.verb.price_list.duplicate',
+    },
+    { action: 'price_list.expire', icon: 'Archive', labelKey: 'activity.verb.price_list.expire' },
+    {
+      action: 'price_list.products_replace',
+      icon: 'Edit',
+      labelKey: 'activity.verb.price_list.products_replace',
+    },
+    {
+      action: 'price_list.bracket_update',
+      icon: 'CircleDollarSign',
+      labelKey: 'activity.verb.price_list.bracket_update',
+    },
+  ],
+});

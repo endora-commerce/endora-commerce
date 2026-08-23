@@ -13,5 +13,14 @@
   "errors.STOCK_LEVEL_NOT_FOUND": "Błąd: stock level not found.",
   "errors.THRESHOLDS_INVALID": "Błąd: thresholds invalid.",
   "errors.AVAILABILITY_NOTIFICATION_NOT_FOUND": "Błąd: availability notification not found.",
-  "errors.STOCK_IMPORT_INVALID_FILE": "Błąd: stock import invalid file."
+  "errors.STOCK_IMPORT_INVALID_FILE": "Błąd: stock import invalid file.",
+  "activity.verb.low_stock_threshold.create": "ustawił(a) próg niskiego stanu dla",
+  "activity.verb.low_stock_threshold.delete": "usunął(ęła) próg niskiego stanu dla",
+  "activity.verb.low_stock_threshold.update": "zaktualizował(a) próg niskiego stanu dla",
+  "activity.verb.stock_level.adjust": "skorygował(a) stan magazynowy",
+  "activity.verb.stock_level.bulk_import": "zaimportował(a) stany magazynowe:",
+  "activity.verb.warehouse.create": "utworzył(a) magazyn",
+  "activity.verb.warehouse.deactivate": "dezaktywował(a) magazyn",
+  "activity.verb.warehouse.reactivate": "ponownie aktywował(a) magazyn",
+  "activity.verb.warehouse.update": "zaktualizował(a) magazyn"
 }

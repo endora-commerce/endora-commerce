@@ -1,5 +1,6 @@
 import {
   defineModuleManifest,
+  defineModuleRecentActivity,
   defineModuleSettingsManifest,
 } from '@endora-commerce/contracts';
 
@@ -207,3 +208,52 @@ export const manifest = defineModuleManifest({
 
 /** Legacy export retained for backward compatibility. */
 export const inventoryManifest = settings;
+
+/**
+ * What this module offers the admin home dashboard's Recent Activity card —
+ * feature 080, T042j / D-163.1.
+ *
+ * The **declaration** axis: eligibility, never a decision. Whether these rows
+ * appear is the operator's, held in `inventory.recent_activity_visible` and
+ * defaulting to visible, flipped on `/platform/modules` beside this module's
+ * activation control. The two are different questions about the same module —
+ * "does this client want stock management" and "does this client want stock
+ * movements on their home screen" — which is why there are two switches.
+ */
+export const recentActivity = defineModuleRecentActivity({
+  entries: [
+    { action: 'warehouse.create', icon: 'Truck', labelKey: 'activity.verb.warehouse.create' },
+    { action: 'warehouse.update', icon: 'Edit', labelKey: 'activity.verb.warehouse.update' },
+    {
+      action: 'warehouse.deactivate',
+      icon: 'Archive',
+      labelKey: 'activity.verb.warehouse.deactivate',
+    },
+    {
+      action: 'warehouse.reactivate',
+      icon: 'Truck',
+      labelKey: 'activity.verb.warehouse.reactivate',
+    },
+    { action: 'stock_level.adjust', icon: 'Box', labelKey: 'activity.verb.stock_level.adjust' },
+    {
+      action: 'stock_level.bulk_import',
+      icon: 'Upload',
+      labelKey: 'activity.verb.stock_level.bulk_import',
+    },
+    {
+      action: 'low_stock_threshold.create',
+      icon: 'Tag',
+      labelKey: 'activity.verb.low_stock_threshold.create',
+    },
+    {
+      action: 'low_stock_threshold.update',
+      icon: 'Edit',
+      labelKey: 'activity.verb.low_stock_threshold.update',
+    },
+    {
+      action: 'low_stock_threshold.delete',
+      icon: 'Archive',
+      labelKey: 'activity.verb.low_stock_threshold.delete',
+    },
+  ],
+});

@@ -8,6 +8,7 @@ import {
   type ModuleLifecycleParticipant,
   type ModuleUninstallHook,
   type ModuleManifestExports,
+  type ModuleRecentActivity,
 } from '@endora-commerce/contracts';
 import { ModuleDepGraph } from './dep-graph.js';
 
@@ -23,6 +24,12 @@ export interface LoadedModuleEntry<EM = unknown, R = unknown> {
    * module's `manifest.ts`, exactly as the two hooks above are.
    */
   lifecycleParticipant?: ModuleLifecycleParticipant<EM>;
+  /**
+   * The module's recent-activity eligibility — feature 080, T042j / D-163.1.
+   * The orchestrator reads it to reconcile the visibility Setting the
+   * declaration implies, which for a package is the only author it has.
+   */
+  recentActivity?: ModuleRecentActivity;
 }
 
 /** A participant, with the module that declared it — named in a failure. */
@@ -226,6 +233,7 @@ export async function discoverManifests<EM = unknown, R = unknown>(
       ...(imported.lifecycleParticipant
         ? { lifecycleParticipant: imported.lifecycleParticipant }
         : {}),
+      ...(imported.recentActivity ? { recentActivity: imported.recentActivity } : {}),
     });
   }
 

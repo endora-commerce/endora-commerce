@@ -2,6 +2,7 @@ import type {
   ModuleInstallHook,
   ModuleLifecycleParticipant,
   ModuleManifest,
+  ModuleRecentActivity,
   ModuleUninstallHook,
 } from '@endora-commerce/contracts';
 import { ModuleDepGraph } from './dep-graph.js';
@@ -44,6 +45,10 @@ export interface StaticRegistryEntry {
    * uninstall (feature 080, T036a / D-159).
    */
   lifecycleParticipant?: ModuleLifecycleParticipant | undefined;
+  /**
+   * The module's recent-activity eligibility (feature 080, T042j / D-163.1).
+   */
+  recentActivity?: ModuleRecentActivity | undefined;
   /** Optional source-file path for diagnostics; defaults to `'<static>'`. */
   filePath?: string | undefined;
 }
@@ -65,6 +70,7 @@ export function buildStaticRegistry(
       ...(e.installHook ? { installHook: e.installHook } : {}),
       ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
       ...(e.lifecycleParticipant ? { lifecycleParticipant: e.lifecycleParticipant } : {}),
+      ...(e.recentActivity ? { recentActivity: e.recentActivity } : {}),
     });
   }
   // Orphan deps: per research §R7, BOOT IS TOLERANT — modules whose

@@ -12,8 +12,13 @@
 // runtime exports as a separate step.
 
 import { z } from 'zod';
-import { ModuleSettingsManifestSchema, settingCodeRe } from './settings.js';
-import { ModuleActionsManifestSchema } from './admin-actions.js';
+import {
+  ModuleSettingsManifestSchema,
+  settingCodeRe,
+  type ModuleSettingsManifest,
+  type SettingManifestEntry,
+} from './settings.js';
+import { KnownIconNameSchema, ModuleActionsManifestSchema } from './admin-actions.js';
 import { modulePermissionDeclarationSchema } from './admin.js';
 import { transactionalEmailManifestEntrySchema } from './transactional-emails.js';
 
@@ -651,6 +656,174 @@ export interface ModuleCliCommand<Ctx = unknown> {
   run(context: ModuleCliCommandContext<Ctx>): Promise<number>;
 }
 
+// ---------------------------------------------------------------------------
+// Recent-activity eligibility (feature 080, T042j / D-163.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * The shape an audit action token has: `<object>.<verb>`, both snake_case.
+ *
+ * `product.create`, `stock_level.bulk_import`, `prompt_action.execute`. It is
+ * the value stored in `audit_log_entries.action`, and it is matched here rather
+ * than accepted as any string because the declaration is the *only* thing that
+ * puts a token into the dashboard query's `$in` — a typo used to be caught by a
+ * reviewer reading a hand-written array, and there is no array to read now.
+ *
+ * naming:allow-snake-case — the token is persisted verbatim in
+ * `audit_log_entries.action` and is written by `Command.action`, so this is the
+ * existing wire value rather than a new API field.
+ */
+export const auditActionRe = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/;
+
+/**
+ * One audit action a module offers to the admin home dashboard's
+ * recent-activity card.
+ *
+ * `labelKey` is **relative to the declaring module's i18n namespace**, exactly
+ * as a command-palette action's `labelKey` is: the module ships
+ * `activity.verb.product.create` in its own `i18n/en.json` and `pl.json`, the
+ * card resolves it as `t('<moduleId>', '<labelKey>')`. That is what lets a
+ * third-party package render a verb in the operator's language without the host
+ * shipping a string for it.
+ *
+ * `icon` comes from {@link KnownIconNameSchema}, so the admin maps it through
+ * the one `icon-map.ts` it already has and a package cannot name a component
+ * the SPA does not bundle.
+ */
+export const RecentActivityEntrySchema = z.object({
+  /** The `audit_log_entries.action` token, e.g. `product.create`. */
+  action: z.string().regex(auditActionRe),
+  icon: KnownIconNameSchema,
+  /** Module-namespace-relative i18n key for the verb, e.g. `activity.verb.product.create`. */
+  labelKey: z.string().min(1).max(255),
+});
+export type RecentActivityEntry = z.infer<typeof RecentActivityEntrySchema>;
+
+/**
+ * A module's declaration that its activity is **eligible** for the dashboard's
+ * recent-activity card — D-163.1, the first of the ruling's two axes.
+ *
+ * It is a declaration and not a decision. Whether a declared module's rows
+ * actually appear is the operator's, held in
+ * {@link recentActivityVisibilitySettingCode}'s Setting and defaulting to
+ * visible — Constitution XVII's two-axis shape applied to a narrower object.
+ * Neither axis overwrites the other: a module author cannot put entries on
+ * somebody's home screen by fiat, and an operator cannot be surprised by a card
+ * they did not configure.
+ *
+ * It replaces four hand-maintained tables that had already drifted apart inside
+ * core (D-163): the server allow-list that filtered the dashboard query, the
+ * action → module prefix map, the route's `module` enum and the admin's
+ * `ACTIVITY_RENDERING`. Every one of them is derived from this now, so a
+ * package's row reaches the card and a fifth hand-written entry has nowhere to
+ * be written.
+ *
+ * Declared as an export of `manifest.ts` beside `installHook`,
+ * `lifecycleParticipant` and `cliCommands`, walked by the same generator, so
+ * core, overlay and an installed package declare one on identical terms.
+ */
+export const ModuleRecentActivitySchema = z.object({
+  entries: z.array(RecentActivityEntrySchema).min(1),
+});
+export type ModuleRecentActivity = z.infer<typeof ModuleRecentActivitySchema>;
+
+/**
+ * Identity-with-validation helper for module authors, the twin of
+ * {@link defineModuleManifest}.
+ */
+export function defineModuleRecentActivity(
+  declaration: ModuleRecentActivity,
+): ModuleRecentActivity {
+  return ModuleRecentActivitySchema.parse(declaration);
+}
+
+/** The suffix every recent-activity visibility Setting code ends in. */
+export const RECENT_ACTIVITY_VISIBILITY_SETTING_SUFFIX = 'recent_activity_visible';
+
+/**
+ * Raised when a module's id cannot carry a Setting code — see
+ * {@link recentActivityVisibilitySettingCode}.
+ */
+export class RecentActivitySettingCodeInvalid extends Error {
+  override readonly name = 'RecentActivitySettingCodeInvalid';
+}
+
+/**
+ * The Setting that holds the operator's choice for one declaring module.
+ *
+ * **Derived, never declared.** `activation.settingCode` is declared because a
+ * module that already shipped an ad-hoc control had to be able to adopt it;
+ * there is no such history here, and a declared code would be a fifth place a
+ * module could disagree with the platform about its own name. D-163.1 also
+ * fixes the default — visible — so there is nothing else for a declaration to
+ * carry.
+ */
+export function recentActivityVisibilitySettingCode(moduleId: string): string {
+  const code = `${moduleId}.${RECENT_ACTIVITY_VISIBILITY_SETTING_SUFFIX}`;
+  if (!settingCodeRe.test(code)) {
+    throw new RecentActivitySettingCodeInvalid(
+      `[contracts/modules] module "${moduleId}" declares recent-activity eligibility, but ` +
+        `"${code}" is not a valid setting code. A platform-internal module id (leading ` +
+        `underscore) cannot own one; the card is for a domain module's activity.`,
+    );
+  }
+  return code;
+}
+
+/**
+ * The settings manifest the platform reconciles for a module, which is the
+ * module's own declaration plus the one Setting its recent-activity eligibility
+ * implies.
+ *
+ * Two callers and one derivation, deliberately (D-100): the boot reconcile
+ * walks every shipped module's settings, and the lifecycle orchestrator's
+ * `install` reconciles exactly the arriving module's. A package has only the
+ * second — since D-157.6(b) `install` is its sole author — so a second copy of
+ * this merge would mean a packaged module's control existing on one path and
+ * not the other.
+ *
+ * Returns `undefined` when the module declares neither, so a caller can keep
+ * treating "no settings" as an absent value.
+ */
+export function settingsManifestWithRecentActivity(
+  manifest: ModuleManifest,
+  recentActivity: ModuleRecentActivity | undefined,
+): ModuleSettingsManifest | undefined {
+  if (!recentActivity) return manifest.settings;
+  const entry: SettingManifestEntry = {
+    code: recentActivityVisibilitySettingCode(manifest.id),
+    name: `${manifest.name}: show activity on the dashboard`,
+    description:
+      `Whether ${manifest.name}'s entries appear on the admin home dashboard's Recent ` +
+      'Activity card. Switching it off hides them from that card only — the audit trail ' +
+      'itself is unchanged and the entries stay on the audit-log screen.',
+    valueType: 'boolean',
+    defaultValue: true,
+    // Managed on /platform/modules beside the module's activation control, the
+    // surface an operator already uses for exactly this kind of choice. A
+    // second control on the generic Settings screen would be two doors onto one
+    // decision.
+    hidden: true,
+    ...(manifest.settings?.groups[0]?.code
+      ? { groupCode: manifest.settings.groups[0].code }
+      : {}),
+  };
+  if (!manifest.settings) {
+    return {
+      moduleCode: manifest.id,
+      groups: [{ code: manifest.id, name: manifest.name }],
+      settings: [{ ...entry, groupCode: manifest.id }],
+    };
+  }
+  if (manifest.settings.settings.some((s) => s.code === entry.code)) {
+    return manifest.settings;
+  }
+  return {
+    ...manifest.settings,
+    settings: [...manifest.settings.settings, entry],
+  };
+}
+
 /** Aggregate of what a module's `manifest.ts` may export at runtime. */
 export interface ModuleManifestExports<EM = unknown, Redis = unknown, Ctx = unknown> {
   manifest: ModuleManifest;
@@ -669,6 +842,13 @@ export interface ModuleManifestExports<EM = unknown, Redis = unknown, Ctx = unkn
    * and is unchanged.
    */
   cliCommands?: readonly ModuleCliCommand<Ctx>[];
+  /**
+   * This module's declaration that its activity is eligible for the admin home
+   * dashboard's recent-activity card — see {@link ModuleRecentActivitySchema}.
+   * Additive and optional: a module that declares none contributes no token,
+   * owns no visibility Setting and is unchanged.
+   */
+  recentActivity?: ModuleRecentActivity;
 }
 
 // ---------------------------------------------------------------------------

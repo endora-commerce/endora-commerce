@@ -1,4 +1,8 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import {
+  defineModuleManifest,
+  defineModuleRecentActivity,
+  defineModuleSettingsManifest,
+} from '@endora-commerce/contracts';
 
 /**
  * Prompt Actions module — feature 043.
@@ -135,6 +139,31 @@ export const manifest = defineModuleManifest({
       label: 'Use the prompt assistant',
       description:
         'Allows the operator to open the prompt mode in the admin command palette and execute confirmed plans (each planned operation is additionally re-checked against the permission of its underlying action).',
+    },
+  ],
+});
+
+/**
+ * What this module offers the admin home dashboard's Recent Activity card —
+ * feature 080, T042j / D-163.1.
+ *
+ * **This entry is the drift D-163 named.** `prompt_action.execute` was in the
+ * host's server-side allow-list and in its action-to-module prefix map, and
+ * absent from the route's three-member `module` enum and from the admin's
+ * `ACTIVITY_RENDERING` — so a prompt-assistant row was fetched, classified
+ * `prompt_actions`, and then rendered with the unknown-verb fallback, while the
+ * response schema described a `module` value the server could emit and the
+ * contract did not list. Four hand-maintained tables in two languages, and they
+ * were not kept true. It is repaired here by the derivation rather than by a
+ * fifth hand-written entry, which is the difference between fixing an instance
+ * and fixing the class.
+ */
+export const recentActivity = defineModuleRecentActivity({
+  entries: [
+    {
+      action: 'prompt_action.execute',
+      icon: 'Sparkles',
+      labelKey: 'activity.verb.prompt_action.execute',
     },
   ],
 });

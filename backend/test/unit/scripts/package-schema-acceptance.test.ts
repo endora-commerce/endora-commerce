@@ -21,7 +21,16 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync,
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineModuleManifest } from '@endora-commerce/contracts';
+import {
+  ModuleRecentActivitySchema,
+  defineModuleManifest,
+  recentActivityVisibilitySettingCode,
+  settingsManifestWithRecentActivity,
+  type ModuleManifest,
+} from '@endora-commerce/contracts';
+import { RecentActivityCatalog } from '../../../src/modules/audit_logs/services/recent-activity-catalog.js';
+import { RecentActivityVisibility } from '../../../src/modules/audit_logs/services/recent-activity-visibility.js';
+import { buildRecentActivityResponseSchema } from '../../../src/modules/audit_logs/routes.admin.recent-activity.js';
 import {
   collectModuleCommands,
   helpFor,
@@ -389,6 +398,111 @@ describe('the fixture package is the thing the contract describes', () => {
       expect(bundle['actions.openAcceptanceProbe.label']).toBeTypeOf('string');
       expect(bundle['actions.openAcceptanceProbe.description']).toBeTypeOf('string');
     }
+  });
+
+  /**
+   * A packaged module's activity reaches the dashboard card — feature 080,
+   * T042j / D-163.1.
+   *
+   * **This is the case that could not happen before**, and it could not happen
+   * *silently*: `RECENT_ACTIVITY_ACTIONS` was a host-written array and
+   * `RecentActivityModule` a closed union of four core ids, so a package's
+   * audit row was filtered out of the query's `$in` and would have had no
+   * classification, no schema-legal `module` value and no rendering if it had
+   * got through. Nothing reported any of it.
+   *
+   * The fixture enters at the top of the analysis (issue #130): the package's
+   * own `manifest.ts` module is imported and its raw declaration is handed to
+   * the platform's real derivation, so the schema validation, the catalog, the
+   * route schema and the derived Setting all run over a stranger's object. A
+   * pre-built descriptor would leave every one of those unproven.
+   */
+  it("puts a package's activity on the dashboard card (T042j, D-163.1)", async () => {
+    const module = (await import(join(FIXTURE_DIR, 'src', 'manifest.ts'))) as {
+      manifest: unknown;
+      recentActivity: unknown;
+    };
+    // The package ships a plain object — it imports nothing from this
+    // repository, not even a type. That it would parse is checked here.
+    const declaration = ModuleRecentActivitySchema.parse(module.recentActivity);
+    const manifest = defineModuleManifest(module.manifest as never) as ModuleManifest;
+
+    // (1) The catalog the query's `$in` is built from.
+    const catalog = new RecentActivityCatalog([{ manifest, recentActivity: declaration }]);
+    expect(catalog.actions()).toEqual(['acceptance_probe.execute']);
+
+    // (2) The classification that replaced the closed union.
+    const descriptor = catalog.descriptorFor('acceptance_probe.execute');
+    expect(descriptor?.moduleId).toBe('acceptance_probe');
+    expect(catalog.moduleIds()).toEqual(['acceptance_probe']);
+
+    // (3) The route's response schema, `module` enum included.
+    const item = buildRecentActivityResponseSchema(catalog).shape.data.element;
+    expect(item.shape.action.safeParse('acceptance_probe.execute').success).toBe(true);
+    expect(item.shape.module.safeParse('acceptance_probe').success).toBe(true);
+
+    // (4) The rendering: an icon from the platform's own allowlist and a verb
+    // key in the package's own namespace, both shipped in `en` and `pl`.
+    expect(item.shape.icon.safeParse(descriptor?.icon).success).toBe(true);
+    for (const language of ['en', 'pl']) {
+      const bundle = JSON.parse(
+        readFileSync(join(FIXTURE_DIR, 'i18n', `${language}.json`), 'utf8'),
+      ) as Record<string, string>;
+      expect(bundle[descriptor!.labelKey], language).toBeTypeOf('string');
+    }
+  });
+
+  /**
+   * And the operator can switch it off, without the package declaring a
+   * Setting — the second axis, derived.
+   *
+   * `install` is a package's only settings author (D-157.6(b)) and it
+   * reconciles `settingsManifestWithRecentActivity(manifest, recentActivity)`,
+   * so the row exists for a package on exactly core's terms.
+   */
+  it("derives the operator's visibility Setting for a package (T042j, D-163.1)", async () => {
+    const module = (await import(join(FIXTURE_DIR, 'src', 'manifest.ts'))) as {
+      manifest: unknown;
+      recentActivity: unknown;
+    };
+    const declaration = ModuleRecentActivitySchema.parse(module.recentActivity);
+    const manifest = defineModuleManifest(module.manifest as never) as ModuleManifest;
+    const code = recentActivityVisibilitySettingCode('acceptance_probe');
+
+    const merged = settingsManifestWithRecentActivity(manifest, declaration);
+    const setting = merged?.settings.find((s) => s.code === code);
+    expect(setting?.valueType).toBe('boolean');
+    expect(setting?.defaultValue).toBe(true);
+    // The package's own activation control is untouched beside it: two
+    // questions, two switches (Constitution XVII, applied to a narrower object).
+    expect(merged?.settings.map((s) => s.code)).toContain('acceptance_probe.activation');
+
+    const catalog = new RecentActivityCatalog([{ manifest, recentActivity: declaration }]);
+    const readPort = (values: Record<string, unknown>): never =>
+      ({
+        get: async () => {
+          throw new Error('unused');
+        },
+        getMany: async (codes: string[]) =>
+          new Map(
+            codes
+              .filter((c) => c in values)
+              .map((c) => [c, { ok: true as const, value: values[c] }]),
+          ),
+      }) as never;
+
+    // Default: nobody has chosen, so the row is not there — visible.
+    expect(await new RecentActivityVisibility(catalog, readPort({})).visibleActions()).toEqual([
+      'acceptance_probe.execute',
+    ]);
+    // Off, and the card queries nothing for it.
+    expect(
+      await new RecentActivityVisibility(catalog, readPort({ [code]: false })).visibleActions(),
+    ).toEqual([]);
+    // Back on — the flip is reversible, like every operator axis.
+    expect(
+      await new RecentActivityVisibility(catalog, readPort({ [code]: true })).visibleActions(),
+    ).toEqual(['acceptance_probe.execute']);
   });
 });
 

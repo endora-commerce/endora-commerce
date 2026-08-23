@@ -55,6 +55,15 @@ export interface RegisteredManifestEntry {
    * and an installed package are reachable by one path.
    */
   cliCommands?: ModuleManifestExports['cliCommands'];
+  /**
+   * This module's declaration that its activity is eligible for the dashboard's
+   * recent-activity card — feature 080, T042j / D-163.1. Travels with the entry
+   * for the reason the hooks do: the derivation that replaced four
+   * hand-maintained action tables reads it off the resolved set, so a core
+   * module, an overlay module and an installed package reach the card by one
+   * path.
+   */
+  recentActivity?: ModuleManifestExports['recentActivity'];
 }
 
 /**
@@ -155,6 +164,7 @@ function entryFor(
       ? { lifecycleParticipant: discovered.lifecycleParticipant }
       : {}),
     ...(discovered.cliCommands ? { cliCommands: discovered.cliCommands } : {}),
+    ...(discovered.recentActivity ? { recentActivity: discovered.recentActivity } : {}),
   };
 }
 
@@ -267,6 +277,7 @@ export async function resolvedManifestEntries(
         ? { lifecycleParticipant: found.lifecycleParticipant }
         : {}),
       ...(found.cliCommands ? { cliCommands: found.cliCommands } : {}),
+      ...(found.recentActivity ? { recentActivity: found.recentActivity } : {}),
     });
   }
 
@@ -300,6 +311,7 @@ export async function resolvedManifestEntries(
         ? { lifecycleParticipant: found.lifecycleParticipant }
         : {}),
       ...(found.cliCommands ? { cliCommands: found.cliCommands } : {}),
+      ...(found.recentActivity ? { recentActivity: found.recentActivity } : {}),
     });
   }
   return [...byId.values()];
