@@ -49,11 +49,19 @@ revision additionally pin `expectedRevisionNumber`.
 | `POST /api/v1/admin/quote-requests/:id/approve` | admin | Approve a Pending RFQ. |
 | `POST /api/v1/admin/quote-requests/:id/cancel` | admin | Cancel with optional reason. |
 | `POST /api/v1/admin/quote-requests/:id/assign` | admin | Set `assignedAdminUserId` (informational). |
-| `GET /api/v1/admin/organizations/:id/sales-reps` | platform admin | List sales reps assigned to the organization. |
-| `POST /api/v1/admin/organizations/:id/sales-reps` | platform admin | Assign a sales rep. |
-| `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` | platform admin | Remove an assignment. |
-| `GET /api/v1/admin/sales-reps/:adminUserId/organizations` | platform admin | Reverse view — orgs a rep is responsible for. |
+| `GET /api/v1/admin/sales-reps/:adminUserId/organizations` | admin | Reverse view — organizations a rep is responsible for, with the count of open quote requests in each. |
 | `GET /api/v1/storefront/settings/quote-requests` | public | Returns the two storefront visibility flags. |
+
+The three endpoints that assign a sales representative *to* an organization —
+`GET`, `POST` and `DELETE` under
+`/api/v1/admin/organizations/:id/sales-reps` — belong to the **organizations**
+module and are gated by `organizations:assign-sales-rep`, not by `rfqs:handle`.
+They used to be registered here, and the split is not cosmetic: assigning a
+representative qualifies an organization, so it must keep working when quote
+requests is switched off, and it cannot be gated by a permission code declared
+by a module that can disappear. The one endpoint left above is the one that
+reads a quote request, and it is gated `rfqs:handle` precisely so that it
+disappears with this module.
 
 ## Visibility model
 

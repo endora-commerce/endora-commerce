@@ -180,6 +180,29 @@ caller's admin role is `sales_representative`, the admin Orders list
 and RFQ list are filtered to the orgs the rep owns. Platform admins
 see everything.
 
+Three endpoints maintain the relation, and this module owns and
+registers all three:
+
+| Verb + Path | Purpose |
+| --- | --- |
+| `GET /api/v1/admin/organizations/:id/sales-reps` | List the reps assigned to an organization. |
+| `POST /api/v1/admin/organizations/:id/sales-reps` | Assign a rep. |
+| `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` | Remove an assignment. |
+
+They are gated by `organizations:assign-sales-rep`. Until 2026-08 they
+were registered by the quote-requests module and gated by
+`rfqs:handle`, which meant switching quote requests off also removed
+the ability to assign a sales representative — and the code gating
+the screen disappeared from the roles matrix with it. Assigning a rep
+qualifies an organization, so it belongs here, with a code this
+module declares. The one endpoint that stayed behind is the reverse
+listing, `GET /api/v1/admin/sales-reps/:adminUserId/organizations`:
+it reports how many quote requests are open per organization, which
+is that module's fact.
+
+Other modules read the relation through this module's
+`organizationSalesRepScopePort`, never by querying the pivot.
+
 ### VAT-ID / NIP validation (US7)
 
 Two production HTTP clients implement the `VatValidator` port:
