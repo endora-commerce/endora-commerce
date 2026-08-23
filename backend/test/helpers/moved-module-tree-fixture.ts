@@ -141,7 +141,19 @@ function realActivation(id: string): unknown {
 }
 
 /** The stub the fixture puts where the generated index lives. */
-function stubManifestIndex(ids: readonly string[]): string {
+function stubManifestIndex(ids: readonly string[], backendRoot: string): string {
+  // Feature 080, T041a — the real generator emits `manifestPath` per entry and
+  // `coreManifestEntries` refuses an entry without one, so a stub that omitted
+  // it would kill every spawn at module resolution and each proof below would
+  // fail for a reason that has nothing to do with a moved module tree. The
+  // fixture writes the path the residue *would* have had: it is the moved
+  // module's old address, which for this fixture is a directory that is
+  // deliberately not there — and that is fine, because the refusal is about the
+  // field being absent, never about the file being present. It is written here,
+  // in a fixture whose job is to be a concrete layout, and not derived, so that
+  // the stub keeps saying what a pre-move index said.
+  const pathFor = (id: string): string =>
+    join(backendRoot, 'src', 'modules', id, 'manifest.ts').split('\\').join('/');
   return [
     '// Fixture stand-in for the generated manifest index.',
     '//',
@@ -159,6 +171,7 @@ function stubManifestIndex(ids: readonly string[]): string {
     '// to do with the residue, and their controls exited 2 as well.',
     'export interface DiscoveredManifestEntry {',
     '  id: string;',
+    '  manifestPath: string;',
     '  manifest: {',
     '    id: string;',
     '    name: string;',
@@ -178,7 +191,8 @@ function stubManifestIndex(ids: readonly string[]): string {
       const activation = realActivation(id);
       const tail = activation === undefined ? '' : `, activation: ${JSON.stringify(activation)}`;
       return (
-        `  { id: '${id}', manifest: { id: '${id}', name: '${id}', ` +
+        `  { id: '${id}', manifestPath: '${pathFor(id)}', ` +
+        `manifest: { id: '${id}', name: '${id}', ` +
         `version: '1.0.0', dependencies: []${tail} } },`
       );
     }),
@@ -263,7 +277,10 @@ export function createMovedModuleTreeFixture(
   );
   writeFileSync(
     join(backend, 'src', 'modules', KEPT_MODULE, 'manifest-index.generated.ts'),
-    stubManifestIndex(options.registeredIds ?? DISCOVERED_MANIFESTS.map((entry) => entry.id)),
+    stubManifestIndex(
+      options.registeredIds ?? DISCOVERED_MANIFESTS.map((entry) => entry.id),
+      backend,
+    ),
     'utf8',
   );
 
@@ -390,13 +407,32 @@ function splitManifestIndex(relocated: ReadonlySet<string>): string {
   return [
     '// Fixture stand-in for the generated manifest index, over a split tree.',
     '//',
-    '// The entry array is the real one; only the specifiers move, which is what',
-    '// the composer emits for a module that has become a package. The ids are',
+    '// The entry array is the real one; only the specifiers move. The ids are',
     '// read off the entries rather than off the specifiers precisely so that',
     '// this rewrite changes nothing about which modules are registered.',
+    '//',
+    '// A relocated module keeps a **relative** specifier here, where the real',
+    '// generator emits a bare one (D-149). That is deliberate and is a property',
+    '// of the fixture rather than a claim about the generator: this tree borrows',
+    '// the repository`s own `node_modules`, so no `@endora-commerce/mod-<id>`',
+    '// link exists in it and a bare specifier would resolve to nothing. What the',
+    '// fixture is staging is where the module sources sit, which is the question',
+    '// the checks below answer; the emitted specifier shape is proved instead by',
+    '// `test/unit/scripts/generate-registries.test.ts` and by',
+    '// `test/unit/scripts/module-package-artefacts.test.ts`.',
+    '//',
+    '// `manifestPath` is resolved by the real helper (feature 080, T041a), so',
+    '// this stub answers the location question the way the artefact does — and',
+    '// so a relocated module whose sources did not travel is a throw here rather',
+    '// than an i18n directory nobody looks at.',
+    "import { resolveManifestPath } from './manifest-locations.js';",
     ...ids.map((id, index) => `import { manifest as manifest${index} } from '${specifierOf(id)}';`),
     'export const DISCOVERED_MANIFESTS = [',
-    ...ids.map((id, index) => `  { id: '${id}', manifest: manifest${index} },`),
+    ...ids.map(
+      (id, index) =>
+        `  { id: '${id}', manifest: manifest${index}, ` +
+        `manifestPath: resolveManifestPath(import.meta.url, '${specifierOf(id)}') },`,
+    ),
     '];',
     '',
   ].join('\n');

@@ -14,6 +14,7 @@ import {
   type PermittedRoots,
 } from '../../../scripts/check-overlay-determinism.js';
 import {
+  coreSources,
   renderEntitiesRegistry,
   type SourceTree,
 } from '../../../scripts/generate-composer.js';
@@ -126,7 +127,7 @@ const REPO_ROOT = resolve(fileURLToPath(new URL('../../../../', import.meta.url)
 const ROOTS = permittedRoots(REPO_ROOT);
 
 /** Where the entity registry is rendered to, so a specifier resolves from `src/db/`. */
-const REGISTRY_PATH = renderEntitiesRegistry(new Map()).outputPath;
+const REGISTRY_PATH = renderEntitiesRegistry(coreSources({})).outputPath;
 
 /** A rendered artefact carrying exactly the specifiers a case is about. */
 function artefactImporting(...specifiers: readonly string[]): string {
@@ -174,12 +175,10 @@ describe('containmentSites', () => {
     // only `readSourceTree`'s `name === 'node_modules'` skip stops this, and
     // D-146 (one module-root derivation) and D-141 (`packages/modules/<id>/`,
     // symlinked into `node_modules`) both aim at it.
-    const sources: SourceTree = new Map([
-      [
-        'node_modules/@vendor/mod-blog/dist/probe.entity.ts',
+    const sources: SourceTree = coreSources({
+      'node_modules/@vendor/mod-blog/dist/probe.entity.ts':
         '@Entity()\nexport class VendorProbe {}\n',
-      ],
-    ]);
+    });
     const rendered = renderEntitiesRegistry(sources);
     const sites = containmentSites(rendered.outputPath, rendered.content, ROOTS);
     expect(sites).toHaveLength(1);

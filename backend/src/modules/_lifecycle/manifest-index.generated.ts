@@ -8,6 +8,15 @@
 // here, with the lifecycle exports it declares — its install hooks and its
 // lifecycle participant.
 //
+// Each entry also carries `manifestPath`: the **real** location of the file
+// this entry imported its manifest from, resolved against this file's own
+// `import.meta.url` at load time (feature 080, T041a). It is emitted data
+// because the generator walked the tree and knows where each module is, while
+// its one consumer — `registered-manifests.ts` — used to compute it from a
+// convention (`<modules root>/<id>/manifest.ts`) that a packaged module breaks
+// silently: every reader takes `dirname` of it to find the module's `i18n/`
+// bundles, and the reconciler logs and skips a directory that is not there.
+//
 // Bare core under every value of `DEPLOYMENT` (D-104). A deployment's overlay
 // manifests are discovered at runtime and merged on top of this index by
 // `resolvedManifestEntries()`, because which deployment a build is depends on
@@ -23,6 +32,7 @@
 // everything else topo-sorts or set-ifies.
 
 import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
+import { resolveManifestPath } from './manifest-locations.js';
 
 import { manifest as manifest0, lifecycleParticipant as lifecycleParticipant0, cliCommands as cliCommands0 } from '../_i18n/manifest.js';
 import { manifest as manifest1 } from '../_lifecycle/manifest.js';
@@ -94,6 +104,12 @@ import { manifest as manifest65 } from '../webhooks/manifest.js';
 export interface DiscoveredManifestEntry {
   id: string;
   manifest: ModuleManifest;
+  /**
+   * The real path of the file this entry's manifest was imported from —
+   * `<module>/manifest.ts` in the application tree, `<package>/package.json`
+   * for a packaged module. Every consumer takes `dirname` of it.
+   */
+  manifestPath: string;
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
   lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
@@ -101,70 +117,70 @@ export interface DiscoveredManifestEntry {
 }
 
 export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
-  { id: '_i18n', manifest: manifest0, lifecycleParticipant: lifecycleParticipant0, cliCommands: cliCommands0 },
-  { id: '_lifecycle', manifest: manifest1 },
-  { id: 'addresses', manifest: manifest2 },
-  { id: 'admin_actions', manifest: manifest3, lifecycleParticipant: lifecycleParticipant3 },
-  { id: 'admin_notifications', manifest: manifest4 },
-  { id: 'admin_roles', manifest: manifest5 },
-  { id: 'admin_users', manifest: manifest6, cliCommands: cliCommands6 },
-  { id: 'analytics', manifest: manifest7 },
-  { id: 'api_keys', manifest: manifest8 },
-  { id: 'assets_library', manifest: manifest9 },
-  { id: 'audit_logs', manifest: manifest10, cliCommands: cliCommands10 },
-  { id: 'auth', manifest: manifest11 },
-  { id: 'autopay', manifest: manifest12 },
-  { id: 'blog', manifest: manifest13 },
-  { id: 'carts', manifest: manifest14, cliCommands: cliCommands14 },
-  { id: 'catalog', manifest: manifest15 },
-  { id: 'cms', manifest: manifest16 },
-  { id: 'comparisons', manifest: manifest17 },
-  { id: 'credentials', manifest: manifest18 },
-  { id: 'credit_limits', manifest: manifest19 },
-  { id: 'currencies', manifest: manifest20 },
-  { id: 'custom_fields', manifest: manifest21, uninstallHook: uninstallHook21 },
-  { id: 'customer_accounts', manifest: manifest22 },
-  { id: 'customers', manifest: manifest23 },
-  { id: 'delivery_methods', manifest: manifest24 },
-  { id: 'dictionaries', manifest: manifest25 },
-  { id: 'email', manifest: manifest26 },
-  { id: 'google_analytics', manifest: manifest27 },
-  { id: 'google_tag_manager', manifest: manifest28 },
-  { id: 'health_checks', manifest: manifest29 },
-  { id: 'import_export', manifest: manifest30 },
-  { id: 'inventory', manifest: manifest31 },
-  { id: 'invoices', manifest: manifest32 },
-  { id: 'ksef', manifest: manifest33 },
-  { id: 'languages', manifest: manifest34 },
-  { id: 'linkedin_ads', manifest: manifest35 },
-  { id: 'megamenu', manifest: manifest36 },
-  { id: 'meta_ads', manifest: manifest37 },
-  { id: 'mfa', manifest: manifest38 },
-  { id: 'newsletter', manifest: manifest39 },
-  { id: 'orders', manifest: manifest40 },
-  { id: 'organizations', manifest: manifest41 },
-  { id: 'payment_methods', manifest: manifest42 },
-  { id: 'payments', manifest: manifest43 },
-  { id: 'paypal', manifest: manifest44 },
-  { id: 'payu', manifest: manifest45 },
-  { id: 'pim_ergonode', manifest: manifest46 },
-  { id: 'price_lists', manifest: manifest47 },
-  { id: 'product_feeds', manifest: manifest48 },
-  { id: 'promotions', manifest: manifest49 },
-  { id: 'prompt_actions', manifest: manifest50 },
-  { id: 'pwa', manifest: manifest51 },
-  { id: 'quick_order', manifest: manifest52 },
-  { id: 'quote_requests', manifest: manifest53 },
-  { id: 'returns', manifest: manifest54 },
-  { id: 'sales_channels', manifest: manifest55 },
-  { id: 'search', manifest: manifest56, cliCommands: cliCommands56 },
-  { id: 'seo', manifest: manifest57 },
-  { id: 'settings', manifest: manifest58, cliCommands: cliCommands58 },
-  { id: 'shipments', manifest: manifest59 },
-  { id: 'shopping_lists', manifest: manifest60 },
-  { id: 'stripe', manifest: manifest61 },
-  { id: 'taxes', manifest: manifest62 },
-  { id: 'tpay', manifest: manifest63 },
-  { id: 'transactional_emails', manifest: manifest64 },
-  { id: 'webhooks', manifest: manifest65 },
+  { id: '_i18n', manifest: manifest0, manifestPath: resolveManifestPath(import.meta.url, '../_i18n/manifest.js'), lifecycleParticipant: lifecycleParticipant0, cliCommands: cliCommands0 },
+  { id: '_lifecycle', manifest: manifest1, manifestPath: resolveManifestPath(import.meta.url, '../_lifecycle/manifest.js') },
+  { id: 'addresses', manifest: manifest2, manifestPath: resolveManifestPath(import.meta.url, '../addresses/manifest.js') },
+  { id: 'admin_actions', manifest: manifest3, manifestPath: resolveManifestPath(import.meta.url, '../admin_actions/manifest.js'), lifecycleParticipant: lifecycleParticipant3 },
+  { id: 'admin_notifications', manifest: manifest4, manifestPath: resolveManifestPath(import.meta.url, '../admin_notifications/manifest.js') },
+  { id: 'admin_roles', manifest: manifest5, manifestPath: resolveManifestPath(import.meta.url, '../admin_roles/manifest.js') },
+  { id: 'admin_users', manifest: manifest6, manifestPath: resolveManifestPath(import.meta.url, '../admin_users/manifest.js'), cliCommands: cliCommands6 },
+  { id: 'analytics', manifest: manifest7, manifestPath: resolveManifestPath(import.meta.url, '../analytics/manifest.js') },
+  { id: 'api_keys', manifest: manifest8, manifestPath: resolveManifestPath(import.meta.url, '../api_keys/manifest.js') },
+  { id: 'assets_library', manifest: manifest9, manifestPath: resolveManifestPath(import.meta.url, '../assets_library/manifest.js') },
+  { id: 'audit_logs', manifest: manifest10, manifestPath: resolveManifestPath(import.meta.url, '../audit_logs/manifest.js'), cliCommands: cliCommands10 },
+  { id: 'auth', manifest: manifest11, manifestPath: resolveManifestPath(import.meta.url, '../auth/manifest.js') },
+  { id: 'autopay', manifest: manifest12, manifestPath: resolveManifestPath(import.meta.url, '../autopay/manifest.js') },
+  { id: 'blog', manifest: manifest13, manifestPath: resolveManifestPath(import.meta.url, '../blog/manifest.js') },
+  { id: 'carts', manifest: manifest14, manifestPath: resolveManifestPath(import.meta.url, '../carts/manifest.js'), cliCommands: cliCommands14 },
+  { id: 'catalog', manifest: manifest15, manifestPath: resolveManifestPath(import.meta.url, '../catalog/manifest.js') },
+  { id: 'cms', manifest: manifest16, manifestPath: resolveManifestPath(import.meta.url, '../cms/manifest.js') },
+  { id: 'comparisons', manifest: manifest17, manifestPath: resolveManifestPath(import.meta.url, '../comparisons/manifest.js') },
+  { id: 'credentials', manifest: manifest18, manifestPath: resolveManifestPath(import.meta.url, '../credentials/manifest.js') },
+  { id: 'credit_limits', manifest: manifest19, manifestPath: resolveManifestPath(import.meta.url, '../credit_limits/manifest.js') },
+  { id: 'currencies', manifest: manifest20, manifestPath: resolveManifestPath(import.meta.url, '../currencies/manifest.js') },
+  { id: 'custom_fields', manifest: manifest21, manifestPath: resolveManifestPath(import.meta.url, '../custom_fields/manifest.js'), uninstallHook: uninstallHook21 },
+  { id: 'customer_accounts', manifest: manifest22, manifestPath: resolveManifestPath(import.meta.url, '../customer_accounts/manifest.js') },
+  { id: 'customers', manifest: manifest23, manifestPath: resolveManifestPath(import.meta.url, '../customers/manifest.js') },
+  { id: 'delivery_methods', manifest: manifest24, manifestPath: resolveManifestPath(import.meta.url, '../delivery_methods/manifest.js') },
+  { id: 'dictionaries', manifest: manifest25, manifestPath: resolveManifestPath(import.meta.url, '../dictionaries/manifest.js') },
+  { id: 'email', manifest: manifest26, manifestPath: resolveManifestPath(import.meta.url, '../email/manifest.js') },
+  { id: 'google_analytics', manifest: manifest27, manifestPath: resolveManifestPath(import.meta.url, '../google_analytics/manifest.js') },
+  { id: 'google_tag_manager', manifest: manifest28, manifestPath: resolveManifestPath(import.meta.url, '../google_tag_manager/manifest.js') },
+  { id: 'health_checks', manifest: manifest29, manifestPath: resolveManifestPath(import.meta.url, '../health_checks/manifest.js') },
+  { id: 'import_export', manifest: manifest30, manifestPath: resolveManifestPath(import.meta.url, '../import_export/manifest.js') },
+  { id: 'inventory', manifest: manifest31, manifestPath: resolveManifestPath(import.meta.url, '../inventory/manifest.js') },
+  { id: 'invoices', manifest: manifest32, manifestPath: resolveManifestPath(import.meta.url, '../invoices/manifest.js') },
+  { id: 'ksef', manifest: manifest33, manifestPath: resolveManifestPath(import.meta.url, '../ksef/manifest.js') },
+  { id: 'languages', manifest: manifest34, manifestPath: resolveManifestPath(import.meta.url, '../languages/manifest.js') },
+  { id: 'linkedin_ads', manifest: manifest35, manifestPath: resolveManifestPath(import.meta.url, '../linkedin_ads/manifest.js') },
+  { id: 'megamenu', manifest: manifest36, manifestPath: resolveManifestPath(import.meta.url, '../megamenu/manifest.js') },
+  { id: 'meta_ads', manifest: manifest37, manifestPath: resolveManifestPath(import.meta.url, '../meta_ads/manifest.js') },
+  { id: 'mfa', manifest: manifest38, manifestPath: resolveManifestPath(import.meta.url, '../mfa/manifest.js') },
+  { id: 'newsletter', manifest: manifest39, manifestPath: resolveManifestPath(import.meta.url, '../newsletter/manifest.js') },
+  { id: 'orders', manifest: manifest40, manifestPath: resolveManifestPath(import.meta.url, '../orders/manifest.js') },
+  { id: 'organizations', manifest: manifest41, manifestPath: resolveManifestPath(import.meta.url, '../organizations/manifest.js') },
+  { id: 'payment_methods', manifest: manifest42, manifestPath: resolveManifestPath(import.meta.url, '../payment_methods/manifest.js') },
+  { id: 'payments', manifest: manifest43, manifestPath: resolveManifestPath(import.meta.url, '../payments/manifest.js') },
+  { id: 'paypal', manifest: manifest44, manifestPath: resolveManifestPath(import.meta.url, '../paypal/manifest.js') },
+  { id: 'payu', manifest: manifest45, manifestPath: resolveManifestPath(import.meta.url, '../payu/manifest.js') },
+  { id: 'pim_ergonode', manifest: manifest46, manifestPath: resolveManifestPath(import.meta.url, '../pim_ergonode/manifest.js') },
+  { id: 'price_lists', manifest: manifest47, manifestPath: resolveManifestPath(import.meta.url, '../price_lists/manifest.js') },
+  { id: 'product_feeds', manifest: manifest48, manifestPath: resolveManifestPath(import.meta.url, '../product_feeds/manifest.js') },
+  { id: 'promotions', manifest: manifest49, manifestPath: resolveManifestPath(import.meta.url, '../promotions/manifest.js') },
+  { id: 'prompt_actions', manifest: manifest50, manifestPath: resolveManifestPath(import.meta.url, '../prompt_actions/manifest.js') },
+  { id: 'pwa', manifest: manifest51, manifestPath: resolveManifestPath(import.meta.url, '../pwa/manifest.js') },
+  { id: 'quick_order', manifest: manifest52, manifestPath: resolveManifestPath(import.meta.url, '../quick_order/manifest.js') },
+  { id: 'quote_requests', manifest: manifest53, manifestPath: resolveManifestPath(import.meta.url, '../quote_requests/manifest.js') },
+  { id: 'returns', manifest: manifest54, manifestPath: resolveManifestPath(import.meta.url, '../returns/manifest.js') },
+  { id: 'sales_channels', manifest: manifest55, manifestPath: resolveManifestPath(import.meta.url, '../sales_channels/manifest.js') },
+  { id: 'search', manifest: manifest56, manifestPath: resolveManifestPath(import.meta.url, '../search/manifest.js'), cliCommands: cliCommands56 },
+  { id: 'seo', manifest: manifest57, manifestPath: resolveManifestPath(import.meta.url, '../seo/manifest.js') },
+  { id: 'settings', manifest: manifest58, manifestPath: resolveManifestPath(import.meta.url, '../settings/manifest.js'), cliCommands: cliCommands58 },
+  { id: 'shipments', manifest: manifest59, manifestPath: resolveManifestPath(import.meta.url, '../shipments/manifest.js') },
+  { id: 'shopping_lists', manifest: manifest60, manifestPath: resolveManifestPath(import.meta.url, '../shopping_lists/manifest.js') },
+  { id: 'stripe', manifest: manifest61, manifestPath: resolveManifestPath(import.meta.url, '../stripe/manifest.js') },
+  { id: 'taxes', manifest: manifest62, manifestPath: resolveManifestPath(import.meta.url, '../taxes/manifest.js') },
+  { id: 'tpay', manifest: manifest63, manifestPath: resolveManifestPath(import.meta.url, '../tpay/manifest.js') },
+  { id: 'transactional_emails', manifest: manifest64, manifestPath: resolveManifestPath(import.meta.url, '../transactional_emails/manifest.js') },
+  { id: 'webhooks', manifest: manifest65, manifestPath: resolveManifestPath(import.meta.url, '../webhooks/manifest.js') },
 ];

@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /**
@@ -51,9 +51,33 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
  * git — the CI slim image has no git).
  */
 
+import {
+  absolutePathInPackage,
+  discoverModulePackages,
+  ModulePackageError,
+  packageSpecifierFor,
+  type ModulePackage,
+} from './lib/module-packages.js';
+
 const here = dirname(fileURLToPath(import.meta.url));
 const srcRoot = resolve(here, '../src');
 const modulesRoot = join(srcRoot, 'modules');
+/** The repository root — the workspace declaration is one level above `backend/`. */
+const repoRoot = resolve(here, '../..');
+
+/**
+ * Every module package this repository declares, resolved once per process.
+ *
+ * Memoised because all four artefacts need it and it is a filesystem read of
+ * the workspace globs; the generator is a short-lived CLI, so "once per
+ * process" and "once per run" are the same thing. `renderAll` passes the list
+ * down explicitly so a test can drive the renderers over a synthetic set.
+ */
+let modulePackagesCache: readonly ModulePackage[] | null = null;
+export function modulePackages(): readonly ModulePackage[] {
+  modulePackagesCache ??= discoverModulePackages(repoRoot);
+  return modulePackagesCache;
+}
 
 const composerOutputPath = join(srcRoot, 'composition.generated.ts');
 const manifestIndexOutputPath = join(
@@ -63,6 +87,23 @@ const manifestIndexOutputPath = join(
 );
 const entitiesRegistryOutputPath = join(srcRoot, 'db', 'entities-registry.generated.ts');
 const migrationsRegistryOutputPath = join(srcRoot, 'db', 'migrations-registry.generated.ts');
+
+/**
+ * How the emitted manifest index reaches {@link resolveManifestPath}.
+ *
+ * Computed from the two paths rather than written as `'./manifest-locations.js'`,
+ * so that moving either file — the index becomes host-owned under `backend/src/`
+ * per D-160.3 — changes this specifier in the next regeneration instead of
+ * leaving an artefact that imports a path no longer there (D-100).
+ */
+const manifestLocationsPath = join(modulesRoot, '_lifecycle', 'manifest-locations.ts');
+const manifestLocationsSpecifier = ((): string => {
+  const relativePath = relative(dirname(manifestIndexOutputPath), manifestLocationsPath)
+    .split('\\')
+    .join('/')
+    .replace(/\.ts$/, '.js');
+  return relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
+})();
 
 /**
  * Where every committed artefact lands. Exported so `overlay:check` can state
@@ -131,8 +172,8 @@ function directoriesIn(root: string): string[] {
 
 interface DiscoveredConverted {
   id: string;
-  /** Absolute path to the module's directory — read for `manifest.dependencies`. */
-  dir: string;
+  /** Absolute path to the module's `manifest.ts` — read for `manifest.dependencies`. */
+  manifestPath: string;
   backendImportPath: string;
   manifestImportPath: string;
 }
@@ -154,7 +195,7 @@ interface DiscoveredConverted {
  * manifests already were, and for the same reason: which deployment a build is
  * depends on the process, not on the tree a generator was run against.
  */
-function discoverConverted(): DiscoveredConverted[] {
+function discoverConverted(packages: readonly ModulePackage[] = modulePackages()): DiscoveredConverted[] {
   const byId = new Map<string, DiscoveredConverted>();
   for (const id of directoriesIn(modulesRoot)) {
     const backend = join(modulesRoot, id, 'backend.ts');
@@ -162,12 +203,76 @@ function discoverConverted(): DiscoveredConverted[] {
     exposesRegisterModule(backend);
     byId.set(id, {
       id,
-      dir: join(modulesRoot, id),
+      manifestPath: join(modulesRoot, id, 'manifest.ts'),
       backendImportPath: `./modules/${id}/backend.js`,
       manifestImportPath: `./modules/${id}/manifest.js`,
     });
   }
+  for (const pkg of packages) {
+    const entry = packageEntryPoints(pkg);
+    byId.set(pkg.moduleId, {
+      id: pkg.moduleId,
+      manifestPath: entry.manifestPath,
+      backendImportPath: entry.backendSpecifier,
+      manifestImportPath: entry.manifestSpecifier,
+    });
+  }
   return [...byId.values()];
+}
+
+/**
+ * Where a module package keeps its two entry points, and how a generated
+ * artefact names them (feature 080, T041a).
+ *
+ * Both are located by the **same two markers core discovery uses** — the file
+ * declaring `defineModuleManifest(` is the manifest, the file exporting
+ * `registerModule` is the composition entry — and then named through the
+ * package's own `exports` map. Neither `./backend` nor `.` is written here: a
+ * package whose backend barrel merely re-exports `registerModule` from a
+ * neighbour still resolves to the subpath covering that neighbour, which is the
+ * same subpath, and a package that spells its layers differently is followed
+ * rather than refused.
+ *
+ * Exactly one of each is required. Zero means a package that declares itself a
+ * module and composes nothing; two means the artefact would have to choose, and
+ * a generator that chooses silently is how a module comes to be registered from
+ * a file nobody meant.
+ */
+function packageEntryPoints(pkg: ModulePackage): {
+  manifestPath: string;
+  manifestSpecifier: string;
+  backendSpecifier: string;
+} {
+  const sources = readTree(pkg.dir, pkg);
+  const declaring = (predicate: (text: string) => boolean): string[] =>
+    [...sources]
+      .filter(([, entry]) => predicate(entry.text))
+      .map(([file]) => file)
+      .sort();
+
+  const manifests = declaring((text) =>
+    /export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(text),
+  );
+  const backends = declaring((text) =>
+    /export\s+(?:function|const|let|async\s+function)\s+registerModule\b/.test(text),
+  );
+  const one = (files: readonly string[], what: string, marker: string): string => {
+    if (files.length === 1) return files[0]!;
+    throw new ModulePackageError(
+      `[composer] ${pkg.name} declares module '${pkg.moduleId}' and holds ${files.length} ` +
+        `file(s) ${what} (${files.join(', ') || 'none'}). Exactly one is required: the ` +
+        `generator locates it by ${marker}, the same marker it uses for a module in the ` +
+        `application tree, and neither zero nor two can be turned into a registry entry.`,
+    );
+  };
+
+  const manifestFile = one(manifests, 'exporting a lifecycle-shape manifest', 'defineModuleManifest(');
+  const backendFile = one(backends, 'exporting registerModule', 'the registerModule export');
+  return {
+    manifestPath: absolutePathInPackage(pkg, manifestFile),
+    manifestSpecifier: packageSpecifierFor(pkg, manifestFile),
+    backendSpecifier: packageSpecifierFor(pkg, backendFile),
+  };
 }
 
 /**
@@ -176,13 +281,13 @@ function discoverConverted(): DiscoveredConverted[] {
  * and a regex would answer `[]` for anything it failed to recognise — which is
  * a wrong order that boots and then fails somewhere else.
  */
-async function loadManifest(dir: string): Promise<{ id: string; dependencies: string[] }> {
-  const mod = (await import(pathToFileURL(join(dir, 'manifest.ts')).href)) as {
+async function loadManifest(manifestPath: string): Promise<{ id: string; dependencies: string[] }> {
+  const mod = (await import(pathToFileURL(manifestPath).href)) as {
     manifest?: { id?: string; dependencies?: readonly string[] };
   };
   const manifest = mod.manifest;
   if (!manifest?.id) {
-    throw new Error(`[composer] ${dir}/manifest.ts exports no lifecycle-shape manifest`);
+    throw new Error(`[composer] ${manifestPath} exports no lifecycle-shape manifest`);
   }
   return { id: manifest.id, dependencies: [...(manifest.dependencies ?? [])] };
 }
@@ -248,7 +353,9 @@ export function assertDependenciesPresent(modules: readonly PresentModule[]): vo
 }
 
 /** Every core module that ships a lifecycle-shape manifest (D-104: core only). */
-async function discoverPresentModules(): Promise<PresentModule[]> {
+async function discoverPresentModules(
+  packages: readonly ModulePackage[] = modulePackages(),
+): Promise<PresentModule[]> {
   const byId = new Map<string, PresentModule>();
   for (const id of directoriesIn(modulesRoot)) {
     const manifestPath = join(modulesRoot, id, 'manifest.ts');
@@ -256,7 +363,10 @@ async function discoverPresentModules(): Promise<PresentModule[]> {
     if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(readFileSync(manifestPath, 'utf8'))) {
       continue;
     }
-    byId.set(id, await loadManifest(join(modulesRoot, id)));
+    byId.set(id, await loadManifest(manifestPath));
+  }
+  for (const pkg of packages) {
+    byId.set(pkg.moduleId, await loadManifest(packageEntryPoints(pkg).manifestPath));
   }
   return [...byId.values()];
 }
@@ -382,11 +492,12 @@ export async function renderComposer(): Promise<{ outputPath: string; content: s
   // is still in the tree (T056). A generated composer that quietly drops a
   // removed module and leaves its dependents declaring it produces a build
   // that boots and then fails closed at runtime.
-  assertDependenciesPresent(await discoverPresentModules());
-  const discovered = discoverConverted();
+  const packages = modulePackages();
+  assertDependenciesPresent(await discoverPresentModules(packages));
+  const discovered = discoverConverted(packages);
   const nodes: ComposerNode[] = [];
   for (const entry of discovered) {
-    const manifest = await loadManifest(entry.dir);
+    const manifest = await loadManifest(entry.manifestPath);
     if (manifest.id !== entry.id) {
       throw new Error(
         `[composer] ${entry.id}/manifest.ts declares id '${manifest.id}'; a module's folder name is its id`,
@@ -456,26 +567,39 @@ export function detectHookExport(name: string, source: string, moduleId: string)
  * implementation of "the deployment-resolved manifest set" rather than two, of
  * which the one under test was not the one that ran.
  */
-function discoverManifests(): DiscoveredManifest[] {
+function discoverManifests(
+  packages: readonly ModulePackage[] = modulePackages(),
+): DiscoveredManifest[] {
   const byId = new Map<string, DiscoveredManifest>();
+  const entryFrom = (id: string, source: string, importPath: string): DiscoveredManifest => ({
+    id,
+    importPath,
+    hasInstallHook: detectHookExport('installHook', source, id),
+    hasUninstallHook: detectHookExport('uninstallHook', source, id),
+    // Feature 080, T036a / D-159 — a module's interest in *every other*
+    // module's install, wired by the same walk and the same detector.
+    hasLifecycleParticipant: detectHookExport('lifecycleParticipant', source, id),
+    // Feature 080, T042b / D-160.9 — the operator commands a module declares
+    // and the host runs, wired by the same walk and the same detector.
+    hasCliCommands: detectHookExport('cliCommands', source, id),
+  });
   // The index lives in `_lifecycle/`, so a core manifest is one folder up.
   for (const id of directoriesIn(modulesRoot)) {
     const manifestPath = join(modulesRoot, id, 'manifest.ts');
     if (!existsSync(manifestPath)) continue;
     const source = readFileSync(manifestPath, 'utf8');
     if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(source)) continue;
-    byId.set(id, {
-      id,
-      importPath: `../${id}/manifest.js`,
-      hasInstallHook: detectHookExport('installHook', source, id),
-      hasUninstallHook: detectHookExport('uninstallHook', source, id),
-      // Feature 080, T036a / D-159 — a module's interest in *every other*
-      // module's install, wired by the same walk and the same detector.
-      hasLifecycleParticipant: detectHookExport('lifecycleParticipant', source, id),
-      // Feature 080, T042b / D-160.9 — the operator commands a module declares
-      // and the host runs, wired by the same walk and the same detector.
-      hasCliCommands: detectHookExport('cliCommands', source, id),
-    });
+    byId.set(id, entryFrom(id, source, `../${id}/manifest.js`));
+  }
+  // A packaged module's manifest is imported by the **bare** specifier its own
+  // exports map publishes (D-149), so this artefact does not change on the day
+  // the package stops being a workspace member and starts being installed.
+  for (const pkg of packages) {
+    const entry = packageEntryPoints(pkg);
+    byId.set(
+      pkg.moduleId,
+      entryFrom(pkg.moduleId, readFileSync(entry.manifestPath, 'utf8'), entry.manifestSpecifier),
+    );
   }
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -496,7 +620,11 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
 
   const entries = manifests
     .map((m, i) => {
-      const fields = [`id: '${m.id}'`, `manifest: manifest${i}`];
+      const fields = [
+        `id: '${m.id}'`,
+        `manifest: manifest${i}`,
+        `manifestPath: resolveManifestPath(import.meta.url, '${m.importPath}')`,
+      ];
       if (m.hasInstallHook) fields.push(`installHook: installHook${i}`);
       if (m.hasUninstallHook) fields.push(`uninstallHook: uninstallHook${i}`);
       if (m.hasLifecycleParticipant) {
@@ -513,6 +641,15 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
 // here, with the lifecycle exports it declares — its install hooks and its
 // lifecycle participant.
 //
+// Each entry also carries \`manifestPath\`: the **real** location of the file
+// this entry imported its manifest from, resolved against this file's own
+// \`import.meta.url\` at load time (feature 080, T041a). It is emitted data
+// because the generator walked the tree and knows where each module is, while
+// its one consumer — \`registered-manifests.ts\` — used to compute it from a
+// convention (\`<modules root>/<id>/manifest.ts\`) that a packaged module breaks
+// silently: every reader takes \`dirname\` of it to find the module's \`i18n/\`
+// bundles, and the reconciler logs and skips a directory that is not there.
+//
 // Bare core under every value of \`DEPLOYMENT\` (D-104). A deployment's overlay
 // manifests are discovered at runtime and merged on top of this index by
 // \`resolvedManifestEntries()\`, because which deployment a build is depends on
@@ -528,12 +665,19 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
 // everything else topo-sorts or set-ifies.
 
 import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
+import { resolveManifestPath } from '${manifestLocationsSpecifier}';
 
 ${imports}
 
 export interface DiscoveredManifestEntry {
   id: string;
   manifest: ModuleManifest;
+  /**
+   * The real path of the file this entry's manifest was imported from —
+   * \`<module>/manifest.ts\` in the application tree, \`<package>/package.json\`
+   * for a packaged module. Every consumer takes \`dirname\` of it.
+   */
+  manifestPath: string;
   installHook?: ModuleManifestExports['installHook'];
   uninstallHook?: ModuleManifestExports['uninstallHook'];
   lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
@@ -547,10 +691,12 @@ ${entries}
 }
 
 /** Pure render — the target path + expected content of the manifest registry. */
-export function renderManifestIndex(): { outputPath: string; content: string } {
+export function renderManifestIndex(
+  packages: readonly ModulePackage[] = modulePackages(),
+): { outputPath: string; content: string } {
   return {
     outputPath: manifestIndexOutputPath,
-    content: emitManifestIndex(discoverManifests()),
+    content: emitManifestIndex(discoverManifests(packages)),
   };
 }
 
@@ -563,8 +709,50 @@ export function renderManifestIndex(): { outputPath: string; content: string } {
 // silently narrows emits a shorter list, and a shorter list of migrations is a
 // table that is never created.
 
-/** Every hand-written `.ts` source under `src/`, keyed by its `src`-relative path. */
-export type SourceTree = ReadonlyMap<string, string>;
+/**
+ * One source file the generator read, and where it came from.
+ *
+ * The origin is carried on the **value** rather than encoded in the key
+ * (feature 080, T041a). A key alone cannot answer it: `src/packages/…` and
+ * `packages/modules/…/…` are both plausible strings, the second has to be
+ * attributed to a module id that is not in its path, and a specifier for it is
+ * derived from a manifest the key knows nothing about. A discriminated value
+ * makes every one of those a field lookup instead of a parse.
+ */
+export interface SourceFile {
+  readonly text: string;
+  /** The module package that owns it, or `null` for the application's own tree. */
+  readonly owner: ModulePackage | null;
+}
+
+/**
+ * Every hand-written `.ts` source the generator read.
+ *
+ * Keyed by `src`-relative path for the application's tree, and by
+ * package-relative path for a module package's — the two are only ever compared
+ * with an origin in hand, so they do not share a namespace.
+ */
+export type SourceTree = ReadonlyMap<string, SourceFile>;
+
+/** A `SourceTree` of application sources, for a test that only needs those. */
+export function coreSources(files: Readonly<Record<string, string>>): SourceTree {
+  return new Map(Object.entries(files).map(([file, text]) => [file, { text, owner: null }]));
+}
+
+/** A `SourceTree` of one module package's sources. */
+export function packageSources(
+  pkg: ModulePackage,
+  files: Readonly<Record<string, string>>,
+): SourceTree {
+  return new Map(Object.entries(files).map(([file, text]) => [file, { text, owner: pkg }]));
+}
+
+/** Two trees, in one map. Later entries win, as `Map` does. */
+export function mergeSources(...trees: readonly SourceTree[]): SourceTree {
+  const merged = new Map<string, SourceFile>();
+  for (const tree of trees) for (const [file, entry] of tree) merged.set(file, entry);
+  return merged;
+}
 
 /**
  * A generated artefact is **output, not input**. Excluding `*.generated.ts` is
@@ -573,27 +761,57 @@ export type SourceTree = ReadonlyMap<string, string>;
  * disagree with the first — which is the one property a committed artefact must
  * never lack.
  */
-function readSourceTree(root: string = srcRoot, prefix = '', out = new Map<string, string>()): Map<string, string> {
+function readTree(
+  root: string,
+  owner: ModulePackage | null,
+  prefix = '',
+  out = new Map<string, SourceFile>(),
+): Map<string, SourceFile> {
   for (const name of readdirSync(root).sort()) {
     if (name === 'node_modules' || name === 'dist' || name.startsWith('.')) continue;
     const full = join(root, name);
     const relativePath = prefix === '' ? name : `${prefix}/${name}`;
     if (statSync(full).isDirectory()) {
-      readSourceTree(full, relativePath, out);
+      readTree(full, owner, relativePath, out);
     } else if (
       name.endsWith('.ts') &&
       !name.endsWith('.d.ts') &&
       !name.endsWith('.test.ts') &&
       !name.endsWith('.generated.ts')
     ) {
-      out.set(relativePath, readFileSync(full, 'utf8'));
+      out.set(relativePath, { text: readFileSync(full, 'utf8'), owner });
     }
   }
   return out;
 }
 
-/** Import specifier from a file in `src/db/` to a `src`-relative source file. */
-function specifierFromDb(file: string): string {
+/**
+ * The application's own sources, plus every module package's.
+ *
+ * The package half is what makes the two `db/` registries survive the layout
+ * move: an entity or a migration that has become a package's is read here, is
+ * attributed to its package's declared module id, and is emitted with a bare
+ * specifier. Without it the walk narrows silently and a migration stops running
+ * — which is the exact failure the registries were consolidated to prevent.
+ */
+function readSourceTree(packages: readonly ModulePackage[] = modulePackages()): SourceTree {
+  const out = readTree(srcRoot, null);
+  for (const pkg of packages) readTree(pkg.dir, pkg, '', out);
+  return out;
+}
+
+/**
+ * Import specifier from a file in `src/db/` to a source file (D-149).
+ *
+ * Relative for the application's own tree — `./migration-order.js` for a
+ * sibling under `db/`, `../modules/blog/…` for anything else — and **bare** for
+ * a module package, which is what keeps the artefact unchanged on the day that
+ * package stops being a workspace member and starts being installed. The bare
+ * form is derived from the package's own `exports` map rather than assembled
+ * from a subpath written here; see `lib/module-packages.ts`.
+ */
+function specifierFor(file: string, owner: ModulePackage | null): string {
+  if (owner !== null) return packageSpecifierFor(owner, file);
   const asJs = file.replace(/\.ts$/, '.js');
   return asJs.startsWith('db/') ? `./${asJs.slice('db/'.length)}` : `../${asJs}`;
 }
@@ -601,8 +819,10 @@ function specifierFromDb(file: string): string {
 /** One `@Entity`-decorated class, as the generator sees it. */
 export interface DiscoveredEntity {
   readonly className: string;
-  /** `src`-relative path of the file declaring it. */
+  /** Path of the file declaring it, relative to its own root. */
   readonly file: string;
+  /** The module package that owns it, or `null` for the application's tree. */
+  readonly owner: ModulePackage | null;
 }
 
 /**
@@ -618,7 +838,9 @@ export interface DiscoveredEntity {
 export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
   const found: DiscoveredEntity[] = [];
   const byClassName = new Map<string, string>();
-  for (const [file, source] of [...sources].sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [file, { text: source, owner }] of [...sources].sort(([a], [b]) =>
+    a.localeCompare(b),
+  )) {
     const declares = source.includes('@Entity(');
     if (!declares) {
       if (file.endsWith('.entity.ts')) {
@@ -630,7 +852,7 @@ export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
       }
       continue;
     }
-    if (file.startsWith('apps/')) {
+    if (owner === null && file.startsWith('apps/')) {
       throw new Error(
         `[composer] ${file} declares an @Entity() class under a deployment overlay. ` +
           `A per-deployment overlay contributes registrations, routes, decorations, ` +
@@ -662,7 +884,7 @@ export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
         );
       }
       byClassName.set(className, file);
-      found.push({ className, file });
+      found.push({ className, file, owner });
       cursor = source.indexOf('@Entity(', cursor + 1);
     }
   }
@@ -684,16 +906,18 @@ function emitEntitiesHeader(): string {
 // here, in path order. Detection is by that decorator, not by the
 // \`.entity.ts\` suffix, because nothing enforces the suffix — and the decorator
 // is deliberately not spelled out in this comment, so that a walk looking for
-// it does not find its own output. The walk is core-only: out-of-core code
-// contributes no schema (D-105), so an entity under \`src/apps/\` is refused by
-// the generator rather than registered for a table nothing creates.
+// it does not find its own output. A per-deployment overlay contributes no
+// schema (D-106), so an entity under \`src/apps/\` is refused by the generator
+// rather than registered for a table nothing creates. A **module package** is
+// the opposite case and is here: its entities are named by a bare specifier
+// derived from that package's own \`exports\` map (D-149).
 `;
 }
 
 /** Pure emit — the entity registry's content for a given set of entities. */
 export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): string {
   const imports = entities
-    .map((entity) => `import { ${entity.className} } from '${specifierFromDb(entity.file)}';`)
+    .map((entity) => `import { ${entity.className} } from '${specifierFor(entity.file, entity.owner)}';`)
     .join('\n');
   const listed = entities.map((entity) => `  ${entity.className},`).join('\n');
   return `${emitEntitiesHeader()}
@@ -746,14 +970,29 @@ export interface DiscoveredMigration {
   /** Owning module id — `core` for `src/db/migrations/`. */
   readonly moduleId: string;
   readonly className: string;
-  /** `src`-relative path of the migration file. */
+  /** Path of the migration file, relative to its own root. */
   readonly file: string;
+  /** The module package that owns it, or `null` for the application's tree. */
+  readonly owner: ModulePackage | null;
 }
 
 /** `src/db/migrations/<file>` and `src/modules/<id>/migrations/<file>`. */
 const CORE_MIGRATION_RE = /^db\/migrations\/([^/]+\.ts)$/;
 const MODULE_MIGRATION_RE = /^modules\/([^/]+)\/migrations\/([^/]+\.ts)$/;
 const OVERLAY_MIGRATION_RE = /^apps\/[^/]+\/modules\/[^/]+\/migrations\//;
+
+/**
+ * A migration inside a module package — `<anything>/migrations/<file>`.
+ *
+ * Deliberately **not** anchored on a `modules/<id>/` segment the way its
+ * application twin is, and the module id is **not** read out of it: a package's
+ * layout is its own (`src/migrations/`, per `module-package-layout.md` §1) and
+ * its id comes off its `endora` block, which is the declaration D-142 makes
+ * authoritative. Keying on the path would work for one layout and stop working
+ * for the next, which is the failure `lib/module-roots.ts` exists to end rather
+ * than relocate.
+ */
+const PACKAGE_MIGRATION_RE = /(?:^|\/)migrations\/([^/]+\.ts)$/;
 
 /**
  * Every migration in the core tree, with the module that owns it.
@@ -770,8 +1009,10 @@ const OVERLAY_MIGRATION_RE = /^apps\/[^/]+\/modules\/[^/]+\/migrations\//;
 export function collectMigrations(sources: SourceTree): DiscoveredMigration[] {
   const found: DiscoveredMigration[] = [];
   const byClassName = new Map<string, string>();
-  for (const [file, source] of [...sources].sort(([a], [b]) => a.localeCompare(b))) {
-    if (OVERLAY_MIGRATION_RE.test(file)) {
+  for (const [file, { text: source, owner }] of [...sources].sort(([a], [b]) =>
+    a.localeCompare(b),
+  )) {
+    if (owner === null && OVERLAY_MIGRATION_RE.test(file)) {
       throw new Error(
         `[composer] ${file} is a migration under a deployment overlay. A per-deployment ` +
           `overlay contributes registrations, routes, decorations, interceptors, ` +
@@ -785,13 +1026,16 @@ export function collectMigrations(sources: SourceTree): DiscoveredMigration[] {
           `module to ship them from.`,
       );
     }
-    const core = CORE_MIGRATION_RE.exec(file);
-    const owned = MODULE_MIGRATION_RE.exec(file);
-    if (!core && !owned) continue;
-    const moduleId = core ? 'core' : owned![1]!;
-    const filename = core ? core[1]! : owned![2]!;
+    const packaged = owner !== null ? PACKAGE_MIGRATION_RE.exec(file) : null;
+    const core = owner === null ? CORE_MIGRATION_RE.exec(file) : null;
+    const owned = owner === null ? MODULE_MIGRATION_RE.exec(file) : null;
+    if (!core && !owned && !packaged) continue;
+    // The id of a packaged migration is its package's declared `endora.id`, not
+    // a path segment (D-142); of an application one, the directory it sits in.
+    const moduleId = packaged ? owner!.moduleId : core ? 'core' : owned![1]!;
+    const filename = packaged ? packaged[1]! : core ? core[1]! : owned![2]!;
     if (!MIGRATION_FILE_RE.test(filename)) {
-      if (MIGRATION_HELPER_ALLOW_LIST.has(file)) continue;
+      if (owner === null && MIGRATION_HELPER_ALLOW_LIST.has(file)) continue;
       throw new Error(
         `[composer] ${file} sits in a migrations directory but is not named like a ` +
           `migration (<YYYYMMDDTHHmmss>_<module-segment>_<slug>.ts). Rename it per ` +
@@ -816,7 +1060,7 @@ export function collectMigrations(sources: SourceTree): DiscoveredMigration[] {
       );
     }
     byClassName.set(className, file);
-    found.push({ moduleId, className, file });
+    found.push({ moduleId, className, file, owner });
   }
   return found;
 }
@@ -868,7 +1112,7 @@ export function emitMigrationsRegistry(migrations: readonly DiscoveredMigration[
       sections.push(`\n  // ── ${currentModule} ${rule}`);
       imports.push(`\n// ── ${currentModule} ${rule}`);
     }
-    imports.push(`import { ${entry.className} } from '${specifierFromDb(entry.file)}';`);
+    imports.push(`import { ${entry.className} } from '${specifierFor(entry.file, entry.owner)}';`);
     sections.push(`  migration('${entry.moduleId}', ${entry.className}),`);
   }
 
@@ -903,11 +1147,12 @@ export function renderMigrationsRegistry(sources: SourceTree = readSourceTree())
 export async function renderAll(): Promise<
   ReadonlyArray<{ label: string; outputPath: string; content: string }>
 > {
-  const sources = readSourceTree();
+  const packages = modulePackages();
+  const sources = readSourceTree(packages);
   const composer = await renderComposer();
   return [
     { label: 'composition.generated', ...composer },
-    { label: 'manifest-index', ...renderManifestIndex() },
+    { label: 'manifest-index', ...renderManifestIndex(packages) },
     { label: 'entities-registry', ...renderEntitiesRegistry(sources) },
     { label: 'migrations-registry', ...renderMigrationsRegistry(sources) },
   ];
