@@ -20,8 +20,13 @@
 // schema (D-106), so an entity under `src/apps/` is refused by the generator
 // rather than registered for a table nothing creates. A **module package** is
 // the opposite case and is here: its entities are named by a bare specifier
-// derived from that package's own `exports` map (D-149).
+// derived from that package's own `exports` map (D-149), and they arrive as
+// **one `entities` array** rather than as a class per name (D-168) — the same
+// export `src/packages/package-runtime.ts` reads when that package is
+// installed rather than linked, so the committed registry and the runtime
+// loader now read one declaration instead of two.
 
+import type { EntityClassLike } from '../packages/package-runtime.js';
 import { AuditLogEntry } from '../kernel/audit/audit-log-entry.entity.js';
 import { ModuleRegistration } from '../kernel/lifecycle/module-registration.entity.js';
 import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
@@ -236,17 +241,7 @@ import { TransactionalEmailContent } from '../modules/transactional_emails/entit
 import { TransactionalEmail } from '../modules/transactional_emails/entities/transactional-email.entity.js';
 import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
 import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
-import { BlogCategoryLanguage } from '@endora-commerce/mod-blog/backend';
-import { BlogCategorySalesChannel } from '@endora-commerce/mod-blog/backend';
-import { BlogCategory } from '@endora-commerce/mod-blog/backend';
-import { BlogPostCategory } from '@endora-commerce/mod-blog/backend';
-import { BlogPostLanguage } from '@endora-commerce/mod-blog/backend';
-import { BlogPostRelatedPost } from '@endora-commerce/mod-blog/backend';
-import { BlogPostRelatedProduct } from '@endora-commerce/mod-blog/backend';
-import { BlogPostSalesChannel } from '@endora-commerce/mod-blog/backend';
-import { BlogPostTag } from '@endora-commerce/mod-blog/backend';
-import { BlogPost } from '@endora-commerce/mod-blog/backend';
-import { BlogTag } from '@endora-commerce/mod-blog/backend';
+import { entities as blogEntities } from '@endora-commerce/mod-blog/backend';
 
 export const ALL_ENTITIES = [
   AuditLogEntry,
@@ -463,15 +458,5 @@ export const ALL_ENTITIES = [
   TransactionalEmail,
   WebhookDelivery,
   Webhook,
-  BlogCategoryLanguage,
-  BlogCategorySalesChannel,
-  BlogCategory,
-  BlogPostCategory,
-  BlogPostLanguage,
-  BlogPostRelatedPost,
-  BlogPostRelatedProduct,
-  BlogPostSalesChannel,
-  BlogPostTag,
-  BlogPost,
-  BlogTag,
+  ...(blogEntities as readonly EntityClassLike[]),
 ] as const;

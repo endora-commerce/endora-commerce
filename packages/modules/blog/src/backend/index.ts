@@ -28,6 +28,17 @@ import { seedBlogRoles } from './services/seed-roles.js';
 import { registerBlogAdminRoutes } from './routes.admin.js';
 import { registerBlogStorefrontRoutes } from './routes.storefront.js';
 import { registerBlogLanguageReferences } from './services/blog-language-reference.js';
+import { BlogCategory } from './entities/blog-category.entity.js';
+import { BlogCategoryLanguage } from './entities/blog-category-language.entity.js';
+import { BlogCategorySalesChannel } from './entities/blog-category-sales-channel.entity.js';
+import { BlogPost } from './entities/blog-post.entity.js';
+import { BlogPostCategory } from './entities/blog-post-category.entity.js';
+import { BlogPostLanguage } from './entities/blog-post-language.entity.js';
+import { BlogPostRelatedPost } from './entities/blog-post-related-post.entity.js';
+import { BlogPostRelatedProduct } from './entities/blog-post-related-product.entity.js';
+import { BlogPostSalesChannel } from './entities/blog-post-sales-channel.entity.js';
+import { BlogPostTag } from './entities/blog-post-tag.entity.js';
+import { BlogTag } from './entities/blog-tag.entity.js';
 
 /**
  * The Blog module's backend entry point — feature 016, converted to feature
@@ -239,28 +250,45 @@ export function registerModule(ctx: ModuleContext): void {
 }
 
 /**
- * The module's persisted entity classes, on the `./backend` subpath.
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
  *
- * The host's ORM registry (`db/entities-registry.generated.ts`) names each of
- * them through this package's `exports` map, so they have to leave the package
- * by a declared subpath rather than by a deep path into `dist/`. Re-exporting
- * them here rather than declaring an `./entities` subpath keeps the map at the
- * three keys `module-package-layout.md` §2 names, and it is what the composer's
- * "a barrel covers its directory" rule already resolves to.
+ * This is the shape the platform already reads, in two places: the boot-time
+ * loader (`src/packages/package-runtime.ts`, `exported['entities']`) and the
+ * static declaration reader (`scripts/lib/package-declarations.ts`), which is
+ * the third source of the `table→owner` map and the package pass of
+ * `check-entity-tenant-classification`. Until D-168 this file published eleven
+ * `export *` lines instead, which satisfied only the committed host registry —
+ * the one path that stops being taken the day this module is *installed*
+ * rather than linked, at which point the loader read `undefined`, returned
+ * `[]`, and registered zero entities without a word.
+ *
+ * The absence of a named export is the load-bearing half. With it,
+ * `import type { BlogPost } from '@endora-commerce/mod-blog/backend'` compiles
+ * in any consumer — ours, a deployment's, a stranger's — and only a check whose
+ * population is *this* repository could ever object. Without it, that import is
+ * TS2305 in the consumer's own tree, which is Principle I holding by
+ * construction. Nothing legitimate is lost: D-32 already forbids an ORM
+ * relation from another module into these classes, and every other cross-module
+ * read goes through a contract type. An `EntityClassLike[]` is a value the
+ * host's ORM registers and nothing else can usefully name.
  *
  * Identity matters more here than anywhere else in the package: MikroORM keys
  * its metadata on the class, so a consumer that reached these files by a second
  * specifier would register a second `BlogPost` and lose one of them at
- * discovery (D-160.6, measured).
+ * discovery (D-160.6, measured). One array behind one declared subpath is the
+ * only way in.
  */
-export * from './entities/blog-category.entity.js';
-export * from './entities/blog-category-language.entity.js';
-export * from './entities/blog-category-sales-channel.entity.js';
-export * from './entities/blog-post.entity.js';
-export * from './entities/blog-post-category.entity.js';
-export * from './entities/blog-post-language.entity.js';
-export * from './entities/blog-post-related-post.entity.js';
-export * from './entities/blog-post-related-product.entity.js';
-export * from './entities/blog-post-sales-channel.entity.js';
-export * from './entities/blog-post-tag.entity.js';
-export * from './entities/blog-tag.entity.js';
+export const entities = [
+  BlogCategory,
+  BlogCategoryLanguage,
+  BlogCategorySalesChannel,
+  BlogPost,
+  BlogPostCategory,
+  BlogPostLanguage,
+  BlogPostRelatedPost,
+  BlogPostRelatedProduct,
+  BlogPostSalesChannel,
+  BlogPostTag,
+  BlogTag,
+];
