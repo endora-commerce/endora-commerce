@@ -595,9 +595,46 @@ number", never pick a number, never edit an execution list.
 
 **Entities are registered the same way.** `backend/src/db/entities-registry.generated.ts`
 comes out of the same command and the same walk: add the `@Entity()` class under the
-module's `entities/`, run `composer:generate`, commit the artefact. Both registries are
-core-only — an overlay module cannot ship a migration, so the generator refuses an entity or
-a migration under `backend/src/apps/` rather than emitting schema nothing creates.
+module's `entities/`, run `composer:generate`, commit the artefact. An **overlay** module
+contributes to neither — it can ship no migration (D-106), so the generator refuses an entity
+or a migration under `backend/src/apps/` rather than emitting schema nothing creates.
+
+**A module that has become a workspace package contributes to all four artefacts, with a
+bare specifier** (feature 080, T041a; D-149). Until then the generator had no notion of one:
+every walk was rooted at `backend/src`, `MODULE_MIGRATION_RE` was anchored at
+`^modules/<id>/migrations/`, and `specifierFromDb` emitted a relative path and nothing else —
+so the first module to move would have left the migration registry, which is the one artefact
+where an absence is invisible. Four things about how it works now, because each is a rule an
+author can trip over:
+
+- **A package is discovered by its own `endora: { type: 'module', id }` block**, over the
+  members `pnpm-workspace.yaml` globs, and by nothing else. `packages/modules` appears in no
+  check and in no generator (D-100), so **the glob and the move belong in one merge request**:
+  a package no glob reaches is not a member, is not discovered, and drops out of every
+  artefact silently.
+- **An *installed* package contributes nothing** (D-119/D-155). It is discovered at runtime;
+  baking it into a committed artefact registers it twice, and `overlay:check`'s `foreign`
+  verdict refuses it by **real path**.
+- **The specifier is derived from the package's own `exports` map** — the most specific
+  declared subpath whose target covers the file, where a target named `index.*` covers its
+  directory. Nothing spells `./backend` or `./migrations` anywhere in the tree; a package that
+  names its layers differently is followed. A file **no** declared subpath covers is
+  **refused**, because a committed registry importing it would get
+  `ERR_PACKAGE_PATH_NOT_EXPORTED` and skipping it is how a migration goes missing without a
+  word. Wildcard subpaths (`"./i18n/*"`) are outside the rule.
+- **A packaged migration is attributed to `endora.id`, never to a path segment** (D-142) — a
+  hard uninstall reverts exactly the migrations registered under the module being removed.
+
+**And `manifest-index.generated.ts` carries each entry's real `manifestPath`.**
+`registered-manifests.ts` used to compute it as `<modules root>/<id>/manifest.ts`, a
+convention nothing verified, and every consumer takes `dirname` of it to reach the module's
+own directory — the `_i18n` boot reconciler joins `bundlesDir` to it and **logs and skips** a
+directory that is not there. A packaged module would therefore have loaded no bundle and
+rendered every command-palette entry as its raw i18n key, with no error anywhere. The
+generator emits the location it walked (`_lifecycle/manifest-locations.ts` resolves it against
+the index's own `import.meta.url`, so it follows a `dist` run and a moved index alike), and
+both halves **refuse** rather than substitute: a specifier reaching no file throws at the
+first import of the index, and an entry with no path throws in `coreManifestEntries`.
 
 Full guide: `docs/docs/architecture/migrations.md`. Contracts:
 `specs/081-per-module-migration-order/contracts/ordering-algorithm.md` (normative for the

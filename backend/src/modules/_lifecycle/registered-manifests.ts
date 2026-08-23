@@ -58,12 +58,16 @@ export interface RegisteredManifestEntry {
 }
 
 /**
- * Convention: every core module lives at `backend/src/modules/<id>/manifest.ts`.
- * `import.meta.url` points at this `_lifecycle/registered-manifests.ts`, so
- * `dirname(dirname(...))` lands on the modules root.
+ * `backend/src/modules` — the application's own module tree.
+ *
+ * It is **not** where a module's manifest path comes from any more (feature
+ * 080, T041a): that is emitted data on the index entry, see
+ * {@link coreManifestEntries}. What it is still for is
+ * {@link manifestEntryOrigin}'s containment test, which asks the opposite
+ * question — *is this path one this build ships* — and for which a root of the
+ * running build is exactly the right input.
  */
 const MODULES_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-const pathFor = (id: string): string => join(MODULES_ROOT, id, 'manifest.ts');
 
 /**
  * `backend/src` under `tsx`/`vitest`, `backend/dist` in production — whichever
@@ -154,20 +158,55 @@ function entryFor(
   };
 }
 
+/** Raised when an index entry carries no location for the manifest it imported. */
+export class ManifestPathMissingError extends Error {
+  override readonly name = 'ManifestPathMissingError';
+}
+
 /**
- * The core registry: every discovered module, with its directory derived from
- * its id.
+ * The core registry: every discovered module, with the location the generator
+ * recorded for it.
  *
  * The index has no deployment entry to filter out any more (D-104). It is a
  * walk of the shared core tree and nothing else, whatever `DEPLOYMENT` is set
  * to when it is generated — which is what makes the committed artefact mean the
  * same thing in every environment, and what makes a stale one detectable
  * (FR-004, issue #120).
+ *
+ * **The path is read, not computed** (feature 080, T041a). It used to be
+ * `join(MODULES_ROOT, entry.id, 'manifest.ts')` — a convention, holding for as
+ * long as every module sits at `backend/src/modules/<id>/`, and giving a
+ * confident wrong answer the moment one does not. There is no reader of
+ * `filePath` that does not take `dirname` of it and join a directory: the
+ * `_i18n` boot reconciler joins `bundlesDir`, the orchestrator hands the same
+ * directory to the install-time bundle load, and both **skip** a directory that
+ * is absent. So a packaged module would have loaded no bundle, rendered every
+ * command-palette label as its raw key, and reported nothing anywhere.
+ *
+ * An entry with no path is therefore refused rather than defaulted. There is no
+ * honest fallback: the only candidate is the convention that just stopped
+ * holding, and a registry that answers with a directory nobody verified is the
+ * failure this replaces. The type makes the field required, which is what stops
+ * a *new* emitter from omitting it; this refusal is for the older artefact — a
+ * committed index generated before the field existed, or a hand-edited one —
+ * which the type cannot reach because it was compiled against a different shape.
  */
 export function coreManifestEntries(
   discovered: ReadonlyArray<DiscoveredManifestEntry>,
 ): RegisteredManifestEntry[] {
-  return discovered.map((entry) => entryFor(entry, pathFor(entry.id)));
+  return discovered.map((entry) => {
+    const manifestPath = entry.manifestPath;
+    if (typeof manifestPath !== 'string' || manifestPath.length === 0) {
+      throw new ManifestPathMissingError(
+        `[registered-manifests] the generated index entry for '${entry.id}' carries no ` +
+          `manifestPath. Every consumer takes dirname() of it to reach the module's own ` +
+          `directory — its i18n bundles above all — and there is no convention left to ` +
+          `guess one from, because a module may now live in a workspace package. ` +
+          `Regenerate the index: pnpm --filter backend run composer:generate`,
+      );
+    }
+    return entryFor(entry, manifestPath);
+  });
 }
 
 export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> =

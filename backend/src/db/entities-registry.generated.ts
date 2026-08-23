@@ -16,9 +16,11 @@
 // here, in path order. Detection is by that decorator, not by the
 // `.entity.ts` suffix, because nothing enforces the suffix — and the decorator
 // is deliberately not spelled out in this comment, so that a walk looking for
-// it does not find its own output. The walk is core-only: out-of-core code
-// contributes no schema (D-105), so an entity under `src/apps/` is refused by
-// the generator rather than registered for a table nothing creates.
+// it does not find its own output. A per-deployment overlay contributes no
+// schema (D-106), so an entity under `src/apps/` is refused by the generator
+// rather than registered for a table nothing creates. A **module package** is
+// the opposite case and is here: its entities are named by a bare specifier
+// derived from that package's own `exports` map (D-149).
 
 import { AuditLogEntry } from '../kernel/audit/audit-log-entry.entity.js';
 import { ModuleRegistration } from '../kernel/lifecycle/module-registration.entity.js';

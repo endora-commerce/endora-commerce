@@ -74,6 +74,61 @@ function packageDirectoryOf(entry: string): string {
   return entry.includes('/') ? entry : `packages/${entry}`;
 }
 
+/**
+ * A workspace member's `tsconfig.build.json`, or `null` when it has none.
+ *
+ * Injected so the two answers below enter at the top of the analysis rather
+ * than at a value the predicate normally computes (issue #130): "this member
+ * ships no build config" is a **file-level** fact, and a fixture handing in a
+ * parsed `rootDir` would leave the branch that reads the file unrun — which is
+ * the branch that was missing.
+ */
+export type BuildConfigReader = (memberDir: string) => string | null;
+
+/** The real filesystem behind {@link BuildConfigReader}. Absence is `null`, never a throw. */
+export function nodeBuildConfigReader(): BuildConfigReader {
+  return (memberDir: string): string | null => {
+    try {
+      return readFileSync(join(memberDir, 'tsconfig.build.json'), 'utf8');
+    } catch {
+      return null;
+    }
+  };
+}
+
+/**
+ * Does this member publish sources that live under its own directory?
+ *
+ * Three answers, and the first is the one feature 080's T041a added:
+ *
+ *   * **no `tsconfig.build.json` at all** → `true`. A member that produces no
+ *     build keeps its sources where they are, so they *are* its own, and a
+ *     `paths` entry is therefore **required** for it. That is not a
+ *     technicality: D-140 rules that a module package ships source and emits no
+ *     `dist`, so `packages/modules/<id>` is the first member with no build
+ *     config, and the previous unguarded `readFileSync` threw `ENOENT` on it —
+ *     a crash where a verdict belongs. It is written as an explicit
+ *     missing-file branch rather than a `try`/`catch` around the parse, because
+ *     "the file is not there" and "the file is there and unreadable" are
+ *     different facts and only the first has an honest default.
+ *   * **a build config with no `rootDir`** → `true`, for the same reason: the
+ *     default root is the config's own directory.
+ *   * **a `rootDir` outside the member** → `false`. `@endora-commerce/platform`
+ *     is the only one today.
+ */
+export function sourcesAreItsOwn(memberDir: string, read: BuildConfigReader): boolean {
+  const build = read(memberDir);
+  if (build === null) return true;
+  const withoutComments = build
+    .split('\n')
+    .map((line) => (/^\s*\/\//.test(line) ? '' : line))
+    .join('\n');
+  const rootDir = (JSON.parse(withoutComments) as { compilerOptions?: { rootDir?: string } })
+    .compilerOptions?.rootDir;
+  if (rootDir === undefined) return true;
+  return isInsideCheckout(memberDir, resolve(memberDir, rootDir));
+}
+
 /** `packages/modules/blog` → `@endora-commerce/blog`; `contracts` → `@endora-commerce/contracts`. */
 function packageNameOf(entry: string): string {
   const segments = entry.split('/');
@@ -306,6 +361,34 @@ describe('workspace resolution guard', () => {
     expect(inspectWorkspaceResolution(ROOT, fs).scopes).toEqual(['@endora-commerce/']);
   });
 
+  it('answers for a member that ships source and no build, instead of throwing (T041a)', () => {
+    // The fixture enters at the file: a reader that reports the build config
+    // **absent**, which is what `packages/modules/<id>` is under D-140 — source,
+    // no `dist`, no `tsconfig.build.json`. Before this branch existed the
+    // predicate called `readFileSync` unguarded and the first module package
+    // made this assertion die with ENOENT rather than answer.
+    const absent: BuildConfigReader = () => null;
+
+    expect(sourcesAreItsOwn('/repo/packages/modules/blog', absent)).toBe(true);
+  });
+
+  it('keeps both other answers, so the missing-file branch is not the only one (T041a)', () => {
+    // The discrimination the branch above must not swallow. A member that
+    // *does* ship a build config still answers from its `rootDir`, and the two
+    // answers must stay different — a guard written as "return true on
+    // anything unreadable" would make every package's sources its own and the
+    // `wronglyMapped` half of the assertion below would stop measuring.
+    const ownRoot: BuildConfigReader = () =>
+      '{\n  // a comment, which JSON.parse cannot take\n  "compilerOptions": { "rootDir": "./src" }\n}';
+    const elsewhere: BuildConfigReader = () =>
+      '{ "compilerOptions": { "rootDir": "../../backend/src" } }';
+    const noRootDir: BuildConfigReader = () => '{ "compilerOptions": { "outDir": "./dist" } }';
+
+    expect(sourcesAreItsOwn('/repo/packages/contracts', ownRoot)).toBe(true);
+    expect(sourcesAreItsOwn('/repo/packages/platform', elsewhere)).toBe(false);
+    expect(sourcesAreItsOwn('/repo/packages/contracts', noRootDir)).toBe(true);
+  });
+
   it('does not mistake a sibling directory with a shared prefix for this checkout', () => {
     expect(isInsideCheckout('/srv/app', '/srv/app-2/packages/contracts')).toBe(false);
     expect(isInsideCheckout('/srv/app', '/srv/app/packages/contracts')).toBe(true);
@@ -357,18 +440,29 @@ describe('this checkout', () => {
     // the reason this is two-way rather than one: its `rootDir` is
     // `backend/src`, so its sources are already this checkout's own — `tsc`
     // compiles them directly, through no specifier, and there is nothing for a
-    // `paths` entry to redirect. An entry would not be merely idle: every
-    // tsconfig in this repository extends `tsconfig.base.json`, including
-    // `backend/acceptance/fixture-package`, whose entire purpose is a
-    // resolution path that does **not** lead back into this repository. A
-    // `paths` entry would capture that package's `@endora-commerce/platform`
-    // import, resolve it into `backend/src`, and put a file outside the
-    // fixture's `rootDir` in its program — TS6059, and the acceptance criterion
-    // stops measuring what it says it measures.
+    // `paths` entry to redirect *into the package*, which is what every one of
+    // the ten entries above is.
+    //
+    // **The reason recorded here until feature 080's T041a was false, and is
+    // corrected rather than dropped.** It said an entry would capture
+    // `backend/acceptance/fixture-package`'s host import and produce TS6059.
+    // It would not: that tsconfig sets `"paths": {}` and says so in its own
+    // comment, so nothing in `tsconfig.base.json` reaches it. The refusal is
+    // still right, for the reason the fixture's comment states from the other
+    // side — a package the fixture peer-depends on is resolved *through
+    // `node_modules` and its own `exports` map, exactly as an installed one
+    // is*. A `paths` entry for the host has only two possible targets and both
+    // break that: `./packages/platform/dist`, which is a build artefact no
+    // other entry points at and which is stale between builds, or
+    // `./backend/src`, which is not the package's directory at all and gives
+    // the same files a second identity — the 2632 relative specifiers and the
+    // bare one would then name one tree by two routes, and the resolution this
+    // repository type-checks would stop being the resolution it ships.
     //
     // Both halves are derived from each package's own `tsconfig.build.json`,
     // never from a list here: a package that moves its sources changes this
-    // answer in the same merge request that moves them.
+    // answer in the same merge request that moves them. A member with **no**
+    // build config answers `true` — see {@link sourcesAreItsOwn}.
     const tsconfig = JSON.parse(readFileSync(join(root!, 'tsconfig.base.json'), 'utf8')) as {
       compilerOptions?: { paths?: Record<string, readonly string[]> };
     };
@@ -376,18 +470,10 @@ describe('this checkout', () => {
     const report = inspectWorkspaceResolution(root!, nodeResolutionFs());
     const members = workspaceMembers(root!, nodeWorkspaceFs());
 
-    const sourcesAreItsOwn = (name: string): boolean => {
+    const read = nodeBuildConfigReader();
+    const publishesItsOwnSources = (name: string): boolean => {
       const member = members.find((m) => m.name === name);
-      if (member === undefined) return true;
-      const build = readFileSync(join(member.dir, 'tsconfig.build.json'), 'utf8')
-        .split('\n')
-        .map((line) => (/^\s*\/\//.test(line) ? '' : line))
-        .join('\n');
-      const rootDir = (
-        JSON.parse(build) as { compilerOptions?: { rootDir?: string } }
-      ).compilerOptions?.rootDir;
-      if (rootDir === undefined) return true;
-      return isInsideCheckout(member.dir, resolve(member.dir, rootDir));
+      return member === undefined ? true : sourcesAreItsOwn(member.dir, read);
     };
 
     // Required means **both** entries — the bare specifier and the subpath one.
@@ -397,17 +483,21 @@ describe('this checkout', () => {
     const mappedAtAll = (name: string): boolean =>
       paths[name] !== undefined || paths[`${name}/*`] !== undefined;
 
-    const unmapped = report.packages.filter((name) => sourcesAreItsOwn(name) && !fullyMapped(name));
+    const unmapped = report.packages.filter(
+      (name) => publishesItsOwnSources(name) && !fullyMapped(name),
+    );
     const wronglyMapped = report.packages.filter(
-      (name) => !sourcesAreItsOwn(name) && mappedAtAll(name),
+      (name) => !publishesItsOwnSources(name) && mappedAtAll(name),
     );
 
     expect(report.packages.length).toBeGreaterThan(0);
     // Both populations must be non-empty for this to be measuring anything, and
     // they are: five packages compile their own `src`, and the host compiles
     // `backend/src`.
-    expect(report.packages.filter(sourcesAreItsOwn).length).toBeGreaterThan(0);
-    expect(report.packages.filter((name) => !sourcesAreItsOwn(name)).length).toBeGreaterThan(0);
+    expect(report.packages.filter(publishesItsOwnSources).length).toBeGreaterThan(0);
+    expect(
+      report.packages.filter((name) => !publishesItsOwnSources(name)).length,
+    ).toBeGreaterThan(0);
     expect(unmapped).toEqual([]);
     expect(wronglyMapped).toEqual([]);
   });

@@ -77,7 +77,7 @@ import {
   permittedRoots,
   vacuousContainmentPopulation,
 } from '../../../scripts/check-overlay-determinism.js';
-import { renderEntitiesRegistry } from '../../../scripts/generate-composer.js';
+import { coreSources, renderEntitiesRegistry } from '../../../scripts/generate-composer.js';
 import { checkPortCatches } from '../../../scripts/check-port-catches.js';
 import {
   findNonBindingIssues,
@@ -1607,7 +1607,7 @@ function artifactVerdicts(
  * unrun, which is issue #130's shape.
  */
 const CONTAINMENT_ROOTS = permittedRoots(REPO_ROOT);
-const ENTITIES_REGISTRY_PATH = renderEntitiesRegistry(new Map()).outputPath;
+const ENTITIES_REGISTRY_PATH = renderEntitiesRegistry(coreSources({})).outputPath;
 const MIGRATIONS_REGISTRY_PATH = join(
   dirname(ENTITIES_REGISTRY_PATH),
   'migrations-registry.generated.ts',
@@ -1631,12 +1631,10 @@ function foreignSpecifiers(content: string): string[] {
  */
 function renderedLeakFindings(): number {
   const rendered = renderEntitiesRegistry(
-    new Map([
-      [
-        'node_modules/@vendor/mod-blog/entities/probe.entity.ts',
+    coreSources({
+      'node_modules/@vendor/mod-blog/entities/probe.entity.ts':
         '@Entity()\nexport class VendorProbe {}\n',
-      ],
-    ]),
+    }),
   );
   const examined = examineArtifact(
     rendered.outputPath,
@@ -3152,9 +3150,16 @@ const CHECKS: readonly CheckEntry[] = [
     // therefore enters at the `SourceTree` and runs through the real generator,
     // as D-155.6 asks; the two discriminations enter at the same place the
     // containment pass does in a real run — a rendered artefact's text, with
-    // the roots derived from this repository rather than handed in — because
-    // `specifierFromDb` grows its bare-specifier branch with D-149 and cannot
-    // emit one yet.
+    // the roots derived from this repository rather than handed in.
+    //
+    // Those two use **this** repository's roots, which is what makes them cheap
+    // and what limits them: this checkout declares no module package and holds
+    // no installed one, so the specifiers they classify are written here rather
+    // than emitted. Since feature 080's T041a the generator *can* emit a bare
+    // one (D-149), and the same discrimination is made over a fixture checkout
+    // that holds a module in each of the three places one can be, with the
+    // package model and the roots both derived from that checkout:
+    // `test/unit/scripts/module-package-artefacts.test.ts`.
     script: 'backend/scripts/check-overlay-determinism.ts',
     npmScript: 'overlay:check',
     job: 'quality',

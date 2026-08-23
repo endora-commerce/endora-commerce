@@ -11,7 +11,7 @@ import {
   segmentFor,
   validateModuleId,
 } from '../../../scripts/new-migration.js';
-import { collectMigrations } from '../../../scripts/generate-composer.js';
+import { collectMigrations, coreSources } from '../../../scripts/generate-composer.js';
 
 /**
  * Pure parts of the migration scaffolder (FR-032, FR-033). Filesystem writes
@@ -216,13 +216,15 @@ describe('buildScaffold', () => {
   ])('scaffolds a file the registry generator registers (%s)', (moduleId, slug) => {
     const built = buildScaffold({ moduleId, slug, stamp: '20260805T141530' });
     const collected = collectMigrations(
-      new Map([[built.relativePath.replace(/^src\//, ''), built.contents]]),
+      coreSources({ [built.relativePath.replace(/^src\//, '')]: built.contents }),
     );
     expect(collected).toEqual([
       {
         moduleId,
         className: built.className,
         file: built.relativePath.replace(/^src\//, ''),
+        // The application's own tree, so no package owns it (feature 080, T041a).
+        owner: null,
       },
     ]);
   });
