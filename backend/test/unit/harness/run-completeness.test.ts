@@ -11,16 +11,18 @@
  * output said so. The reader is left with a green summary and an exit code, and
  * the two disagree.
  *
- * So the count is compared against the count vitest scheduled, and the
- * difference is reported by name. `onPathsCollected` receives the sharded spec
- * list — the same list `--shard` produced — so this is the run's own view of
- * what it was asked to do, not a second derivation of it.
+ * So the count is compared against the count this run was scheduled, and the
+ * difference is reported by name. Which list that is is the subtlety, and it
+ * has its own describe block at the bottom of this file: `onPathsCollected`
+ * carries the whole glob, because vitest applies `--shard` inside the pool,
+ * afterwards.
  */
 import { describe, expect, it } from 'vitest';
 
 import {
   incompleteRun,
   renderIncompleteRun,
+  scheduledForThisRun,
   type ReportedFile,
 } from '../../run-completeness.js';
 
@@ -147,5 +149,70 @@ describe('renderIncompleteRun', () => {
     expect(text).toContain('217 never ran');
     expect(text.split('\n').length).toBeLessThan(40);
     expect(text).toContain('and 207 more');
+  });
+});
+
+/**
+ * The population question, which is where the first version of this reporter
+ * was wrong and would have been wrong on **every** shard.
+ *
+ * Vitest applies `--shard` inside the pool (`sortSpecs` calls
+ * `sequencer.shard`), after `onPathsCollected` has already reported the whole
+ * glob. Measured on a real `--shard=5/5` run of this suite: 1 337 paths
+ * reported to the reporter, 267 files handed to the fork. A comparison against
+ * the reported list turns every green shard into a claim that a thousand files
+ * never ran, which is a worse lie than the silence this exists to break.
+ */
+describe('scheduledForThisRun', () => {
+  const paths = ['/r/a.test.ts', '/r/b.test.ts', '/r/c.test.ts', '/r/d.test.ts'];
+
+  it('is the collected list when the run is not sharded', async () => {
+    await expect(scheduledForThisRun(paths, { config: { root: '/r' } })).resolves.toEqual(paths);
+  });
+
+  it("is the sequencer's answer when it is — vitest's own class, not a copy of its algorithm", async () => {
+    let sawCtx: unknown = null;
+    class FakeSequencer {
+      constructor(ctx: unknown) {
+        sawCtx = ctx;
+      }
+      async shard(
+        specs: readonly { moduleId: string }[],
+      ): Promise<readonly { moduleId: string }[]> {
+        return specs.slice(2);
+      }
+    }
+    const ctx = {
+      config: { root: '/r', shard: { index: 2, count: 2 }, sequence: { sequencer: FakeSequencer } },
+    };
+
+    await expect(scheduledForThisRun(paths, ctx)).resolves.toEqual([
+      '/r/c.test.ts',
+      '/r/d.test.ts',
+    ]);
+    expect(sawCtx).toBe(ctx);
+  });
+
+  it('answers null — never the unsharded list — when a sharded run names no sequencer', async () => {
+    await expect(
+      scheduledForThisRun(paths, { config: { root: '/r', shard: { index: 1, count: 5 } } }),
+    ).resolves.toBeNull();
+  });
+
+  it('answers null when the sequencer throws, rather than reporting a shard it did not compute', async () => {
+    class BrokenSequencer {
+      async shard(): Promise<readonly { moduleId: string }[]> {
+        throw new Error('no');
+      }
+    }
+    await expect(
+      scheduledForThisRun(paths, {
+        config: {
+          root: '/r',
+          shard: { index: 1, count: 5 },
+          sequence: { sequencer: BrokenSequencer },
+        },
+      }),
+    ).resolves.toBeNull();
   });
 });

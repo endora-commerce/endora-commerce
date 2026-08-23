@@ -40,6 +40,8 @@ let fixture = '';
 let stdout = '';
 let stderr = '';
 let status: number | null = null;
+let shardedStdout = '';
+let shardedStatus: number | null = null;
 
 beforeAll(() => {
   mkdirSync(FIXTURE_PARENT, { recursive: true });
@@ -96,7 +98,20 @@ beforeAll(() => {
   stdout = run.stdout ?? '';
   stderr = run.stderr ?? '';
   status = run.status;
-}, 180_000);
+
+  // The same fixture minus the killer, run **sharded**. Vitest applies
+  // `--shard` inside the pool, after `onPathsCollected` has reported the whole
+  // glob, so a reporter that compares against that list calls every green shard
+  // an incomplete run. This is the discriminator: three files, shard 1 of 2, all
+  // green, and the reporter must be silent.
+  const green = spawnSync(
+    process.execPath,
+    [VITEST, 'run', '--shard=1/2', 'first.test.ts', 'never-a.test.ts', 'never-b.test.ts'],
+    { cwd: fixture, encoding: 'utf8', env: { ...process.env, CI: '', FORCE_COLOR: '0' } },
+  );
+  shardedStdout = `${green.stdout ?? ''}${green.stderr ?? ''}`;
+  shardedStatus = green.status;
+}, 240_000);
 
 afterAll(() => {
   if (fixture !== '') rmSync(fixture, { recursive: true, force: true });
@@ -126,6 +141,12 @@ describe('a run whose fork dies mid-way says so', () => {
 
     expect(output, output).toContain('never-a.test.ts');
     expect(output, output).toContain('never-b.test.ts');
+  });
+
+  it('says nothing about a green sharded run, whose collected list is larger than its shard', () => {
+    expect(shardedStdout, shardedStdout).not.toContain('Incomplete run');
+    expect(shardedStdout, shardedStdout).not.toContain('[run-completeness]');
+    expect(shardedStatus, shardedStdout).toBe(0);
   });
 
   it('fails the run — the counts printed above it are not a pass', () => {

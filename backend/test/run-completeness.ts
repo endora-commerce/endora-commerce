@@ -19,10 +19,11 @@
  * that fails with no failing test is the worst diagnostic there is: the reader
  * has to disbelieve the summary before they can start.
  *
- * `onPathsCollected` is handed the spec list **after** sharding and filtering —
- * it is the run's own answer to "what was I asked to do" — so comparing it with
- * the files that reported a result needs no second derivation of the population
- * and cannot drift from `--shard`.
+ * The population is the run's own — `onPathsCollected` is what vitest itself
+ * globbed and filtered — with one correction that is easy to get wrong and was:
+ * the shard is applied **inside the pool**, after that hook, so on a
+ * `--shard` run the reported list is the whole suite. See
+ * {@link scheduledForThisRun}.
  *
  * ## What it does not claim
  *
@@ -132,6 +133,74 @@ export function renderIncompleteRun(
 }
 
 /**
+ * The narrow slice of vitest a reporter needs to reproduce a shard.
+ *
+ * `sequencer` is `unknown` rather than a constructor type on purpose: vitest's
+ * `TestSequencerConstructor` takes a `Vitest` and returns a `TestSequencer`
+ * whose `shard` takes a **mutable** `WorkspaceSpec[]`, and writing either of
+ * those here makes `Vitest` stop being assignable to this shape — a structural
+ * mismatch over a value this file only ever forwards. It is narrowed at the
+ * call site instead, where a failed narrowing has a defined answer (`null`,
+ * said out loud) rather than a compile error over an interface nobody reads.
+ */
+interface VitestLike {
+  readonly config?: {
+    readonly root?: string;
+    readonly shard?: { readonly index: number; readonly count: number };
+    readonly sequence?: { readonly sequencer?: unknown };
+  };
+}
+
+/** What {@link scheduledForThisRun} asks of whatever the config named. */
+type SequencerLike = { shard?: (specs: { moduleId: string }[]) => unknown };
+
+/**
+ * The files **this** run was given, which on a `--shard` run is not the list
+ * `onPathsCollected` carries.
+ *
+ * Vitest applies the shard **inside the pool** — `sortSpecs` calls
+ * `sequencer.shard(specs)` in `createPool`'s `runTests`, well after
+ * `onPathsCollected` has reported the whole glob. Measured: a real
+ * `--shard=5/5` run reports 1 337 paths to a reporter and hands 267 files to the
+ * fork. Comparing against the wrong one turns every green shard into a report
+ * of a thousand files that "never ran", which is a worse lie than the silence
+ * this exists to break.
+ *
+ * So the shard is reproduced with **vitest's own sequencer**, the class its
+ * resolved config names, rather than with a second copy of the algorithm here.
+ * `BaseSequencer.shard` reads `spec.moduleId` and `config.root` and returns the
+ * specs it kept, which is why a `{ moduleId }` stands in for a spec.
+ *
+ * Returns `null` when the run is sharded and the shard could not be reproduced
+ * — a custom sequencer, or a vitest whose config no longer names one. Saying
+ * nothing is the only safe answer there, and it is said out loud rather than
+ * dropped.
+ */
+export async function scheduledForThisRun(
+  collected: readonly string[],
+  ctx: VitestLike,
+): Promise<readonly string[] | null> {
+  const shard = ctx.config?.shard;
+  if (shard === undefined) return collected;
+
+  const Sequencer = ctx.config?.sequence?.sequencer;
+  if (typeof Sequencer !== 'function') return null;
+
+  try {
+    const construct = Sequencer as new (ctx: VitestLike) => SequencerLike;
+    const sequencer = new construct(ctx);
+    if (typeof sequencer.shard !== 'function') return null;
+
+    const kept = await sequencer.shard(collected.map((moduleId) => ({ moduleId })));
+    if (!Array.isArray(kept)) return null;
+
+    return (kept as readonly { moduleId?: unknown }[]).map((spec) => String(spec.moduleId));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Wires the comparison to vitest.
  *
  * It sets `process.exitCode` itself rather than relying on the unhandled error
@@ -142,21 +211,36 @@ export function renderIncompleteRun(
  * was given is a failed run whatever else the configuration says.
  */
 export class RunCompletenessReporter implements Reporter {
-  private scheduled: readonly string[] = [];
+  private collected: readonly string[] = [];
+  private ctx: VitestLike = {};
   private root = process.cwd();
   private write: (text: string) => void = (text) => process.stderr.write(text);
 
-  onInit(ctx: { config?: { root?: string } }): void {
+  onInit(ctx: VitestLike): void {
+    this.ctx = ctx;
     this.root = ctx.config?.root ?? process.cwd();
   }
 
   onPathsCollected(paths?: string[]): void {
-    this.scheduled = paths ?? [];
+    this.collected = paths ?? [];
   }
 
-  onFinished(files: readonly { filepath: string; result?: { startTime?: number } }[] = [], errors: readonly unknown[] = []): void {
+  async onFinished(
+    files: readonly { filepath: string; result?: { startTime?: number } }[] = [],
+    errors: readonly unknown[] = [],
+  ): Promise<void> {
+    const scheduled = await scheduledForThisRun(this.collected, this.ctx);
+    if (scheduled === null) {
+      this.write(
+        '\n[run-completeness] this run is sharded and its sequencer is not one this reporter ' +
+          'can reproduce, so it cannot say whether every file of the shard ran (issue #199). ' +
+          'See backend/test/run-completeness.ts.\n',
+      );
+      return;
+    }
+
     const run = incompleteRun(
-      this.scheduled,
+      scheduled,
       files.map((file) => ({
         filepath: file.filepath,
         startTime: file.result?.startTime ?? null,
