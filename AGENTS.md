@@ -122,8 +122,11 @@ otherwise ship its artefacts and leave nothing for anybody to notice.
 
 **Which backend test command to use.** `test:unit:fast` (config: `backend/vitest.unit.config.ts`)
 is the one to run while you iterate and the one CI runs on every backend MR as `test:backend:unit`,
-with no service containers: 324 files in 96 s, against 316 files in 252 s for `test/unit` alone
-under the complete config. It skips the 16 unit files that genuinely talk to a live Postgres or Redis —
+with no service containers. **The suite's size is not written down here**, and that is the second
+correction to this paragraph rather than the first: it read *"324 files in 96 s, against 316 files
+in 252 s"* while the tree ran **431 files and 5371 tests** — a number that grows with every merge
+request and was stale by a third. `pnpm --filter backend run test:unit:fast` prints it, and the
+printed figure is the only one that is ever current. It skips the 16 unit files that genuinely talk to a live Postgres or Redis —
 each named with a reason in `backend/test/service-dependent-unit-tests.ts`, each still run by the
 complete suite, and `test/unit/harness/service-dependent-ledger.test.ts` fails if that list drifts
 in either direction. Choosing that config **is** the run's declaration that it has no services
