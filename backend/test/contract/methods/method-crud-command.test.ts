@@ -5,16 +5,28 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { isRegisteredCommand } from '../../../src/commands/command-registry.js';
 
 /**
  * Issue #125 — the payment- and delivery-method writes run through the bus.
  *
  * `admin-crud-audit.test.ts` (issue #122) proves a row lands. This one proves
- * *which path* wrote it: every action these four handlers record is a Command
- * action the registry knows, which is what the coverage check and any future
- * undo affordance read. An audit row whose action nothing has registered is a
- * write that audits by hand — the state MR !545 left these in.
+ * *which* rows land: the exact action names these four handlers record, one row
+ * per write and no more, with the diff the Command captured. MR !545 left these
+ * writes auditing by hand, which is a different set of rows on a different
+ * transaction.
+ *
+ * Until D-163 each assertion below was followed by an
+ * `isRegisteredCommand(entry.action)` line, on the stated ground that "the
+ * registry is what the coverage check and any future undo affordance read".
+ * Neither was ever true — `check:command-coverage` decides coverage
+ * syntactically from `commandBus.run(` and has never imported
+ * `command-registry.ts`, and the one undo affordance reads the `reversible`
+ * **column** on `catalog_bulk_operations`. So the line asserted that a string
+ * appeared in a list nothing read, and it is gone with the list. What proves
+ * the path is here and in the static check: the sorted action sets below are
+ * exact, so a hand-written audit call that wrote a different action or a second
+ * row fails, and `check:command-coverage --strict` fails the build on a method
+ * that both runs a Command and audits by hand.
  *
  * The upsert keeps two actions rather than collapsing into one `.upsert`,
  * because "the operator created this method" and "the operator changed it" are
@@ -73,7 +85,6 @@ describe('method CRUD runs through the Command Bus (issue #125)', () => {
       'payment_method.delete',
       'payment_method.update',
     ]);
-    for (const entry of entries) expect(isRegisteredCommand(entry.action)).toBe(true);
   });
 
   it('records delivery-method create, update and delete as Command actions', async () => {
@@ -124,7 +135,6 @@ describe('method CRUD runs through the Command Bus (issue #125)', () => {
       'delivery_method.delete',
       'delivery_method.update',
     ]);
-    for (const entry of entries) expect(isRegisteredCommand(entry.action)).toBe(true);
 
     const updated = entries.find((e) => e.action === 'delivery_method.update')!;
     expect((updated.stateBefore as { cost?: string } | null)?.cost).toBe('12.50');

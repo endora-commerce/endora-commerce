@@ -21,14 +21,6 @@ export {
   type CommandRequestMeta,
 } from './command-bus.js';
 export {
-  COMMAND_REGISTRY,
-  type CommandRegistryEntry,
-  type KnownCommandAction,
-  isRegisteredCommand,
-  isReversibleCommand,
-  registeredCommandActions,
-} from './command-registry.js';
-export {
   type RevertRecord,
   type UndoStatus,
   type RevertConflict,

@@ -16,11 +16,11 @@ import { registryCache } from '../../../kernel/lifecycle/registry-cache.js';
  *  - `_lifecycle` already imports the `Setting` entity (the orchestrator
  *    reconciles rows on install) and already receives `auditLog`, so this adds
  *    no dependency edge in either direction;
- *  - there is **no existing settings-write Command to copy**. `COMMAND_REGISTRY`
- *    has no `setting.*` action and the settings module never receives a
- *    `commandBus`: `SettingsAdminService.setValue` audits by hand *after*
- *    `em.flush()` and outside any transaction, which is exactly the torn-write
- *    window the Command Bus exists to close;
+ *  - there is **no existing settings-write Command to copy**. No `setting.*`
+ *    Command exists and the settings module never receives a `commandBus`:
+ *    `SettingsAdminService.setValue` audits by hand *after* `em.flush()` and
+ *    outside any transaction, which is exactly the torn-write window the
+ *    Command Bus exists to close;
  *  - "activation is not an ordinary setting write" stays visible in the code
  *    rather than being implied by a guard somewhere else.
  *
