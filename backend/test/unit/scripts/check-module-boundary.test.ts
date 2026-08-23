@@ -8,6 +8,7 @@ import {
   checkModuleBoundary,
   collectModuleFiles,
   collectSchemaFiles,
+  schemaKeyOf,
   declaredEntryType,
   findCrossModuleSql,
   generatedExemptionIssues,
@@ -1017,7 +1018,7 @@ describe('the tree itself', () => {
     const layout = await resolveModuleLayout();
     const shards = await loadLedgerShards(ledgerDirectory());
     const sources = sourcesOf(collectModuleFiles(layout.moduleWalkRoots), layout.keyOf);
-    const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), layout.keyOf);
+    const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), schemaKeyOf(layout));
     expect(sources.size, 'no module sources found — a vacuous pass').toBeGreaterThan(1000);
     expect(schema.size, 'no schema sources found — a vacuous pass').toBeGreaterThan(sources.size);
 

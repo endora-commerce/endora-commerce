@@ -36,8 +36,17 @@ import { BASELINE_THROUGH } from '../../../src/db/migration-order.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const backendSrc = resolve(here, '../../../src');
+/**
+ * The kernel's entity classes, which since the relocation are
+ * `@endora-commerce/platform`'s. `backend/src/kernel` holds re-export shims that
+ * carry no `@Entity()`, so a walk of them owns none of the six kernel tables.
+ */
+const platformKernel = resolve(here, '../../../../packages/platform/src/kernel');
 
-const graph = deriveFkGraph(backendSrc, { overrides: TABLE_OWNER_OVERRIDES });
+const graph = deriveFkGraph(backendSrc, {
+  overrides: TABLE_OWNER_OVERRIDES,
+  kernelRoot: platformKernel,
+});
 
 const MANIFEST_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map(
   DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),

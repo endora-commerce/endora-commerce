@@ -5,7 +5,7 @@ title: The Kernel — boundary, scopes and composition order
 # The Kernel
 
 Every module composes through an Awilix container. The **kernel**
-(`backend/src/kernel/`) owns the container, the seams a module registers
+(`packages/platform/src/kernel/`) owns the container, the seams a module registers
 through, and the handful of services that back nearly every module. This page
 covers the three things you have to know before writing or changing a module:
 **what the kernel may and may not contain**, **how per-request state is
@@ -748,7 +748,7 @@ the reason.
 `runBootHooks` wraps each hook, attributes the failure to the module that
 registered it, and **re-throws**:
 
-<!-- verbatim-from: backend/src/kernel/compose.ts -->
+<!-- verbatim-from: packages/platform/src/kernel/compose.ts -->
 
 ```ts
 try {

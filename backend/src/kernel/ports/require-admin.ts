@@ -1,35 +1,22 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';
-
 /**
- * Kernel port — the admin guard (feature 072, D-32).
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * Before this file the repository carried **17 byte-identical declarations** of
- * `RequireAdminFactory`, one per module that happened to need it, and 53 files
- * imported `catalog`'s copy — an infrastructure dependency on a domain module.
- * This is the one declaration; every route surface imports it from here.
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
  *
- * The kernel owns the **type**. The `auth` module owns the **implementation**
- * (`modules/auth/require-admin.ts`) because promoting an admin actor needs the
- * auth plugin's per-request decorations, and checking a permission needs
- * `admin_roles` — which `auth`'s manifest declares as a dependency.
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
+ *
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-export type RequireAdminFactory = (
-  permission?: string,
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
-
-/**
- * The admin gate that succeeds when the actor holds **any** of the listed
- * permission codes. Lives beside the single-permission factory so both shapes
- * have one declaration.
- */
-export type RequireAdminAnyFactory = (
-  codes: readonly string[],
-) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
-
-/**
- * The slice of `admin_roles`' `PermissionService` the guard needs. Declared
- * structurally so the kernel does not import a module's service class.
- */
-export interface AdminPermissionChecker {
-  hasPermission(adminUserId: string, code: string): Promise<boolean>;
-}
+export * from '../../../../packages/platform/dist/kernel/ports/require-admin.js';

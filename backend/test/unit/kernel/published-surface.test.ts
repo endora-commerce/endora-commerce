@@ -50,7 +50,14 @@ import {
   PUBLISHED_SUBPATHS,
 } from '../../../scripts/lib/platform-surface.js';
 
-const SRC = fileURLToPath(new URL('../../../src/', import.meta.url));
+/**
+ * The platform's own sources, which since the relocation are
+ * `@endora-commerce/platform`'s and not `backend/src`'s. The five barrels this
+ * file holds to `host-package.md` §1.3 moved with them; `backend/src/<subpath>/`
+ * now holds re-export shims, and reading one as a barrel would parse
+ * `export * from` and report the published surface as unreadable.
+ */
+const SRC = fileURLToPath(new URL('../../../../packages/platform/src/', import.meta.url));
 
 /**
  * Every name a barrel re-exports, from its source text.

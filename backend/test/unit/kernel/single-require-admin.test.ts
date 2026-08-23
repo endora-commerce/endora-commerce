@@ -23,8 +23,17 @@ import { describe, expect, it } from 'vitest';
  * about the *source*, so the assertion has to be too.
  */
 
-const SRC = fileURLToPath(new URL('../../../src/', import.meta.url));
-const KERNEL_PORT = 'kernel/ports/require-admin.ts';
+/**
+ * Both source roots, keyed on the repository. The declaration lives in the
+ * platform package since the relocation and the implementation in a module, so
+ * a walk of one tree would report the *other* as the only declaration — and a
+ * walk of `backend/src` alone would find the re-export shim, which this file's
+ * own `declarationsOf` correctly does not count, and conclude the type is
+ * declared nowhere.
+ */
+const REPO = fileURLToPath(new URL('../../../../', import.meta.url));
+const ROOTS = [join(REPO, 'backend', 'src'), join(REPO, 'packages', 'platform', 'src')];
+const KERNEL_PORT = 'packages/platform/src/kernel/ports/require-admin.ts';
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -47,9 +56,9 @@ function declarationsOf(name: string): string[] {
     `^\\s*(export\\s+)?(type\\s+${name}\\s*(<[^=]*>)?\\s*=|interface\\s+${name}\\b[^;]*\\{)`,
     'm',
   );
-  return walk(SRC)
+  return ROOTS.flatMap((root) => walk(root))
     .filter((file) => pattern.test(readFileSync(file, 'utf8')))
-    .map((file) => file.slice(SRC.length))
+    .map((file) => file.slice(REPO.length))
     .sort();
 }
 
@@ -70,10 +79,10 @@ describe('T145 — the admin guard has one declaration', () => {
     // because promoting an admin actor needs that module's per-request
     // decorations and a permission check needs `admin_roles` — which `auth`
     // declares as a dependency and the kernel could not.
-    const implementations = walk(SRC)
+    const implementations = ROOTS.flatMap((root) => walk(root))
       .filter((file) => /export function createRequireAdmin\b/.test(readFileSync(file, 'utf8')))
-      .map((file) => file.slice(SRC.length));
+      .map((file) => file.slice(REPO.length));
 
-    expect(implementations).toEqual(['modules/auth/require-admin.ts']);
+    expect(implementations).toEqual(['backend/src/modules/auth/require-admin.ts']);
   });
 });

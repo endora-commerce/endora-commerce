@@ -83,6 +83,7 @@ import {
 } from './workspace-packages.js';
 import { loadManifestActivations, ManifestIndexUnreadableError } from './switchable-modules.js';
 import { moduleIdOf } from './module-population.js';
+import { platformSourceRootOf } from './platform-root.js';
 
 /** The file the composer generates and every module walk derives its floor from. */
 export const MANIFEST_INDEX_FILENAME = 'manifest-index.generated.ts';
@@ -136,8 +137,28 @@ export interface ModuleTreeLayout {
   /** The per-deployment overlay tree (`<src>/apps`), which the index never lists. */
   readonly overlayRoot: string;
   /**
+   * The platform's own source directory, or `null` when this workspace has no
+   * member declaring `endora.type: "platform"` (every fixture tree).
+   *
+   * It is a root of its own because it is not the application's and not a
+   * module's: `packages/platform/src/{kernel,http,tenancy,commands,events}` is
+   * what `backend/src` reached relatively until the relocation, and what it now
+   * reaches through re-export shims. A check whose population *is* the platform
+   * refuses on `null` itself.
+   */
+  readonly platformRoot: string | null;
+  /**
    * Every directory a check that reads the whole application source tree must
-   * walk: the source root, plus each package root, which is outside it.
+   * walk: the source root, the platform's, plus each package root — all three
+   * outside one another.
+   *
+   * The platform is here so that the twelve checks reading this keep the
+   * population they had before the relocation. Its five directories were under
+   * `src/` and every one of these walks covered them; leaving them out would
+   * have dropped six entity classifications from
+   * `check-entity-tenant-classification`, four repeating timers from
+   * `check:entry-scope` and the whole of `check:kernel-boundary`'s subject —
+   * each of which keeps printing a number and exiting 0, which is issue #215.
    */
   readonly sourceRoots: readonly string[];
   /** Every directory a check that reads only module sources must walk. */
@@ -390,6 +411,7 @@ export async function resolveModuleLayout(
   const packageRoots = moduleRoots
     .filter((root) => root.origin === 'workspace-package')
     .map((root) => root.directory);
+  const platformRoot = platformSourceRootOf(members);
 
   const keyOf = (absolutePath: string): string => {
     const path = resolve(absolutePath);
@@ -435,7 +457,8 @@ export async function resolveModuleLayout(
     registeredIds,
     moduleRoots,
     overlayRoot,
-    sourceRoots: [srcRoot, ...packageRoots],
+    platformRoot,
+    sourceRoots: platformRoot === null ? [srcRoot, ...packageRoots] : [srcRoot, platformRoot, ...packageRoots],
     moduleWalkRoots: [
       ...moduleRoots.filter((root) => root.origin === 'application').map((root) => root.directory),
       overlayRoot,

@@ -329,13 +329,22 @@ describe('a release branch is the one branch the gate would refuse for doing its
  * D-162 — the gate inverted with respect to what it protects, and its closure.
  *
  * `changeset status` decides which package a changed file belongs to by asking
- * which package **directory** it sits under. `@endora-commerce/platform` (!891)
- * keeps its manifest and tsconfigs under `packages/platform` and compiles five
- * directories of `backend/src`, which is in `ignore` — so the CLI reports
- * nothing for a commit editing the code the package publishes and reports a
- * violation for one editing its README, which ships in nothing.
+ * which package **directory** it sits under. `@endora-commerce/platform` was
+ * that shape when D-162 was ruled (!891): manifest and tsconfigs under
+ * `packages/platform`, five directories of `backend/src` compiled into its
+ * `dist`, and `backend` in `ignore` — so the CLI reported nothing for a commit
+ * editing the code the package publishes and a violation for one editing its
+ * README, which ships in nothing.
  *
- * Both halves are measured here over real branches, because the inversion is a
+ * **The platform relocation moved those five directories into the package**, so
+ * this repository no longer holds an instance of the shape. The fixture below
+ * stages one anyway, and deliberately: D-162 is a statement about how the CLI
+ * attributes a file, not about one package, and the next package whose build
+ * reaches outside its directory would arrive with the gate inverted and nothing
+ * to say so. Reading it as a description of today's `packages/platform` is the
+ * one wrong way to read it.
+ *
+ * Both halves are measured over real branches, because the inversion is a
  * property of a `git diff` against a workspace and a fake would prove the fake.
  * The second command of `release:changeset` is what closes it, and it derives
  * the package's real sources from its own `tsconfig.build.json`.

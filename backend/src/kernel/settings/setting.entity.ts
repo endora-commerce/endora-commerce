@@ -1,126 +1,22 @@
-import {
-  Collection,
-  Entity,
-  Enum,
-  Index,
-  ManyToMany,
-  ManyToOne,
-  OptionalProps,
-  PrimaryKey,
-  Property,
-  Unique,
-} from '@mikro-orm/core';
-import { GlobalEntity } from '../../tenancy/org-scoped.decorator.js';
-import { randomUUID } from 'crypto';
-import { SettingGroup } from './setting-group.entity.js';
-import { SalesChannel } from '../sales-channels/sales-channel.entity.js';
-
-export const SETTING_VALUE_TYPES = [
-  'string',
-  'number',
-  'boolean',
-  'json',
-  'string_list',
-  'secret',
-  // Feature 058 — reference to a saved credential configuration (by code).
-  'credential_ref',
-] as const;
-export type SettingValueTypeDb = (typeof SETTING_VALUE_TYPES)[number];
-
 /**
- * Setting — feature 004 / data-model.md.
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * One tunable knob declared by a module. `defaultValue` is the manifest-
- * supplied fallback used by the universal getter when no per-channel
- * `SettingValue` exists for the requested sales channel.
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
+ *
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
+ *
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-@GlobalEntity()
-@Entity({ tableName: 'settings' })
-export class Setting {
-  [OptionalProps]?:
-    | 'id'
-    | 'createdAt'
-    | 'updatedAt'
-    | 'description'
-    | 'globalValue'
-    | 'enumOptions'
-    | 'configurationType'
-    | 'hidden';
-
-  @PrimaryKey({ type: 'uuid' })
-  id: string = randomUUID();
-
-  @Property({ type: 'string', length: 160 })
-  @Unique()
-  code!: string;
-
-  @Property({ type: 'string', length: 200 })
-  name!: string;
-
-  @ManyToOne(() => SettingGroup, { fieldName: 'group_id' })
-  @Index()
-  group!: SettingGroup;
-
-  @Enum({ items: () => SETTING_VALUE_TYPES, nativeEnumName: 'setting_value_type', fieldName: 'value_type' })
-  valueType!: SettingValueTypeDb;
-
-  @Property({ type: 'json', fieldName: 'default_value' })
-  defaultValue!: unknown;
-
-  @Property({ type: 'string', length: 120, fieldName: 'owner_module' })
-  @Index()
-  ownerModule!: string;
-
-  @Property({ type: 'text', nullable: true })
-  description?: string | null;
-
-  /**
-   * Platform-wide "global override" the admin has set. NULL means no global
-   * override — the resolver falls back to `defaultValue`. Per-channel
-   * `SettingValue` rows take precedence over this for their channel.
-   */
-  @Property({ type: 'json', nullable: true, fieldName: 'global_value' })
-  globalValue?: unknown | null;
-
-  /**
-   * Closed list of allowed values for an enum-style `string` setting (manifest
-   * `enumOptions`). NULL ⇒ ordinary free-text setting. When set, the admin
-   * renders a dropdown and value writes are constrained to these options.
-   */
-  @Property({ type: 'json', nullable: true, fieldName: 'enum_options' })
-  enumOptions?: string[] | null;
-
-  /**
-   * Feature 058 — for a `credential_ref` setting, the configuration type its
-   * reference is constrained to (e.g. `'llm'`). NULL for every other value
-   * type. Manifest-driven config, kept in sync by the reconciler.
-   */
-  @Property({ type: 'string', length: 64, nullable: true, fieldName: 'configuration_type' })
-  configurationType?: string | null;
-
-  /**
-   * When true, the setting is excluded from the generic admin Settings screen
-   * and managed exclusively through its owning module's dedicated UI (e.g. the
-   * PWA settings page). It stays fully readable/writable by code. Manifest-
-   * driven config, kept in sync on every reconciliation.
-   */
-  @Property({ type: 'boolean', default: false })
-  hidden: boolean = false;
-
-  /**
-   * Sales-channel scope. Empty collection ⇒ "applies to all sales channels"
-   * (FR-004 / R-5). Backed by the `setting_sales_channels` join table.
-   */
-  @ManyToMany(() => SalesChannel, undefined, {
-    pivotTable: 'setting_sales_channels',
-    joinColumn: 'setting_id',
-    inverseJoinColumn: 'sales_channel_id',
-  })
-  salesChannels = new Collection<SalesChannel>(this);
-
-  @Property({ type: 'datetime', onCreate: () => new Date(), fieldName: 'created_at' })
-  createdAt: Date = new Date();
-
-  @Property({ type: 'datetime', onUpdate: () => new Date(), fieldName: 'updated_at' })
-  updatedAt: Date = new Date();
-}
+export * from '../../../../packages/platform/dist/kernel/settings/setting.entity.js';

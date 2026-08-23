@@ -245,7 +245,7 @@ export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
     'The same two shutdown handlers as `index.ts`, closing the app and disposing ' +
     'the composition. No query, nothing to scope.',
 
-  'src/kernel/container.ts:installShutdownDisposal:process.once':
+  'packages/platform/src/kernel/container.ts:installShutdownDisposal:process.once':
     'Issue #237 — the site no file-level class contained: `container.ts` is under ' +
     'no `scripts/` directory, is no declared program, constructs no `Worker` and ' +
     'starts no timer, so the check that classified files had nowhere to put it. ' +

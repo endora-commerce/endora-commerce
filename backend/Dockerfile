@@ -10,7 +10,10 @@
 #
 # Its workspace packages are the opposite case since feature 080 (T042): each `@endora-commerce/*`
 # package resolves through its own `exports` map at `./dist`, so they are compiled below,
-# before the source is anything the runtime can reach.
+# before the source is anything the runtime can reach. **`@endora-commerce/platform` is one of
+# them and carries the platform itself**, so `pnpm --filter "backend^..." run build` below is no
+# longer only a convenience for the frontend component packages — the backend does not start
+# without it.
 
 FROM node:22.17-slim AS base
 ENV PNPM_HOME=/pnpm
@@ -34,6 +37,12 @@ COPY packages/api-client/package.json packages/api-client/package.json
 COPY packages/page-builder-core/package.json packages/page-builder-core/package.json
 COPY packages/cms-components/package.json packages/cms-components/package.json
 COPY packages/email-components/package.json packages/email-components/package.json
+# The host package. It is `backend`'s dependency and holds the platform itself —
+# `kernel`, `http`, `tenancy`, `commands`, `events` — so without this line
+# `--filter backend...` resolves no member for it and the install fails. It was
+# absent while the package compiled `backend/src`: nothing depended on it, and
+# the image built the platform as part of the backend's own sources.
+COPY packages/platform/package.json packages/platform/package.json
 COPY storefront/package.json storefront/package.json
 COPY admin/package.json admin/package.json
 # Note: the `docs` workspace package is excluded from the build context by

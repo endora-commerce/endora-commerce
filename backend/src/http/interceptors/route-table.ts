@@ -1,61 +1,22 @@
-import type { RouteOptions } from 'fastify';
-
-declare module 'fastify' {
-  interface FastifyContextConfig {
-    /**
-     * Marks a route whose payload is a binary/file stream (PDF, CSV, image,
-     * XML download). Post-phase interceptors targeting such routes are
-     * rejected at boot validation (feature 060).
-     */
-    streamingResponse?: boolean;
-  }
-}
-
-/** What boot validation and dispatch need to know about one mounted route. */
-export interface RouteTableEntry {
-  readonly identity: string;
-  readonly streamingResponse: boolean;
-}
-
-/** Routes whose payload is not interceptable and that never appear in the table. */
-const EXCLUDED_URLS = new Set(['/api/v1/_openapi.json', '/api/v1/_docs']);
-
 /**
- * Collects every mounted route's endpoint identity via a Fastify `onRoute`
- * hook (feature 060). `onRoute` hooks are inherited by encapsulated child
- * contexts, so routes mounted inside `defineModuleRoutes` wrappers are
- * covered uniformly. The identity key — `"<METHOD> <pattern>"` — matches
- * both the OpenAPI auto-registration dedupe key and what
- * `request.routeOptions` yields at dispatch time.
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
+ *
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
+ *
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
+ *
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-export class RouteTable {
-  #map = new Map<string, RouteTableEntry>();
-
-  /** Bound listener — pass directly to `app.addHook('onRoute', ...)`. */
-  readonly onRouteListener = (route: RouteOptions): void => {
-    if (EXCLUDED_URLS.has(route.url)) return;
-    const methods = Array.isArray(route.method) ? route.method : [route.method];
-    const streamingResponse =
-      (route.config as { streamingResponse?: unknown } | undefined)?.streamingResponse === true;
-    for (const m of methods) {
-      const method = String(m).toUpperCase();
-      // Fastify auto-registers a HEAD mirror for every GET; it is not an
-      // interceptable endpoint identity of its own.
-      if (method === 'HEAD') continue;
-      const identity = `${method} ${route.url}`;
-      this.#map.set(identity, { identity, streamingResponse });
-    }
-  };
-
-  has(identity: string): boolean {
-    return this.#map.has(identity);
-  }
-
-  get(identity: string): RouteTableEntry | undefined {
-    return this.#map.get(identity);
-  }
-
-  entries(): readonly RouteTableEntry[] {
-    return [...this.#map.values()];
-  }
-}
+export * from '../../../../packages/platform/dist/http/interceptors/route-table.js';

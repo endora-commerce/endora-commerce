@@ -1,81 +1,22 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
-import fastifyPlugin from 'fastify-plugin';
-import type { RequestMeta } from '@endora-commerce/contracts';
-import type { TenantContext } from '../tenancy/tenant-context.js';
-import { enterPlatformScope } from './scope.js';
-
 /**
- * The HTTP entry into `enterPlatformScope` (feature 072, FR-015…FR-021).
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * Registered by both the production composition root and the test harness, from
- * this one file on purpose: the two hand-written copies of the tenant hook it
- * replaces had already drifted apart in their comments, and a drift in *this*
- * hook is a silent cross-tenant leak rather than a failing test.
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
  *
- * ## Shape
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
  *
- * `done()` is called **synchronously inside** the store, which is what makes the
- * store propagate into every later hook and into the handler's awaited
- * continuations — `enterWith` from an async hook does not, and fails silently
- * (`tenancy/tenant-context.ts`). The work the scope wraps is therefore "the rest
- * of this request", expressed as a promise that settles when `reply.raw` emits
- * `close`. That one event covers success, error and client abort, so the scope
- * is disposed in all three cases with a single mechanism and no `try/finally`
- * spread across the response path.
- *
- * ## Ordering
- *
- * This hook must be registered **after** the auth hook (it derives tenancy from
- * `request.actor`) and **before** the sales-channel resolver (which fills the
- * scope's channel slot and whose refusal path writes an audit row, so it needs
- * tenancy). See the ordering note in `scope.ts` — that order is a constraint,
- * not an accident of registration.
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-
-export interface RequestScopeHookOptions {
-  /**
-   * Derive the request's tenant context from the already-authenticated actor —
-   * never from request inputs (Constitution XI). Rejecting here fails the
-   * request through `done(err)`, exactly as the pre-kernel hook did.
-   */
-  buildTenantContext: (request: FastifyRequest) => Promise<TenantContext>;
-}
-
-function requestMetaOf(request: FastifyRequest): RequestMeta {
-  const userAgent = request.headers['user-agent'];
-  return {
-    requestId: request.id ? String(request.id) : null,
-    ipAddress: request.ip ?? null,
-    userAgent: Array.isArray(userAgent) ? (userAgent[0] ?? null) : (userAgent ?? null),
-  };
-}
-
-export async function registerRequestScopeHook(
-  app: FastifyInstance,
-  options: RequestScopeHookOptions,
-): Promise<void> {
-  await app.register(
-    fastifyPlugin(async (inner) => {
-      inner.addHook('onRequest', (request, reply, done) => {
-        options.buildTenantContext(request).then(
-          (tenant) => {
-            void enterPlatformScope(
-              tenant,
-              () =>
-                new Promise<void>((resolve) => {
-                  reply.raw.once('close', resolve);
-                  done();
-                }),
-              { entryPoint: 'http', requestMeta: requestMetaOf(request) },
-            ).catch((err: unknown) => {
-              // Reaching here means the scope failed to close down, not that the
-              // request failed — the response has already been written by then.
-              request.log.error({ err }, 'platform scope disposal failed');
-            });
-          },
-          (err: unknown) => done(err as Error),
-        );
-      });
-    }),
-  );
-}
+export * from '../../../packages/platform/dist/kernel/request-scope-hook.js';

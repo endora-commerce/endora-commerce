@@ -1,63 +1,22 @@
-import type { z } from 'zod';
-
 /**
- * Kernel port — settings read (feature 072, D-32).
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * The settings **store** (entities, resolver, cache, secret codec and the
- * manifest reconciler) is kernel-owned: boot and lifecycle gating both need it.
- * The admin service, its routes and the storefront resolvers stay in the
- * `settings` module.
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
  *
- * **Why this port is read-only, against `tasks.md` T014's "read/write".** There
- * are exactly two writers of a setting value in the tree and neither belongs
- * behind a kernel port:
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
  *
- *  - `settings/services/settings-admin.service.ts` — the audited, optimistically
- *    locked, channel-subset-aware admin write. It carries an `AdminAuditContext`
- *    and the module-activation policy, so it is module-owned by D-32 and stays
- *    on the module's own surface.
- *  - `kernel/settings/manifest-reconciler.ts` — kernel-internal since T018, and
- *    a component does not reach itself through a port.
- *
- * Inventing a third, portable write shape would be a speculative abstraction
- * with no caller. When a cross-module write appears, it goes here.
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-export interface SettingsReadPort {
-  /**
-   * Read one setting and validate it against the caller's schema.
-   *
-   * `salesChannelId` is a channel uuid for a channel-scoped read, or **`null`
-   * for a platform-wide read** — `settings.global_value ?? default_value`,
-   * skipping `setting_values` entirely (feature 072, D-41). `null` is not a
-   * degraded mode: it is what a reader that is not per-storefront says, and
-   * giving that tier a spelling is what removed the sentinels three modules had
-   * invented for it.
-   *
-   * @throws `SettingNotRegistered` when no setting carries `code`.
-   * @throws `SettingOutOfScopeForChannel` when the setting is scoped to other
-   *   channels — including a platform-wide read of a channel-subset setting.
-   * @throws `SettingValueShapeMismatch` when the stored value fails `schema`.
-   * @throws `SettingsChannelIdInvalid` when `salesChannelId` is a non-null
-   *   string that is not a channel uuid.
-   */
-  get<T>(code: string, salesChannelId: string | null, schema: z.ZodType<T>): Promise<T>;
-
-  /**
-   * Batch read. Every code resolves independently, so one missing code does not
-   * poison the batch — per-code failures come back as `{ ok: false, error }`.
-   * A malformed `salesChannelId` is not a per-code failure and propagates.
-   */
-  getMany(
-    codes: string[],
-    salesChannelId: string | null,
-  ): Promise<Map<string, SettingsReadResult<unknown>>>;
-}
-
-/** One entry of a {@link SettingsReadPort.getMany} result. */
-export type SettingsReadResult<T> =
-  | { ok: true; value: T }
-  | {
-      ok: false;
-      error: 'not_registered' | 'out_of_scope' | 'shape_mismatch';
-      details?: unknown;
-    };
+export * from '../../../../packages/platform/dist/kernel/ports/settings.js';

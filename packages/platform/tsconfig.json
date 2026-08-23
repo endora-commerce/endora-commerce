@@ -15,27 +15,20 @@
     "noEmit": true,
     "types": ["node"]
   },
-  // The package's sources are the five platform directories of `backend/src`; see
-  // `tsconfig.build.json` for why they are compiled from where they live rather than
-  // relocated into this directory.
-  "include": [
-    "../../backend/src/kernel/**/*",
-    "../../backend/src/http/**/*",
-    "../../backend/src/tenancy/**/*",
-    "../../backend/src/commands/**/*",
-    "../../backend/src/events/**/*"
-  ],
-  // Two co-located test files sit in those directories. They are never published — a
-  // compiled `*.test.js` under `dist` imports `vitest`, a devDependency, so it would be
-  // an unresolvable specifier in every consumer's install — and they are not this
-  // package's to type-check either: they belong to `backend`, whose `tsconfig.json`
-  // includes `test/**/*` and therefore carries the harness's ambient declarations. The
-  // patterns are anchored at `backend/src` because an `exclude` glob is resolved against
-  // *this* directory, where a bare `**/*.test.ts` matches nothing.
-  "exclude": [
-    "../../backend/src/**/*.test.ts",
-    "../../backend/src/**/*.test.tsx",
-    "../../backend/src/**/*.spec.ts",
-    "../../backend/src/**/*.spec.tsx"
-  ]
+  // The platform's five directories live here. They were compiled out of `backend/src`
+  // until the relocation: the package emitted `backend/src/{kernel,http,tenancy,commands,
+  // events}` a second time, the application ran the originals, and the two shared no
+  // runtime value — so `instanceof HttpError` was `false` across the boundary and a
+  // packaged module's entity classes were a second `SalesChannel` the ORM refused
+  // (host-package.md §3.5). One tree ends that: `backend` reaches these files through
+  // re-export shims at their old paths, an installed package through the `exports` map,
+  // and both land on `dist/`.
+  "include": ["src/**/*"],
+  // A co-located test would be compiled into `dist` and would import `vitest`, a
+  // devDependency — an unresolvable specifier in every consumer's install. There are
+  // none today (the two that stood in these directories moved to `backend/test/unit`
+  // with the relocation, where the harness's ambient declarations already are); the
+  // patterns stay so that adding one is a test that does not run rather than a package
+  // that does not install.
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
 }

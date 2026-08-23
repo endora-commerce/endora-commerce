@@ -35,6 +35,7 @@ const SCRIPT = join(REPO_ROOT, 'backend', 'scripts', 'check-lock-claims.ts');
 const LIBS: readonly string[] = [
   'module-population.ts',
   'module-roots.ts',
+  'platform-root.ts',
   'read-size.ts',
   'switchable-modules.ts',
   'workspace-packages.ts',

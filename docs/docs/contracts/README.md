@@ -34,7 +34,7 @@ open  http://localhost:3001/api/v1/_docs           # Swagger UI in the browser
 ```
 
 Every Fastify route is auto-registered into the document on boot via the
-`onRoute` hook in `backend/src/http/openapi.ts`; modules may opt into a
+`onRoute` hook in `packages/platform/src/http/openapi.ts`; modules may opt into a
 richer schema for any one route by calling
 `openApiRegistry.registerPath({...})` directly.
 

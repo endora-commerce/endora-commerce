@@ -264,7 +264,7 @@ import { dirname as posixDirname, join as posixJoin, normalize as posixNormalize
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { moduleOf } from './check-container-imports.js';
-import { requireModuleLayout } from './lib/module-roots.js';
+import { requireModuleLayout, type ModuleTreeLayout } from './lib/module-roots.js';
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
 import {
   declaredTableNames,
@@ -1204,6 +1204,30 @@ export function collectModuleFiles(roots: readonly string[]): string[] {
  * (`sales_channels` alone carries 25 findings) and 21 more are declared only by
  * DDL under `src/db/migrations`, which no module walk reaches.
  */
+/**
+ * How a schema source becomes an owner-map key.
+ *
+ * The platform's files keep their `kernel/…`, `http/…` spelling, which is what
+ * {@link declaringOwnerOf} reads to attribute `sales_channels`, `settings`,
+ * `audit_logs` and `module_registrations` to the kernel. `layout.keyOf` is
+ * repository-relative outside the application's `src/`, so after the platform
+ * relocation those four tables were owned by `core:packages` instead — and the
+ * failure is fail-**open**: a module's SQL naming a table nobody owns is not a
+ * cross-module reach, so two ledgered reaches went stale and the predicate
+ * stopped seeing them rather than reporting them.
+ *
+ * Exported because `test/unit/scripts/check-module-boundary.test.ts` builds the
+ * same map over the real tree, and two derivations of one key space are two
+ * answers waiting to disagree.
+ */
+export function schemaKeyOf(layout: ModuleTreeLayout): (absolutePath: string) => string {
+  const platformRoot = layout.platformRoot;
+  return (absolutePath: string): string =>
+    platformRoot !== null && absolutePath.startsWith(`${platformRoot}/`)
+      ? relative(platformRoot, absolutePath).split('\\').join('/')
+      : layout.keyOf(absolutePath);
+}
+
 export function collectSchemaFiles(roots: readonly string[]): string[] {
   return roots.flatMap((root) => walk(root));
 }
@@ -1401,7 +1425,7 @@ async function main(): Promise<void> {
   const layout = await requireModuleLayout('[module-boundary]');
   const files = collectModuleFiles(layout.moduleWalkRoots);
   const sources = sourcesOf(files, layout.keyOf);
-  const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), layout.keyOf);
+  const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), schemaKeyOf(layout));
   // The third owner-map source (T034). It is read before the vacuous guard so
   // that a package whose schema cannot be enumerated stops the run instead of
   // leaving its tables attributed to nobody — the silence that would let every

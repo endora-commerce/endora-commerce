@@ -42,7 +42,14 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = join(HERE, '..', '..', '..');
-const SRC = join(BACKEND_ROOT, 'src');
+/**
+ * The platform's own sources. The five barrels moved into
+ * `@endora-commerce/platform` with the relocation; `backend/src/<subpath>/`
+ * holds re-export shims, two of the five subpaths have none at all, and reading
+ * a shim as a barrel would parse `export * from` and report the published
+ * surface as unreadable.
+ */
+const SRC = join(BACKEND_ROOT, '..', 'packages', 'platform', 'src');
 
 /** A barrel publishing one symbol out of one file, in the tree's own spelling. */
 const KERNEL_BARREL = "export { ModuleContext } from './module-context.js';\n";

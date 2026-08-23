@@ -308,7 +308,9 @@ describe('check-nul-bytes — the exit codes', () => {
 
 describe('check-nul-bytes — the tree it guards', () => {
   const repaired = [
-    'backend/src/http/interceptors/registry.ts',
+    // Moved with the platform relocation; `backend/src/http/interceptors/registry.ts`
+    // is now a re-export shim and carries no separator of its own.
+    'packages/platform/src/http/interceptors/registry.ts',
     'backend/src/modules/admin_actions/services/admin-actions-service.ts',
     'backend/src/modules/orders/domain/order-status-graph.ts',
     'backend/src/modules/product_feeds/services/taxonomy-revision-identity.ts',

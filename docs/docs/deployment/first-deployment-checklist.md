@@ -115,7 +115,7 @@ both failed silently. Issue #218 changed both, in different ways:
   fall back to `http://localhost:3001`, so the platform handed the gateway a callback nothing
   on the internet can reach and no payment was ever confirmed. `compose.prod.yml` now derives
   it from `API_DOMAIN` alongside `BACKEND_PUBLIC_URL`, and the backend **refuses to boot** when
-  `NODE_ENV=production` and neither is set (`backend/src/kernel/public-api-base-url.ts`, called
+  `NODE_ENV=production` and neither is set (`packages/platform/src/kernel/public-api-base-url.ts`, called
   first thing in `composeApp()`). Nothing to fill in — but if the backend exits at boot naming
   this variable, `API_DOMAIN` is what is missing.
 - `REVALIDATE_SECRET` is the shared secret the backend presents to the storefront's

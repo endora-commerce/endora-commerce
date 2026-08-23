@@ -66,7 +66,9 @@ const AUDIENCE_KEYS = ['organizationId', 'authenticated'] as const;
  */
 const SANCTIONED_AUDIENCE_SOURCES: ReadonlyMap<string, string> = new Map([
   [
-    'src/http/product-audience.ts',
+    // The platform's, since the relocation — `backend/src/http/product-audience.ts`
+    // is a re-export shim and builds nothing.
+    'packages/platform/src/http/product-audience.ts',
     'the resolver itself — reads `request.actor` and is the source every route uses',
   ],
   [
