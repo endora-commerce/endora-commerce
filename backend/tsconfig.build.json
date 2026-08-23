@@ -4,7 +4,16 @@
     "noEmit": false,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    // The application's own sources are the only thing this build emits, so the emitted
+    // tree mirrors `src/` and `dist/index.js` is the entry point `start` has always named.
+    // Both lines are required together: `rootDir` alone, with `paths` still redirecting
+    // `@endora-commerce/*` at the packages' *sources*, pulls those files into the program
+    // and tsc emits them next to themselves, in `packages/*/src`.
+    "rootDir": "./src",
+    // Cleared so the build resolves the workspace packages through `node_modules` — i.e.
+    // against their emitted `.d.ts` — exactly as an installed consumer does.
+    "paths": {}
   },
   "include": ["src/**/*"],
   "exclude": ["test/**/*", "**/*.test.ts", "**/*.spec.ts"]

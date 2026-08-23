@@ -73,6 +73,30 @@ export function collectLifecycleParticipants<EM = unknown, R = unknown>(
   return found.sort((a, b) => a.moduleId.localeCompare(b.moduleId));
 }
 
+/**
+ * The manifest in one module folder, or `null` when the folder holds none.
+ *
+ * Two spellings for one file: `manifest.js` in a compiled tree,
+ * `manifest.ts` under `tsx` and `vitest`. This walk used to spell `.ts` into an
+ * `existsSync` and `continue` past a folder that failed it, so pointed at a
+ * built tree it discovered **nothing** and reported an empty registry — the
+ * absent-path-as-absent-feature shape this repository keeps finding (feature
+ * 080, D-165 step C). `null` still means "this folder is not a module", which is
+ * how a non-module directory under the root is skipped; what it no longer means
+ * is "this module was compiled".
+ *
+ * Compiled first, for the reason `manifest-locations.ts` gives about the same
+ * pair: the compiled tree is the one where picking up a stray source file
+ * beside it would be wrong.
+ */
+function moduleManifestIn(moduleDir: string): string | null {
+  for (const extension of ['.js', '.ts']) {
+    const candidate = join(moduleDir, `manifest${extension}`);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
 export class ManifestLoadError extends Error {
   constructor(
     public readonly kind:
@@ -162,8 +186,8 @@ export async function discoverManifests<EM = unknown, R = unknown>(
   const modules = new Map<string, LoadedModuleEntry<EM, R>>();
 
   for (const folderName of candidates) {
-    const filePath = join(root, folderName, 'manifest.ts');
-    if (!existsSync(filePath)) continue;
+    const filePath = moduleManifestIn(join(root, folderName));
+    if (filePath === null) continue;
 
     let imported: ModuleManifestExports<EM, R>;
     try {
