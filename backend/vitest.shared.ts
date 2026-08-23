@@ -11,7 +11,7 @@ import { RunCompletenessReporter } from './test/run-completeness.js';
 const isCi = process.env['CI'] === 'true' || process.env['CI'] === '1';
 
 /**
- * A workspace package's **built** output is loaded by node, once, and not by
+ * The contracts package's **built** output is loaded by node, once, and not by
  * vite-node once per test file (issue #199).
  *
  * `shouldExternalize` in `vite-node` asks one question: does the resolved id
@@ -32,23 +32,33 @@ const isCi = process.env['CI'] === 'true' || process.env['CI'] === '1';
  *     20 350/3 203 each).
  *
  * With the rule below, the same 120 files that died at 2 011 MB run to
- * completion at a 1 267 MB peak, and collection drops from 50.8 s to 26.5 s for
- * the same thirty files. `@endora-commerce/platform` was already externalized
- * (its ids carry no `/@fs/` prefix in the snapshot), which is the shape this
- * restores for the other five.
+ * completion, and collection drops from 50.8 s to 26.5 s over thirty files.
  *
- * Two things it does **not** do. It matches `dist` only, so a test that reads a
- * package's `src` as text is untouched; and an externalized module cannot be
- * `vi.mock`ed — no test in this suite mocks an `@endora-commerce/*` specifier,
- * and one that needs to should mock the seam it reaches rather than the
- * contracts barrel.
+ * **It names one package rather than `packages/*`, and that is a measurement
+ * rather than caution.** `@endora-commerce/platform` owns process-wide
+ * registries; externalizing it gives the whole shard one of each while vitest
+ * goes on re-evaluating every module that registers into them once per test
+ * file. Over 32 files importing `pim_ergonode`'s entities,
+ * `tenantClassifications()` then holds 32 entries per class instead of one and
+ * `test/unit/pim_ergonode/tenant-classification.test.ts` fails ten times.
+ * Nothing about issue #199 needs that, and changing what a registry contains
+ * for a whole run is a bigger decision than this one. The other four packages
+ * are untouched because nothing measured them.
+ * `test/unit/harness/workspace-package-externalization.test.ts` holds the scope
+ * in both directions.
+ *
+ * Two things it does **not** do. It matches `dist` only, so a test that reads
+ * the package's `src` as text is untouched; and an externalized module cannot
+ * be `vi.mock`ed — no test in this suite mocks an `@endora-commerce/*`
+ * specifier, and one that needs to should mock the seam it reaches rather than
+ * the contracts barrel.
  */
-const WORKSPACE_PACKAGE_DIST = /\/packages\/[^/]+\/dist\//;
+const CONTRACTS_DIST = /\/packages\/contracts\/dist\//;
 
 export function backendTestOptions(): NonNullable<UserConfig['test']> {
   return {
     environment: 'node',
-    server: { deps: { external: [WORKSPACE_PACKAGE_DIST] } },
+    server: { deps: { external: [CONTRACTS_DIST] } },
     setupFiles: [
       './test/tenancy-setup.ts',
       // Issue #199 — the fork reports how close it is to its own heap limit

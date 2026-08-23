@@ -1,6 +1,6 @@
 /**
- * A workspace package's built output is loaded once by node, not once per test
- * file by vite-node (issue #199).
+ * `@endora-commerce/contracts` is loaded once by node, not once per test file
+ * by vite-node (issue #199).
  *
  * ## What this is protecting
  *
@@ -15,29 +15,39 @@
  * still reachable when the fork hit its 2 GB cap and took the rest of the shard
  * with it.
  *
- * ## Why two assertions and not one
+ * ## Why the rule names one package rather than `packages/*`
  *
- * The behavioural one is the real guard and it can only speak for the package
- * this file imports: vite's SSR transform rewrites a module's imports into
- * `__vite_ssr_import_N__`, so a function that closes over one carries the
- * rewrite in its own source text. That is a fact about the module instance this
- * run is executing, not about the configuration — which is what makes it
- * unfoolable, and also what makes it single-package.
+ * Because the wider rule was tried, and it is not free. `@endora-commerce/platform`
+ * owns process-wide registries — the tenant-scope classification list among
+ * them — and externalizing it gives the whole shard **one** of each, while
+ * vitest goes on re-evaluating every module that registers into them once per
+ * test file. Measured over 32 files that import `pim_ergonode`'s entities:
+ * inlined, `tenantClassifications()` holds one entry per class and
+ * `test/unit/pim_ergonode/tenant-classification.test.ts` passes; externalized,
+ * it holds 32 and that file fails ten times. Nothing about issue #199 requires
+ * that change, and altering what a process-wide registry contains for a whole
+ * run is a larger decision than this one — so the rule is the package the
+ * measurement is about, and the platform is deliberately left where it was.
  *
- * The configuration one covers the rest, and is derived from the workspace
- * rather than from a list: every member whose manifest points at `./dist` must
- * be matched by the rule. A seventh package added under `packages/` is covered
- * on the day it arrives, and a rule narrowed to one package name fails here
- * instead of quietly halving the fix.
+ * The other four packages are untouched for the plainer reason that nothing
+ * measured them.
+ *
+ * ## Why two assertions
+ *
+ * The behavioural one is the real guard: vite's SSR transform rewrites a
+ * module's imports into `__vite_ssr_import_N__`, so a contracts function that
+ * closes over one carries the rewrite in its own source text. That is a fact
+ * about the module instance this run is executing, not about the
+ * configuration. The second holds the rule's *scope* to what was measured, in
+ * both directions.
  */
-import { dirname, join, relative } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 import { dataEnvelope } from '@endora-commerce/contracts';
 
 import { backendTestOptions } from '../../../vitest.shared.js';
-import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspace-packages.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '..', '..', '..', '..');
@@ -47,11 +57,8 @@ function externalPatterns(): readonly RegExp[] {
   return external.filter((entry): entry is RegExp => entry instanceof RegExp);
 }
 
-/** Members whose published entry point is a built `dist`, from their own manifests. */
-function packagesResolvingToDist(): readonly { name: string; dir: string }[] {
-  return workspaceMembers(REPO_ROOT, nodeWorkspaceFs())
-    .filter((member) => JSON.stringify(member.manifest['exports'] ?? member.manifest['main'] ?? '').includes('/dist/'))
-    .map((member) => ({ name: member.name, dir: member.dir }));
+function matches(entry: string): boolean {
+  return externalPatterns().some((pattern) => pattern.test(entry));
 }
 
 describe('the contracts barrel this run executes was loaded by node, not by vite-node', () => {
@@ -60,7 +67,7 @@ describe('the contracts barrel this run executes was loaded by node, not by vite
 
     expect(
       source.includes('__vite_ssr_import'),
-      '`dataEnvelope` still carries vite\'s SSR import rewrite, which means ' +
+      "`dataEnvelope` still carries vite's SSR import rewrite, which means " +
         '`@endora-commerce/contracts` is being inlined and re-evaluated once per test file. ' +
         'Restore `server.deps.external` in backend/vitest.shared.ts — see issue #199 and the ' +
         `comment there. Source: ${source}`,
@@ -68,26 +75,33 @@ describe('the contracts barrel this run executes was loaded by node, not by vite
   });
 });
 
-describe('every workspace package that ships a dist is externalized', () => {
-  it('finds the packages to answer for — an empty set would make this vacuous', () => {
-    expect(packagesResolvingToDist().length).toBeGreaterThan(0);
+describe('the externalization rule covers what was measured, and no more', () => {
+  it('is configured at all', () => {
+    expect(externalPatterns().length).toBeGreaterThan(0);
   });
 
-  it('matches each of them with the rule the backend configs share', () => {
-    const patterns = externalPatterns();
-    expect(patterns.length, 'no regular-expression externalization rule is configured').toBeGreaterThan(0);
+  it('matches the contracts build', () => {
+    expect(matches(join(REPO_ROOT, 'packages', 'contracts', 'dist', 'index.js'))).toBe(true);
+  });
 
-    const unmatched = packagesResolvingToDist()
-      .filter(({ dir }) => {
-        const entry = join(dir, 'dist', 'index.js');
-        return !patterns.some((pattern) => pattern.test(entry));
-      })
-      .map(({ name, dir }) => `${name} (${relative(REPO_ROOT, dir)})`);
+  it('does not match the contracts sources — a test that reads them as text is untouched', () => {
+    expect(matches(join(REPO_ROOT, 'packages', 'contracts', 'src', 'index.ts'))).toBe(false);
+  });
 
+  /**
+   * The direction a widening would take, and the one that costs something. See
+   * the header: externalizing the platform gives the shard one tenant-scope
+   * classification registry while vitest re-evaluates every entity module per
+   * file, and `test/unit/pim_ergonode/tenant-classification.test.ts` counts 32
+   * registrations where it expects 1.
+   */
+  it('does not match the platform build, whose registries are shared state', () => {
     expect(
-      unmatched,
-      'these workspace packages resolve to a built dist that vite-node would inline and ' +
-        're-evaluate for every test file of the shard (issue #199)',
-    ).toEqual([]);
+      matches(join(REPO_ROOT, 'packages', 'platform', 'dist', 'kernel', 'index.js')),
+      'externalizing @endora-commerce/platform gives the whole shard one copy of every ' +
+        'process-wide registry it owns, while vitest goes on re-evaluating the modules that ' +
+        'register into them once per test file. Measured: 32 entries where one is expected. ' +
+        'If that is genuinely wanted, it is its own change, with its own measurement.',
+    ).toBe(false);
   });
 });
