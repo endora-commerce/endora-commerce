@@ -472,6 +472,71 @@ describe('check-language.sh', () => {
     expect(result.status, result.output).toBe(0);
     expect(result.output).toMatch(/\[language] read: files=2 sources=manifest-index:1\/1/);
   });
+
+  /**
+   * The prose scan has to run on the perl this repository's CI images have.
+   *
+   * `perl-base` is the only perl in `node:22.17-slim` and in
+   * `debian:bookworm-slim`, and it ships no `PerlIO.pm` — so an
+   * `:encoding(UTF-8)` layer aborts the scanner at `BEGIN`. The script guarded
+   * `command -v perl`, which `perl-base` satisfies, and then used a layer it
+   * does not have. `quality:static` and `release:changeset` never saw it
+   * because both `apt-get install git`, and git depends on the modules package;
+   * `test:backend:unit` installs nothing, so all ten cases above were red in CI
+   * and green on every developer machine. Fixing the images would leave the
+   * dependency undeclared and one `--no-install-recommends` away from coming
+   * back, so the scanner encodes its own output instead.
+   */
+  it('scans on a perl with no PerlIO — the one Debian ships as perl-base', () => {
+    const result = fixture.run('check-language.sh', [], fixture.withoutPerlIo());
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).not.toContain('PerlIO');
+    expect(result.output).toMatch(/\[language] read: files=2 sources=manifest-index:1\/1/);
+  });
+
+  it('still finds a non-English comment on a perl with no PerlIO', () => {
+    fixture.write('backend/src/modules/orders/order-service.ts', POLISH_COMMENT);
+    const result = fixture.run('check-language.sh', [], fixture.withoutPerlIo());
+    expect(result.status, result.output).toBe(1);
+    expect(result.output).toContain('Non-English comment');
+  });
+
+  it('reports the finding byte-for-byte, diacritics included, without the layer', () => {
+    // The layer's whole job was encoding the report, so the replacement has to
+    // be asserted on the bytes and not only on the exit code: a scanner that
+    // reports `zamowienie` or `zam?wienie` has found the right line and told
+    // the reader about a different one.
+    fixture.write('backend/src/modules/orders/order-service.ts', POLISH_COMMENT);
+    const withLayerless = fixture.run('check-language.sh', [], fixture.withoutPerlIo());
+    const ordinary = fixture.run('check-language.sh');
+    expect(withLayerless.output).toBe(ordinary.output);
+    expect(withLayerless.output).toContain('zamówienie');
+  });
+
+  /**
+   * Issue #244's floor, on the scan rather than on the listing.
+   *
+   * Every non-zero exit from the scanner was `fail=1`, so a scanner that could
+   * not start was reported as a language violation — a verdict from a scan that
+   * never happened, printed under a `read:` line claiming two files. The two
+   * outcomes the scanner defines are 0 and 1; anything else means it did not
+   * run, and the run has nothing to report.
+   */
+  it('exits 2, not 1, when the prose scanner cannot run at all', () => {
+    fixture.breakPerl();
+    const result = fixture.run('check-language.sh');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain('did not run');
+    expect(result.output).not.toContain('Working language OK');
+  });
+
+  it('exits 2 when the scanner cannot run even though the tree is clean', () => {
+    // The direction that matters: the tree here holds nothing to find, so a
+    // check that reported 1 would be inventing a finding, and one that reported
+    // 0 would be reporting a pass it never measured. Both are refused.
+    fixture.breakPerl();
+    expect(fixture.run('check-language.sh').status).toBe(2);
+  });
 });
 
 /**

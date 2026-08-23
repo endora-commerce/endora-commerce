@@ -10,10 +10,21 @@
 # build + deploy run on the default branch only; deploy is a MANUAL gate.
 #
 # Every job that executes repository code runs `pnpm run build:packages` after the
-# install. Since feature 080 (T042) the five packages under `packages/` resolve through
-# their own `exports` maps at `./dist`, so an unbuilt workspace is an unresolvable
-# `@endora-commerce/*` specifier rather than a slightly stale one. `release:changeset` is the one
-# node job without the step: it runs the changesets CLI and imports nothing of ours.
+# install — every one, with no exception. Since feature 080 (T042) the packages under
+# `packages/` resolve through their own `exports` maps at `./dist`, so an unbuilt
+# workspace is an unresolvable `@endora-commerce/*` specifier rather than a slightly
+# stale one; and since the platform relocation (!908) all of
+# `backend/src/{kernel,http,tenancy,commands,events}` re-exports from
+# `packages/platform/dist`, so an unbuilt workspace is a repository in which almost
+# nothing resolves at all.
+# `release:changeset` used to be listed here as the one node job without the step, on
+# the ground that it "runs the changesets CLI and imports nothing of ours". That was
+# true when it was written and false by the time it mattered — the job had grown
+# `check:release-intent` and `test:release-gate`, both of which are ours — and the
+# sentence went on standing because nothing read it. `test/unit/ci/toolchain-supply.test.ts`
+# is the same statement as a predicate over this file: a job whose script runs a workspace
+# filter and whose `before_script` does not build fails by name. Do not re-open the
+# exception in a comment; if a job genuinely needs one, it needs one in that test.
 # Ruling R12 — a build script only a developer ever runs is configuration, not a build;
 # `outDir` had been configured in all five packages since they were created and had never
 # been executed, which is how a `rootDir` defect sat latent in three of them.
@@ -409,6 +420,16 @@ release:changeset:
     - git config --global --add safe.directory "$CI_PROJECT_DIR"
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    # This job used to be the one node job without a build, on the ground —
+    # written in the header above — that it "imports no `@endora-commerce/*`
+    # package". That stopped being true when `check:release-intent` and
+    # `test:release-gate` were added to the script below, and nothing noticed,
+    # because the exception was a sentence rather than a predicate: the job went
+    # red with `Failed to load url ../../../packages/platform/dist/tenancy/
+    # tenant-context.js`. `test/unit/ci/toolchain-supply.test.ts` is the
+    # predicate now — a job that runs a workspace script and does not build
+    # first fails there, by name.
+    - pnpm run build:packages
   script:
     - |
       base="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-$CI_DEFAULT_BRANCH}"
@@ -442,14 +463,15 @@ release:changeset:
       # derived from each versionable package's own `tsconfig.build.json`;
       # this mode lives here rather than in `quality` because it needs git.
       pnpm --filter backend run check:release-intent -- --since "origin/$base"
-    # Feature 080 (T043) — the gate above, measured over real branches, in the
-    # one job that has git. Every backend job runs `node:22.17-slim`, which
-    # ships none (`test/helpers/shell-check-fixture.ts` fakes `git ls-files` for
-    # that reason), and the release-branch discriminator IS a `git diff`, so a
-    # fake would prove the fake. It reaches no service and imports no `@endora-commerce/*`
-    # package, which is why this job still needs neither containers nor
-    # `build:packages`. `check-release-intent.test.ts` fails in the unit suite
-    # if this line goes away, so the file cannot become one nothing runs.
+    # Feature 080 (T043) — the gate above, measured over real branches, against
+    # a real target branch. `node:22.17-slim` ships no git, so this job installs
+    # it, as `test:backend:unit` does; the release-branch discriminator IS a
+    # `git diff`, so the fake `git ls-files` in
+    # `test/helpers/shell-check-fixture.ts` would prove only the fake. It
+    # reaches no service, which is why this job still needs no containers — but
+    # it does import repository code, so it builds the packages like every other
+    # node job. `check-release-intent.test.ts` fails in the unit suite if this
+    # line goes away, so the file cannot become one nothing runs.
     - pnpm --filter backend run test:release-gate
   cache:
     key:
@@ -663,6 +685,10 @@ test:backend:
     MEILISEARCH_URL: http://meilisearch:7700
     MEILISEARCH_API_KEY: devMasterKeyChangeMe
   before_script:
+    # This suite includes `test/unit`, so it has the same git dependency as
+    # `test:backend:unit` below — see the note above that job.
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
     - pnpm run build:packages
@@ -693,11 +719,27 @@ test:backend:
 # The 16 excluded files still run in `test:backend` above, so this is a split of
 # jobs, not of coverage. `needs: []` starts the job at pipeline creation instead
 # of after the `quality` stage — the whole value here is an answer in minutes.
+# `git` is a dependency of this suite, and it took a day to find out because
+# nothing said so. `node:22.17-slim` ships none, and the suite spawns it three
+# ways: `test/unit/release/changeset-flow.test.ts` runs the real changesets CLI
+# (which shells out to git and exits 1 on `spawn git ENOENT`), and
+# `test/unit/scripts/check-read-size.test.ts` spawns `check-naming.sh` and
+# `check-language.sh` over the real tree, whose file list is `git ls-files` —
+# both exit 2 without it rather than report a verdict over a list they could not
+# get. Ten of the resulting failures read `expected 1 to be 0` and none of them
+# mentioned git. `test/unit/ci/toolchain.test.ts` is the one that does now: it
+# fails first, in one sentence, if this line is ever dropped.
+#
+# The fixture runs in `shell-checks.test.ts` fake git on `PATH`
+# (`test/helpers/shell-check-fixture.ts`) and are unaffected either way — that
+# fake is not evidence the suite needs no git, which is how this went unnoticed.
 test:backend:unit:
   stage: test
   image: node:22.17-slim
   needs: []
   before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
     - pnpm run build:packages

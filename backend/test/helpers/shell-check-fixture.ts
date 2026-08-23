@@ -147,6 +147,28 @@ export interface ShellCheckFixture {
    * assert that the outer run did **not** report it.
    */
   nestCheckout: (path: string, kind?: NestedCheckoutKind) => string;
+  /**
+   * The perl Debian actually ships, as environment rather than as a mock.
+   *
+   * `perl-base` is Essential and is the only perl in `node:22.17-slim` and in
+   * `debian:bookworm-slim`; the modules split lives in `perl-modules-5.36`, so
+   * `PerlIO.pm` — and with it every `:encoding(...)` layer — is **absent**
+   * until something pulls the full package in. `quality:static` and
+   * `release:changeset` get it by accident, because `apt-get install git`
+   * depends on it; `test:backend:unit` installs nothing and does not.
+   *
+   * Shadowing `PerlIO.pm` with one that dies reproduces that exactly, on any
+   * machine and with the real perl: the layer's `require PerlIO` finds the
+   * shadow first and the scanner aborts at `BEGIN`. Returns the env for
+   * {@link ShellCheckFixture.run}.
+   */
+  withoutPerlIo: () => Record<string, string>;
+  /**
+   * A `perl` on `PATH` that refuses to run at all, for the floor rather than
+   * the capability: whatever the reason a scan does not happen, the verdict it
+   * would have produced must not be reported as a finding.
+   */
+  breakPerl: () => void;
   run: (
     script: string,
     args?: readonly string[],
@@ -283,6 +305,42 @@ export function createShellCheckFixture(): ShellCheckFixture {
     },
     nestCheckout,
     installPdfmake,
+    withoutPerlIo: () => {
+      const lib = join(root, 'perl5lib-without-perlio');
+      mkdirSync(lib, { recursive: true });
+      writeFileSync(
+        join(lib, 'PerlIO.pm'),
+        // The message `perl-base` itself produces, so a failure here reads the
+        // way the CI log reads.
+        'die "Can\'t locate PerlIO.pm in \\@INC (you may need to install the PerlIO module)";\n',
+        'utf8',
+      );
+      return { PERL5LIB: lib };
+    },
+    breakPerl: () => {
+      // Only the *prose scanner* dies. `lib/module-root.sh` reads the manifest
+      // index with a `perl -ne` of its own and runs first, so a perl that
+      // refused everything would exit 2 before the scan — the right code for
+      // the wrong reason, which is not a proof of anything. The discriminator
+      // is the scanner's own text rather than its flags, so it survives the
+      // next person changing `-CA`.
+      const real = spawnSync('sh', ['-c', 'command -v perl'], { encoding: 'utf8' }).stdout.trim();
+      const shim = join(binDir, 'perl');
+      writeFileSync(
+        shim,
+        `#!/bin/sh
+case "$*" in
+  *Non-English*)
+    echo "fixture perl: refusing to run the prose scanner" >&2
+    exit 2
+    ;;
+esac
+exec ${real} "$@"
+`,
+        'utf8',
+      );
+      chmodSync(shim, 0o755);
+    },
     run: (script, args = [], env = {}) => {
       const result = spawnSync('bash', [join(root, 'scripts', script), ...args], {
         encoding: 'utf8',

@@ -96,6 +96,77 @@ describe('ambient context store', () => {
       expect(getTenantContext()).toBe(ctx);
     });
   });
+
+  /**
+   * The cleared context has to survive an `await`, and until this test it was
+   * only ever asserted synchronously.
+   *
+   * `AsyncLocalStorage.exit(fn)` is, on the pre-`AsyncContextFrame` runtime,
+   * `disable(); try { fn() } finally { enable() }` — a *synchronous*
+   * try/finally around a callback that may be `async`. Node 24 made
+   * `AsyncContextFrame` the default and the same call became frame-scoped, so
+   * the defect is invisible on a developer's Node 24+ and live on the Node
+   * 22.17 floor this repository supports and CI runs (`engines.node`). Two
+   * tests were red in CI and green on every machine for exactly that reason —
+   * `test/unit/seeds/seed-scope.test.ts` and
+   * `test/unit/kernel/registry-cache-scope.test.ts`, both of which strip the
+   * harness context and then assert what a scope leaves behind.
+   *
+   * **The middle case below is the one that was red, and its shape is the
+   * reason the defect had no test.** A bare `await` inside the cleared region
+   * is not enough: the re-enable has nothing to restore from and the store
+   * stays clear on both runtimes. What resurfaces it is a **nested `run()`**
+   * inside the cleared region — which is what both red files do, because
+   * `enterPlatformScope` opens one. Nor does it show under an enclosing
+   * `runWithTenantContext`: that frame contains the disable/enable pair and the
+   * case passes while the defect stands. So the outer store has to be an
+   * `enterWith` one that no `run()` contains, which is exactly how the harness
+   * installs the ambient scope around every test (`test/tenancy-setup.ts`).
+   * These tests therefore strip *that* store, and assert first that there is
+   * one to strip — a run without the setup file would otherwise pass by having
+   * nothing to resurface.
+   */
+  it('runWithoutTenantContext keeps the context cleared across an await', async () => {
+    const ambient = getTenantContext();
+    expect(ambient, 'the harness installs an ambient context around every test').toBeDefined();
+
+    await runWithoutTenantContext(async () => {
+      expect(getTenantContext()).toBeUndefined();
+      await Promise.resolve();
+      expect(getTenantContext()).toBeUndefined();
+    });
+
+    expect(getTenantContext()).toBe(ambient);
+  });
+
+  it('runWithoutTenantContext stays cleared across a nested scope of its own', async () => {
+    const ambient = getTenantContext();
+    expect(ambient).toBeDefined();
+
+    await runWithoutTenantContext(async () => {
+      await runWithTenantContext(systemTenantContext('a scope opened inside the cleared one'), () =>
+        Promise.resolve(),
+      );
+      expect(getTenantContext()).toBeUndefined();
+    });
+
+    expect(getTenantContext()).toBe(ambient);
+  });
+
+  it('runWithoutTenantContext restores the caller context when its callback throws', async () => {
+    const ambient = getTenantContext();
+    expect(ambient).toBeDefined();
+
+    await expect(
+      runWithoutTenantContext(async () => {
+        await Promise.resolve();
+        expect(getTenantContext()).toBeUndefined();
+        throw new Error('boom');
+      }),
+    ).rejects.toThrow('boom');
+
+    expect(getTenantContext()).toBe(ambient);
+  });
 });
 
 describe('filter cond (reads ambient context)', () => {

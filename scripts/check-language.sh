@@ -191,7 +191,25 @@ prose_scanner='
   # Paths arrive as bytes and are opened as bytes; the prose is decoded per
   # file, so a path is never re-encoded on its way to open().
   binmode(STDIN, ":raw");
-  binmode(STDOUT, ":encoding(UTF-8)");
+  # STDOUT is raw and the report is encoded by hand, one line at a time.
+  #
+  # `binmode(STDOUT, ":encoding(UTF-8)")` would be the obvious spelling and it
+  # cannot be used: the layer loads `PerlIO`, which lives in the Debian
+  # `perl-modules` package, and the only perl in `node:22.17-slim` — the image
+  # every backend CI job runs — is the Essential `perl-base`. The scanner aborted
+  # at BEGIN there, every non-zero exit was read as a finding, and ten cases went
+  # red in CI while passing on every developer machine. `quality:static` never
+  # saw it because `apt-get install git` pulls the modules package in as a
+  # dependency, which is a supply nothing declared and one
+  # `--no-install-recommends` away from disappearing. `utf8::encode` is core, it
+  # produces the same bytes the layer produced, and it needs nothing installed.
+  binmode(STDOUT, ":raw");
+
+  sub emit {
+    my ($text) = @_;
+    utf8::encode($text);
+    print $text;
+  }
 
   my $label = $kind eq "docs"
     ? "Non-English characters in docs file"
@@ -301,20 +319,38 @@ prose_scanner='
 
     next unless @hits;
     $found = 1;
-    print "\033[31m\x{2717} $label $path:\033[0m\n";
-    printf("    %s:%s\n", $_->[0], $_->[1]) for @hits;
+    emit("\033[31m\x{2717} $label $path:\033[0m\n");
+    emit(sprintf("    %s:%s\n", $_->[0], $_->[1])) for @hits;
   }
   exit($found ? 1 : 0);
 '
 
 # Runs the scanner over a file list. $1 is the kind, the rest are the paths.
 # Returns 0 when every one of them is clean, 1 when any is not.
+#
+# **Those are the only two answers, and anything else exits 2** (issue #244, on
+# the scan rather than on the listing). Every non-zero status used to become
+# `fail=1`, so a scanner that never started was reported as a language
+# violation: a verdict from a scan that did not happen, printed under a `read:`
+# line naming the files it would have read. That is not hypothetical — a perl
+# with no `PerlIO` aborted at BEGIN and this check reported findings it had not
+# found, on a clean tree, in every backend CI job. The listing floors above
+# refuse a population that came back short; this refuses one that was never
+# looked at.
 scan_prose() {
   local kind="$1"
   shift
   [ "$#" -gt 0 ] || return 0
+  local status=0
   printf '%s\n' "$@" \
-    | perl -CA -e "$prose_scanner" -- "$kind" "$pattern" "$optout_marker" "${proper_nouns[@]}"
+    | perl -CA -e "$prose_scanner" -- "$kind" "$pattern" "$optout_marker" "${proper_nouns[@]}" \
+    || status=$?
+  if [ "$status" -gt 1 ]; then
+    red "✗ check-language's prose scanner did not run (perl exited $status), so the $kind scan"
+    red "  reached none of its ${#} file(s) and produced no verdict. Refusing to report one."
+    exit 2
+  fi
+  return "$status"
 }
 
 # Which listing is actually in use. `--diff` degrades to a full scan when the

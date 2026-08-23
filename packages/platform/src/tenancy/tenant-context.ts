@@ -65,7 +65,12 @@ export class MissingTenantContextError extends Error {
   }
 }
 
-const storage = new AsyncLocalStorage<TenantContext>();
+/**
+ * The store is `TenantContext | undefined` rather than `TenantContext` so that
+ * `runWithoutTenantContext` can express "no context" as a value it *runs* with
+ * — see the note on that function for why it may not use `exit()`.
+ */
+const storage = new AsyncLocalStorage<TenantContext | undefined>();
 
 /** The ambient context for the current async execution, or `undefined` if none is set. */
 export function getTenantContext(): TenantContext | undefined {
@@ -99,7 +104,27 @@ export function runInTenantContext(ctx: TenantContext, callback: () => void): vo
   storage.run(ctx, callback);
 }
 
-/** Run `fn` with NO ambient context (fail-closed testing / explicit clears). */
+/**
+ * Run `fn` with NO ambient context (fail-closed testing / explicit clears).
+ *
+ * **`storage.run(undefined, fn)`, never `storage.exit(fn)`.** On the
+ * pre-`AsyncContextFrame` runtime — which is every Node before 24, and this
+ * repository's floor is 22.17 — `exit` is `disable(); try { fn() } finally
+ * { enable() }`: a *synchronous* try/finally around a callback that may be
+ * `async`. Where the caller's context was installed with `enterWith` and `fn`
+ * opens a nested `run()` of its own, the re-enable resurfaces the caller's
+ * store and everything after that point reads it, so the "no context" this
+ * function promises silently ends partway through. Node 24 made
+ * `AsyncContextFrame` the default and `exit` frame-scoped, which is why the
+ * defect was invisible on a developer's machine and red in CI for as long as it
+ * stood (`test/unit/seeds/seed-scope.test.ts`,
+ * `test/unit/kernel/registry-cache-scope.test.ts`).
+ *
+ * Running with `undefined` as the store is the same observable contract —
+ * `getStore()` answers `undefined`, and the caller's context is restored on
+ * both return and throw — and it is a real frame, so it holds across `await`
+ * on both runtimes. Verified on 22.17 and on 26.
+ */
 export function runWithoutTenantContext<T>(fn: () => T): T {
-  return storage.exit(fn);
+  return storage.run(undefined, fn);
 }
