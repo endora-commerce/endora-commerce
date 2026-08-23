@@ -456,11 +456,13 @@ describe('check-release-intent --since — a published surface the gate cannot s
   const diff = (
     changedPaths: readonly string[],
     addedChangesets: readonly string[] = [],
-  ): BranchDiff => ({ changedPaths, addedChangesets });
+    containedInBaseline = false,
+  ): BranchDiff => ({ baseline: 'origin/master', containedInBaseline, changedPaths, addedChangesets });
 
   function surfaceFindings(overrides: FileMap, branch: BranchDiff): readonly ReleaseIntentFinding[] {
     const tree = checkout(overrides);
     const result = checkPublishedSurfaceIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets, branch);
+    if ('contained' in result) throw new Error('expected a verdict, got a containment answer');
     if ('reason' in result) throw new Error(`expected a verdict, got a refusal: ${result.reason}`);
     return result.findings;
   }
@@ -470,6 +472,13 @@ describe('check-release-intent --since — a published surface the gate cannot s
     const result = checkPublishedSurfaceIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets, branch);
     if (!('reason' in result)) throw new Error('expected a refusal, got a verdict');
     return result.reason;
+  }
+
+  function surfaceContainment(overrides: FileMap, branch: BranchDiff): string {
+    const tree = checkout(overrides);
+    const result = checkPublishedSurfaceIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets, branch);
+    if (!('contained' in result)) throw new Error('expected a containment answer, got a verdict');
+    return result.contained;
   }
 
   it('reports a change to a package whose sources live in an ignored application', () => {
@@ -539,6 +548,55 @@ describe('check-release-intent --since — a published surface the gate cannot s
   it('refuses a branch with an empty diff rather than reporting a vacuous pass', () => {
     expect(surfaceRefusal({}, diff([]))).toContain('changes no file at all');
   });
+
+  /**
+   * The split pipeline 11491 forced (see `ReleaseIntentContainment`): an empty
+   * diff is two different facts, and only one of them is a refusal. Driven here
+   * as well as over real branches in `test/release/changeset-gate.test.ts`,
+   * because the branch that decides it lives at the top of the analysis and a
+   * red proof has to be able to enter where a real run enters.
+   */
+  describe('an empty diff is two facts', () => {
+    it('answers rather than refuses when the baseline already contains the branch', () => {
+      const message = surfaceContainment({}, diff([], [], true));
+
+      expect(message).toContain('already contained in `origin/master`');
+      expect(message).toContain('adds no file to it');
+    });
+
+    it('keeps refusing an empty diff from a branch the baseline does not contain', () => {
+      const reason = surfaceRefusal({}, diff([], [], false));
+
+      expect(reason).toContain('changes no file at all');
+      expect(reason).toContain('not already contained in `origin/master`');
+    });
+
+    /**
+     * Containment is answered before anything is read, so a checkout this mode
+     * could not otherwise judge — an unreadable build configuration, an empty
+     * workspace — does not turn a contained branch into a refusal. There is
+     * nothing to attribute either way, and the config half runs in `quality`.
+     */
+    it('answers containment before it reads the workspace at all', () => {
+      expect(
+        surfaceContainment({ 'packages/alpha/tsconfig.build.json': null }, diff([], [], true)),
+      ).toContain('already contained');
+    });
+
+    /** The ref is the one that was measured against, never a name written down. */
+    it('names the baseline it was given', () => {
+      const tree = checkout({});
+      const result = checkPublishedSurfaceIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets, {
+        baseline: 'origin/release-2026-09',
+        containedInBaseline: true,
+        changedPaths: [],
+        addedChangesets: [],
+      });
+
+      if (!('contained' in result)) throw new Error('expected a containment answer');
+      expect(result.contained).toContain('`origin/release-2026-09`');
+    });
+  });
 });
 
 describe('check-release-intent --since — the derivation underneath', () => {
@@ -589,8 +647,14 @@ describe('check-release-intent --since — the derivation underneath', () => {
         readdirSync(dir, { withFileTypes: true })
           .filter((entry) => entry.isFile())
           .map((entry) => entry.name),
-      { changedPaths: ['README.md'], addedChangesets: [] },
+      {
+        baseline: 'origin/master',
+        containedInBaseline: false,
+        changedPaths: ['README.md'],
+        addedChangesets: [],
+      },
     );
+    if ('contained' in result) throw new Error('expected a verdict, got a containment answer');
     if ('reason' in result) throw new Error(result.reason);
 
     expect(result.surfaces.length).toBeGreaterThan(0);

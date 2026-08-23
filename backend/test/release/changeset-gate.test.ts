@@ -326,6 +326,51 @@ describe('a release branch is the one branch the gate would refuse for doing its
 });
 
 /**
+ * A file the host package compiles into its `dist` from outside its own
+ * directory. Shared by the D-162 describe and the baseline describe below,
+ * because both need a branch the published-surface gate has something to say
+ * about.
+ */
+const HOST_SOURCE = 'backend/src/kernel/settings/settings-cache.ts';
+
+/** The host package, in the shape !891 gives it. */
+const hostPackageFiles = (): Readonly<Record<string, string>> => ({
+  'packages/platform/package.json': JSON.stringify(
+    { name: '@endora-commerce/platform', version: '0.0.0', private: true, main: './dist/index.js' },
+    null,
+    2,
+  ),
+  'packages/platform/tsconfig.json': JSON.stringify(
+    {
+      include: ['../../backend/src/kernel/**/*'],
+      exclude: ['../../backend/src/**/*.test.ts'],
+    },
+    null,
+    2,
+  ),
+  'packages/platform/tsconfig.build.json': JSON.stringify(
+    {
+      extends: './tsconfig.json',
+      compilerOptions: { rootDir: '../../backend/src', noEmit: false, noEmitOnError: true },
+    },
+    null,
+    2,
+  ),
+  'packages/platform/README.md': 'The host package.\n',
+  [HOST_SOURCE]: 'export const marker = 1;\n',
+});
+
+/** The second command of `release:changeset`, run the way the job runs it. */
+function publishedSurfaceGate(dir: string, since = 'master'): { status: number; output: string } {
+  const result = spawnSync(
+    join(REPO_ROOT, 'backend/node_modules/.bin/tsx'),
+    [join(REPO_ROOT, 'backend/scripts/check-release-intent.ts'), '--root', dir, '--since', since],
+    { cwd: dir, encoding: 'utf8' },
+  );
+  return { status: result.status ?? -1, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
+}
+
+/**
  * D-162 — the gate inverted with respect to what it protects, and its closure.
  *
  * `changeset status` decides which package a changed file belongs to by asking
@@ -350,35 +395,6 @@ describe('a release branch is the one branch the gate would refuse for doing its
  * the package's real sources from its own `tsconfig.build.json`.
  */
 describe('a package whose sources are not its own directory (D-162)', () => {
-  const HOST_SOURCE = 'backend/src/kernel/settings/settings-cache.ts';
-
-  /** The host package, in the shape !891 gives it. */
-  const hostPackageFiles = (): Readonly<Record<string, string>> => ({
-    'packages/platform/package.json': JSON.stringify(
-      { name: '@endora-commerce/platform', version: '0.0.0', private: true, main: './dist/index.js' },
-      null,
-      2,
-    ),
-    'packages/platform/tsconfig.json': JSON.stringify(
-      {
-        include: ['../../backend/src/kernel/**/*'],
-        exclude: ['../../backend/src/**/*.test.ts'],
-      },
-      null,
-      2,
-    ),
-    'packages/platform/tsconfig.build.json': JSON.stringify(
-      {
-        extends: './tsconfig.json',
-        compilerOptions: { rootDir: '../../backend/src', noEmit: false, noEmitOnError: true },
-      },
-      null,
-      2,
-    ),
-    'packages/platform/README.md': 'The host package.\n',
-    [HOST_SOURCE]: 'export const marker = 1;\n',
-  });
-
   function branch(mutate: (dir: string) => void): string {
     const dir = fixture({ files: hostPackageFiles() });
     initialCommit(dir);
@@ -387,22 +403,6 @@ describe('a package whose sources are not its own directory (D-162)', () => {
     git(dir, 'add', '-A');
     git(dir, 'commit', '-q', '-m', 'topic');
     return dir;
-  }
-
-  /** The second command of `release:changeset`, run the way the job runs it. */
-  function publishedSurfaceGate(dir: string): { status: number; output: string } {
-    const result = spawnSync(
-      join(REPO_ROOT, 'backend/node_modules/.bin/tsx'),
-      [
-        join(REPO_ROOT, 'backend/scripts/check-release-intent.ts'),
-        '--root',
-        dir,
-        '--since',
-        'master',
-      ],
-      { cwd: dir, encoding: 'utf8' },
-    );
-    return { status: result.status ?? -1, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
   }
 
   it('is invisible to `changeset status` when its published source changes', () => {
@@ -475,5 +475,201 @@ describe('a package whose sources are not its own directory (D-162)', () => {
   it('is named by the `release:changeset` job', () => {
     const ci = readFileSync(join(REPO_ROOT, '.gitlab-ci.yml'), 'utf8');
     expect(ci).toContain('run check:release-intent -- --since "origin/$base"');
+  });
+});
+
+/**
+ * The baseline, and the two ways a diff comes back empty (pipeline 11491).
+ *
+ * A correct merge request produced a red pipeline. !916 changed three
+ * Dockerfiles, a `.dockerignore`, a shell script and a test, and
+ * `check:release-intent --since origin/master` exited 2 on *"the branch changes
+ * no file at all"*. It did: the merge request had already been **merged** when
+ * the job fetched its baseline, so every commit of `HEAD` was already reachable
+ * from `origin/master` and there was no delta left to measure. At this project's
+ * merge cadence that is not an anomaly, it is a schedule.
+ *
+ * **The merge base was never the problem, and this is the measurement that says
+ * so.** `git diff A...B` is by definition the diff from `merge-base(A, B)` to
+ * `B`, which is exactly a merge request's diff, and the check has written the
+ * three dots since !882. What the merge base cannot do is survive its own branch
+ * being merged: once `HEAD` is an ancestor of the baseline, `merge-base` **is**
+ * `HEAD`, so the three-dot diff is `HEAD` against itself. Re-baselining changes
+ * nothing here — it is already the baseline — and that is why the repair is a
+ * new *fact*, not a new ref: `git merge-base --is-ancestor HEAD <baseline>`.
+ *
+ * The four cases are the point of this describe, and the exit codes are all
+ * different on purpose:
+ *
+ *   * changes, no changeset      -> **1**, the finding. The gate does its job.
+ *   * changes, with a changeset  -> **0**, the ordinary pass.
+ *   * commits, but an empty diff -> **2**, unchanged. A branch with a real fork
+ *     point that changes no file is not the input this mode was asked about, and
+ *     turning that into a pass is the whole thing issue #113 refuses.
+ *   * already merged             -> **0**, and it says which fact it is on. The
+ *     baseline contains the branch, so the set of files the branch adds to the
+ *     baseline is empty **by construction** rather than by a measurement that
+ *     came back empty. There is a verdict, and it was measured.
+ *
+ * Squash-merge is deliberately in here too. It leaves `HEAD` outside the
+ * baseline's history, so the branch still proposes its change relative to the
+ * merge base and the gate still asks its real question — the containment answer
+ * must not swallow it.
+ */
+describe('the baseline, and the two ways a diff comes back empty', () => {
+  /** A branch off `master` with the host package staged, ready to be judged. */
+  function topic(name: string, mutate: (dir: string) => void): string {
+    const dir = fixture({ files: hostPackageFiles() });
+    initialCommit(dir);
+    git(dir, 'checkout', '-q', '-b', name);
+    mutate(dir);
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', name);
+    return dir;
+  }
+
+  /** Merge the named branch into `master` and check it out again, as a merge request does. */
+  function mergeIntoMaster(dir: string, name: string): void {
+    git(dir, 'checkout', '-q', 'master');
+    git(dir, 'merge', '-q', '--no-ff', '-m', `merge ${name}`, name);
+    git(dir, 'checkout', '-q', name);
+  }
+
+  const changesAPublishedFile = (root: string): void => {
+    writeFileSync(join(root, HOST_SOURCE), 'export const marker = 2;\n');
+  };
+
+  it('goes red on a branch that changes a published surface and carries no changeset', () => {
+    const run = publishedSurfaceGate(topic('topic', changesAPublishedFile));
+
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('unattributed-published-change');
+  });
+
+  it('passes the same branch once it carries a changeset', () => {
+    const run = publishedSurfaceGate(
+      topic('topic', (root) => {
+        changesAPublishedFile(root);
+        writeFileSync(
+          join(root, '.changeset/a.md'),
+          changeset('@endora-commerce/platform', 'patch'),
+        );
+      }),
+    );
+
+    expect(run.status).toBe(0);
+    expect(run.output).toContain('violations=0');
+  });
+
+  /**
+   * The refusal !882 built, unchanged. A commit that changes no file has a real
+   * fork point and a real, distinct baseline — the diff came back empty, it was
+   * not empty by construction — so this is still "I did not measure anything".
+   */
+  it('still refuses a branch whose commits change no file at all', () => {
+    const dir = fixture({ files: hostPackageFiles() });
+    initialCommit(dir);
+    git(dir, 'checkout', '-q', '-b', 'topic');
+    git(dir, 'commit', '-q', '--allow-empty', '-m', 'topic');
+
+    const run = publishedSurfaceGate(dir);
+
+    expect(run.status).toBe(2);
+    expect(run.output).toContain('changes no file at all');
+    // And it says so in the terms that tell the two apart, so the next reader of
+    // a red pipeline does not have to re-derive which one they are looking at.
+    expect(run.output).toContain('not already contained in `master`');
+  });
+
+  /**
+   * The race itself: the *same* branch as the red case above, and the only
+   * difference is that `master` has since absorbed it.
+   */
+  it('reports containment, not an empty diff, once the branch is merged into the baseline', () => {
+    const dir = topic('topic', changesAPublishedFile);
+    expect(publishedSurfaceGate(dir).status).toBe(1);
+
+    mergeIntoMaster(dir, 'topic');
+    const run = publishedSurfaceGate(dir);
+
+    expect(run.status).toBe(0);
+    expect(run.output).toContain('already contained in `master`');
+    expect(run.output).toContain('contained=yes');
+    // The refusal it replaces must not be what a reader sees.
+    expect(run.output).not.toContain('changes no file at all');
+  });
+
+  /**
+   * A squash merge puts the *content* in the baseline and leaves the commit
+   * outside its history, so the branch still proposes a change and the gate
+   * still has its ordinary question to ask. Containment is ancestry, not
+   * similarity, and this is the case that would break if it were widened to
+   * "the diff is empty for some git-shaped reason".
+   */
+  it('says nothing about a squash-merged branch, which is still outside the baseline', () => {
+    const dir = topic('topic', changesAPublishedFile);
+    git(dir, 'checkout', '-q', 'master');
+    git(dir, 'merge', '-q', '--squash', 'topic');
+    git(dir, 'commit', '-q', '-m', 'squashed topic');
+    git(dir, 'checkout', '-q', 'topic');
+
+    const run = publishedSurfaceGate(dir);
+
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('unattributed-published-change');
+  });
+
+  /**
+   * The two-way property !882 built, over the new answer: the verdict is read
+   * off the diff and the commit graph, never off a branch name. A branch called
+   * `release/version` that is *not* merged is judged like any other, and a
+   * branch called `feature/...` that *is* merged is contained.
+   */
+  it('reads containment off the commit graph, never off the branch name', () => {
+    const unmerged = topic('release/version', changesAPublishedFile);
+    expect(publishedSurfaceGate(unmerged).status).toBe(1);
+
+    const merged = topic('feature/still-in-flight', changesAPublishedFile);
+    mergeIntoMaster(merged, 'feature/still-in-flight');
+    expect(publishedSurfaceGate(merged).status).toBe(0);
+    expect(publishedSurfaceGate(merged).output).toContain('already contained');
+  });
+
+  /**
+   * And the release branch itself, merged. The discriminator that recognises one
+   * lives in `release:changeset`'s shell and reads deleted-and-none-added off
+   * the diff; containment makes that diff empty, so it correctly stops
+   * classifying the branch as a release — the classification was never a name,
+   * and there is nothing left for it to classify.
+   */
+  it('leaves a merged release branch with nothing to classify, from the diff', () => {
+    const dir = fixture({
+      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+    });
+    initialCommit(dir);
+    git(dir, 'checkout', '-q', '-b', 'release/version');
+    runChangeset(dir, ['version']);
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', 'chore: version packages');
+
+    const deleted = (): string =>
+      git(
+        dir,
+        'diff',
+        '--no-renames',
+        '--diff-filter=D',
+        '--name-only',
+        'master...HEAD',
+        '--',
+        '.changeset',
+      );
+    expect(deleted()).toContain('.changeset/a.md');
+
+    git(dir, 'checkout', '-q', 'master');
+    git(dir, 'merge', '-q', '--no-ff', '-m', 'merge release', 'release/version');
+    git(dir, 'checkout', '-q', 'release/version');
+
+    expect(deleted()).toBe('');
+    expect(publishedSurfaceGate(dir).status).toBe(0);
   });
 });
