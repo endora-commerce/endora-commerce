@@ -1,6 +1,11 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
+
+import {
+  isInsideNestedCheckout,
+  nestedCheckoutRoots,
+} from '../../scripts/lib/nested-checkouts.js';
 
 /**
  * What a module package's `./backend` subpath publishes about its entities
@@ -427,4 +432,118 @@ export function backendBarrelSourceOf(
     if (existsSync(candidate)) return candidate;
   }
   return null;
+}
+
+/** A module package the checkout holds, as its own manifest declares it. */
+export interface ScannedModuleManifest {
+  /** The `endora.id` the package declares — identity of record (D-142). */
+  readonly moduleId: string;
+  /** The npm name, which is npm's namespace and not identity. */
+  readonly name: string;
+  /** Absolute directory holding the manifest. */
+  readonly dir: string;
+  /** The `./backend` export target, or `null` when the package publishes none. */
+  readonly backendTarget: string | null;
+  /** The package's own `build` script, which names the tsconfig its emit follows. */
+  readonly buildScript: string | undefined;
+}
+
+/** Directories a scan for module manifests never enters. */
+const SKIPPED_SCAN_DIRECTORIES = new Set([
+  'node_modules',
+  'dist',
+  '.git',
+  'coverage',
+  '.next',
+  'build',
+]);
+
+/** How deep below the repository root a module package can sit. */
+const MAX_SCAN_DEPTH = 6;
+
+function backendTargetOf(manifest: Record<string, unknown>): string | null {
+  const exportsMap = manifest['exports'] as Record<string, unknown> | undefined;
+  const backend = exportsMap?.['./backend'];
+  if (typeof backend === 'string') return backend;
+  const withConditions = backend as { default?: unknown } | undefined;
+  return typeof withConditions?.default === 'string' ? withConditions.default : null;
+}
+
+/**
+ * Every `endora: { type: 'module' }` manifest **in this checkout**, fixtures
+ * included.
+ *
+ * Deliberately wider than the workspace globs: a module package that is not a
+ * member — the acceptance fixture is one by design (D-110) — is a module
+ * package all the same, and a rule about what a module package publishes has to
+ * be able to see it. That width is the whole value of the sweep, so the two
+ * exclusions below are the only ones it makes.
+ *
+ * ## "In this checkout" excludes a checkout nested inside it
+ *
+ * Agents in this project work in `git worktree`s created **under** the
+ * repository directory, and each is a complete copy of the tree — so without
+ * the prune this scan finds one of every module manifest per worktree, fifty-one
+ * of them on the machine this was written for, and the accounting sweep that
+ * consumes it reports every one as unaccounted. It did: the D-168 guard was red
+ * on every developer machine within an hour of merging and green in CI, CI being
+ * right only because it has no nested worktrees.
+ *
+ * A nested work tree is another commit of this same repository, so scanning it
+ * means judging another branch's tree and reporting the verdict as this one's.
+ * Pruning it therefore *narrows the population to the subject* rather than
+ * excusing part of it, and two module packages that genuinely share a directory
+ * name in one checkout are still both reported. The discriminator is the `.git`
+ * entry rather than a path name, for the reasons
+ * `scripts/lib/nested-checkouts.ts` records — chiefly that `.claude/worktrees`
+ * is a derived fact, and writing it down (D-100) would miss the first checkout
+ * parked anywhere else.
+ */
+export function moduleManifestsInCheckout(root: string): ScannedModuleManifest[] {
+  const nested = nestedCheckoutRoots(root);
+  const out: ScannedModuleManifest[] = [];
+
+  const visit = (directory: string, depth: number): void => {
+    if (depth > MAX_SCAN_DEPTH) return;
+    let entries: string[];
+    try {
+      entries = readdirSync(directory);
+    } catch {
+      return;
+    }
+    if (entries.includes('package.json')) {
+      let manifest: Record<string, unknown> | null = null;
+      try {
+        manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as Record<
+          string,
+          unknown
+        >;
+      } catch {
+        manifest = null;
+      }
+      const endora = manifest?.['endora'] as { type?: unknown; id?: unknown } | undefined;
+      if (manifest !== null && endora?.type === 'module' && typeof endora.id === 'string') {
+        out.push({
+          moduleId: endora.id,
+          name: String(manifest['name'] ?? endora.id),
+          dir: directory,
+          backendTarget: backendTargetOf(manifest),
+          buildScript: (manifest['scripts'] as Record<string, string> | undefined)?.['build'],
+        });
+      }
+    }
+    for (const entry of entries) {
+      if (SKIPPED_SCAN_DIRECTORIES.has(entry)) continue;
+      const full = join(directory, entry);
+      if (isInsideNestedCheckout(relative(root, full), nested)) continue;
+      try {
+        if (statSync(full).isDirectory()) visit(full, depth + 1);
+      } catch {
+        /* a dangling link is not a package */
+      }
+    }
+  };
+
+  visit(root, 0);
+  return out;
 }
