@@ -18,18 +18,22 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 
+# --- Workspace manifests, derived rather than listed ---
+# Which directories are workspace members is stated once, in `pnpm-workspace.yaml`; this stage
+# asks pnpm instead of keeping a second copy of the answer here. The list this replaced had
+# already drifted twice in `backend/Dockerfile` and was missing two members here, and 63 more
+# module packages are coming. See `scripts/collect-workspace-manifests.sh`.
+FROM base AS manifests
+WORKDIR /ctx
+COPY . .
+RUN sh scripts/collect-workspace-manifests.sh /manifests
+
 # --- Build ---
 FROM base AS build
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# Manifests only, so this layer and the install below stay cached until a manifest, the
+# lockfile or the workspace file changes — not on every source edit.
+COPY --from=manifests /manifests/ ./
 COPY tsconfig.base.json tsconfig.base.json
-COPY backend/package.json backend/package.json
-COPY packages/contracts/package.json packages/contracts/package.json
-COPY packages/api-client/package.json packages/api-client/package.json
-COPY packages/page-builder-core/package.json packages/page-builder-core/package.json
-COPY packages/cms-components/package.json packages/cms-components/package.json
-COPY storefront/package.json storefront/package.json
-COPY admin/package.json admin/package.json
-# `docs` is excluded by .dockerignore and unused by app builds.
 RUN pnpm install --frozen-lockfile --filter storefront... --filter @endora-commerce/cms-components
 
 COPY packages/ packages/
