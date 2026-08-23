@@ -72,15 +72,30 @@ export type HeapVerdict =
   /** Live data over the failing line: the run is about to die of it. */
   | { readonly kind: 'fail'; readonly fraction: number };
 
-export function heapVerdict(reading: HeapReading): HeapVerdict {
+/**
+ * The two lines, overridable — not as an operator knob, but so that the guard
+ * can be **seen to fire**. `heap-headroom.test.ts` spawns a real vitest run
+ * whose setup file arms it at fractions a healthy process crosses immediately,
+ * and asserts the message and the non-zero exit. A guard nothing has ever seen
+ * refuse anything is what `heap-ceiling.test.ts` had become; the whole point of
+ * this file is not to become the same thing.
+ */
+export interface HeapFractions {
+  readonly warn?: number;
+  readonly fail?: number;
+}
+
+export function heapVerdict(reading: HeapReading, fractions: HeapFractions = {}): HeapVerdict {
   if (reading.heapLimitBytes <= 0) return { kind: 'quiet' };
 
+  const warn = fractions.warn ?? WARN_FRACTION;
+  const fail = fractions.fail ?? FAIL_FRACTION;
   const fraction = reading.heapUsedBytes / reading.heapLimitBytes;
-  if (fraction < WARN_FRACTION) return { kind: 'quiet' };
+  if (fraction < warn) return { kind: 'quiet' };
 
   const canCollect = reading.canCollect ?? true;
   if (!reading.collected && canCollect) return { kind: 'collect' };
-  if (reading.collected && fraction >= FAIL_FRACTION) return { kind: 'fail', fraction };
+  if (reading.collected && fraction >= fail) return { kind: 'fail', fraction };
   return { kind: 'report', fraction };
 }
 
@@ -118,16 +133,16 @@ function read(collected: boolean, canCollect: boolean): HeapReading {
  * Registered from a setup file, so it runs once per test file, after that
  * file's suites.
  */
-export function watchHeapHeadroom(): void {
+export function watchHeapHeadroom(fractions: HeapFractions = {}): void {
   afterAll((suite: { name?: string }) => {
     const canCollect = typeof (globalThis as { gc?: () => void }).gc === 'function';
     let reading = read(false, canCollect);
-    let verdict = heapVerdict(reading);
+    let verdict = heapVerdict(reading, fractions);
 
     if (verdict.kind === 'collect') {
       forceCollection();
       reading = read(true, canCollect);
-      verdict = heapVerdict(reading);
+      verdict = heapVerdict(reading, fractions);
     }
 
     if (verdict.kind === 'quiet') return;

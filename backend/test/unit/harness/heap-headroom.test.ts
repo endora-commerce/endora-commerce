@@ -20,11 +20,23 @@
  * from `v8.getHeapStatistics().heap_size_limit` — the limit this process
  * actually has, whatever `NODE_OPTIONS` says.
  */
-import { describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { heapVerdict, renderHeapCrossing, WARN_FRACTION, FAIL_FRACTION } from '../../heap-headroom.js';
 
 const LIMIT = 2048 * 1024 * 1024;
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const BACKEND_ROOT = join(HERE, '..', '..', '..');
+const VITEST = join(BACKEND_ROOT, 'node_modules', 'vitest', 'vitest.mjs');
+const WATCH = join(BACKEND_ROOT, 'test', 'heap-headroom.ts');
+/** `backend/tmp/` is git-ignored, so an interrupted run leaves nothing tracked behind. */
+const FIXTURE_PARENT = join(BACKEND_ROOT, 'tmp');
 
 describe('heapVerdict', () => {
   it('says nothing while the reading is below the warning line', () => {
@@ -108,4 +120,90 @@ describe('renderHeapCrossing', () => {
   it('says the number belongs to the run and not to that one file', () => {
     expect(text).toMatch(/whole run|run's|shares one/i);
   });
+});
+
+/**
+ * The guard has been seen to refuse something.
+ *
+ * That is the property `heap-ceiling.test.ts` lost: a ceiling above the limit
+ * the job gives the process cannot fire, and nothing in the repository could
+ * tell, because a guard that never fires and a guard that has nothing to
+ * report produce the same green. So a real vitest run is spawned, its setup
+ * file arms the same `watchHeapHeadroom` at fractions any healthy process is
+ * already over, and the message and the exit code are read back out.
+ */
+describe('the guard fails a run, with the file and the numbers', () => {
+  let output = '';
+  let status: number | null = null;
+  let fixture = '';
+
+  beforeAll(() => {
+    mkdirSync(FIXTURE_PARENT, { recursive: true });
+    fixture = mkdtempSync(join(FIXTURE_PARENT, 'heap-headroom-'));
+
+    writeFileSync(
+      join(fixture, 'vitest.config.ts'),
+      `import { defineConfig } from 'vitest/config';\n` +
+        `export default defineConfig({\n` +
+        `  test: {\n` +
+        `    include: ['*.test.ts'],\n` +
+        `    setupFiles: ['./arm.ts'],\n` +
+        `    pool: 'forks',\n` +
+        `    poolOptions: { forks: { singleFork: true, execArgv: ['--expose-gc'] } },\n` +
+        `  },\n` +
+        `});\n`,
+    );
+    writeFileSync(
+      join(fixture, 'arm.ts'),
+      `import { watchHeapHeadroom } from ${JSON.stringify(WATCH)};\n` +
+        `watchHeapHeadroom({ warn: 0.000001, fail: 0.000002 });\n`,
+    );
+    writeFileSync(
+      join(fixture, 'ordinary.test.ts'),
+      `import { expect, it } from 'vitest';\nit('passes', () => { expect(1).toBe(1); });\n`,
+    );
+
+    const run = spawnSync(process.execPath, [VITEST, 'run'], {
+      cwd: fixture,
+      encoding: 'utf8',
+      env: { ...process.env, CI: '', FORCE_COLOR: '0' },
+    });
+    output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+    status = run.status;
+  }, 180_000);
+
+  afterAll(() => {
+    if (fixture !== '') rmSync(fixture, { recursive: true, force: true });
+  });
+
+  it('names itself, the file, and both numbers', () => {
+    expect(output, output).toContain('[heap-headroom]');
+    expect(output, output).toContain('ordinary.test.ts');
+    expect(output, output).toMatch(/\d+ MB of a \d+ MB limit/);
+  });
+
+  it('explains that the number belongs to the run rather than to the file it names', () => {
+    expect(output, output).toContain('shares one process');
+    expect(output, output).toContain('#199');
+  });
+
+  it('fails the run', () => {
+    expect(status, output).not.toBe(0);
+  });
+
+  it('passes the same fixture at the real fractions — the refusal is the fractions, not the fixture', () => {
+    writeFileSync(
+      join(fixture, 'arm.ts'),
+      `import { watchHeapHeadroom } from ${JSON.stringify(WATCH)};\nwatchHeapHeadroom();\n`,
+    );
+    const run = spawnSync(process.execPath, [VITEST, 'run'], {
+      cwd: fixture,
+      encoding: 'utf8',
+      env: { ...process.env, CI: '', FORCE_COLOR: '0' },
+    });
+    const green = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+
+    expect(green, green).not.toContain('[heap-headroom]');
+    expect(run.status, green).toBe(0);
+  }, 180_000);
 });
