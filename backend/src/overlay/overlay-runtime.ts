@@ -7,9 +7,20 @@
 // composition is byte-for-byte unchanged (FR-008).
 //
 // Runtime path mapping: overlay files are authored under `backend/src/apps/…`
-// and compiled to `backend/dist/apps/…`. When this module runs from `dist/`
-// (production) we import the compiled `.js`; under tsx/vitest (dev + tests) we
-// import the `.ts` source directly. Detected from `import.meta.url`.
+// and compiled to `backend/dist/apps/…`. Which of the two this process reads
+// needs no detection — `overlay-roots.ts` derives every root from its own
+// `import.meta.url`, so a compiled run is already rooted at `backend/dist`.
+// What did not follow was the **file names**: this module spelled `manifest.ts`
+// and `backend.ts` into `join(...)` and an `existsSync`, and a compiled tree
+// spells both `.js`. `overlayModuleEntriesUnder` therefore skipped every
+// overlay module in production — `if (!existsSync(...)) continue`, no error and
+// no warning. Measured: the same binary with `DEPLOYMENT=example` logs
+// `decoratedBy: 'example_overlay'` under `tsx` and produces zero overlay lines
+// under `node dist/index.js` (feature 080, D-165 step C).
+//
+// So a unit is **resolved** rather than derived — see {@link resolveOverlayUnit}
+// — and the path that comes back is the file that exists, which is what every
+// consumer of `filePath` needs anyway.
 
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -23,14 +34,38 @@ import {
 } from './overlay-roots.js';
 import { indexCore, scanOverlay } from './resolve-overlay.js';
 
-const RUNNING_FROM_DIST = import.meta.url.includes('/dist/');
+/**
+ * The two spellings one unit has: `<stem>.js` in a compiled tree, `<stem>.ts`
+ * under `tsx` and `vitest`. Compiled first, for the reason
+ * `manifest-locations.ts` gives about the same pair — the compiled tree is the
+ * one where picking up a stray source file would be wrong.
+ */
+const UNIT_EXTENSIONS = ['.js', '.ts'] as const;
 
-/** Convert an absolute `backend/src/…/*.ts` overlay path to an importable URL. */
-function importUrlFor(absSrcPath: string): string {
-  const path = RUNNING_FROM_DIST
-    ? absSrcPath.replace(`${'/src/'}`, '/dist/').replace(/\.ts$/, '.js')
-    : absSrcPath;
-  return pathToFileURL(path).href;
+/**
+ * The real path of the overlay unit `<dir>/<stem>`, or `null` when the module
+ * ships neither spelling.
+ *
+ * A **resolution**, never a derivation. The path this returns is a file that
+ * exists, so `existsSync` on it is redundant by construction and a caller
+ * cannot end up importing a name the build never emitted.
+ */
+export function resolveOverlayUnit(dir: string, stem: string): string | null {
+  for (const extension of UNIT_EXTENSIONS) {
+    const candidate = join(dir, `${stem}${extension}`);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/** The candidates {@link resolveOverlayUnit} tried, for a message that names them. */
+function unitCandidates(dir: string, stem: string): string {
+  return UNIT_EXTENSIONS.map((extension) => join(dir, `${stem}${extension}`)).join(' and ');
+}
+
+/** Convert an absolute path to an importable URL. */
+function importUrlFor(absPath: string): string {
+  return pathToFileURL(absPath).href;
 }
 
 // ---- Decorations (feature 072, T066) ---------------------------------------
@@ -129,9 +164,38 @@ export async function discoverOverlayModuleManifests(
 ): Promise<OverlayModuleManifest[]> {
   const found = newOverlayModuleIds(env);
   if (found === null) return [];
+  return overlayModuleManifestsUnder(found.root, found.ids);
+}
+
+/**
+ * {@link discoverOverlayModuleManifests} against an explicit root.
+ *
+ * Exported for the same reason {@link overlayModuleEntriesUnder} is: the
+ * fixture is then a directory on disk, scanned and imported by the code the
+ * deployment path runs, rather than a value handed to the last function in the
+ * chain (issue #130).
+ */
+export async function overlayModuleManifestsUnder(
+  root: string,
+  ids: readonly string[] = overlayModuleIdsUnder(root),
+): Promise<OverlayModuleManifest[]> {
   const out: OverlayModuleManifest[] = [];
-  for (const id of found.ids) {
-    const manifestPath = join(found.root, id, 'manifest.ts');
+  for (const id of ids) {
+    const moduleDir = join(root, id);
+    const manifestPath = resolveOverlayUnit(moduleDir, 'manifest');
+    if (manifestPath === null) {
+      // The scan already reported this directory as a module, so an absent
+      // manifest is not "a directory that ships nothing" — it is a module with
+      // no id and no version to compose it under. Refused here rather than left
+      // to `import()`, whose ERR_MODULE_NOT_FOUND names a `.ts` path that never
+      // existed in a compiled tree and sends the reader looking for the wrong
+      // file (D-165 step C).
+      throw new Error(
+        `[overlay] the module directory ${moduleDir} carries no manifest — tried ` +
+          `${unitCandidates(moduleDir, 'manifest')}. An overlay module is discovered by its ` +
+          `directory and identified by its manifest; without one it has no id and no version.`,
+      );
+    }
     const mod = (await import(importUrlFor(manifestPath))) as Record<string, unknown>;
     const manifest = mod['manifest'] as ModuleManifest | undefined;
     if (!manifest) continue;
@@ -189,11 +253,14 @@ export async function discoverOverlayModuleManifests(
  * and a root appends them after a frozen core list, so a deployment's
  * decoration always wraps a core registration that is already there.
  *
- * A module directory with no `backend.ts` is **skipped**, not thrown at — a
- * deployment may ship an overlay directory that only shadows core files. A
- * `backend.ts` that exports no `registerModule` is a different thing and is
- * refused: skipping it would compose nothing, and the first symptom would be a
- * 404 nobody connects to this file.
+ * A module directory with no backend entry point **in either spelling** is
+ * skipped, not thrown at — a deployment may ship an overlay directory that only
+ * shadows core files. "Either spelling" is the whole of D-165 step C's repair
+ * here: this used to ask `existsSync('backend.ts')`, so a compiled deployment's
+ * every module took the skip and vanished with no error. A `backend.js`/`.ts`
+ * that exports no `registerModule` is a different thing and is refused:
+ * skipping it would compose nothing, and the first symptom would be a 404
+ * nobody connects to this file.
  */
 export async function loadOverlayModuleEntries(
   env: NodeJS.ProcessEnv = process.env,
@@ -214,8 +281,9 @@ export async function loadOverlayModuleEntries(
 export async function overlayModuleEntriesUnder(root: string): Promise<ModuleEntry[]> {
   const entries: ModuleEntry[] = [];
   for (const id of overlayModuleIdsUnder(root)) {
-    const backendPath = join(root, id, 'backend.ts');
-    if (!existsSync(backendPath)) continue;
+    const moduleDir = join(root, id);
+    const backendPath = resolveOverlayUnit(moduleDir, 'backend');
+    if (backendPath === null) continue;
     const mod = (await import(importUrlFor(backendPath))) as Record<string, unknown>;
     const registerModule = mod['registerModule'];
     if (typeof registerModule !== 'function') {
@@ -226,14 +294,19 @@ export async function overlayModuleEntriesUnder(root: string): Promise<ModuleEnt
           `overlay module that composes nothing is a 404 with no error behind it.`,
       );
     }
-    const manifestMod = (await import(importUrlFor(join(root, id, 'manifest.ts')))) as Record<
-      string,
-      unknown
-    >;
+    const manifestPath = resolveOverlayUnit(moduleDir, 'manifest');
+    if (manifestPath === null) {
+      throw new Error(
+        `[overlay] ${moduleDir} ships a composable backend entry point and no manifest — ` +
+          `tried ${unitCandidates(moduleDir, 'manifest')}. The module has no id and no ` +
+          `version to compose it under.`,
+      );
+    }
+    const manifestMod = (await import(importUrlFor(manifestPath))) as Record<string, unknown>;
     const manifest = manifestMod['manifest'] as ModuleManifest | undefined;
     if (!manifest) {
       throw new Error(
-        `[overlay] ${join(root, id, 'manifest.ts')} exports no lifecycle-shape manifest, so ` +
+        `[overlay] ${manifestPath} exports no lifecycle-shape manifest, so ` +
           `the module has no id and no version to compose it under.`,
       );
     }
