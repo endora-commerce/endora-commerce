@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { findRepoRoot } from '../../scripts/lib/module-roots.js';
@@ -70,23 +70,80 @@ function moduleDirectoryOf(moduleId: string): string | null {
   return pkg?.dir ?? null;
 }
 
-/** Class names the generated registry imports from the module that owns them. */
+/**
+ * Class names the generated registry registers for a module.
+ *
+ * Two shapes, because D-168 split them. A module in the application's tree is
+ * imported class by class and the names are in the registry's own text. A
+ * **module package** publishes one `entities` array and no entity class by
+ * name, so the registry carries `import { entities as <id>Entities }` and a
+ * spread — the names are one hop away, in the array literal the package's own
+ * `./backend` barrel declares.
+ *
+ * Following that hop keeps this an oracle rather than weakening it. The other
+ * half of every comparison here walks the module's directory for the decorator,
+ * so the two answers stay independent — and the hop is now the more valuable
+ * one: under `export *` an entity could not be omitted, and under an array it
+ * can, which is exactly what `module-entities.test.ts` will catch.
+ */
 export function registeredEntityNamesFor(moduleId: string): string[] {
   const registry = readFileSync(join(srcRoot, 'db/entities-registry.generated.ts'), 'utf8');
-  const pattern = /import \{ (\w+) \} from '([^']+)';/g;
   const packageName = packageNameOf(moduleId);
   const names: string[] = [];
+
+  const named = /import \{ (\w+) \} from '([^']+)';/g;
   let match: RegExpExecArray | null;
-  while ((match = pattern.exec(registry)) !== null) {
+  while ((match = named.exec(registry)) !== null) {
     const [, name, specifier] = match;
     if (name === undefined || specifier === undefined) continue;
-    const application = specifier.includes(`modules/${moduleId}/`);
-    const packaged =
-      packageName !== null &&
-      (specifier === packageName || specifier.startsWith(`${packageName}/`));
-    if (application || packaged) names.push(name);
+    if (specifier.includes(`modules/${moduleId}/`)) names.push(name);
+  }
+
+  if (packageName !== null) {
+    const array = new RegExp(
+      `import \\{ entities as (\\w+) \\} from '(${escapeForRegExp(packageName)}[^']*)';`,
+    ).exec(registry);
+    // The spread, allowing the widening cast the generator emits around it
+    // (`...(blogEntities as readonly EntityClassLike[])`): an import whose
+    // binding never reaches `ALL_ENTITIES` registers nothing, and matching the
+    // bare `...binding,` spelling is how this helper silently answered `[]` the
+    // first time that cast appeared.
+    if (array !== null && new RegExp(`\\.\\.\\.\\(?${array[1] ?? ''}\\b`).test(registry)) {
+      names.push(...packagedEntityNamesFor(moduleId));
+    }
   }
   return names.sort();
+}
+
+function escapeForRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+}
+
+/**
+ * The class names inside a module package's `entities` array literal.
+ *
+ * Read out of the package's own `./backend` source barrel, located through its
+ * `exports` map — never a path spelled here, for the reason the module root is
+ * derived everywhere else (D-100).
+ */
+function packagedEntityNamesFor(moduleId: string): string[] {
+  const dir = moduleDirectoryOf(moduleId);
+  if (dir === null) return [];
+  for (const file of walk(dir)) {
+    if (!file.endsWith(`backend${sep}index.ts`)) continue;
+    const source = readFileSync(file, 'utf8');
+    const declaration = /export const entities = \[([^\]]*)\]/.exec(source);
+    if (declaration?.[1] === undefined) continue;
+    return declaration[1]
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => /^[A-Z]\w*$/.test(entry));
+  }
+  throw new Error(
+    `[entity-registry] '${moduleId}' is a package whose registry entry is an \`entities\` ` +
+      `spread, and no \`backend/index.ts\` under ${dir} declares that array. Returning an ` +
+      `empty list here is how a comparison against it would pass for the wrong reason.`,
+  );
 }
 
 /** Class names carrying the ORM entity decorator anywhere in the module's own sources. */

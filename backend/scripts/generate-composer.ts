@@ -964,21 +964,99 @@ function emitEntitiesHeader(): string {
 // schema (D-106), so an entity under \`src/apps/\` is refused by the generator
 // rather than registered for a table nothing creates. A **module package** is
 // the opposite case and is here: its entities are named by a bare specifier
-// derived from that package's own \`exports\` map (D-149).
+// derived from that package's own \`exports\` map (D-149), and they arrive as
+// **one \`entities\` array** rather than as a class per name (D-168) — the same
+// export \`src/packages/package-runtime.ts\` reads when that package is
+// installed rather than linked, so the committed registry and the runtime
+// loader now read one declaration instead of two.
 `;
 }
 
-/** Pure emit — the entity registry's content for a given set of entities. */
+/**
+ * A module id as an identifier — `quote_requests` → `quoteRequests`.
+ *
+ * The binding a package's `entities` array is imported under. Derived rather
+ * than spelled, because the id is the package's own (D-142) and nothing here
+ * may assume its shape beyond `check:naming`'s snake_case rule.
+ */
+function bindingBaseFor(moduleId: string): string {
+  const segments = moduleId.split(/[^A-Za-z0-9]+/).filter((segment) => segment.length > 0);
+  const [head, ...tail] = segments;
+  if (head === undefined) {
+    throw new Error(
+      `[composer] module id '${moduleId}' yields no identifier, so its entities array cannot ` +
+        `be imported under a name.`,
+    );
+  }
+  return (
+    (/^\d/.test(head) ? `module${head}` : head) +
+    tail.map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1)).join('')
+  );
+}
+
+/**
+ * Pure emit — the entity registry's content for a given set of entities.
+ *
+ * Two shapes, and the split is D-168. The application's own tree is named class
+ * by class, because there is no `exports` map between the registry and the file.
+ * A **module package** publishes one `entities` array on its `./backend`
+ * subpath and no entity class by name, so it is imported once and spread —
+ * eleven lines become one for `blog`. The spread lands at the position the
+ * package's first entity held, which keeps the rest of the list byte-identical
+ * and keeps the order a path-ordered walk produced.
+ */
 export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): string {
-  const imports = entities
-    .map((entity) => `import { ${entity.className} } from '${specifierFor(entity.file, entity.owner)}';`)
-    .join('\n');
-  const listed = entities.map((entity) => `  ${entity.className},`).join('\n');
+  const importLines: string[] = [];
+  const listed: string[] = [];
+  const specifierByModule = new Map<string, string>();
+  const emitted = new Set<string>();
+  let needsEntityClassLike = false;
+
+  for (const entity of entities) {
+    if (entity.owner === null) {
+      importLines.push(
+        `import { ${entity.className} } from '${specifierFor(entity.file, null)}';`,
+      );
+      listed.push(`  ${entity.className},`);
+      continue;
+    }
+    const specifier = specifierFor(entity.file, entity.owner);
+    const previous = specifierByModule.get(entity.owner.moduleId);
+    if (previous !== undefined && previous !== specifier) {
+      throw new Error(
+        `[composer] ${entity.owner.name} publishes entities behind two subpaths ` +
+          `('${previous}' and '${specifier}'). D-168 makes a module package's entities one ` +
+          `\`entities\` array on one declared subpath: a second one is a second array, and ` +
+          `the registry cannot import a class by name from either.`,
+      );
+    }
+    specifierByModule.set(entity.owner.moduleId, specifier);
+    if (emitted.has(entity.owner.moduleId)) continue;
+    emitted.add(entity.owner.moduleId);
+    needsEntityClassLike = true;
+    const binding = `${bindingBaseFor(entity.owner.moduleId)}Entities`;
+    importLines.push(`import { entities as ${binding} } from '${specifier}';`);
+    // The cast is D-168 arriving in the type system, and it is load-bearing
+    // rather than cosmetic. `as const` infers a tuple, and the package's element
+    // types are its entity classes — which it deliberately no longer exports by
+    // name, so `tsc` cannot write them into this file's `.d.ts` and raises
+    // TS2742 ("cannot be named without a reference to
+    // <package>/dist/backend/entities/…"). Widening the spread to the shape the
+    // *runtime* loader produces is the honest answer: the committed registry and
+    // `package-runtime.ts` then agree on one type for a package's entities, and
+    // the application's own classes keep their precise ones.
+    listed.push(`  ...(${binding} as readonly EntityClassLike[]),`);
+  }
+
+  const typeImport = needsEntityClassLike
+    ? `import type { EntityClassLike } from '../packages/package-runtime.js';\n`
+    : '';
+
   return `${emitEntitiesHeader()}
-${imports}
+${typeImport}${importLines.join('\n')}
 
 export const ALL_ENTITIES = [
-${listed}
+${listed.join('\n')}
 ] as const;
 `;
 }

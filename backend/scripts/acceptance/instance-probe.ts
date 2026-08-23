@@ -162,8 +162,17 @@ async function phaseSchema(): Promise<AssertionResult[]> {
     let a4: AssertionResult;
     try {
       const backendEntry = await importInstalled('backend');
-      const entity = backendEntry['AcceptanceProbeRow'] as (new () => object) | undefined;
-      if (!entity) throw new Error(`the package's ./backend export has no AcceptanceProbeRow`);
+      // Read through the package's declared `entities` array, which since D-168
+      // is the only way one of its classes leaves the package: it publishes no
+      // entity class by name, so a consumer naming `AcceptanceProbeRow` — this
+      // probe included — is the edge that ruling removes. Reading the array is
+      // also the more faithful assertion, being the export the host's own
+      // `configured-entities.ts` merges.
+      const declared = backendEntry['entities'];
+      if (!Array.isArray(declared) || declared.length === 0) {
+        throw new Error(`the package's ./backend export declares no non-empty 'entities' array`);
+      }
+      const entity = declared[0] as new () => object;
       const metadata = orm.getMetadata();
       if (!metadata.has(entity.name)) {
         a4 = {
