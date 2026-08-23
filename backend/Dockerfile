@@ -14,6 +14,15 @@
 # them and carries the platform itself**, so `pnpm --filter "backend^..." run build` below is no
 # longer only a convenience for the frontend component packages — the backend does not start
 # without it.
+#
+# The build is split in two on purpose — manifests, install, then sources — so that editing a
+# source file does not re-run the install. What that split must never become is a *list* of the
+# manifests: which directories are workspace members is stated once, in `pnpm-workspace.yaml`,
+# and a copy of that answer kept here goes stale silently. It did, twice —
+# `packages/platform` was added by hand and `packages/modules/blog` was missed, so `blog` was
+# not a member at install time, its `@mikro-orm/migrations` peer resolved to nothing, and the
+# build failed 40 lines deep in a migration with `Property 'addSql' does not exist`. The
+# `manifests` stage below derives the set instead; see its own comment.
 
 FROM node:22.17-slim AS base
 ENV PNPM_HOME=/pnpm
@@ -26,27 +35,26 @@ RUN apt-get update \
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 
-# --- Dependencies (layer cached until any manifest changes) ---
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# --- Workspace manifests, derived rather than listed ---
+# The whole context goes into this stage, `scripts/collect-workspace-manifests.sh` asks pnpm
+# which directories are members and keeps their `package.json` files, and everything else is
+# dropped. What it costs: this stage's layer is invalidated by any source change, so every
+# build pays one context copy plus one `pnpm ls` — about a second. What it buys: `COPY --from`
+# is keyed on the *content* of what it copies, so the dependency layer below still changes only
+# when a manifest, the lockfile or the workspace file does. That is the cache behaviour the
+# hand-written list had, and the alternative — moving `COPY packages/` above the install —
+# would have given it up on every source edit.
+FROM base AS manifests
+WORKDIR /ctx
+COPY . .
+RUN sh scripts/collect-workspace-manifests.sh /manifests
+
+FROM base AS app
+# --- Dependencies (layer cached until a manifest, the lockfile or the workspace file changes) ---
+COPY --from=manifests /manifests/ ./
 # Root base tsconfig — backend/tsconfig.json extends it; tsx reads it at runtime
 # for `experimentalDecorators` (MikroORM entities break without it).
 COPY tsconfig.base.json tsconfig.base.json
-COPY backend/package.json backend/package.json
-COPY packages/contracts/package.json packages/contracts/package.json
-COPY packages/api-client/package.json packages/api-client/package.json
-COPY packages/page-builder-core/package.json packages/page-builder-core/package.json
-COPY packages/cms-components/package.json packages/cms-components/package.json
-COPY packages/email-components/package.json packages/email-components/package.json
-# The host package. It is `backend`'s dependency and holds the platform itself —
-# `kernel`, `http`, `tenancy`, `commands`, `events` — so without this line
-# `--filter backend...` resolves no member for it and the install fails. It was
-# absent while the package compiled `backend/src`: nothing depended on it, and
-# the image built the platform as part of the backend's own sources.
-COPY packages/platform/package.json packages/platform/package.json
-COPY storefront/package.json storefront/package.json
-COPY admin/package.json admin/package.json
-# Note: the `docs` workspace package is excluded from the build context by
-# .dockerignore and is not needed by any app build.
 # `backend...` = backend plus its workspace dependencies. devDependencies are
 # kept on purpose — tsx is the runtime, and the migrate/seed scripts need it too.
 RUN pnpm install --frozen-lockfile --filter backend...
