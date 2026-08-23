@@ -1,3 +1,5 @@
+import { getHeapStatistics } from 'node:v8';
+
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
@@ -76,15 +78,40 @@ const REQUESTS_PER_CYCLE = 1_000;
  *   - `LIVE_SET_CEILING_MB` is a tripwire, not a bound. Its value depends on how
  *     many files ran before this one, and vitest's sequencer orders files by
  *     size, so the position is not stable enough to bound tightly. It is set
- *     with headroom to the *failure mode* — the 4 GB old-space limit that killed
- *     the run — rather than to the measurement: the job is to fail the build
- *     with a legible message instead of letting the fork die with
- *     `FATAL ERROR: Ineffective mark-compacts near heap limit` and no diagnosis.
- *     Note the limitation this shares with any file-resident guard: a leak steep
- *     enough to exhaust the heap *before* file 244 still kills the run first.
+ *     with headroom to the *failure mode* rather than to the measurement: the
+ *     job is to fail the build with a legible message instead of letting the
+ *     fork die with `FATAL ERROR: Ineffective mark-compacts near heap limit` and
+ *     no diagnosis. Which limit that is, and why it is no longer written down,
+ *     is on the constant itself. Note the limitation this shares with any
+ *     file-resident guard: a leak steep enough to exhaust the heap *before* file
+ *     244 still kills the run first — issue #199 is that case, and
+ *     `test/heap-headroom.ts` is the answer to it.
  */
 const RETAINED_PER_CYCLE_CEILING_MB = 15;
-const LIVE_SET_CEILING_MB = 3_072;
+
+/**
+ * **A tripwire above the failure point is not a tripwire** (issue #199).
+ *
+ * `3_072` was written against "the 4 GB old-space limit that killed the run".
+ * The `test:backend` shards give the process `--max-old-space-size=2048`, so
+ * under the configuration this number exists to protect, the fork dies of the
+ * heap 1.2 GB before the assertion can say so — which is exactly what happened
+ * in pipeline 11478, on three shards, with this file sharded into one of the two
+ * that survived. The number is therefore derived from the limit the process
+ * actually has, and the constant is kept as the cap for a run that has no
+ * explicit limit at all.
+ *
+ * The remaining gap is structural and is the reason this is no longer the only
+ * guard: a file-resident ceiling is read once, in whichever shard the sequencer
+ * puts the file in, at whatever position it lands. `test/heap-headroom.ts` takes
+ * the same reading after **every** file of **every** shard; this one stays
+ * because its first assertion — retention per composition cycle — is an
+ * instrument no per-file reading can replace.
+ */
+const LIVE_SET_CEILING_MB = Math.min(
+  3_072,
+  Math.round((getHeapStatistics().heap_size_limit * 0.9) / (1024 * 1024)),
+);
 
 const MB = 1024 * 1024;
 
