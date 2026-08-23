@@ -1,9 +1,21 @@
-import type { ModuleManifest, ModuleSettingsManifest } from '@endora-commerce/contracts';
+import { settingsManifestWithRecentActivity } from '@endora-commerce/contracts';
+import type {
+  ModuleManifest,
+  ModuleRecentActivity,
+  ModuleSettingsManifest,
+} from '@endora-commerce/contracts';
 import { settingsManifest as settingsModuleManifest } from '../manifest.js';
 
-/** The one property of a registry entry this derivation reads. */
+/** The two properties of a registry entry this derivation reads. */
 export interface SettingsManifestSource {
   readonly manifest: ModuleManifest;
+  /**
+   * The module's recent-activity eligibility (feature 080, T042j / D-163.1).
+   * It implies one Setting — the operator's choice of whether this module's
+   * entries reach the dashboard card — which is derived rather than declared,
+   * so a module that adds the eligibility export gets the control with it.
+   */
+  readonly recentActivity?: ModuleRecentActivity | undefined;
 }
 
 /**
@@ -41,7 +53,7 @@ export function collectRegisteredSettingsManifests(
   // The settings module goes first: every other manifest's settings fall back
   // to its `general` group, which must exist before they are inserted.
   const rest = registry
-    .map((entry) => entry.manifest.settings)
+    .map((entry) => settingsManifestWithRecentActivity(entry.manifest, entry.recentActivity))
     .filter(
       (manifest): manifest is ModuleSettingsManifest =>
         manifest !== undefined && manifest.moduleCode !== settingsModuleManifest.moduleCode,

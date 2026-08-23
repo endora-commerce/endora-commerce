@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useTranslationContext } from '@/i18n/TranslationProvider';
 import {
   useRecentActivity,
   type RecentActivityItem,
@@ -12,7 +13,10 @@ import { formatRelative, renderActivity } from './activity-render';
  *
  * Reads the curated `/api/v1/admin/audit-log/recent-activity` feed via
  * `useRecentActivity()` and renders one row per audit entry with:
- *   - the action's icon + a localized verb (action-catalog lookup)
+ *   - the action's icon + a localized verb, both declared by the module that
+ *     owns the action and carried on the row (feature 080, T042j / D-163.1) —
+ *     the verb is resolved in that module's own i18n namespace, which is what
+ *     lets a packaged module's activity render in the operator's language
  *   - the resolved actor display name (with optional "(as customer)")
  *   - the resolved target display name + click-through link
  *   - a relative timestamp pill
@@ -25,6 +29,9 @@ const ROW_PLACEHOLDER_COUNT = 4;
 
 export function RecentActivityCard(): ReactNode {
   const t = useTranslation('core');
+  // The verb key belongs to the declaring module's namespace, not to `core`, so
+  // the row needs the scope-taking `t` as well as the card's own.
+  const { t: translateIn } = useTranslationContext();
   const { status, items, refetch } = useRecentActivity();
 
   // FR-031 — admins without `audit_log:read` see no card at all.
@@ -67,7 +74,7 @@ export function RecentActivityCard(): ReactNode {
         {status === 'ready' && items.length > 0 && (
           <div className="b2b-minilist" style={{ padding: 4 }}>
             {items.map((row) => (
-              <ActivityRow key={row.id} row={row} t={t} />
+              <ActivityRow key={row.id} row={row} t={t} translateIn={translateIn} />
             ))}
           </div>
         )}
@@ -79,13 +86,19 @@ export function RecentActivityCard(): ReactNode {
 function ActivityRow({
   row,
   t,
+  translateIn,
 }: {
   row: RecentActivityItem;
   t: (key: string, params?: Record<string, string | number>) => string;
+  translateIn: (
+    scope: string,
+    key: string,
+    params?: Record<string, string | number>,
+  ) => string;
 }): ReactNode {
-  const rendering = renderActivity(row.action);
+  const rendering = renderActivity(row);
   const Icon = rendering.icon;
-  const verb = t(rendering.verbKey);
+  const verb = translateIn(rendering.scope, rendering.verbKey);
   const time = formatRelative(row.actedAt);
   const timeLabel = t(time.key, time.params);
 

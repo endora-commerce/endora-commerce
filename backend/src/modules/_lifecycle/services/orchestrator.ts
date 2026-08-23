@@ -2,6 +2,7 @@ import { dirname } from 'node:path';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { IMigrator } from '@mikro-orm/core';
 import type { Redis } from 'ioredis';
+import { settingsManifestWithRecentActivity } from '@endora-commerce/contracts';
 import type {
   ModuleInstallHook,
   ModuleUninstallHook,
@@ -255,9 +256,20 @@ export class ModuleLifecycleOrchestrator {
         }
 
         // 2. Settings — reuse feature 004's reconciler.
-        if (manifest.settings) {
+        //
+        // The manifest's own declaration **plus** the visibility Setting its
+        // recent-activity eligibility implies (feature 080, T042j / D-163.1).
+        // One derivation with two callers, this and the boot reconcile: a
+        // package has only this one, since D-157.6(b) makes `install` its sole
+        // settings author, so a second copy of the merge would mean a packaged
+        // module's dashboard control existing on one path and not the other.
+        const settingsManifest = settingsManifestWithRecentActivity(
+          manifest,
+          entry.recentActivity,
+        );
+        if (settingsManifest) {
           const reconciler = new ManifestReconciler(this.deps.em());
-          const result = await reconciler.apply([manifest.settings]);
+          const result = await reconciler.apply([settingsManifest]);
           const r = result.perModule[0];
           if (r) {
             settingsResult = {

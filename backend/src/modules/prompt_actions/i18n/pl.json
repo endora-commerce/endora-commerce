@@ -35,5 +35,6 @@
   "panel.planExpired": "Ten plan wygasł bez potwierdzenia. Wyślij polecenie ponownie.",
   "capability.disabled": "Asystent promptów jest wyłączony na tej platformie.",
   "capability.notConfigured": "Asystent promptów nie jest jeszcze skonfigurowany — ustaw dostawcę i klucz API w Ustawieniach.",
-  "palette.group.label": "Asystent"
+  "palette.group.label": "Asystent",
+  "activity.verb.prompt_action.execute": "wykonał akcję asystenta"
 }

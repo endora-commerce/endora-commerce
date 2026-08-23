@@ -1,4 +1,7 @@
-import { defineModuleManifest } from '@endora-commerce/contracts';
+import {
+  defineModuleManifest,
+  defineModuleRecentActivity,
+} from '@endora-commerce/contracts';
 
 /**
  * Catalog module — feature 002 (and predecessors).
@@ -219,6 +222,39 @@ export const manifest = defineModuleManifest({
       requiredPermission: 'catalog:write',
       keywords: ['product', 'new', 'add', 'create', 'produkt', 'nowy', 'dodaj'],
       weight: 100,
+    },
+  ],
+});
+
+/**
+ * What this module offers the admin home dashboard's Recent Activity card —
+ * feature 080, T042j / D-163.1.
+ *
+ * The **declaration** axis: eligibility, never a decision. Whether these rows
+ * actually appear is the operator's, held in `catalog.recent_activity_visible`
+ * and defaulting to visible, flipped on `/platform/modules` beside this
+ * module's activation control.
+ *
+ * These six tokens were four entries in four hand-maintained host tables —
+ * `RECENT_ACTIVITY_ACTIONS`, the `product.` prefix row of `PREFIX_TO_MODULE`,
+ * the route's `module` enum and the admin's `ACTIVITY_RENDERING`. All four are
+ * derived from this now, which is what lets a packaged module reach the card at
+ * all (D-163: `RecentActivityModule` was a closed union of four core ids).
+ *
+ * `product.delete` is deliberately not here and was not in `ACTIVITY_RENDERING`
+ * either: the allow-list carried it, the renderer did not, so it drew the
+ * unknown-verb fallback. One declaration cannot hold that disagreement.
+ */
+export const recentActivity = defineModuleRecentActivity({
+  entries: [
+    { action: 'product.create', icon: 'Plus', labelKey: 'activity.verb.product.create' },
+    { action: 'product.update', icon: 'Edit', labelKey: 'activity.verb.product.update' },
+    { action: 'product.archive', icon: 'Archive', labelKey: 'activity.verb.product.archive' },
+    { action: 'product.unarchive', icon: 'Box', labelKey: 'activity.verb.product.unarchive' },
+    {
+      action: 'product.bulk_update',
+      icon: 'Edit',
+      labelKey: 'activity.verb.product.bulk_update',
     },
   ],
 });

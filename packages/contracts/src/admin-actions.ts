@@ -75,6 +75,17 @@ export const KnownIconNameSchema = z.enum([
   'PanelLeft',
   // security
   'KeyRound',
+  // Feature 080 (D-163.1) — the six icons the dashboard's recent-activity
+  // renderings used before they became manifest declarations. They were
+  // lucide imports inside `admin/src/modules/home/activity-render.ts`, which
+  // is the hand-maintained table that ruling retires; a declared icon has to
+  // come from this allowlist like every other, so they join it here.
+  'Edit',
+  'Archive',
+  'Box',
+  'Truck',
+  'CircleDollarSign',
+  'Activity',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

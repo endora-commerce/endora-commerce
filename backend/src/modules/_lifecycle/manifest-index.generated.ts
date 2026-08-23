@@ -49,7 +49,7 @@ import { manifest as manifest11 } from '../auth/manifest.js';
 import { manifest as manifest12 } from '../autopay/manifest.js';
 import { manifest as manifest13 } from '../blog/manifest.js';
 import { manifest as manifest14, cliCommands as cliCommands14 } from '../carts/manifest.js';
-import { manifest as manifest15 } from '../catalog/manifest.js';
+import { manifest as manifest15, recentActivity as recentActivity15 } from '../catalog/manifest.js';
 import { manifest as manifest16 } from '../cms/manifest.js';
 import { manifest as manifest17 } from '../comparisons/manifest.js';
 import { manifest as manifest18 } from '../credentials/manifest.js';
@@ -65,7 +65,7 @@ import { manifest as manifest27 } from '../google_analytics/manifest.js';
 import { manifest as manifest28 } from '../google_tag_manager/manifest.js';
 import { manifest as manifest29 } from '../health_checks/manifest.js';
 import { manifest as manifest30 } from '../import_export/manifest.js';
-import { manifest as manifest31 } from '../inventory/manifest.js';
+import { manifest as manifest31, recentActivity as recentActivity31 } from '../inventory/manifest.js';
 import { manifest as manifest32 } from '../invoices/manifest.js';
 import { manifest as manifest33 } from '../ksef/manifest.js';
 import { manifest as manifest34 } from '../languages/manifest.js';
@@ -81,10 +81,10 @@ import { manifest as manifest43 } from '../payments/manifest.js';
 import { manifest as manifest44 } from '../paypal/manifest.js';
 import { manifest as manifest45 } from '../payu/manifest.js';
 import { manifest as manifest46 } from '../pim_ergonode/manifest.js';
-import { manifest as manifest47 } from '../price_lists/manifest.js';
+import { manifest as manifest47, recentActivity as recentActivity47 } from '../price_lists/manifest.js';
 import { manifest as manifest48 } from '../product_feeds/manifest.js';
 import { manifest as manifest49 } from '../promotions/manifest.js';
-import { manifest as manifest50 } from '../prompt_actions/manifest.js';
+import { manifest as manifest50, recentActivity as recentActivity50 } from '../prompt_actions/manifest.js';
 import { manifest as manifest51 } from '../pwa/manifest.js';
 import { manifest as manifest52 } from '../quick_order/manifest.js';
 import { manifest as manifest53 } from '../quote_requests/manifest.js';
@@ -114,6 +114,7 @@ export interface DiscoveredManifestEntry {
   uninstallHook?: ModuleManifestExports['uninstallHook'];
   lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
   cliCommands?: ModuleManifestExports['cliCommands'];
+  recentActivity?: ModuleManifestExports['recentActivity'];
 }
 
 export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
@@ -132,7 +133,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'autopay', manifest: manifest12, manifestPath: resolveManifestPath(import.meta.url, '../autopay/manifest.js') },
   { id: 'blog', manifest: manifest13, manifestPath: resolveManifestPath(import.meta.url, '../blog/manifest.js') },
   { id: 'carts', manifest: manifest14, manifestPath: resolveManifestPath(import.meta.url, '../carts/manifest.js'), cliCommands: cliCommands14 },
-  { id: 'catalog', manifest: manifest15, manifestPath: resolveManifestPath(import.meta.url, '../catalog/manifest.js') },
+  { id: 'catalog', manifest: manifest15, manifestPath: resolveManifestPath(import.meta.url, '../catalog/manifest.js'), recentActivity: recentActivity15 },
   { id: 'cms', manifest: manifest16, manifestPath: resolveManifestPath(import.meta.url, '../cms/manifest.js') },
   { id: 'comparisons', manifest: manifest17, manifestPath: resolveManifestPath(import.meta.url, '../comparisons/manifest.js') },
   { id: 'credentials', manifest: manifest18, manifestPath: resolveManifestPath(import.meta.url, '../credentials/manifest.js') },
@@ -148,7 +149,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'google_tag_manager', manifest: manifest28, manifestPath: resolveManifestPath(import.meta.url, '../google_tag_manager/manifest.js') },
   { id: 'health_checks', manifest: manifest29, manifestPath: resolveManifestPath(import.meta.url, '../health_checks/manifest.js') },
   { id: 'import_export', manifest: manifest30, manifestPath: resolveManifestPath(import.meta.url, '../import_export/manifest.js') },
-  { id: 'inventory', manifest: manifest31, manifestPath: resolveManifestPath(import.meta.url, '../inventory/manifest.js') },
+  { id: 'inventory', manifest: manifest31, manifestPath: resolveManifestPath(import.meta.url, '../inventory/manifest.js'), recentActivity: recentActivity31 },
   { id: 'invoices', manifest: manifest32, manifestPath: resolveManifestPath(import.meta.url, '../invoices/manifest.js') },
   { id: 'ksef', manifest: manifest33, manifestPath: resolveManifestPath(import.meta.url, '../ksef/manifest.js') },
   { id: 'languages', manifest: manifest34, manifestPath: resolveManifestPath(import.meta.url, '../languages/manifest.js') },
@@ -164,10 +165,10 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'paypal', manifest: manifest44, manifestPath: resolveManifestPath(import.meta.url, '../paypal/manifest.js') },
   { id: 'payu', manifest: manifest45, manifestPath: resolveManifestPath(import.meta.url, '../payu/manifest.js') },
   { id: 'pim_ergonode', manifest: manifest46, manifestPath: resolveManifestPath(import.meta.url, '../pim_ergonode/manifest.js') },
-  { id: 'price_lists', manifest: manifest47, manifestPath: resolveManifestPath(import.meta.url, '../price_lists/manifest.js') },
+  { id: 'price_lists', manifest: manifest47, manifestPath: resolveManifestPath(import.meta.url, '../price_lists/manifest.js'), recentActivity: recentActivity47 },
   { id: 'product_feeds', manifest: manifest48, manifestPath: resolveManifestPath(import.meta.url, '../product_feeds/manifest.js') },
   { id: 'promotions', manifest: manifest49, manifestPath: resolveManifestPath(import.meta.url, '../promotions/manifest.js') },
-  { id: 'prompt_actions', manifest: manifest50, manifestPath: resolveManifestPath(import.meta.url, '../prompt_actions/manifest.js') },
+  { id: 'prompt_actions', manifest: manifest50, manifestPath: resolveManifestPath(import.meta.url, '../prompt_actions/manifest.js'), recentActivity: recentActivity50 },
   { id: 'pwa', manifest: manifest51, manifestPath: resolveManifestPath(import.meta.url, '../pwa/manifest.js') },
   { id: 'quick_order', manifest: manifest52, manifestPath: resolveManifestPath(import.meta.url, '../quick_order/manifest.js') },
   { id: 'quote_requests', manifest: manifest53, manifestPath: resolveManifestPath(import.meta.url, '../quote_requests/manifest.js') },

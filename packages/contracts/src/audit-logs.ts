@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /**
  * Audit-log reference labels — "what is this row about, and where does it live?"
  * (feature 075, D-87 drain).
@@ -107,3 +109,49 @@ export interface AuditReferenceRegistryPort {
     ids: readonly string[],
   ): Promise<ReadonlyMap<string, AuditReferenceLabel>>;
 }
+
+// ---------------------------------------------------------------------------
+// Recent-activity visibility — the operator axis of D-163.1 (feature 080)
+// ---------------------------------------------------------------------------
+
+/**
+ * One eligible module's row on the visibility surface.
+ *
+ * `moduleId` is any composed module's id, deliberately **not** an enum: the
+ * closed union of four core ids this replaces (`RecentActivityModule`) is
+ * exactly why a packaged module's activity was silently absent from the card
+ * rather than refused (D-163).
+ */
+export const RecentActivityModuleVisibilitySchema = z.object({
+  moduleId: z.string().min(1),
+  /** The module's manifest `name` — what the operator reads on the control. */
+  moduleName: z.string().min(1),
+  /** The operator's answer. `true` when they have never chosen (D-163.1). */
+  visible: z.boolean(),
+});
+export type RecentActivityModuleVisibility = z.infer<
+  typeof RecentActivityModuleVisibilitySchema
+>;
+
+/** `GET /api/v1/admin/audit-log/recent-activity/visibility`. */
+export const RecentActivityVisibilityListSchema = z.object({
+  modules: z.array(RecentActivityModuleVisibilitySchema),
+});
+export type RecentActivityVisibilityList = z.infer<
+  typeof RecentActivityVisibilityListSchema
+>;
+
+/** `POST /api/v1/admin/audit-log/recent-activity/visibility/:moduleId`. */
+export const RecentActivityVisibilityRequestSchema = z.object({
+  visible: z.boolean(),
+});
+export type RecentActivityVisibilityRequest = z.infer<
+  typeof RecentActivityVisibilityRequestSchema
+>;
+
+export const RecentActivityVisibilityResponseSchema = z.object({
+  module: RecentActivityModuleVisibilitySchema,
+});
+export type RecentActivityVisibilityResponse = z.infer<
+  typeof RecentActivityVisibilityResponseSchema
+>;

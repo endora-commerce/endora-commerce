@@ -111,4 +111,35 @@ export const cliCommands = [
   },
 ];
 
+/**
+ * What this package offers the admin home dashboard's Recent Activity card —
+ * feature 080, T042j / D-163.1.
+ *
+ * **This declaration is the row's whole point.** Before it, the card was driven
+ * by four host-owned tables, two of which were closed over core module ids —
+ * `RECENT_ACTIVITY_ACTIONS` and a `RecentActivityModule` union of four — so a
+ * package's audit row was *silently absent* rather than refused. A third-party
+ * module could not appear on the shop owner's home screen at all, and nothing
+ * anywhere said so.
+ *
+ * A plain object, like the manifest above and for the same reason: a published
+ * module package carries no runtime dependency on this repository and not even a
+ * type import. That it *would* parse against `ModuleRecentActivitySchema` is
+ * checked on the repository side, by
+ * `backend/test/unit/scripts/package-schema-acceptance.test.ts`.
+ *
+ * The operator's half needs nothing here. `acceptance_probe.recent_activity_visible`
+ * is **derived** from this declaration, reconciled by `install` like every other
+ * setting a package owns, and defaults to visible.
+ */
+export const recentActivity = {
+  entries: [
+    {
+      action: 'acceptance_probe.execute',
+      icon: 'Boxes',
+      labelKey: 'activity.verb.acceptance_probe.execute',
+    },
+  ],
+};
+
 export default manifest;

@@ -1,62 +1,103 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  ACTIVITY_RENDERING,
   UNKNOWN_RENDERING,
   formatRelative,
   renderActivity,
 } from '../../../src/modules/home/activity-render';
 
 /**
- * Feature 024 / T013 — pure-function tests for the action-token →
- * icon + verb mapping plus the relative-time formatter. No DOM needed.
+ * Feature 024 / T013, rewritten by feature 080's T042j (D-163.1).
+ *
+ * This file used to open with a **verbatim copy of the backend allow-list**,
+ * 22 tokens, under a comment saying the duplication was intentional so that
+ * either side adding a token without the other would fail. It did not fail:
+ * `prompt_action.execute` had been in the backend list and absent from this
+ * one — and from this copy of it — for as long as feature 043 had shipped, and
+ * the assertion that would have caught it (`ACTIVITY_RENDERING[action]` is
+ * defined) only ever ran over the tokens somebody remembered to paste here.
+ *
+ * There is no table left to mirror. The rendering arrives on the row, so what
+ * this file tests is the resolution and the fallback, and the guard against
+ * a table coming back is a source assertion at the bottom.
  */
 
-// Mirror the backend allowlist verbatim. This duplication is intentional:
-// if either side adds a token without updating the other, this test fails.
-const ALLOWLIST = [
-  'product.create',
-  'product.update',
-  'product.archive',
-  'product.unarchive',
-  'product.bulk_update',
-  'warehouse.create',
-  'warehouse.update',
-  'warehouse.deactivate',
-  'warehouse.reactivate',
-  'low_stock_threshold.create',
-  'low_stock_threshold.update',
-  'low_stock_threshold.delete',
-  'stock_level.adjust',
-  'stock_level.bulk_import',
-  'price_list.create',
-  'price_list.update',
-  'price_list.activate',
-  'price_list.draftify',
-  'price_list.duplicate',
-  'price_list.expire',
-  'price_list.products_replace',
-  'price_list.bracket_update',
-];
-
 describe('renderActivity', () => {
-  it('has an entry for every token in the dashboard allowlist', () => {
-    for (const action of ALLOWLIST) {
-      const r = ACTIVITY_RENDERING[action];
-      expect(r, `missing rendering for ${action}`).toBeDefined();
-      expect(r!.verbKey).toMatch(/^home\.activity\.verb\./);
-      expect(['catalog', 'inventory', 'price_lists']).toContain(r!.module);
-    }
+  it('renders what the row declares — any module, including one this build never heard of', () => {
+    const r = renderActivity({
+      module: 'acceptance_probe',
+      icon: 'Boxes',
+      labelKey: 'activity.verb.probe.execute',
+    });
+    expect(r.scope).toBe('acceptance_probe');
+    expect(r.verbKey).toBe('activity.verb.probe.execute');
+    expect(r.icon).not.toBe(UNKNOWN_RENDERING.icon);
   });
 
-  it('falls back to UNKNOWN_RENDERING for tokens not in the catalog', () => {
-    const r = renderActivity('totally_new.token');
-    expect(r).toBe(UNKNOWN_RENDERING);
-    expect(r.verbKey).toBe('home.activity.verb.unknown');
+  it('resolves the verb in the declaring module rather than in core', () => {
+    const r = renderActivity({
+      module: 'catalog',
+      icon: 'Plus',
+      labelKey: 'activity.verb.product.create',
+    });
+    expect(r.scope).toBe('catalog');
+    // The pre-T042j key. It moved to the owning module's bundle with the table.
+    expect(r.verbKey).not.toMatch(/^home\.activity\.verb\./);
   });
 
-  it('returns the catalog entry verbatim for a known token', () => {
-    const r = renderActivity('product.create');
-    expect(r).toBe(ACTIVITY_RENDERING['product.create']);
+  it('falls back to a generic icon for a name this build does not map', () => {
+    const r = renderActivity({
+      module: 'catalog',
+      icon: 'NoSuchIcon',
+      labelKey: 'activity.verb.product.create',
+    });
+    // Still renders, and still in the module's own scope: an unknown icon is
+    // never a reason to drop a row.
+    expect(r.scope).toBe('catalog');
+    expect(r.verbKey).toBe('activity.verb.product.create');
+  });
+
+  it('falls back to UNKNOWN_RENDERING when the row carries no label key', () => {
+    expect(renderActivity({ module: 'catalog', icon: 'Plus', labelKey: '' })).toBe(
+      UNKNOWN_RENDERING,
+    );
+    expect(
+      renderActivity({ module: '', icon: 'Plus', labelKey: 'activity.verb.x.y' }),
+    ).toBe(UNKNOWN_RENDERING);
+    expect(UNKNOWN_RENDERING.verbKey).toBe('home.activity.verb.unknown');
+    expect(UNKNOWN_RENDERING.scope).toBe('core');
+  });
+});
+
+/**
+ * The retiring condition for D-163.1's fourth table, on the admin side.
+ *
+ * Its backend siblings are asserted in
+ * `backend/test/unit/audit_logs/derived-action-tables.test.ts`; this half lives
+ * here because the file is this app's. An audit action token is
+ * `<object>.<verb>` in snake_case, and the only reason to write one in this
+ * module is to key a table off it.
+ */
+describe('the dashboard rendering table stays retired', () => {
+  const SOURCE = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../../src/modules/home/activity-render.ts',
+  );
+
+  it('names no audit action token', () => {
+    const source = readFileSync(SOURCE, 'utf8');
+    // Strip comments: the file explains what it retired, by name.
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
+    const tokens = code.match(/['"][a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+['"]/g) ?? [];
+    expect(
+      tokens.filter((t) => !t.includes('home.activity.')),
+      'an action token written here is a hand-maintained rendering table coming back — ' +
+        'the icon and the verb key travel on the row, declared by the owning module',
+    ).toEqual([]);
   });
 });
 

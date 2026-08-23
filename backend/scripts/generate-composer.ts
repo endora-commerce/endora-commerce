@@ -521,6 +521,7 @@ interface DiscoveredManifest {
   hasUninstallHook: boolean;
   hasLifecycleParticipant: boolean;
   hasCliCommands: boolean;
+  hasRecentActivity: boolean;
 }
 
 /**
@@ -582,6 +583,10 @@ function discoverManifests(
     // Feature 080, T042b / D-160.9 — the operator commands a module declares
     // and the host runs, wired by the same walk and the same detector.
     hasCliCommands: detectHookExport('cliCommands', source, id),
+    // Feature 080, T042j / D-163.1 — the module's declaration that its activity
+    // is eligible for the dashboard's recent-activity card. Same walk, same
+    // detector, so a packaged module declares one on core's terms.
+    hasRecentActivity: detectHookExport('recentActivity', source, id),
   });
   // The index lives in `_lifecycle/`, so a core manifest is one folder up.
   for (const id of directoriesIn(modulesRoot)) {
@@ -614,6 +619,7 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
         named.push(`lifecycleParticipant as lifecycleParticipant${i}`);
       }
       if (m.hasCliCommands) named.push(`cliCommands as cliCommands${i}`);
+      if (m.hasRecentActivity) named.push(`recentActivity as recentActivity${i}`);
       return `import { ${named.join(', ')} } from '${m.importPath}';`;
     })
     .join('\n');
@@ -631,6 +637,7 @@ function emitManifestIndex(manifests: readonly DiscoveredManifest[]): string {
         fields.push(`lifecycleParticipant: lifecycleParticipant${i}`);
       }
       if (m.hasCliCommands) fields.push(`cliCommands: cliCommands${i}`);
+      if (m.hasRecentActivity) fields.push(`recentActivity: recentActivity${i}`);
       return `  { ${fields.join(', ')} },`;
     })
     .join('\n');
@@ -682,6 +689,7 @@ export interface DiscoveredManifestEntry {
   uninstallHook?: ModuleManifestExports['uninstallHook'];
   lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
   cliCommands?: ModuleManifestExports['cliCommands'];
+  recentActivity?: ModuleManifestExports['recentActivity'];
 }
 
 export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [

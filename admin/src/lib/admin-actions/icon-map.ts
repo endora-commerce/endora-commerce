@@ -1,10 +1,15 @@
 import {
+  Activity,
+  Archive,
   BookOpen,
+  Box,
   Boxes,
+  CircleDollarSign,
   ClipboardList,
   CloudUpload,
   CreditCard,
   Download,
+  Edit,
   FilePlus,
   FileDown,
   FileText,
@@ -29,6 +34,7 @@ import {
   ShoppingCart,
   Sparkles,
   Tag,
+  Truck,
   Upload,
   UserPlus,
   Users,
@@ -83,6 +89,17 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   LayoutDashboard,
   PanelLeft,
   KeyRound,
+  // Feature 080 (D-163.1) — the dashboard recent-activity renderings. They
+  // were lucide imports inside `modules/home/activity-render.ts`, the fourth
+  // hand-maintained action table that ruling retired; a module declares its
+  // icon by name now, so the name has to be in the platform's allowlist and
+  // resolve through this one map.
+  Edit,
+  Archive,
+  Box,
+  Truck,
+  CircleDollarSign,
+  Activity,
 };
 
 export function resolveIcon(name: string): LucideIcon {

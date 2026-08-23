@@ -1,15 +1,23 @@
 import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { CommandBus } from '../../commands/index.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { ModuleContext } from '../../kernel/index.js';
+import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { ModuleDisabledError } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { AuditActorIdentity } from './routes.admin.js';
 import { registerAuditLogAdminRoutes } from './routes.admin.js';
 import { registerRecentActivityRoutes } from './routes.admin.recent-activity.js';
 import { AuditReferenceRegistry } from './services/audit-reference-registry.js';
+import {
+  RecentActivityCatalog,
+  type RecentActivityDeclarationSource,
+} from './services/recent-activity-catalog.js';
 import { RecentActivityService } from './services/recent-activity-service.js';
+import { RecentActivityVisibility } from './services/recent-activity-visibility.js';
 
 /**
  * `audit_logs` — the compliance surface that was a passenger (feature 072,
@@ -64,6 +72,19 @@ export interface AuditLogsCradle {
     | undefined;
   readonly auditReferenceRegistry: AuditReferenceRegistryPort;
   readonly recentActivityService: RecentActivityService;
+  readonly recentActivityCatalog: RecentActivityCatalog;
+  readonly recentActivityVisibility: RecentActivityVisibility;
+  /**
+   * Which modules this composition ships, and what each declares — a
+   * composition-root input by nature and therefore a platform-owned container
+   * name, never a port (Constitution I: a module may not decide which modules a
+   * deployment has). It is the input the four retired action tables are derived
+   * from, and reading it here rather than importing `_lifecycle`'s registry is
+   * what keeps the derivation free of a cross-module reach.
+   */
+  readonly resolvedModuleRegistry: ReadonlyArray<RecentActivityDeclarationSource>;
+  /** Absent in a composition with no Command Bus; the card still reads. */
+  readonly commandBus: CommandBus | undefined;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -107,10 +128,56 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
 
+    /**
+     * The four host-owned action tables, as one derivation (D-163.1).
+     *
+     * A singleton, and legitimately so: the composed manifest set does not
+     * change while the process runs — an installed package is discovered before
+     * the first module registers — so what is captured here is a fact about the
+     * build. The *operator's* half is captured nowhere and is asked per request,
+     * which is the half that moves.
+     */
+    recentActivityCatalog: ctx
+      .asFunction(
+        ({ resolvedModuleRegistry }: AuditLogsCradle) =>
+          new RecentActivityCatalog(resolvedModuleRegistry),
+      )
+      .singleton(),
+
+    /**
+     * The operator's half, and the reason `settingsReadPort` arrives as a
+     * `lazyPort` rather than off the cradle: this registration is a singleton,
+     * and a cradle parameter would resolve the settings reader **once**, when
+     * the registration is first constructed. Awilix's strict mode refuses that
+     * capture and `check:port-dependencies` reports it — rightly, since a
+     * captured reader is a preference frozen at composition, which is exactly
+     * what an operator flipping a switch must not meet.
+     */
+    recentActivityVisibility: ctx
+      .asFunction(
+        ({ recentActivityCatalog }: AuditLogsCradle) =>
+          new RecentActivityVisibility(
+            recentActivityCatalog,
+            lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
+          ),
+      )
+      .singleton(),
+
     recentActivityService: ctx
       .asFunction(
-        ({ emFactory, auditReferenceRegistry }: AuditLogsCradle) =>
-          new RecentActivityService(emFactory, resolveActors, auditReferenceRegistry),
+        ({
+          emFactory,
+          auditReferenceRegistry,
+          recentActivityCatalog,
+          recentActivityVisibility,
+        }: AuditLogsCradle) =>
+          new RecentActivityService(
+            emFactory,
+            recentActivityCatalog,
+            recentActivityVisibility,
+            resolveActors,
+            auditReferenceRegistry,
+          ),
       )
       .singleton(),
 
@@ -123,8 +190,14 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.routes(async (app) => {
-    const { auditLogService, recentActivityService, requireAdmin } =
-      ctx.cradle<AuditLogsCradle>();
+    const {
+      auditLogService,
+      recentActivityService,
+      recentActivityCatalog,
+      recentActivityVisibility,
+      requireAdmin,
+      commandBus,
+    } = ctx.cradle<AuditLogsCradle>();
 
     await registerAuditLogAdminRoutes(app, {
       auditLogService,
@@ -135,6 +208,12 @@ export function registerModule(ctx: ModuleContext): void {
       resolveActors,
     });
 
-    await registerRecentActivityRoutes(app, { recentActivityService, requireAdmin });
+    await registerRecentActivityRoutes(app, {
+      recentActivityService,
+      recentActivityCatalog,
+      recentActivityVisibility,
+      requireAdmin,
+      ...(commandBus ? { commandBus } : {}),
+    });
   });
 }
