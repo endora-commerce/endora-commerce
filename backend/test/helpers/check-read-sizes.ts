@@ -199,16 +199,25 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-entry-scope.ts': {
     prefix: '[entry-scope]',
     run: { kind: 'tsx', path: 'scripts/check-entry-scope.ts', args: [] },
-    files: 1541,
-    // Re-recorded by feature 080's T042b, downward and deliberately: 47 → 41.
-    // Seven module CLI scripts became manifest-declared commands the host runs
-    // (D-160.9), so their files left `scripts/` — they no longer start a process
-    // and are no longer entry points — and one new declared program, `src/cli.ts`,
-    // replaced them. `package-scripts` fell 18 → 12 for the same reason: seven
+    files: 1620,
+    // Re-recorded twice, both downward and both deliberately.
+    //
+    // 47 → 41, by feature 080's T042b: seven module CLI scripts became
+    // manifest-declared commands the host runs (D-160.9), so their files left
+    // `scripts/` — they no longer start a process and are no longer entry
+    // points — and one new declared program, `src/cli.ts`, replaced them.
+    // `package-scripts` fell 18 → 12 for the same reason: seven
     // `backend/package.json` programs now name one path instead of seven.
-    // A downward move is the direction this band exists to refuse, so the number
-    // is moved in the merge request that shrank the population and nowhere else.
-    sites: 41,
+    //
+    // 41 → 40, by D-167: `quote_requests/scripts/backfill-quote-channel.ts` is
+    // deleted. It was the tree's last `scripts/` file that was not also a
+    // declared program, so `cli` falls 8 → 7 and nothing else moves — the
+    // ledger is untouched, because that file established its scope.
+    //
+    // A downward move is the direction this band exists to refuse, so each
+    // number is moved in the merge request that shrank the population and
+    // nowhere else.
+    sites: 40,
     sources: ['manifest-index', 'package-scripts'],
   },
   'backend/scripts/check-error-translations.ts': {
@@ -330,8 +339,26 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-platform-surface.ts': {
     prefix: '[platform-surface]',
     run: { kind: 'tsx', path: 'scripts/check-platform-surface.ts', args: [] },
-    files: 1422,
-    sites: 1642,
+    files: 1427,
+    // Re-recorded downward, 1642 → 1588, by the move of `quote_requests` into
+    // `packages/modules/` (feature 080, T040b) and by D-167's deletion beside
+    // it. **Every unit of the fall is a reach that stopped existing**, which is
+    // the only reason a downward re-record is legitimate here: a module in a
+    // package writes `@endora-commerce/platform/kernel`, a bare specifier this
+    // check's relative-specifier population does not contain, so its platform
+    // reaches leave the walk as the module leaves the tree.
+    //
+    // The −39 decomposes, and every part of it was counted rather than
+    // inferred. **−36 for the move**: 33 escaping specifiers in the module's
+    // own sources carrying 36 symbols between them — 32 `from '…'` clauses with
+    // 35 symbols (two of them naming the kernel barrel for three each), plus one
+    // type-position `import('…/events').EventBase` in `rfq-expiry-worker.ts`,
+    // which is the shape §0b of this check's header exists for. **−4 for the
+    // deleted backfill script**: `db/index.ts` for `initOrm` and `closeOrm`, the
+    // kernel for `SalesChannel` and for `enterSystemScope`. **+1 for D-166**:
+    // the new `quote_requests/routes.sales-reps.ts` took `RequireAdminFactory`
+    // before the move carried it out again.
+    sites: 1588,
     sources: ['manifest-index', 'platform-barrels'],
   },
   'backend/scripts/check-port-shape.ts': {

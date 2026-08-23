@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { EventBus } from '../../events/bus.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { EventBus } from '@endora-commerce/platform/events';
 import type {
   AdminUserReadPort,
   CartWritePort,
@@ -13,19 +13,24 @@ import type {
   RfqCustomerPort,
   SalesChannelAttributionRegistryPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { QuoteRequestReadService } from './services/quote-request-read-port.js';
 import { registerQuoteRequestSalesChannelAttributions } from './services/sales-channel-attributions.js';
 import {
   lazyPort,
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
-} from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
-import { QUOTE_REQUESTS_SETTING_CODES } from './manifest.js';
+} from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import { QUOTE_REQUESTS_SETTING_CODES } from '../manifest.js';
 import { quoteRequestsModule, type QuoteRequestsModuleOptions } from './plugin.js';
+import { QuoteRequest } from './entities/quote-request.entity.js';
+import { QuoteRequestEvent } from './entities/quote-request-event.entity.js';
+import { QuoteRequestItem } from './entities/quote-request-item.entity.js';
+import { QuoteRequestNotificationEvent } from './entities/quote-request-notification-event.entity.js';
+import { QuoteRequestRevision } from './entities/quote-request-revision.entity.js';
 
 /**
  * `quote_requests` — four settings resolvers that belonged to the module
@@ -324,3 +329,43 @@ export function registerModule(ctx: ModuleContext): void {
     await ctx.cradle<QuoteRequestsCradle>().quoteRequests.register(app);
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform already reads, in two places: the boot-time
+ * loader (`src/packages/package-runtime.ts`, `exported['entities']`) and the
+ * static declaration reader (`scripts/lib/package-declarations.ts`), which is
+ * the third source of `check:module-boundary`'s `table→owner` map and the
+ * package pass of `check-entity-tenant-classification`. `blog` published
+ * `export *` lines instead until D-168, which satisfied only the committed host
+ * registry — the one path that stops being taken the day the module is
+ * *installed* rather than linked, at which point the loader read `undefined`,
+ * returned `[]`, and registered zero entities without a word.
+ *
+ * The absence of a named export is the load-bearing half. With one,
+ * `import type { QuoteRequest } from '@endora-commerce/mod-quote-requests/backend'`
+ * compiles in any consumer — ours, a deployment's, a stranger's — and only a
+ * check whose population is *this* repository could ever object. Without it,
+ * that import is TS2459 in the consumer's own tree (the barrel imports the
+ * classes to build the array, so TypeScript gives the more precise "declares it
+ * locally, but it is not exported"), which is Principle I holding by
+ * construction. Nothing legitimate is lost: D-32 already forbids an ORM
+ * relation from another module into these classes, and every other cross-module
+ * read goes through a contract type — `QuoteRequestReadPort` and
+ * `RfqCustomerPort`, both published above.
+ *
+ * Identity matters more here than anywhere else in the package: MikroORM keys
+ * its metadata on the class, so a consumer that reached these files by a second
+ * specifier would register a second `QuoteRequest` and lose one of them at
+ * discovery (D-160.6, measured). One array behind one declared subpath is the
+ * only way in.
+ */
+export const entities = [
+  QuoteRequest,
+  QuoteRequestEvent,
+  QuoteRequestItem,
+  QuoteRequestNotificationEvent,
+  QuoteRequestRevision,
+];

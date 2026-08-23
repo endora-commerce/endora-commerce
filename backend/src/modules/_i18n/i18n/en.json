@@ -71,6 +71,7 @@
   "adminRoles.permission.newsletter:write": "Manage newsletter subscribers, campaigns, automations, and provider",
   "adminRoles.permission.orders:read": "View orders",
   "adminRoles.permission.orders:write": "Edit orders / change status",
+  "adminRoles.permission.organizations:assign-sales-rep": "Assign sales representatives to organizations",
   "adminRoles.permission.organizations:rollup": "Act across organization descendants",
   "adminRoles.permission.payu:read": "View PayU configuration",
   "adminRoles.permission.payu:write": "Manage PayU configuration and payment methods",

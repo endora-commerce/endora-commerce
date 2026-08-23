@@ -64,6 +64,7 @@ import {
   platformSubpathsAt,
   PlatformRootUnresolvableError,
 } from './lib/platform-root.js';
+import { declaresRegisterModule } from './lib/module-roots.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const srcRoot = resolve(here, '../src');
@@ -160,7 +161,7 @@ export interface ComposerNode {
  */
 function exposesRegisterModule(filePath: string): boolean {
   const source = readFileSync(filePath, 'utf8');
-  if (/export\s+(?:function|const|let|async\s+function)\s+registerModule\b/.test(source)) {
+  if (declaresRegisterModule(source)) {
     return true;
   }
   throw new Error(
@@ -259,9 +260,7 @@ function packageEntryPoints(pkg: ModulePackage): {
   const manifests = declaring((text) =>
     /export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(text),
   );
-  const backends = declaring((text) =>
-    /export\s+(?:function|const|let|async\s+function)\s+registerModule\b/.test(text),
-  );
+  const backends = declaring((text) => declaresRegisterModule(text));
   const one = (files: readonly string[], what: string, marker: string): string => {
     if (files.length === 1) return files[0]!;
     throw new ModulePackageError(
@@ -1080,10 +1079,35 @@ export function renderEntitiesRegistry(sources: SourceTree = readSourceTree()): 
  */
 const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_([a-z0-9_]+)\.ts$/;
 
-/** contracts/naming-convention.md §4 — non-migration helpers in a migrations/ dir. */
+/**
+ * contracts/naming-convention.md §4 — non-migration helpers in a migrations/ dir.
+ *
+ * Keyed `<package name>:<package-relative path>` for a module package's file and
+ * by the bare `src`-relative path for the application's own tree, because
+ * {@link SourceTree}'s two key namespaces are only ever compared with an origin
+ * in hand and `src/migrations/status-mapping.ts` is the same string in every
+ * package.
+ *
+ * **This is not the exemption `isDeclaredEntryPoint` refused to be** (D-100).
+ * That one is the `./migrations` **barrel**, which every package has by
+ * construction, so listing it would be one entry per package — a derived fact
+ * written down, and it is derived from the package's own `exports` map instead.
+ * §4's helper is the opposite shape: the whole tree has exactly one, it is not
+ * implied by anything, and no package acquires one by existing. A list of the
+ * things that are genuinely exceptional is what an allow-list is for.
+ *
+ * The refusal it steps around is unchanged in force: a `.ts` in a migrations
+ * directory that is named like nothing is still refused, packaged or not,
+ * because skipping one is how a migration goes missing without a word.
+ */
 const MIGRATION_HELPER_ALLOW_LIST = new Set([
-  'modules/quote_requests/migrations/status-mapping.ts',
+  '@endora-commerce/mod-quote-requests:src/migrations/status-mapping.ts',
 ]);
+
+/** How {@link MIGRATION_HELPER_ALLOW_LIST} is keyed for a file of either origin. */
+function migrationHelperKey(owner: ModulePackage | null, file: string): string {
+  return owner === null ? file : `${owner.name}:${file}`;
+}
 
 /** contracts/naming-convention.md §2 — the name `mikro_orm_migrations` persists. */
 function classNameFromMigrationFile(filename: string): string {
@@ -1138,7 +1162,10 @@ const PACKAGE_MIGRATION_RE = /(?:^|\/)migrations\/([^/]+\.ts)$/;
  * skipped. Skipping is how a migration goes missing without a word — the exact
  * failure the registry exists to prevent.
  */
-export function collectMigrations(sources: SourceTree): DiscoveredMigration[] {
+export function collectMigrations(
+  sources: SourceTree,
+  helperAllowList: ReadonlySet<string> = MIGRATION_HELPER_ALLOW_LIST,
+): DiscoveredMigration[] {
   const found: DiscoveredMigration[] = [];
   const byClassName = new Map<string, string>();
   for (const [file, { text: source, owner }] of [...sources].sort(([a], [b]) =>
@@ -1167,7 +1194,7 @@ export function collectMigrations(sources: SourceTree): DiscoveredMigration[] {
     const moduleId = packaged ? owner!.moduleId : core ? 'core' : owned![1]!;
     const filename = packaged ? packaged[1]! : core ? core[1]! : owned![2]!;
     if (!MIGRATION_FILE_RE.test(filename)) {
-      if (owner === null && MIGRATION_HELPER_ALLOW_LIST.has(file)) continue;
+      if (helperAllowList.has(migrationHelperKey(owner, file))) continue;
       // A package's `./migrations` subpath has to name a file, and that file is
       // the barrel re-exporting the classes — declared, not merely present, so
       // the exemption is derived from the package's own `exports` map instead of

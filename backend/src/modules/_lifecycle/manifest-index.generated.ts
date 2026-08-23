@@ -87,7 +87,7 @@ import { manifest as manifest49 } from '../promotions/manifest.js';
 import { manifest as manifest50, recentActivity as recentActivity50 } from '../prompt_actions/manifest.js';
 import { manifest as manifest51 } from '../pwa/manifest.js';
 import { manifest as manifest52 } from '../quick_order/manifest.js';
-import { manifest as manifest53 } from '../quote_requests/manifest.js';
+import { manifest as manifest53 } from '@endora-commerce/mod-quote-requests';
 import { manifest as manifest54 } from '../returns/manifest.js';
 import { manifest as manifest55 } from '../sales_channels/manifest.js';
 import { manifest as manifest56, cliCommands as cliCommands56 } from '../search/manifest.js';
@@ -171,7 +171,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'prompt_actions', manifest: manifest50, manifestPath: resolveManifestPath(import.meta.url, '../prompt_actions/manifest.js'), recentActivity: recentActivity50 },
   { id: 'pwa', manifest: manifest51, manifestPath: resolveManifestPath(import.meta.url, '../pwa/manifest.js') },
   { id: 'quick_order', manifest: manifest52, manifestPath: resolveManifestPath(import.meta.url, '../quick_order/manifest.js') },
-  { id: 'quote_requests', manifest: manifest53, manifestPath: resolveManifestPath(import.meta.url, '../quote_requests/manifest.js') },
+  { id: 'quote_requests', manifest: manifest53, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-quote-requests') },
   { id: 'returns', manifest: manifest54, manifestPath: resolveManifestPath(import.meta.url, '../returns/manifest.js') },
   { id: 'sales_channels', manifest: manifest55, manifestPath: resolveManifestPath(import.meta.url, '../sales_channels/manifest.js') },
   { id: 'search', manifest: manifest56, manifestPath: resolveManifestPath(import.meta.url, '../search/manifest.js'), cliCommands: cliCommands56 },

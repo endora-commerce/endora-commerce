@@ -13,7 +13,7 @@ import {
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { QuoteRequest } from '../../../src/modules/quote_requests/entities/quote-request.entity.js';
+import { QuoteRequest } from '../../helpers/package-entities.js';
 import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 

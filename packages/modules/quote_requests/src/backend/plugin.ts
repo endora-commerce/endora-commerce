@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EventBus } from '../../events/bus.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { EventBus } from '@endora-commerce/platform/events';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type {
   AdminUserReadPort,
   CartWritePort,
@@ -29,9 +29,10 @@ import {
   registerQuoteRequestsAdminRoutes,
   type AdminContextResolver,
 } from './routes.admin.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
-import { ModuleDisabledError } from '../../kernel/lifecycle/plugin-helpers.js';
+import { registerQuoteRequestsSalesRepRoutes } from './routes.sales-reps.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 
 /**
  * Conditions the storefront flag handler has already reported (D-43). Per
@@ -207,13 +208,18 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
         requireAdmin: options.requireAdmin,
         resolveAdminContext: options.resolveAdminContext,
       });
-      const { registerOrganizationsSalesRepRoutes } = await import(
-        '../organizations/routes.sales-reps.js'
-      );
-      await registerOrganizationsSalesRepRoutes(app, {
+      // D-166 — this module's one endpoint of the sales-rep pair, in this
+      // module's own file. It used to `import()` `organizations`' route file
+      // and register all four of its endpoints, which is what put a
+      // `quote_requests` gate on the assignment screen and an entry in each
+      // module's cross-module-import shard. The three endpoints that qualify an
+      // organisation are registered by `organizations` from its own
+      // `backend.ts` now, under a code that module declares.
+      await registerQuoteRequestsSalesRepRoutes(app, {
         emFactory: options.emFactory,
         requireAdmin: options.requireAdmin,
         salesRepAssignment,
+        organizations: options.organizations,
       });
 
       // Storefront-public Quote Requests settings (FR-032 / FR-033) so the

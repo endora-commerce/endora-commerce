@@ -77,7 +77,9 @@ const SANCTIONED_AUDIENCE_SOURCES: ReadonlyMap<string, string> = new Map([
       'rather than a request, because the same service answers the merge and conversion paths',
   ],
   [
-    'src/modules/quote_requests/services/rfq-service.ts',
+    // Repository-relative since feature 080's T040b moved `quote_requests` into
+    // `packages/modules/`; the walk follows the module root, so the key does too.
+    'packages/modules/quote_requests/src/backend/services/rfq-service.ts',
     '`rfqAudience` — an RFQ line is scoped by the `CustomerContext` the quote request is filed ' +
       'under, which is the organisation the allow-list has to name',
   ],

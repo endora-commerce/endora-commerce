@@ -519,3 +519,34 @@ export async function requireModuleLayout(prefix: string): Promise<ModuleTreeLay
     process.exit(2);
   }
 }
+
+/**
+ * Does this source file compose a module — i.e. is it the module's entry point?
+ *
+ * **The marker, never a filename** (feature 080, T040b). A module in the
+ * application's tree keeps `registerModule` in `backend.ts`; a module package
+ * keeps it wherever its `exports` map's `./backend` subpath leads, which for
+ * both packages in this repository is `src/backend/index.ts`. A predicate
+ * spelled as a filename therefore answers `false` for a packaged module, and
+ * the answer is not merely incomplete — it is fail-*open* at the place it is
+ * asked. `check-port-dependencies` matched `'/backend.ts'` and so could not see
+ * a packaged module's `di.providePort` calls: every consumer of one of those
+ * ports read as *resolving an ungated registration*, and was told to write an
+ * absent-owner policy for a gate that was right there. `blog` hid it by owning
+ * no port another module resolves; `quote_requests` owns two, resolved by six
+ * modules, and reported six findings the moment it moved.
+ *
+ * One expression, shared by `generate-composer.ts` — which locates a module's
+ * entry point this way for both origins — and by every check that needs the
+ * same file. A check whose decision exists in two places can go half-missing
+ * without either red proof noticing.
+ *
+ * It reads the **export**, not an import or a call, so a file that merely
+ * mentions `registerModule` is not one; and it does not follow a re-export, so
+ * a barrel that forwards `registerModule` from a neighbour is not recognised
+ * here. The composer refuses a package with zero or two such files with a
+ * message that says so, which is where that shape is caught.
+ */
+export function declaresRegisterModule(source: string): boolean {
+  return /export\s+(?:function|const|let|async\s+function)\s+registerModule\b/.test(source);
+}

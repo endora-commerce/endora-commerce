@@ -15,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 
 /**
  * Organization → Sales reps assignment tab (feature 008 / T079).
@@ -60,7 +61,42 @@ function adminUserToOption(u: AdminUserRow): ComboboxOption<string> {
   };
 }
 
-export function OrganizationSalesRepsTab({
+/**
+ * The gate, and the reason it is here rather than at the call site (D-166).
+ *
+ * The panel used to be mounted unconditionally, so an operator whose role does
+ * not hold the code saw the card and then a red 403 banner inside it, and — while
+ * the three endpoints were still registered by `quote_requests` — an operator who
+ * had switched quote requests off saw a 503 `MODULE_DISABLED` banner on the
+ * organisation screen instead. Constitution XVII item 5 says a module that is
+ * off contributes no tab; a tab that renders its own refusal is the opposite.
+ *
+ * `useSurfaceVisibility` is the predicate the sidebar, the palette and the
+ * dashboard quick actions already share (issue #230), so this is not a fourth
+ * answer to the same question. The **module** is `organizations`, which is where
+ * the three endpoints have belonged since D-166: it is `nonDeactivatable`, so the
+ * presence half cannot close today, and it is written anyway because the honest
+ * gate is "the module that owns these routes", not "the module that happens to
+ * be switchable".
+ *
+ * A wrapper rather than an early return inside the body: hooks cannot be
+ * skipped conditionally, and the body's first effect fetches. Hidden has to mean
+ * *nothing requested*, or every organisation opened logs a 403.
+ */
+export function OrganizationSalesRepsTab(props: { organizationId: string }): ReactNode {
+  const isVisible = useSurfaceVisibility();
+  if (
+    !isVisible({
+      module: 'organizations',
+      requiredPermission: 'organizations:assign-sales-rep',
+    })
+  ) {
+    return null;
+  }
+  return <OrganizationSalesRepsPanel organizationId={props.organizationId} />;
+}
+
+function OrganizationSalesRepsPanel({
   organizationId,
 }: {
   organizationId: string;

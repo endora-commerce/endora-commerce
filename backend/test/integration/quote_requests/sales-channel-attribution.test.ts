@@ -4,7 +4,7 @@ import { ERROR_CODES } from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { QuoteRequest } from '../../../src/modules/quote_requests/entities/quote-request.entity.js';
+import { QuoteRequest } from '../../helpers/package-entities.js';
 import { salesChannelsServiceFor } from '../../helpers/sales-channels-service.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import {

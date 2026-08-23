@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { QuoteRequest } from '../../../src/modules/quote_requests/entities/quote-request.entity.js';
+import { QuoteRequest } from '../../helpers/package-entities.js';
 import {
   seedProbeChannelAssortment,
   type ChannelAssortment,

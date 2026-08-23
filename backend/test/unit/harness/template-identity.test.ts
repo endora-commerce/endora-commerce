@@ -144,7 +144,9 @@ describe('the migration set this run has', () => {
 
   it('counts the helper §4 permits as a source and not as a migration', async () => {
     const identity = await templateIdentity();
-    const helper = 'src/modules/quote_requests/migrations/status-mapping.ts';
+    // `backend/`-relative, which since feature 080's T040b leaves the repository
+    // root: `quote_requests` is a module package and its §4 helper went with it.
+    const helper = '../packages/modules/quote_requests/src/migrations/status-mapping.ts';
 
     // It is read — a migration is free to import it, so its content decides
     // what a template holds — and it is not one, so it settles no floor.

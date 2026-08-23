@@ -95,10 +95,23 @@
  * `pnpm run <name>` starts it, no HTTP request is involved, and nothing above it
  * can open a scope on its behalf.
  *
- * The two sources are a **union**, and both halves are needed:
- * `sales_channels/scripts/backfill-quote-channel.ts` has no package script
- * (it is run directly), and the seed is under no `scripts/` directory. Either
- * source alone is smaller than the truth.
+ * The two sources are a **union**, and the seed is the standing proof that the
+ * declaration half is load-bearing: it is under no `scripts/` directory and no
+ * shape class contains it, so without the `package.json` source it is not in
+ * the population at all.
+ *
+ * The other half used to be cited to `backfill-quote-channel.ts`, a `scripts/`
+ * file run directly with no package script of its own — and it was the *only*
+ * one, so D-167 deleting it took the citation with it. Today every `scripts/`
+ * file is also a declared program, which means the `scripts/` half adds no site
+ * this run would otherwise miss. It stays, and the reason is the shape of the
+ * two sources rather than today's count: a `scripts/` file is a process entry
+ * point because of what it *is*, while a `package.json` entry says only what
+ * this repository currently chooses to run. An author who adds a maintenance
+ * script and invokes it with `tsx` — which is exactly how the deleted file was
+ * run — is back in the case the union exists for, and the check would report
+ * `unscoped=0` about a file it never opened. Dropping the shape half would make
+ * that silence possible again to save nothing.
  *
  * Usage: `tsx scripts/check-entry-scope.ts [--list]`
  * Exit 0 = every entry site establishes a scope (or is ledgered);

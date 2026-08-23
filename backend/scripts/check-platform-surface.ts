@@ -429,13 +429,12 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/modules/pim_ergonode/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
   'backend/src/modules/product_feeds/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
 
-  // === ORM_BOOTSTRAP (6) ===
+  // === ORM_BOOTSTRAP (5) ===
   'backend/src/modules/_lifecycle/scripts/disable.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
   'backend/src/modules/_lifecycle/scripts/enable.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
   'backend/src/modules/_lifecycle/scripts/install.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
   'backend/src/modules/_lifecycle/scripts/status.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
   'backend/src/modules/_lifecycle/scripts/uninstall.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
-  'backend/src/modules/quote_requests/scripts/backfill-quote-channel.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
 
   // === OVERLAY_ROOTS (1) ===
   'backend/src/modules/admin_roles/permission-inventory.ts|backend/src/overlay/overlay-roots.ts': { symbols: ['activeOverlayModulesRoot'], reason: OVERLAY_ROOTS },

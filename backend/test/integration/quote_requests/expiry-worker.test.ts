@@ -5,9 +5,10 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { RfqExpiryWorker } from '../../../src/modules/quote_requests/services/rfq-expiry-worker.js';
-import { RfqEventService } from '../../../src/modules/quote_requests/services/rfq-event-service.js';
-import { RfqNotificationService } from '../../../src/modules/quote_requests/services/rfq-notification-service.js';
+import { QuoteRequest } from '../../helpers/package-entities.js';
+import { RfqExpiryWorker } from '../../../../packages/modules/quote_requests/src/backend/services/rfq-expiry-worker.js';
+import { RfqEventService } from '../../../../packages/modules/quote_requests/src/backend/services/rfq-event-service.js';
+import { RfqNotificationService } from '../../../../packages/modules/quote_requests/src/backend/services/rfq-notification-service.js';
 import { SalesRepAssignmentService } from '../../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { EventBus } from '../../../src/events/bus.js';
 import type { AdminUserReadPort } from '@endora-commerce/contracts';
@@ -65,8 +66,7 @@ describe('RfqExpiryWorker (US7 / T074)', () => {
 
     // Backdate updatedAt by 30 days so it's past the threshold
     await h.em().nativeUpdate(
-      (await import('../../../src/modules/quote_requests/entities/quote-request.entity.js'))
-        .QuoteRequest,
+      QuoteRequest,
       { id },
       { updatedAt: new Date(Date.now() - 30 * 86_400_000) },
     );

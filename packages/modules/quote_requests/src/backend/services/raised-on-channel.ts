@@ -1,4 +1,4 @@
-import { currentSalesChannel } from '../../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * The sales channel a quote request is being raised on (issue #266).

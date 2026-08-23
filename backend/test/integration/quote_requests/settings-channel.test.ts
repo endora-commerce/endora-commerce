@@ -11,9 +11,9 @@ import {
   SettingOutOfScopeForChannel,
   SettingValueShapeMismatch,
 } from '../../../src/kernel/index.js';
-import { QUOTE_REQUESTS_SETTING_CODES } from '../../../src/modules/quote_requests/manifest.js';
-import { QuoteRequest } from '../../../src/modules/quote_requests/entities/quote-request.entity.js';
-import type { QuoteRequestsCradle } from '../../../src/modules/quote_requests/backend.js';
+import { QUOTE_REQUESTS_SETTING_CODES } from '../../../../packages/modules/quote_requests/src/manifest.js';
+import { QuoteRequest } from '../../helpers/package-entities.js';
+import type { QuoteRequestsCradle } from '../../../../packages/modules/quote_requests/src/backend/index.js';
 
 /**
  * Regression — `quote_requests` reads its own settings against the **resolved

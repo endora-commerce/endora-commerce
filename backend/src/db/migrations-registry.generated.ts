@@ -253,12 +253,12 @@ import { Migration20260625T144228PwaInit } from '../modules/pwa/migrations/20260
 import { Migration20260611T140359QuickOrderDefaultPreferences } from '../modules/quick_order/migrations/20260611T140359_quick_order_default_preferences.js';
 
 // ── quote_requests ──────────────────────────────────────────────────────────
-import { Migration20260424T190112QuoteRequestsInit } from '../modules/quote_requests/migrations/20260424T190112_quote_requests_init.js';
-import { Migration20260503T141344QuoteRequestsWorkflow } from '../modules/quote_requests/migrations/20260503T141344_quote_requests_workflow.js';
-import { Migration20260611T140415QuoteRequestsQrItemPackaging } from '../modules/quote_requests/migrations/20260611T140415_quote_requests_qr_item_packaging.js';
-import { Migration20260611T140417QuoteRequestsBusinessId } from '../modules/quote_requests/migrations/20260611T140417_quote_requests_business_id.js';
-import { Migration20260617T095510QuoteRequestsBackfillAdminCreatedAwaiting } from '../modules/quote_requests/migrations/20260617T095510_quote_requests_backfill_admin_created_awaiting.js';
-import { Migration20260718T200342QuoteRequestsQuoteRequestCustomFieldValues } from '../modules/quote_requests/migrations/20260718T200342_quote_requests_quote_request_custom_field_values.js';
+import { Migration20260424T190112QuoteRequestsInit } from '@endora-commerce/mod-quote-requests/migrations';
+import { Migration20260503T141344QuoteRequestsWorkflow } from '@endora-commerce/mod-quote-requests/migrations';
+import { Migration20260611T140415QuoteRequestsQrItemPackaging } from '@endora-commerce/mod-quote-requests/migrations';
+import { Migration20260611T140417QuoteRequestsBusinessId } from '@endora-commerce/mod-quote-requests/migrations';
+import { Migration20260617T095510QuoteRequestsBackfillAdminCreatedAwaiting } from '@endora-commerce/mod-quote-requests/migrations';
+import { Migration20260718T200342QuoteRequestsQuoteRequestCustomFieldValues } from '@endora-commerce/mod-quote-requests/migrations';
 
 // ── returns ─────────────────────────────────────────────────────────────────
 import { Migration20260625T144227ReturnsInit } from '../modules/returns/migrations/20260625T144227_returns_init.js';

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   applicationModuleRoots,
   findManifestIndex,
+  declaresRegisterModule,
   findRepoRoot,
   ModuleLayoutUnresolvableError,
   resolveModuleLayout,
@@ -283,5 +284,47 @@ describe('the roots themselves', () => {
     roots.push(outside);
     expect(findRepoRoot(outside)).toBeNull();
     await expect(resolveModuleLayout(outside)).rejects.toThrow(ModuleLayoutUnresolvableError);
+  });
+});
+
+/**
+ * The composition entry point is found by its **marker**, and the reason is a
+ * fail-open this repository shipped (feature 080, T040b).
+ *
+ * `check-port-dependencies` matched `file.endsWith('/backend.ts')`, which is
+ * where a module in the application's tree keeps `registerModule` and is not
+ * where a module package keeps it — both packages here publish it from
+ * `src/backend/index.ts`, because that is what their `exports` map's
+ * `./backend` subpath points at. The consequence was not a missing check but a
+ * wrong answer: a packaged module's `di.providePort` calls were invisible, so
+ * every consumer of one of its ports read as *resolving an ungated
+ * registration* and was asked to declare an absent-owner policy for a gate that
+ * was already there. `blog` owns no port another module resolves and hid it;
+ * `quote_requests` owns two, resolved by six modules.
+ */
+describe('declaresRegisterModule', () => {
+  it('recognises the export in either layout, since it reads no path at all', () => {
+    // The three spellings the tree actually holds, verbatim in shape.
+    expect(
+      declaresRegisterModule('export function registerModule(ctx: ModuleContext): void {}'),
+    ).toBe(true);
+    expect(declaresRegisterModule('export async function registerModule(ctx) {}')).toBe(true);
+    expect(declaresRegisterModule('export const registerModule = (ctx) => {};')).toBe(true);
+  });
+
+  it('is not satisfied by a mention, an import or a call', () => {
+    // Each of these is a file that talks about the entry point without being
+    // one. Taking any of them would make a module compose from a file nobody
+    // meant, which is the failure the composer's "exactly one" rule refuses.
+    expect(declaresRegisterModule("import { registerModule } from './backend.js';")).toBe(false);
+    expect(declaresRegisterModule('registerModule(ctx);')).toBe(false);
+    expect(declaresRegisterModule('export function registerModules(ctx) {}')).toBe(false);
+  });
+
+  it('does not follow a re-export, which is the composer’s error to raise', () => {
+    // Stated rather than discovered later: a barrel forwarding the export is
+    // not recognised here. The composer refuses a package with zero such files
+    // with a message naming the marker, which is a better place to learn it.
+    expect(declaresRegisterModule("export { registerModule } from './module.js';")).toBe(false);
   });
 });

@@ -1,36 +1,62 @@
 import type { FastifyInstance } from 'fastify';
-import { ERROR_CODES, assignSalesRepRequestSchema } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  assignSalesRepRequestSchema,
+  type AdminUserReadPort,
+} from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
-import { AdminUser } from '../admin_users/entities/admin-user.entity.js';
 import { Organization } from './entities/organization.entity.js';
-import { QuoteRequest } from '../quote_requests/entities/quote-request.entity.js';
 import type { SalesRepAssignmentPort } from './services/sales-rep-assignment-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 /**
  * Sales-rep ↔ organization assignment routes (feature 008 / T077).
- * Owned by the organizations module since the relation qualifies an
- * organization, not the admin user (research §R9).
  *
- * All four endpoints require platform_admin (FR-014). The routes
- * intentionally use `rfqs:handle` for now because that's the existing
- * admin permission slot for RFQ-adjacent work; a follow-up can add a
- * dedicated `organizations:assign-sales-rep` permission.
+ * Owned **and registered** by `organizations` since D-166. Three of the four
+ * endpoints this file used to hold are here; the fourth —
+ * `GET /admin/sales-reps/:adminUserId/organizations`, the only one that reads a
+ * `QuoteRequest` — moved to `quote_requests/routes.sales-reps.ts`, which is the
+ * module that owns the fact it reports.
+ *
+ * The split is what makes the gate honest, and it is a consequence rather than
+ * a preference. The whole file used to be registered by `quote_requests`
+ * through a dynamic `import()`, so all four endpoints were gated by *that*
+ * module's effective state and permissioned `rfqs:handle`. Neither half of that
+ * arrangement survives inspection: assigning a sales representative qualifies an
+ * organisation and has nothing to do with quote requests, so switching quote
+ * requests off must not take the assignment screen with it — and registering the
+ * file here without splitting it would be worse, because `rfqs:handle` is
+ * declared `module: 'quote_requests'` and `organizations` is `nonDeactivatable`,
+ * which leaves a permanently mounted screen behind a permission that disappears
+ * from `/admin-roles` the moment quote requests is switched off. The gate travels
+ * with the routes.
+ *
+ * `organizations:assign-sales-rep` is the code, and it is the one this file has
+ * proposed in its own comment since feature 008 — the placeholder note said
+ * "a follow-up can add a dedicated `organizations:assign-sales-rep` permission",
+ * and this is that follow-up.
+ *
+ * Admins are read through `adminUserReadPort` rather than through the
+ * `AdminUser` entity, which is what retires this file's two entries in
+ * `organizations`' cross-module-import shard: the reads were always
+ * `findById`/`findByIds`, both published, and the only thing stopping the port
+ * from being injected was that another module built this file's `deps`.
  */
 
 export interface SalesRepRoutesDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
   salesRepAssignment: SalesRepAssignmentPort;
+  adminUsers: AdminUserReadPort;
 }
 
 export async function registerOrganizationsSalesRepRoutes(
   app: FastifyInstance,
   deps: SalesRepRoutesDeps,
 ): Promise<void> {
-  const { emFactory, requireAdmin, salesRepAssignment } = deps;
-  const guard = requireAdmin('rfqs:handle');
+  const { emFactory, requireAdmin, salesRepAssignment, adminUsers } = deps;
+  const guard = requireAdmin('organizations:assign-sales-rep');
 
   // GET /api/v1/admin/organizations/:organizationId/sales-reps
   app.get<{ Params: { organizationId: string } }>(
@@ -42,8 +68,7 @@ export async function registerOrganizationsSalesRepRoutes(
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       const assignments = await salesRepAssignment.listForOrganization(org.id);
       const adminIds = assignments.map((a) => a.adminUserId);
-      const admins =
-        adminIds.length > 0 ? await em.find(AdminUser, { id: { $in: adminIds } }) : [];
+      const admins = adminIds.length > 0 ? await adminUsers.findByIds(adminIds) : [];
       const adminById = new Map(admins.map((a) => [a.id, a]));
       return {
         data: assignments.map((a) => {
@@ -71,7 +96,7 @@ export async function registerOrganizationsSalesRepRoutes(
       const em = emFactory();
       const org = await em.findOne(Organization, { id: request.params.organizationId });
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-      const adminUser = await em.findOne(AdminUser, { id: body.adminUserId });
+      const adminUser = await adminUsers.findById(body.adminUserId);
       if (!adminUser) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin user not found.');
       }
@@ -118,37 +143,4 @@ export async function registerOrganizationsSalesRepRoutes(
       return null;
     },
   );
-
-  // GET /api/v1/admin/sales-reps/:adminUserId/organizations
-  app.get<{ Params: { adminUserId: string } }>(
-    '/api/v1/admin/sales-reps/:adminUserId/organizations',
-    { preHandler: guard },
-    async (request) => {
-      const em = emFactory();
-      const orgIds = await salesRepAssignment.listAssignedOrganizationIds(
-        request.params.adminUserId,
-      );
-      const orgs =
-        orgIds.length > 0 ? await em.find(Organization, { id: { $in: orgIds } }) : [];
-      const counts = orgIds.length > 0
-        ? await em.find(QuoteRequest, {
-            organizationId: { $in: orgIds },
-            status: { $in: ['Pending', 'Created from admin', 'Approved'] },
-          })
-        : [];
-      const countByOrg = new Map<string, number>();
-      for (const r of counts) {
-        countByOrg.set(r.organizationId, (countByOrg.get(r.organizationId) ?? 0) + 1);
-      }
-      return {
-        data: orgs.map((o) => ({
-          organizationId: o.id,
-          name: o.name,
-          openRfqCount: countByOrg.get(o.id) ?? 0,
-          assignedAt: o.createdAt.toISOString(),
-        })),
-      };
-    },
-  );
-
 }

@@ -8,7 +8,7 @@ import {
   rfqStatusSchema,
 } from '@endora-commerce/contracts';
 import type { RfqAdminService, AdminContext, AdminAssignmentScope } from './services/rfq-admin-service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface AdminContextResolver {
   (request: FastifyRequest): Promise<AdminContext>;
