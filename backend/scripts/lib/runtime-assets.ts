@@ -136,6 +136,34 @@ export type BundleAuditFinding =
 export const FALLBACK_BUNDLE_FILE = 'en.json';
 
 /**
+ * The bundle-declaring modules whose sources this build actually compiles —
+ * i.e. those under `srcRoot`.
+ *
+ * Two kinds of module are outside it and both are correct to leave out. An
+ * **installed** package's bundles are read out of its own package directory at
+ * runtime, and this build ships none of it. A **workspace module package** is
+ * the same case for the same reason: `packages/modules/<id>/i18n/` travels with
+ * that package's own `files` list, `dirname(manifestPath)` resolves to the
+ * package at runtime, and `tsc -p backend/tsconfig.build.json` never sees the
+ * directory — so copying it into `backend/dist` would put a second copy
+ * somewhere nothing reads.
+ *
+ * It is one function because three callers ask it and a copy per caller is
+ * three answers waiting to disagree: the copier's report, the audit's
+ * population, and `test/unit/scripts/runtime-assets.test.ts`'s expectation,
+ * which went red at `90 vs 88` the day the first module became a package.
+ */
+export function bundleModulesUnder(
+  modules: readonly RegisteredBundleModule[],
+  srcRoot: string,
+): RegisteredBundleModule[] {
+  return modules.filter((module) => {
+    const rel = relative(srcRoot, module.moduleDir);
+    return rel !== '' && !rel.startsWith('..');
+  });
+}
+
+/**
  * Every registered module whose bundles are absent from the built tree.
  *
  * Keyed on **registration**, which is the half `loadModuleBundles` cannot see:
@@ -143,9 +171,8 @@ export const FALLBACK_BUNDLE_FILE = 'en.json';
  * strings" are the same input. Here the manifest has already said the module
  * ships bundles, so an absent directory is a build that dropped them.
  *
- * A module whose source directory is not under `srcRoot` is skipped rather than
- * reported: an installed package's bundles are read out of its own package
- * directory at runtime and this build ships none of it.
+ * A module whose source directory is not under `srcRoot` is out of the
+ * population rather than reported — see {@link bundleModulesUnder}.
  */
 export function auditBuiltBundles(
   modules: readonly RegisteredBundleModule[],
@@ -153,9 +180,8 @@ export function auditBuiltBundles(
   builtRoot: string,
 ): BundleAuditFinding[] {
   const findings: BundleAuditFinding[] = [];
-  for (const module of modules) {
+  for (const module of bundleModulesUnder(modules, srcRoot)) {
     const rel = relative(srcRoot, module.moduleDir);
-    if (rel.startsWith('..') || rel === '') continue;
     const expected = join(builtRoot, rel, module.bundlesDir);
     if (!existsSync(expected) || !statSync(expected).isDirectory()) {
       findings.push({ kind: 'missing-directory', moduleId: module.moduleId, expected });

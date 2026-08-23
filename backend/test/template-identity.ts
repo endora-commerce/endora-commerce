@@ -31,6 +31,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { isAbsolute, join, relative } from 'node:path';
 import { MIGRATION_FILE_RE } from '../scripts/new-migration.js';
+import { discoverModulePackages } from '../scripts/lib/module-packages.js';
 import type { RegisteredMigration } from '../src/db/configured-migrations.js';
 import type { MigrationOrigin } from '../src/db/migration-order.js';
 import { templateDigest, type TemplateInputs, type TemplateSource } from './run-isolation.js';
@@ -44,8 +45,14 @@ export interface MigrationSourceRoot {
   readonly origin: MigrationOrigin;
   /** `backend/`-relative, or absolute for a root outside this repository. */
   readonly path: string;
-  /** `directory` walks the path itself; `module-tree` walks `<path>/<child>/migrations`. */
-  readonly kind: 'directory' | 'module-tree';
+  /**
+   * `directory` walks the path itself; `module-tree` walks
+   * `<path>/<child>/migrations`; `package` walks every `migrations/` directory
+   * anywhere under a module package, which is the same predicate
+   * `generate-composer.ts`'s `PACKAGE_MIGRATION_RE` applies — a package's
+   * internal layout is its own, so neither names `src/migrations`.
+   */
+  readonly kind: 'directory' | 'module-tree' | 'package';
   /**
    * The extension a producer publishes its migration sources with. `.ts` for
    * this repository; `.js` for an installed package, which ships compiled
@@ -85,7 +92,33 @@ export interface MigrationSourceRoot {
 export const MIGRATION_SOURCE_ROOTS: readonly MigrationSourceRoot[] = [
   { origin: 'core', path: 'src/db/migrations', kind: 'directory' },
   { origin: 'core', path: 'src/modules', kind: 'module-tree' },
+  // A module this repository has already moved into a workspace package
+  // (feature 080, T040b). Still `core`: its migrations are committed here and
+  // the committed registry configures them, so they count toward core's floor —
+  // the `external` origin is for a package *installed* into an instance, whose
+  // sources this checkout does not contain. Derived rather than listed, because
+  // there are 64 more moves to come and a list would be a fresh
+  // `came up short by 1` each time.
+  ...workspaceModulePackageRoots(),
 ];
+
+/**
+ * One root per workspace module package, `backend/`-relative so the digest is
+ * the same in every checkout.
+ *
+ * Read through `discoverModulePackages`, which answers from each member's own
+ * `endora: { type: 'module', id }` block — the same declaration `lib/module-roots.ts`
+ * and the composer read, so the harness and the generator cannot come to
+ * disagree about which packages exist.
+ */
+function workspaceModulePackageRoots(): readonly MigrationSourceRoot[] {
+  const repoRoot = join(BACKEND_ROOT, '..');
+  return discoverModulePackages(repoRoot).map((pkg) => ({
+    origin: 'core' as const,
+    path: relative(BACKEND_ROOT, pkg.dir),
+    kind: 'package' as const,
+  }));
+}
 
 /**
  * Every root this run reads migration sources from: the core pair above, plus
@@ -224,7 +257,15 @@ async function walkSources(
           `runs would ever share a template.`,
       );
     }
-    if (source.kind === 'module-tree') {
+    if (source.kind === 'package') {
+      // Every `migrations/` directory the package holds, wherever it keeps it.
+      // Walking the package whole would fold its services into the digest and
+      // rebuild the template on any change to the module at all, which is the
+      // same reason `module-tree` narrows to `migrations/`.
+      for (const directory of await migrationDirectoriesUnder(absolute)) {
+        await walk(directory, source, recordRoot, recordPrefix);
+      }
+    } else if (source.kind === 'module-tree') {
       // Only the modules' own `migrations/` directories — walking all of
       // `src/modules` would fold every module's source into the digest and
       // rebuild the template on any backend change.
@@ -238,6 +279,31 @@ async function walkSources(
     }
   }
   return found.sort((a, b) => (a.recordedPath < b.recordedPath ? -1 : 1));
+}
+
+/**
+ * Every directory named `migrations` under `dir`, skipping build output.
+ *
+ * `dist` is excluded because a package's compiled migrations are the same files
+ * a second time: folding both into the digest would make the identity depend on
+ * whether the package happened to be built, and the run reads the `.ts` the
+ * committed registry was generated from.
+ */
+async function migrationDirectoriesUnder(dir: string, out: string[] = []): Promise<string[]> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name === 'dist' || entry.name === 'node_modules') continue;
+    const child = join(dir, entry.name);
+    if (entry.name === 'migrations') out.push(child);
+    else await migrationDirectoriesUnder(child, out);
+  }
+  return out;
 }
 
 async function sha256Of(path: string, absolute: string): Promise<TemplateSource> {

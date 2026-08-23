@@ -11,10 +11,12 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, posix, relative } from 'node:path';
+import { dirname, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DISCOVERED_MANIFESTS } from '../../src/modules/_lifecycle/manifest-index.generated.js';
+import { ERROR_TRANSLATION_KEYS } from '../../src/modules/_i18n/services/error-translation.js';
+import { discoverModulePackages } from '../../scripts/lib/module-packages.js';
 
 /**
  * A backend whose module tree has moved, with the residue left behind — the
@@ -112,10 +114,32 @@ const KEPT_MODULE_FILES: readonly string[] = [
  * floor T010 added. With one routed module's bundle present, the old guard is
  * green (keys were written, findings can be computed) while seventeen of the
  * eighteen routed modules contributed nothing, which is the residue only a
- * per-module floor sees. `blog` is a routed module and its bundle carries
- * `errors.*` keys, which are both required for the discrimination.
+ * per-module floor sees. It has to be a **routed** module — its bundle carries
+ * the `errors.*` keys — and it has to still live in the application's own tree,
+ * so it is derived rather than named: this constant read `'blog'` until that
+ * module became a package (feature 080, T040b), at which point the `cpSync`
+ * below threw ENOENT and took all 73 proofs in `moved-module-tree.test.ts` with
+ * it. A fixture that names a module has an expiry date, and there are 64 more
+ * moves to come.
  */
-const KEPT_BUNDLE_MODULE = 'blog';
+function firstRoutedModuleWithABundleInTheApplicationTree(): string {
+  const routed = [
+    ...new Set(Object.values(ERROR_TRANSLATION_KEYS).map((target) => target.moduleId)),
+  ].sort();
+  for (const moduleId of routed) {
+    if (existsSync(join(BACKEND_ROOT, 'src', 'modules', moduleId, 'i18n', 'en.json'))) {
+      return moduleId;
+    }
+  }
+  throw new Error(
+    '[moved-module-tree-fixture] no module that `ERROR_TRANSLATION_KEYS` routes a code to ' +
+      'still keeps an i18n bundle under backend/src/modules. The fixture needs one to stage ' +
+      "check-error-translations' per-module shortfall; with none, its proof would pass on " +
+      'the pre-existing empty-walk guard instead.',
+  );
+}
+
+const KEPT_BUNDLE_MODULE = firstRoutedModuleWithABundleInTheApplicationTree();
 
 export interface MovedModuleTreeOptions {
   /**
@@ -548,12 +572,34 @@ export function createSplitModuleTreeFixture(
     );
   };
 
+  // Modules this repository has **already** moved (feature 080, T040b). They
+  // are not under `backend/src` for `cpSync` to have brought over, so without
+  // this the stub index below would import a manifest from a directory the
+  // fixture does not hold and every proof would die at module resolution. They
+  // are copied whole rather than `src`-only, because a package keeps its `i18n/`
+  // bundles beside `src/` and `check-error-translations` walks them.
+  const alreadyPackaged = discoverModulePackages(REPO_ROOT).filter((pkg) =>
+    DISCOVERED_MANIFESTS.some((entry) => entry.id === pkg.moduleId),
+  );
+  for (const pkg of alreadyPackaged) {
+    cpSync(pkg.dir, join(root, packagedModulePath(pkg.moduleId)), {
+      recursive: true,
+      filter: (source) => !source.endsWith(`${sep}dist`) && !source.endsWith(`${sep}node_modules`),
+    });
+  }
+
   for (const id of options.packaged) relocate(id, true);
   for (const id of options.stranded ?? []) relocate(id, false);
 
   writeFileSync(
     join(backend, 'src', 'modules', KEPT_MODULE, 'manifest-index.generated.ts'),
-    splitManifestIndex(new Set([...options.packaged, ...(options.stranded ?? [])])),
+    splitManifestIndex(
+      new Set([
+        ...alreadyPackaged.map((pkg) => pkg.moduleId),
+        ...options.packaged,
+        ...(options.stranded ?? []),
+      ]),
+    ),
     'utf8',
   );
 

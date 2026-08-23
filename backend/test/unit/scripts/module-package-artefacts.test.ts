@@ -27,6 +27,7 @@ import {
 } from '../../helpers/module-package-fixture.js';
 import {
   discoverModulePackages,
+  isDeclaredEntryPoint,
   ModulePackageError,
   packageSpecifierFor,
   type ModulePackage,
@@ -49,6 +50,7 @@ import {
 let fixture: ModulePackageFixture;
 let packages: readonly ModulePackage[];
 let alpha: ModulePackage;
+let gamma: ModulePackage;
 
 const MIGRATION_FILE = 'src/migrations/20260810T101500_alpha_initial.ts';
 const MIGRATION_SOURCE = 'export class Migration20260810T101500AlphaInitial {}\n';
@@ -59,6 +61,7 @@ beforeAll(() => {
   fixture = createModulePackageFixture();
   packages = discoverModulePackages(fixture.root);
   alpha = packages.find((pkg) => pkg.moduleId === 'alpha')!;
+  gamma = packages.find((pkg) => pkg.moduleId === 'gamma')!;
 });
 
 afterAll(() => {
@@ -66,11 +69,13 @@ afterAll(() => {
 });
 
 describe('discovery: a workspace module package, and only that', () => {
-  it('finds the declared workspace member by its own endora block', () => {
+  it('finds the declared workspace members by their own endora blocks', () => {
     expect(packages.map((pkg) => [pkg.moduleId, pkg.name])).toEqual([
       ['alpha', '@endora-commerce/mod-alpha'],
+      ['gamma', '@endora-commerce/mod-gamma'],
     ]);
     expect(alpha.dir).toBe(fixture.workspacePackage.dir);
+    expect(gamma.dir).toBe(fixture.builtPackage.dir);
   });
 
   it('does not find the installed one, which is the whole of D-119/D-155', () => {
@@ -122,6 +127,41 @@ describe('the specifier the generator emits, per origin', () => {
     // not to a path segment: a hard uninstall reverts exactly the migrations
     // registered under the module being removed.
     expect(rendered).toContain("migration('alpha', Migration20260810T101500AlphaInitial)");
+  });
+
+  it('follows a `dist`-shipping package’s build declaration, not its source layout', () => {
+    // D-164: a module package ships compiled output, so its `exports` targets
+    // name `dist/**.js` while the generator's walk reads `src/**.ts`. Matching
+    // one against the other refuses **every** file of a conforming package —
+    // measured, before this branch: all four of `blog`'s shapes raised "no
+    // subpath covers it". The mapping is read from the package's own
+    // `tsconfig.build.json`, following its relative `extends` because the
+    // fixture puts `rootDir` in the build file and `outDir` in the file it
+    // extends, exactly as every package in this repository does.
+    expect(gamma.emit).toEqual({ rootDir: 'src', outDir: 'dist' });
+    expect(packageSpecifierFor(gamma, 'src/manifest.ts')).toBe('@endora-commerce/mod-gamma');
+    expect(packageSpecifierFor(gamma, ENTITY_FILE)).toBe('@endora-commerce/mod-gamma/backend');
+    expect(packageSpecifierFor(gamma, MIGRATION_FILE)).toBe(
+      '@endora-commerce/mod-gamma/migrations',
+    );
+  });
+
+  it('keeps the source-shipping answer, so the mapping is a mapping and not a `dist` prefix', () => {
+    // The discrimination. `alpha` declares no build configuration at all, so it
+    // publishes what the walk read and its paths must match unchanged — a
+    // derivation that simply prefixed `dist/` would break it, and a fixture
+    // holding only one regime would not notice.
+    expect(alpha.emit).toBeNull();
+    expect(packageSpecifierFor(alpha, 'src/manifest.ts')).toBe('@endora-commerce/mod-alpha');
+  });
+
+  it('names the barrel a `./migrations` subpath points at as an entry point, not a stray', () => {
+    // What lets `collectMigrations` tell the barrel from a misnamed migration
+    // without an allow-list entry per package: the file a subpath points **at**
+    // is an entry point by declaration.
+    expect(isDeclaredEntryPoint(gamma, 'src/migrations/index.ts')).toBe(true);
+    expect(isDeclaredEntryPoint(gamma, MIGRATION_FILE)).toBe(false);
+    expect(isDeclaredEntryPoint(alpha, 'src/migrations/index.ts')).toBe(true);
   });
 
   it('refuses a file the package’s exports map does not cover', () => {

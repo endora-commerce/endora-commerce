@@ -547,9 +547,12 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
       'narrows its first-boot insert with (D-157.6(b)). Both roots read it, and both must: an ' +
       'overlay module is converged at boot and never installed, so this reconcile is the only ' +
       'author its activation Setting can have (Principle XVII), while a package has exactly one ' +
-      'author, `install`. It is the origin derivation `manifestEntryOrigin` owns, resolved from ' +
-      'the two roots this build ships, and a root cannot re-derive it without writing a derived ' +
-      'fact down twice (D-100). It drains with the same D-37 A2 relocation as the entries above.',
+      'author, `install`. It reads `RegisteredManifestEntry.origin`, which each discovery sets ' +
+      'where the entry is built, and a root cannot re-derive it without writing a derived fact ' +
+      'down twice (D-100). It was a containment test on `filePath` until feature 080 T040b, ' +
+      'and no containment test can answer: a workspace module package and an installed one are ' +
+      'the same directory shape, and in a deployed build both sit under `node_modules`. ' +
+      'It drains with the same D-37 A2 relocation as the entries above.',
   },
   '_lifecycle:resolvedManifestEntries': {
     owner: '_lifecycle',

@@ -43,8 +43,16 @@ import {
  *
  * Every fixture enters at the top of the analysis (issue #130): the entries are
  * built from the **real** roots (`coreModulesRoot()`, `overlayModulesRootFor()`
- * and an instance `node_modules` path), never from a pre-computed origin, so the
- * origin derivation under test is the one that runs in `composeApp()`.
+ * and an instance `node_modules` path), and each carries the `origin` its
+ * discovery would have set.
+ *
+ * **The origin is a field on the entry since feature 080's T040b**, and these
+ * fixtures kept their real paths rather than dropping them. The field replaced a
+ * containment test that classified a module *package* as `'package'` — true of
+ * an installed one and false of a workspace one, which this build ships and
+ * bakes into the composer, and which therefore has to be converged here. The
+ * paths stay because the entries are the shape `composeApp()` hands over and a
+ * fixture of two fields would stop resembling it.
  */
 
 const CORE_ID = 'fixture_reconcile_core';
@@ -63,7 +71,11 @@ function manifest(id: string): ModuleManifest {
 
 /** A core module's anchor: `backend/src/modules/<id>/manifest.ts`. */
 function coreEntry(id: string): ShippedModuleEntry {
-  return { manifest: manifest(id), filePath: join(coreModulesRoot(), id, 'manifest.ts') };
+  return {
+    manifest: manifest(id),
+    filePath: join(coreModulesRoot(), id, 'manifest.ts'),
+    origin: 'core',
+  };
 }
 
 /** An overlay module's anchor: `backend/src/apps/<deployment>/modules/<id>/manifest.ts`. */
@@ -71,6 +83,7 @@ function overlayEntry(id: string): ShippedModuleEntry {
   return {
     manifest: manifest(id),
     filePath: join(overlayModulesRootFor('fixture_deployment'), id, 'manifest.ts'),
+    origin: 'overlay',
   };
 }
 
@@ -82,6 +95,7 @@ function packageEntry(id: string): ShippedModuleEntry {
   return {
     manifest: manifest(id),
     filePath: join(repoRoot(), 'node_modules', '@vendor', id, 'package.json'),
+    origin: 'package',
   };
 }
 
@@ -206,16 +220,17 @@ describe('firstBootInsertPopulation — the origin split, without a database', (
   });
 
   it('classifies every entry the committed core registry ships as insertable', () => {
-    // The registry the platform has always converged. If the origin derivation
-    // ever stops recognising this build's own modules, a fresh database boots
-    // with no presence rows at all and every gated port throws — so the whole
-    // core set is asserted rather than a sample.
-    const population = firstBootInsertPopulation(
-      REGISTERED_MANIFESTS.map((entry) => ({
-        manifest: entry.manifest,
-        filePath: entry.filePath,
-      })),
-    );
+    // The registry the platform has always converged. If the origin ever stops
+    // recognising this build's own modules, a fresh database boots with no
+    // presence rows at all and every gated port throws — so the whole core set
+    // is asserted rather than a sample.
+    //
+    // It is the real `REGISTERED_MANIFESTS`, entries and all, which is what
+    // makes it the regression net for feature 080's T040b: `blog` moved into a
+    // workspace package, its `filePath` left `backend/src`, the containment test
+    // that used to answer this called it `'package'`, and this assertion is
+    // where 65-of-66 showed up.
+    const population = firstBootInsertPopulation(REGISTERED_MANIFESTS);
 
     expect(population).toHaveLength(REGISTERED_MANIFESTS.length);
   });

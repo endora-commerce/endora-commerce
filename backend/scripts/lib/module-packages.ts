@@ -49,6 +49,34 @@
  * Wildcard subpaths (`"./i18n/*"`) are outside the rule: a deep import through
  * one is the shape `module-package-layout.md` R2 forbids, and it is the one
  * consumer specifier that breaks when full F4 repoints `exports` at `dist`.
+ *
+ * ## The file the generator walked is not the file the subpath serves
+ *
+ * The paragraph above was written when D-140 ruled that a module package ships
+ * **source**, so an `exports` target named a `.ts` file the walk had just read
+ * and the two were the same path. **D-164 supersedes D-140**: a module package
+ * ships `dist`, because `tsx` applies one tsconfig per process and lowers a
+ * decorated file outside it with standard semantics, which kills every MikroORM
+ * entity a source package carries. So the map now names `./dist/backend/index.js`
+ * while the walk produces `src/backend/entities/blog-post.entity.ts`, and
+ * matching one against the other refuses **every** file of a package that
+ * follows the ruling — measured, before this paragraph existed: all four of
+ * `blog`'s shapes raised "no subpath of its exports map covers it".
+ *
+ * The missing step is the package's own **build declaration**, and it is read
+ * rather than assumed: `tsconfig.build.json`, following a relative `extends`
+ * exactly as `check-release-intent.ts` does, for its `rootDir` and `outDir`.
+ * A source file under `rootDir` is emitted at the same relative position under
+ * `outDir` with a `.js` extension, and *that* is the path matched against the
+ * `exports` targets. A package with **no** build configuration publishes what
+ * the walk read, so its paths match unchanged — which is what keeps the
+ * source-shipping regime working and is why this is a mapping rather than a
+ * `dist/` prefix written into the matcher.
+ *
+ * A `tsconfig.build.json` that exists and cannot be read or parsed is a
+ * **refusal**, never a fall back to "then it ships source": that reading would
+ * emit specifiers naming `.ts` files inside a package that publishes `.js`, and
+ * every one of them would fail at the artefact's first import.
  */
 import { join, relative, sep } from 'node:path';
 
@@ -68,6 +96,19 @@ export interface ModulePackage {
   readonly dir: string;
   /** `exports` subpath → target, as declared. Wildcard subpaths are dropped. */
   readonly exports: ReadonlyMap<string, string>;
+  /**
+   * Where this package's build puts the sources the walk reads, or `null` when
+   * it declares no build and therefore publishes them where they are.
+   *
+   * Both paths are package-relative and `/`-separated, with no trailing slash.
+   */
+  readonly emit: EmitLayout | null;
+}
+
+/** `tsconfig.build.json`'s `rootDir` and `outDir`, package-relative. */
+export interface EmitLayout {
+  readonly rootDir: string;
+  readonly outDir: string;
 }
 
 /** Raised when a package cannot be turned into artefact entries. Never skipped. */
@@ -85,19 +126,154 @@ function declaredModuleId(manifest: Readonly<Record<string, unknown>>): string |
   return typeof id === 'string' && id.length > 0 ? id : null;
 }
 
+/** `packages/modules/blog/src` → `src`; `./dist/` → `dist`; `.` → `''`. */
+function normaliseRelativeDirectory(value: string): string {
+  return value.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '').replace(/^\.$/, '');
+}
+
 /**
- * The first string target under an `exports` value.
+ * `tsconfig.build.json`'s emit layout for one package, or `null` when it has no
+ * build configuration at all.
+ *
+ * Follows a relative `extends` for the same reason `check-release-intent.ts`
+ * does: !891's two-config split puts `rootDir` in the build file and everything
+ * else in the file it extends, so a reader of one alone finds half an answer.
+ * The **nearest** declaration of each key wins, which is what `tsc` itself does.
+ *
+ * A non-relative `extends` (`"@scope/tsconfig/base"`) is a refusal rather than a
+ * stop: this repository has none, and treating one as "no more to read" would
+ * silently answer with whatever half of the layout had been found so far.
+ */
+export function readEmitLayout(
+  packageDir: string,
+  packageName: string,
+  fs: WorkspaceFs,
+): EmitLayout | null {
+  const seen = new Set<string>();
+  let current = join(packageDir, 'tsconfig.build.json');
+  let rootDir: string | null = null;
+  let outDir: string | null = null;
+
+  while (rootDir === null || outDir === null) {
+    if (seen.has(current)) {
+      throw new ModulePackageError(
+        `[composer] ${packageName}: ${current} is part of an \`extends\` cycle, so where its ` +
+          `sources are emitted cannot be read.`,
+      );
+    }
+    seen.add(current);
+    const text = fs.readText(current);
+    if (text === null) {
+      // Only the first hop may be absent: a package with no build configuration
+      // publishes its sources where they are. A missing file *inside* an
+      // `extends` chain is a broken configuration and is refused below.
+      if (seen.size === 1) return null;
+      throw new ModulePackageError(
+        `[composer] ${packageName}: ${current} is named by an \`extends\` and could not be ` +
+          `read, so where its sources are emitted is unknown. A committed registry names ` +
+          `those emitted files by specifier; guessing one produces an artefact that fails ` +
+          `at its first import.`,
+      );
+    }
+    let config: Record<string, unknown>;
+    try {
+      config = JSON.parse(stripLineComments(text)) as Record<string, unknown>;
+    } catch (error: unknown) {
+      throw new ModulePackageError(
+        `[composer] ${packageName}: ${current} does not parse (${String(error)}), so where ` +
+          `its sources are emitted is unknown.`,
+      );
+    }
+    const options = (config['compilerOptions'] ?? {}) as Record<string, unknown>;
+    if (rootDir === null && typeof options['rootDir'] === 'string') {
+      rootDir = normaliseRelativeDirectory(options['rootDir']);
+    }
+    if (outDir === null && typeof options['outDir'] === 'string') {
+      outDir = normaliseRelativeDirectory(options['outDir']);
+    }
+    const parent = config['extends'];
+    if (parent === undefined) break;
+    if (typeof parent !== 'string' || !parent.startsWith('.')) {
+      throw new ModulePackageError(
+        `[composer] ${packageName}: ${current} extends '${String(parent)}', which is not a ` +
+          `relative path — this derivation cannot follow it, and stopping here would answer ` +
+          `with half of the emit layout.`,
+      );
+    }
+    current = join(current, '..', parent);
+  }
+
+  if (rootDir === null || outDir === null) {
+    throw new ModulePackageError(
+      `[composer] ${packageName}: ${join(packageDir, 'tsconfig.build.json')} and its ` +
+        `\`extends\` chain declare ${rootDir === null ? '`rootDir`' : '`outDir`'} nowhere. A ` +
+        `package that emits needs both, because the specifier a committed registry carries ` +
+        `names the emitted file and not the source the walk read.`,
+    );
+  }
+  return { rootDir, outDir };
+}
+
+/** A tsconfig is JSON with comments; the same stripper the other readers use. */
+function stripLineComments(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => (/^\s*\/\//.test(line) ? '' : line))
+    .join('\n');
+}
+
+/**
+ * Where a source file the walk read ends up in the published artefact.
+ *
+ * Package-relative in, package-relative out. Without a build layout the answer
+ * is the input — a source-shipping package publishes what was walked. With one,
+ * a file under `rootDir` moves to the same position under `outDir` and its
+ * TypeScript extension becomes the emitted `.js`; a file **outside** `rootDir`
+ * is returned unchanged, so it goes on to fail the `exports` match with the
+ * message that names the file, rather than being silently relocated to a path
+ * the build never writes.
+ */
+export function emittedPathOf(pkg: ModulePackage, packageRelativePath: string): string {
+  if (pkg.emit === null) return packageRelativePath;
+  const prefix = pkg.emit.rootDir === '' ? '' : `${pkg.emit.rootDir}/`;
+  if (prefix !== '' && !packageRelativePath.startsWith(prefix)) return packageRelativePath;
+  const withinRoot = packageRelativePath.slice(prefix.length);
+  const emitted = withinRoot
+    .replace(/\.mts$/, '.mjs')
+    .replace(/\.cts$/, '.cjs')
+    .replace(/\.tsx?$/, '.js');
+  return pkg.emit.outDir === '' ? emitted : `${pkg.emit.outDir}/${emitted}`;
+}
+
+/**
+ * The **runtime** string target under an `exports` value.
  *
  * A value is either a target string or a conditions object (`{ types, import,
- * default }`). Every condition of one subpath points into the same place in the
- * source tree — that is what a condition *is* — so the first string is enough to
- * answer "which directory does this subpath cover", which is the only question
- * asked of it here.
+ * default }`). This used to take the first string it found, on the ground that
+ * "every condition of one subpath points into the same place in the source
+ * tree". That holds for a *directory* and not for a *file*, which is the
+ * granularity actually used: `{ types: './dist/backend/index.d.ts', default:
+ * './dist/backend/index.js' }` — the shape every package in this repository
+ * writes since !876 — answered `index.d.ts`, which is neither the file the
+ * registry imports nor a name the "a barrel covers its directory" rule
+ * recognises, so `./backend` covered nothing at all.
+ *
+ * `types` is therefore skipped while any other condition is present. It is the
+ * one condition that deliberately names a *different* file from the rest, and
+ * the question asked here — which subpath serves the file a committed artefact
+ * imports — is a runtime question.
  */
 function targetOf(value: unknown): string | null {
   if (typeof value === 'string') return value;
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
-  for (const nested of Object.values(value as Record<string, unknown>)) {
+  const conditions = Object.entries(value as Record<string, unknown>);
+  for (const [condition, nested] of conditions) {
+    if (condition === 'types') continue;
+    const found = targetOf(nested);
+    if (found !== null) return found;
+  }
+  // Types-only is legal and is still an answer, if a narrower one.
+  for (const [, nested] of conditions) {
     const found = targetOf(nested);
     if (found !== null) return found;
   }
@@ -141,6 +317,7 @@ export function discoverModulePackages(
       name: member.name,
       dir: member.dir,
       exports: declaredExports(member.manifest),
+      emit: readEmitLayout(member.dir, member.name, fs),
     });
   }
   const byId = new Map<string, ModulePackage>();
@@ -177,13 +354,14 @@ function coveredPathOf(target: string): { path: string; recursive: boolean } {
  * to an `exports` map.
  */
 export function packageSpecifierFor(pkg: ModulePackage, packageRelativePath: string): string {
+  const published = emittedPathOf(pkg, packageRelativePath);
   let best: { subpath: string; length: number } | null = null;
   for (const [subpath, target] of pkg.exports) {
     if (subpath === './package.json') continue;
     const covered = coveredPathOf(target);
     const matches = covered.recursive
-      ? covered.path === '' || packageRelativePath.startsWith(`${covered.path}/`)
-      : packageRelativePath === covered.path;
+      ? covered.path === '' || published.startsWith(`${covered.path}/`)
+      : published === covered.path;
     if (!matches) continue;
     if (best === null || covered.path.length > best.length) {
       best = { subpath, length: covered.path.length };
@@ -191,9 +369,10 @@ export function packageSpecifierFor(pkg: ModulePackage, packageRelativePath: str
   }
   if (best === null) {
     const declared = [...pkg.exports.keys()].sort().join(', ') || '(none)';
+    const via = published === packageRelativePath ? '' : `, published at ${published}`;
     throw new ModulePackageError(
-      `[composer] ${pkg.name} owns ${packageRelativePath}, and no subpath of its exports map ` +
-        `covers it (declared: ${declared}). A committed registry imports it by that ` +
+      `[composer] ${pkg.name} owns ${packageRelativePath}${via}, and no subpath of its exports ` +
+        `map covers it (declared: ${declared}). A committed registry imports it by that ` +
         `specifier, so an uncovered file would be registered under a specifier the package ` +
         `refuses with ERR_PACKAGE_PATH_NOT_EXPORTED — and dropping it instead is how a ` +
         `migration goes missing without a word. Declare a subpath for it, or move the file ` +
@@ -201,6 +380,33 @@ export function packageSpecifierFor(pkg: ModulePackage, packageRelativePath: str
     );
   }
   return best.subpath === '.' ? pkg.name : `${pkg.name}/${best.subpath.replace(/^\.\//, '')}`;
+}
+
+/**
+ * Is this source file the one a declared subpath points **at** — a barrel?
+ *
+ * `module-package-layout.md` §1 puts a module package's migrations under
+ * `src/migrations/`, and the `./migrations` subpath has to name a file, so the
+ * directory holds one that is not a migration: the barrel re-exporting the
+ * classes, which is what makes `import { Migration… } from
+ * '<pkg>/migrations'` resolve. `collectMigrations` refuses an unrecognised
+ * `.ts` in a migrations directory — correctly, because skipping one is how a
+ * migration goes missing without a word — so it needs to tell the barrel from
+ * a misnamed migration.
+ *
+ * It is answered from the **package's own `exports` map** rather than from
+ * `contracts/naming-convention.md` §4's allow-list, which is keyed on
+ * application paths and would have to grow an entry per package. A file a
+ * subpath points at is an entry point by declaration; a file that merely sits
+ * beside it is not.
+ */
+export function isDeclaredEntryPoint(pkg: ModulePackage, packageRelativePath: string): boolean {
+  const published = emittedPathOf(pkg, packageRelativePath);
+  for (const [subpath, target] of pkg.exports) {
+    if (subpath === './package.json') continue;
+    if (target.replace(/^\.\//, '') === published) return true;
+  }
+  return false;
 }
 
 /** A file's path inside its package, `/`-separated. */

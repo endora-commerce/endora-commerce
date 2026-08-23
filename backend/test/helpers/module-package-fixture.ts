@@ -31,15 +31,28 @@ export interface ModulePackageFixture {
   readonly root: string;
   /** `<root>/backend/src` — where a rendered `db/` artefact would sit. */
   readonly backendSrc: string;
-  /** The workspace module package's directory and npm name. */
+  /** The workspace module package's directory and npm name. Ships source. */
   readonly workspacePackage: { readonly dir: string; readonly name: string; readonly id: string };
   /** The installed module package's directory and npm name. */
   readonly installedPackage: { readonly dir: string; readonly name: string; readonly id: string };
+  /**
+   * A second **workspace** module package, which ships `dist` — the regime
+   * D-164 rules and every real module package is in (feature 080, T040b).
+   *
+   * It is a third package rather than a change to the first because both
+   * regimes have to keep working: the generator's specifier derivation matches
+   * a walked source against the `exports` targets, and under D-164 those two
+   * disagree by construction — the walk reads `src/**.ts`, the map names
+   * `dist/**.js`. A fixture with only one of them proves whichever half is
+   * written that day.
+   */
+  readonly builtPackage: { readonly dir: string; readonly name: string; readonly id: string };
   cleanup: () => void;
 }
 
 const WORKSPACE_NAME = '@endora-commerce/mod-alpha';
 const INSTALLED_NAME = '@vendor/mod-beta';
+const BUILT_NAME = '@endora-commerce/mod-gamma';
 
 function write(path: string, contents: string): void {
   mkdirSync(dirname(path), { recursive: true });
@@ -65,6 +78,51 @@ function packageManifest(name: string, id: string): string {
     null,
     2,
   )}\n`;
+}
+
+/**
+ * The manifest of a package that **builds**: every `exports` target names the
+ * emitted file, with a `types` condition beside it, exactly as the real ones do.
+ */
+function builtPackageManifest(name: string, id: string): string {
+  return `${JSON.stringify(
+    {
+      name,
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      endora: { type: 'module', id, platform: '0.x' },
+      exports: {
+        '.': { types: './dist/manifest.d.ts', default: './dist/manifest.js' },
+        './backend': { types: './dist/backend/index.d.ts', default: './dist/backend/index.js' },
+        './migrations': {
+          types: './dist/migrations/index.d.ts',
+          default: './dist/migrations/index.js',
+        },
+        './package.json': './package.json',
+      },
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+/**
+ * The two-config split every package here uses, and the one this derivation
+ * has to follow: `rootDir` is in the build file and `outDir` in the file it
+ * extends, so a reader of either alone finds half the answer.
+ */
+function writeBuildConfigs(dir: string): void {
+  write(
+    join(dir, 'tsconfig.json'),
+    `${JSON.stringify({ compilerOptions: { outDir: './dist', noEmit: true } }, null, 2)}\n`,
+  );
+  write(
+    join(dir, 'tsconfig.build.json'),
+    '{\n  // A comment, which JSON.parse cannot take.\n' +
+      '  "extends": "./tsconfig.json",\n' +
+      '  "compilerOptions": { "rootDir": "./src", "noEmit": false }\n}\n',
+  );
 }
 
 /** One module package's sources — a manifest, a backend entry, an entity, a migration. */
@@ -116,11 +174,20 @@ export function createModulePackageFixture(): ModulePackageFixture {
   const installedDir = join(root, 'node_modules', '@vendor', 'mod-beta');
   writeModulePackage(installedDir, INSTALLED_NAME, 'beta', 'BetaThing');
 
+  // The `dist`-shipping workspace package. Its sources are written exactly like
+  // the source-shipping one's — what differs is its `exports` map and its build
+  // configuration, which is the whole of what the derivation reads.
+  const builtDir = join(root, 'packages', 'modules', 'gamma');
+  writeModulePackage(builtDir, BUILT_NAME, 'gamma', 'GammaThing');
+  write(join(builtDir, 'package.json'), builtPackageManifest(BUILT_NAME, 'gamma'));
+  writeBuildConfigs(builtDir);
+
   return {
     root,
     backendSrc: join(root, 'backend', 'src'),
     workspacePackage: { dir: workspaceDir, name: WORKSPACE_NAME, id: 'alpha' },
     installedPackage: { dir: installedDir, name: INSTALLED_NAME, id: 'beta' },
+    builtPackage: { dir: builtDir, name: BUILT_NAME, id: 'gamma' },
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
 }

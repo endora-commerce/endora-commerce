@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { seedDefaultCategory } from '../../../src/modules/blog/services/seed-default-category.js';
+import { seedDefaultCategory } from '../../../../packages/modules/blog/src/backend/services/seed-default-category.js';
 
 const CHANNEL_X = '55555555-5555-5555-5555-555555555555';
 const CHANNEL_Y = '66666666-6666-6666-6666-666666666666';

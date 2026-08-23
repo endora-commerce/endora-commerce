@@ -17,7 +17,7 @@ import { z } from 'zod';
 import type { BlogCategoryService } from './services/blog-category-service.js';
 import type { BlogPostService } from './services/blog-post-service.js';
 import type { BlogTagService } from './services/blog-tag-service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 const versionOnlySchema = z.object({ version: z.number().int() });
 

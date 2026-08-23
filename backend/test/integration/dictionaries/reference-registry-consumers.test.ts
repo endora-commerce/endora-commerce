@@ -11,7 +11,7 @@ import { registerAddressCountryReferences } from '../../../src/modules/addresses
 import { registerTaxCountryReferences } from '../../../src/modules/taxes/services/tax-country-reference.js';
 import { registerOrganizationCountryReferences } from '../../../src/modules/organizations/services/organization-country-reference.js';
 import { registerWarehouseCountryReferences } from '../../../src/modules/inventory/services/warehouse-country-reference.js';
-import { registerBlogLanguageReferences } from '../../../src/modules/blog/services/blog-language-reference.js';
+import { registerBlogLanguageReferences } from '../../../../packages/modules/blog/src/backend/services/blog-language-reference.js';
 import { registerCmsLanguageReferences } from '../../../src/modules/cms/services/cms-language-reference.js';
 import { registerMegamenuLanguageReferences } from '../../../src/modules/megamenu/services/megamenu-language-reference.js';
 import { registerPromotionCurrencyReferences } from '../../../src/modules/promotions/services/promotion-currency-reference.js';

@@ -99,7 +99,7 @@ describe('an asset a deactivated blog still references cannot be deleted (D-68)'
 
   /** Compose `blog` on its own and run its boot hooks, whatever its state. */
   async function bootBlogInto(registry: AssetReferenceRegistry): Promise<void> {
-    const { registerModule } = await import('../../../src/modules/blog/backend.js');
+    const { registerModule } = await import('../../../../packages/modules/blog/src/backend/index.js');
     const container = createRootContainer();
     registerValues(container, {
       emFactory: () => h.em(),

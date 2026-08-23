@@ -3,4 +3,5 @@ packages:
   - storefront
   - admin
   - packages/*
+  - packages/modules/*
   - docs

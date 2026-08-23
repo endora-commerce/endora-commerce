@@ -1,13 +1,13 @@
 import { z } from 'zod';
 import { ERROR_CODES, BLOG_RESERVED_URL_PREFIXES } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import {
   BLOG_DEFAULT_ENABLED,
   BLOG_DEFAULT_LATEST_COUNT,
   BLOG_DEFAULT_POSTS_PER_PAGE,
   BLOG_DEFAULT_URL_PREFIX,
   BLOG_SETTING_CODES,
-} from '../manifest.js';
+} from '../../manifest.js';
 
 /**
  * Thin port over the Settings module — the only surface the Blog module

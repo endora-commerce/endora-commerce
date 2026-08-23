@@ -5,7 +5,10 @@ import { activationDeclarationsFrom } from '../../../kernel/lifecycle/activation
 import { installGatingGraph } from './gating-graph.js';
 import { registryCache } from '../../../kernel/lifecycle/registry-cache.js';
 import { loadReducedDeploymentDeclarations } from './reduced-deployment.js';
-import { deploymentShippedEntries } from '../registered-manifests.js';
+import {
+  deploymentShippedEntries,
+  type ModuleIdClaimOrigin,
+} from '../registered-manifests.js';
 
 /** One module that needs an absent one, and how it says so. */
 export interface NeededBy {
@@ -280,6 +283,14 @@ export async function loadModulePresence(opts: {
 export interface ShippedModuleEntry {
   readonly manifest: ModuleManifest;
   readonly filePath: string;
+  /**
+   * Which discovery produced this entry — core (the generated index, including
+   * a module that has become a workspace package), the deployment's overlay, or
+   * an installed package. It is a field rather than a containment test on
+   * `filePath` since feature 080's T040b; the reason is on
+   * `RegisteredManifestEntry.origin`.
+   */
+  readonly origin: ModuleIdClaimOrigin;
 }
 
 /**

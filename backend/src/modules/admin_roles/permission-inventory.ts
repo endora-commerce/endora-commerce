@@ -65,6 +65,20 @@ export interface PermissionScanResult {
 }
 
 /**
+ * One directory the scan walks.
+ *
+ * `moduleId` is set when the directory **is** one module's — a module that has
+ * become a workspace package (feature 080, T040b). Its internal layout is its
+ * own, so `src/backend/routes.admin.ts` carries no `modules/<id>/` segment for
+ * {@link moduleIdFor} to read, and the id comes off the declaration that put the
+ * root in the list (D-142) rather than off the path.
+ */
+export interface PermissionScanRoot {
+  readonly dir: string;
+  readonly moduleId?: string;
+}
+
+/**
  * The roots a bare-core build enforces gates in, plus the active deployment's
  * overlay modules (feature 057 — an overlay module is an ordinary lifecycle
  * participant, so its gates count for that deployment and for no other).
@@ -72,6 +86,17 @@ export interface PermissionScanResult {
  * `src/apps` is skipped during the walk rather than excluded by name: a
  * deployment that is not the selected one is not part of this build, and its
  * permissions are not assignable here.
+ *
+ * **A module that is a workspace package is not here, and is the caller's to
+ * supply.** This scanner has no runtime caller — its two callers are
+ * `test/contract/admin_users/permission-inventory.test.ts` and the scanner's own
+ * unit test — and the module layout is derived by `scripts/lib/module-roots.ts`,
+ * which a module may not import (`check:module-boundary`, and it is right to
+ * refuse: this file belongs to `admin_roles`). So the root list is an input, and
+ * the caller that already resolves the layout passes it. Leaving a packaged
+ * module out silently reports its codes as *"grantable but enforced by no
+ * gate"* — a checkbox `/admin-roles` says grants nothing while the gate is
+ * there — which is what the contract test caught the day `blog` moved.
  */
 export function defaultScanRoots(env: NodeJS.ProcessEnv = process.env): string[] {
   const overlayRoot = activeOverlayModulesRoot(env);
@@ -82,19 +107,22 @@ export function defaultScanRoots(env: NodeJS.ProcessEnv = process.env): string[]
  * Distinct permission codes referenced by an enforcement site under the scan
  * roots. Kept for callers that only need the set (SC-001).
  */
-export function scanEnforcedPermissionCodes(roots?: readonly string[]): Set<string> {
+export function scanEnforcedPermissionCodes(
+  roots?: readonly (string | PermissionScanRoot)[],
+): Set<string> {
   return scanEnforcedPermissionGates(roots).codes;
 }
 
 /** Every enforcement site under `roots`, classified. */
 export function scanEnforcedPermissionGates(
-  roots: readonly string[] = defaultScanRoots(),
+  roots: readonly (string | PermissionScanRoot)[] = defaultScanRoots(),
 ): PermissionScanResult {
   const sites: EnforcedGateSite[] = [];
   const seen = new Set<string>();
   const resolver = new ConstantResolver();
-  for (const root of roots) {
-    for (const file of walkSources(root, seen)) {
+  for (const entry of roots) {
+    const root = typeof entry === 'string' ? { dir: entry } : entry;
+    for (const file of walkSources(root.dir, seen)) {
       collectFromFile(file, root, resolver, sites);
     }
   }
@@ -115,8 +143,12 @@ function* walkSources(dir: string, seen: Set<string>): Generator<string> {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
       // `apps` is reached through `defaultScanRoots`, and only for the selected
-      // deployment; `node_modules` is never ours.
-      if (entry.name === 'node_modules' || entry.name === 'apps') continue;
+      // deployment; `node_modules` is never ours. `dist` is a module package's
+      // build output — the same gates a second time, compiled, which would
+      // double every site and attribute half of them to a path nobody edits.
+      if (entry.name === 'node_modules' || entry.name === 'apps' || entry.name === 'dist') {
+        continue;
+      }
       yield* walkSources(path, seen);
       continue;
     }
@@ -128,8 +160,11 @@ function* walkSources(dir: string, seen: Set<string>): Generator<string> {
 }
 
 /** The module directory owning `file`, for attribution in failure messages. */
-function moduleIdFor(file: string, root: string): string | null {
-  const rel = relative(root, file);
+function moduleIdFor(file: string, root: PermissionScanRoot): string | null {
+  // A root that names its module **is** that module's directory, whatever it
+  // keeps inside it.
+  if (root.moduleId !== undefined) return root.moduleId;
+  const rel = relative(root.dir, file);
   const segments = rel.split(/[\\/]/);
   if (segments[0] === 'modules') return segments[1] ?? null;
   // An overlay root IS the modules root, so the first segment is the module id.
@@ -138,7 +173,7 @@ function moduleIdFor(file: string, root: string): string | null {
 
 function collectFromFile(
   file: string,
-  root: string,
+  root: PermissionScanRoot,
   resolver: ConstantResolver,
   out: EnforcedGateSite[],
 ): void {

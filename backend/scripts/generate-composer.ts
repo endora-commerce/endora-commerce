@@ -54,6 +54,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   absolutePathInPackage,
   discoverModulePackages,
+  isDeclaredEntryPoint,
   ModulePackageError,
   packageSpecifierFor,
   type ModulePackage,
@@ -1089,6 +1090,11 @@ export function collectMigrations(sources: SourceTree): DiscoveredMigration[] {
     const filename = packaged ? packaged[1]! : core ? core[1]! : owned![2]!;
     if (!MIGRATION_FILE_RE.test(filename)) {
       if (owner === null && MIGRATION_HELPER_ALLOW_LIST.has(file)) continue;
+      // A package's `./migrations` subpath has to name a file, and that file is
+      // the barrel re-exporting the classes — declared, not merely present, so
+      // the exemption is derived from the package's own `exports` map instead of
+      // growing §4's allow-list by one entry per package (D-100).
+      if (owner !== null && isDeclaredEntryPoint(owner, file)) continue;
       throw new Error(
         `[composer] ${file} sits in a migrations directory but is not named like a ` +
           `migration (<YYYYMMDDTHHmmss>_<module-segment>_<slug>.ts). Rename it per ` +

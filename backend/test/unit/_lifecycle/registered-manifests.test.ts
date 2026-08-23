@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ModuleManifest } from '@endora-commerce/contracts';
+import { discoverModulePackages } from '../../../scripts/lib/module-packages.js';
 import type { DiscoveredManifestEntry } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
 import {
   ModuleManifestPathUnresolvableError,
@@ -167,14 +168,48 @@ describe('a module’s location is answered, or refused — never guessed (T041a
     // over this repository the same call answers with a file that exists. Under
     // `vitest` that is `manifest.ts`, and in a `dist` build it is `manifest.js`;
     // the assertion is `existsSync`, never an extension, so it holds in both.
+    //
+    // The module is taken from the tree rather than named: this read `blog`
+    // until that module became a package (feature 080, T040b), at which point
+    // the relative shape had no subject left. The bare shape is exercised in the
+    // test below, over the package that actually exists.
+    const indexUrl = pathToFileURL(
+      join(BACKEND_SRC, 'modules', '_lifecycle', 'manifest-index.generated.ts'),
+    ).href;
+    const inTheTree = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id).find((id) =>
+      existsSync(join(BACKEND_SRC, 'modules', id, 'manifest.ts')),
+    );
+    expect(inTheTree, 'no registered module is in the application tree').toBeDefined();
+
+    const resolved = resolveManifestPath(indexUrl, `../${inTheTree!}/manifest.js`);
+
+    expect(existsSync(resolved)).toBe(true);
+    expect(dirname(resolved)).toBe(join(BACKEND_SRC, 'modules', inTheTree!));
+  });
+
+  it('resolves a packaged module through its own package.json, so dirname() is the package', () => {
+    // The bare half of the same contract (D-149). It is what makes a packaged
+    // module's i18n bundles load at all: every consumer takes `dirname` of this
+    // and joins `bundlesDir`, and the `_i18n` reconciler logs and skips a
+    // directory that is not there — so getting this wrong renders every one of
+    // that module's palette labels as its raw key, with nothing reported.
+    //
+    // Skipped when this checkout has no module package, which is the state the
+    // tree was in before T040b and the state a fixture tree is in.
+    const packages = discoverModulePackages(join(BACKEND_SRC, '..', '..'));
+    if (packages.length === 0) return;
     const indexUrl = pathToFileURL(
       join(BACKEND_SRC, 'modules', '_lifecycle', 'manifest-index.generated.ts'),
     ).href;
 
-    const resolved = resolveManifestPath(indexUrl, '../blog/manifest.js');
+    for (const pkg of packages) {
+      const resolved = resolveManifestPath(indexUrl, pkg.name);
 
-    expect(existsSync(resolved)).toBe(true);
-    expect(dirname(resolved)).toBe(join(BACKEND_SRC, 'modules', 'blog'));
+      expect(existsSync(resolved), resolved).toBe(true);
+      expect(dirname(resolved)).toBe(pkg.dir);
+      expect(existsSync(join(dirname(resolved), 'i18n', 'en.json')), pkg.name).toBe(true);
+      expect(existsSync(join(dirname(resolved), 'i18n', 'pl.json')), pkg.name).toBe(true);
+    }
   });
 
   it('gives every committed entry a location that is on disk — the whole index', () => {

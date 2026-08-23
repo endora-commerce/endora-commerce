@@ -16,7 +16,10 @@ import {
   ModulePresenceNotLoadedError,
   registryCache,
 } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { loadModulePresence } from '../../../src/modules/_lifecycle/services/presence-load.js';
+import {
+  loadModulePresence,
+  type ShippedModuleEntry,
+} from '../../../src/modules/_lifecycle/services/presence-load.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
@@ -74,10 +77,11 @@ function manifest(id: string, settingCode: string): ModuleManifest {
  * converged by the first-boot reconciler (D-157.6(b)); a fixture that wants a
  * row written has to anchor where a core module anchors.
  */
-function coreEntry(id: string): { manifest: ModuleManifest; filePath: string } {
+function coreEntry(id: string): ShippedModuleEntry {
   return {
     manifest: manifest(id, `${id}.enabled`),
     filePath: join(coreModulesRoot(), id, 'manifest.ts'),
+    origin: 'core',
   };
 }
 

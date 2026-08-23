@@ -46,17 +46,6 @@ import { AutopayPaymentMethodOrgDisable } from '../modules/autopay/entities/auto
 import { AutopayPaymentMethodRule } from '../modules/autopay/entities/autopay-payment-method-rule.entity.js';
 import { AutopaySavedCard } from '../modules/autopay/entities/autopay-saved-card.entity.js';
 import { AutopayTransaction } from '../modules/autopay/entities/autopay-transaction.entity.js';
-import { BlogCategoryLanguage } from '../modules/blog/entities/blog-category-language.entity.js';
-import { BlogCategorySalesChannel } from '../modules/blog/entities/blog-category-sales-channel.entity.js';
-import { BlogCategory } from '../modules/blog/entities/blog-category.entity.js';
-import { BlogPostCategory } from '../modules/blog/entities/blog-post-category.entity.js';
-import { BlogPostLanguage } from '../modules/blog/entities/blog-post-language.entity.js';
-import { BlogPostRelatedPost } from '../modules/blog/entities/blog-post-related-post.entity.js';
-import { BlogPostRelatedProduct } from '../modules/blog/entities/blog-post-related-product.entity.js';
-import { BlogPostSalesChannel } from '../modules/blog/entities/blog-post-sales-channel.entity.js';
-import { BlogPostTag } from '../modules/blog/entities/blog-post-tag.entity.js';
-import { BlogPost } from '../modules/blog/entities/blog-post.entity.js';
-import { BlogTag } from '../modules/blog/entities/blog-tag.entity.js';
 import { CartAuditEntry } from '../modules/carts/entities/cart-audit-entry.entity.js';
 import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
@@ -247,6 +236,17 @@ import { TransactionalEmailContent } from '../modules/transactional_emails/entit
 import { TransactionalEmail } from '../modules/transactional_emails/entities/transactional-email.entity.js';
 import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
 import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
+import { BlogCategoryLanguage } from '@endora-commerce/mod-blog/backend';
+import { BlogCategorySalesChannel } from '@endora-commerce/mod-blog/backend';
+import { BlogCategory } from '@endora-commerce/mod-blog/backend';
+import { BlogPostCategory } from '@endora-commerce/mod-blog/backend';
+import { BlogPostLanguage } from '@endora-commerce/mod-blog/backend';
+import { BlogPostRelatedPost } from '@endora-commerce/mod-blog/backend';
+import { BlogPostRelatedProduct } from '@endora-commerce/mod-blog/backend';
+import { BlogPostSalesChannel } from '@endora-commerce/mod-blog/backend';
+import { BlogPostTag } from '@endora-commerce/mod-blog/backend';
+import { BlogPost } from '@endora-commerce/mod-blog/backend';
+import { BlogTag } from '@endora-commerce/mod-blog/backend';
 
 export const ALL_ENTITIES = [
   AuditLogEntry,
@@ -273,17 +273,6 @@ export const ALL_ENTITIES = [
   AutopayPaymentMethodRule,
   AutopaySavedCard,
   AutopayTransaction,
-  BlogCategoryLanguage,
-  BlogCategorySalesChannel,
-  BlogCategory,
-  BlogPostCategory,
-  BlogPostLanguage,
-  BlogPostRelatedPost,
-  BlogPostRelatedProduct,
-  BlogPostSalesChannel,
-  BlogPostTag,
-  BlogPost,
-  BlogTag,
   CartAuditEntry,
   CartItem,
   Cart,
@@ -474,4 +463,15 @@ export const ALL_ENTITIES = [
   TransactionalEmail,
   WebhookDelivery,
   Webhook,
+  BlogCategoryLanguage,
+  BlogCategorySalesChannel,
+  BlogCategory,
+  BlogPostCategory,
+  BlogPostLanguage,
+  BlogPostRelatedPost,
+  BlogPostRelatedProduct,
+  BlogPostSalesChannel,
+  BlogPostTag,
+  BlogPost,
+  BlogTag,
 ] as const;

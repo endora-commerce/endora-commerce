@@ -74,7 +74,11 @@ function manifest(id: string): ModuleManifest {
 
 /** A core module's anchor: `backend/src/modules/<id>/manifest.ts`. */
 function coreEntry(id: string): RegisteredManifestEntry {
-  return { manifest: manifest(id), filePath: join(coreModulesRoot(), id, 'manifest.ts') };
+  return {
+    manifest: manifest(id),
+    filePath: join(coreModulesRoot(), id, 'manifest.ts'),
+    origin: 'core',
+  };
 }
 
 /** An overlay module's anchor: `backend/src/apps/<deployment>/modules/<id>/manifest.ts`. */
@@ -82,6 +86,7 @@ function overlayEntry(id: string): RegisteredManifestEntry {
   return {
     manifest: manifest(id),
     filePath: join(overlayModulesRootFor('fixture_deployment'), id, 'manifest.ts'),
+    origin: 'overlay',
   };
 }
 
@@ -90,6 +95,7 @@ function packageEntry(id: string): RegisteredManifestEntry {
   return {
     manifest: manifest(id),
     filePath: join(repoRoot(), 'node_modules', '@vendor', id, 'package.json'),
+    origin: 'package',
   };
 }
 
@@ -127,9 +133,13 @@ describe('the boot settings reconcile walks core and overlay, never a package', 
   });
 
   it('classifies every module the committed core registry ships as reconcilable', () => {
-    // If the origin derivation ever stops recognising this build's own modules,
-    // a fresh database boots with no settings at all and `/settings` is empty —
-    // so the whole core set is asserted rather than a sample.
+    // If the origin ever stops recognising this build's own modules, a fresh
+    // database boots with no settings at all and `/settings` is empty — so the
+    // whole core set is asserted rather than a sample. It is what went red when
+    // `blog` became a workspace package (feature 080, T040b): its `filePath`
+    // left `backend/src`, the containment test that used to answer this called
+    // it `'package'`, and the module lost its activation Setting — and with it
+    // its row on `/platform/modules`.
     expect(deploymentShippedEntries(REGISTERED_MANIFESTS)).toHaveLength(
       REGISTERED_MANIFESTS.length,
     );

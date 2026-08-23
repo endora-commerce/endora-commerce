@@ -3,7 +3,7 @@ import { Redis } from 'ioredis';
 import {
   BLOG_CACHE_KEY_PREFIX,
   BlogCacheService,
-} from '../../../src/modules/blog/services/blog-cache.js';
+} from '../../../../packages/modules/blog/src/backend/services/blog-cache.js';
 
 const REDIS_URL = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
 

@@ -4,7 +4,10 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import { defineModuleWorker } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { loadModulePresence } from '../../../src/modules/_lifecycle/services/presence-load.js';
+import {
+  loadModulePresence,
+  type ShippedModuleEntry,
+} from '../../../src/modules/_lifecycle/services/presence-load.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
@@ -65,8 +68,12 @@ function manifest(id: string): ModuleManifest {
  * one's origin from its `filePath` (D-157.6(b)), so a fixture that wants a row
  * reconciled has to anchor where a core module anchors.
  */
-function entry(id: string): { manifest: ModuleManifest; filePath: string } {
-  return { manifest: manifest(id), filePath: join(coreModulesRoot(), id, 'manifest.ts') };
+function entry(id: string): ShippedModuleEntry {
+  return {
+    manifest: manifest(id),
+    filePath: join(coreModulesRoot(), id, 'manifest.ts'),
+    origin: 'core',
+  };
 }
 
 const ENTRIES = [entry(ACTIVE), entry(DEACTIVATED), entry(UNINSTALLED)];
