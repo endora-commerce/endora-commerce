@@ -197,6 +197,25 @@ export interface ModuleTreeLayout {
    * and looks in the two places a workspace member can keep it.
    */
   readonly moduleDirectoryOf: (moduleId: string) => string | null;
+  /**
+   * The npm name each module package publishes, mapped to the module id it
+   * declares — `@endora-commerce/mod-blog` → `blog`.
+   *
+   * It exists because a bare specifier can now reach a module, which is a thing
+   * this repository had never been able to say. `check-module-boundary`'s
+   * predicate 1 resolved relative specifiers only, on the stated premise that
+   * "there is no `@endora-commerce/mod-*` package yet"; !910 falsified that
+   * premise and the premise stayed. `blog` shipped with no ledger shard, so the
+   * hole cost nothing and showed nothing.
+   *
+   * The direction is name → id, and it is the only direction that is safe to
+   * key a ledger on (D-142): the npm name is npm's namespace, the manifest id is
+   * identity of record, and an edge that was `../blog/entities/blog-post.entity`
+   * before the move has to stay one key after it. Nothing here reads the name's
+   * spelling — a `mod-` prefix rule would be a derived fact written down (D-100)
+   * and would answer wrongly for the first package that is not named that way.
+   */
+  readonly modulePackageNames: ReadonlyMap<string, string>;
 }
 
 function isUnder(child: string, parent: string): boolean {
@@ -397,6 +416,7 @@ export async function resolveModuleLayout(
   const moduleRoots: ModuleSourceRoot[] = applicationModuleRoots(srcRoot, registered).map(
     (directory) => ({ directory, moduleId: null, origin: 'application' as const }),
   );
+  const modulePackageNames = new Map<string, string>();
   for (const member of members) {
     const declared = declaredModuleId(member);
     if (declared === null || !registered.has(declared)) continue;
@@ -405,6 +425,7 @@ export async function resolveModuleLayout(
       moduleId: declared,
       origin: 'workspace-package',
     });
+    modulePackageNames.set(member.name, declared);
   }
 
   const overlayRoot = join(srcRoot, 'apps');
@@ -470,6 +491,7 @@ export async function resolveModuleLayout(
     moduleIdOfPath,
     moduleDirectories,
     moduleDirectoryOf,
+    modulePackageNames,
   };
 }
 

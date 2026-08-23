@@ -221,6 +221,36 @@ describe('the roots themselves', () => {
     );
   });
 
+  it('maps each module package npm name to the id it declares, and names nothing else', async () => {
+    // `check-module-boundary` resolves a bare specifier through this map, so an
+    // application module is only visible reaching a packaged one while the name
+    // is in it. The direction is name → declared id (D-142): the ledger key an
+    // edge had as a relative import has to be the key it keeps as a package
+    // specifier, and the npm name is npm's namespace rather than identity.
+    const root = splitCheckout();
+    const layout = await resolveModuleLayout(join(root, 'backend'));
+
+    expect([...layout.modulePackageNames]).toEqual([['@endora-commerce/mod-shop', 'shop']]);
+    // `blog` is a module in the application tree, so it has no npm name — an
+    // entry for it would make a third-party import of a same-named package read
+    // as a reach into it.
+    expect(layout.modulePackageNames.has('blog')).toBe(false);
+  });
+
+  it('drops a package name whose module the workspace no longer declares', async () => {
+    const root = splitCheckout();
+    rmSync(join(root, 'packages/modules/shop/package.json'));
+    const layout = await resolveModuleLayout(join(root, 'backend'));
+
+    // The map and the roots are one derivation, so they cannot disagree — which
+    // is what makes the check's `module-packages:<covered>/<expected>` token a
+    // reconciliation rather than a number printed twice.
+    expect(layout.modulePackageNames.size).toBe(0);
+    expect(
+      layout.moduleRoots.filter((entry) => entry.origin === 'workspace-package'),
+    ).toHaveLength(0);
+  });
+
   it('does not read a package the workspace does not declare — the half-moved state', async () => {
     // One file's difference from the case above: the relocated module has no
     // `package.json`, so no glob produces it and no root covers it. Every check

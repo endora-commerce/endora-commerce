@@ -271,7 +271,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     run: { kind: 'tsx', path: 'scripts/check-module-boundary.ts', args: [] },
     files: 3009,
     sites: null,
-    sources: ['manifest-index'],
+    // `module-packages` joined when a bare specifier became able to reach a
+    // module (feature 080): the names the walk read off each module package's
+    // manifest, reconciled against the package roots the layout found by
+    // walking directories. It is printed only while there is at least one such
+    // package — `expected=0` is a refusal in this grammar, and no module package
+    // was the whole tree until !910.
+    sources: ['manifest-index', 'module-packages'],
   },
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',

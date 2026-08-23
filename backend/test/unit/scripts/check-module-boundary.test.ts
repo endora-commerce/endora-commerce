@@ -203,6 +203,113 @@ describe('analyzeSource — resolution, at both nesting depths', () => {
   });
 });
 
+/**
+ * The module packages this repository would have to know about for a bare
+ * specifier to reach a module — npm name to manifest id, which is the direction
+ * D-142 makes meaningful: the npm name is npm's namespace and the manifest id is
+ * identity of record, so nothing here may be derived from the name's spelling.
+ *
+ * `@endora-commerce/mod-blog-extra` is in the fixture for the reason both
+ * nesting depths are: the documented 2.2× undercount came from a prefix match,
+ * and `startsWith` over a package name repeats it one namespace up.
+ */
+const MODULE_PACKAGES: ReadonlyMap<string, string> = new Map([
+  ['@endora-commerce/mod-blog', 'blog'],
+  ['@endora-commerce/mod-blog-extra', 'loyalty'],
+  ['@vendor/quotes', 'quote_requests'],
+]);
+
+describe('analyzeSource — a module package is still a module (feature 080)', () => {
+  // !910 moved `blog` out of `backend/src/modules` and this check's header still
+  // said "there is no `@endora-commerce/mod-*` package yet, so a bare specifier
+  // cannot reach a module". Measured on that tree: `organizations` importing the
+  // `BlogPost` entity as `@endora-commerce/mod-blog/backend` left
+  // `reaches=25 violations=0`, byte-identical to the run without it. A ledgered
+  // edge rewritten into a package specifier does not become legal — it becomes
+  // invisible, and the two-way ledger then reports the entry that described it
+  // as stale, which asks the author to delete the record of a debt nobody paid.
+  it('sees a module package specifier as a reach into the module it declares', () => {
+    const found = analyzeSource(
+      "import { BlogPost } from '@endora-commerce/mod-blog/backend';",
+      'modules/organizations/routes.sales-reps.ts',
+      MODULE_PACKAGES,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      moduleId: 'organizations',
+      target: 'blog',
+      targetPath: 'backend',
+      kind: 'value-import',
+      overlay: false,
+    });
+  });
+
+  it('keys the target by the declared module id, not by the npm name', () => {
+    // D-142: the manifest id is identity of record. A ledger key spelled with
+    // the npm name would not be the key the same edge had as a relative import,
+    // so the shard entry would not survive the move it is meant to outlive.
+    const found = analyzeSource(
+      "import { QuoteRequest } from '@vendor/quotes/backend';",
+      'modules/organizations/routes.sales-reps.ts',
+      MODULE_PACKAGES,
+    );
+    expect(found.map((f) => f.target)).toEqual(['quote_requests']);
+  });
+
+  it('gives the package root specifier the same empty target path a directory reach gets', () => {
+    const found = analyzeSource(
+      "import manifest from '@endora-commerce/mod-blog';",
+      'modules/orders/services/order-service.ts',
+      MODULE_PACKAGES,
+    );
+    expect(found.map((f) => f.targetPath)).toEqual(['']);
+  });
+
+  it('reads every specifier shape, not only the static import', () => {
+    const found = analyzeSource(
+      'async load() { await import("@endora-commerce/mod-blog/backend"); }',
+      'modules/orders/services/order-service.ts',
+      MODULE_PACKAGES,
+    );
+    expect(found.map((f) => f.kind)).toEqual(['dynamic-import']);
+  });
+
+  it('does not flag a packaged module importing itself by its own npm name', () => {
+    // A package's own sources are keyed repo-relative and attributed by the
+    // `modules/<id>/` segment (D-141), so this is the self-import case the
+    // directory comparison already answers for the application tree.
+    expect(
+      analyzeSource(
+        "import { BlogPost } from '@endora-commerce/mod-blog/backend';",
+        'packages/modules/blog/src/backend/routes.admin.ts',
+        MODULE_PACKAGES,
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not match a package whose name merely prefixes another package name', () => {
+    const found = analyzeSource(
+      "import { Reward } from '@endora-commerce/mod-blog-extra/backend';",
+      'modules/orders/services/order-service.ts',
+      MODULE_PACKAGES,
+    );
+    // `loyalty`, the module `-extra` actually declares — never `blog`, which a
+    // `startsWith` over the shorter name would answer.
+    expect(found.map((f) => f.target)).toEqual(['loyalty']);
+  });
+
+  it('ignores a module package specifier when no package declares that module', () => {
+    // The default is today's tree with no module package installed, and it must
+    // stay the behaviour that shipped: the map is the only authority.
+    expect(
+      analyzeSource(
+        "import { BlogPost } from '@endora-commerce/mod-blog/backend';",
+        'modules/orders/services/order-service.ts',
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe('analyzeSource — what it must not flag', () => {
   it('ignores a specifier resolving inside the importing module', () => {
     expect(
@@ -219,13 +326,18 @@ describe('analyzeSource — what it must not flag', () => {
     }
   });
 
-  it('ignores bare package specifiers', () => {
+  it('ignores a bare specifier no module package declares — including a sibling workspace package', () => {
+    // `@endora-commerce/contracts` and `@endora-commerce/platform` share a
+    // namespace with every module package and are not modules, so the
+    // discrimination cannot be the scope: it is the `endora` block, read from
+    // each member's own manifest.
     const source = [
       "import { z } from 'zod';",
       "import { orderSchema } from '@endora-commerce/contracts';",
+      "import { HttpError } from '@endora-commerce/platform/http';",
       "import { EntityManager } from '@mikro-orm/postgresql';",
     ].join('\n');
-    expect(analyzeSource(source, ORDER_SERVICE)).toEqual([]);
+    expect(analyzeSource(source, ORDER_SERVICE, MODULE_PACKAGES)).toEqual([]);
   });
 
   it('ignores a file that belongs to no module', () => {

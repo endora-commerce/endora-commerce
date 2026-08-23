@@ -1415,6 +1415,24 @@ function crossModuleTargets(source: string, file: string, target: string): numbe
   return moduleBoundaryAnalyze(source, file).filter((f) => f.target === target).length;
 }
 
+/**
+ * The one module package this repository has, as the check's CLI derives it —
+ * npm name to manifest id, off the member's own `endora` block.
+ *
+ * The fixture is the map because the map is where the analysis begins for a bare
+ * specifier (issue #130): a proof that handed in a resolved target would leave
+ * the resolution — which is the whole of the defect — unexercised.
+ */
+const MODULE_PACKAGE_NAMES: ReadonlyMap<string, string> = new Map([
+  ['@endora-commerce/mod-blog', 'blog'],
+]);
+
+function crossModulePackageTargets(source: string, file: string, target: string): number {
+  return moduleBoundaryAnalyze(source, file, MODULE_PACKAGE_NAMES).filter(
+    (f) => f.target === target,
+  ).length;
+}
+
 /** The tree the ledger proofs judge: one module reaching another module's entity. */
 const ORDERS_READS_A_PRODUCT =
   "import { Product } from '../../catalog/entities/product.entity.js';";
@@ -2835,6 +2853,21 @@ const CHECKS: readonly CheckEntry[] = [
           "import '../../catalog/register.js';",
           ORDER_SERVICE_FILE,
           'side-effect-import',
+        ),
+      ),
+      // A module that has become a package is still a module (feature 080).
+      // !910 moved `blog` out of `backend/src/modules` and left this check's
+      // "bare specifiers are ignored" premise standing: measured on that tree,
+      // `organizations` importing the `BlogPost` entity as
+      // `@endora-commerce/mod-blog/backend` left `reaches=25 violations=0`,
+      // exactly the run without it. A ledgered edge rewritten into a package
+      // specifier does not become legal, it becomes invisible — and the two-way
+      // ledger then calls the entry describing it stale.
+      'module-package-specifier': top(() =>
+        crossModulePackageTargets(
+          "import { BlogPost } from '@endora-commerce/mod-blog/backend';",
+          ORDER_SERVICE_FILE,
+          'blog',
         ),
       ),
       // The two nesting depths, each from the file position that produces it.
@@ -5327,8 +5360,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // number are the three ways an entry can stop describing its own file.
       // Plus T034's two for the third owner-map source: a table an installed
       // package owns is a finding, and a package may not take a core table's
-      // attribution away from the module that owns it.
-      'backend/scripts/check-module-boundary.ts': 37,
+      // attribution away from the module that owns it. Plus feature 080's one:
+      // a module that has become a package is reached by a bare specifier, and
+      // the shape was invisible for as long as the header said no such package
+      // existed.
+      'backend/scripts/check-module-boundary.ts': 38,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue

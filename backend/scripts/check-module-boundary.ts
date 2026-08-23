@@ -116,10 +116,30 @@
  * overlay `catalog` reaching the core `catalog` is the cross-tree edge it is
  * rather than an internal import.
  *
- * Bare specifiers are ignored: there is no `@endora-commerce/mod-*` package yet,
- * so a bare specifier cannot reach a module. F4 adds the second predicate — the
- * same limit `check-kernel-boundary.ts` states for itself, and for the same
- * reason (Principle IV).
+ * A **bare** specifier can reach a module too, since !910 moved the first one
+ * out of `backend/src/modules`. This paragraph used to say the opposite — "there
+ * is no `@endora-commerce/mod-*` package yet, so a bare specifier cannot reach a
+ * module" — and the sentence outlived the fact by one merge request. Measured on
+ * that tree: `organizations` importing the `BlogPost` entity as
+ * `@endora-commerce/mod-blog/backend` left `reaches=25 violations=0`,
+ * byte-identical to the run without it. The cost is not that the reach is
+ * permitted; it is that rewriting a **ledgered** relative import into a package
+ * specifier deletes it from the walk, whereupon the two-way ledger reports the
+ * entry describing it as stale and asks the author to remove the record of a
+ * debt nobody paid. `blog` shipped with no shard, so the hole was free and
+ * invisible; the next module to move has one.
+ *
+ * So a specifier is also resolved against {@link ModuleBoundaryInput.modulePackages},
+ * the npm name → manifest id map `lib/module-roots.ts` derives from each
+ * workspace member's own `endora` block. Keyed on the **declared id** and never
+ * on the name's spelling (D-142): the edge that was `../blog/entities/blog-post.entity`
+ * before the move has to be one key after it, and a `mod-` prefix rule would be a
+ * derived fact written down (D-100). The map is matched on whole name segments,
+ * because `startsWith` over a package name is the prefix match that produced the
+ * documented 2.2× undercount, one namespace up. An empty map is the tree that has
+ * no module package and is the behaviour that shipped — which is why the CLI
+ * reconciles the map it built against the layout's own package roots and refuses
+ * a run where those disagree.
  *
  * ## Out of scope, each for a stated reason
  *
@@ -642,7 +662,21 @@ export interface ModuleBoundaryInput {
    * not read stops the run at exit 2 before this map is built.
    */
   readonly packageTables?: readonly PackageTable[];
+  /**
+   * Each module package's npm name mapped to the module id it declares, so a
+   * bare specifier can be resolved to a module (feature 080).
+   *
+   * Absent is the tree with no module package, and it is the behaviour that
+   * shipped before !910 — not "no package reaches a module". The CLI derives the
+   * map from `lib/module-roots.ts` and refuses a run in which the layout found
+   * package roots and this map came back empty, because that disagreement is the
+   * only way the absence can mean something other than what it says.
+   */
+  readonly modulePackages?: ReadonlyMap<string, string>;
 }
+
+/** The tree with no module package installed — every fixture, and CI before !910. */
+const NO_MODULE_PACKAGES: ReadonlyMap<string, string> = new Map();
 
 export interface CheckResult {
   readonly total: number;
@@ -701,6 +735,42 @@ function moduleLocationOf(pathUnderSrc: string): ModuleLocation | null {
  * The specifier resolved against the importing file's directory, extension
  * dropped, or `null` for a bare specifier.
  */
+/**
+ * The module a **bare** specifier reaches, and the subpath it names, or `null`.
+ *
+ * The longest declared name that the specifier matches **on a segment boundary**
+ * wins. Both halves are load-bearing and neither is decoration:
+ * `@endora-commerce/mod-blog-extra` must not answer with `blog`, which a bare
+ * `startsWith` gives — that is the prefix match behind the documented 2.2×
+ * undercount, moved from a path to a package name. Longest-first is what lets
+ * two module packages share a prefix at all.
+ *
+ * The subpath is returned as written (`backend`, `migrations`), never resolved
+ * through the `exports` map: the map's targets are `dist/**` under D-164, and a
+ * ledger key naming a build artefact would change whenever the emit layout does.
+ * The package root answers `''`, which is what a relative specifier naming the
+ * module directory already answers.
+ */
+function resolveModulePackage(
+  specifier: string,
+  modulePackages: ReadonlyMap<string, string>,
+): { readonly id: string; readonly subpath: string } | null {
+  if (specifier.startsWith('.') || modulePackages.size === 0) return null;
+  let best: { readonly id: string; readonly subpath: string; readonly length: number } | null = null;
+  for (const [name, id] of modulePackages) {
+    if (!specifier.startsWith(name)) continue;
+    const rest = specifier.slice(name.length);
+    if (rest !== '' && !rest.startsWith('/')) continue;
+    if (best !== null && name.length <= best.length) continue;
+    best = { id, subpath: rest.replace(/^\//, '').replace(/\.(js|ts)$/, ''), length: name.length };
+  }
+  return best === null ? null : { id: best.id, subpath: best.subpath };
+}
+
+/**
+ * The specifier resolved against the importing file's directory, extension
+ * dropped, or `null` for a bare specifier.
+ */
 function resolveSpecifier(fromFile: string, specifier: string): string | null {
   if (!specifier.startsWith('.')) return null;
   const joined = posixNormalize(posixJoin(posixDirname(fromFile), specifier));
@@ -736,13 +806,39 @@ function surfaceOf(targetPath: string): CrossModuleSurface {
  * also why every red proof enters here, with source text and a path, rather than
  * with a resolved pair the check normally computes (issue #130).
  */
-export function analyzeSource(source: string, file: string): CrossModuleImport[] {
+export function analyzeSource(
+  source: string,
+  file: string,
+  modulePackages: ReadonlyMap<string, string> = NO_MODULE_PACKAGES,
+): CrossModuleImport[] {
   if (GENERATED_MODULE_FILES[file] !== undefined) return [];
   const owner = moduleLocationOf(file);
   if (owner === null) return [];
 
   const found: CrossModuleImport[] = [];
   for (const specifier of namedSpecifiers(source, file)) {
+    const packaged = resolveModulePackage(specifier.text, modulePackages);
+    if (packaged !== null) {
+      // The importer's own package, named by its own npm name — the self-import
+      // the directory comparison answers for the application tree. Compared by
+      // id because a bare specifier carries no directory to compare.
+      if (packaged.id === owner.id) continue;
+      found.push({
+        predicate: 'import',
+        file,
+        line: specifier.line,
+        moduleId: owner.id,
+        target: packaged.id,
+        specifier: specifier.text,
+        targetPath: packaged.subpath,
+        kind: specifier.kind,
+        surface: surfaceOf(packaged.subpath),
+        // A package is a workspace member, never a file under `src/apps/`, so
+        // only the importing side can make this edge an overlay one.
+        overlay: owner.dir.startsWith('apps/'),
+      });
+      continue;
+    }
     const resolved = resolveSpecifier(file, specifier.text);
     if (resolved === null) continue;
     const target = moduleLocationOf(resolved);
@@ -767,7 +863,8 @@ export function analyzeSource(source: string, file: string): CrossModuleImport[]
 
 /** Every cross-module import in the input, in file then line order. */
 export function findCrossModuleImports(input: ModuleBoundaryInput): CrossModuleImport[] {
-  const found = [...input.sources].flatMap(([file, text]) => analyzeSource(text, file));
+  const packages = input.modulePackages ?? NO_MODULE_PACKAGES;
+  const found = [...input.sources].flatMap(([file, text]) => analyzeSource(text, file, packages));
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return found;
 }
@@ -1467,7 +1564,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  const result = checkModuleBoundary({ sources, schema, packageTables: packages.tables }, shards);
+  const result = checkModuleBoundary(
+    {
+      sources,
+      schema,
+      packageTables: packages.tables,
+      modulePackages: layout.modulePackageNames,
+    },
+    shards,
+  );
   const selected = <T extends { readonly moduleId: string }>(entries: readonly T[]): readonly T[] =>
     only === null ? entries : entries.filter((entry) => entry.moduleId === only);
 
@@ -1529,6 +1634,22 @@ async function main(): Promise<void> {
   });
   const installed = packageCoverage(packages);
   const coverages: ReadCoverage[] = installed === null ? [modules] : [modules, installed];
+  // The npm name of every module package, reconciled against the package roots
+  // the layout found by a different route — the directories it walks against the
+  // names it read off their manifests. An empty map is a legal answer (no module
+  // package) and is indistinguishable, from inside, from a derivation that
+  // silently stopped working: a bare specifier into a module whose name is
+  // missing reads as a third-party import and is cleared. Reported only when
+  // there are roots, because `expected=0` is a refusal in this grammar and
+  // "no module package" was the whole tree until !910.
+  const packageRoots = layout.moduleRoots.filter((root) => root.origin === 'workspace-package');
+  if (packageRoots.length > 0) {
+    coverages.push({
+      source: 'module-packages',
+      expected: packageRoots.length,
+      covered: layout.modulePackageNames.size,
+    });
+  }
   reportReadSize({
     prefix: '[module-boundary]',
     files: sources.size + schema.size + packages.filesRead,
