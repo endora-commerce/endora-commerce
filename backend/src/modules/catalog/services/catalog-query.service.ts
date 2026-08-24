@@ -59,6 +59,10 @@ function decodeObjectCursor<T>(cursor: string): T | null {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 /**
  * Catalog read-path service (US1). Consumed by the storefront and by external
  * integrations pulling `/catalog/products?changedSince=...`.
@@ -166,6 +170,51 @@ export const PRICE_PAGE_SCAN_BUDGET_MULTIPLE = 8;
 type PriceListingCursor =
   | { stream: 'priced'; amount: string; productId: string }
   | { stream: 'tail'; createdAt: string; id: string };
+
+/**
+ * The cursor a listing that pages by a keyset issues. Opaque to every caller,
+ * and **shaped by the ordering it was issued under** — see `keysetFor`.
+ */
+type ListingKeysetCursor = { createdAt: string; id: string } | { slug: string; id: string };
+
+/**
+ * A keyset: how to name the last row of a chunk, and how to ask for the rows
+ * that sort strictly after it.
+ */
+interface ListingKeyset {
+  /** The cursor payload for a row a chunk ended on. */
+  of(product: Product): ListingKeysetCursor;
+  /**
+   * The decoded cursor, or `null` when it was issued under another ordering.
+   * Discarding it is the existing behaviour for a cursor that does not parse,
+   * and it is what a keyset over the wrong column has to do rather than
+   * reinterpret one column's value as another's.
+   */
+  parse(decoded: unknown): ListingKeysetCursor | null;
+  /** The `where` fragment selecting everything strictly after that row. */
+  after(cursor: ListingKeysetCursor): Record<string, unknown>;
+}
+
+/**
+ * The "everything strictly after this row" predicate, over whichever column the
+ * cursor names and in the direction that column is ordered in.
+ *
+ * One implementation for both shapes rather than one per keyset: they differ
+ * only in the column, and a second copy of this predicate is how it and the
+ * ordering came apart in the first place.
+ */
+function afterKeysetCursor(
+  cursor: ListingKeysetCursor,
+  op: '$gt' | '$lt',
+): Record<string, unknown> {
+  if ('slug' in cursor) {
+    return {
+      $or: [{ slug: { [op]: cursor.slug } }, { slug: cursor.slug, id: { [op]: cursor.id } }],
+    };
+  }
+  const at = new Date(cursor.createdAt);
+  return { $or: [{ createdAt: { [op]: at } }, { createdAt: at, id: { [op]: cursor.id } }] };
+}
 
 export interface ListResult<T> {
   data: T[];
@@ -520,18 +569,13 @@ export class CatalogQueryService {
       return this.#listWithPriceRange(em, params, ctx, where);
     }
 
-    // Cursor decoding — encoded as `{ createdAt, id }` in the default sort.
+    // Cursor decoding — over the keyset this ordering pages by, which is
+    // `{ createdAt, id }` for the default sort and `{ slug, id }` for `name`.
+    const keyset = this.keysetFor(params.sort);
     let cursorClause: Record<string, unknown> | null = null;
     if (params.cursor) {
-      const decoded = decodeObjectCursor<{ createdAt: string; id: string }>(params.cursor);
-      if (decoded) {
-        cursorClause = {
-          $or: [
-            { createdAt: { $lt: new Date(decoded.createdAt) } },
-            { createdAt: new Date(decoded.createdAt), id: { $lt: decoded.id } },
-          ],
-        };
-      }
+      const decoded = keyset.parse(decodeObjectCursor<unknown>(params.cursor));
+      if (decoded) cursorClause = keyset.after(decoded);
     }
 
     const effectiveWhere = cursorClause ? { $and: [where, cursorClause] } : where;
@@ -545,9 +589,7 @@ export class CatalogQueryService {
     const hasMore = products.length > params.limit;
     const page = hasMore ? products.slice(0, params.limit) : products;
     const nextCursor =
-      hasMore && page.length > 0
-        ? encodeObjectCursor({ createdAt: page[page.length - 1]!.createdAt.toISOString(), id: page[page.length - 1]!.id })
-        : null;
+      hasMore && page.length > 0 ? encodeObjectCursor(keyset.of(page[page.length - 1]!)) : null;
 
     // Sales Channel membership — only products associated with the channel are
     // returned, failing closed to the empty set.
@@ -865,10 +907,12 @@ export class CatalogQueryService {
       ? await this.productIdsInCategoryTree(em, params.categorySlug)
       : null;
 
-    const decoded = params.cursor
-      ? decodeObjectCursor<{ createdAt: string; id: string }>(params.cursor)
+    // The chunk walk and the page it hands back page by the same keyset, and
+    // that keyset is the one this ordering sorts on — `keysetFor`.
+    const keyset = this.keysetFor(params.sort);
+    let cursor: ListingKeysetCursor | null = params.cursor
+      ? keyset.parse(decodeObjectCursor<unknown>(params.cursor))
       : null;
-    let cursor = decoded;
     const budget = PRICE_PAGE_SCAN_BUDGET_MULTIPLE * params.limit;
     const target = params.limit + 1;
     // Over-fetch by one, for the same reason the price path does: a full page
@@ -885,19 +929,7 @@ export class CatalogQueryService {
         bound = true;
         break;
       }
-      const chunkWhere = cursor
-        ? {
-            $and: [
-              where,
-              {
-                $or: [
-                  { createdAt: { $lt: new Date(cursor.createdAt) } },
-                  { createdAt: new Date(cursor.createdAt), id: { $lt: cursor.id } },
-                ],
-              },
-            ],
-          }
-        : where;
+      const chunkWhere = cursor ? { $and: [where, keyset.after(cursor)] } : where;
       const rows = await em.find(Product, chunkWhere, {
         limit: chunkSize,
         orderBy: this.orderForSort(params.sort),
@@ -905,7 +937,7 @@ export class CatalogQueryService {
       spent += rows.length;
       if (rows.length === 0) break;
       const lastRow = rows[rows.length - 1]!;
-      cursor = { createdAt: lastRow.createdAt.toISOString(), id: lastRow.id };
+      cursor = keyset.of(lastRow);
 
       const visibleIds = await this.filterByChannel(
         rows.map((r) => r.id),
@@ -942,10 +974,7 @@ export class CatalogQueryService {
     const hasMore = collected.length > params.limit;
     const page = collected.slice(0, params.limit);
     const last = page[page.length - 1];
-    const nextCursor =
-      hasMore && last
-        ? encodeObjectCursor({ createdAt: last.createdAt.toISOString(), id: last.id })
-        : null;
+    const nextCursor = hasMore && last ? encodeObjectCursor(keyset.of(last)) : null;
     const cardReads = await this.#listingCardReadsFor(em, page.map((p) => p.id));
     return {
       data: page.map((p) =>
@@ -1811,6 +1840,59 @@ export class CatalogQueryService {
       default:
         return { createdAt: 'desc', id: 'desc' };
     }
+  }
+
+  /**
+   * The keyset a listing pages by — **derived from the ordering it serves**,
+   * never assumed.
+   *
+   * A chunk is fetched with `orderForSort(sort)` and the walk then asks for
+   * "everything after the last row of it". Those are one decision, and they had
+   * come apart: the `after` predicate was written over `created_at` whatever the
+   * ordering, so under `sort=name` — which orders by `slug` — it excluded the
+   * rows *newer* than the last one served instead of the rows already served.
+   * That set has no relation to the page, so the walk both repeats products and
+   * never reaches the ones between the repeats:
+   * `?q=…&sort=name&minPrice=0&maxPrice=100000&limit=3` served
+   * `[A, B, A]` on one page and then re-issued a cursor pointing at `B`.
+   *
+   * Deriving it here is what keeps the two in step for the next ordering
+   * somebody adds: `orderForSort` is the only place that says what a sort orders
+   * by, and this is the only place that says how to page it.
+   */
+  private keysetFor(sort: ListProductsParams['sort']): ListingKeyset {
+    const order = this.orderForSort(sort);
+    const slugDirection = order['slug'];
+    if (slugDirection !== undefined) {
+      // `slug` is unique, so the `id` tie-break can never fire. It is written
+      // anyway because the ordering names it, and a keyset that drops a column
+      // its ordering carries is the defect above in miniature.
+      const op = slugDirection === 'asc' ? '$gt' : '$lt';
+      return {
+        of: (product) => ({ slug: product.slug, id: product.id }),
+        parse: (decoded) =>
+          isRecord(decoded) &&
+          typeof decoded['slug'] === 'string' &&
+          typeof decoded['id'] === 'string'
+            ? { slug: decoded['slug'], id: decoded['id'] }
+            : null,
+        after: (cursor) => afterKeysetCursor(cursor, op),
+      };
+    }
+    // The default ordering is `createdAt desc, id desc`, in every sort that
+    // reaches here, so the direction is not read off the map the way the slug
+    // one is — it has nothing to read.
+    return {
+      of: (product) => ({ createdAt: product.createdAt.toISOString(), id: product.id }),
+      parse: (decoded) =>
+        isRecord(decoded) &&
+        typeof decoded['createdAt'] === 'string' &&
+        typeof decoded['id'] === 'string' &&
+        !Number.isNaN(new Date(decoded['createdAt']).getTime())
+          ? { createdAt: decoded['createdAt'], id: decoded['id'] }
+          : null,
+      after: (cursor) => afterKeysetCursor(cursor, '$lt'),
+    };
   }
 
   private async filterByChannel(
