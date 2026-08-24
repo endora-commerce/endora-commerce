@@ -13,6 +13,7 @@ import type {
   CustomerGroupReadPort,
   CustomerPasswordResetPort,
   CustomerPasswordStatePort,
+  CustomerPasswordVerificationPort,
   CustomerRolePort,
   CustomerTotpEnrolmentPort,
   MfaLoginPort,
@@ -35,6 +36,7 @@ import {
   CustomerAccountMemberWriteService,
   CustomerAccountReadService,
   CustomerPasswordStateService,
+  CustomerPasswordVerificationService,
   createCustomerAuthPort,
   createCustomerRolePort,
 } from './services/customer-account-ports.js';
@@ -232,6 +234,26 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ emFactory }: CustomerAccountsCradle) => new CustomerPasswordStateService(emFactory),
+      )
+      .singleton(),
+  );
+
+  /**
+   * Feature 080 (T052) — step-up re-verification, for `mfa`. Both composition
+   * roots used to read `passwordHash` off this module's entity and compare it
+   * with the platform hasher themselves; the column and the comparison are
+   * this module's, so the boolean is what crosses.
+   *
+   * Its own port rather than a method on `customerPasswordStatePort` for the
+   * reason that port gives for existing at all: the two questions differ, and
+   * only one of them takes a caller-supplied secret.
+   */
+  ctx.di.providePort<CustomerPasswordVerificationPort>(
+    'customerPasswordVerificationPort',
+    ctx
+      .asFunction(
+        ({ emFactory }: CustomerAccountsCradle) =>
+          new CustomerPasswordVerificationService(emFactory),
       )
       .singleton(),
   );

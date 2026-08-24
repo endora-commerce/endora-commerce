@@ -12,12 +12,13 @@ import {
   type CustomerAccountRole,
   type CustomerAuthPort,
   type CustomerPasswordStatePort,
+  type CustomerPasswordVerificationPort,
   type CustomerRolePort,
 } from '@endora-commerce/contracts';
 import { recordAuditFromContext } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
-import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
+import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import type { CustomerAuthService } from './customer-auth-service.js';
 import type { RoleService } from './role-service.js';
@@ -215,6 +216,30 @@ export class CustomerPasswordStateService implements CustomerPasswordStatePort {
     // work, and only the date leaves this method either way.
     const account = await this.emFactory().findOne(CustomerAccount, { id: customerAccountId });
     return account?.passwordSetAt ?? null;
+  }
+}
+
+/**
+ * Step-up re-verification, for `mfa` (feature 080, T052).
+ *
+ * The read is this module's own row and the comparison is the platform
+ * hasher's, so both halves are on this side of the seam. The composition roots
+ * held them instead: each read `passwordHash` off the entity and called
+ * `verifyPassword` itself, which is a credential column and a hash comparison
+ * living in a file that owns neither.
+ *
+ * The hash never leaves this class — that is the difference between this port
+ * and a `passwordHash` field on `CustomerAccountRecord`, and it is the whole
+ * reason the port exists.
+ */
+export class CustomerPasswordVerificationService implements CustomerPasswordVerificationPort {
+  constructor(private readonly emFactory: () => EntityManager) {}
+
+  async verifyPassword(customerAccountId: string, password: string): Promise<boolean> {
+    const account = await this.emFactory().findOne(CustomerAccount, { id: customerAccountId });
+    // The bare call is the imported hasher: a class method is not in scope as
+    // an identifier, so it shadows nothing.
+    return account ? verifyPassword(account.passwordHash, password) : false;
   }
 }
 
