@@ -78,16 +78,25 @@ import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
 import { loadPackageModuleEntries } from '../../src/packages/package-runtime.js';
 import { buildStaticRegistry } from '../../src/modules/_lifecycle/services/static-registry.js';
 import type { LoadedManifestRegistry } from '../../src/modules/_lifecycle/services/manifest-loader.js';
-import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@endora-commerce/contracts';
+import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
+// Feature 080 (T052) — the contract types for the seven ports that replaced
+// this root's five entity-class reads, spelled exactly as `composition.ts`
+// spells them.
+import type {
+  AdminPasswordVerificationPort,
+  AdminRolePort,
+  AdminUserReadPort,
+  AssetReadPort,
+  CustomerAccountReadPort,
+  CustomerPasswordVerificationPort,
+  OrderReadPort,
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
-import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
 import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
 // D-54 — injected into the error envelope, exactly as `composition.ts` does it:
 // `src/http` may not name a module (D-52), a composition root may.
 import { ERROR_TRANSLATION_KEYS } from '../../src/modules/_i18n/services/error-translation.js';
-import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import type {
   OrganizationsCradle,
   OrganizationTaxProfilePort,
@@ -160,17 +169,14 @@ import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services
 import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/services/ergonode-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
-import { Asset } from '../../src/modules/assets_library/entities/asset.entity.js';
 import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../src/modules/pwa/backend.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from '../../src/kernel/i18n/request-language.js';
-import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js';
 import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { z } from 'zod';
 import type { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
-import type { AssetReadPort } from '@endora-commerce/contracts';
 import type { PricingServiceContract } from '../../src/modules/price_lists/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
@@ -933,6 +939,25 @@ export async function setupBackendServer(
     // The one composition allowed to serve `/api/v1/_test/latest-verification-token`.
     organizationsExposeTestProbe: true,
   });
+  // Feature 080 (T052) — the identity, order and asset ports, mirroring
+  // `composition.ts` name for name. This harness read the same five entity
+  // classes production did, so the repair is one applied twice: a module
+  // package publishes `entities` and no named entity class (D-168), and a root
+  // that names one stops compiling the day its owner moves.
+  const identityPorts = (): {
+    adminUserReadPort: AdminUserReadPort;
+    adminRolePort: AdminRolePort;
+    adminPasswordVerificationPort: AdminPasswordVerificationPort;
+    customerAccountReadPort: CustomerAccountReadPort;
+    customerPasswordVerificationPort: CustomerPasswordVerificationPort;
+  } => container.cradle as never;
+
+  const orderReadPort = (): OrderReadPort =>
+    (container.cradle as never as { orderReadPort: OrderReadPort }).orderReadPort;
+
+  const assetReadPort = (): AssetReadPort =>
+    (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
+
   // T143a — `inventory`'s availability port, mirroring `composition.ts`.
   const inventoryCradle = (): {
     inventoryAvailabilityPort: {
@@ -1489,15 +1514,15 @@ export async function setupBackendServer(
       resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
       autoCreateCustomer: (email: string) => customerSocialLogin().autoCreate(email),
       resolveAdminByEmail: async (email: string) => {
-        // Folded like production's (issue #249): the harness writes this read
-        // out rather than forwarding to a port, so a divergence here would be
-        // a test suite that cannot see the defect.
-        const a = await em().findOne(AdminUser, {
-          email: normalizeEmailAddress(email),
-          deletedAt: null,
-          status: 'active',
+        // T052 — the same port production reads, rather than a second copy of
+        // the read. The comment that stood here argued for the copy on the
+        // grounds that a divergence would be invisible; the divergence it
+        // guarded against is what a shared owner removes, and the fold
+        // (issue #249) is `findByEmail`'s now.
+        const a = await identityPorts().adminUserReadPort.findByEmail(email, {
+          activeOnly: true,
         });
-        return a ? { id: a.id } : null;
+        return a !== null && a.status === 'active' ? { id: a.id } : null;
       },
     },
     mfaActorBridge: {
@@ -1517,14 +1542,18 @@ export async function setupBackendServer(
         return { adminUserId: request.testActor.adminUserId };
       },
       resolveOrganizationCustomerIds: async (organizationId: string) => {
-        const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+        const rows = await identityPorts().customerAccountReadPort.listByOrganization(
+          organizationId,
+        );
         return rows.map((r) => r.id);
       },
       resolveOrgAdmin: async (request: FastifyRequest) => {
         if (request.testActor?.kind !== 'customer') {
           throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
         }
-        const c = await em().findOne(CustomerAccount, { id: request.testActor.customerAccountId });
+        const c = await identityPorts().customerAccountReadPort.findById(
+          request.testActor.customerAccountId,
+        );
         if (!c || c.role !== 'organization_admin' || !c.organizationId) {
           throw new HttpError(
             403,
@@ -1654,7 +1683,7 @@ export async function setupBackendServer(
         from: string;
         to: string;
       }) => {
-        const order = await em().findOne(Order, { id: payload.orderId });
+        const order = await orderReadPort().findById(payload.orderId);
         if (!order || !order.placedByCustomerAccountId) return null;
         return {
           salesChannelId: payload.salesChannelId,
@@ -2110,7 +2139,9 @@ export async function setupBackendServer(
   composedModules.contribute({
     rfqCustomerContextResolver: async (request: FastifyRequest) => {
       const ctx = customerResolver(request);
-      const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
+      const account = await identityPorts().customerAccountReadPort.findById(
+        ctx.customerAccountId,
+      );
       return {
         customerAccountId: ctx.customerAccountId,
         organizationId: ctx.organizationId,
@@ -2120,9 +2151,12 @@ export async function setupBackendServer(
     rfqAdminContextResolver: async (request: FastifyRequest) => {
       const adminUserId =
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
-      const adminUser = await em().findOne(AdminUser, { id: adminUserId });
+      const ports = identityPorts();
+      const adminUser = await ports.adminUserReadPort.findById(adminUserId);
+      // `getById` cannot 404 here: `admin_users_admin_role_fk` is
+      // `on delete restrict`, so a non-null `adminRoleId` names a row.
       const role = adminUser?.adminRoleId
-        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+        ? await ports.adminRolePort.getById(adminUser.adminRoleId)
         : null;
       return {
         adminUserId,
@@ -2225,9 +2259,10 @@ export async function setupBackendServer(
     customerModerationActorResolver: async (request: FastifyRequest) => {
       const adminUserId =
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
-      const adminUser = await em().findOne(AdminUser, { id: adminUserId });
+      const ports = identityPorts();
+      const adminUser = await ports.adminUserReadPort.findById(adminUserId);
       const role = adminUser?.adminRoleId
-        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+        ? await ports.adminRolePort.getById(adminUser.adminRoleId)
         : null;
       const isPlatformAdmin = role?.code !== 'sales_representative';
       const allowedOrganizationIds = isPlatformAdmin
@@ -2281,7 +2316,7 @@ export async function setupBackendServer(
       // T143c, reading `emailMailer` per send — which is the name this harness
       // already overrides with its spy, so the injected mailer still arrives.
       resolveCustomerEmail: async (cid) =>
-        (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
+        (await identityPorts().customerAccountReadPort.findById(cid))?.email ?? null,
       resolveChannelLanguage: async (salesChannelId) =>
         (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
     } satisfies ReturnsBridge,
@@ -2305,8 +2340,9 @@ export async function setupBackendServer(
       }),
       getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
       resolveRecipientEmail: async (order) =>
-        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ??
-        null,
+        (
+          await identityPorts().customerAccountReadPort.findById(order.placedByCustomerAccountId)
+        )?.email ?? null,
       resolveLanguage: async (salesChannelId) =>
         (salesChannelId
           ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
@@ -2384,11 +2420,9 @@ export async function setupBackendServer(
       resolvePublicImageUrls: async (assetIds: string[]) => {
         const out = new Map<string, string>();
         if (assetIds.length === 0) return out;
-        const assets = await em().find(Asset, {
-          id: { $in: assetIds },
-          visibility: 'public',
-          deletedAt: null,
-        });
+        const assets = (await assetReadPort().findByIds(assetIds, { liveOnly: true })).filter(
+          (asset) => asset.visibility === 'public',
+        );
         for (const asset of assets) {
           try {
             const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
@@ -2459,7 +2493,7 @@ export async function setupBackendServer(
       resolveCustomerAccountId: (req) =>
         req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : '',
       loadCustomerEmail: async (customerAccountId) =>
-        (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+        (await identityPorts().customerAccountReadPort.findById(customerAccountId))?.email ?? null,
       mailer: injectedMailer,
       emitEvent: (name, payload) =>
         eventBus.emit(name, {
@@ -2562,7 +2596,8 @@ export async function setupBackendServer(
       // root grows a second spelling of the ladder.
       resolvePreferredLanguage: createRequestLanguageResolver({
         adminPreferredLanguage: async (adminUserId) =>
-          (await em().findOne(AdminUser, { id: adminUserId }))?.preferredLanguage ?? null,
+          (await identityPorts().adminUserReadPort.findById(adminUserId))?.preferredLanguage ??
+          null,
       }),
       translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
         const translated = await adminI18nCradle.adminI18nService.translate(

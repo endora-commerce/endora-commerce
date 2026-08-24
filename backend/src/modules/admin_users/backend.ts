@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type {
+  AdminPasswordVerificationPort,
   AdminRolePort,
   AdminUserPreferencePort,
   AdminUserReadPort,
@@ -19,6 +20,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { adminModule } from './plugin.js';
 import {
   AdminUserReadService,
+  createAdminPasswordVerificationPort,
   createAdminUserPreferencePort,
   createImpersonationPort,
 } from './services/admin-user-ports.js';
@@ -140,6 +142,19 @@ export function registerModule(ctx: ModuleContext): void {
     'adminUserReadPort',
     ctx
       .asFunction(({ emFactory }: AdminUsersCradle) => new AdminUserReadService(emFactory))
+      .singleton(),
+  );
+
+  // Feature 080 (T052) — step-up re-verification, for `mfa`. Both composition
+  // roots used to read `passwordHash` off this module's entity and compare it
+  // with the platform hasher themselves; the column and the comparison are
+  // this module's, so the boolean is what crosses.
+  ctx.di.providePort<AdminPasswordVerificationPort>(
+    'adminPasswordVerificationPort',
+    ctx
+      .asFunction(({ emFactory }: AdminUsersCradle) =>
+        createAdminPasswordVerificationPort(emFactory),
+      )
       .singleton(),
   );
 

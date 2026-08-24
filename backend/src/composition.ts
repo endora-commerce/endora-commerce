@@ -4,12 +4,22 @@ import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
-import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
 import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/services/customer-rollup-scope.js';
-import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
-import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@endora-commerce/contracts';
+import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
+// Feature 080 (T052) — the contract types for the seven ports that replaced
+// this root's five entity-class reads. Types only: what a root resolves is a
+// container name, and the shape it resolves it against is published in
+// `@endora-commerce/contracts` rather than imported from the provider.
+import type {
+  AdminPasswordVerificationPort,
+  AdminRolePort,
+  AdminUserReadPort,
+  AssetReadPort,
+  CustomerAccountReadPort,
+  CustomerPasswordVerificationPort,
+  OrderReadPort,
+} from '@endora-commerce/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { ApiInterceptorRegistry } from './http/interceptors/index.js';
@@ -87,7 +97,6 @@ import type { KsefCradle } from './modules/ksef/backend.js';
 import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge } from './modules/mfa/backend.js';
-import { verifyPassword } from './modules/auth/services/password-hasher.js';
 import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
 import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
 import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
@@ -110,8 +119,6 @@ import type { NewsletterBridge } from './modules/newsletter/backend.js';
 import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
-import { Order } from './modules/orders/entities/order.entity.js';
-import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
 import { loadModulePresence } from './modules/_lifecycle/services/presence-load.js';
 import {
@@ -401,6 +408,33 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const searchCradle = (): {
     searchReindexPort: { reindexAll(): Promise<{ documentCount: number }> };
   } => container.cradle as never;
+
+  // Feature 080 (T052) — the ports that replaced this root's reads of five
+  // other modules' entity classes: `CustomerAccount`, `AdminUser`,
+  // `AdminRole`, `Order` and `Asset`.
+  //
+  // The reason is packaging rather than the boundary. A composition root is
+  // explicitly not a platform root (D-52/D-53), so naming those classes was
+  // legal; what ends it is D-168 — a module package publishes `entities` and
+  // no named entity class, so the day one of the five moves, a root that names
+  // its class stops compiling and there is no import to fix.
+  //
+  // Read lazily and never captured, like every other port this file reaches:
+  // `providePort` registers a transient gate, and a captured one keeps
+  // answering after its owner is withdrawn.
+  const identityPorts = (): {
+    adminUserReadPort: AdminUserReadPort;
+    adminRolePort: AdminRolePort;
+    adminPasswordVerificationPort: AdminPasswordVerificationPort;
+    customerAccountReadPort: CustomerAccountReadPort;
+    customerPasswordVerificationPort: CustomerPasswordVerificationPort;
+  } => container.cradle as never;
+
+  const orderReadPort = (): OrderReadPort =>
+    (container.cradle as never as { orderReadPort: OrderReadPort }).orderReadPort;
+
+  const assetReadPort = (): AssetReadPort =>
+    (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
 
   // T143a — `inventory`'s availability port, read lazily.
   const inventoryCradle = (): {
@@ -914,14 +948,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveAdminByEmail: async (email: string) => {
       // The claim's spelling is the identity provider's, and the row holds the
       // folded address, so the two are compared in the one form both modules
-      // store (issue #249). This read is still a root's — `admin_users` has no
-      // port for it — so the fold is written here rather than behind one.
-      const a = await em().findOne(AdminUser, {
-        email: normalizeEmailAddress(email),
-        deletedAt: null,
-        status: 'active',
+      // store (issue #249). T052 — the fold is the owner's now:
+      // `findByEmail` folds before it compares, for exactly the callers that
+      // arrive through no request schema, so this root no longer writes out a
+      // normalisation it would have to keep in step with the column.
+      //
+      // `activeOnly` is the port's undeleted filter; `status` is a column on
+      // the record, and both halves of the original filter are kept.
+      const a = await identityPorts().adminUserReadPort.findByEmail(email, {
+        activeOnly: true,
       });
-      return a ? { id: a.id } : null;
+      return a !== null && a.status === 'active' ? { id: a.id } : null;
     },
   };
 
@@ -954,14 +991,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return { adminUserId: request.actor.adminUserId };
       },
       resolveOrganizationCustomerIds: async (organizationId: string) => {
-        const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+        const rows = await identityPorts().customerAccountReadPort.listByOrganization(
+          organizationId,
+        );
         return rows.map((r) => r.id);
       },
       resolveOrgAdmin: async (request: FastifyRequest) => {
         if (request.actor.kind !== 'customer') {
           throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
         }
-        const c = await em().findOne(CustomerAccount, { id: request.actor.customerAccountId });
+        const c = await identityPorts().customerAccountReadPort.findById(
+          request.actor.customerAccountId,
+        );
         if (!c || c.role !== 'organization_admin' || !c.organizationId) {
           throw new HttpError(
             403,
@@ -972,26 +1013,26 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return { organizationId: c.organizationId, actor: c.id };
       },
       resolveAccountEmail: async (subjectType: 'customer' | 'admin', subjectId: string) => {
-        const em2 = em();
+        const ports = identityPorts();
         if (subjectType === 'admin') {
-          const a = await em2.findOne(AdminUser, { id: subjectId });
-          return a?.email ?? null;
+          return (await ports.adminUserReadPort.findById(subjectId))?.email ?? null;
         }
-        const c = await em2.findOne(CustomerAccount, { id: subjectId });
-        return c?.email ?? null;
+        return (await ports.customerAccountReadPort.findById(subjectId))?.email ?? null;
       },
+      // T052 — the hash no longer travels. This root read `passwordHash` off
+      // both entities and ran the comparison with `auth`'s hasher, so a
+      // credential column and a hash comparison lived in a file that owns
+      // neither; each module answers for its own now and only the boolean
+      // crosses.
       verifyAccountPassword: async (
         subjectType: 'customer' | 'admin',
         subjectId: string,
         password: string,
       ) => {
-        const em2 = em();
-        if (subjectType === 'admin') {
-          const a = await em2.findOne(AdminUser, { id: subjectId });
-          return a ? verifyPassword(a.passwordHash, password) : false;
-        }
-        const c = await em2.findOne(CustomerAccount, { id: subjectId });
-        return c ? verifyPassword(c.passwordHash, password) : false;
+        const ports = identityPorts();
+        return subjectType === 'admin'
+          ? ports.adminPasswordVerificationPort.verifyPassword(subjectId, password)
+          : ports.customerPasswordVerificationPort.verifyPassword(subjectId, password);
       },
     } satisfies MfaActorBridge,
   });
@@ -1256,7 +1297,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerAccountId: async (request: FastifyRequest) =>
         request.actor.kind === 'customer' ? request.actor.customerAccountId : null,
       resolveOrderTarget: async (payload) => {
-        const order = await em().findOne(Order, { id: payload.orderId });
+        const order = await orderReadPort().findById(payload.orderId);
         if (!order || !order.placedByCustomerAccountId) return null;
         return {
           salesChannelId: payload.salesChannelId,
@@ -1724,9 +1765,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           { code: 'organization_required' },
         );
       }
-      const account = await em().findOne(CustomerAccount, {
-        id: request.actor.customerAccountId,
-      });
+      const account = await identityPorts().customerAccountReadPort.findById(
+        request.actor.customerAccountId,
+      );
       return {
         customerAccountId: request.actor.customerAccountId,
         organizationId: request.actor.organizationId,
@@ -1737,9 +1778,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       if (request.actor.kind !== 'admin') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
       }
-      const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
+      const ports = identityPorts();
+      const adminUser = await ports.adminUserReadPort.findById(request.actor.adminUserId);
+      // `getById` rather than a nullable lookup, and it cannot 404 here:
+      // `admin_users_admin_role_fk` is `on delete restrict`, so a non-null
+      // `adminRoleId` names a row that exists.
       const role = adminUser?.adminRoleId
-        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+        ? await ports.adminRolePort.getById(adminUser.adminRoleId)
         : null;
       return {
         adminUserId: request.actor.adminUserId,
@@ -1889,19 +1934,24 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
       getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
       resolveRecipientEmail: async (order) =>
-        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ??
-        null,
+        (
+          await identityPorts().customerAccountReadPort.findById(order.placedByCustomerAccountId)
+        )?.email ?? null,
       resolveLanguage: async (salesChannelId) =>
         (salesChannelId
           ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
           : null) ?? 'en-US',
       loadAssetImage: async (assetId) => {
+        // T052 — the row read sits **outside** the `try`, deliberately. It is a
+        // gated port now, and a `catch` around one turns "this capability is
+        // off" into "this asset is not an image" (composition checklist item
+        // 7). What the `try` is for is the storage adapter below: a backend
+        // that cannot stream the bytes is an invoice rendered without a logo,
+        // which is the degrade this bridge is written for.
+        const a = await assetReadPort().findById(assetId, { liveOnly: true });
+        if (!a || !a.mimeType.startsWith('image/')) return null;
         try {
-          const a = await em().findOne(Asset, { id: assetId, deletedAt: null });
-          if (!a || !a.mimeType.startsWith('image/')) return null;
-          const adapter = await assetsLibrary.handle.adapters.getForBackend(
-            a.storageBackend as 'local' | 's3' | 'gcs' | 'legacy',
-          );
+          const adapter = await assetsLibrary.handle.adapters.getForBackend(a.storageBackend);
           // Legacy resolver only has resolveUrl — cannot stream bytes for PDF embed.
           if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
           const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
@@ -2001,11 +2051,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolvePublicImageUrls: async (assetIds: string[]) => {
         const out = new Map<string, string>();
         if (assetIds.length === 0) return out;
-        const assets = await em().find(Asset, {
-          id: { $in: assetIds },
-          visibility: 'public',
-          deletedAt: null,
-        });
+        const assets = (await assetReadPort().findByIds(assetIds, { liveOnly: true })).filter(
+          (asset) => asset.visibility === 'public',
+        );
         const apiOrigin = configuredPublicApiBaseUrl();
         for (const asset of assets) {
           try {
@@ -2097,7 +2145,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // since T143c; what a composition still answers is where the message goes
       // and in which language.
       resolveCustomerEmail: async (customerAccountId) =>
-        (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+        (await identityPorts().customerAccountReadPort.findById(customerAccountId))?.email ?? null,
       resolveChannelLanguage: async (salesChannelId) =>
         (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
     } satisfies ReturnsBridge,
@@ -2160,7 +2208,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       publicBaseUrl: resolvePublicApiBaseUrl(),
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
       loadCustomerEmail: async (customerAccountId) =>
-        (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+        (await identityPorts().customerAccountReadPort.findById(customerAccountId))?.email ?? null,
       mailer: platformMailer,
       emitEvent: (name, payload) =>
         eventBus.emit(name, {
@@ -2432,7 +2480,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // platform ships was unreachable for a buyer.
       resolvePreferredLanguage: createRequestLanguageResolver({
         adminPreferredLanguage: async (adminUserId) =>
-          (await em().findOne(AdminUser, { id: adminUserId }))?.preferredLanguage ?? null,
+          (await identityPorts().adminUserReadPort.findById(adminUserId))?.preferredLanguage ??
+          null,
       }),
       translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
         const translated = await adminI18nCradle.adminI18nService.translate(

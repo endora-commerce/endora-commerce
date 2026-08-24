@@ -619,16 +619,6 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
       'provides actor promotion as a port; the harness resolves `request.testActor` directly and ' +
       'has nothing to promote, which is why this entry is production-only.',
   },
-  'auth:verifyPassword': {
-    owner: 'auth',
-    roots: ['production'],
-    ownerLocked: true,
-    reason:
-      'Step-up re-verification compares a password against a stored hash. The hasher is ' +
-      '`auth`’s, but the two hashes are `admin_users`’ and `customer_accounts`’ — so the ' +
-      'root reads two other modules’ password columns to use it. It drains when those two ' +
-      'provide `verifyPassword(subjectId, password)`, which also takes the hash out of a root.',
-  },
   'email:absolutizePublicUrl': {
     owner: 'email',
     roots: ['production'],
@@ -638,17 +628,6 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
       'inside `email`** — the root is its only caller. It is a deployment-origin helper filed ' +
       'under the module that first needed it; it drains by moving to the platform, a relocation ' +
       'that should be done for that reason and not for this count.',
-  },
-  'customer_accounts:CustomerAccount': {
-    owner: 'customer_accounts',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'Six root bridges turn an account id into an e-mail, a role or an organization id by ' +
-      'querying the entity. Each has a different answer to "what if `customer_accounts` is off" ' +
-      '— the MFA bridge should refuse, an invoice e-mail address should degrade — so a single ' +
-      'directory port cannot be added without deciding all six, which is why it is one cluster ' +
-      'and not six one-line fixes.',
   },
   'customer_accounts:resolveCustomerRollupSubtreeIds': {
     owner: 'customer_accounts',
@@ -665,49 +644,6 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
       'That is a measurement somebody has to take, and the request scope already pays it for ' +
       'other names. It drains with that measurement, under Principle I — a root that reads a ' +
       'module’s roll-up query is a root that has to be edited when the roll-up changes.',
-  },
-  'admin_users:AdminUser': {
-    owner: 'admin_users',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'Same cluster as `customer_accounts:CustomerAccount`, admin side. The "harder ' +
-      'constraint" this entry used to name — "the error envelope reads the admin’s preferred ' +
-      'language on the error path, so a gated port there would make an error response fail ' +
-      'when `admin_users` is off" — is void since feature 074 locked the module: the error ' +
-      'path cannot meet a closed gate, because there is no state in which that gate closes. ' +
-      'With all three owners of the cluster locked, the six root bridges have **one** answer ' +
-      'to "what if the module is off" instead of six, so the identity/directory projection ' +
-      'port stops being blocked and starts being work. It drains with that port, together ' +
-      'with `admin_roles:AdminRole` and `customer_accounts:CustomerAccount`.',
-  },
-  'admin_roles:AdminRole': {
-    owner: 'admin_roles',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'The RFQ admin-context resolver reads the acting admin’s role code to decide platform-admin ' +
-      'versus sales-representative visibility. Drains with the `admin_users` directory port above, ' +
-      'which is where the role has to be projected from.',
-  },
-  'orders:Order': {
-    owner: 'orders',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'The PWA push bridge turns an order-status event into a notification title and deep link. ' +
-      '`orders` provides `orderServiceAccessor`, but nothing on it answers "the business id and ' +
-      'the customer of this order" without loading the aggregate; drains when it does.',
-  },
-  'assets_library:Asset': {
-    owner: 'assets_library',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'Two bridges read asset rows for facts the service does not expose — the storage backend ' +
-      'and mime type for a PDF embed, and the public/undeleted filter for a feed image set. ' +
-      'This module still hands its service out through a root-registered `assetsLibraryService`, ' +
-      'so the entry drains with that conversion rather than before it.',
   },
   // `catalog:catalogPromptResolverTools`, `catalog:catalogPromptMutationTools`,
   // `inventory:inventoryPromptTools` and `orders:ordersPromptTools` were here.
@@ -766,28 +702,35 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
  * became 10 for that reason and for no drain.
  */
 const ROOT_MODULE_IMPORT_CEILING: Readonly<Record<RootName, number>> = {
-  production: 14,
-  // 9 → 10 (issue #158), and this is the one direction this number is not
-  // supposed to move, so the argument is here rather than in a merge-request
-  // description nobody will find again.
+  // 14 → 8 (feature 080, T052). Six declarations left in one merge request,
+  // and five of them were the same shape: `CustomerAccount`, `AdminUser`,
+  // `AdminRole`, `Order` and `Asset`, each read with `em.findOne` in a root
+  // bridge. The sixth was `auth:verifyPassword`, which drained with them
+  // because what it compared against was two of those entities' password
+  // columns.
+  production: 8,
+  // 10 → 5, the same six minus `auth:verifyPassword`, which this root never
+  // held: the harness contributes no password verifier, so disabling a second
+  // factor here has always required a current code.
   //
-  // The declaration added is `_lifecycle/services/static-registry.js`, for
-  // `buildStaticRegistry`. It is the function production already reaches
-  // through `lifecycleModuleFromStaticEntries`, so the harness now builds the
-  // manifest registry the way the deployment does instead of contributing
-  // `() => undefined` — which is what left `translation_bundles` empty in every
-  // test and the error envelope's translation path unexercised. The number this
-  // file counts went up; the divergence it exists to measure went down, and
-  // where those two disagree the divergence is the one that matters.
-  //
-  // Both raises available were worse. A registry hand-rolled in the harness is
-  // precisely the "the harness does it its own way" shape T143c refuses, and a
-  // `as LoadedManifestRegistry` cast over a partial object hides the same
-  // divergence from the type system instead of from this ledger.
-  harness: 10,
+  // The comment this replaces recorded a raise, 9 → 10 (issue #158), and its
+  // argument stands and is worth keeping in one line: the declaration added was
+  // `buildStaticRegistry`, which made the harness build the manifest registry
+  // the way the deployment does instead of contributing `() => undefined`. The
+  // number went up and the divergence went down, and where those two disagree
+  // the divergence is the one that matters.
+  harness: 5,
 };
 
-/** What the restated SC-001 / SC-006 ask for, kept beside what is true. */
+/**
+ * What the restated SC-001 / SC-006 ask for, kept beside what is true.
+ *
+ * **Met since feature 080's T052**, in both roots, for the first time — which
+ * is the event the assertion at the bottom of this describe block was written
+ * to make somebody notice. It stays here rather than being deleted: the
+ * ceilings are a ratchet, and a ratchet with nothing to be at or below is one
+ * a later merge request can raise without argument.
+ */
 const ROOT_MODULE_IMPORT_CRITERION = 10;
 
 /**
@@ -1018,13 +961,23 @@ describe('T143c — the root value-import ledger', () => {
     }
   });
 
-  it('keeps the criterion visible beside the residue it is not yet at', () => {
-    // Not a behavioural assertion. The ceilings above are what is true; this is
-    // what was asked for, and the gap between them is the remaining work. The
-    // moment a ceiling reaches the criterion, this assertion is the one that
-    // says so.
-    const worst = Math.max(...Object.values(ROOT_MODULE_IMPORT_CEILING));
-    expect(worst).toBeGreaterThanOrEqual(ROOT_MODULE_IMPORT_CRITERION);
+  it('holds every root at the criterion, now that both are under it', () => {
+    // This assertion used to read `toBeGreaterThanOrEqual` and was documented
+    // as "the moment a ceiling reaches the criterion, this assertion is the one
+    // that says so". T052 is that moment: production 14 → 8 and the harness
+    // 10 → 5, both under 10. So it inverts, and what it now refuses is a
+    // ceiling raised back over the criterion — which is the only direction
+    // left that would mean anything.
+    //
+    // The two are separate assertions on purpose. The one above holds each root
+    // to its own recorded residue and is what catches a new import; this one
+    // holds the recorded residues to the number SC-001 and SC-006 asked for,
+    // and is what catches a residue being edited upward to make room for one.
+    for (const [root, ceiling] of Object.entries(ROOT_MODULE_IMPORT_CEILING)) {
+      expect(ceiling, `${root}'s recorded residue is over the criterion`).toBeLessThanOrEqual(
+        ROOT_MODULE_IMPORT_CRITERION,
+      );
+    }
   });
 });
 

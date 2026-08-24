@@ -1,12 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { normalizeEmailAddress } from '@endora-commerce/contracts';
 import type {
+  AdminPasswordVerificationPort,
   AdminUserLookupOptions,
   AdminUserPreferencePort,
   AdminUserReadPort,
   AdminUserRecord,
   ImpersonationPort,
 } from '@endora-commerce/contracts';
+import { verifyPassword } from '../../../kernel/crypto/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import type { AdminUserService } from './admin-user-service.js';
 import type { ImpersonationService } from './impersonation-service.js';
@@ -78,6 +80,32 @@ export class AdminUserReadService implements AdminUserReadPort {
 
 function activeFilter(options?: AdminUserLookupOptions): { deletedAt?: null } {
   return options?.activeOnly ? { deletedAt: null } : {};
+}
+
+/**
+ * Step-up re-verification, for `mfa` (feature 080, T052).
+ *
+ * The read is `admin_users`' own row and the comparison is the platform
+ * hasher's, so both halves are on this side of the seam. The composition roots
+ * held them instead: each read `passwordHash` off the entity and called
+ * `verifyPassword` itself, which is a credential column and a hash comparison
+ * living in a file that owns neither.
+ *
+ * The hash never leaves this function — that is the difference between this
+ * port and a `passwordHash` field on `AdminUserRecord`, and it is the whole
+ * reason the port exists.
+ */
+export function createAdminPasswordVerificationPort(
+  emFactory: () => EntityManager,
+): AdminPasswordVerificationPort {
+  return {
+    async verifyPassword(adminUserId, password) {
+      const admin = await emFactory().findOne(AdminUser, { id: adminUserId });
+      // The bare call is the imported hasher: an object method name is not a
+      // binding, so it shadows nothing.
+      return admin ? verifyPassword(admin.passwordHash, password) : false;
+    },
+  };
 }
 
 /** `_i18n` writes the admin's language choice and reads nothing else. */

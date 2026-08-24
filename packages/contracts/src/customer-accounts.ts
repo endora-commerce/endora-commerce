@@ -447,6 +447,40 @@ export interface CustomerPasswordStatePort {
 }
 
 /**
+ * Container name: `customerPasswordVerificationPort`. Owner: `customer_accounts`.
+ *
+ * Does the stored credential of this account match the password presented?
+ * The customer-side twin of {@link AdminPasswordVerificationPort}, asked by
+ * the same consumer for the same reason: `mfa`'s step-up re-verification,
+ * before it disables a second factor.
+ *
+ * Deliberately **not** {@link CustomerAuthPort.login}, which is a different
+ * operation wearing similar arguments — it takes an e-mail, mints a session,
+ * stamps `lastLoginAt` and runs the login side effects. Step-up already knows
+ * who is asking and wants none of that.
+ *
+ * Deliberately **not** {@link CustomerPasswordStatePort} either, though both
+ * are credential questions one module asks: `passwordSetAt` answers "is there
+ * another way into this account" for an account-severing decision, and
+ * conflating the two would put a comparison against a caller-supplied secret
+ * on a port whose method takes no secret.
+ *
+ * `false` for an unknown id as well — an account nobody can find has no
+ * password to match. It is a lookup by id and nothing else: whether the caller
+ * may act as that account at all is the session layer's question, asked before
+ * this one.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its
+ * manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CustomerPasswordVerificationPort {
+  verifyPassword(customerAccountId: string, password: string): Promise<boolean>;
+}
+
+/**
  * Container name: `customerRolePort`. Owner: `customer_accounts`.
  *
  * (It said `roleService` until issue #192. Nothing registers that name; the

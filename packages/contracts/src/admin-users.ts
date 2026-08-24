@@ -80,6 +80,37 @@ export interface AdminUserPreferencePort {
   setPreferredLanguage(id: string, preferredLanguage: string | null): Promise<AdminUserRecord>;
 }
 
+/**
+ * Container name: `adminPasswordVerificationPort`. Owner: `admin_users`.
+ *
+ * Does the stored credential of this admin match the password presented? One
+ * method, because that is the whole of the demand: `mfa`'s step-up
+ * re-verification asks it before it disables a second factor, and a boolean is
+ * the entire answer.
+ *
+ * It is a port rather than a field on {@link AdminUserRecord} because the hash
+ * must not travel — the record says so, and this method is what makes that
+ * survivable. Until feature 080's T052 a composition root read
+ * `admin_users`' `passwordHash` off the entity and compared it with the
+ * platform hasher itself, so the one file in the tree that owns neither the
+ * column nor the hashing held both.
+ *
+ * `false` for an unknown id as well — an admin nobody can find has no password
+ * to match. It is a lookup by id and nothing else: whether the caller may
+ * authenticate as that admin at all is the session layer's question, asked
+ * before this one, and answering it twice in two places is how the two come to
+ * disagree.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `admin_users` has an off state at all is its
+ * manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface AdminPasswordVerificationPort {
+  verifyPassword(adminUserId: string, password: string): Promise<boolean>;
+}
+
 export interface ImpersonationStartInput {
   adminUserId: string;
   /** Raw admin session cookie value — must be preserved as the shadow. */
