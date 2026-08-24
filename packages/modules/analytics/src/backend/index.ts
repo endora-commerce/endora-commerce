@@ -1,10 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleContext } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { registerAnalyticsRoutes } from './routes.js';
 import { AnalyticsIngestService } from './services/analytics-ingest.service.js';
 import { AnalyticsQueryService } from './services/analytics-query.service.js';
 import { buildForwarderFromEnv, type AnalyticsForwarder } from './services/ga4-forwarder.js';
+import { AnalyticsEvent } from './entities/analytics-event.entity.js';
 
 /**
  * `analytics` — the first wave-1 module whose conversion is only a conversion
@@ -55,3 +56,18 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  AnalyticsEvent,
+];

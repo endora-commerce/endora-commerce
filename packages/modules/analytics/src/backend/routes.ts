@@ -5,7 +5,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { AnalyticsIngestService } from './services/analytics-ingest.service.js';
 import type { AnalyticsQueryService } from './services/analytics-query.service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface AnalyticsRoutesDeps {
   ingestService: AnalyticsIngestService;
