@@ -15,9 +15,9 @@ import {
   type OrganizationDetailsPort,
   type SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import type { RfqService} from './rfq-service.js';

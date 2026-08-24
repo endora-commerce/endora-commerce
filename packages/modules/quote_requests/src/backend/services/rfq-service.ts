@@ -18,10 +18,10 @@ import {
   type CustomerAccountRecord,
   type SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
-import type { EventBase, EventBus } from '../../../events/bus.js';
-import { HttpError } from '../../../http/error-envelope.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import type { EventBase, EventBus } from '@endora-commerce/platform/events';
+import { HttpError } from '@endora-commerce/platform/http';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import {
@@ -34,8 +34,8 @@ import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService} from './rfq-notification-service.js';
 import { type NotificationRecipient } from './rfq-notification-service.js';
 import type { QuoteRequestBusinessIdGenerator } from './quote-request-business-id-generator.js';
-import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
-import { productIdsInRequestChannel } from '../../../kernel/sales-channels/request-channel-assortment.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import { productIdsInRequestChannel } from '@endora-commerce/platform/kernel';
 import { raisedOnChannelId } from './raised-on-channel.js';
 
 /**

@@ -198,11 +198,6 @@ import { PushMessage } from '../modules/pwa/entities/push-message.entity.js';
 import { PushSubscription } from '../modules/pwa/entities/push-subscription.entity.js';
 import { PwaIconRendition } from '../modules/pwa/entities/pwa-icon-rendition.entity.js';
 import { QuickOrderDefaultPreference } from '../modules/quick_order/entities/quick-order-default-preference.entity.js';
-import { QuoteRequestEvent } from '../modules/quote_requests/entities/quote-request-event.entity.js';
-import { QuoteRequestItem } from '../modules/quote_requests/entities/quote-request-item.entity.js';
-import { QuoteRequestNotificationEvent } from '../modules/quote_requests/entities/quote-request-notification-event.entity.js';
-import { QuoteRequestRevision } from '../modules/quote_requests/entities/quote-request-revision.entity.js';
-import { QuoteRequest } from '../modules/quote_requests/entities/quote-request.entity.js';
 import { Refund } from '../modules/returns/entities/refund.entity.js';
 import { ReturnCaseAttachment } from '../modules/returns/entities/return-case-attachment.entity.js';
 import { ReturnCaseComment } from '../modules/returns/entities/return-case-comment.entity.js';
@@ -242,6 +237,7 @@ import { TransactionalEmail } from '../modules/transactional_emails/entities/tra
 import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
 import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
 import { entities as blogEntities } from '@endora-commerce/mod-blog/backend';
+import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
 
 export const ALL_ENTITIES = [
   AuditLogEntry,
@@ -415,11 +411,6 @@ export const ALL_ENTITIES = [
   PushSubscription,
   PwaIconRendition,
   QuickOrderDefaultPreference,
-  QuoteRequestEvent,
-  QuoteRequestItem,
-  QuoteRequestNotificationEvent,
-  QuoteRequestRevision,
-  QuoteRequest,
   Refund,
   ReturnCaseAttachment,
   ReturnCaseComment,
@@ -459,4 +450,5 @@ export const ALL_ENTITIES = [
   WebhookDelivery,
   Webhook,
   ...(blogEntities as readonly EntityClassLike[]),
+  ...(quoteRequestsEntities as readonly EntityClassLike[]),
 ] as const;

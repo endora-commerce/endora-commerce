@@ -3,7 +3,7 @@ import {
   mapLegacyStatus,
   type LegacyStatus,
   type NewStatus,
-} from '../../../src/modules/quote_requests/migrations/status-mapping.js';
+} from '../../../../packages/modules/quote_requests/src/migrations/status-mapping.js';
 
 describe('mapLegacyStatus (feature 008 / T005)', () => {
   it('drops legacy `draft` rows (returns null status)', () => {

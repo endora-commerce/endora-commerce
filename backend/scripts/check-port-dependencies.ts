@@ -92,7 +92,7 @@ import {
   type NonBindingPortEdge,
 } from '../src/modules/_lifecycle/services/gating-graph.js';
 import { moduleIdOf, refuseVacuousModulePopulation } from './lib/module-population.js';
-import { requireModuleLayout } from './lib/module-roots.js';
+import { declaresRegisterModule, requireModuleLayout } from './lib/module-roots.js';
 import {
   loadPackageDeclarations,
   packageCoverage,
@@ -2213,10 +2213,40 @@ async function main(): Promise<void> {
   const owners = new Map<string, string>(Object.entries(HOST_REGISTERED_PORTS));
   const resolutions: PortResolution[] = [];
   const seams: ImportedContributionSeam[] = [];
+  /**
+   * Each module's composition entry point, by the **marker** rather than by a
+   * filename (feature 080, T040b).
+   *
+   * This used to be `file.endsWith('/backend.ts')`, with a second spelling —
+   * `<dir>/backend.ts` or `<dir>/src/backend.ts` — in the `HOST_REGISTERED_PORTS`
+   * staleness sweep below. A module package keeps its entry point wherever its
+   * `exports` map's `./backend` subpath points, which for both packages in this
+   * repository is `src/backend/index.ts`: neither spelling matches it, so a
+   * packaged module's `di.providePort` calls were invisible and every consumer
+   * of one of its ports read as *resolving an ungated registration*. That is
+   * fail-open in the direction that matters — the six consumers of
+   * `quote_requests`' two ports were reported as needing an absent-owner policy
+   * for a gate that is right there. `blog` hid it only by owning no port another
+   * module resolves.
+   *
+   * The marker is `generate-composer.ts`'s own — the file exporting
+   * `registerModule` — so the composer and this check cannot disagree about
+   * which file composes a module. Two such files in one module is the
+   * composer's error to raise, and it does; here the first in walk order wins,
+   * because a check that threw would refuse a tree the generator has already
+   * refused with a better message.
+   */
+  const moduleEntryPoints = new Map<string, string>();
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
     const moduleId = moduleOf(file);
     if (moduleId === null) continue;
+    if (
+      !moduleEntryPoints.has(moduleId) &&
+      declaresRegisterModule(source)
+    ) {
+      moduleEntryPoints.set(moduleId, file);
+    }
     for (const name of registeredNames(source, file)) owners.set(name, moduleId);
     resolutions.push(...resolvedNames(source, file));
     seams.push(...importedContributionSeams(source, file));
@@ -2273,15 +2303,7 @@ async function main(): Promise<void> {
   // A host entry whose owner now registers the port itself is dead weight, and
   // dead weight in a bridging table is how the bridge outlives the gap.
   const stale = Object.entries(HOST_REGISTERED_PORTS).filter(([name, owner]) => {
-    // The owner's directory is resolved rather than joined onto `src/modules`
-    // (feature 080, T040a); `backend.ts` is looked for in the two places a
-    // workspace member keeps it, because a package's `exports` map is not read
-    // here.
-    const directory = layout.moduleDirectoryOf(owner);
-    if (directory === null) return false;
-    const backend = [join(directory, 'backend.ts'), join(directory, 'src', 'backend.ts')].find(
-      (candidate) => existsSync(candidate),
-    );
+    const backend = moduleEntryPoints.get(owner);
     return (
       backend !== undefined &&
       registeredNames(readFileSync(backend, 'utf8'), backend).includes(name)
@@ -2298,10 +2320,7 @@ async function main(): Promise<void> {
   // platform sweep asks is "does a module own this name at all", and a
   // `ctx.di.register` default is enough to answer yes (D-73).
   const moduleOwnedNames = new Map<string, string>();
-  for (const file of files) {
-    if (!file.endsWith('/backend.ts')) continue;
-    const moduleId = moduleOf(file);
-    if (moduleId === null) continue;
+  for (const [moduleId, file] of moduleEntryPoints) {
     const source = readFileSync(file, 'utf8');
     for (const name of providedPortNames(source, file)) {
       moduleRegistered.set(name, moduleId);

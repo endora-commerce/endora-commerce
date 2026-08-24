@@ -5,7 +5,7 @@ import { manifest as settingsManifest } from '../../../src/modules/settings/mani
 import { manifest as salesChannelsManifest } from '../../../src/modules/sales_channels/manifest.js';
 import { manifest as searchManifest } from '../../../src/modules/search/manifest.js';
 import { manifest as comparisonsManifest } from '../../../src/modules/comparisons/manifest.js';
-import { manifest as quoteRequestsManifest } from '../../../src/modules/quote_requests/manifest.js';
+import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';
 import { manifest as inventoryManifest } from '../../../src/modules/inventory/manifest.js';
 import { manifest as priceListsManifest } from '../../../src/modules/price_lists/manifest.js';
 import { manifest as assetsLibraryManifest } from '../../../src/modules/assets_library/manifest.js';

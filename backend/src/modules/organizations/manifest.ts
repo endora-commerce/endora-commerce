@@ -207,6 +207,28 @@ export const manifest = defineModuleManifest({
       'The single unit of tenancy — every organization-scoped entity, membership and ' +
       'transacting customer resolves through it; switched off, the platform has no tenant.',
   },
+  // D-166 — the code gating the three `/organizations/:id/sales-reps`
+  // endpoints, which this module registers from its own `backend.ts`.
+  //
+  // It is the name this module's own route file proposed in feature 008: those
+  // endpoints were gated `rfqs:handle` "for now, because that's the existing
+  // admin permission slot for RFQ-adjacent work", with a comment saying a
+  // dedicated `organizations:assign-sales-rep` should follow. It has to, and
+  // for a reason sharper than tidiness — `rfqs:handle` is declared
+  // `module: 'quote_requests'`, so an operator switching quote requests off
+  // removes that code from `/admin-roles` while these endpoints, owned by a
+  // module that cannot be switched off, keep answering. The screen would sit
+  // there behind a permission nobody could be granted.
+  //
+  // `organizations:rollup` stays in the core `PERMISSION_CATALOGUE`: it is read
+  // by `admin_roles`' capability check on behalf of three modules, and moving it
+  // is a data migration on every admin role that holds it.
+  permissions: [
+    {
+      code: 'organizations:assign-sales-rep',
+      label: 'Assign sales representatives to organizations',
+    },
+  ],
   settings,
   // Feature 047 — admin-editable transactional emails owned by this module.
   transactionalEmails: [

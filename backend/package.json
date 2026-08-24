@@ -85,6 +85,7 @@
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/email-components": "workspace:^",
     "@endora-commerce/mod-blog": "workspace:*",
+    "@endora-commerce/mod-quote-requests": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:^",
     "@endora-commerce/platform": "workspace:*",
     "@fastify/cookie": "^11.0.2",

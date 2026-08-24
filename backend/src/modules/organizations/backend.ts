@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type {
   AddressServicePort,
   AdminNotificationRecordPort,
+  AdminUserReadPort,
   CustomFieldValuePort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
@@ -65,6 +66,7 @@ import { ViesClient } from './integrations/vies-client.js';
 import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow-client.js';
 import type { OrganizationEventBus } from './services/registration-service.js';
 import { organizationsModule, type OrganizationsModuleOptions } from './plugin.js';
+import { registerOrganizationsSalesRepRoutes } from './routes.sales-reps.js';
 import { EMAIL_VERIFICATION_DEFAULT, NEW_ORG_REGISTRATION_DEFAULT, ORGANIZATION_INVITATION_DEFAULT } from './email-templates/transactional-defaults.js';
 import { registerOrganizationCountryReferences } from './services/organization-country-reference.js';
 
@@ -671,6 +673,35 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.routes(async (app) => {
     await cradle().organizations(app);
+  });
+
+  /**
+   * The three sales-rep assignment endpoints, registered by their owner (D-166).
+   *
+   * They used to be registered by `quote_requests`, which dynamically imported
+   * this module's route file and built its `deps` — so the screen that assigns a
+   * sales representative to an organisation was gated by *quote requests'*
+   * effective state, and this module had no seam through which to hand that file
+   * a port its own container resolved. Both halves are gone: the registration is
+   * here, and `adminUserReadPort` is resolved here, which retires this module's
+   * two `routes.sales-reps.ts` ledger entries.
+   *
+   * `lazyPort` rather than a captured resolution, for the usual reason — a
+   * captured gate keeps answering after its owner is switched off. `admin_users`
+   * is reached transitively through `admin_notifications`, which this manifest
+   * already declares, so the edge is declared and closes no cycle.
+   */
+  ctx.routes(async (app) => {
+    await registerOrganizationsSalesRepRoutes(app, {
+      emFactory: cradle().emFactory,
+      requireAdmin: (permission) => async (req, reply) =>
+        cradle().requireAdmin(permission)(req, reply),
+      salesRepAssignment: lazyPort<SalesRepAssignmentPort>(
+        ctx,
+        'organizationSalesRepScopePort',
+      ),
+      adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+    });
   });
 
   // Both reactors used to be bare `eventBus.on` calls in each root, so they ran

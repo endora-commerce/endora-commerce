@@ -5,7 +5,7 @@ import { EventBus } from '../../../src/events/bus.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { QuoteRequest } from '../../../src/modules/quote_requests/entities/quote-request.entity.js';
+import { QuoteRequest } from '../../helpers/package-entities.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { salesChannelsServiceFor } from '../../helpers/sales-channels-service.js';
 import {

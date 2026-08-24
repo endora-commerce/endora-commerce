@@ -1,5 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
-import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
+import { OrgScoped } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 
 /**
@@ -143,6 +143,20 @@ export class QuoteRequest {
    * created with no channel on the scope at all (a CLI, a worker, a fixture
    * that calls the service directly). "No channel" is spelled `null`, never an
    * empty string, a nil uuid or a fresh one (D-47…D-51).
+   *
+   * **Why the column was born nullable, and what a `NOT NULL` flip would cost**
+   * (D-167, from the deleted `scripts/backfill-quote-channel.ts`). Feature 005
+   * added it nullable on purpose, so the deploy that shipped it did not depend
+   * on the boot-time `DefaultChannelReconciler` having already run — the
+   * standard phased shape: add nullable, start writing, backfill, then flip.
+   * The flip deliberately never followed and cannot, because the middle step
+   * has no honest input: nothing wrote the column between the migration and
+   * issue #266, so every request raised in that window carries `null` and no
+   * record anywhere says which channel it came from. A deployment that
+   * genuinely needs the column non-nullable therefore deletes the null tail or
+   * takes a per-row answer from a source that knows one; it does not project
+   * the system default over the gap, which would hand the FR-006 channel-delete
+   * guard evidence the platform invented.
    */
   @Property({ type: 'uuid', nullable: true })
   salesChannelId?: string | null;

@@ -153,12 +153,34 @@ describe('collectMigrations', () => {
     ).toThrow(/helper\.ts/);
   });
 
-  it('skips the helpers the naming contract allows there', () => {
+  /**
+   * The §4 helper exemption, with the allow-list injected.
+   *
+   * It used to be asserted against whichever real file happened to be on the
+   * list, which made the proof a hostage of the tree: `quote_requests` became a
+   * module package (feature 080, T040b), its key changed origin, and this test
+   * went red for a reason that had nothing to do with the mechanism. The
+   * allow-list is a parameter now — issue #130's "the fixture enters at the top
+   * of the analysis" — so the proof is about the lookup and stays true whichever
+   * files are exempt today.
+   */
+  it('skips a helper the naming contract allows there, in the application tree', () => {
+    const allowed = new Set(['modules/quote_requests/migrations/status-mapping.ts']);
     expect(
       collectMigrations(
         tree({ 'modules/quote_requests/migrations/status-mapping.ts': 'export const map = {};' }),
+        allowed,
       ),
     ).toEqual([]);
+  });
+
+  it('refuses that same helper when the allow-list does not name it', () => {
+    expect(() =>
+      collectMigrations(
+        tree({ 'modules/quote_requests/migrations/status-mapping.ts': 'export const map = {};' }),
+        new Set(),
+      ),
+    ).toThrow(/status-mapping\.ts/);
   });
 
   it('refuses two migrations with the same class name', () => {

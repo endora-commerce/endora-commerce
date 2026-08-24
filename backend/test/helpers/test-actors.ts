@@ -143,6 +143,20 @@ export const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-assets-reader-session': {
     adminUserId: '00000000-0000-4000-8000-0000000000d4',
   },
+  // D-166 — the two halves of the sales-rep split, one code each. They exist to
+  // prove the two gates are genuinely different codes: an admin holding only
+  // `organizations:assign-sales-rep` opens the three assignment endpoints and is
+  // refused the reverse listing, and an admin holding only `rfqs:handle` is
+  // refused in the other direction. A single `*` role cannot tell those apart.
+  // Both roles and both users are created by
+  // `test/contract/organizations/sales-reps.test.ts` itself, the way the
+  // scoped-role contract test creates its four.
+  'stub-sales-rep-assigner-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d5',
+  },
+  'stub-rfq-handler-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d6',
+  },
 };
 
 declare module 'fastify' {

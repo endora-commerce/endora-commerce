@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapLegacyStatus } from '../../../src/modules/quote_requests/migrations/status-mapping.js';
+import { mapLegacyStatus } from '../../../../packages/modules/quote_requests/src/migrations/status-mapping.js';
 
 /**
  * T025 — Legacy → new status migration roundtrip.

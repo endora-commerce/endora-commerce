@@ -5,7 +5,7 @@ import { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { RfqEventBus } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqNotificationService, NotificationRecipient } from './rfq-notification-service.js';
-import { withSystemScope } from '../../../tenancy/escape-hatch.js';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 
 /**
  * RfqExpiryWorker — feature 008 sweep that flips Pending and
@@ -23,7 +23,7 @@ import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 
 declare module './rfq-service.js' {
   interface RfqEvents {
-    'rfq.expired.v1': import('../../../events/bus.js').EventBase & { rfqId: string };
+    'rfq.expired.v1': import('@endora-commerce/platform/events').EventBase & { rfqId: string };
   }
 }
 

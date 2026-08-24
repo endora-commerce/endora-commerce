@@ -45,9 +45,19 @@ const modulesRoot = resolve(backendRoot, 'src/modules');
 /** contracts/naming-convention.md §1 — the only recognizer any tool may use. */
 const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_([a-z0-9_]+)\.ts$/;
 
-/** contracts/naming-convention.md §4 — non-migration helpers in a migrations/ dir. */
+/**
+ * contracts/naming-convention.md §4 — non-migration helpers in a migrations/ dir.
+ *
+ * Keyed `backend/`-relative, which is why the tree's one helper now reads
+ * `../packages/…`: `quote_requests` became a module package (feature 080,
+ * T040b) and took it along. This test keeps its own copy of the list, as it
+ * keeps its own copy of the §1 recognizer, because the round trip is worth
+ * something only when the two implementations are independent — the composer's
+ * copy is keyed `<package name>:<package-relative path>` and is reached by a
+ * different walk.
+ */
 const HELPER_ALLOW_LIST = new Set([
-  'src/modules/quote_requests/migrations/status-mapping.ts',
+  '../packages/modules/quote_requests/src/migrations/status-mapping.ts',
 ]);
 
 /** contracts/naming-convention.md §2. */

@@ -9,7 +9,7 @@ import {
   OrganizationCannotTransactError,
 } from '@endora-commerce/contracts';
 import type { RfqService, CustomerContext } from './services/rfq-service.js';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 export type RequireCustomerGuard = (
   req: FastifyRequest,

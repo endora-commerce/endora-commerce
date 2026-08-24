@@ -164,6 +164,35 @@ describe('the specifier the generator emits, per origin', () => {
     expect(isDeclaredEntryPoint(alpha, 'src/migrations/index.ts')).toBe(true);
   });
 
+  /**
+   * §4's *helper* is the other exemption, and it is not the barrel's.
+   *
+   * A barrel is implied by the `./migrations` subpath, so every package has one
+   * and it is derived (D-100). A helper is implied by nothing — the whole tree
+   * has one, `quote_requests`' `status-mapping.ts`, and it travelled into a
+   * package with its module (feature 080, T040b), which is a case
+   * `isDeclaredEntryPoint` deliberately answers `false` for: a file that merely
+   * sits beside an entry point is not one.
+   *
+   * So the allow-list is keyed `<package name>:<package-relative path>` for a
+   * packaged file, because {@link SourceTree}'s two key namespaces are separate
+   * and `src/migrations/status-mapping.ts` is the same string in every package.
+   * Both directions are proved here, over a real fixture package: named, it is
+   * skipped; unnamed, the refusal that catches a misnamed migration still fires.
+   */
+  it('skips a packaged §4 helper the allow-list names, and refuses the same file when it does not', () => {
+    const helper = 'src/migrations/status-mapping.ts';
+    const sources = packageSources(alpha, { [helper]: 'export const map = {};\n' });
+
+    expect(
+      collectMigrations(sources, new Set([`${alpha.name}:${helper}`])),
+    ).toEqual([]);
+    // The application-tree spelling of the same path does not exempt it — that
+    // is what the package name in the key is for.
+    expect(() => collectMigrations(sources, new Set([helper]))).toThrow(/status-mapping\.ts/);
+    expect(() => collectMigrations(sources, new Set())).toThrow(/status-mapping\.ts/);
+  });
+
   it('refuses a file the package’s exports map does not cover', () => {
     // Not skipped. A committed registry imports by that specifier, so an
     // uncovered file would be registered under one the package answers
