@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GOOGLE_ANALYTICS_SETTING_CODES } from '@endora-commerce/contracts';
 import type { Queue } from 'bullmq';
-import { makeEnqueuer, makeProcessor } from './ss-delivery.service.js';
-import type { GaDeliveryJobData } from './ss-delivery-queue.js';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
-import type { Ga4MpClient } from './ga4-mp-client.js';
+import { makeEnqueuer, makeProcessor } from '../../../../packages/modules/google_analytics/src/backend/services/ss-delivery.service.js';
+import type { GaDeliveryJobData } from '../../../../packages/modules/google_analytics/src/backend/services/ss-delivery-queue.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import type { Ga4MpClient } from '../../../../packages/modules/google_analytics/src/backend/services/ga4-mp-client.js';
 
 const C = GOOGLE_ANALYTICS_SETTING_CODES;
 

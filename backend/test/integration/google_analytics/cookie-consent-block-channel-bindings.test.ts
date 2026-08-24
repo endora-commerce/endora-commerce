@@ -5,7 +5,7 @@ import { CmsBlockSeedService } from '../../../src/modules/cms/services/cms-block
 import {
   ensureCookieConsentBlock,
   COOKIE_CONSENT_BLOCK_CODE,
-} from '../../../src/modules/google_analytics/services/cookie-consent-block-seeder.js';
+} from '../../../../packages/modules/google_analytics/src/backend/services/cookie-consent-block-seeder.js';
 
 /**
  * Feature 075 / D-87 — the seeder used to bind its block to every channel with

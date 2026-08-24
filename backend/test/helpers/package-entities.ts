@@ -1,5 +1,7 @@
 import type { EntityClass } from '@mikro-orm/core';
+import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
+import type { GaCustomEvent as GaCustomEventRow } from '../../../packages/modules/google_analytics/src/backend/entities/ga-custom-event.entity.js';
 import type { QuoteRequest as QuoteRequestRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request.entity.js';
 import type { QuoteRequestItem as QuoteRequestItemRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-item.entity.js';
 import type { QuoteRequestRevision as QuoteRequestRevisionRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-revision.entity.js';
@@ -66,4 +68,8 @@ export const QuoteRequestItem = classNamed<QuoteRequestItemRow>(
 export const QuoteRequestRevision = classNamed<QuoteRequestRevisionRow>(
   quoteRequestsEntities,
   'QuoteRequestRevision',
+);
+export const GaCustomEvent = classNamed<GaCustomEventRow>(
+  googleAnalyticsEntities,
+  'GaCustomEvent',
 );

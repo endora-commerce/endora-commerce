@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { gaCollectRequestSchema } from '@endora-commerce/contracts';
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import type { GaConfigService } from './services/ga-config.service.js';
 import type { GaCollectEnqueuer } from './services/ss-delivery-queue.js';
 
@@ -12,9 +12,10 @@ export interface GoogleAnalyticsStorefrontDeps {
 
 /**
  * Public storefront routes for the Google Analytics module (feature 049).
- * Wrapped by `defineModuleRoutes` in plugin.ts so they 503 when the module is
- * disabled. Channel is resolved from the `X-Sales-Channel` header by the shared
- * sales-channel-resolver middleware.
+ * Registered through `ctx.routes` in this package's `backend/index.ts`, which
+ * is `defineModuleRoutes`, so they 503 `MODULE_DISABLED` when the module is
+ * switched off. Channel is resolved from the `X-Sales-Channel` header by the
+ * shared sales-channel-resolver middleware.
  */
 export async function registerGoogleAnalyticsStorefrontRoutes(
   app: FastifyInstance,

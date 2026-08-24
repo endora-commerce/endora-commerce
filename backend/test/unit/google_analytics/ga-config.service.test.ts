@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GOOGLE_ANALYTICS_SETTING_CODES } from '@endora-commerce/contracts';
-import { GaConfigService } from './ga-config.service.js';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import { GaConfigService } from '../../../../packages/modules/google_analytics/src/backend/services/ga-config.service.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 /**
  * Fake SettingsReadPort — resolves from a per-code map; unknown codes throw

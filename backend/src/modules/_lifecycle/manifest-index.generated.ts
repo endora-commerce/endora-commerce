@@ -61,7 +61,7 @@ import { manifest as manifest23 } from '../customers/manifest.js';
 import { manifest as manifest24 } from '../delivery_methods/manifest.js';
 import { manifest as manifest25 } from '../dictionaries/manifest.js';
 import { manifest as manifest26 } from '../email/manifest.js';
-import { manifest as manifest27 } from '../google_analytics/manifest.js';
+import { manifest as manifest27 } from '@endora-commerce/mod-google-analytics';
 import { manifest as manifest28 } from '../google_tag_manager/manifest.js';
 import { manifest as manifest29 } from '../health_checks/manifest.js';
 import { manifest as manifest30 } from '../import_export/manifest.js';
@@ -145,7 +145,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'delivery_methods', manifest: manifest24, manifestPath: resolveManifestPath(import.meta.url, '../delivery_methods/manifest.js') },
   { id: 'dictionaries', manifest: manifest25, manifestPath: resolveManifestPath(import.meta.url, '../dictionaries/manifest.js') },
   { id: 'email', manifest: manifest26, manifestPath: resolveManifestPath(import.meta.url, '../email/manifest.js') },
-  { id: 'google_analytics', manifest: manifest27, manifestPath: resolveManifestPath(import.meta.url, '../google_analytics/manifest.js') },
+  { id: 'google_analytics', manifest: manifest27, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-google-analytics') },
   { id: 'google_tag_manager', manifest: manifest28, manifestPath: resolveManifestPath(import.meta.url, '../google_tag_manager/manifest.js') },
   { id: 'health_checks', manifest: manifest29, manifestPath: resolveManifestPath(import.meta.url, '../health_checks/manifest.js') },
   { id: 'import_export', manifest: manifest30, manifestPath: resolveManifestPath(import.meta.url, '../import_export/manifest.js') },

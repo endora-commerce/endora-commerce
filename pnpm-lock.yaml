@@ -171,6 +171,9 @@ importers:
       '@endora-commerce/mod-blog':
         specifier: workspace:*
         version: link:../packages/modules/blog
+      '@endora-commerce/mod-google-analytics':
+        specifier: workspace:*
+        version: link:../packages/modules/google_analytics
       '@endora-commerce/mod-quote-requests':
         specifier: workspace:*
         version: link:../packages/modules/quote_requests
@@ -503,6 +506,42 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
+  packages/modules/google_analytics:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      bullmq:
+        specifier: ^5.76.1
+        version: 5.76.1
       fastify:
         specifier: ^5.8.5
         version: 5.8.5

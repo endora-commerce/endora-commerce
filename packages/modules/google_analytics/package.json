@@ -1,0 +1,63 @@
+{
+  "name": "@endora-commerce/mod-google-analytics",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "The Google Analytics module as a package (feature 080, T040b) — the third module to leave backend/src/modules, and the first with a real BullMQ consumer. Ships compiled output (D-164); the manifest id 'google_analytics' stays identity of record everywhere (D-142).",
+  "endora": {
+    "type": "module",
+    "id": "google_analytics"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/manifest.d.ts",
+      "default": "./dist/manifest.js"
+    },
+    "./backend": {
+      "types": "./dist/backend/index.d.ts",
+      "default": "./dist/backend/index.js"
+    },
+    "./migrations": {
+      "types": "./dist/migrations/index.d.ts",
+      "default": "./dist/migrations/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "i18n"
+  ],
+  "engines": {
+    "node": ">=22.17.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "peerDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6",
+    "@mikro-orm/migrations": "^6",
+    "@mikro-orm/postgresql": "^6",
+    "bullmq": "^5",
+    "fastify": "^5",
+    "ioredis": "^5",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6.6.13",
+    "@mikro-orm/migrations": "^6.6.13",
+    "@mikro-orm/postgresql": "^6.6.13",
+    "@types/node": "^22.9.0",
+    "bullmq": "^5.76.1",
+    "fastify": "^5.8.5",
+    "ioredis": "^5.10.1",
+    "typescript": "^5.9.3",
+    "zod": "^4.2.0"
+  }
+}
