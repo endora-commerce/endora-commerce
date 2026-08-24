@@ -444,6 +444,13 @@ export interface ScannedModuleManifest {
   readonly dir: string;
   /** The `./backend` export target, or `null` when the package publishes none. */
   readonly backendTarget: string | null;
+  /**
+   * The `./ports` export target, or `null` when the package publishes none.
+   *
+   * A package with no cross-module seam of its own declares no `./ports`, and
+   * that is the ordinary case — the subpath is not part of the minimum shape.
+   */
+  readonly portsTarget: string | null;
   /** The package's own `build` script, which names the tsconfig its emit follows. */
   readonly buildScript: string | undefined;
 }
@@ -461,11 +468,11 @@ const SKIPPED_SCAN_DIRECTORIES = new Set([
 /** How deep below the repository root a module package can sit. */
 const MAX_SCAN_DEPTH = 6;
 
-function backendTargetOf(manifest: Record<string, unknown>): string | null {
+function exportTargetOf(manifest: Record<string, unknown>, subpath: string): string | null {
   const exportsMap = manifest['exports'] as Record<string, unknown> | undefined;
-  const backend = exportsMap?.['./backend'];
-  if (typeof backend === 'string') return backend;
-  const withConditions = backend as { default?: unknown } | undefined;
+  const declared = exportsMap?.[subpath];
+  if (typeof declared === 'string') return declared;
+  const withConditions = declared as { default?: unknown } | undefined;
   return typeof withConditions?.default === 'string' ? withConditions.default : null;
 }
 
@@ -527,7 +534,8 @@ export function moduleManifestsInCheckout(root: string): ScannedModuleManifest[]
           moduleId: endora.id,
           name: String(manifest['name'] ?? endora.id),
           dir: directory,
-          backendTarget: backendTargetOf(manifest),
+          backendTarget: exportTargetOf(manifest, './backend'),
+          portsTarget: exportTargetOf(manifest, './ports'),
           buildScript: (manifest['scripts'] as Record<string, string> | undefined)?.['build'],
         });
       }
@@ -546,4 +554,313 @@ export function moduleManifestsInCheckout(root: string): ScannedModuleManifest[]
 
   visit(root, 0);
   return out;
+}
+
+/**
+ * What a module package's `./ports` subpath publishes (D-169, owner approval of
+ * 2026-08-24).
+ *
+ * D-169 rules that a co-transactional cross-module seam becomes an
+ * `EntityManager`-taking published port. Those interfaces have nowhere to live:
+ * `@endora-commerce/contracts` is compiled by `admin` and `storefront` as well
+ * as by the backend, and it holds **zero** `@mikro-orm` imports on purpose,
+ * which is why `CreditLimitPort` sits beside its implementation and says so in
+ * its own header. So the owner's provider publishes them itself, on an
+ * enumerated `./ports` subpath that carries **types only**.
+ *
+ * ## The rule, and why it needs a guard at all
+ *
+ * `./ports` is a second declared door out of a module package, and D-168 shut
+ * the first one deliberately: `./backend` publishes `export const entities =
+ * [...]` and **no entity class by name**, so `import type { BlogPost } from
+ * '@endora-commerce/mod-blog/backend'` is a compile error in the consumer's own
+ * tree, where none of this repository's checks run. A subpath added later, by an
+ * author who never read that ruling, is exactly how that guarantee is given
+ * back — one `export type { QuoteRequest }` line, in a file whose whole point is
+ * that it publishes types.
+ *
+ * Two properties, therefore, and they fail for different reasons:
+ *
+ *  - **Nothing crosses `./ports` at runtime.** The subpath's emitted module must
+ *    export no binding. A value there is a second import path into the package's
+ *    implementation, and — unlike a type — it survives into the consumer's
+ *    bundle, so the owner's activation state stops deciding anything.
+ *  - **No entity class by name, type-only included.** The type position is the
+ *    whole hazard D-168 named: erasure makes it free at runtime and permanent at
+ *    compile time.
+ *
+ * ## What it can and cannot see
+ *
+ * It reads literal AST nodes, so a comment quoting either shape is out of the
+ * population by construction. Type-only-ness is read as **syntax** —
+ * `export type { … }`, `export type * from`, an element's own `type` keyword,
+ * and the inherently type-only declarations — which is what the compiler reads
+ * under `verbatimModuleSyntax` (`tsconfig.base.json`), so the two cannot come to
+ * disagree. Entity-ness is resolved through relative specifiers, recursively,
+ * and a **bare** specifier is reported as `unresolvable-reexport` rather than
+ * skipped: a re-export this cannot follow leaves the entity question unknown
+ * rather than answered no (issue #113).
+ */
+
+/** One thing wrong with a module package's published `./ports` surface. */
+export interface PortsSurfaceFinding {
+  readonly kind: 'runtime-export' | 'named-entity-export' | 'unresolvable-reexport';
+  readonly detail: string;
+}
+
+export interface PortsSurface {
+  /** Exported names that survive into the emitted JavaScript. */
+  readonly runtimeExports: readonly string[];
+  /** Every name the subpath publishes, type-only ones included. */
+  readonly publishedNames: readonly string[];
+  /** Published names that resolve to a class carrying the ORM decorator. */
+  readonly entityExports: readonly string[];
+  /** Re-export specifiers the analysis could not follow. */
+  readonly unresolvable: readonly string[];
+}
+
+interface PortsAccumulator {
+  readonly runtimeExports: Set<string>;
+  readonly publishedNames: Set<string>;
+  readonly entityExports: Set<string>;
+  readonly unresolvable: Set<string>;
+}
+
+function hasExportModifier(statement: ts.Statement): boolean {
+  const modifiers = ts.canHaveModifiers(statement) ? ts.getModifiers(statement) : undefined;
+  return modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) === true;
+}
+
+/**
+ * The ports barrel's published surface.
+ *
+ * `barrelPath` is the **source** file behind the subpath and `reader` is how it
+ * is read, both parameters for the same reason `readBackendSurface` takes them:
+ * a fixture enters at the top of the analysis rather than below the step it is
+ * meant to protect (issue #130).
+ */
+export function readPortsSurface(
+  barrelPath: string,
+  reader: SourceReader = nodeSourceReader,
+): PortsSurface {
+  const found: PortsAccumulator = {
+    runtimeExports: new Set(),
+    publishedNames: new Set(),
+    entityExports: new Set(),
+    unresolvable: new Set(),
+  };
+  const source = parse(barrelPath, reader.read(barrelPath));
+
+  const localClasses = new Map<string, boolean>();
+  const localImportOrigins = new Map<string, { from: string; imported: string }>();
+  for (const statement of source.statements) {
+    if (ts.isClassDeclaration(statement) && statement.name) {
+      localClasses.set(statement.name.text, isEntityClass(statement));
+    }
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+      const bindings = statement.importClause?.namedBindings;
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          localImportOrigins.set(element.name.text, {
+            from: statement.moduleSpecifier.text,
+            imported: (element.propertyName ?? element.name).text,
+          });
+        }
+      }
+    }
+  }
+
+  const factsOf = (specifier: string): ModuleFacts | null => {
+    const target = resolveRelative(barrelPath, specifier, reader);
+    if (target === null) {
+      found.unresolvable.add(specifier);
+      return null;
+    }
+    const facts = factsFor(target, reader, new Set());
+    for (const unresolved of facts.unresolvable) found.unresolvable.add(unresolved);
+    return facts;
+  };
+
+  const publish = (name: string, entity: boolean, runtime: boolean): void => {
+    found.publishedNames.add(name);
+    if (entity) found.entityExports.add(name);
+    if (runtime) found.runtimeExports.add(name);
+  };
+
+  for (const statement of source.statements) {
+    if (ts.isExportAssignment(statement)) {
+      // `export default x` and `export = x` are both value exports, and neither
+      // has a name this could publish it under instead.
+      publish('default', false, true);
+      continue;
+    }
+    if (hasExportModifier(statement)) {
+      if (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) {
+        publish(statement.name.text, false, false);
+        continue;
+      }
+      if (ts.isClassDeclaration(statement) && statement.name) {
+        publish(statement.name.text, isEntityClass(statement), true);
+        continue;
+      }
+      if (ts.isFunctionDeclaration(statement) && statement.name) {
+        publish(statement.name.text, false, true);
+        continue;
+      }
+      if (ts.isEnumDeclaration(statement)) {
+        publish(statement.name.text, false, true);
+        continue;
+      }
+      if (ts.isVariableStatement(statement)) {
+        for (const declaration of statement.declarationList.declarations) {
+          if (ts.isIdentifier(declaration.name)) publish(declaration.name.text, false, true);
+        }
+        continue;
+      }
+    }
+    if (!ts.isExportDeclaration(statement)) continue;
+
+    const specifier =
+      statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)
+        ? statement.moduleSpecifier.text
+        : null;
+
+    // `export * from './x.js'` / `export type * from './x.js'`
+    if (statement.exportClause === undefined) {
+      if (specifier === null) continue;
+      const facts = factsOf(specifier);
+      if (!statement.isTypeOnly) found.runtimeExports.add(`* from '${specifier}'`);
+      if (facts === null) continue;
+      for (const [name, entity] of facts.exports) publish(name, entity, !statement.isTypeOnly);
+      continue;
+    }
+    if (!ts.isNamedExports(statement.exportClause)) continue;
+
+    for (const element of statement.exportClause.elements) {
+      const local = (element.propertyName ?? element.name).text;
+      const exposed = element.name.text;
+      const runtime = !statement.isTypeOnly && !element.isTypeOnly;
+      if (specifier !== null) {
+        const facts = factsOf(specifier);
+        publish(exposed, facts?.exports.get(local) === true, runtime);
+        continue;
+      }
+      const declaredHere = localClasses.get(local);
+      if (declaredHere !== undefined) {
+        publish(exposed, declaredHere, runtime);
+        continue;
+      }
+      const origin = localImportOrigins.get(local);
+      if (origin === undefined) {
+        publish(exposed, false, runtime);
+        continue;
+      }
+      const facts = factsOf(origin.from);
+      publish(exposed, facts?.exports.get(origin.imported) === true, runtime);
+    }
+  }
+
+  const sorted = (values: Set<string>): string[] => [...values].sort();
+  return {
+    runtimeExports: sorted(found.runtimeExports),
+    publishedNames: sorted(found.publishedNames),
+    entityExports: sorted(found.entityExports),
+    unresolvable: sorted(found.unresolvable),
+  };
+}
+
+/**
+ * D-169, applied — the findings for one package's `./ports` surface.
+ *
+ * `declaredEntityClasses` is the same independent oracle `d168Findings` takes:
+ * every class carrying the ORM decorator anywhere in the package's own sources.
+ * It answers the case the resolution walk cannot — a name re-exported through a
+ * shape this does not follow is still that entity's name published on the
+ * subpath.
+ */
+export function d169PortsFindings(
+  surface: PortsSurface,
+  declaredEntityClasses: readonly string[],
+): PortsSurfaceFinding[] {
+  const findings: PortsSurfaceFinding[] = [];
+  for (const specifier of surface.unresolvable) {
+    findings.push({
+      kind: 'unresolvable-reexport',
+      detail:
+        `its './ports' barrel re-exports '${specifier}', which this analysis cannot follow, ` +
+        `so whether it carries an entity class by name is unknown rather than false`,
+    });
+  }
+  for (const name of surface.runtimeExports) {
+    findings.push({
+      kind: 'runtime-export',
+      detail:
+        `its './ports' export carries '${name}' into the emitted JavaScript. The subpath is ` +
+        `type-only (D-169): a value there is a second import path into the package's ` +
+        `implementation, and it survives into the consumer's bundle, where the owner's ` +
+        `activation state decides nothing`,
+    });
+  }
+  const entityNames = new Set([
+    ...surface.entityExports,
+    ...declaredEntityClasses.filter((name) => surface.publishedNames.includes(name)),
+  ]);
+  for (const name of [...entityNames].sort()) {
+    findings.push({
+      kind: 'named-entity-export',
+      detail:
+        `its './ports' export names the entity class '${name}'. Erasing at runtime does not ` +
+        `make it free: it is what makes a foreign module's ` +
+        `'import type { ${name} } from …/ports' compile, which is the door D-168 shut on ` +
+        `'./backend'`,
+    });
+  }
+  return findings;
+}
+
+/**
+ * Names an **emitted** ES module exports at runtime, read as syntax.
+ *
+ * The source analysis above answers what the author wrote; this answers what the
+ * build actually published, and only the second is what a consumer's bundler
+ * loads. A type-only module compiles to `export {};` under
+ * `verbatimModuleSyntax`, so the sound answer here is the empty list.
+ */
+export function runtimeExportsOfEmittedModule(
+  path: string,
+  reader: SourceReader = nodeSourceReader,
+): string[] {
+  const source = parse(path, reader.read(path));
+  const found = new Set<string>();
+  for (const statement of source.statements) {
+    if (ts.isExportAssignment(statement)) {
+      found.add('default');
+      continue;
+    }
+    if (hasExportModifier(statement)) {
+      if (ts.isClassDeclaration(statement) && statement.name) found.add(statement.name.text);
+      else if (ts.isFunctionDeclaration(statement) && statement.name) found.add(statement.name.text);
+      else if (ts.isEnumDeclaration(statement)) found.add(statement.name.text);
+      else if (ts.isVariableStatement(statement)) {
+        for (const declaration of statement.declarationList.declarations) {
+          if (ts.isIdentifier(declaration.name)) found.add(declaration.name.text);
+        }
+      }
+      continue;
+    }
+    if (!ts.isExportDeclaration(statement)) continue;
+    const specifier =
+      statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)
+        ? statement.moduleSpecifier.text
+        : null;
+    if (statement.exportClause === undefined) {
+      if (specifier !== null) found.add(`* from '${specifier}'`);
+      continue;
+    }
+    if (!ts.isNamedExports(statement.exportClause)) continue;
+    for (const element of statement.exportClause.elements) {
+      found.add(element.name.text);
+    }
+  }
+  return [...found].sort();
 }
