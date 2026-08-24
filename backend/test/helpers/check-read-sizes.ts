@@ -214,10 +214,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // declared program, so `cli` falls 8 → 7 and nothing else moves — the
     // ledger is untouched, because that file established its scope.
     //
+    // 40 → 38, by feature 080's T053(d): `settings`' two `modules:install` /
+    // `modules:uninstall` deprecation shims are deleted. They declared
+    // themselves DEPRECATED, `spawn`ed `_lifecycle`'s singular scripts and
+    // forwarded argv, so D-160.9's conversion does not apply — that converts a
+    // module's **own** command, and a shim over a platform command must not
+    // compose. `cli` falls 7 → 5, `package-scripts` 12 → 10, and their two
+    // `NO_SCOPE_NEEDED` entries went with them (the ledger's stale direction
+    // reported both before they were removed, which is that ratchet working).
+    //
     // A downward move is the direction this band exists to refuse, so each
     // number is moved in the merge request that shrank the population and
     // nowhere else.
-    sites: 40,
+    sites: 38,
     sources: ['manifest-index', 'package-scripts'],
   },
   'backend/scripts/check-error-translations.ts': {

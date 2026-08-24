@@ -38,6 +38,7 @@ import {
 import {
   declaredProgramEntryPoints,
   findEntrySites,
+  NO_SCOPE_NEEDED,
   staleAllowances,
   violationsOf,
   type EntryKind,
@@ -1363,11 +1364,29 @@ function unscopedProgramBesideAScopedWorker(): number {
  * key derivation, which is where a per-site ledger can silently stop matching.
  */
 function staleLedgerEntry(): number {
-  const key = 'src/modules/settings/scripts/modules-install.ts:<file>:cli';
+  // The key is **derived from the ledger**, not written down. This proof used
+  // to name `settings`' `modules-install.ts` shim, and it went silently dead
+  // the day that shim was legitimately deleted (feature 080, T053(d)) — a red
+  // proof keyed on one real entry is a hostage to that entry's retirement,
+  // which is the failure this whole inventory exists to refuse.
+  //
+  // It takes the first `setInterval` entry because that is the construct this
+  // fixture can synthesise, and returns 0 — failing the proof loudly — if the
+  // ledger holds none. A ledger that stops containing the shape this proof
+  // needs must say so, not pass.
+  const key = Object.keys(NO_SCOPE_NEEDED).find((k) => k.endsWith(':setInterval'));
+  if (key === undefined) return 0;
+  const [path, enclosing] = key.split(':');
+  if (path === undefined || enclosing === undefined || enclosing === '<file>') return 0;
   const sites = findEntrySites(
-    '/repo/backend/src/modules/settings/scripts/modules-install.ts',
-    "void enterSystemScope('cli: module install', main);",
+    `/repo/backend/${path}`,
+    `export function ${enclosing}() {\n` +
+      `  setInterval(() => enterSystemScope('lease', () => refresh()), 1000);\n` +
+      `}\n`,
   );
+  // The site must be recognised **and** scoped, or the stale verdict below
+  // would be true for the uninteresting reason that no site was found at all.
+  if (sites.filter((site) => site.scoped).length !== 1) return 0;
   return staleAllowances(sites).filter((stale) => stale === key).length;
 }
 
