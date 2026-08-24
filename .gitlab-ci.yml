@@ -57,24 +57,6 @@ default:
 
 variables:
   IMAGE_TAG: $CI_COMMIT_SHORT_SHA
-  # Every Node job states its heap, once, here — because the job container now
-  # HAS a memory limit and Node's default is derived from it.
-  #
-  # Node sizes its default old-space from what it believes is available. On an
-  # unlimited container that is the host's RAM; the dedicated runner caps the
-  # container at 3 GB, so Node derives roughly half, and `tsc --noEmit` died at
-  # 1.53 GB with `Ineffective mark-compacts near heap limit` (pipeline 11605,
-  # exit 134). Nothing about the type-check changed. The limit that made an OOM
-  # *legible* — the whole point of adding it, after a host OOM killer spent
-  # weeks looking like a flaky test — also made Node smaller, and that second
-  # effect is easy to miss because it shows up as an unrelated job failing.
-  #
-  # Global rather than per job, deliberately: five Node jobs lacked the setting
-  # when this landed and only one had failed yet. A per-job fix is a fix for the
-  # job that happened to be first. A job that genuinely needs more overrides it
-  # locally — `test:backend` and `perf:backend` already state their own, and
-  # those stay as documentation of a requirement rather than as a difference.
-  NODE_OPTIONS: --max-old-space-size=2048
 
 # ---------------------------------------------------------------------------
 # Quality — typecheck + lint
@@ -82,6 +64,25 @@ variables:
 quality:
   stage: quality
   image: node:22.17-slim
+  variables:
+    # `tsc --noEmit` over this monorepo needs a bigger heap than Node gives
+    # itself on the dedicated runner, and the reason is not the tree's size —
+    # it is that the job container now HAS a memory limit. Node sizes its
+    # default old-space from what it believes is available; an unlimited
+    # container showed it the host's 7.9 GB, a 3 GB one shows it 3 GB, and
+    # `tsc` died at 1.53 GB (pipeline 11605, exit 134).
+    #
+    # **Per job, not global — and that correction is the whole history of this
+    # line.** It was set globally first, on the argument that five Node jobs
+    # carried no heap and fixing only the one that failed first is a fix for
+    # the accident of ordering. That argument was right about the risk and
+    # wrong about the remedy: `NODE_OPTIONS` reaches **every** process,
+    # including each of `vitest.unit.config.ts`'s four forks, so the global
+    # setting let four of them reach 2 GB inside a 3 GB container and
+    # `test:backend:unit` was SIGKILLed at exit 137 (pipeline 11611). A
+    # single-process job and a forked pool want opposite things from this
+    # variable, so it cannot be one number for both.
+    NODE_OPTIONS: --max-old-space-size=2048
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
@@ -1077,6 +1078,22 @@ build:storefront:
 
 build:admin:
   extends: .build-base
+  # `admin`'s `build` script is `vite build` and deliberately does **not** run
+  # `tsc --noEmit`. `storefront`'s never did; `admin` was the outlier.
+  #
+  # Two reasons, and the second is the one that matters. The type-check is
+  # already `quality`'s, an earlier stage that gates this one, so running it
+  # again here is duplication. And the image build's context is not this
+  # repository: `admin/Dockerfile` copies the manifests, `tsconfig.base.json`,
+  # `packages/` and `admin/` — not the repository root's `scripts/`. So a
+  # type-check inside the image checks a *different tree* than the one CI
+  # verified, and the first thing it found was a test file legitimately
+  # importing `scripts/tailwind-source-scan.ts` (feature 080, T044): green in
+  # every local run and in `quality`, red only here (pipeline 11613).
+  #
+  # A check that reads a truncated copy of the tree is worse than no check
+  # there, because its red says "your code is broken" when it means "my copy
+  # is short".
   script:
     - docker build -f admin/Dockerfile
       --build-arg VITE_API_BASE_URL="https://$API_DOMAIN"
