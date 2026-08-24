@@ -228,12 +228,18 @@ export interface LedgeredReach {
  * the contract paragraph that classified it and the event that retires it — an
  * entry is debt with a due date, not a permission.
  *
- * Four of the five groups below are `_lifecycle`'s or a `scripts/` entry
- * point's, and both are already routed: D-160.11 merges `_lifecycle` into the
- * host package (it *is* the platform's operator half wearing a module's
- * directory layout, and it reaches twelve distinct unpublished targets for that
- * reason), and D-160.9 moves a container-less CLI entry point wholesale, as a
- * manifest-declared command the host runs. Neither retires by editing the import.
+ * **What is left after T051's sweep, because the shape of the remainder is the
+ * point.** Twenty-eight of the 33 keys are `_lifecycle`'s and three are a
+ * deployment's own files; both are already routed and neither retires by
+ * editing an import — D-160.11 merges `_lifecycle` into the host package (it
+ * *is* the platform's operator half wearing a module's directory layout, and it
+ * reaches twelve distinct unpublished targets for that reason), and a
+ * per-deployment file under `src/apps/` is never packaged (D-104). Two of the
+ * remaining pair — `REGISTRY_CACHE` and `TOTP_SHIM` — are questions for an
+ * owner rather than repairs, and each says so in its own reason. That is why
+ * the group headers below are worth reading before adding an entry: a new one
+ * that is neither `_lifecycle`'s nor a deliberate question is a module the F4
+ * sweep cannot convert.
  */
 /**
  * §1.4f — the host cannot export the ORM bootstrap, and this is the hardest
@@ -342,11 +348,42 @@ const WORKER_WRAPPERS =
  * §1.4h — a packaged module reads presence through `effectiveState` (§1.3 row
  * 11, **P**), never through the cache the combiner is built on or the Redis
  * channel it is invalidated over.
+ *
+ * **T051 left this one standing on purpose, and it is worth writing down why,
+ * because the obvious repair is not available and the second-obvious one is a
+ * ruling rather than a change.**
+ *
+ * `AdminActionsService` subscribes to the raw Redis channel
+ * `STATE_CHANGED_CHANNEL` and drops its palette snapshot on every message. The
+ * reason above says it retires when that invalidation is *"an event the module
+ * subscribes to through `ctx.subscribe`"* — but `ctx.subscribe` is the
+ * **in-process** `EventBus`, and the notification it would carry is
+ * cross-process by construction: an operator flips a module in one process and
+ * every other process has to hear it. Bridging Redis into the `EventBus` is a
+ * new platform seam and a design decision, not a re-point.
+ *
+ * The second route is deletion, and the evidence for it is strong enough to
+ * state and not strong enough to act on unasked. Issue #225 gave this module a
+ * `presenceVersion()` reading through the injected `ModulePresenceProbe`, and
+ * `listVisibleForOperator` compares it **before** it serves anything — so a
+ * snapshot built before a refresh is already dropped on the next read, which is
+ * the half of #225 that was the fix. Every path that changes `module_actions`
+ * rows (`installForModule`, `removeForModule`) runs on an install or an
+ * uninstall, and both move platform availability, so both move the version.
+ * What deleting the subscription would cost is the *eager* drop — the half
+ * `test/integration/admin_actions/presence-refresh-window.integration.test.ts`
+ * exists to reason about, and whose own header calls the answer it produces
+ * mid-refresh stale and unavoidable.
+ *
+ * So: does the presence-version check subsume the pub/sub invalidation? If it
+ * does, this reach retires by deleting eight lines and the module is
+ * packageable. That is a claim about what a future reconciler may do, which
+ * makes it the owner's rather than an implementer's.
  */
 const REGISTRY_CACHE =
   '§1.4h — presence is read through `effectiveState` (row 11, P), not through the cache the ' +
-  'combiner is built on. Retires when the invalidation is an event the module subscribes to ' +
-  'through `ctx.subscribe`.';
+  'combiner is built on. T051 left it deliberately: the stated retirement needs a platform ' +
+  'seam that does not exist, and the alternative is an owner ruling. See the block above.';
 
 /**
  * Not a module's file at all.
@@ -434,10 +471,8 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/modules/_lifecycle/scripts/status.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
   'backend/src/modules/_lifecycle/scripts/uninstall.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
 
-
   // === REGISTRY_CACHE (1) ===
   'backend/src/modules/admin_actions/services/admin-actions-service.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['STATE_CHANGED_CHANNEL'], reason: REGISTRY_CACHE },
-
 
   // === TOTP_SHIM (1) ===
   'backend/src/modules/auth/services/totp-service.ts|packages/platform/src/kernel/crypto/totp.ts': { symbols: ['EnrolmentResult', 'hashBackupCode', 'matchBackupCode'], reason: TOTP_SHIM },
