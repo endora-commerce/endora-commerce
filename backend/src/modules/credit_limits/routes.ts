@@ -6,7 +6,6 @@ import {
   type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { testAdminUserId } from '../../http/test-actor-carrier.js';
 import { isOrgInScope } from '../../tenancy/derived-scope.js';
 import type { CreditLimitService } from './services/credit-limit-service.js';
 import type { CreditLimit } from './entities/credit-limit.entity.js';
@@ -29,6 +28,23 @@ export interface CreditLimitsDeps {
     customerAccountId: string;
     organizationId: string;
   };
+  /**
+   * The acting admin's id, resolved from the request the guard in front of
+   * these routes has already accepted.
+   *
+   * Injected rather than read here, because the read used to be
+   * `testAdminUserId(request)` — `http/test-actor-carrier`, which
+   * `contracts/host-package.md` §1.4j classifies **A**: the file exists to
+   * narrow this repository's test-harness Fastify augmentation, and an
+   * installed package has no relationship to that harness. It also answered
+   * `undefined` in production for every request, because nothing under `src/`
+   * writes `request.testActor`.
+   *
+   * Both composition roots supply it from `adminContextResolver`, which reads
+   * the production actor and throws 401 for a non-admin. Every call site sits
+   * behind `requireAdmin(...)`, so the actor is an admin by the time it runs.
+   */
+  resolveAdminUserId: (request: FastifyRequest) => string;
 }
 
 export async function registerCreditLimitsRoutes(
@@ -41,6 +57,7 @@ export async function registerCreditLimitsRoutes(
     requireCustomer,
     requireAdmin,
     resolveCustomerContext,
+    resolveAdminUserId,
   } = deps;
 
   /** Resolve organization names for the given ids (read-only, missing ⇒ absent). */
@@ -110,12 +127,11 @@ export async function registerCreditLimitsRoutes(
           'A credit limit is already granted; use PATCH to adjust it.',
         );
       }
-      const adminId = testAdminUserId(request);
       const limit = await creditLimitService.grant({
         organizationId: request.params.id,
         grantedAmount: body.grantedAmount,
         currency: body.currency,
-        ...(adminId !== undefined ? { grantedByAdminUserId: adminId } : {}),
+        grantedByAdminUserId: resolveAdminUserId(request),
       });
       reply.status(201);
       const names = await loadOrgNames([request.params.id]);

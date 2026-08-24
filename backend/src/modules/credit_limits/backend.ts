@@ -46,6 +46,12 @@ export interface CreditLimitsCradle {
     customerAccountId: string;
     organizationId: string;
   };
+  /**
+   * Who the acting admin is, from the production actor (feature 080, T051).
+   * Root-supplied, like the other request resolvers; both roots answer it from
+   * `request.actor` and throw 401 for a non-admin.
+   */
+  readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string };
   /** A port `organizations` provides — read it per call, never captured. */
   readonly organizationInheritancePort: OrganizationInheritancePort;
   readonly creditLimitService: CreditLimitService;
@@ -121,6 +127,8 @@ export function registerModule(ctx: ModuleContext): void {
       requireCustomer,
       requireAdmin,
       resolveCustomerContext: customerContextResolver,
+      resolveAdminUserId: (request) =>
+        ctx.cradle<CreditLimitsCradle>().adminContextResolver(request).adminUserId,
     });
   });
 }

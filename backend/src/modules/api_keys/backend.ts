@@ -1,3 +1,4 @@
+import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
@@ -44,6 +45,12 @@ export interface ApiKeysCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
+  /**
+   * Who the acting admin is, from the production actor (feature 080, T051).
+   * Root-supplied, like the other request resolvers; both roots answer it from
+   * `request.actor` and throw 401 for a non-admin.
+   */
+  readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string };
   readonly apiKeys: ReturnType<typeof integrationsModule>;
   readonly apiKeyService: ApiKeyService;
   readonly requireApiKey: ReturnType<typeof integrationsModule>['handle']['requireApiKey'];
@@ -68,6 +75,8 @@ export function registerModule(ctx: ModuleContext): void {
             // after `auth` is switched off.
             requireAdmin: (permission) => async (req, reply) =>
               ctx.cradle<ApiKeysCradle>().requireAdmin(permission)(req, reply),
+            resolveAdminUserId: (request) =>
+              ctx.cradle<ApiKeysCradle>().adminContextResolver(request).adminUserId,
             // Feature 075 (D-87) — the two owners the binding rules ask about.
             // Both were `em.getKnex().raw('select … from "organizations"')` and
             // `… from "customer_accounts"` inside the service: raw SQL naming

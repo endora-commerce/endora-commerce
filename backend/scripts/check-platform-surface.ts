@@ -296,18 +296,6 @@ const MODULE_PLUGIN =
   'instead. This one is `_lifecycle`\'s and retires with D-160.11.';
 
 /**
- * §1.4j — the clearest **A** on the list. The file's own header says it exists
- * to narrow `test/helpers/test-actors.ts`' Fastify augmentation out of
- * production code; an installed package has no relationship to this
- * repository's test harness, and a bare specifier into it would be a harness
- * dependency wearing a type's clothes.
- */
-const TEST_ACTOR_CARRIER =
-  '§1.4j — the file narrows this repository\'s test-harness Fastify augmentation out of ' +
-  'production code. An installed package has no relationship to that harness. Retires with ' +
-  'the call site.';
-
-/**
  * §1.4b, §8 step 4 and D-160.9 — a CLI entry point that deliberately composes
  * no container, so `new AuditLogService(em)` is the only construction available
  * and "take the port" is not.
@@ -462,11 +450,6 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   // === REGISTRY_CACHE (1) ===
   'backend/src/modules/admin_actions/services/admin-actions-service.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['STATE_CHANGED_CHANNEL'], reason: REGISTRY_CACHE },
 
-  // === TEST_ACTOR_CARRIER (4) ===
-  'backend/src/modules/admin_users/routes.impersonation.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['TestActorCarrier'], reason: TEST_ACTOR_CARRIER },
-  'backend/src/modules/api_keys/routes.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
-  'backend/src/modules/credit_limits/routes.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
-  'backend/src/modules/webhooks/routes.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
 
   // === TOTP_SHIM (1) ===
   'backend/src/modules/auth/services/totp-service.ts|packages/platform/src/kernel/crypto/totp.ts': { symbols: ['EnrolmentResult', 'hashBackupCode', 'matchBackupCode'], reason: TOTP_SHIM },
