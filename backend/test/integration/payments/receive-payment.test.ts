@@ -1,7 +1,11 @@
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { OrderTransitionPort, PaymentMethodReadPort } from '@endora-commerce/contracts';
+import type {
+  OrderReadPort,
+  OrderTransitionPort,
+  PaymentMethodReadPort,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -90,6 +94,18 @@ describe('ReceivePaymentHandler', () => {
     h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
     quiet,
   ];
+
+  /**
+   * The service under test, with the real `orderReadPort` behind it.
+   *
+   * `PaymentService` reads the order through that port before every
+   * order-keyed operation, because `Payment` carries no tenant filter of its
+   * own — so a stub here would be asserting the guard away rather than
+   * exercising it. These cases run in the harness's system scope, where the
+   * port answers for every order.
+   */
+  const paymentService = (): PaymentService =>
+    new PaymentService(h.em, h.container.resolve<OrderReadPort>('orderReadPort'));
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -211,7 +227,7 @@ describe('ReceivePaymentHandler', () => {
   it('opens a retry Payment after a failure, preserving prior attempts (T035)', async () => {
     const { order, payment } = await seedOrderWithPayment(h.em());
     const handler = new ReceivePaymentHandler(h.em, ...handlerPorts());
-    const service = new PaymentService(h.em);
+    const service = paymentService();
 
     await handler.receive({ paymentId: payment.id, outcome: 'failure', failureReason: 'x' });
     const retry = await service.openRetry(order.id);
@@ -235,7 +251,7 @@ describe('ReceivePaymentHandler', () => {
    */
   it('resumes the open attempt instead of opening a second one (#264)', async () => {
     const { order } = await seedOrderWithPayment(h.em());
-    const service = new PaymentService(h.em);
+    const service = paymentService();
 
     const first = await service.openRetry(order.id);
     expect(first.opened).toBe(false);
@@ -255,7 +271,7 @@ describe('ReceivePaymentHandler', () => {
    * have taken the buyer to a payment page for money they do not owe.
    */
   it('refuses to open an attempt against a settled payment (#264)', async () => {
-    const service = new PaymentService(h.em);
+    const service = paymentService();
 
     for (const status of ['paid', 'refunded', 'partially_refunded', 'deferred'] as const) {
       const { order, payment } = await seedOrderWithPayment(h.em());
@@ -272,7 +288,7 @@ describe('ReceivePaymentHandler', () => {
    */
   it('fails only an open attempt, so a settled one is never downgraded (#264)', async () => {
     const { order, payment } = await seedOrderWithPayment(h.em());
-    const service = new PaymentService(h.em);
+    const service = paymentService();
 
     await service.failAttempt(payment.id, 'gateway refused');
     const [afterFail] = await service.listForOrder(order.id);
