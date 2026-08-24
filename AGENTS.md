@@ -27,9 +27,12 @@ tools read this file directly; Claude Code reaches it through the `@AGENTS.md` i
   `api-client`, `page-builder-core`, `cms-components`, `email-components`, and
   **`platform`** — the host package (feature 080), which owns
   `src/{kernel,http,tenancy,commands,events}` and publishes them as five enumerated subpaths.
-  **`packages/modules/<id>/`** is the module tree F4 is draining `backend/src/modules/` into —
-  `blog` is the first one there (T040b), and the workspace glob that reaches it is
-  `packages/modules/*`.
+  **`packages/modules/<id>/`** is the module tree F4 is draining `backend/src/modules/` into
+  (T040b), and the workspace glob that reaches it is `packages/modules/*`. **How many are there
+  is not written here** — `ls packages/modules` answers it and this sentence went stale twice
+  while naming one (D-100). What is worth knowing is that the count is not the whole population:
+  `backend/src/modules` holds the rest, all of them carrying a `manifest.ts`, and the generated
+  manifest index registers **both** roots.
   Every one of them builds a
   real `dist` and resolves there through its own `exports` map (feature 080, T042/D-164), so
   **`pnpm run build:packages` is a precondition for running anything** — tests, `dev`, both
