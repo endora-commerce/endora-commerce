@@ -386,11 +386,61 @@ describe('check-release-intent — what it reads, beside what it finds', () => {
     const tree = checkout({ '.changeset/x.md': '---\n"@fx/alpha": minor\n---\n\nsomething\n' });
     const result = checkReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
     if ('reason' in result) throw new Error(result.reason);
-    // config.json + pnpm-workspace.yaml + three manifests + one changeset.
-    expect(result.inputs.files).toBe(6);
-    // three members, one ignore pattern, two linked members, one release, two settings.
-    expect(result.sites).toBe(9);
+    // config.json + pnpm-workspace.yaml + three manifests. **Not the changeset**
+    // — see the pair below.
+    expect(result.inputs.files).toBe(5);
+    // three members, one ignore pattern, two linked members, two settings.
+    expect(result.sites).toBe(8);
     expect(result.coverage).toEqual([{ source: 'workspace-globs', expected: 2, covered: 2 }]);
+  });
+
+  /**
+   * The reported size must not move with the number of pending changesets, and
+   * this pair is why the numbers above are what they are.
+   *
+   * Both counts used to fold in `.changeset/*.md`, whose population follows the
+   * release cycle rather than the repository. Measured on `a059e56e`: at 30
+   * pending changesets `files` was 51, sitting exactly on its recorded band's
+   * +50% ceiling, so the next merge request to add one failed — and a release
+   * consuming all thirty would have dropped it to 17, under the −10% floor, in
+   * the same week. A band cannot bound a quantity that oscillates in both
+   * directions.
+   *
+   * The changesets are still read and still judged; they are reported beside
+   * these numbers as `changesets=`, which is the figure that is *supposed* to
+   * move with the release cycle.
+   */
+  it('reports the same size whether there are no changesets or many', () => {
+    const size = (files: Record<string, string>): { files: number; sites: number } => {
+      const tree = checkout(files);
+      const result = checkReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+      if ('reason' in result) throw new Error(result.reason);
+      return { files: result.inputs.files, sites: result.sites };
+    };
+
+    const none = size({});
+    const many = size(
+      Object.fromEntries(
+        Array.from({ length: 12 }, (_, i) => [
+          `.changeset/c${i}.md`,
+          '---\n"@fx/alpha": patch\n---\n\nsomething\n',
+        ]),
+      ),
+    );
+
+    expect(many).toEqual(none);
+  });
+
+  it('still reads the changesets it does not count', () => {
+    const tree = checkout({
+      '.changeset/a.md': '---\n"@fx/alpha": minor\n---\n\none\n',
+      '.changeset/b.md': '---\n"@fx/alpha": patch\n---\n\ntwo\n',
+    });
+    const result = checkReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in result) throw new Error(result.reason);
+    // Excluding them from the reported size must not turn into not reading
+    // them, which is the failure this whole read-size discipline exists for.
+    expect(result.inputs.changesets).toHaveLength(2);
   });
 });
 

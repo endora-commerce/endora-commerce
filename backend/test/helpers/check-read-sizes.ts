@@ -394,8 +394,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-release-intent.ts': {
     prefix: '[release-intent]',
     run: { kind: 'tsx', path: 'scripts/check-release-intent.ts', args: [] },
-    files: 34,
-    sites: 39,
+    // Re-recorded 34 → 17 and 39 → 24, and both fell because the **population**
+    // changed rather than the tree. Each used to fold in `.changeset/*.md`,
+    // whose count follows the release cycle rather than the repository: at 30
+    // pending changesets `files` sat exactly on this band's +50% ceiling, so
+    // the next merge request to add one failed — and a release consuming all
+    // thirty would have dropped it under the −10% floor in the same week. A
+    // band cannot bound a quantity that oscillates in both directions, so the
+    // changesets are read, judged, and reported as `changesets=` beside these
+    // numbers instead of inside them.
+    files: 17,
+    sites: 24,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-shared-table-wipes.ts': {

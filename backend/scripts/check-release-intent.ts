@@ -422,9 +422,25 @@ export function readReleaseIntent(
     members: classified,
     changesets,
     globCoverage,
-    // config.json + pnpm-workspace.yaml + one manifest per member + the
-    // changesets themselves. What the walk *opened*, never what it found in.
-    files: 2 + members.length + changesetFiles.length,
+    // config.json + pnpm-workspace.yaml + one manifest per member. What the
+    // walk *opened*, never what it found in.
+    //
+    // **The changesets are read and deliberately not counted here**, and the
+    // reason is what `files` is for. It is the vacuous-pass floor: a green
+    // result must not be able to mean "nothing was read". For this check that
+    // means the workspace manifests and the config — without them every
+    // predicate is vacuously true. The changeset files are the *subject* of one
+    // question rather than the population of the analysis, their count is
+    // already printed beside it as `changesets=`, and **zero of them is a
+    // legitimate state** — a freshly released tree has none.
+    //
+    // Folding them in made the counted population oscillate with the release
+    // cycle rather than with the tree, so no single recorded band could bound
+    // it: at 30 pending changesets `files` sat exactly on the +50% ceiling and
+    // the next merge request to add one failed, while a release consuming them
+    // would have dropped it under the −10% floor in the same week. Measured on
+    // `a059e56e`: 51 with them, 17 without.
+    files: 2 + members.length,
   };
 }
 
@@ -593,14 +609,16 @@ export function checkReleaseIntent(
 
   const ignorePatterns = stringList(inputs.config['ignore']);
   // One per decision taken inside the files read: each member classified, each
-  // ignore pattern resolved, each group member looked up, each changeset
-  // release reconciled, plus the two `privatePackages` settings.
+  // ignore pattern resolved, each group member looked up, plus the two
+  // `privatePackages` settings.
+  //
+  // **The changeset reconciliations are decisions and are deliberately not
+  // counted here**, for the reason given at `files` above: their number follows
+  // the release cycle rather than the tree, and a band over an oscillating
+  // quantity jams in both directions. They are printed beside this as
+  // `changesets=`, which is where a reader should look for how many there were.
   const sites =
-    inputs.members.length +
-    ignorePatterns.length +
-    groupMembers(inputs.config).length +
-    inputs.changesets.length +
-    2;
+    inputs.members.length + ignorePatterns.length + groupMembers(inputs.config).length + 2;
   const globs = [...inputs.globCoverage.keys()];
   // The independent derivation: `pnpm-workspace.yaml` says how many entries
   // should produce a member, and the manifests on disk say how many did. Move
