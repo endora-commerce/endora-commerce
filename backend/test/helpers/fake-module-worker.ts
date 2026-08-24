@@ -42,6 +42,12 @@ export interface FakeModuleWorkerOptions {
   readonly name?: string;
   /** The module's own processor, i.e. what the work gate must guard. */
   readonly processor?: (job: FakeJob, token?: string) => Promise<unknown>;
+  /**
+   * When supplied, `pause()` flips the state immediately and settles only when
+   * this promise does — BullMQ's real behaviour, which waits for the job already
+   * running. It is what lets a test put two presence flips inside one pause.
+   */
+  readonly pauseSettles?: () => Promise<void>;
 }
 
 export function makeFakeModuleWorker(options: FakeModuleWorkerOptions = {}): FakeModuleWorker {
@@ -61,6 +67,7 @@ export function makeFakeModuleWorker(options: FakeModuleWorkerOptions = {}): Fak
     pause: async (): Promise<void> => {
       state.pauseCalls += 1;
       state.paused = true;
+      if (options.pauseSettles) await options.pauseSettles();
     },
     resume: (): void => {
       state.resumeCalls += 1;

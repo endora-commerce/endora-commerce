@@ -109,6 +109,30 @@ describe('a queue consumer follows its module`s effective state', () => {
       expect(fake.state.pauseCalls + fake.state.resumeCalls).toBe(before);
     });
 
+    it('a pause that rejects is logged, not left as an unhandled rejection', async () => {
+      // The reconcile runs inside a pub/sub callback and cannot await, so a
+      // rejected `pause()` — `pause()` reconnects the blocking connection to
+      // wait for the active job, and a closing connection rejects — would be a
+      // crashed process rather than a message. Measured: the real-Redis
+      // integration file produced one before this was handled.
+      //
+      // **How this goes red**, since the expectation below is about the call
+      // rather than the rejection: with the handler removed, the rejection is
+      // unhandled, vitest reports it as an *error* of the run and exits 1 —
+      // measured, with the `.catch` deleted. An assertion inside the file cannot
+      // see an unhandled rejection, which is the whole nature of the defect.
+      const fake = makeFakeModuleWorker({
+        pauseSettles: () => Promise.reject(new Error('Redis is already connecting/connected')),
+      });
+      defineModuleWorker(MODULE_ID, fake.worker);
+
+      registryCache.__setEnabledForTesting([MODULE_ID], { deactivated: [MODULE_ID] });
+      await settle();
+      await settle();
+
+      expect(fake.state.pauseCalls).toBe(1);
+    });
+
     it('a closed worker leaves the registry, so a later reconcile does not resurrect it', async () => {
       const fake = register();
       fake.emit('closed');

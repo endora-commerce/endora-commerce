@@ -8,6 +8,7 @@ import {
   checkSubscribeSeam,
   checkWorkerSeam,
   findBareSubscriptions,
+  findSeamForwarders,
   findWorkerFactories,
   keyOf,
 } from '../../../scripts/check-subscribe-seam.js';
@@ -170,7 +171,10 @@ describe('checkSubscribeSeam — the two-way ratchet', () => {
  * and an operator who switched `pwa` off went on having push notifications
  * delivered. So what is proved here is that the check goes **red** on that exact
  * shape and on the construction shape, and that it does not go red on the three
- * spellings the tree legitimately uses.
+ * spellings the tree legitimately uses — including the two that T051's conversion
+ * made the common case: a worker collected in `plugin.ts` and returned for
+ * `backend.ts` to register, and one forwarded through a `registerWorker`
+ * callback whose body is `ctx.worker`.
  */
 const QUEUE_FACTORY = `
 import { Queue, Worker } from 'bullmq';
@@ -247,6 +251,42 @@ describe('findWorkerFactories / findWorkerSites — the queue-consumer spellings
       {},
     );
     expect(result.violations).toHaveLength(0);
+  });
+
+  it('accepts a worker collected and returned for `backend.ts` — the T051 shape', () => {
+    // `plugin.ts` builds it, `backend.ts` hands it to `ctx.worker`. The value
+    // crosses a file boundary, so the analysis stops at the return; what it
+    // still refuses is the version of this that returns nothing, above.
+    const result = checkWorkerSeam(
+      {
+        sources: workerTree(
+          'export function pwaModule(options) {\n' +
+            '  const workers = options.runWorkers ? [createPushDeliveryWorker(options.redis, p)] : [];\n' +
+            '  return { plugin, handle, workers };\n' +
+            '}',
+        ),
+      },
+      {},
+    );
+    expect(result.violations).toHaveLength(0);
+  });
+
+  it('accepts a `registerWorker` callback whose body is the seam, derived not listed', () => {
+    // `catalog` and `newsletter`. The forwarder's name is recognised because its
+    // body calls `ctx.worker`, so a module that names the callback something
+    // else is followed rather than reported.
+    const sources = workerTree(
+      'const worker = createPushDeliveryWorker(conn, handler);\n' +
+        'options.registerWorker(worker, { logger: app.log });',
+    );
+    sources.set(
+      'modules/pwa/backend.ts',
+      'export function registerModule(ctx) {\n' +
+        '  pwaModule({ registerWorker: (worker, workerOptions) => { ctx.worker(worker, workerOptions); } });\n' +
+        '}',
+    );
+    expect(checkWorkerSeam({ sources }, {}).violations).toHaveLength(0);
+    expect([...findSeamForwarders({ sources })]).toContain('registerWorker');
   });
 
   it('leaves a non-BullMQ `Worker` alone — the identifier has to be the bullmq import', () => {

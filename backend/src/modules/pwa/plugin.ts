@@ -1,14 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
-import type { Queue } from 'bullmq';
+import type { Queue, Worker } from 'bullmq';
 import { z } from 'zod';
 import type {
   CustomerAccountReadPort,
   CustomerGroupReadPort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
 import { PwaConfigResolver, type SettingsReadPort } from './services/pwa-config-resolver.js';
 import { PwaIconService, type AssetUploadPort } from './services/pwa-icon-service.js';
 import { PushSubscriptionService } from './services/push-subscription-service.js';
@@ -104,6 +103,11 @@ export interface PwaModuleHandle {
 export interface PwaModuleResult {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: PwaModuleHandle;
+  /**
+   * The push-delivery consumer, for `backend.ts` to hand to `ctx.worker` — the
+   * shape `ksef` and `catalog` use. Empty when `runWorkers` is false.
+   */
+  workers: Worker<PushDeliveryJobData>[];
 }
 
 export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
@@ -150,20 +154,27 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
   // Push-delivery consumer (Principle X). Separable entrypoint; co-located by
   // default given low push volume, split-out-able under load via BACKEND_ROLE.
   //
-  // `defineModuleWorker` is not optional decoration: it is the seam that makes
-  // the module's effective state decide whether this queue is consumed at all
-  // (Constitution XVII). Without it the worker was in no per-module registry, so
-  // an operator who switched `pwa` off went on having push notifications
-  // delivered to their customers' devices — the same class of defect the
-  // activation axis had platform-wide, and the reason `check:worker-seam`
-  // exists.
-  if (options.runWorkers) {
-    const processor = makePushDeliveryProcessor({
-      emFactory: options.emFactory,
-      registry: providerRegistry,
-    });
-    defineModuleWorker('pwa', createPushDeliveryWorker(options.redis, processor));
-  }
+  // It is **handed to `backend.ts`** rather than started here, and that is the
+  // Constitution XVII repair rather than tidiness: this line used to read
+  // `createPushDeliveryWorker(options.redis, processor);`, the value dropped on
+  // the floor. A worker outside `ctx.worker` is in no per-module registry, so
+  // `pauseWorkersFor('pwa')` reached nothing and the presence reconcile had
+  // nothing to reconcile — an operator who switched `pwa` off went on having
+  // push notifications delivered to their customers' devices, on both axes,
+  // while the module's own admin and storefront surfaces refused. That is what
+  // made it invisible, and it is the same shape issue #107 found for
+  // subscribers; `check:subscribe-seam` now refuses it.
+  const workers = options.runWorkers
+    ? [
+        createPushDeliveryWorker(
+          options.redis,
+          makePushDeliveryProcessor({
+            emFactory: options.emFactory,
+            registry: providerRegistry,
+          }),
+        ),
+      ]
+    : [];
 
   const handle: PwaModuleHandle = {
     pushEventHandlers,
@@ -206,5 +217,5 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
     });
   };
 
-  return { plugin, handle };
+  return { plugin, handle, workers };
 }

@@ -47,13 +47,21 @@ import {
  *     the platform's stop switch attached to nothing, and would look exactly
  *     like a green test suite.
  *
- * **What this file does not claim.** It proves the platform *can* stop this
- * worker, not that every off-state path *does*: `pauseWorkersFor` is reached
- * from the orchestrator's platform-availability `disable` and from nowhere
- * else, so the operator-activation axis leaves a running worker running. That
- * gap is the platform's, not this package's — it is identical for every module
- * with a queue — and it is recorded in `specs/deferred-defects.md`. Asserting
- * it here would bless it.
+ *  3. **Constitution XVII on the axis an operator drives.** This paragraph used
+ *     to say the opposite, and said so deliberately: *"it proves the platform
+ *     can stop this worker, not that every off-state path does — `pauseWorkersFor`
+ *     is reached from the orchestrator's platform-availability `disable` and from
+ *     nowhere else, so the operator-activation axis leaves a running worker
+ *     running… asserting it here would bless it."* The gap was real, it was the
+ *     platform's rather than this package's, and it has been repaired: the worker
+ *     now follows the per-process registry cache, so a **deactivation** stops it
+ *     in whichever process holds it — including a `BACKEND_ROLE=worker` one that
+ *     never runs the orchestrator. The assertion that would have blessed the
+ *     defect is the assertion that now holds, so it is made below rather than
+ *     withheld. Its general form, against a real queue and both axes, is
+ *     `test/integration/_lifecycle/deactivation-stops-workers.integration.test.ts`;
+ *     what this file adds is that it holds for a worker composed out of a
+ *     package's compiled `dist`.
  *
  * **Why this is not `setupBackendServer`.** The harness contributes
  * `moduleQueueRedis: undefined` on purpose — "no queue in this composition" is
@@ -224,4 +232,21 @@ describe('google_analytics — the packaged BullMQ consumer (Principle X)', () =
     await resumeWorkersFor(MODULE_ID);
     expect(await settleUntil(10_000, before + 1)).toBe(before + 1);
   }, 30_000);
+
+  it('stops consuming when the operator deactivates the module, and drains on reactivation', async () => {
+    // The assertion the header used to withhold. Nobody calls `pauseWorkersFor`
+    // here: the presence install alone is the seam, which is what makes the
+    // answer right in a process that never ran the orchestrator. For this module
+    // it is the difference between "analytics is off" and "we are still sending
+    // events to Google after the operator withdrew that disclosure".
+    registryCache.__setEnabledForTesting([MODULE_ID], { deactivated: [MODULE_ID] });
+
+    const before = completed.length;
+    await collect();
+    await settleUntil(2_000, before + 1);
+    expect(completed.length, 'a deactivated module consumed a job').toBe(before);
+
+    registryCache.__setEnabledForTesting([MODULE_ID]);
+    expect(await settleUntil(20_000, before + 1)).toBe(before + 1);
+  }, 60_000);
 });

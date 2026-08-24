@@ -348,15 +348,35 @@ export function reconcileModuleWorkers(): void {
  * later) tries again, which is what level-triggering buys.
  */
 function applyWorkerPresence(moduleId: string, worker: Worker, present: boolean): void {
-  const settled = present ? Promise.resolve(worker.resume()) : worker.pause();
-  void settled.catch((err: unknown) => {
-    console.warn(
-      `[module-lifecycle] could not ${present ? 'resume' : 'pause'} a queue consumer of ` +
-        `'${moduleId}' (${worker.name}); the next presence refresh will retry: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-    );
-  });
+  let settled: Promise<void>;
+  try {
+    settled = present ? Promise.resolve(worker.resume()) : worker.pause();
+  } catch (err: unknown) {
+    warnWorkerPresenceFailed(moduleId, worker, present, err);
+    return;
+  }
+  // No re-read once it settles, deliberately. `pause()` awaits the job already
+  // running, so two flips can settle out of order — but BullMQ sets `paused`
+  // **synchronously** and clears it the same way, so the flag already agrees
+  // with the last caller before either promise resolves. A convergence loop here
+  // would be machinery for a hazard nothing in this stack has.
+  void settled.catch((err: unknown) =>
+    warnWorkerPresenceFailed(moduleId, worker, present, err),
+  );
+}
+
+function warnWorkerPresenceFailed(
+  moduleId: string,
+  worker: Worker,
+  present: boolean,
+  err: unknown,
+): void {
+  console.warn(
+    `[module-lifecycle] could not ${present ? 'resume' : 'pause'} a queue consumer of ` +
+      `'${moduleId}' (${worker.name}); the next presence refresh will retry: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+  );
 }
 
 let reconcilerArmed = false;

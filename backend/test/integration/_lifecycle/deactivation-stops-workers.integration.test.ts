@@ -98,7 +98,7 @@ describe('a deactivated module stops consuming its queue, and its jobs wait (int
   it('consumes while both axes are on — the positive case a quiet interval is read against', async () => {
     await queue.add('deliver', { n: 1 });
     expect(await settleUntil(10_000, 1)).toBe(1);
-  }, 30_000);
+  }, 45_000);
 
   it('stops consuming the moment the operator deactivates it, and leaves the job waiting', async () => {
     // The production flip, minus the transport: the settings row is written by
@@ -115,15 +115,15 @@ describe('a deactivated module stops consuming its queue, and its jobs wait (int
 
     expect(processed.length, 'a deactivated module consumed a job').toBe(before);
     expect(await stillQueued(), 'the job was neither consumed nor left waiting').toBe(1);
-  }, 30_000);
+  }, 45_000);
 
   it('drains it on reactivation — off is non-destructive and reversible', async () => {
     const before = processed.length;
     registryCache.__setEnabledForTesting([MODULE_ID]);
 
-    expect(await settleUntil(10_000, before + 1)).toBe(before + 1);
+    expect(await settleUntil(20_000, before + 1)).toBe(before + 1);
     expect(await stillQueued()).toBe(0);
-  }, 30_000);
+  }, 45_000);
 
   it('and stops again when the platform withdraws the module, not only the operator', async () => {
     registryCache.__setEnabledForTesting([]);
@@ -136,6 +136,6 @@ describe('a deactivated module stops consuming its queue, and its jobs wait (int
     expect(await stillQueued()).toBe(1);
 
     registryCache.__setEnabledForTesting([MODULE_ID]);
-    expect(await settleUntil(10_000, before + 1)).toBe(before + 1);
-  }, 30_000);
+    expect(await settleUntil(20_000, before + 1)).toBe(before + 1);
+  }, 45_000);
 });

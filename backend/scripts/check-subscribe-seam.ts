@@ -68,9 +68,27 @@
  *      fifteen constructions in the tree sit in a `services/queues/*.ts` whose
  *      caller wraps them.
  *   2. **`ungated-registration`** — a call to one of those factories whose value
- *      goes nowhere: not into a seam call, not `return`ed, and not bound to a
- *      name this file later hands to a seam. This is the one `pwa` failed, and
- *      the one a check keyed on `new Worker(` cannot see at all.
+ *      goes nowhere. This is the one `pwa` failed, and the one a check keyed on
+ *      `new Worker(` cannot see at all.
+ *
+ * "Goes nowhere" is four questions, and each was a real shape in the tree when
+ * this landed: it is not inside a seam call; it is not `return`ed; it is not
+ * bound to a name this file later hands to a seam; and it is not bound to a name
+ * this function **returns** — which is `pwa`'s repaired shape
+ * (`const workers = […]; return { plugin, handle, workers }`) and `ksef`'s
+ * (`worker = createKsefSubmitWorker(…)`, returned as `workers: worker ? [worker] : []`).
+ * The last one is what T051's conversion made the common case: a module's
+ * `plugin.ts` collects its workers and its `backend.ts` hands each to
+ * `ctx.worker`, so the value crosses a file boundary. The analysis stops at the
+ * return — it does not follow the value into the caller — which is stated here
+ * rather than pretended away. What it still catches is the drop on the floor.
+ *
+ * The **seam** is likewise not two literals: `catalog` and `newsletter` take a
+ * `registerWorker(worker, options)` callback from their own `backend.ts` whose
+ * body is `ctx.worker(worker, options)`, so the forwarder names are derived from
+ * the bodies that call the seam, exactly as the factory names are derived from
+ * what they return. Neither set is written down; the next module will name both
+ * something else.
  *
  * The factory set is **derived**, never a naming convention: pass one walks the
  * whole tree for functions that return a BullMQ `Worker` and records their
@@ -80,8 +98,8 @@
  * the very habit the rule is about.
  *
  * What it cannot see, stated here rather than discovered later: a worker handed
- * across files to a caller that forgets the seam (the binding rule is one file
- * deep), a `Worker` subclass, a construction behind a computed callee, and a
+ * across files to a caller that forgets the seam (the analysis stops at the
+ * return), a `Worker` subclass, a construction behind a computed callee, and a
  * `defineModuleWorker` called with the **wrong module id** — that last one is a
  * different rule and `pauseWorkersFor` would find the worker under a name no
  * manifest has. The seam itself is recognised by callee name — `defineModuleWorker`,
@@ -303,22 +321,25 @@ function bullmqWorkerBinding(sf: ts.SourceFile): string | null {
   return binding;
 }
 
-/** True when `node` sits inside the arguments of a `defineModuleWorker` / `ctx.worker` call. */
-function insideSeamCall(node: ts.Node): boolean {
+/** The callee's own name, whichever of the two shapes it is written in. */
+function calleeName(call: ts.CallExpression): string | null {
+  const callee = call.expression;
+  if (ts.isIdentifier(callee)) return callee.text;
+  if (ts.isPropertyAccessExpression(callee)) return callee.name.text;
+  return null;
+}
+
+/** True when `node` sits inside the arguments of a call to a seam or a forwarder. */
+function insideSeamCall(node: ts.Node, seams: ReadonlySet<string>): boolean {
   for (let cursor: ts.Node | undefined = node.parent; cursor; cursor = cursor.parent) {
     if (!ts.isCallExpression(cursor)) continue;
-    const callee = cursor.expression;
-    const name = ts.isIdentifier(callee)
-      ? callee.text
-      : ts.isPropertyAccessExpression(callee)
-        ? callee.name.text
-        : null;
-    if (name !== null && WORKER_SEAM_CALLEES.has(name)) return true;
+    const name = calleeName(cursor);
+    if (name !== null && seams.has(name)) return true;
   }
   return false;
 }
 
-/** True when `node`'s value leaves the function — a factory hands it to its caller. */
+/** True when `node`'s value is itself returned — a factory hands it to its caller. */
 function isHandedToCaller(node: ts.Node): boolean {
   for (let cursor: ts.Node | undefined = node.parent; cursor; cursor = cursor.parent) {
     if (ts.isReturnStatement(cursor)) return true;
@@ -326,6 +347,79 @@ function isHandedToCaller(node: ts.Node): boolean {
     if (ts.isFunctionLike(cursor)) return false;
   }
   return false;
+}
+
+/**
+ * The name a call's value lands in, through the wrappers that do not change
+ * whose value it is: an array or object literal, a conditional, a cast, a
+ * `push` onto a collection.
+ *
+ * `const workers = runWorkers ? [createXWorker(…)] : []` and
+ * `worker = createXWorker(…)` both answer with the collection's name, which is
+ * what the two rules below then ask about.
+ */
+function boundCollectionName(node: ts.Node): string | null {
+  let current: ts.Node = node;
+  for (let cursor: ts.Node | undefined = node.parent; cursor; cursor = cursor.parent) {
+    if (ts.isVariableDeclaration(cursor) && ts.isIdentifier(cursor.name)) return cursor.name.text;
+    if (
+      ts.isBinaryExpression(cursor) &&
+      cursor.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(cursor.left)
+    ) {
+      return cursor.left.text;
+    }
+    if (ts.isCallExpression(cursor) && calleeName(cursor) === 'push') {
+      const receiver = cursor.expression;
+      if (ts.isPropertyAccessExpression(receiver) && ts.isIdentifier(receiver.expression)) {
+        return receiver.expression.text;
+      }
+      return null;
+    }
+    const transparent =
+      ts.isArrayLiteralExpression(cursor) ||
+      ts.isObjectLiteralExpression(cursor) ||
+      ts.isPropertyAssignment(cursor) ||
+      ts.isShorthandPropertyAssignment(cursor) ||
+      ts.isConditionalExpression(cursor) ||
+      ts.isParenthesizedExpression(cursor) ||
+      ts.isAsExpression(cursor) ||
+      ts.isNonNullExpression(cursor);
+    if (!transparent) return null;
+    current = cursor;
+  }
+  void current;
+  return null;
+}
+
+/** Every identifier mentioned in a `return` of the function that encloses `node`. */
+function namesReturnedFromEnclosingFunction(node: ts.Node): Set<string> {
+  let fn: ts.Node | undefined;
+  for (let cursor: ts.Node | undefined = node.parent; cursor; cursor = cursor.parent) {
+    if (ts.isFunctionLike(cursor)) {
+      fn = cursor;
+      break;
+    }
+  }
+  const names = new Set<string>();
+  if (!fn) return names;
+  const collect = (n: ts.Node): void => {
+    if (ts.isIdentifier(n)) names.add(n.text);
+    if (ts.isShorthandPropertyAssignment(n)) names.add(n.name.text);
+    n.forEachChild(collect);
+  };
+  const visit = (n: ts.Node): void => {
+    if (ts.isFunctionLike(n) && n !== fn) return;
+    if (ts.isReturnStatement(n) && n.expression) collect(n.expression);
+    n.forEachChild(visit);
+  };
+  const body = (fn as ts.FunctionLikeDeclaration).body;
+  if (body && !ts.isBlock(body)) {
+    collect(body);
+    return names;
+  }
+  if (body) body.forEachChild(visit);
+  return names;
 }
 
 /** The nearest enclosing function's name, for the factory index. */
@@ -371,6 +465,49 @@ export function findWorkerFactories(input: SubscribeSeamInput): Set<string> {
 }
 
 /**
+ * Pass one-and-a-half — the names that **forward** to the seam.
+ *
+ * `catalog` and `newsletter` take a `registerWorker(worker, options)` callback
+ * from their own `backend.ts`, whose body is `ctx.worker(worker, options)`. That
+ * is the seam reached one hop away, and a rule that knew only the two literal
+ * spellings would report both modules as bypassing it. The set is **derived**
+ * from the bodies rather than written down, for the reason the factory set is:
+ * the next module will name its callback something else.
+ */
+export function findSeamForwarders(input: SubscribeSeamInput): Set<string> {
+  const names = new Set<string>();
+  for (const [file, text] of input.sources) {
+    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+    const visit = (node: ts.Node): void => {
+      if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name)) {
+        const body = node.initializer;
+        if ((ts.isArrowFunction(body) || ts.isFunctionExpression(body)) && callsSeam(body)) {
+          names.add(node.name.text);
+        }
+      }
+      node.forEachChild(visit);
+    };
+    sf.forEachChild(visit);
+  }
+  return names;
+}
+
+/** Does this function body call one of the two literal seam spellings? */
+function callsSeam(fn: ts.Node): boolean {
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+    if (ts.isCallExpression(node)) {
+      const name = calleeName(node);
+      if (name !== null && WORKER_SEAM_CALLEES.has(name)) found = true;
+    }
+    node.forEachChild(visit);
+  };
+  fn.forEachChild(visit);
+  return found;
+}
+
+/**
  * Pass two — every queue-consumer site in a module's own sources, gated or not.
  *
  * The whole population is returned, not only the findings: the caller reports
@@ -380,8 +517,10 @@ export function findWorkerFactories(input: SubscribeSeamInput): Set<string> {
 export function findWorkerSites(
   input: SubscribeSeamInput,
   factories: ReadonlySet<string>,
+  forwarders: ReadonlySet<string> = new Set(),
 ): WorkerSite[] {
   const sites: WorkerSite[] = [];
+  const seams = new Set([...WORKER_SEAM_CALLEES, ...forwarders]);
 
   for (const [file, text] of input.sources) {
     const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
@@ -395,13 +534,8 @@ export function findWorkerSites(
     const registeredBindings = new Set<string>();
     const collectRegistered = (node: ts.Node): void => {
       if (ts.isCallExpression(node)) {
-        const callee = node.expression;
-        const name = ts.isIdentifier(callee)
-          ? callee.text
-          : ts.isPropertyAccessExpression(callee)
-            ? callee.name.text
-            : null;
-        if (name !== null && WORKER_SEAM_CALLEES.has(name)) {
+        const name = calleeName(node);
+        if (name !== null && seams.has(name)) {
           for (const argument of node.arguments) {
             if (ts.isIdentifier(argument)) registeredBindings.add(argument.text);
           }
@@ -411,12 +545,19 @@ export function findWorkerSites(
     };
     sf.forEachChild(collectRegistered);
 
-    /** The binding a call's value lands in, when it lands in one. */
-    const boundName = (node: ts.Node): string | null => {
-      const parent = node.parent;
-      if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) return parent.name.text;
-      if (ts.isBinaryExpression(parent) && ts.isIdentifier(parent.left)) return parent.left.text;
-      return null;
+    /**
+     * Gated when the value reaches the seam here, or leaves this function for a
+     * caller that will. Since the T051 conversion the second is the common
+     * shape: a module's `plugin.ts` collects its workers and its `backend.ts`
+     * hands each to `ctx.worker`, so the value crosses a file boundary and this
+     * analysis stops at the return — stated in the header rather than pretended
+     * away. What it still catches is the drop on the floor, which is the defect.
+     */
+    const isGated = (node: ts.Node): boolean => {
+      if (insideSeamCall(node, seams) || isHandedToCaller(node)) return true;
+      const bound = boundCollectionName(node);
+      if (bound === null) return false;
+      return registeredBindings.has(bound) || namesReturnedFromEnclosingFunction(node).has(bound);
     };
 
     const visit = (node: ts.Node): void => {
@@ -426,33 +567,25 @@ export function findWorkerSites(
         ts.isIdentifier(node.expression) &&
         node.expression.text === binding
       ) {
-        const bound = boundName(node);
         sites.push({
           file,
           line: lineOf(node),
           moduleId: moduleOf(`/src/${file}`),
           kind: 'construction',
           spelling: `new ${binding}`,
-          gated:
-            insideSeamCall(node) ||
-            isHandedToCaller(node) ||
-            (bound !== null && registeredBindings.has(bound)),
+          gated: isGated(node),
         });
       }
       if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
         const callee = node.expression.text;
         if (factories.has(callee)) {
-          const bound = boundName(node);
           sites.push({
             file,
             line: lineOf(node),
             moduleId: moduleOf(`/src/${file}`),
             kind: 'registration',
             spelling: callee,
-            gated:
-              insideSeamCall(node) ||
-              isHandedToCaller(node) ||
-              (bound !== null && registeredBindings.has(bound)),
+            gated: isGated(node),
           });
         }
       }
@@ -477,7 +610,7 @@ export function checkWorkerSeam(
   input: SubscribeSeamInput,
   ledger: Readonly<Record<string, string>> = WORKERS_OUTSIDE_THE_SEAM,
 ): WorkerSeamResult {
-  const sites = findWorkerSites(input, findWorkerFactories(input));
+  const sites = findWorkerSites(input, findWorkerFactories(input), findSeamForwarders(input));
   // Only a module has an effective state to gate on; a factory in a shared
   // directory is judged where it is called.
   const ungated = sites.filter((site) => !site.gated && site.moduleId !== null);
