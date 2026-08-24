@@ -13,19 +13,23 @@ import { Organization } from '../../../src/modules/organizations/entities/organi
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 import { Shipment } from '../../../src/modules/shipments/entities/shipment.entity.js';
+import { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
+import { ReturnCaseComment } from '../../../src/modules/returns/entities/return-case-comment.entity.js';
+import { ReturnShipment } from '../../../src/modules/returns/entities/return-shipment.entity.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 
 /**
- * The *money and parcel* children of an Order, read through the assignment
+ * The children of an `@OrgScoped` aggregate, read through the assignment
  * scope — the sibling of `admin-write-scope.test.ts`, which holds the same
- * property for the comment thread and the invoice.
+ * property for the order's comment thread and its invoice.
  *
- * `Payment` and `Shipment` are `@GlobalEntity`: they carry no organization
- * column and no filter of their own, so a read keyed on `orderId` alone answers
- * for every order on the platform. `Order` is `@OrgScoped`, so the platform's
- * answer for these routes is entirely whatever the handler does *before* it
- * reaches the child — loading the order through a filtered EntityManager, or
- * nothing.
+ * `Payment`, `Shipment`, `ReturnShipment` and `ReturnCaseComment` are all
+ * `@GlobalEntity`: they carry no organization column and no filter of their
+ * own, so a read keyed on the parent's id alone answers for every order — or
+ * every return case — on the platform. `Order` and `ReturnCase` are
+ * `@OrgScoped`, so the platform's answer for these routes is entirely whatever
+ * the handler does *before* it reaches the child: load the parent through a
+ * filtered EntityManager, or nothing.
  *
  * A permission is not a tenant gate. A `sales_representative` holding
  * `catalog:read` is an administrator of the organizations they are assigned to
@@ -37,13 +41,15 @@ import { ADMIN_COOKIES, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
  * than 403, matching what the order-keyed routes in `orders` already give: an
  * out-of-scope order must not be distinguishable from one that does not exist.
  */
-describe('Admin order-child routes honour the sales-rep assignment scope', () => {
+describe('Admin child-aggregate routes honour the sales-rep assignment scope', () => {
   let h: BackendServerHandle;
   let repCookie: string;
   let assignedOrgId: string;
   let foreignOrgId: string;
 
   const orders: Record<string, string> = {};
+  const returnCases: Record<string, string> = {};
+  const returnShipments: Record<string, string> = {};
   const salesChannelId = '00000000-0000-4000-8000-0000000000c1';
   const deliveryMethodId = '00000000-0000-4000-8000-0000000000e1';
   const paymentMethodId = '00000000-0000-4000-8000-0000000000f1';
@@ -104,7 +110,14 @@ describe('Admin order-child routes honour the sales-rep assignment scope', () =>
     // cannot use a code of its own. Another file in the run may have created it
     // already with a narrower grant set — widen that one rather than creating a
     // second row the unique index would refuse.
-    const grants = ['orders:read', 'orders:write', 'catalog:read', 'catalog:write'];
+    const grants = [
+      'orders:read',
+      'orders:write',
+      'catalog:read',
+      'catalog:write',
+      'returns:read',
+      'returns:write',
+    ];
     let role = await em.findOne(AdminRole, { code: 'sales_representative' });
     if (!role) {
       role = em.create(AdminRole, {
@@ -146,6 +159,8 @@ describe('Admin order-child routes honour the sales-rep assignment scope', () =>
       'foreignRetry',
       'ownShipments',
       'foreignShipments',
+      'ownReturn',
+      'foreignReturn',
     ] as const;
     const rows = keys.map((key) =>
       newOrder(em, key.startsWith('own') ? assignedOrgId : foreignOrgId),
@@ -180,6 +195,40 @@ describe('Admin order-child routes honour the sales-rep assignment scope', () =>
           externalReference: `TRACK-${key}-${stamp}`,
         }),
       );
+    }
+
+    // The second `@OrgScoped` aggregate with `@GlobalEntity` children, and the
+    // one whose admin surface reaches them keyed on the case id alone.
+    for (const key of ['ownReturn', 'foreignReturn'] as const) {
+      const rc = em.create(ReturnCase, {
+        kind: 'return',
+        orderId: orders[key]!,
+        salesChannelId,
+        customerAccountId: TEST_CUSTOMER_ID,
+        organizationId: key.startsWith('own') ? assignedOrgId : foreignOrgId,
+        statusCode: 'authorized',
+        currency: 'PLN',
+        submittedAt: new Date(),
+      });
+      await em.persistAndFlush(rc);
+      returnCases[key] = rc.id;
+
+      const shipment = em.create(ReturnShipment, {
+        returnCaseId: rc.id,
+        direction: 'inbound',
+        externalReference: `RMA-TRACK-${key}-${stamp}`,
+        status: 'pending',
+      });
+      const comment = em.create(ReturnCaseComment, {
+        returnCaseId: rc.id,
+        authorAdminUserId: null,
+        authorCustomerAccountId: null,
+        body: `internal return note (${key}) ${stamp}`,
+        isCustomerVisible: false,
+        notifyCustomer: false,
+      });
+      await em.persistAndFlush([shipment, comment]);
+      returnShipments[key] = shipment.id;
     }
 
     repCookie = `stub-child-scope-rep-${stamp}`;
@@ -257,6 +306,65 @@ describe('Admin order-child routes honour the sales-rep assignment scope', () =>
     });
     expect(served.statusCode).toBe(200);
     expect(served.body).toContain(`TRACK-ownShipments-${stamp}`);
+  });
+
+  it('refuses the shipment list of a return case outside the scope, and serves the one inside it', async () => {
+    const refused = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/returns/${returnCases['foreignReturn']}/shipments`,
+      cookies: { b2b_session: repCookie },
+    });
+    expect(refused.statusCode).toBe(404);
+    expect(refused.body).not.toContain(`RMA-TRACK-foreignReturn-${stamp}`);
+
+    const served = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/returns/${returnCases['ownReturn']}/shipments`,
+      cookies: { b2b_session: repCookie },
+    });
+    expect(served.statusCode).toBe(200);
+    expect(served.body).toContain(`RMA-TRACK-ownReturn-${stamp}`);
+  });
+
+  const shipmentStatus = async (id: string): Promise<string | null> =>
+    (await h.em().findOne(ReturnShipment, { id }))?.status ?? null;
+
+  it('refuses receiving a return shipment on a case outside the scope, writing nothing', async () => {
+    const refused = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/returns/${returnCases['foreignReturn']}/shipments/${returnShipments['foreignReturn']}/receive`,
+      cookies: { b2b_session: repCookie },
+    });
+    expect(refused.statusCode).toBe(404);
+    // The row was flushed `received` before the case transition refused, so a
+    // status assertion is the half a status code cannot see.
+    expect(await shipmentStatus(returnShipments['foreignReturn']!)).toBe('pending');
+
+    const accepted = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/returns/${returnCases['ownReturn']}/shipments/${returnShipments['ownReturn']}/receive`,
+      cookies: { b2b_session: repCookie },
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(await shipmentStatus(returnShipments['ownReturn']!)).toBe('received');
+  });
+
+  it('refuses the comment thread of a return case outside the scope, and serves the one inside it', async () => {
+    const refused = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/returns/${returnCases['foreignReturn']}/comments`,
+      cookies: { b2b_session: repCookie },
+    });
+    expect(refused.statusCode).toBe(404);
+    expect(refused.body).not.toContain(`internal return note (foreignReturn) ${stamp}`);
+
+    const served = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/returns/${returnCases['ownReturn']}/comments`,
+      cookies: { b2b_session: repCookie },
+    });
+    expect(served.statusCode).toBe(200);
+    expect(served.body).toContain(`internal return note (ownReturn) ${stamp}`);
   });
 
   it('leaves a platform administrator reaching every order, in both organizations', async () => {

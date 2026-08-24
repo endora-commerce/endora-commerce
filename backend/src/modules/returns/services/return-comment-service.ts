@@ -70,8 +70,23 @@ export class ReturnCommentService {
     return toDto(comment);
   }
 
+  /**
+   * The whole thread, internal comments included, for the admin panel.
+   *
+   * The case read is the tenant boundary and not a formality: `ReturnCaseComment`
+   * is `@GlobalEntity`, so `em.find(ReturnCaseComment, { returnCaseId })` carries
+   * no filter and answers for every case on the platform, while `ReturnCase` is
+   * `@OrgScoped`. `listForCustomer` below has always keyed on the case *and* its
+   * customer; this one keyed on nothing, and every comment on this thread is one
+   * an operator wrote believing only their own colleagues would read it.
+   *
+   * `loadOpenCase` is the wrong helper here — it also refuses a closed case,
+   * which a reader is entitled to see. Same read, no lifecycle term.
+   */
   async listForAdmin(id: string): Promise<ReturnCaseCommentDto[]> {
     const em = this.deps.emFactory();
+    const rc = await em.findOne(ReturnCase, { id });
+    if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const comments = await em.find(
       ReturnCaseComment,
       { returnCaseId: id },
