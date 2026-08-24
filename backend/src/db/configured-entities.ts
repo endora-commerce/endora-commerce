@@ -1,6 +1,7 @@
 import { ALL_ENTITIES } from './entities-registry.generated.js';
 import { discoverPackageSchema, type EntityClassLike } from '../packages/package-runtime.js';
 import { assertTransitiveParentsResolve } from '../tenancy/org-scoped.decorator.js';
+import { platformLogger } from '../kernel/logging.js';
 
 /**
  * The entity classes this platform registers: the committed core registry plus
@@ -44,6 +45,14 @@ import { assertTransitiveParentsResolve } from '../tenancy/org-scoped.decorator.
  * query can have been issued under a chain that does not resolve. It throws
  * `UnresolvableTenantParentError`, which stops the boot; there is deliberately
  * no degraded mode, because the degraded mode is an untenanted read.
+ *
+ * Since T054(a) (D-170) it walks the whole chain rather than one hop, and
+ * refuses one that resolves at every step and grounds nowhere — a `global` or
+ * `rule` terminus, a cycle, a run of transitives reaching no keyed
+ * classification. It also emits an `info` line for a chain that terminates at a
+ * `customer`, which is legal and has a gap worth naming; the logger is passed
+ * from here because that is where the platform's destination is nameable, and
+ * `tenancy/` deliberately imports nothing from `kernel/`.
  */
 export type ConfiguredEntity = (typeof ALL_ENTITIES)[number] | EntityClassLike;
 
@@ -58,7 +67,7 @@ export async function configuredEntities(
       ...ALL_ENTITIES,
       ...packages.flatMap((contribution) => contribution.entities),
     ];
-    assertTransitiveParentsResolve();
+    assertTransitiveParentsResolve(platformLogger());
     return entities;
   })();
   return memoised;
