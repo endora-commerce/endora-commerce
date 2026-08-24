@@ -126,6 +126,23 @@ export class PermissionCatalogueService {
   }
 
   /**
+   * Every code the platform knows, mapped to the modules whose presence keeps
+   * it grantable — {@link MergedRow.owners}, published.
+   *
+   * D-173's sweep reads it, and it is a method rather than a derivation of its
+   * own because the whole question is *"does `/admin-roles` still offer this
+   * code when its owner is switched off?"* — a question only the merge this
+   * class performs can answer. A second implementation over
+   * `PERMISSION_CATALOGUE` plus the manifests would be right on the day it was
+   * written and would drift the first time the merge learns a rule: a shared
+   * code with two owners, or a catalogue row a manifest re-declares, is exactly
+   * where the two would disagree, and exactly the shape the sweep exists for.
+   */
+  listOwnersByCode(): Map<string, ReadonlySet<string>> {
+    return new Map(this.#merge().map((row) => [row.entry.code, row.owners]));
+  }
+
+  /**
    * The codes `moduleId` contributes, whether or not it is present.
    *
    * Exists for the off-state harness: proving a module's codes leave the

@@ -5,12 +5,8 @@ import {
   REGISTERED_MANIFESTS,
   resolvedManifestEntries,
 } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import {
-  defaultScanRoots,
-  scanEnforcedPermissionGates,
-} from '../../../src/modules/admin_roles/permission-inventory.js';
-import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
-import { activeOverlayModulesRoot } from '../../../src/overlay/overlay-roots.js';
+import { scanEnforcedPermissionGates } from '../../../src/modules/admin_roles/permission-inventory.js';
+import { permissionScanRoots } from '../../helpers/permission-scan-roots.js';
 import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
 
 /**
@@ -49,37 +45,15 @@ function bundleFor(language: string): Record<string, string> {
 const RESOLVED_MANIFESTS = await resolvedManifestEntries();
 
 /**
- * Every directory this build enforces gates in — the application's own tree and
- * the active overlay, plus one root per module that has become a workspace
- * package (feature 080, T040b).
+ * Every directory this build enforces gates in — resolved by
+ * `test/helpers/permission-scan-roots.ts`, which carries the reasoning.
  *
- * The package half is supplied **here** rather than inside the scanner because
- * the layout derivation lives in `scripts/lib/module-roots.ts`, which a module
- * may not import — `permission-inventory.ts` belongs to `admin_roles`, and
- * `check:module-boundary` is right to refuse the edge. The scanner has no
- * runtime caller, so the caller that already resolves the layout is the right
- * place for the answer.
- *
- * Leaving a packaged module out is not a smaller sweep: its codes stay
- * grantable and stop being enforced *anywhere the scan can see*, so the
- * reverse direction reports a checkbox on `/admin-roles` that grants nothing —
- * which is what this file said about `blog.read` and `blog.write` the day
- * `blog` moved, with both gates sitting in `routes.admin.ts` untouched.
+ * It used to be computed here. D-173's `foreign-gate` sweep asks a second
+ * question of the same population, and two derivations of "where does this
+ * build enforce gates" are two answers waiting to disagree — with the short one
+ * reporting a clean tree.
  */
-const SCAN_ROOTS = await (async () => {
-  const layout = await resolveModuleLayout();
-  return [
-    // The active deployment's overlay modules are resolved here too, since
-    // feature 080's T051: `overlay/*` is how the platform discovers overlays,
-    // and a module reading it as an installed package would be an artefact
-    // enumerating its own siblings (`contracts/host-package.md` §1.4l). This
-    // file is not a module.
-    ...defaultScanRoots(activeOverlayModulesRoot()),
-    ...layout.moduleRoots
-      .filter((root) => root.moduleId !== null)
-      .map((root) => ({ dir: root.directory, moduleId: root.moduleId as string })),
-  ];
-})();
+const SCAN_ROOTS = await permissionScanRoots();
 
 describe('permission inventory (SC-001)', () => {
   const scan = scanEnforcedPermissionGates(SCAN_ROOTS);

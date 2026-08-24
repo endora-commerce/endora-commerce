@@ -609,6 +609,22 @@ export async function registerPricingRoutes(
   // customer") can pre-fill the agreed unit price from the customer's price
   // lists instead of leaving the field blank. Mirrors the storefront resolver
   // but threads the customer's organization + group context.
+  //
+  // D-173 — it is gated on this module's own read code, not on `rfqs:handle`.
+  // The caller is the RFQ create screen, but what the endpoint serves is a
+  // price-list resolution, and `price_lists` declares itself
+  // `nonDeactivatable` while `quote_requests` is switchable: `rfqs:handle`
+  // leaves `/admin-roles` the moment an operator switches quote requests off,
+  // and this route, which cannot be switched off with it, went on enforcing a
+  // code nobody could be granted. That is the consequence D-166 wrote down for
+  // the sales-rep endpoints and did not generalise.
+  //
+  // The label test decides which repair applies: *"Handle quote requests"* is
+  // not a sentence about a price-resolution endpoint, so the code does not
+  // become shared — the consumer gates on a code it owns. Issue #219 already
+  // ruled that a pricing read sits behind `price_lists:read`; a role that
+  // handles RFQs and prefills agreed prices holds both, which is why
+  // `sales_representative` gains the read code in the dev seed.
   app.get<{
     Params: { id: string };
     Querystring: {
@@ -620,7 +636,7 @@ export async function registerPricingRoutes(
     };
   }>(
     '/api/v1/admin/products/:id/resolved-price',
-    { preHandler: requireAdmin('rfqs:handle') },
+    { preHandler: readGate },
     async (request, reply) => {
       const em = emFactory();
       const product = await catalogProductRead.findById(request.params.id);

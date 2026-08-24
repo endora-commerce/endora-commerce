@@ -223,11 +223,25 @@ export const manifest = defineModuleManifest({
   // `organizations:rollup` stays in the core `PERMISSION_CATALOGUE`: it is read
   // by `admin_roles`' capability check on behalf of three modules, and moving it
   // is a data migration on every admin role that holds it.
+  //
+  // D-173 — the two `customers:*` codes are the same finding, one route file
+  // over. Every admin organization endpoint here is gated on `customers:manage`
+  // (or on `customers:read` OR `customers:manage`), and both codes' core
+  // `PERMISSION_CATALOGUE` rows name `customers`, which an operator can switch
+  // off while this module cannot be. Declaring them here makes this module a
+  // second *owner*, in the shape issue #213 gave `integrations:manage`, so the
+  // presence filter keeps them grantable while these screens are on. The
+  // labels are why they are shared rather than replaced by codes of this
+  // module's own: *"Manage customer organizations"* and *"View customers"*
+  // read as sentences about this module's screens, which is what the
+  // paragraph above had to invent a new code for and these do not.
   permissions: [
     {
       code: 'organizations:assign-sales-rep',
       label: 'Assign sales representatives to organizations',
     },
+    { code: 'customers:read', label: 'View customers' },
+    { code: 'customers:manage', label: 'Manage customer organizations' },
   ],
   settings,
   // Feature 047 — admin-editable transactional emails owned by this module.
