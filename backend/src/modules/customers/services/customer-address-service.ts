@@ -1,5 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type AddressReadPort, type AddressRecord } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  type AddressReadPort,
+  type AddressRecord,
+  type CustomerAccountReadPort,
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
 import { recordAuditFromContext } from '../../../commands/index.js';
@@ -45,8 +50,37 @@ export class CustomerAddressService {
      * every read by organisation.
      */
     private readonly organizationAddresses: AddressReadPort,
+    /**
+     * `customer_accounts`' published read model — the tenant boundary of every
+     * method on this service, and not a convenience.
+     *
+     * `CustomerAddress` is `@CustomerScoped`, and `customerFilterCond`
+     * contributes **no predicate at all** under `allowed-set`, the mode an
+     * assignment-scoped administrator resolves to. This table carries no
+     * organization column of its own, so nothing here can express the
+     * restriction — but its owner `CustomerAccount` is `@OrgScoped`, and this
+     * port reads it through a filtered EntityManager. Asking it whether the
+     * account exists *is* asking whether the caller may reach that customer.
+     *
+     * For the buyer's own surface it is a no-op: their own account is in their
+     * own scope. For a platform administrator it is a no-op too.
+     */
+    private readonly customerAccounts: CustomerAccountReadPort,
     private readonly auditLog?: AuditPort,
   ) {}
+
+  /**
+   * Refuse a customer the caller's organizations do not reach.
+   *
+   * 404 rather than 403: an out-of-scope customer must read the same as one
+   * that is not there, which is what the account read already answers.
+   */
+  async #assertCustomerInScope(customerAccountId: string): Promise<void> {
+    const account = await this.customerAccounts.findById(customerAccountId);
+    if (!account) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
+    }
+  }
 
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
     if (this.auditLog) {
@@ -58,6 +92,7 @@ export class CustomerAddressService {
     customerAccountId: string,
     kind?: 'delivery' | 'billing',
   ): Promise<CustomerAddress[]> {
+    await this.#assertCustomerInScope(customerAccountId);
     const em = this.emFactory();
     const where: Record<string, unknown> = { customerAccountId, deletedAt: null };
     if (kind) where.kind = kind;
@@ -78,6 +113,7 @@ export class CustomerAddressService {
     customerAccountId: string,
     input: CustomerAddressInputView,
   ): Promise<CustomerAddress> {
+    await this.#assertCustomerInScope(customerAccountId);
     const em = this.emFactory();
     return em.transactional(async (txEm) => {
       if (input.isDefault) {
@@ -110,6 +146,7 @@ export class CustomerAddressService {
     addressId: string,
     patch: CustomerAddressPatch,
   ): Promise<CustomerAddress> {
+    await this.#assertCustomerInScope(customerAccountId);
     const em = this.emFactory();
     return em.transactional(async (txEm) => {
       const address = await this.findOwned(txEm, customerAccountId, addressId);
@@ -142,6 +179,7 @@ export class CustomerAddressService {
   }
 
   async delete(customerAccountId: string, addressId: string): Promise<void> {
+    await this.#assertCustomerInScope(customerAccountId);
     const em = this.emFactory();
     await em.transactional(async (txEm) => {
       const address = await this.findOwned(txEm, customerAccountId, addressId);

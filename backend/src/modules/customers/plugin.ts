@@ -201,6 +201,7 @@ export function customersModule(options: CustomersModuleOptions): {
   const customerAddressService = new CustomerAddressService(
     options.emFactory,
     options.addressReadPort,
+    options.customerAccountReadPort,
     options.auditLogService,
   );
   const customerDefaultsService = new CustomerDefaultsService(

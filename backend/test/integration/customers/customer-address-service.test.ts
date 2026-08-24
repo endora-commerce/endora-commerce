@@ -5,6 +5,7 @@ import { CustomerAddressService } from '../../../src/modules/customers/services/
 import { CustomerAddress } from '../../../src/modules/customers/entities/customer-address.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AddressReadService } from '../../../src/modules/addresses/services/address-ports.js';
+import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
 
 /**
  * Feature 040, US2 — personal address book: one-default-per-(customer, kind)
@@ -22,9 +23,16 @@ describe('CustomerAddressService', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    // The real `addresses` read port, not a stub: the org-shared half of this
-    // service is now a call through it (feature 075).
-    service = new CustomerAddressService(() => em, new AddressReadService(() => em));
+    // Both ports real, not stubs: the org-shared half of this service is a call
+    // through `addresses`', and the account read is the tenant boundary — a
+    // stub there would assert the guard away instead of exercising it. These
+    // cases run in the harness's system scope, where it answers for every
+    // account.
+    service = new CustomerAddressService(
+      () => em,
+      new AddressReadService(() => em),
+      new CustomerAccountReadService(() => em),
+    );
     const c = em.create(CustomerAccount, {
       email: `addr-${Date.now()}-${Math.floor(performance.now())}@example.test`,
       passwordHash: 'x'.repeat(32),
