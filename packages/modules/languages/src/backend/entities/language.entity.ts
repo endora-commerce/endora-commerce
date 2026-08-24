@@ -1,5 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
-import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
+import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 
 /**
  * Language — installation-wide pool of supported BCP-47 language tags

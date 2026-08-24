@@ -6,8 +6,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Language } from '../../../src/modules/languages/entities/language.entity.js';
-import type { LanguagesCradle } from '../../../src/modules/languages/backend.js';
+import { Language } from '../../helpers/package-entities.js';
+import type { LanguagesCradle } from '@endora-commerce/mod-languages/backend';
 
 /**
  * Feature 072 wave 2 (T105) — a deactivated language stops validating at once.

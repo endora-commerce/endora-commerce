@@ -9,7 +9,7 @@ import type {
 import {
   registerI18nRoutes,
   type I18nRoutesDeps,
-} from '../../../src/modules/languages/routes.js';
+} from '../../../../packages/modules/languages/src/backend/routes.js';
 
 /**
  * Feature 075, Phase C — `languages` asks `currencies` over its published

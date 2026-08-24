@@ -8,7 +8,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { LanguageService } from './services/language-service.js';
 import type { Language } from './entities/language.entity.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface I18nRoutesDeps {
   languageService: LanguageService;

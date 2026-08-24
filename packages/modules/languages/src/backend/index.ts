@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import {
   LANGUAGE_CHANGED_EVENT,
   type CurrencyAdminPort,
@@ -9,14 +9,15 @@ import {
   type LanguageReadPort,
   type LanguageSeedPort,
 } from '@endora-commerce/contracts';
-import { lazyPort, type ModuleContext } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { LanguageService } from './services/language-service.js';
 import { LanguageReadService, createLanguageAdminPort } from './services/language-ports.js';
 import { LanguageReferenceRegistry } from './services/language-reference-registry.js';
 import { LanguageSeedService } from './services/language-seed-service.js';
 import { LocaleService } from './services/locale-service.js';
 import { registerI18nRoutes } from './routes.js';
+import { Language } from './entities/language.entity.js';
 
 /**
  * `languages` — the stale-accept `currencies` already fixed, still live here
@@ -47,14 +48,6 @@ import { registerI18nRoutes } from './routes.js';
  * `auditLog` stops being optional while we are here: language writes are
  * audited or they are not, and "not" should not be reachable by omission.
  */
-
-/** Emitted after any language write; the root drops the dictionary caches. */
-/**
- * The spelling moved to `@endora-commerce/contracts` in feature 075's Phase P — it is a
- * constant, not behaviour, and `dictionaries` subscribes to it. Re-exported
- * here for the length of Phase P, which cuts no consumer.
- */
-export { LANGUAGE_CHANGED_EVENT };
 
 export interface LanguagesCradle {
   readonly emFactory: () => EntityManager;
@@ -179,3 +172,18 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  Language,
+];
