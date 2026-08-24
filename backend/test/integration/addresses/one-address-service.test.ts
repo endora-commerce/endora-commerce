@@ -1,13 +1,13 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
+import type { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * Feature 072 wave 1 (T090) — one `AddressService`, where there were three.
@@ -41,11 +41,18 @@ import { AddressService } from '../../../../packages/modules/addresses/src/backe
  * that would catch it being copied back out.
  */
 
-const here = dirname(fileURLToPath(import.meta.url));
-const srcRoot = resolve(here, '../../../src');
-
-/** Source files that may name the constructor: the module that owns it. */
-const OWNER_PREFIX = 'modules/addresses/';
+/**
+ * The population is **resolved, not spelled** (feature 080, T040a). It was
+ * `backend/src`, and `addresses` is a package now — so a walk of that one
+ * directory no longer reaches the owner (harmless, it was excluded) *and* no
+ * longer reaches any other package, which is the half that matters: a second
+ * `new AddressService(` inside a module package would have been invisible while
+ * the scan went on reporting nothing. `sourceRoots` is the application tree plus
+ * every package, which is what the assertion has always claimed to cover.
+ */
+const layout = await requireModuleLayout('[one-address-service]');
+const ownerDir = layout.moduleDirectoryOf('addresses');
+if (ownerDir === null) throw new Error('[one-address-service] cannot place `addresses`');
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -71,7 +78,15 @@ describe('addresses — one service [integration]', () => {
   it('hands out a validator-armed service, so a bad country code is refused', async () => {
     const service = (h.container.cradle as unknown as { addressService: AddressService })
       .addressService;
-    expect(service).toBeInstanceOf(AddressService);
+    // **Not `toBeInstanceOf`.** `addresses` is a package, so the class the
+    // container constructed came from its `dist`, and the only `AddressService`
+    // binding a test can name is the one in its source — a different class
+    // object, which `instanceof` rejects however correct the wiring is (D-160.6,
+    // for a service rather than an entity). The class *identity* was never what
+    // this line was for; the shape and the behaviour below are, and neither is
+    // weakened by asking the constructor for its name.
+    expect(service).toBeDefined();
+    expect(service.constructor.name).toBe('AddressService');
 
     const orgs = await h.em().execute<Array<{ id: string }>>(
       'select id from organizations limit 1',
@@ -95,10 +110,11 @@ describe('addresses — one service [integration]', () => {
   });
 
   it('is constructed nowhere outside the module that owns it', () => {
-    const offenders = walk(srcRoot)
+    const offenders = layout.sourceRoots
+      .flatMap((root) => walk(root))
+      .filter((file) => !file.startsWith(`${ownerDir}/`))
       .filter((file) => readFileSync(file, 'utf8').includes('new AddressService('))
-      .map((file) => relative(srcRoot, file))
-      .filter((rel) => !rel.startsWith(OWNER_PREFIX))
+      .map((file) => layout.displayOf(file))
       .sort();
 
     expect(

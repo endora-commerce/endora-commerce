@@ -131,14 +131,22 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
     'src/seeds/attribute-fixtures.ts',
     'src/seeds/dev-catalog-seed.ts',
   ],
-  // The four modules the dev seed holds and nothing else does. Each is a plain
+  // The three modules the dev seed holds and nothing else does. Each is a plain
   // entity import in the seed — a warehouse, a stock level, a delivery method,
-  // a payment method, and the custom-field definition half of a product
-  // attribute.
+  // and the custom-field definition half of a product attribute.
+  //
+  // **`payment_methods` was the fourth and is gone** (feature 080, T040b): it is
+  // a package now, so the seed takes `PaymentMethod` off the published
+  // `entities` array by a bare specifier rather than by a relative path into the
+  // module's directory. That is the residue this ledger exists to watch drain,
+  // draining — the entry is deleted rather than re-pointed, because a bare
+  // specifier into a package is not a reference into `backend/src/modules/`.
   custom_fields: ['src/seeds/attribute-fixtures.ts'],
   delivery_methods: ['src/seeds/dev-catalog-seed.ts'],
   inventory: ['src/seeds/dev-catalog-seed.ts'],
-  payment_methods: ['src/seeds/dev-catalog-seed.ts'],
+  // `payment_methods` needs no entry either, since T040b's first batch: it is
+  // a package, and the comment above says why a specifier into one is not a
+  // reference into `backend/src/modules/`.
   // `orders` needs no entry and gets none, since feature 080's T052. Its single
   // reference was `import { Order } from './modules/orders/entities/order.entity.js'`,
   // read by one `em.findOne` inside a bridge the root contributes; D-168 gives a
