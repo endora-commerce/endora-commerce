@@ -1,5 +1,34 @@
 @import "tailwindcss";
 
+/*
+ * Feature 080 (T044) — module packages ship UI, and automatic detection cannot
+ * see it.
+ *
+ * `@import "tailwindcss"` with no `@source` leaves Tailwind v4 on automatic
+ * source detection, which roots at the build tool's base directory: `config.root`
+ * for `@tailwindcss/vite`, i.e. `admin/`. Measured on this tree — a `.tsx` at
+ * `admin/` is scanned, one at the repository root is not, and one under
+ * `packages/modules/blog/src` is not. So a class used only inside a module
+ * package's component is dropped from `dist/assets/*.css` with no error and no
+ * warning: the screen renders unstyled in production.
+ *
+ * One glob rather than one directive per package, and rooted at `packages/`
+ * rather than at `packages/modules/`: 63 more module packages are coming and a
+ * package is recognised by its own `endora` block wherever the workspace globs
+ * put it, so a path naming the current grouping would be a derived fact written
+ * down (D-100). `admin/test/unit/tailwind-module-package-sources.test.ts` is what
+ * keeps this line honest — it derives the packages from the workspace and fails
+ * when one of them is outside the glob.
+ *
+ * It costs almost nothing and reaches nothing it should not, both measured:
+ * +0.8 kB of `dist` CSS, no change in build time, and neither `node_modules` nor
+ * a git-ignored `dist/` is scanned — Tailwind's scanner refuses both even for an
+ * explicit source. That last point is also this directive's limit: an extension
+ * package **installed** into `node_modules` needs an `@source` naming its own
+ * directory, which no static glob can spell.
+ */
+@source "../../packages/**/*.{ts,tsx}";
+
 /* Feature 029 — prevent accidental horizontal page scroll on narrow viewports */
 html,
 body,

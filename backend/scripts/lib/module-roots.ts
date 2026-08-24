@@ -76,10 +76,10 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
 import {
+  declaredModuleId,
   nodeWorkspaceFs,
   workspaceMembers,
   type WorkspaceFs,
-  type WorkspaceMember,
 } from './workspace-packages.js';
 import { loadManifestActivations, ManifestIndexUnreadableError } from './switchable-modules.js';
 import { moduleIdOf } from './module-population.js';
@@ -324,16 +324,6 @@ export function sourceRootOfIndex(indexPath: string, memberDir: string): string 
     if (parent === memberDir) return cursor;
     cursor = parent;
   }
-}
-
-/** The `endora` block a module package declares about itself. */
-function declaredModuleId(member: WorkspaceMember): string | null {
-  const endora = member.manifest['endora'];
-  if (typeof endora !== 'object' || endora === null || Array.isArray(endora)) return null;
-  const block = endora as Record<string, unknown>;
-  if (block['type'] !== 'module') return null;
-  const id = block['id'];
-  return typeof id === 'string' && id.length > 0 ? id : null;
 }
 
 /**

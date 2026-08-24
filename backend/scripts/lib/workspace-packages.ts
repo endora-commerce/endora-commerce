@@ -228,3 +228,51 @@ export function workspaceScopes(members: readonly WorkspaceMember[]): readonly s
   }
   return [...scopes].sort();
 }
+
+/** A workspace member that declares itself a backend module. */
+export interface ModulePackage {
+  /** Absolute directory of the member. */
+  readonly dir: string;
+  /** The npm name it publishes under. */
+  readonly name: string;
+  /** The manifest id it declares — identity of record everywhere (D-142). */
+  readonly moduleId: string;
+}
+
+/**
+ * The module id a member declares about itself, or `null`.
+ *
+ * The `endora` block is the package's own statement, the same one
+ * `src/packages/installed-packages.ts` reads at boot, so a module package is
+ * recognised wherever the workspace globs put it and whatever its directory is
+ * called. Nothing here reads the npm name's spelling — a `mod-` prefix rule
+ * would be a derived fact written down (D-100).
+ */
+export function declaredModuleId(member: WorkspaceMember): string | null {
+  const endora = member.manifest['endora'];
+  if (typeof endora !== 'object' || endora === null || Array.isArray(endora)) return null;
+  const block = endora as Record<string, unknown>;
+  if (block['type'] !== 'module') return null;
+  const id = block['id'];
+  return typeof id === 'string' && id.length > 0 ? id : null;
+}
+
+/**
+ * Every workspace member that declares itself a module, sorted by directory.
+ *
+ * Unfiltered by the manifest index on purpose, which is the one difference from
+ * `lib/module-roots.ts`'s package half: that derivation is answering "which
+ * *registered* modules live in a package", and a consumer outside the backend —
+ * the Tailwind source guard in `scripts/tailwind-source-scan.ts` — is answering
+ * "which packages can ship UI". A package that ships a screen before its
+ * manifest reaches the generated index still ships the screen.
+ */
+export function modulePackages(members: readonly WorkspaceMember[]): readonly ModulePackage[] {
+  const packages: ModulePackage[] = [];
+  for (const member of members) {
+    const moduleId = declaredModuleId(member);
+    if (moduleId === null) continue;
+    packages.push({ dir: member.dir, name: member.name, moduleId });
+  }
+  return packages.sort((left, right) => left.dir.localeCompare(right.dir));
+}
