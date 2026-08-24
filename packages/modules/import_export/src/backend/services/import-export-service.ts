@@ -1,6 +1,6 @@
 import { ERROR_CODES, type ImportExportEntity } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { effectiveState } from '@endora-commerce/platform/kernel';
 import { parseCsv, rowsToRecords, serializeCsv } from './csv-codec.js';
 import type { ImportExportAdapter, ImportExportPorts } from './adapter.js';
 import { productsAdapter } from './adapters/products.adapter.js';

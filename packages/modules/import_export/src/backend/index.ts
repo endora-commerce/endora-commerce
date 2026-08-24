@@ -8,9 +8,9 @@ import type {
   OrderReadPort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { ImportExportService } from './services/import-export-service.js';
 import { registerImportExportRoutes } from './routes.js';
 
@@ -81,3 +81,20 @@ export function registerModule(ctx: ModuleContext): void {
     await registerImportExportRoutes(app, { service: importExportService, requireAdmin });
   });
 }
+
+
+/**
+ * This module owns **no persisted entity**, and says so with an empty array
+ * rather than by omission (D-168).
+ *
+ * The two are not the same thing to the platform. When the package is
+ * *installed*, `src/packages/package-runtime.ts` reads `exported['entities']`
+ * and answers a missing export with `[]` — so "this module has no table" and
+ * "somebody forgot the array" arrive at the host as the same silence, and the
+ * only symptom of the second is a query against a table nobody created. The
+ * declaration is what makes the first case a statement.
+ *
+ * A first entity added here goes in this array in the same merge request, and
+ * `test/unit/packages/module-package-entity-surface.test.ts` is what says so.
+ */
+export const entities: readonly never[] = [];
