@@ -2,13 +2,14 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DictionaryValidator,
   DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { AddressReadPort, AddressServicePort } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
 import { AddressService } from './services/address-service.js';
 import { AddressReadService, createAddressServicePort } from './services/address-ports.js';
 import { registerAddressCountryReferences } from './services/address-country-reference.js';
+import { Address } from './entities/address.entity.js';
 
 /**
  * `addresses` — one service, where there were three (feature 072, wave 1,
@@ -110,3 +111,18 @@ export function registerModule(ctx: ModuleContext): void {
     );
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  Address,
+];

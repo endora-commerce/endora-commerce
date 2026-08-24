@@ -4,7 +4,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { CustomerAddressService } from '../../../src/modules/customers/services/customer-address-service.js';
 import { CustomerAddress } from '../../../src/modules/customers/entities/customer-address.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { AddressReadService } from '../../../src/modules/addresses/services/address-ports.js';
+import { AddressReadService } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
 import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
 
 /**

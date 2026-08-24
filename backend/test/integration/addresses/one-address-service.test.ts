@@ -7,7 +7,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { AddressService } from '../../../src/modules/addresses/services/address-service.js';
+import { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
 
 /**
  * Feature 072 wave 1 (T090) — one `AddressService`, where there were three.

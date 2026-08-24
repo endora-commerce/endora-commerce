@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { AddressRecord } from '@endora-commerce/contracts';
-import { Address } from '../../../src/modules/addresses/entities/address.entity.js';
-import type { AddressService } from '../../../src/modules/addresses/services/address-service.js';
-import { createAddressServicePort } from '../../../src/modules/addresses/services/address-ports.js';
+// The class from the package's **source**: this test constructs one instance and
+// hands it to a stubbed service, never to an ORM, so the door in
+// `helpers/package-entities.ts` — which exists to keep one *registered* class —
+// has nothing to protect here and returns a non-constructable type.
+import { Address } from '../../../../packages/modules/addresses/src/backend/entities/address.entity.js';
+import type { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
+import { createAddressServicePort } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
 
 /**
  * `createAddressServicePort` — the record-mapping adapter behind
