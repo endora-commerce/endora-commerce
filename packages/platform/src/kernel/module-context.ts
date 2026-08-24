@@ -728,12 +728,36 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
         registerPort(container, module.id, name, registration);
       },
 
+      /**
+       * The message below said *"register order is topological"*. **It is not**
+       * — `composeModules` registers in the order the root's array holds and
+       * there has never been a pass, deliberately (D-45: registration resolves
+       * nothing, so its order is meaningless). The remedy therefore told the
+       * reader to rely on a property the composer has never had.
+       *
+       * Measured by feature 080's T053(c) (!967), where a deployment's overlay
+       * could not decorate an installed package for exactly this reason:
+       * `composition.ts` passes overlays before packages, so the name is not
+       * there yet. That is a real ordering dependency at registration time,
+       * which is the one case D-45's sentence does not cover — `decorate` reads
+       * and rewrites the container without resolving anything, so the
+       * `registering` guard never sees it.
+       *
+       * The message is corrected here rather than the order: **whether an
+       * overlay may reach a package at all is unruled**, and
+       * `AmbiguousDecorationError` in this same file already states the
+       * principle that settles the shape — *"it cannot be left to the order the
+       * modules happen to compose in"*. Applying that to this guard means
+       * draining decorations after the last module has registered, not
+       * reordering an array literal.
+       */
       decorate<T>(name: string, wrap: (inner: T, cradle: KernelCradle) => T): void {
         if (!container.hasRegistration(name)) {
           throw new Error(
             `[kernel] module '${module.id}' cannot decorate '${name}': nothing is registered ` +
-              `under that name. Decoration wraps an existing registration; register order is ` +
-              `topological, so the owning module must come first.`,
+              `under that name. Decoration wraps an existing registration, and modules register ` +
+              `in the order a composition root passes them — there is no topological pass — so ` +
+              `the owning module must be composed before this one.`,
           );
         }
         // Whose registration is this? Asked before anything is written, for
