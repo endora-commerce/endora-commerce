@@ -73,7 +73,7 @@ channel nobody configured.
 
 **Why.** `NEXT_PUBLIC_DEFAULT_LOCALE` is baked from the CI variable `DEFAULT_LOCALE`
 (`.gitlab-ci.yml:646`). It must name a row in the `languages` table. The migration
-`backend/src/modules/languages/migrations/20260425T161557_languages_currencies_init.ts` seeds
+`packages/modules/languages/src/migrations/20260425T161557_languages_currencies_init.ts` seeds
 exactly two languages — `en-US` (default) and `pl-PL` — because those were the demo's choice,
 not this client's.
 
