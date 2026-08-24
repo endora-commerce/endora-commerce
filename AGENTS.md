@@ -316,6 +316,19 @@ never add a "module options" object for something the module can read itself.
 6. **Settings your module owns** — read them through `settingsReadPort` inside the module.
    A knob a root resolves on the module's behalf is a knob that drifts between the two roots,
    and repeatedly did.
+6a. **A gated port may not be resolved where a throw has nowhere to go — and error
+   serialisation is the case nobody expects.** AGENTS.md already says presence is *decided* before
+   the work at an entry point with no caller to answer (a timer, a boot hook, a signal handler).
+   The same rule holds one layer down, inside a reply Fastify is **already serialising as an
+   error**: a `ModuleDisabledError` raised there cannot be routed back through `setErrorHandler`,
+   so the reply degrades to Fastify's fallback shape — no `error.code`, no `error.details`, no
+   `error.requestId` — and `@endora-commerce/api-client` reports `undefined: undefined`. Measured
+   in feature 080's T052, where converting one entity read to a gated port broke **every** error
+   answered to a signed-in admin while the owner was absent, whatever the error was. The remedy is
+   the one every other exit from that hook already took: guard the decoration and answer the
+   untranslated payload. That is **not** a `catch` hiding a capability's absence — the caller still
+   gets the full refusal, in the fallback language — and `check:port-catches` reads it as such.
+
 7. **Never wrap a port call in a bare `catch`** — it swallows `ModuleDisabledError` and turns
    fail-closed into fail-open. Where a degrade genuinely belongs, put it inside the owner's
    implementation and express it in the return type
