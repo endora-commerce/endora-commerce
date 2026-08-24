@@ -4,11 +4,11 @@ import {
   type DictionaryReference,
   type DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import { HttpError } from '../../../http/error-envelope.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { HttpError } from '@endora-commerce/platform/http';
 import { Currency } from '../entities/currency.entity.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 /**
  * CurrencyService — admin CRUD over the currencies pool.

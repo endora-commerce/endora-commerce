@@ -6,12 +6,13 @@ import {
   type CurrencySeedPort,
   type DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { ModuleContext } from '../../kernel/index.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { CurrencyService } from './services/currency-service.js';
 import { CurrencyReadService, createCurrencyAdminPort } from './services/currency-ports.js';
 import { CurrencyReferenceRegistry } from './services/currency-reference-registry.js';
 import { CurrencySeedService } from './services/currency-seed-service.js';
+import { Currency } from './entities/currency.entity.js';
 
 /**
  * `currencies` — one service, where there were two (feature 072, wave 1).
@@ -44,15 +45,6 @@ export interface CurrenciesCradle {
   readonly currencyService: CurrencyService;
   readonly currencyReferenceRegistry: DictionaryReferenceRegistryPort;
 }
-
-/**
- * Emitted after any write that changes the set or shape of currencies.
- *
- * The spelling moved to `@endora-commerce/contracts` in feature 075's Phase P — it is a
- * constant, not behaviour, and `dictionaries` subscribes to it. Re-exported
- * here for the length of Phase P, which cuts no consumer.
- */
-export { CURRENCY_CHANGED_EVENT };
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
@@ -131,3 +123,18 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  Currency,
+];
