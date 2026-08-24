@@ -782,6 +782,19 @@ each printed number to the band recorded in `backend/test/helpers/check-read-siz
 (−10% / +50%). Re-record a number when the population legitimately grows; never widen the
 band to make a run pass.
 
+**That spawning test tolerates a non-zero exit and refuses a *signal*, and the two are not
+the same finding.** A check may legitimately be red on the working tree and still has to
+disclose what it read; a check the kernel killed disclosed nothing for a reason that is not
+its own. Collapsing both into one caught error is how `master` came to fail with
+`check-port-catches.ts printed no read line` — a content-shaped assertion, exit 1 rather than
+137, matching nothing anyone greps for after an OOM — while the truth was that the two
+heaviest checks (746 MB and 627 MB of peak RSS, measured) had been SIGKILLed inside a 4 GB
+runner. `backend/test/helpers/check-process.ts` keeps the `close` event's answers apart, and
+`backend/test/helpers/spawn-pool.ts` sizes the pool from the container's own accounting
+rather than from a number somebody picked: cores, intersected with what cgroup v2 says is
+left, minus one child's worth of headroom. If you write a test that spawns processes, spawn
+them through those two — the next resource failure will wear the same disguise.
+
 The inventory entry carries the red proofs, and two properties decide whether they are worth
 anything (issue #130). **The fixture enters at the top of the analysis** — source text, a
 file map, an injected reader, a fixture tree on disk — never a value the check normally
