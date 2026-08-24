@@ -2,7 +2,6 @@ import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mik
 import { randomUUID } from 'crypto';
 import type { InvoiceBuyer, SellerCompanyData } from '@endora-commerce/contracts';
 import { TransitivelyScoped } from '../../../tenancy/org-scoped.decorator.js';
-import { Order } from '../../orders/entities/order.entity.js';
 
 /**
  * Invoice — a document issued against an order (feature 047). Immutable once
@@ -10,7 +9,7 @@ import { Order } from '../../orders/entities/order.entity.js';
  * legacy `total` column is retained as an alias of `grossTotal` for back-compat
  * with the original commerce-init schema.
  */
-@TransitivelyScoped(() => Order, 'orderId')
+@TransitivelyScoped('Order', 'orderId')
 @Entity({ tableName: 'invoices' })
 export class Invoice {
   [OptionalProps]?:

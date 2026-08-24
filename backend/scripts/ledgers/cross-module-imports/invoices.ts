@@ -16,22 +16,19 @@
  *
  * The cut merge request took seven of the nine: five reads of `orders`' rows to
  * `orderReadPort`, and two type-only imports to the contracts their owners
- * publish. Neither entry below is a read this module could have moved.
+ * publish. Neither of the two it left was a read this module could have moved.
+ *
+ * One of those two is gone as of feature 080's T049 (D-169): the
+ * `@TransitivelyScoped` argument in `entities/invoice.entity.ts` named the
+ * `Order` class, and now names the string `'Order'`, resolved lazily against the
+ * classification registry and reconciled at boot. That was R-05's question, and
+ * the answer retired the entry rather than re-worded it — which is what makes
+ * `invoices` packageable. `ksef` had one entry of exactly the same shape; its
+ * shard is deleted.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/invoices/entities/invoice.entity.ts:orders/entities/order.entity':
-    'F3 Phase C — invoices. Not retired by the invoices cut merge request: this is the ' +
-    '`@TransitivelyScoped(() => Order, "orderId")` argument, a tenancy classification ' +
-    'rather than a read, evaluated at class-definition time when no container exists — ' +
-    'so no port can carry it (R-05). This is the second of the two sites FR-017 names; ' +
-    '`ksef/entities/ksef-submission.entity.ts` is the first and carries the same reason. ' +
-    'Retired by the question R-05 asks: does `TransitivelyScoped` take a registered ' +
-    'parent token, resolved at boot from the kernel tenancy registry, with ' +
-    '`check-entity-tenant-classification.ts` failing on one that resolves to nothing? ' +
-    'That is a kernel change, and with both sites now ledgered it is the only work left ' +
-    'on FR-017.',
   'modules/invoices/routes.admin.ts:orders/entities/order.entity':
     'F3 Phase C — invoices. Half of this file was retired by the cut merge request — the ' +
     'order-number and owning-organisation lookup for a page of invoices is ' +
