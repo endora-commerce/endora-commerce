@@ -10,6 +10,7 @@ import {
 } from '../../../src/modules/_lifecycle/services/presence-load.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { makeFakeModuleWorker } from '../../helpers/fake-module-worker.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { coreModulesRoot } from '../../../src/overlay/overlay-roots.js';
 
@@ -101,8 +102,6 @@ function stubEm(rows: {
     }) as unknown as EntityManager;
 }
 
-type FakeWorker = { pause: () => Promise<void>; resume: () => Promise<void> };
-
 /**
  * One module's fresh boot: presence loaded from the database first, then the
  * module registers its worker. `paused` is what the boot left behind.
@@ -114,19 +113,11 @@ async function bootAndRegisterWorker(
   registryCache.__resetForTesting();
   await loadModulePresence({ em: stubEm(rows), entries: ENTRIES });
 
-  const state = { paused: false };
-  const worker: FakeWorker = {
-    pause: async () => {
-      state.paused = true;
-    },
-    resume: async () => {
-      state.paused = false;
-    },
-  };
-  defineModuleWorker(moduleId, worker as never);
+  const fake = makeFakeModuleWorker();
+  defineModuleWorker(moduleId, fake.worker);
   // `defineModuleWorker` pauses with `void worker.pause()`; let the microtask run.
   await Promise.resolve();
-  return state;
+  return fake.state;
 }
 
 describe('defineModuleWorker — the pause decision at a fresh boot (integration)', () => {
@@ -164,6 +155,31 @@ describe('defineModuleWorker — the pause decision at a fresh boot (integration
     // `defineModuleWorker` asks, says absent.
     expect(registryCache.enabledIds()).toContain(DEACTIVATED);
     expect(registryCache.activationValue(DEACTIVATED)).toBe(false);
+  });
+
+  it('a later refresh from the database pauses it — the path a flip from another process takes', async () => {
+    const state = await bootAndRegisterWorker(ACTIVE, {
+      registrations: [{ moduleId: ACTIVE, state: 'installed' }],
+    });
+    expect(state.paused).toBe(false);
+
+    // `refreshFromDb` is what the `b2b:module:state-changed` handler calls and
+    // what the degraded-mode timer calls, in **every** composed process. That is
+    // the whole of the cross-process repair: the orchestrator's `pauseWorkersFor`
+    // reaches only the process that ran it — never the `BACKEND_ROLE=worker`
+    // process, and never the `module:*` CLI, which composes nothing — while this
+    // path is taken by all of them. Asserting it here rather than only through
+    // `__setEnabledForTesting` is what stops the gate being wired to the test
+    // seam alone.
+    await registryCache.refreshFromDb(
+      stubEm({
+        registrations: [{ moduleId: ACTIVE, state: 'installed' }],
+        settings: [{ code: `${ACTIVE}.enabled`, globalValue: false }],
+      }),
+    );
+    await Promise.resolve();
+
+    expect(state.paused, 'a refresh that took the module off left the worker consuming').toBe(true);
   });
 
   it('pauses the worker of a module that is not available on this platform', async () => {

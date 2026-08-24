@@ -564,7 +564,14 @@ describe('ModuleContext — worker delegates to defineModuleWorker', () => {
   it('returns the same instance and pauses it when the module is absent', () => {
     const { ctx, sink } = build();
     const pause = vi.fn(async () => {});
-    const worker = { name: 'fixture-queue', pause, on: vi.fn() } as unknown as Worker;
+    const worker = {
+      name: 'fixture-queue',
+      pause,
+      resume: vi.fn(),
+      isPaused: vi.fn(() => false),
+      processFn: async () => undefined,
+      on: vi.fn(),
+    } as unknown as Worker;
 
     registryCache.__setEnabledForTesting([]);
     const returned = ctx.worker(worker);
@@ -577,7 +584,14 @@ describe('ModuleContext — worker delegates to defineModuleWorker', () => {
   it('leaves the worker running when the module is present', () => {
     const { ctx } = build();
     const pause = vi.fn(async () => {});
-    const worker = { name: 'fixture-queue', pause, on: vi.fn() } as unknown as Worker;
+    const worker = {
+      name: 'fixture-queue',
+      pause,
+      resume: vi.fn(),
+      isPaused: vi.fn(() => false),
+      processFn: async () => undefined,
+      on: vi.fn(),
+    } as unknown as Worker;
 
     registryCache.__setEnabledForTesting([MODULE_ID]);
     ctx.worker(worker);

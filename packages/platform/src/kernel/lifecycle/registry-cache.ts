@@ -107,10 +107,53 @@ export class ModuleRegistryCache {
   private degraded = false;
   private fallbackTimer: NodeJS.Timeout | null = null;
   private fallbackStopped = false;
+  private presenceListeners = new Set<() => void>();
 
   /** True once {@link load} — or the test seam that stands in for it — has run. */
   isLoaded(): boolean {
     return this.loaded;
+  }
+
+  /**
+   * Run `listener` every time this cache **installs** presence — the pub/sub
+   * refresh, the degraded-mode refresh, the cold load and the test seams alike.
+   *
+   * It is the seam a consumer that owns something *stateful* needs, where
+   * {@link presenceVersion} is enough for one that merely memoises: a BullMQ
+   * worker is not re-read on a request path, so nothing would ever ask it the
+   * version, and the orchestrator's `pauseWorkersFor` reaches only the process
+   * that ran the orchestrator — never the `BACKEND_ROLE=worker` process, and
+   * never the `module:*` CLI, which composes nothing at all. Following the
+   * cache instead makes the answer per-process and therefore right in every
+   * process.
+   *
+   * Deliberately **level-triggered**: it fires on every install rather than
+   * only when the content moved, because a listener that failed once must get
+   * another chance — the degraded-mode timer is then a retry loop rather than a
+   * silence. Listeners are therefore obliged to be idempotent and cheap.
+   *
+   * Notification is synchronous and its errors are contained here: a consumer
+   * that throws must not take down a refresh that every gating seam depends on.
+   */
+  onPresenceInstalled(listener: () => void): () => void {
+    this.presenceListeners.add(listener);
+    return () => {
+      this.presenceListeners.delete(listener);
+    };
+  }
+
+  private notifyPresenceInstalled(): void {
+    for (const listener of this.presenceListeners) {
+      try {
+        listener();
+      } catch (err) {
+        console.warn(
+          `[module-lifecycle] a presence listener threw: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
   }
 
   /**
@@ -127,10 +170,16 @@ export class ModuleRegistryCache {
   }
 
   /**
-   * Re-sign both axes and bump the counter when the signature moved. Called at
-   * the end of every path that installs presence — the real refresh and the
-   * three test seams alike, because a seam that swaps presence without moving
-   * the version would leave a consumer serving the presence before it.
+   * Re-sign both axes and bump the counter when the signature moved, then tell
+   * every {@link onPresenceInstalled} listener that presence was installed.
+   * Called at the end of every path that installs presence — the real refresh
+   * and the three test seams alike, because a seam that swaps presence without
+   * moving the version would leave a consumer serving the presence before it.
+   *
+   * The notification is unconditional where the counter is not: the counter
+   * answers "did the content move", which is the question a memoising consumer
+   * asks, and the listeners answer "reconcile yourself to what is here now",
+   * which has to keep being asked after a listener that failed.
    */
   private restamp(): void {
     const parts: string[] = [];
@@ -141,9 +190,11 @@ export class ModuleRegistryCache {
       parts.push(`a:${moduleId}=${this.activation.get(moduleId) === true ? '1' : '0'}`);
     }
     const signature = createHash('sha1').update(parts.join('\n')).digest('hex');
-    if (signature === this.presenceSignature) return;
-    this.presenceSignature = signature;
-    this.presenceVersionCounter += 1;
+    if (signature !== this.presenceSignature) {
+      this.presenceSignature = signature;
+      this.presenceVersionCounter += 1;
+    }
+    this.notifyPresenceInstalled();
   }
 
   private assertLoaded(read: string): void {

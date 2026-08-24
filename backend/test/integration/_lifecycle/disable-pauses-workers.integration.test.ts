@@ -3,9 +3,11 @@ import {
   defineModuleWorker,
   pauseWorkersFor,
   resumeWorkersFor,
+  resetModuleWorkersForTesting,
 } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { withModuleOff } from '../../helpers/off-state.js';
+import { makeFakeModuleWorker, type FakeModuleWorker } from '../../helpers/fake-module-worker.js';
 
 /**
  * Integration test for FR-015 — disable pauses BullMQ workers (US3).
@@ -29,38 +31,31 @@ import { withModuleOff } from '../../helpers/off-state.js';
  * the off state, the resume in the on state — and `withModuleOff` asserts the
  * off state took, so the seam that *is* state-driven (`defineModuleWorker`'s own
  * decision at registration) is exercised in the same window.
+ *
+ * Since the Principle XVII worker repair the assertions are over the workers'
+ * **paused state** rather than over how many times `pause()` was called. The
+ * presence install now reconciles every registered worker on its own, so a call
+ * count measures how often presence moved rather than what the helper did; the
+ * state is what the two mechanisms have to agree on, and it is what an operator
+ * would see.
  */
 
 describe('defineModuleWorker — pause/resume on disable/enable (integration)', () => {
-  let pauseCalls = 0;
-  let resumeCalls = 0;
+  let workers: FakeModuleWorker[] = [];
 
-  type FakeWorker = { pause: () => Promise<void>; resume: () => Promise<void> };
-
-  function makeFakeWorker(): FakeWorker {
-    return {
-      pause: async () => {
-        pauseCalls++;
-      },
-      resume: async () => {
-        resumeCalls++;
-      },
-    };
-  }
+  const allPaused = (): boolean => workers.every((w) => w.state.paused);
+  const nonePaused = (): boolean => workers.every((w) => !w.state.paused);
 
   beforeAll(() => {
+    resetModuleWorkersForTesting();
     // Module starts enabled, so neither worker is paused at registration.
     registryCache.__setEnabledForTesting(['fixture_workers']);
-    const w1 = makeFakeWorker();
-    const w2 = makeFakeWorker();
-    defineModuleWorker('fixture_workers', w1 as never);
-    defineModuleWorker('fixture_workers', w2 as never);
-    expect(pauseCalls, 'a present module had its workers paused at registration').toBe(0);
+    workers = [makeFakeModuleWorker(), makeFakeModuleWorker()];
+    for (const w of workers) defineModuleWorker('fixture_workers', w.worker);
+    expect(nonePaused(), 'a present module had its workers paused at registration').toBe(true);
   });
 
   beforeEach(() => {
-    pauseCalls = 0;
-    resumeCalls = 0;
     // `withModuleOff` flips against the set the caller already has, so each
     // case restates the on state it starts from.
     registryCache.__setEnabledForTesting(['fixture_workers']);
@@ -72,14 +67,14 @@ describe('defineModuleWorker — pause/resume on disable/enable (integration)', 
 
   afterAll(() => {
     // Reset shared singleton state for other tests.
+    resetModuleWorkersForTesting();
     registryCache.__setEnabledForTesting([]);
   });
 
   it('pauses every registered worker of a module the operator switched off', async () => {
     await withModuleOff('fixture_workers', 'deactivated', async () => {
       await pauseWorkersFor('fixture_workers');
-      expect(pauseCalls).toBe(2);
-      expect(resumeCalls).toBe(0);
+      expect(allPaused()).toBe(true);
     });
   });
 
@@ -89,22 +84,28 @@ describe('defineModuleWorker — pause/resume on disable/enable (integration)', 
     // so the pause can only have come from the flip: a worker of a module that
     // was *never* enabled would pause too, and prove nothing about disable.
     registryCache.__setEnabledForTesting(['fixture_workers', 'fixture_workers_late']);
+    const late = makeFakeModuleWorker();
     await withModuleOff('fixture_workers_late', 'deactivated', async () => {
-      defineModuleWorker('fixture_workers_late', makeFakeWorker() as never);
+      defineModuleWorker('fixture_workers_late', late.worker);
       await Promise.resolve();
-      expect(pauseCalls, 'a worker registered while its module is off started running').toBe(1);
+      expect(late.state.paused, 'a worker registered while its module is off started running').toBe(
+        true,
+      );
     });
   });
 
   it('pauses them for a module the platform no longer offers either', async () => {
     await withModuleOff('fixture_workers', 'platform-unavailable', async () => {
       await pauseWorkersFor('fixture_workers');
-      expect(pauseCalls).toBe(2);
+      expect(allPaused()).toBe(true);
     });
   });
 
-  it('resumeWorkersFor calls resume() on every registered worker once it is back on', async () => {
+  it('resumeWorkersFor un-pauses every registered worker once it is back on', async () => {
+    for (const w of workers) await w.worker.pause();
+    expect(allPaused()).toBe(true);
+
     await resumeWorkersFor('fixture_workers');
-    expect(resumeCalls).toBe(2);
+    expect(nonePaused()).toBe(true);
   });
 });

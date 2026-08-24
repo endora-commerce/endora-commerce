@@ -4,8 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   BARE_SUBSCRIPTIONS_TO_DRAIN,
+  WORKERS_OUTSIDE_THE_SEAM,
   checkSubscribeSeam,
+  checkWorkerSeam,
   findBareSubscriptions,
+  findWorkerFactories,
   keyOf,
 } from '../../../scripts/check-subscribe-seam.js';
 
@@ -156,7 +159,131 @@ describe('checkSubscribeSeam — the two-way ratchet', () => {
   });
 });
 
+/* ------------------------------------------------------------------ workers */
+
+/**
+ * The queue-consumer half of the same rule.
+ *
+ * It exists because the header of the file above asserted that "workers have
+ * `defineModuleWorker`" and `pwa` did not: it constructed its push-delivery
+ * `Worker` and dropped the value, so `pauseWorkersFor('pwa')` reached nothing
+ * and an operator who switched `pwa` off went on having push notifications
+ * delivered. So what is proved here is that the check goes **red** on that exact
+ * shape and on the construction shape, and that it does not go red on the three
+ * spellings the tree legitimately uses.
+ */
+const QUEUE_FACTORY = `
+import { Queue, Worker } from 'bullmq';
+export function createPushDeliveryWorker(redis: Redis, processor: Processor): Worker {
+  return new Worker(PUSH_DELIVERY_QUEUE_NAME, (job) => processor(job), { connection: redis });
+}
+`;
+
+function workerTree(plugin: string): Map<string, string> {
+  return new Map([
+    ['modules/pwa/services/push-delivery-queue.ts', QUEUE_FACTORY],
+    ['modules/pwa/plugin.ts', plugin],
+  ]);
+}
+
+describe('findWorkerFactories / findWorkerSites — the queue-consumer spellings', () => {
+  it('reads a function that returns a BullMQ Worker as a factory, whatever it is called', () => {
+    const factories = findWorkerFactories({ sources: workerTree('') });
+    expect([...factories]).toEqual(['createPushDeliveryWorker']);
+  });
+
+  it('reports a factory call whose value goes nowhere — the shape `pwa` shipped', () => {
+    const result = checkWorkerSeam(
+      { sources: workerTree('createPushDeliveryWorker(options.redis, processor);') },
+      {},
+    );
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0]).toMatchObject({
+      moduleId: 'pwa',
+      kind: 'registration',
+      spelling: 'createPushDeliveryWorker',
+    });
+  });
+
+  it('reports a `new Worker` a module keeps to itself', () => {
+    const sources = new Map([
+      [
+        'modules/webhooks/plugin.ts',
+        "import { Worker } from 'bullmq';\nconst w = new Worker(QUEUE, handler, { connection });\nregisterSomethingElse(w);",
+      ],
+    ]);
+    const result = checkWorkerSeam({ sources }, {});
+    expect(result.violations.map((v) => v.kind)).toEqual(['construction']);
+  });
+
+  it('accepts a factory whose caller wraps it — the shape ten of the tree`s queues use', () => {
+    const result = checkWorkerSeam(
+      {
+        sources: workerTree(
+          "defineModuleWorker('pwa', createPushDeliveryWorker(options.redis, processor));",
+        ),
+      },
+      {},
+    );
+    expect(result.violations).toHaveLength(0);
+    expect(result.sites.every((s) => s.gated)).toBe(true);
+  });
+
+  it('accepts `ctx.worker`, the seam a composed module uses', () => {
+    const result = checkWorkerSeam(
+      { sources: workerTree('ctx.worker(createPushDeliveryWorker(options.redis, processor));') },
+      {},
+    );
+    expect(result.violations).toHaveLength(0);
+  });
+
+  it('accepts a worker bound to a name the same file hands to the seam', () => {
+    const result = checkWorkerSeam(
+      {
+        sources: workerTree(
+          "const w = createPushDeliveryWorker(options.redis, processor);\ndefineModuleWorker('pwa', w);",
+        ),
+      },
+      {},
+    );
+    expect(result.violations).toHaveLength(0);
+  });
+
+  it('leaves a non-BullMQ `Worker` alone — the identifier has to be the bullmq import', () => {
+    const sources = new Map([
+      [
+        'modules/inventory/plugin.ts',
+        'const availabilityWorker = new AvailabilityWorker(emFactory, logger);\nuse(availabilityWorker);',
+      ],
+    ]);
+    expect(checkWorkerSeam({ sources }, {}).sites).toHaveLength(0);
+  });
+
+  it('is a two-way ratchet: ledgered passes, and a stale entry fails', () => {
+    const ungated = workerTree('createPushDeliveryWorker(options.redis, processor);');
+    const key = 'modules/pwa/plugin.ts:createPushDeliveryWorker';
+    expect(checkWorkerSeam({ sources: ungated }, { [key]: 'a reason' }).violations).toHaveLength(0);
+
+    const fixed = workerTree(
+      "defineModuleWorker('pwa', createPushDeliveryWorker(options.redis, processor));",
+    );
+    expect(checkWorkerSeam({ sources: fixed }, { [key]: 'stale now' }).stale).toEqual([key]);
+  });
+});
+
 describe('the tree itself', () => {
+  it('has no queue consumer outside the seam, and an empty ledger', () => {
+    const srcRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', 'src');
+    const sources = readTree(srcRoot);
+    const result = checkWorkerSeam({ sources }, WORKERS_OUTSIDE_THE_SEAM);
+    // The vacuous-pass guard the check itself exits 2 on: this tree has queue
+    // consumers, so reading none means the analysis stopped working.
+    expect(result.sites.length, 'no worker site read — a vacuous pass').toBeGreaterThan(10);
+    expect(result.violations.map((v) => `${v.file}:${v.spelling}`)).toEqual([]);
+    expect(result.stale).toEqual([]);
+    expect(Object.keys(WORKERS_OUTSIDE_THE_SEAM)).toEqual([]);
+  });
+
   it('has no bare subscription left, and an empty ledger', () => {
     const srcRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', 'src');
     const sources = readTree(srcRoot);

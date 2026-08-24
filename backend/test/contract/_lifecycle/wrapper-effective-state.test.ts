@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { RateLimitError } from 'bullmq';
 import Fastify, { type FastifyInstance } from 'fastify';
 import {
   serializerCompiler,
@@ -13,6 +14,7 @@ import {
   ModuleDisabledError,
 } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import { makeFakeModuleWorker } from '../../helpers/fake-module-worker.js';
 
 /**
  * Feature 073 FR-002 — all four gating wrappers resolve the **effective**
@@ -33,21 +35,6 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
  */
 
 const MODULE_ID = 'fixture_effective';
-
-/** A minimal fake BullMQ worker: the wrapper only pauses and resumes it. */
-class FakeWorker {
-  paused = false;
-  readonly name = 'fixture.queue';
-  async pause(): Promise<void> {
-    this.paused = true;
-  }
-  async resume(): Promise<void> {
-    this.paused = false;
-  }
-  on(): this {
-    return this;
-  }
-}
 
 /** A minimal EventBus surface — `subscribeForModule` needs only `on`. */
 class FakeBus {
@@ -155,11 +142,36 @@ describe('the four lifecycle wrappers resolve effective state (FR-002)', () => {
     for (const axis of AXES) {
       it(`${axis.label} ⇒ registers ${axis.present ? 'running' : 'paused'}`, async () => {
         axis.seed();
-        const worker = new FakeWorker();
-        defineModuleWorker(MODULE_ID, worker as never);
+        const fake = makeFakeModuleWorker();
+        defineModuleWorker(MODULE_ID, fake.worker);
         // `pause()` is fired without await inside the wrapper.
         await new Promise((resolve) => setTimeout(resolve, 0));
-        expect(worker.paused).toBe(!axis.present);
+        expect(fake.state.paused).toBe(!axis.present);
+      });
+    }
+
+    for (const axis of AXES) {
+      it(`${axis.label} ⇒ a job ${axis.present ? 'runs' : 'is returned to the wait list'}`, async () => {
+        // The other half of the seam, and the half the middle column is really
+        // about: pausing stops the *fetch*, but a job already in hand when the
+        // operator flipped the switch must not run either.
+        let ran = 0;
+        const fake = makeFakeModuleWorker({
+          processor: async () => {
+            ran += 1;
+            return 'ok';
+          },
+        });
+        axis.seed();
+        defineModuleWorker(MODULE_ID, fake.worker);
+
+        if (axis.present) {
+          await expect(fake.process()).resolves.toBe('ok');
+          expect(ran).toBe(1);
+          return;
+        }
+        await expect(fake.process()).rejects.toBeInstanceOf(RateLimitError);
+        expect(ran).toBe(0);
       });
     }
   });

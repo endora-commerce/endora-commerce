@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import type { Worker } from 'bullmq';
+import { RateLimitError, type Worker } from 'bullmq';
 import { ERROR_CODES, type ModuleDisabledDetails } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModulePlugin } from '../../http/server.js';
 import { effectiveState } from './effective-state.js';
+import { FALLBACK_TTL_MS, registryCache } from './registry-cache.js';
 
 /**
  * How long a client should wait before retrying a surface whose module is
@@ -202,15 +203,156 @@ function attachWorkerLogging(moduleId: string, worker: Worker, logger: WorkerLog
 }
 
 /**
- * Wrap a BullMQ Worker so it pauses when its module is absent.
+ * Every worker a module registered, in **this** process.
  *
- * The wrapper attaches the worker to a per-module registry that the
- * orchestrator iterates on disable/enable. The returned worker is the
- * same instance — registration is the only side effect (plus optional
- * lifecycle logging when `options.logger` is supplied).
+ * Which is the whole reason the registry alone was never the gate: a push into
+ * it reaches the process that pushed and nothing else, and the two processes
+ * that flip presence are exactly the two that hold no workers — the API process
+ * serving `/api/v1/admin/modules/:id/activation`, and the `module:*` CLI, which
+ * composes nothing (D-157.2) and therefore registers nothing. See
+ * {@link reconcileModuleWorkers}.
  */
 const moduleWorkers = new Map<string, Set<Worker>>();
 
+/**
+ * How long a worker backs off after refusing a job for an absent module.
+ *
+ * One presence-refresh window — the degraded-mode cadence, which is the longest
+ * a process's answer can be behind the database when the notification channel
+ * is down. That makes the backoff "ask again when this process could plausibly
+ * have learned something new", which is the only thing it is for: once
+ * {@link reconcileModuleWorkers} has paused the worker nothing is fetched at
+ * all, so this is a fallback's cadence and never a steady state's.
+ *
+ * It is deliberately **not** {@link RETRY_AFTER_SECONDS}, the 60 s a 503'd HTTP
+ * client is told to wait, and the difference was measured rather than reasoned
+ * about: BullMQ's `waitForRateLimit` delays the fetch loop for the whole
+ * remaining window, and it holds across a `resume()`. At 60 s a job caught in
+ * the flip window sat for the better part of a minute after the operator
+ * switched the module back on — correct, and indistinguishable from broken.
+ */
+const ABSENT_JOB_BACKOFF_MS = FALLBACK_TTL_MS;
+
+/** Marks a worker whose processor already carries the work gate. */
+const GATED = Symbol.for('endora.moduleWorker.presenceGated');
+
+/**
+ * The property BullMQ's `Worker.callProcessJob` reads at call time. It is
+ * `protected`, which is a compile-time notion; the value is an ordinary own
+ * property assigned in the constructor, and replacing it is how the work gate
+ * gets in front of a processor the module has already bound.
+ *
+ * Named as a type rather than cast inline so the coupling has one place to be
+ * found when BullMQ renames it — and {@link installWorkGate} **throws** rather
+ * than shrugging when the property is not a function, because the alternative
+ * is a gate that silently is not there.
+ */
+interface BullMqProcessorSlot {
+  processFn?: (job: unknown, token?: string, signal?: AbortSignal) => Promise<unknown>;
+  [GATED]?: true;
+}
+
+/**
+ * The work gate — Constitution XVII, and AGENTS.md's rule for an entry point
+ * with nowhere to throw to: *presence is decided before the work, first and
+ * outside the `try`*.
+ *
+ * A BullMQ processor is such an entry point. The fetch gate below stops a
+ * worker within one presence install of the flip, but a job already fetched
+ * when presence moved would still run its module's business logic — which for
+ * `google_analytics` means one more disclosure to a third party after the
+ * operator withdrew it. So the decision is per job.
+ *
+ * **What happens to the job: it is left waiting.** `Worker.rateLimit` plus
+ * `RateLimitError` is BullMQ's own idiom for "not now, put it back": the worker
+ * handles that error with `job.moveToWait(token)`, which RPUSHes the job onto
+ * the wait list, emits `waiting`, consumes no attempt and fires no `failed`
+ * handler. Failing the job would burn its retries against a decision that is
+ * not about the job, and completing it would drop work an operator never asked
+ * to lose. Deactivation is "non-destructive and reversible" (Principle XVII),
+ * so the job drains when the module comes back.
+ */
+function installWorkGate(moduleId: string, worker: Worker): void {
+  const slot = worker as unknown as BullMqProcessorSlot;
+  if (slot[GATED]) return;
+  const inner = slot.processFn;
+  if (typeof inner !== 'function') {
+    throw new Error(
+      `[kernel] module '${moduleId}' registered a queue consumer whose processor could not be ` +
+        `found (BullMQ's \`Worker.processFn\`). Without it the worker would keep running the ` +
+        `module's business logic after an operator switched the module off (Constitution XVII). ` +
+        `If BullMQ has renamed the property, \`installWorkGate\` is the one place that names it.`,
+    );
+  }
+  slot.processFn = async (job, token, signal) => {
+    // First, and outside every `try`: a switched-off module and a genuine
+    // failure must not share one silent no-op. `isPresent` throws on a cache
+    // nothing has loaded, and "nothing has read the database yet" is not an
+    // answer a processor can act on either — so it reads as absent, which is
+    // the direction that loses no work.
+    if (!isPresentOrUnresolved(moduleId)) {
+      await worker.rateLimit(ABSENT_JOB_BACKOFF_MS);
+      throw new RateLimitError();
+    }
+    return inner.call(worker, job, token, signal);
+  };
+  slot[GATED] = true;
+}
+
+/** Effective presence, with an unloaded cache reading as absent rather than throwing. */
+function isPresentOrUnresolved(moduleId: string): boolean {
+  return registryCache.isLoaded() && effectiveState.isPresent(moduleId);
+}
+
+/**
+ * The fetch gate — bring every registered worker into agreement with its
+ * module's effective state.
+ *
+ * Level-triggered and idempotent, so it is safe to run on every presence
+ * install: BullMQ's own `pause()` and `resume()` are no-ops when the worker is
+ * already there, and the comparison below keeps even those off the common path.
+ *
+ * This is what makes the repair work across processes. Every composed process —
+ * API, `BACKEND_ROLE=worker`, `all` — keeps its own {@link registryCache} fresh
+ * from the same `b2b:module:state-changed` channel (and from the degraded-mode
+ * timer when Redis is unavailable), so following the cache means the worker
+ * process reacts to a flip written anywhere, including by a CLI that composed
+ * nothing.
+ */
+export function reconcileModuleWorkers(): void {
+  if (!registryCache.isLoaded()) return;
+  for (const [moduleId, workers] of moduleWorkers) {
+    const present = effectiveState.isPresent(moduleId);
+    for (const worker of workers) {
+      if (present === !worker.isPaused()) continue;
+      // `pause()` waits for the jobs already running to finish, which is the
+      // non-destructive half: an in-flight job completes, and nothing new is
+      // fetched. Fire-and-forget because presence installs are synchronous.
+      void (present ? worker.resume() : worker.pause());
+    }
+  }
+}
+
+let reconcilerArmed = false;
+
+function armWorkerReconciler(): void {
+  if (reconcilerArmed) return;
+  reconcilerArmed = true;
+  registryCache.onPresenceInstalled(reconcileModuleWorkers);
+}
+
+/**
+ * Register a BullMQ Worker as its module's, so both gates apply to it.
+ *
+ * Two things happen, and only the first was ever true: the worker joins the
+ * per-module registry {@link pauseWorkersFor} iterates, **and** its processor is
+ * wrapped in the work gate while the registry itself is reconciled against the
+ * cache on every presence install. The returned worker is the same instance.
+ *
+ * A worker constructed outside this seam is a worker nothing can stop —
+ * `check:worker-seam` is the ratchet for that, and `pwa`'s push consumer was
+ * the live instance when it landed.
+ */
 export function defineModuleWorker<W extends Worker>(
   moduleId: string,
   worker: W,
@@ -222,25 +364,57 @@ export function defineModuleWorker<W extends Worker>(
   if (options?.logger) {
     attachWorkerLogging(moduleId, worker, options.logger);
   }
-  // If the module is currently disabled at registration time, start paused.
-  if (!effectiveState.isPresent(moduleId)) {
+  installWorkGate(moduleId, worker);
+  armWorkerReconciler();
+  // A closed worker is not a paused one, and resuming it would restart a queue
+  // consumer whose owner has gone. Leaving it in the registry is also how the
+  // map grew without bound across a long-lived process.
+  worker.on('closed', () => {
+    set.delete(worker);
+    if (set.size === 0) moduleWorkers.delete(moduleId);
+  });
+  // If the module is currently absent at registration time, start paused.
+  if (!isPresentOrUnresolved(moduleId)) {
     void worker.pause();
   }
   return worker;
 }
 
-/** Used by the orchestrator's disable path. */
+/**
+ * Pause a module's workers now, without waiting for the next presence install.
+ *
+ * An **optimisation**, since the fetch gate above: the orchestrator's disable
+ * path refreshes the cache and publishes the state change, which reconciles
+ * every process including this one. Calling it here simply makes the local
+ * process's answer immediate rather than one refresh away.
+ */
 export async function pauseWorkersFor(moduleId: string): Promise<void> {
   for (const w of moduleWorkers.get(moduleId) ?? []) {
     await w.pause();
   }
 }
 
-/** Used by the orchestrator's enable path. */
+/**
+ * Resume a module's workers now. The mirror of {@link pauseWorkersFor}, and an
+ * optimisation on the same terms — note that it resumes on the **platform**
+ * axis alone, which is safe only because the work gate re-asks for the
+ * conjunction on every job.
+ */
 export async function resumeWorkersFor(moduleId: string): Promise<void> {
   for (const w of moduleWorkers.get(moduleId) ?? []) {
     await w.resume();
   }
+}
+
+/**
+ * Test seam — empty the per-process worker registry.
+ *
+ * The suite shares one process per fork, so a worker registered by an earlier
+ * test is still there for the reconcile the next one triggers. Production never
+ * calls it: workers leave the registry when they close.
+ */
+export function resetModuleWorkersForTesting(): void {
+  moduleWorkers.clear();
 }
 
 /**

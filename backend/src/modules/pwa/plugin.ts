@@ -8,6 +8,7 @@ import type {
   CustomerGroupReadPort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
+import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
 import { PwaConfigResolver, type SettingsReadPort } from './services/pwa-config-resolver.js';
 import { PwaIconService, type AssetUploadPort } from './services/pwa-icon-service.js';
 import { PushSubscriptionService } from './services/push-subscription-service.js';
@@ -148,12 +149,20 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
 
   // Push-delivery consumer (Principle X). Separable entrypoint; co-located by
   // default given low push volume, split-out-able under load via BACKEND_ROLE.
+  //
+  // `defineModuleWorker` is not optional decoration: it is the seam that makes
+  // the module's effective state decide whether this queue is consumed at all
+  // (Constitution XVII). Without it the worker was in no per-module registry, so
+  // an operator who switched `pwa` off went on having push notifications
+  // delivered to their customers' devices — the same class of defect the
+  // activation axis had platform-wide, and the reason `check:worker-seam`
+  // exists.
   if (options.runWorkers) {
     const processor = makePushDeliveryProcessor({
       emFactory: options.emFactory,
       registry: providerRegistry,
     });
-    createPushDeliveryWorker(options.redis, processor);
+    defineModuleWorker('pwa', createPushDeliveryWorker(options.redis, processor));
   }
 
   const handle: PwaModuleHandle = {

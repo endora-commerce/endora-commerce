@@ -2,8 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   defineModuleWorker,
   resumeWorkersFor,
+  resetModuleWorkersForTesting,
 } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import { makeFakeModuleWorker } from '../../helpers/fake-module-worker.js';
 
 /**
  * Historical: a module wired into the composition *before* the lifecycle plugin
@@ -29,40 +31,43 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
  */
 
 describe('defineModuleWorker — resumed at boot when registered before cache warm (integration)', () => {
-  let paused = false;
-
-  const fakeWorker = {
-    pause: async (): Promise<void> => {
-      paused = true;
-    },
-    resume: async (): Promise<void> => {
-      paused = false;
-    },
-  };
+  const fake = makeFakeModuleWorker();
 
   beforeAll(() => {
+    resetModuleWorkersForTesting();
     // Cache not yet warmed → module reads as disabled at registration time,
     // exactly as when `catalog` registers before the lifecycle plugin runs.
     registryCache.__setEnabledForTesting([]);
-    defineModuleWorker('fixture_boot_resume', fakeWorker as never);
+    defineModuleWorker('fixture_boot_resume', fake.worker);
   });
 
   afterAll(() => {
+    resetModuleWorkersForTesting();
     registryCache.__setEnabledForTesting([]);
   });
 
   it('worker starts paused when its module reads disabled at registration', () => {
-    expect(paused).toBe(true);
+    expect(fake.state.paused).toBe(true);
   });
 
-  it('resuming an enabled module un-pauses the worker (the deleted boot loop, driven by hand)', async () => {
-    // Lifecycle plugin warms the cache (module is in fact installed/enabled)…
+  it('warming the cache un-pauses it on its own — the presence install is the seam', async () => {
+    // Lifecycle plugin warms the cache (module is in fact installed/enabled).
+    // Since the Principle XVII worker repair, that install *is* what reconciles
+    // the worker: no loop over `enabledIds()`, which is why the one D-38 deleted
+    // is not missed. The pause decision and the resume decision are now the same
+    // decision, taken from the same value, in whichever process holds the worker.
     registryCache.__setEnabledForTesting(['fixture_boot_resume']);
-    // …then resumes workers for every enabled module. This is the loop D-38
-    // deleted; it runs here, not in `_lifecycle`'s plugin.
-    for (const moduleId of registryCache.enabledIds()) {
-      await resumeWorkersFor(moduleId);
-    }
-    expect(paused).toBe(false);
+    await Promise.resolve();
+    expect(fake.state.paused).toBe(false);
+  });
+
+  it('resumeWorkersFor still un-pauses a worker paused by hand', async () => {
+    // The orchestrator's imperative half, which survives as an optimisation: it
+    // makes the local process's answer immediate instead of one refresh away.
+    await fake.worker.pause();
+    expect(fake.state.paused).toBe(true);
+
+    await resumeWorkersFor('fixture_boot_resume');
+    expect(fake.state.paused).toBe(false);
   });
 });
