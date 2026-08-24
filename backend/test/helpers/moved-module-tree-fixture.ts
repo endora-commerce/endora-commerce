@@ -141,6 +141,93 @@ function firstRoutedModuleWithABundleInTheApplicationTree(): string {
 
 const KEPT_BUNDLE_MODULE = firstRoutedModuleWithABundleInTheApplicationTree();
 
+// ---------------------------------------------------------------------------
+// Which modules a split fixture relocates — the selection, not the choice
+// ---------------------------------------------------------------------------
+
+/**
+ * The modules the application tree still holds, in the order they were offered.
+ *
+ * The split fixture relocates a module by copying `backend/src/modules/<id>` and
+ * deleting the original, so a candidate that has really become a package fails
+ * the copy outright — `ENOENT … lstat backend/src/modules/<id>`, which took all
+ * 73 proofs of `moved-module-tree.test.ts` with it the day `google_analytics`
+ * moved. Answering that question here is what lets the caller offer a **pool**
+ * rather than a roster: a member that leaves needs no edit, because it stops
+ * being available in the same commit that makes it a real package, and
+ * `createSplitModuleTreeFixture` copies every real module package anyway.
+ */
+export function modulesInTheApplicationTree(candidates: readonly string[]): readonly string[] {
+  return candidates.filter((id) => existsSync(join(BACKEND_ROOT, 'src', 'modules', id)));
+}
+
+/** The module packages this repository really ships, filtered to registered ids. */
+export function packagedModuleIds(): readonly string[] {
+  return discoverModulePackages(REPO_ROOT)
+    .filter((pkg) => DISCOVERED_MANIFESTS.some((entry) => entry.id === pkg.moduleId))
+    .map((pkg) => pkg.moduleId);
+}
+
+/** The modules `ERROR_TRANSLATION_KEYS` routes an operator-visible code to. */
+export function routedModuleIds(): readonly string[] {
+  return [
+    ...new Set(Object.values(ERROR_TRANSLATION_KEYS).map((target) => target.moduleId)),
+  ].sort();
+}
+
+/**
+ * How many modules must sit **outside** the application tree for the split
+ * fixture to be staging anything.
+ *
+ * Several, not one: a single module outside `backend/src` would leave every
+ * check's walk more than 98% inside the application tree, which is comfortably
+ * inside the shape that made issue #215 possible in the first place — a walk
+ * that comes back short, is read, and reports clean. Six is the number T040a
+ * measured the estate against and it is the floor rather than the target; the
+ * relocation pool above it is headroom, and the real module packages count
+ * toward it, because "outside the application tree" is the property and
+ * "relocated by this fixture" is only one way of getting there.
+ */
+export const MINIMUM_MODULES_OUTSIDE_THE_APPLICATION_TREE = 6;
+
+export interface SplitRelocationPlan {
+  readonly candidates: readonly string[];
+  /** Of those, the ones `backend/src/modules` still holds. */
+  readonly available: readonly string[];
+  /** The ids this repository already ships as module packages. */
+  readonly alreadyPackaged: readonly string[];
+  readonly floor?: number;
+}
+
+/**
+ * Which candidates a split fixture relocates, and the refusal when there are
+ * not enough modules outside the application tree for the fixture to mean
+ * anything.
+ *
+ * Pure and injected, so the refusal is provable without building a 120-second
+ * fixture: the inputs enter above the decision rather than being values the
+ * builder has already computed.
+ */
+export function planSplitRelocation(plan: SplitRelocationPlan): readonly string[] {
+  const packaged = new Set(plan.alreadyPackaged);
+  const available = new Set(plan.available);
+  const relocate = plan.candidates.filter((id) => available.has(id) && !packaged.has(id));
+  const floor = plan.floor ?? MINIMUM_MODULES_OUTSIDE_THE_APPLICATION_TREE;
+  const outside = new Set([...relocate, ...plan.alreadyPackaged]);
+  if (outside.size < floor) {
+    throw new Error(
+      `[moved-module-tree-fixture] the split tree would hold ${outside.size} module(s) outside ` +
+        `the application tree and needs at least ${floor}. The relocation pool ` +
+        `(${plan.candidates.join(', ') || 'empty'}) has ${relocate.length} member(s) left under ` +
+        'backend/src/modules. Add free modules to it — ones no artefact under backend/scripts ' +
+        'keys on their location — rather than lowering the floor: below it every check\'s walk ' +
+        'is inside the application tree by so much that a check reading one root passes, which ' +
+        'is the shape this fixture exists to refuse.',
+    );
+  }
+  return relocate;
+}
+
 export interface MovedModuleTreeOptions {
   /**
    * What the stub index registers. Defaults to every real module id — the
@@ -400,7 +487,12 @@ export function createMovedModuleTreeFixture(
  * block). What it stages is only where the modules sit.
  */
 export interface SplitModuleTreeOptions {
-  /** Modules relocated into a declared workspace package. */
+  /**
+   * Candidates for relocation into a declared workspace package — a pool, and
+   * every member of it that `backend/src/modules` still holds is relocated. One
+   * that has meanwhile become a real package is skipped rather than refused;
+   * see `planSplitRelocation`.
+   */
   readonly packaged: readonly string[];
   /** Modules relocated into a directory nothing declares — the half-moved state. */
   readonly stranded?: readonly string[];
@@ -602,17 +694,36 @@ export function createSplitModuleTreeFixture(
     });
   }
 
-  for (const id of options.packaged) relocate(id, true);
-  for (const id of options.stranded ?? []) relocate(id, false);
+  // `options.packaged` is a **pool**, not a roster: a candidate this repository
+  // has meanwhile packaged for real is carried by the loop above, at the same
+  // address and with its own real `package.json`, and relocating it as well
+  // would be an ENOENT on a directory that is correctly gone. The refusal that
+  // matters is the other one — too few modules outside the application tree for
+  // the split to stage anything — and `planSplitRelocation` raises it here,
+  // before a single file is copied.
+  const toRelocate = planSplitRelocation({
+    candidates: options.packaged,
+    available: modulesInTheApplicationTree(options.packaged),
+    alreadyPackaged: alreadyPackaged.map((pkg) => pkg.moduleId),
+  });
+  const toStrand = options.stranded ?? [];
+  for (const id of toStrand) {
+    if (modulesInTheApplicationTree([id]).length === 1) continue;
+    throw new Error(
+      `[moved-module-tree-fixture] cannot strand '${id}': backend/src/modules holds no such ` +
+        'module. The half-moved state is a module the application tree still owns, moved to a ' +
+        'package address with no `package.json`; pick the next candidate from the stranded ' +
+        'pool instead of naming one that has already left.',
+    );
+  }
+
+  for (const id of toRelocate) relocate(id, true);
+  for (const id of toStrand) relocate(id, false);
 
   writeFileSync(
     join(backend, 'src', 'modules', KEPT_MODULE, 'manifest-index.generated.ts'),
     splitManifestIndex(
-      new Set([
-        ...alreadyPackaged.map((pkg) => pkg.moduleId),
-        ...options.packaged,
-        ...(options.stranded ?? []),
-      ]),
+      new Set([...alreadyPackaged.map((pkg) => pkg.moduleId), ...toRelocate, ...toStrand]),
     ),
     'utf8',
   );

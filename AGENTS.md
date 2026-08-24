@@ -822,10 +822,18 @@ comes from `pnpm-workspace.yaml`, never from a path written down: `packages/modu
 no check and in no ledger. A check takes `layout.moduleWalkRoots` (module sources) or
 `layout.sourceRoots` (the whole application tree plus each package), and `layout.keyOf` /
 `layout.displayOf` for the two key shapes the ledgers already use — both byte-identical for a
-tree that has not moved. The split half of `moved-module-tree.test.ts` is the proof: sixteen
-checks over a fixture with six modules in packages and the rest in `src/modules` exit **0**,
-and over the same tree with one module's `package.json` removed — nothing else changed — all
-sixteen exit **2**.
+tree that has not moved. The split half of `moved-module-tree.test.ts` is the proof: every
+check in that file's list, over a fixture with some modules in packages and the rest in
+`src/modules`, exits **0**, and over the same tree with one module's `package.json` removed —
+nothing else changed — every one of them exits **2**. **Which** modules the fixture puts where
+is a **pool** and not a roster, and a module leaving `backend/src/modules` for real therefore
+costs no edit to it: the fixture relocates whichever pool members the application tree still
+holds, counts the real module packages toward the same floor, and refuses — naming the pool —
+when too few modules would sit outside the application tree for the split to stage anything.
+The counts are printed by the run and are deliberately written down neither here nor in the
+fixture (D-100); what is written down is the pool, because "this module carries no ledger key,
+no `scripts/*.ts` entry point, no cross-owner permission gate and no overlay reach" is not a
+property a walk can decide.
 
 Both run in CI as GitLab's `quality:static` job — full tree, every MR and every push to
 `master`. They need only bash, grep, perl and POSIX awk (no `pnpm install`), so keep them

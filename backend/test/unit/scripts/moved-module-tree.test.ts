@@ -4,6 +4,11 @@ import {
   createMovedModuleTreeFixture,
   createSplitModuleTreeFixture,
   KEPT_MODULE,
+  MINIMUM_MODULES_OUTSIDE_THE_APPLICATION_TREE,
+  modulesInTheApplicationTree,
+  packagedModuleIds,
+  planSplitRelocation,
+  routedModuleIds,
   type MovedModuleTreeFixture,
 } from '../../helpers/moved-module-tree-fixture.js';
 import {
@@ -137,43 +142,65 @@ describe('a moved module tree is refused, not reported clean (issue #215)', () =
 });
 
 /**
- * The modules the split fixture relocates.
+ * The modules the split fixture may relocate — a **pool**, not a roster.
  *
- * Chosen for one property and stated rather than assumed: **no artefact under
- * `backend/scripts` and no entry in `backend/package.json` names any of them**,
- * so relocating one changes no ledger key, no allow-list entry and no declared
- * program. That is what lets the split tree be held to the *same* verdict as the
- * one-root tree — the only difference between the two runs is where the sources
- * are. A module that carried a ledger entry would move its key with it, and the
- * resulting red would be the ledger going stale rather than anything about the
- * roots.
+ * Every member is chosen for one property, stated rather than assumed: **no
+ * artefact under `backend/scripts` keys anything on its location, and
+ * `backend/package.json` declares no program inside it**, so relocating one
+ * changes no ledger key, no allow-list entry and no declared program. That is
+ * what lets the split tree be held to the *same* verdict as the one-root tree —
+ * the only difference between the two runs is where the sources are. A module
+ * whose path a ledger keys on would move that key with it, and the resulting red
+ * would be the ledger going stale rather than anything about the roots. Being
+ * *named* is not the same as being keyed on: `stripe` and `comparisons` appear
+ * in a dozen prose comments and in `MIGRATED_MODULES`, which is a list of ids
+ * and travels with the module; what disqualifies a candidate is a
+ * `modules/<id>/…` **path** in a ledger, a `scripts/*.ts` entry point of its
+ * own, a cross-owner permission gate, an overlay reach into it, or a place in
+ * a batch that is about to move it for real.
  *
- * Several, not one: a single relocated module would leave every check's walk
- * more than 98% inside the application tree, which is comfortably inside the
- * shape that made #215 possible in the first place.
- *
- * **A module drops off this list the day it really becomes a package**, and
- * `google_analytics` is the third to do so (feature 080, T040b). The fixture
- * relocates a module by copying `backend/src/modules/<id>` and deleting the
- * original, so a module that is no longer there fails the copy outright —
- * `ENOENT … lstat backend/src/modules/google_analytics`. It is not lost from
+ * **The list used to shrink on every move and the shrinking was the friction.**
+ * The fixture relocates a module by copying `backend/src/modules/<id>` and
+ * deleting the original, so a module that has really become a package fails the
+ * copy outright — `ENOENT … lstat backend/src/modules/google_analytics`, which
+ * is how the third package took all 73 proofs here with it. It is not lost from
  * the split tree by leaving: `createSplitModuleTreeFixture` copies every module
  * package this repository already ships, under the same
  * `packages/modules/<id>/` address and with its own real `package.json`, which
- * is the state relocation *simulates*. So the packaged half of the split tree
- * grows by one rather than shrinking, and the count that matters — modules the
- * estate must find outside `backend/src` — is this list plus the real packages.
+ * is the state relocation *simulates*. So the count that matters — modules the
+ * estate must find outside `backend/src` — is this pool's still-available
+ * members **plus** the real packages, and `planSplitRelocation` takes the
+ * intersection with the application tree so a move costs no edit here.
+ *
+ * **It is a list and not a derivation, deliberately.** "Any six registered
+ * modules that are not already packages" is expressible and would be wrong: the
+ * property above is not one a walk can decide. Ledger keys are spelled several
+ * ways, T053's cross-owner permission gates and overlay reach are recorded in a
+ * spec rather than in the tree, and "is in the next batch" is a fact about work
+ * in flight that no artefact carries. A derivation that cannot express the
+ * constraint would pick a blocked module, go red for a reason that is not the
+ * one the fixture measures, and send its author looking for a defect in the
+ * check estate. So: a curated pool, with the availability question — the only
+ * part that really is derivable, and the only part that went stale — derived.
  */
-const PACKAGED_MODULES: readonly string[] = [
+const PACKAGED_MODULE_CANDIDATES: readonly string[] = [
   'autopay',
   'email',
   'google_tag_manager',
   'meta_ads',
   'paypal',
+  'stripe',
+  'tpay',
+  'payu',
+  'quick_order',
+  'taxes',
 ];
 
+const PACKAGED_MODULES = modulesInTheApplicationTree(PACKAGED_MODULE_CANDIDATES);
+
 /**
- * The module the half-moved tree strands, and why it is not one of the above.
+ * The candidates for the module the half-moved tree strands, and why they are
+ * not the pool above.
  *
  * `check-error-translations` declares an **exclusion**: its floor is the
  * eighteen modules `ERROR_TRANSLATION_KEYS` routes a code to, because most
@@ -181,11 +208,36 @@ const PACKAGED_MODULES: readonly string[] = [
  * would make the floor a list of exceptions. So a module outside that eighteen
  * is *correctly* absent from its expectation, and stranding one would leave
  * that check green while the other fifteen went red — a per-check answer, which
- * is exactly what a shared fixture must not have. `comparisons` is routed, so
- * every floor in the estate covers it, and it is not among the packaged modules above, so
- * the passing tree is unaffected.
+ * is exactly what a shared fixture must not have. Every candidate here is
+ * therefore routed, which every floor in the estate then covers, **free** on the
+ * same terms as the pool above, and disjoint from it so the passing tree is
+ * unaffected. The routedness is not left to memory: it is asserted below
+ * against `ERROR_TRANSLATION_KEYS` itself, for the whole pool rather than for
+ * today's pick, so a successor that stopped being routed is a red here rather
+ * than one check silently disagreeing with the other sixteen. The rest of each
+ * successor's fitness was **measured once**, in the merge request that added
+ * them — all four stranded in turn, all seventeen checks exiting 2 on each —
+ * and is deliberately not a standing test: four more half-moved fixtures would
+ * quadruple this file's five minutes to prove something only the next move can
+ * change.
  */
-const STRANDED_MODULE = 'comparisons';
+const STRANDED_MODULE_CANDIDATES: readonly string[] = [
+  'comparisons',
+  'credentials',
+  'dictionaries',
+  'search',
+  'assets_library',
+];
+
+const STRANDED_MODULE = ((): string => {
+  const [first] = modulesInTheApplicationTree(STRANDED_MODULE_CANDIDATES);
+  if (first !== undefined) return first;
+  throw new Error(
+    'every module in STRANDED_MODULE_CANDIDATES has become a package, so the half-moved tree ' +
+      'has nothing to strand. Add another module that `ERROR_TRANSLATION_KEYS` routes a code ' +
+      'to and that no ledger keys on its path.',
+  );
+})();
 
 describe('a split module tree is read in full, not in half (feature 080, T040a)', () => {
   let split: MovedModuleTreeFixture;
@@ -228,6 +280,76 @@ describe('a split module tree is read in full, not in half (feature 080, T040a)'
       expect(result.output).toContain(STRANDED_MODULE);
     }, 120_000);
   }
+});
+
+describe('the split fixture selects its modules rather than naming them', () => {
+  it('relocates every candidate the application tree still holds, in pool order', () => {
+    // Reproducibility: the pool is ordered, the filter preserves order, and
+    // nothing about the tree it builds varies between runs. The 73 proofs above
+    // are worth nothing over a fixture that does.
+    expect(PACKAGED_MODULES).toEqual(
+      PACKAGED_MODULE_CANDIDATES.filter((id) => PACKAGED_MODULES.includes(id)),
+    );
+    expect(modulesInTheApplicationTree(PACKAGED_MODULES)).toEqual(PACKAGED_MODULES);
+  });
+
+  it('leaves a candidate that has really become a package to the real packages', () => {
+    // The edit that used to be required on every move, made unnecessary: the
+    // inputs enter above the decision, so the property is provable without
+    // building a fixture and without waiting for the next module to move.
+    const relocate = planSplitRelocation({
+      candidates: ['autopay', 'blog', 'email'],
+      available: ['autopay', 'email'],
+      alreadyPackaged: ['blog', 'credit_limits', 'google_analytics', 'quote_requests'],
+      floor: 6,
+    });
+    expect(relocate).toEqual(['autopay', 'email']);
+  });
+
+  it('refuses a split tree with too few modules outside the application tree', () => {
+    expect(() =>
+      planSplitRelocation({
+        candidates: ['autopay'],
+        available: ['autopay'],
+        alreadyPackaged: ['blog'],
+        floor: 6,
+      }),
+    ).toThrow(/would hold 2 module\(s\) outside the application tree and needs at least 6/);
+  });
+
+  it('counts the real module packages toward that floor, not only the relocated ones', () => {
+    // "Outside the application tree" is the property; being relocated by this
+    // fixture is one way of getting there and the pool is allowed to drain.
+    expect(() =>
+      planSplitRelocation({
+        candidates: [],
+        available: [],
+        alreadyPackaged: ['a', 'b', 'c', 'd', 'e', 'f'],
+        floor: 6,
+      }),
+    ).not.toThrow();
+  });
+
+  it('holds the real pool above that floor today', () => {
+    const outside = new Set([...PACKAGED_MODULES, ...packagedModuleIds()]);
+    expect(outside.size).toBeGreaterThanOrEqual(MINIMUM_MODULES_OUTSIDE_THE_APPLICATION_TREE);
+  });
+
+  it('strands a module the routing table really routes a code to', () => {
+    // The constraint that made `comparisons` the choice, enforced for every
+    // successor rather than remembered for the incumbent.
+    const routed = routedModuleIds();
+    for (const candidate of STRANDED_MODULE_CANDIDATES) {
+      expect(routed, `${candidate} is not routed by ERROR_TRANSLATION_KEYS`).toContain(candidate);
+    }
+    expect(routed).toContain(STRANDED_MODULE);
+  });
+
+  it('keeps the two pools disjoint, so the passing tree is unaffected', () => {
+    for (const candidate of STRANDED_MODULE_CANDIDATES) {
+      expect(PACKAGED_MODULE_CANDIDATES).not.toContain(candidate);
+    }
+  });
 });
 
 describe('the population floor itself', () => {
