@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogCategoryRecord, CatalogProductRecord } from '@endora-commerce/contracts';
-import { buildRuleMeta } from '../../../src/modules/seo/services/meta-tag-resolver.service.js';
+import { buildRuleMeta } from '../../../../packages/modules/seo/src/backend/services/meta-tag-resolver.service.js';
 
 /**
  * Unit-level coverage of the rule builder. The override + locale-fallback

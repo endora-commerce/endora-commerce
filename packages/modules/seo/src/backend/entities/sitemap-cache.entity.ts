@@ -1,5 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
-import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
+import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 
 /**
  * Single-row sitemap cache (T235 / FR-102). The generator overwrites

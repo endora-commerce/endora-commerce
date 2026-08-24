@@ -4,11 +4,11 @@ import type {
   CatalogProductReadPort,
   CmsPageReadPort,
 } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { MetaTagResolverService } from './services/meta-tag-resolver.service.js';
 import {
   SitemapGeneratorService,
@@ -16,6 +16,8 @@ import {
   type SitemapSettingsPort,
 } from './services/sitemap-generator.service.js';
 import { registerSeoRoutes } from './routes.js';
+import { SeoMetaOverride } from './entities/seo-meta-override.entity.js';
+import { SitemapCache } from './entities/sitemap-cache.entity.js';
 
 /**
  * `seo` — the sitemap that only read its setting in production (feature 072,
@@ -99,3 +101,19 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  SeoMetaOverride,
+  SitemapCache,
+];

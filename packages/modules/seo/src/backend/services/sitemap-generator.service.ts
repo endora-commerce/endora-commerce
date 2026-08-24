@@ -8,8 +8,8 @@ import {
   type ChannelMemberEntityType,
   type CmsPageReadPort,
 } from '@endora-commerce/contracts';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { SitemapCache } from '../entities/sitemap-cache.entity.js';
 
 /**
