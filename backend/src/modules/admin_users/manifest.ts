@@ -77,6 +77,21 @@ export const manifest = defineModuleManifest({
         'admin can reset, so no admin becomes unreachable while the module is off.',
     },
   ],
+  // D-173 — `customers:impersonate` is a **shared** gate, in the shape issue
+  // #213 gave `integrations:manage`: it guards this module's
+  // `/admin/organizations/:id/impersonate` and `/admin/impersonation/end`
+  // endpoints and `customers`' own impersonation start, and the core
+  // `PERMISSION_CATALOGUE` row that carries its label names `customers` alone.
+  // Declaring it here makes this module a second *owner*, so the presence
+  // filter on `/admin-roles` keeps it grantable while either surface is on.
+  // Without this line, switching `customers` off would take the code off the
+  // role editor while these routes — owned by a module that declares itself
+  // non-deactivatable — went on enforcing it: a gate nobody can be granted.
+  //
+  // The label decides which repair applies: *"Impersonate customers"* reads as
+  // a sentence about this module's own screen, so the code is shared rather
+  // than replaced by one of this module's own.
+  permissions: [{ code: 'customers:impersonate', label: 'Impersonate customers' }],
   // Feature 072/073 (Constitution XVII) — this module owns the admin login
   // route, the admin session and the impersonation flow. Switched off, nobody
   // can sign in to the Admin UI, including to switch it back on: the one

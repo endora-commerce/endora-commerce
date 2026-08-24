@@ -151,9 +151,20 @@ export const manifest = defineModuleManifest({
   // have caught it read one call shape out of the several the tree writes; it
   // now reads every shape, blanks comments and regex literals, and reports an
   // argument it cannot resolve instead of dropping it.
+  //
+  // D-173 adds the third, and it is not this module's own code: the admin
+  // proxy for the per-Organization `requires_cart_approval` policy is gated on
+  // `customers:manage`, whose core `PERMISSION_CATALOGUE` row names
+  // `customers` — a module an operator can switch off, while this one declares
+  // itself non-deactivatable. Declaring it here makes this module a second
+  // *owner*, in the shape issue #213 gave `integrations:manage`, so the code
+  // stays grantable on `/admin-roles` while this surface is on. The label —
+  // *"Manage customer organizations"* — reads as a sentence about that
+  // endpoint, so the code is shared rather than replaced.
   permissions: [
     { code: 'carts:read', label: 'View customer carts' },
     { code: 'carts:reject', label: 'Reject a cart pending organization approval' },
+    { code: 'customers:manage', label: 'Manage customer organizations' },
   ],
   i18n: { bundlesDir: 'i18n' },
 });
