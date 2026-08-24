@@ -349,16 +349,6 @@ const REGISTRY_CACHE =
   'through `ctx.subscribe`.';
 
 /**
- * §1.4l and §1.5 — `overlay/*` is how the platform *discovers* overlays. A
- * package reading it would be an installed artefact enumerating its own
- * siblings, which is the cycle O3 identifies for the manifest index.
- */
-const OVERLAY_ROOTS =
-  '§1.4l, §1.5 — `overlay/*` is how the platform discovers overlays; an installed artefact ' +
-  'enumerating its own siblings is O3\'s cycle. Retires when the inventory reads the ' +
-  'deployment\'s modules through the lifecycle\'s resolved set.';
-
-/**
  * Not a module's file at all.
  *
  * `src/apps/<deployment>/` holds a deployment's decorations, its
@@ -444,8 +434,6 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/modules/_lifecycle/scripts/status.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
   'backend/src/modules/_lifecycle/scripts/uninstall.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
 
-  // === OVERLAY_ROOTS (1) ===
-  'backend/src/modules/admin_roles/permission-inventory.ts|backend/src/overlay/overlay-roots.ts': { symbols: ['activeOverlayModulesRoot'], reason: OVERLAY_ROOTS },
 
   // === REGISTRY_CACHE (1) ===
   'backend/src/modules/admin_actions/services/admin-actions-service.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['STATE_CHANGED_CHANNEL'], reason: REGISTRY_CACHE },
