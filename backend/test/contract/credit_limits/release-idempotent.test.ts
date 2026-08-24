@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { seedCreditLimitWithActiveReservation } from '../../helpers/seed-credit-limit.js';
-import { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
+import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 

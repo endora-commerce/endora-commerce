@@ -1,6 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { CreditLimit } from '../../src/modules/credit_limits/entities/credit-limit.entity.js';
-import { CreditLimitReservation } from '../../src/modules/credit_limits/entities/credit-limit-reservation.entity.js';
+import { CreditLimit, CreditLimitReservation } from './package-entities.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { Cart } from '../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../src/modules/carts/entities/cart-item.entity.js';

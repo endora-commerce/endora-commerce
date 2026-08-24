@@ -53,7 +53,7 @@ import { manifest as manifest15, recentActivity as recentActivity15 } from '../c
 import { manifest as manifest16 } from '../cms/manifest.js';
 import { manifest as manifest17 } from '../comparisons/manifest.js';
 import { manifest as manifest18 } from '../credentials/manifest.js';
-import { manifest as manifest19 } from '../credit_limits/manifest.js';
+import { manifest as manifest19 } from '@endora-commerce/mod-credit-limits';
 import { manifest as manifest20 } from '../currencies/manifest.js';
 import { manifest as manifest21, uninstallHook as uninstallHook21 } from '../custom_fields/manifest.js';
 import { manifest as manifest22 } from '../customer_accounts/manifest.js';
@@ -137,7 +137,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'cms', manifest: manifest16, manifestPath: resolveManifestPath(import.meta.url, '../cms/manifest.js') },
   { id: 'comparisons', manifest: manifest17, manifestPath: resolveManifestPath(import.meta.url, '../comparisons/manifest.js') },
   { id: 'credentials', manifest: manifest18, manifestPath: resolveManifestPath(import.meta.url, '../credentials/manifest.js') },
-  { id: 'credit_limits', manifest: manifest19, manifestPath: resolveManifestPath(import.meta.url, '../credit_limits/manifest.js') },
+  { id: 'credit_limits', manifest: manifest19, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-credit-limits') },
   { id: 'currencies', manifest: manifest20, manifestPath: resolveManifestPath(import.meta.url, '../currencies/manifest.js') },
   { id: 'custom_fields', manifest: manifest21, manifestPath: resolveManifestPath(import.meta.url, '../custom_fields/manifest.js'), uninstallHook: uninstallHook21 },
   { id: 'customer_accounts', manifest: manifest22, manifestPath: resolveManifestPath(import.meta.url, '../customer_accounts/manifest.js') },

@@ -1,6 +1,6 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
-import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
+import { OrgScoped } from '@endora-commerce/platform/tenancy';
 
 /**
  * Per-Organization credit limit grant. One row per organization (enforced by

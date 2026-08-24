@@ -84,8 +84,17 @@ import { StockAllocation } from '../../inventory/entities/stock-allocation.entit
  * `credit_limit_reservations_order_fk`). `orders` declared both itself until
  * D-94.5, which meant `lazyPort<T>`'s unchecked cast had nothing to check the
  * provider against. Each file states its own constraint.
+ *
+ * **The two are no longer spelled the same way, and the difference is the whole
+ * point of D-171.** `credit_limits` is a package, so its interface arrives on a
+ * subpath its owner declared, the layout contract enumerates (R8) and
+ * `module-package-ports-surface.test.ts` polices — contract surface, not a reach
+ * into a private tree, and `check:module-boundary` stopped counting it. The
+ * `promotions` line below is the same seam in its pre-packaging spelling: a
+ * relative path into a file that module never offered, still a `permanent: true`
+ * ledger entry, and it converts when `promotions` is packaged in its turn.
  */
-import type { CreditLimitPort } from '../../credit_limits/services/credit-limit-port.js';
+import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
 import type { PromotionUsageFinalizer } from '../../promotions/services/promotion-usage-finalizer.js';
 /**
  * Re-exported so `plugin.ts` names its own module for the same two types.

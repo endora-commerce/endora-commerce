@@ -22,7 +22,7 @@ import {
   DEFAULT_PRICE_LIST_ID,
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
+import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 

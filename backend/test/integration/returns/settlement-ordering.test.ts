@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
+import { CreditLimit } from '../../helpers/package-entities.js';
 import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
 import { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
 import { ReturnCaseItem } from '../../../src/modules/returns/entities/return-case-item.entity.js';

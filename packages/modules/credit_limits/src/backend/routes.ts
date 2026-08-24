@@ -5,12 +5,32 @@ import {
   grantCreditLimitRequestSchema,
   type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import { isOrgInScope } from '../../tenancy/derived-scope.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { isOrgInScope } from '@endora-commerce/platform/tenancy';
 import type { CreditLimitService } from './services/credit-limit-service.js';
 import type { CreditLimit } from './entities/credit-limit.entity.js';
 import type { CreditLimitReservation } from './entities/credit-limit-reservation.entity.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+
+/**
+ * `grantedByAdminUserId` is supplied by the host through `resolveAdminUserId`,
+ * not read off the request here.
+ *
+ * This module used to import `testAdminUserId` from the host's
+ * `test-actor-carrier.ts`, which `host-package.md` §1.4j classifies **A** —
+ * host-internal, deliberately absent from `@endora-commerce/platform/http`'s
+ * barrel, because it exists to narrow *this repository's* test-harness Fastify
+ * augmentation and an installed package has no relationship to it. Packaging
+ * this module is the first time that classification had to bite.
+ *
+ * The repair is not the carrier-declared-locally idiom §1.4n used for
+ * `productAudienceOf`, because that would have preserved a live defect: nothing
+ * under `src/` ever writes `request.testActor`, so a production grant recorded
+ * **no** `grantedByAdminUserId` at all — the audit trail for a financial grant,
+ * empty, with every harness test green because the harness mirrors its actor
+ * onto both fields. The host now injects the resolver, so the production path
+ * and the harness path read the same thing.
+ */
 
 export interface CreditLimitsDeps {
   creditLimitService: CreditLimitService;

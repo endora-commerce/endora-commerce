@@ -6,9 +6,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
-import { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
-import { CreditLimitReservation } from '../../../src/modules/credit_limits/entities/credit-limit-reservation.entity.js';
+import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
+import { CreditLimit, CreditLimitReservation } from '../../helpers/package-entities.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { EventBus } from '../../../src/events/bus.js';

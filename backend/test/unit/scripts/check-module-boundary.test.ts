@@ -533,19 +533,38 @@ describe('analyzeSource — contract surface is not a reach (D-171)', () => {
  * The real packages, classified by the same reader the CLI builds.
  *
  * The fixtures above are what can go red; this is what says the shapes they
- * model are the shapes this repository ships. It is also the reconciliation the
- * exemption needs: no module package publishes a `./ports` today, so **nothing
- * is exempt on this tree**, and a run that started exempting something would be
- * a run whose summary line had moved.
+ * model are the shapes this repository ships.
+ *
+ * **This assertion used to read `expect(exempt).toEqual([])`**, and its comment
+ * said why: when D-171 landed no module package published a `./ports`, so
+ * nothing on the tree was exempt and a run that started exempting something was
+ * a run whose summary line had moved. That premise expired with the first
+ * package to publish one (`@endora-commerce/mod-credit-limits`, feature 080
+ * T040b). What replaces it is not a bigger expected set — that would be a
+ * derived fact written down (D-100), one line per package forever. It is the
+ * two things an empty-set assertion was buying and can no longer buy:
+ *
+ *  * the population is real and **both verdicts occur on it**, so neither
+ *    branch of the classifier is being asserted over nothing; and
+ *  * the one package this repository knows publishes a port interface that
+ *    cannot live in `packages/contracts` lands on the exempt side, while its
+ *    `./backend` and `./migrations` — which export `registerModule`,
+ *    `entities` and `migrations` — do not.
+ *
+ * The *predicate* itself is asserted next door, over a fixture whose emitted
+ * module the test writes: `is the same fact T050 guard measures`. That is where
+ * a `const` on a `./ports` has to flip the answer, because here it could only
+ * be compared against the same reader that produced it.
  */
 describe('D-171 over the module packages this checkout really has', () => {
-  it('classifies every declared subpath of every module package, and exempts none', async () => {
+  it('exempts a declared subpath exactly when its emitted module exports no runtime binding', async () => {
     const layout = await resolveModuleLayout();
     const directories = modulePackageDirectories(layout);
     expect(directories.size).toBeGreaterThan(0);
     const surfaces = modulePackageSurfaces(directories);
 
     const exempt: string[] = [];
+    const counted: string[] = [];
     for (const [name, directory] of directories) {
       const manifest: unknown = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
       const entries = (manifest as { exports?: Record<string, unknown> }).exports ?? {};
@@ -553,12 +572,21 @@ describe('D-171 over the module packages this checkout really has', () => {
       expect(subpaths.length, name).toBeGreaterThan(0);
       for (const subpath of subpaths) {
         // A throw is the refusal, and it must not happen over a built tree.
-        if (surfaces.surfaceOfSubpath(name, subpath).kind === 'contract') {
-          exempt.push(`${name}/${subpath}`);
-        }
+        const surface = surfaces.surfaceOfSubpath(name, subpath);
+        (surface.kind === 'contract' ? exempt : counted).push(`${name}/${subpath}`);
       }
     }
-    expect(exempt).toEqual([]);
+
+    // The population is not empty, and the exemption is not vacuous.
+    expect(counted.length).toBeGreaterThan(0);
+    expect(exempt.length, 'no subpath on this tree is exempt — the reconciliation below asserts nothing').toBeGreaterThan(0);
+
+    // Named rather than enumerated: this package is the reason the subpath
+    // exists, so it is the one case whose verdict is a statement about the
+    // design and not about how many packages happen to ship today.
+    expect(exempt).toContain('@endora-commerce/mod-credit-limits/ports');
+    expect(counted).toContain('@endora-commerce/mod-credit-limits/backend');
+    expect(counted).toContain('@endora-commerce/mod-credit-limits/migrations');
   });
 });
 
