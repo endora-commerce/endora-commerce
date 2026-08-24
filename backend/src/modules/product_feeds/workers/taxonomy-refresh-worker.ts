@@ -1,7 +1,6 @@
 import type { Queue, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { DEFAULT_TAXONOMY_FETCH_CRON } from '../manifest.js';
-import { defineModuleWorker } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { TaxonomyProviderCode } from '@endora-commerce/contracts';
 import type { TaxonomyRefreshService } from '../services/taxonomy-refresh.service.js';
 import {
@@ -44,36 +43,33 @@ export interface TaxonomyRefreshWorkerDeps {
   logWarn?: (message: string, detail: Record<string, unknown>) => void;
 }
 
-export function registerTaxonomyRefreshWorker(
+export function buildTaxonomyRefreshWorker(
   deps: TaxonomyRefreshWorkerDeps,
 ): Worker<TaxonomyRefreshJobData> {
-  return defineModuleWorker(
-    'product_feeds',
-    createTaxonomyRefreshWorker(deps.redis, async (job) => {
-      const requested = job.data.providerCode;
-      const providers = requested ? [requested] : PROVIDERS;
-      for (const providerCode of providers) {
-        try {
-          // A scheduled tick that collides with a manual check is skipped
-          // rather than queued behind it — the same "one at a time, and the
-          // next tick is the retry" rule the generation claim uses.
-          if (!requested && (await deps.refresh.isCheckInFlight(providerCode))) continue;
-          await deps.refresh.runCheck({
-            providerCode,
-            trigger: requested ? 'manual' : 'scheduled',
-            ...(job.data.checkId !== undefined ? { checkId: job.data.checkId } : {}),
-          });
-        } catch (err) {
-          // `runCheck` already swallows its own failures; reaching here means a
-          // defect, and it still must not fail the job (FR-093).
-          deps.logWarn?.('product_feeds: taxonomy check failed', {
-            providerCode,
-            error: String(err),
-          });
-        }
+  return createTaxonomyRefreshWorker(deps.redis, async (job) => {
+    const requested = job.data.providerCode;
+    const providers = requested ? [requested] : PROVIDERS;
+    for (const providerCode of providers) {
+      try {
+        // A scheduled tick that collides with a manual check is skipped
+        // rather than queued behind it — the same "one at a time, and the
+        // next tick is the retry" rule the generation claim uses.
+        if (!requested && (await deps.refresh.isCheckInFlight(providerCode))) continue;
+        await deps.refresh.runCheck({
+          providerCode,
+          trigger: requested ? 'manual' : 'scheduled',
+          ...(job.data.checkId !== undefined ? { checkId: job.data.checkId } : {}),
+        });
+      } catch (err) {
+        // `runCheck` already swallows its own failures; reaching here means a
+        // defect, and it still must not fail the job (FR-093).
+        deps.logWarn?.('product_feeds: taxonomy check failed', {
+          providerCode,
+          error: String(err),
+        });
       }
-    }),
-  );
+    }
+  });
 }
 
 /**

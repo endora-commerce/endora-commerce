@@ -1,3 +1,4 @@
+import type { FastifyRequest } from 'fastify';
 import type { Queue, Worker } from 'bullmq';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditPort } from '../../kernel/ports/audit.js';
@@ -68,6 +69,12 @@ export interface WebhooksCradle {
   readonly webhookService: WebhookService;
   readonly webhookQueue: Queue<WebhookJobData>;
   readonly webhookDeliveryWorker: Worker<WebhookJobData>;
+  /**
+   * Who the acting admin is, from the production actor (feature 080, T051).
+   * Root-supplied, like the other request resolvers; both roots answer it from
+   * `request.actor` and throw 401 for a non-admin.
+   */
+  readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string };
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -149,6 +156,8 @@ export function registerModule(ctx: ModuleContext): void {
       // stopping the routes (D-40).
       webhookService: lazyPort<WebhookService>(ctx, 'webhookService'),
       requireAdmin,
+      resolveAdminUserId: (request) =>
+        ctx.cradle<WebhooksCradle>().adminContextResolver(request).adminUserId,
     });
   });
 }

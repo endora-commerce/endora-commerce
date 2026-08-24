@@ -1,21 +1,37 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { createWebhookRequestSchema, updateWebhookRequestSchema } from '@endora-commerce/contracts';
 import type { WebhookService } from './services/webhook-service.js';
 import type { Webhook } from './entities/webhook.entity.js';
 import type { WebhookDelivery } from './entities/webhook-delivery.entity.js';
-import { testAdminUserId } from '../../http/test-actor-carrier.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
 export interface WebhooksAdminDeps {
   webhookService: WebhookService;
   requireAdmin: RequireAdminFactory;
+  /**
+   * The acting admin's id, resolved from the request the guard in front of
+   * these routes has already accepted.
+   *
+   * Injected rather than read here, because the read used to be
+   * `testAdminUserId(request)` — `http/test-actor-carrier`, which
+   * `contracts/host-package.md` §1.4j classifies **A**: the file exists to
+   * narrow this repository's test-harness Fastify augmentation, and an
+   * installed package has no relationship to that harness. It also answered
+   * `undefined` in production for every request, because nothing under `src/`
+   * writes `request.testActor`.
+   *
+   * Both composition roots supply it from `adminContextResolver`, which reads
+   * the production actor and throws 401 for a non-admin. Every call site sits
+   * behind `requireAdmin(...)`, so the actor is an admin by the time it runs.
+   */
+  resolveAdminUserId: (request: FastifyRequest) => string;
 }
 
 export async function registerWebhooksAdminRoutes(
   app: FastifyInstance,
   deps: WebhooksAdminDeps,
 ): Promise<void> {
-  const { webhookService, requireAdmin } = deps;
+  const { webhookService, requireAdmin, resolveAdminUserId } = deps;
 
   app.get(
     '/api/v1/admin/webhooks',
@@ -34,14 +50,13 @@ export async function registerWebhooksAdminRoutes(
     },
     async (request, reply) => {
       const body = createWebhookRequestSchema.parse(request.body);
-      const adminId = testAdminUserId(request);
       const w = await webhookService.create({
         name: body.name,
         url: body.url,
         eventTypes: body.eventTypes,
         // Feature 062 — optional organization binding (additive).
         organizationId: body.organizationId ?? null,
-        ...(adminId !== undefined ? { createdByAdminUserId: adminId } : {}),
+        createdByAdminUserId: resolveAdminUserId(request),
       });
       reply.status(201);
       // Reveal the signing secret once, on creation, so the operator can share

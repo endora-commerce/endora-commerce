@@ -27,6 +27,12 @@ export interface IntegrationsModuleOptions {
    * against those modules' tables inside the service.
    */
   bindingPorts: ApiKeyBindingPorts;
+  /**
+   * Who the acting admin is, from the production actor (feature 080, T051).
+   * Threaded through to the admin routes, which used to read
+   * `request.testActor` — see `ApiKeysAdminDeps.resolveAdminUserId`.
+   */
+  resolveAdminUserId: (request: FastifyRequest) => string;
 }
 
 /**
@@ -160,6 +166,7 @@ export function integrationsModule(options: IntegrationsModuleOptions): {
       await registerApiKeysAdminRoutes(app, {
         apiKeyService,
         requireAdmin: options.requireAdmin,
+        resolveAdminUserId: options.resolveAdminUserId,
       });
     },
   };

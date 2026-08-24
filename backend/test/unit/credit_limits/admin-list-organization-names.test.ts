@@ -67,6 +67,8 @@ describe('GET /api/v1/admin/credit-limits — the organisation name', () => {
         customerAccountId: '00000000-0000-4000-8000-0000000000bb',
         organizationId: ORG_ID,
       }),
+      // Unused by this read-only route; the grant route is what needs it.
+      resolveAdminUserId: () => '00000000-0000-4000-8000-0000000000b1',
     };
 
     app = Fastify();

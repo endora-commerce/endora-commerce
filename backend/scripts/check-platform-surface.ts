@@ -228,12 +228,18 @@ export interface LedgeredReach {
  * the contract paragraph that classified it and the event that retires it — an
  * entry is debt with a due date, not a permission.
  *
- * Four of the five groups below are `_lifecycle`'s or a `scripts/` entry
- * point's, and both are already routed: D-160.11 merges `_lifecycle` into the
- * host package (it *is* the platform's operator half wearing a module's
- * directory layout, and it reaches twelve distinct unpublished targets for that
- * reason), and D-160.9 moves a container-less CLI entry point wholesale, as a
- * manifest-declared command the host runs. Neither retires by editing the import.
+ * **What is left after T051's sweep, because the shape of the remainder is the
+ * point.** Twenty-eight of the 33 keys are `_lifecycle`'s and three are a
+ * deployment's own files; both are already routed and neither retires by
+ * editing an import — D-160.11 merges `_lifecycle` into the host package (it
+ * *is* the platform's operator half wearing a module's directory layout, and it
+ * reaches twelve distinct unpublished targets for that reason), and a
+ * per-deployment file under `src/apps/` is never packaged (D-104). Two of the
+ * remaining pair — `REGISTRY_CACHE` and `TOTP_SHIM` — are questions for an
+ * owner rather than repairs, and each says so in its own reason. That is why
+ * the group headers below are worth reading before adding an entry: a new one
+ * that is neither `_lifecycle`'s nor a deliberate question is a module the F4
+ * sweep cannot convert.
  */
 /**
  * §1.4f — the host cannot export the ORM bootstrap, and this is the hardest
@@ -276,22 +282,24 @@ const LIFECYCLE_HOST_HALF =
  * §1.4g and D-103 — a composed module ships `backend.ts` and registers routes
  * through `ctx.routes`; `ModulePlugin` is not published and a module still
  * carrying a `plugin.ts` converts before it can be packaged.
+ *
+ * **Eight of the nine drained in T051, and the retiring condition the entry
+ * used to name was not the one that retired them.** It read *"retires when this
+ * module's `plugin.ts` is gone"*, which conflated the reach with the file: what
+ * a packaged module cannot do is **name an unpublished symbol**, and the attach
+ * function's type is `(app: FastifyInstance) => Promise<void>` whether or not
+ * the body still lives in a `plugin.ts`. The already-packaged `quote_requests`
+ * ships one and types it exactly that way (`src/backend/plugin.ts:124`), which
+ * is the precedent the eight followed. Converting the file is a separate and
+ * larger piece of work; it was never what this reach was waiting for.
+ *
+ * The survivor is `_lifecycle`'s, which retires with D-160.11's merge like its
+ * eleven siblings.
  */
 const MODULE_PLUGIN =
   '§1.4g, D-103 — a composed module ships `backend.ts` and uses `ctx.routes`; `ModulePlugin` ' +
-  'is not published. Retires when this module\'s `plugin.ts` is gone.';
-
-/**
- * §1.4j — the clearest **A** on the list. The file's own header says it exists
- * to narrow `test/helpers/test-actors.ts`' Fastify augmentation out of
- * production code; an installed package has no relationship to this
- * repository's test harness, and a bare specifier into it would be a harness
- * dependency wearing a type's clothes.
- */
-const TEST_ACTOR_CARRIER =
-  '§1.4j — the file narrows this repository\'s test-harness Fastify augmentation out of ' +
-  'production code. An installed package has no relationship to that harness. Retires with ' +
-  'the call site.';
+  'is not published, and the attach function types on `fastify`\'s own `FastifyInstance` ' +
+  'instead. This one is `_lifecycle`\'s and retires with D-160.11.';
 
 /**
  * §1.4b, §8 step 4 and D-160.9 — a CLI entry point that deliberately composes
@@ -313,34 +321,69 @@ const CONTAINERLESS_CLI =
  * §1.4c — the **A** half of `plugin-helpers`' by-symbol split. A composed module
  * uses `ctx.worker` / `ctx.subscribe`; publishing the wrappers directly would
  * re-open by bare specifier the seam `check:subscribe-seam` closed by relative
- * path. `_lifecycle`'s `pauseWorkersFor` / `resumeWorkersFor` pair is the
- * orchestrator's own and retires with D-160.11.
+ * path.
+ *
+ * **Nine of the ten drained in T051, in two shapes.** Where the worker is
+ * constructed by a factory the module composition calls (`product_feeds`'s
+ * four, `pim_ergonode`'s two, `ksef`'s one), the factory returns the plain
+ * `Worker` and the module's `backend.ts` hands it to `ctx.worker`. Where it is
+ * constructed inside the attach function because it needs `app.log` or an
+ * awaited settings read (`newsletter`'s three, `catalog`'s one), the module
+ * takes `ctx.worker` as a `registerWorker` option — the same gate, reached
+ * through the seam a composed module is meant to use, from a file that has no
+ * `ModuleContext` in scope. `ksef`'s two `subscribeForModule` calls moved to
+ * `ctx.subscribe` in the same way, the handler staying in the module's service
+ * graph and the registration living in `backend.ts` (issue #107).
+ *
+ * The survivor is `_lifecycle`'s `pauseWorkersFor` / `resumeWorkersFor` pair,
+ * which is the orchestrator's own and retires with D-160.11.
  */
 const WORKER_WRAPPERS =
   '§1.4c — the A half of `plugin-helpers`\' by-symbol split: a composed module uses ' +
   '`ctx.worker` / `ctx.subscribe`, and publishing the wrappers would re-open by bare ' +
-  'specifier the seam `check:subscribe-seam` closed. Retires when the registration moves ' +
-  'to `backend.ts`.';
+  'specifier the seam `check:subscribe-seam` closed. This pair is the orchestrator\'s own ' +
+  'and retires with D-160.11.';
 
 /**
  * §1.4h — a packaged module reads presence through `effectiveState` (§1.3 row
  * 11, **P**), never through the cache the combiner is built on or the Redis
  * channel it is invalidated over.
+ *
+ * **T051 left this one standing on purpose, and it is worth writing down why,
+ * because the obvious repair is not available and the second-obvious one is a
+ * ruling rather than a change.**
+ *
+ * `AdminActionsService` subscribes to the raw Redis channel
+ * `STATE_CHANGED_CHANNEL` and drops its palette snapshot on every message. The
+ * reason above says it retires when that invalidation is *"an event the module
+ * subscribes to through `ctx.subscribe`"* — but `ctx.subscribe` is the
+ * **in-process** `EventBus`, and the notification it would carry is
+ * cross-process by construction: an operator flips a module in one process and
+ * every other process has to hear it. Bridging Redis into the `EventBus` is a
+ * new platform seam and a design decision, not a re-point.
+ *
+ * The second route is deletion, and the evidence for it is strong enough to
+ * state and not strong enough to act on unasked. Issue #225 gave this module a
+ * `presenceVersion()` reading through the injected `ModulePresenceProbe`, and
+ * `listVisibleForOperator` compares it **before** it serves anything — so a
+ * snapshot built before a refresh is already dropped on the next read, which is
+ * the half of #225 that was the fix. Every path that changes `module_actions`
+ * rows (`installForModule`, `removeForModule`) runs on an install or an
+ * uninstall, and both move platform availability, so both move the version.
+ * What deleting the subscription would cost is the *eager* drop — the half
+ * `test/integration/admin_actions/presence-refresh-window.integration.test.ts`
+ * exists to reason about, and whose own header calls the answer it produces
+ * mid-refresh stale and unavoidable.
+ *
+ * So: does the presence-version check subsume the pub/sub invalidation? If it
+ * does, this reach retires by deleting eight lines and the module is
+ * packageable. That is a claim about what a future reconciler may do, which
+ * makes it the owner's rather than an implementer's.
  */
 const REGISTRY_CACHE =
   '§1.4h — presence is read through `effectiveState` (row 11, P), not through the cache the ' +
-  'combiner is built on. Retires when the invalidation is an event the module subscribes to ' +
-  'through `ctx.subscribe`.';
-
-/**
- * §1.4l and §1.5 — `overlay/*` is how the platform *discovers* overlays. A
- * package reading it would be an installed artefact enumerating its own
- * siblings, which is the cycle O3 identifies for the manifest index.
- */
-const OVERLAY_ROOTS =
-  '§1.4l, §1.5 — `overlay/*` is how the platform discovers overlays; an installed artefact ' +
-  'enumerating its own siblings is O3\'s cycle. Retires when the inventory reads the ' +
-  'deployment\'s modules through the lifecycle\'s resolved set.';
+  'combiner is built on. T051 left it deliberately: the stated retirement needs a platform ' +
+  'seam that does not exist, and the alternative is an owner ruling. See the block above.';
 
 /**
  * Not a module's file at all.
@@ -418,16 +461,8 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/modules/_lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
   'backend/src/modules/_lifecycle/services/reduced-deployment.ts|backend/src/overlay/overlay-roots.ts': { symbols: ['selectedDeployment'], reason: LIFECYCLE_HOST_HALF },
 
-  // === MODULE_PLUGIN (9) ===
+  // === MODULE_PLUGIN (1) ===
   'backend/src/modules/_lifecycle/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/admin_actions/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/customers/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/invoices/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/ksef/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/mfa/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/newsletter/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/pim_ergonode/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/product_feeds/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
 
   // === ORM_BOOTSTRAP (5) ===
   'backend/src/modules/_lifecycle/scripts/disable.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
@@ -436,32 +471,14 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/modules/_lifecycle/scripts/status.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
   'backend/src/modules/_lifecycle/scripts/uninstall.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
 
-  // === OVERLAY_ROOTS (1) ===
-  'backend/src/modules/admin_roles/permission-inventory.ts|backend/src/overlay/overlay-roots.ts': { symbols: ['activeOverlayModulesRoot'], reason: OVERLAY_ROOTS },
-
   // === REGISTRY_CACHE (1) ===
   'backend/src/modules/admin_actions/services/admin-actions-service.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['STATE_CHANGED_CHANNEL'], reason: REGISTRY_CACHE },
-
-  // === TEST_ACTOR_CARRIER (4) ===
-  'backend/src/modules/admin_users/routes.impersonation.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['TestActorCarrier'], reason: TEST_ACTOR_CARRIER },
-  'backend/src/modules/api_keys/routes.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
-  'backend/src/modules/credit_limits/routes.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
-  'backend/src/modules/webhooks/routes.ts|packages/platform/src/http/test-actor-carrier.ts': { symbols: ['testAdminUserId'], reason: TEST_ACTOR_CARRIER },
 
   // === TOTP_SHIM (1) ===
   'backend/src/modules/auth/services/totp-service.ts|packages/platform/src/kernel/crypto/totp.ts': { symbols: ['EnrolmentResult', 'hashBackupCode', 'matchBackupCode'], reason: TOTP_SHIM },
 
-  // === WORKER_WRAPPERS (10) ===
+  // === WORKER_WRAPPERS (1) ===
   'backend/src/modules/_lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['pauseWorkersFor', 'resumeWorkersFor'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/catalog/plugin.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/ksef/plugin.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker', 'subscribeForModule'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/newsletter/plugin.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/pim_ergonode/workers/import-reaper-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/pim_ergonode/workers/import-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/feed-delivery-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/feed-generation-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/feed-run-reaper-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/taxonomy-refresh-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
 };
 
 export interface PlatformSurfaceInput {

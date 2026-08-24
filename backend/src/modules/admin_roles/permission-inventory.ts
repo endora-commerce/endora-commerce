@@ -1,7 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { activeOverlayModulesRoot } from '../../overlay/overlay-roots.js';
 
 /**
  * Static inventory of the permission codes the backend actually enforces.
@@ -97,10 +96,19 @@ export interface PermissionScanRoot {
  * module out silently reports its codes as *"grantable but enforced by no
  * gate"* — a checkbox `/admin-roles` says grants nothing while the gate is
  * there — which is what the contract test caught the day `blog` moved.
+ *
+ * **The overlay root is an input for the same reason** (feature 080, T051). It
+ * used to be computed here, from `overlay/overlay-roots.js` — a file
+ * `contracts/host-package.md` §1.4l classifies **A**, because `overlay/*` is
+ * how the platform *discovers* overlays and a module reading it as an installed
+ * package would be an artefact enumerating its own siblings (O3's cycle). The
+ * answer is the same one this paragraph already gives for a packaged module:
+ * the caller resolves the layout, and there is no runtime caller to inconvenience.
+ * `null` means a bare-core build, which is what a deployment-less environment
+ * has always produced.
  */
-export function defaultScanRoots(env: NodeJS.ProcessEnv = process.env): string[] {
-  const overlayRoot = activeOverlayModulesRoot(env);
-  return overlayRoot === null ? [BACKEND_SRC] : [BACKEND_SRC, overlayRoot];
+export function defaultScanRoots(overlayModulesRoot: string | null): string[] {
+  return overlayModulesRoot === null ? [BACKEND_SRC] : [BACKEND_SRC, overlayModulesRoot];
 }
 
 /**
@@ -108,14 +116,21 @@ export function defaultScanRoots(env: NodeJS.ProcessEnv = process.env): string[]
  * roots. Kept for callers that only need the set (SC-001).
  */
 export function scanEnforcedPermissionCodes(
-  roots?: readonly (string | PermissionScanRoot)[],
+  roots: readonly (string | PermissionScanRoot)[],
 ): Set<string> {
   return scanEnforcedPermissionGates(roots).codes;
 }
 
-/** Every enforcement site under `roots`, classified. */
+/**
+ * Every enforcement site under `roots`, classified.
+ *
+ * `roots` is required. It used to default to `defaultScanRoots()`, which
+ * resolved the active deployment for itself; that resolution is the caller's
+ * now (see {@link defaultScanRoots}), and a default of "bare core" would be a
+ * scan that silently covered less than it was asked for.
+ */
 export function scanEnforcedPermissionGates(
-  roots: readonly (string | PermissionScanRoot)[] = defaultScanRoots(),
+  roots: readonly (string | PermissionScanRoot)[],
 ): PermissionScanResult {
   const sites: EnforcedGateSite[] = [];
   const seen = new Set<string>();

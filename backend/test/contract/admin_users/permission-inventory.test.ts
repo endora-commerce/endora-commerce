@@ -10,6 +10,7 @@ import {
   scanEnforcedPermissionGates,
 } from '../../../src/modules/admin_roles/permission-inventory.js';
 import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
+import { activeOverlayModulesRoot } from '../../../src/overlay/overlay-roots.js';
 import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
 
 /**
@@ -68,7 +69,12 @@ const RESOLVED_MANIFESTS = await resolvedManifestEntries();
 const SCAN_ROOTS = await (async () => {
   const layout = await resolveModuleLayout();
   return [
-    ...defaultScanRoots(),
+    // The active deployment's overlay modules are resolved here too, since
+    // feature 080's T051: `overlay/*` is how the platform discovers overlays,
+    // and a module reading it as an installed package would be an artefact
+    // enumerating its own siblings (`contracts/host-package.md` §1.4l). This
+    // file is not a module.
+    ...defaultScanRoots(activeOverlayModulesRoot()),
     ...layout.moduleRoots
       .filter((root) => root.moduleId !== null)
       .map((root) => ({ dir: root.directory, moduleId: root.moduleId as string })),

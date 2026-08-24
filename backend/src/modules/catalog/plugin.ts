@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { Worker } from 'bullmq';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import type { CommandBus } from '../../commands/index.js';
@@ -18,7 +19,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
-import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
+import type { WorkerLogger } from '../../kernel/lifecycle/plugin-helpers.js';
 import {
   createBulkOperationQueue,
   createBulkOperationWorker,
@@ -189,6 +190,19 @@ export interface CatalogModuleOptions {
    * independently scalable process without code changes.
    */
   runBulkOperationWorker?: boolean;
+  /**
+   * The lifecycle gate for a constructed BullMQ worker — `ctx.worker`, threaded
+   * in by `backend.ts`.
+   *
+   * The consumer is built inside the attach function, because it needs
+   * `app.log` and an `onClose` hook, so this file has no `ModuleContext` where
+   * the worker exists. It called `defineModuleWorker('catalog', …)` directly
+   * until T051, which `contracts/host-package.md` §1.4c classifies **A**:
+   * publishing that wrapper would re-open by bare specifier the seam
+   * `check:subscribe-seam` closed by relative path. Taking the seam as an
+   * argument is the same gate reached the sanctioned way.
+   */
+  registerWorker: (worker: Worker, options?: { logger?: WorkerLogger }) => void;
   /**
    * Runs a full Meilisearch reindex (the `search:reindex` CLI equivalent).
    * When provided, flipping an attribute's `searchable` flag enqueues a
@@ -502,21 +516,12 @@ export function catalogModule(options: CatalogModuleOptions) {
       // BullMQ workers issue blocking Redis commands, so they need a
       // dedicated connection rather than the app's shared client.
       const workerConnection = options.redis.duplicate();
-      const worker = defineModuleWorker(
-        'catalog',
-        createBulkOperationWorker(workerConnection, async (job) => {
-          app.log.info(
-            { operationId: job.data.operationId },
-            'bulk-operation processing started',
-          );
-          await svc.processById(job.data.operationId);
-          app.log.info(
-            { operationId: job.data.operationId },
-            'bulk-operation processing finished',
-          );
-        }),
-        { logger: app.log },
-      );
+      const worker = createBulkOperationWorker(workerConnection, async (job) => {
+        app.log.info({ operationId: job.data.operationId }, 'bulk-operation processing started');
+        await svc.processById(job.data.operationId);
+        app.log.info({ operationId: job.data.operationId }, 'bulk-operation processing finished');
+      });
+      options.registerWorker(worker, { logger: app.log });
       app.addHook('onClose', async () => {
         await worker.close();
         workerConnection.disconnect();

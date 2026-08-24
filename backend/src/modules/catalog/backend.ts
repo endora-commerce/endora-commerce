@@ -320,6 +320,16 @@ export function registerModule(ctx: ModuleContext): void {
             auditLogService,
             ...(moduleQueueRedis === undefined ? {} : { redis: moduleQueueRedis }),
             runBulkOperationWorker: catalogRunBulkOperationWorker,
+            // The lifecycle gate, threaded in rather than imported. The
+            // consumer is built inside the attach function — it needs `app.log`
+            // and an `onClose` hook — so `plugin.ts` has no `ModuleContext`
+            // where the worker exists; it called
+            // `defineModuleWorker('catalog', …)` for itself until T051, which
+            // `contracts/host-package.md` §1.4c classifies **A**. Same gate,
+            // through the seam a composed module is meant to use.
+            registerWorker: (worker, workerOptions) => {
+              ctx.worker(worker, workerOptions);
+            },
             customFieldValues: lazyPort<CatalogCradle['customFieldValueService']>(
               ctx,
               'customFieldValueService',

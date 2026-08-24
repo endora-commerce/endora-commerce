@@ -14,9 +14,9 @@ import { enterSystemScope } from '../../../../kernel/scope.js';
  *    heartbeat went stale (FR-036).
  *
  * Producers (the manual-run HTTP handler, the per-feed Job Scheduler) only
- * enqueue and return. Consumers are registered through
- * `defineModuleWorker('product_feeds', …)` as separable entrypoints and run
- * co-located unless `BACKEND_ROLE=api`.
+ * enqueue and return. Consumers are constructed in `workers/` and registered
+ * through `ctx.worker` as separable entrypoints; they run co-located unless
+ * `BACKEND_ROLE=api`.
  *
  * Retries are deliberately few: a generation attempt is expensive, and a
  * failure is nearly always a configuration problem the operator must see

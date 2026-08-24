@@ -102,6 +102,11 @@ export function adminModule(
       await registerImpersonationRoutes(app, {
         impersonationService,
         requireAdmin: options.requireAdmin,
+        // The production actor. This route used to read `request.testActor`
+        // and 401 whenever it was absent, which is every production request
+        // (feature 080, T051) — the module already had the right resolver in
+        // hand for `GET /admin/me`.
+        resolveAdminUserId: (req) => options.resolveAdminContext(req).adminUserId,
       });
       await registerAdminUsersAdminRoutes(app, {
         adminUserService,

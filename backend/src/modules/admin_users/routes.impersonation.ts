@@ -6,7 +6,6 @@ import {
   impersonationRequestSchema,
 } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import type { TestActorCarrier } from '../../http/test-actor-carrier.js';
 import type { ImpersonationService } from './services/impersonation-service.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
@@ -28,13 +27,29 @@ const ADMIN_SHADOW_COOKIE = 'admin_shadow_session';
 export interface ImpersonationDeps {
   impersonationService: ImpersonationService;
   requireAdmin: RequireAdminFactory;
+  /**
+   * The acting admin's id, resolved from the request the
+   * `requireAdmin('customers:impersonate')` guard has already accepted.
+   *
+   * It used to be read here from `request.testActor`, narrowed through
+   * `http/test-actor-carrier` — a file `contracts/host-package.md` §1.4j
+   * classifies **A**, because it exists to keep this repository's test-harness
+   * Fastify augmentation out of production code and an installed package has no
+   * relationship to that harness. Nothing under `src/` writes that field, so the
+   * inline check answered `401 Admin session required` to every production
+   * request while the guard in front of it was doing the real gating.
+   *
+   * Both composition roots supply it from `adminContextResolver`, which reads
+   * the production actor and throws 401 for a non-admin.
+   */
+  resolveAdminUserId: (request: FastifyRequest) => string;
 }
 
 export async function registerImpersonationRoutes(
   app: FastifyInstance,
   deps: ImpersonationDeps,
 ): Promise<void> {
-  const { impersonationService, requireAdmin } = deps;
+  const { impersonationService, requireAdmin, resolveAdminUserId } = deps;
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id/impersonate',
@@ -44,14 +59,7 @@ export async function registerImpersonationRoutes(
     },
     async (request, reply) => {
       const body = impersonationRequestSchema.parse(request.body);
-      // The test harness decorates `request.testActor` (test/helpers/test-actors.ts).
-      // Narrow it locally rather than relying on that file's global `fastify`
-      // augmentation — it lives under test/, which tsconfig.build.json excludes.
-      const testActor = (request as FastifyRequest & TestActorCarrier).testActor;
-      if (testActor?.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      const adminId = testActor.adminUserId;
+      const adminId = resolveAdminUserId(request);
 
       const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
       // The admin's own session lives in the dedicated admin cookie; fall back to
