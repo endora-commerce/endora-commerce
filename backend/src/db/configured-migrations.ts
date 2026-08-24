@@ -212,8 +212,26 @@ export function configuredMigrationsFrom(inputs: {
   };
 }
 
-/** The committed core dependency map: `core`, plus every manifest the index holds. */
-function coreModuleDependencies(): Map<string, readonly string[]> {
+/**
+ * The committed core dependency map: `core`, plus every manifest the index
+ * holds.
+ *
+ * This is **the** derivation of the migration ordering graph — the one
+ * expression in this platform that turns manifests into the edges
+ * `orderMigrations` walks. D-44 §8 singles it out as the site most likely to be
+ * broken by a well-meaning later edit, because unioning `nonBindingDependencies`
+ * or `acknowledgedDependencies` into it is a two-word change that no type would
+ * catch and that buys a cross-module foreign key whose ordering claim lives in
+ * an array `fk-dependency-drift.test.ts` does not read.
+ *
+ * It is exported for the same reason {@link configuredMigrationsFrom} is: so a
+ * guard can drive the real derivation instead of reading its source text.
+ * `test/contract/_lifecycle/non-binding-dependencies.contract.test.ts` calls it
+ * over the live manifests and holds every entry to `manifest.dependencies`
+ * exactly. Nothing in `src` calls it but {@link configuredMigrations} — a second
+ * caller would be a second ordering graph, which that same guard refuses.
+ */
+export function coreModuleDependencies(): Map<string, readonly string[]> {
   return new Map<string, readonly string[]>([
     [CORE_MODULE_ID, []],
     ...DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
