@@ -36,15 +36,15 @@ import { resolveManifestPath } from './manifest-locations.js';
 
 import { manifest as manifest0, lifecycleParticipant as lifecycleParticipant0, cliCommands as cliCommands0 } from '../_i18n/manifest.js';
 import { manifest as manifest1 } from '../_lifecycle/manifest.js';
-import { manifest as manifest2 } from '../addresses/manifest.js';
+import { manifest as manifest2 } from '@endora-commerce/mod-addresses';
 import { manifest as manifest3, lifecycleParticipant as lifecycleParticipant3 } from '../admin_actions/manifest.js';
 import { manifest as manifest4 } from '../admin_notifications/manifest.js';
 import { manifest as manifest5 } from '../admin_roles/manifest.js';
 import { manifest as manifest6, cliCommands as cliCommands6 } from '../admin_users/manifest.js';
-import { manifest as manifest7 } from '../analytics/manifest.js';
+import { manifest as manifest7 } from '@endora-commerce/mod-analytics';
 import { manifest as manifest8 } from '../api_keys/manifest.js';
 import { manifest as manifest9 } from '../assets_library/manifest.js';
-import { manifest as manifest10, cliCommands as cliCommands10 } from '../audit_logs/manifest.js';
+import { manifest as manifest10, cliCommands as cliCommands10 } from '@endora-commerce/mod-audit-logs';
 import { manifest as manifest11 } from '../auth/manifest.js';
 import { manifest as manifest12 } from '../autopay/manifest.js';
 import { manifest as manifest13 } from '@endora-commerce/mod-blog';
@@ -54,7 +54,7 @@ import { manifest as manifest16 } from '../cms/manifest.js';
 import { manifest as manifest17 } from '../comparisons/manifest.js';
 import { manifest as manifest18 } from '../credentials/manifest.js';
 import { manifest as manifest19 } from '@endora-commerce/mod-credit-limits';
-import { manifest as manifest20 } from '../currencies/manifest.js';
+import { manifest as manifest20 } from '@endora-commerce/mod-currencies';
 import { manifest as manifest21, uninstallHook as uninstallHook21 } from '../custom_fields/manifest.js';
 import { manifest as manifest22 } from '../customer_accounts/manifest.js';
 import { manifest as manifest23 } from '../customers/manifest.js';
@@ -63,12 +63,12 @@ import { manifest as manifest25 } from '../dictionaries/manifest.js';
 import { manifest as manifest26 } from '../email/manifest.js';
 import { manifest as manifest27 } from '@endora-commerce/mod-google-analytics';
 import { manifest as manifest28 } from '../google_tag_manager/manifest.js';
-import { manifest as manifest29 } from '../health_checks/manifest.js';
-import { manifest as manifest30 } from '../import_export/manifest.js';
+import { manifest as manifest29 } from '@endora-commerce/mod-health-checks';
+import { manifest as manifest30 } from '@endora-commerce/mod-import-export';
 import { manifest as manifest31, recentActivity as recentActivity31 } from '../inventory/manifest.js';
 import { manifest as manifest32 } from '../invoices/manifest.js';
 import { manifest as manifest33 } from '../ksef/manifest.js';
-import { manifest as manifest34 } from '../languages/manifest.js';
+import { manifest as manifest34 } from '@endora-commerce/mod-languages';
 import { manifest as manifest35 } from '../linkedin_ads/manifest.js';
 import { manifest as manifest36 } from '../megamenu/manifest.js';
 import { manifest as manifest37 } from '../meta_ads/manifest.js';
@@ -76,7 +76,7 @@ import { manifest as manifest38 } from '../mfa/manifest.js';
 import { manifest as manifest39 } from '../newsletter/manifest.js';
 import { manifest as manifest40 } from '../orders/manifest.js';
 import { manifest as manifest41 } from '../organizations/manifest.js';
-import { manifest as manifest42 } from '../payment_methods/manifest.js';
+import { manifest as manifest42 } from '@endora-commerce/mod-payment-methods';
 import { manifest as manifest43 } from '../payments/manifest.js';
 import { manifest as manifest44 } from '../paypal/manifest.js';
 import { manifest as manifest45 } from '../payu/manifest.js';
@@ -91,9 +91,9 @@ import { manifest as manifest53 } from '@endora-commerce/mod-quote-requests';
 import { manifest as manifest54 } from '../returns/manifest.js';
 import { manifest as manifest55 } from '../sales_channels/manifest.js';
 import { manifest as manifest56, cliCommands as cliCommands56 } from '../search/manifest.js';
-import { manifest as manifest57 } from '../seo/manifest.js';
+import { manifest as manifest57 } from '@endora-commerce/mod-seo';
 import { manifest as manifest58, cliCommands as cliCommands58 } from '../settings/manifest.js';
-import { manifest as manifest59 } from '../shipments/manifest.js';
+import { manifest as manifest59 } from '@endora-commerce/mod-shipments';
 import { manifest as manifest60 } from '../shopping_lists/manifest.js';
 import { manifest as manifest61 } from '../stripe/manifest.js';
 import { manifest as manifest62 } from '../taxes/manifest.js';
@@ -120,15 +120,15 @@ export interface DiscoveredManifestEntry {
 export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: '_i18n', manifest: manifest0, manifestPath: resolveManifestPath(import.meta.url, '../_i18n/manifest.js'), lifecycleParticipant: lifecycleParticipant0, cliCommands: cliCommands0 },
   { id: '_lifecycle', manifest: manifest1, manifestPath: resolveManifestPath(import.meta.url, '../_lifecycle/manifest.js') },
-  { id: 'addresses', manifest: manifest2, manifestPath: resolveManifestPath(import.meta.url, '../addresses/manifest.js') },
+  { id: 'addresses', manifest: manifest2, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-addresses') },
   { id: 'admin_actions', manifest: manifest3, manifestPath: resolveManifestPath(import.meta.url, '../admin_actions/manifest.js'), lifecycleParticipant: lifecycleParticipant3 },
   { id: 'admin_notifications', manifest: manifest4, manifestPath: resolveManifestPath(import.meta.url, '../admin_notifications/manifest.js') },
   { id: 'admin_roles', manifest: manifest5, manifestPath: resolveManifestPath(import.meta.url, '../admin_roles/manifest.js') },
   { id: 'admin_users', manifest: manifest6, manifestPath: resolveManifestPath(import.meta.url, '../admin_users/manifest.js'), cliCommands: cliCommands6 },
-  { id: 'analytics', manifest: manifest7, manifestPath: resolveManifestPath(import.meta.url, '../analytics/manifest.js') },
+  { id: 'analytics', manifest: manifest7, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-analytics') },
   { id: 'api_keys', manifest: manifest8, manifestPath: resolveManifestPath(import.meta.url, '../api_keys/manifest.js') },
   { id: 'assets_library', manifest: manifest9, manifestPath: resolveManifestPath(import.meta.url, '../assets_library/manifest.js') },
-  { id: 'audit_logs', manifest: manifest10, manifestPath: resolveManifestPath(import.meta.url, '../audit_logs/manifest.js'), cliCommands: cliCommands10 },
+  { id: 'audit_logs', manifest: manifest10, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-audit-logs'), cliCommands: cliCommands10 },
   { id: 'auth', manifest: manifest11, manifestPath: resolveManifestPath(import.meta.url, '../auth/manifest.js') },
   { id: 'autopay', manifest: manifest12, manifestPath: resolveManifestPath(import.meta.url, '../autopay/manifest.js') },
   { id: 'blog', manifest: manifest13, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-blog') },
@@ -138,7 +138,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'comparisons', manifest: manifest17, manifestPath: resolveManifestPath(import.meta.url, '../comparisons/manifest.js') },
   { id: 'credentials', manifest: manifest18, manifestPath: resolveManifestPath(import.meta.url, '../credentials/manifest.js') },
   { id: 'credit_limits', manifest: manifest19, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-credit-limits') },
-  { id: 'currencies', manifest: manifest20, manifestPath: resolveManifestPath(import.meta.url, '../currencies/manifest.js') },
+  { id: 'currencies', manifest: manifest20, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-currencies') },
   { id: 'custom_fields', manifest: manifest21, manifestPath: resolveManifestPath(import.meta.url, '../custom_fields/manifest.js'), uninstallHook: uninstallHook21 },
   { id: 'customer_accounts', manifest: manifest22, manifestPath: resolveManifestPath(import.meta.url, '../customer_accounts/manifest.js') },
   { id: 'customers', manifest: manifest23, manifestPath: resolveManifestPath(import.meta.url, '../customers/manifest.js') },
@@ -147,12 +147,12 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'email', manifest: manifest26, manifestPath: resolveManifestPath(import.meta.url, '../email/manifest.js') },
   { id: 'google_analytics', manifest: manifest27, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-google-analytics') },
   { id: 'google_tag_manager', manifest: manifest28, manifestPath: resolveManifestPath(import.meta.url, '../google_tag_manager/manifest.js') },
-  { id: 'health_checks', manifest: manifest29, manifestPath: resolveManifestPath(import.meta.url, '../health_checks/manifest.js') },
-  { id: 'import_export', manifest: manifest30, manifestPath: resolveManifestPath(import.meta.url, '../import_export/manifest.js') },
+  { id: 'health_checks', manifest: manifest29, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-health-checks') },
+  { id: 'import_export', manifest: manifest30, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-import-export') },
   { id: 'inventory', manifest: manifest31, manifestPath: resolveManifestPath(import.meta.url, '../inventory/manifest.js'), recentActivity: recentActivity31 },
   { id: 'invoices', manifest: manifest32, manifestPath: resolveManifestPath(import.meta.url, '../invoices/manifest.js') },
   { id: 'ksef', manifest: manifest33, manifestPath: resolveManifestPath(import.meta.url, '../ksef/manifest.js') },
-  { id: 'languages', manifest: manifest34, manifestPath: resolveManifestPath(import.meta.url, '../languages/manifest.js') },
+  { id: 'languages', manifest: manifest34, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-languages') },
   { id: 'linkedin_ads', manifest: manifest35, manifestPath: resolveManifestPath(import.meta.url, '../linkedin_ads/manifest.js') },
   { id: 'megamenu', manifest: manifest36, manifestPath: resolveManifestPath(import.meta.url, '../megamenu/manifest.js') },
   { id: 'meta_ads', manifest: manifest37, manifestPath: resolveManifestPath(import.meta.url, '../meta_ads/manifest.js') },
@@ -160,7 +160,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'newsletter', manifest: manifest39, manifestPath: resolveManifestPath(import.meta.url, '../newsletter/manifest.js') },
   { id: 'orders', manifest: manifest40, manifestPath: resolveManifestPath(import.meta.url, '../orders/manifest.js') },
   { id: 'organizations', manifest: manifest41, manifestPath: resolveManifestPath(import.meta.url, '../organizations/manifest.js') },
-  { id: 'payment_methods', manifest: manifest42, manifestPath: resolveManifestPath(import.meta.url, '../payment_methods/manifest.js') },
+  { id: 'payment_methods', manifest: manifest42, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-payment-methods') },
   { id: 'payments', manifest: manifest43, manifestPath: resolveManifestPath(import.meta.url, '../payments/manifest.js') },
   { id: 'paypal', manifest: manifest44, manifestPath: resolveManifestPath(import.meta.url, '../paypal/manifest.js') },
   { id: 'payu', manifest: manifest45, manifestPath: resolveManifestPath(import.meta.url, '../payu/manifest.js') },
@@ -175,9 +175,9 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'returns', manifest: manifest54, manifestPath: resolveManifestPath(import.meta.url, '../returns/manifest.js') },
   { id: 'sales_channels', manifest: manifest55, manifestPath: resolveManifestPath(import.meta.url, '../sales_channels/manifest.js') },
   { id: 'search', manifest: manifest56, manifestPath: resolveManifestPath(import.meta.url, '../search/manifest.js'), cliCommands: cliCommands56 },
-  { id: 'seo', manifest: manifest57, manifestPath: resolveManifestPath(import.meta.url, '../seo/manifest.js') },
+  { id: 'seo', manifest: manifest57, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-seo') },
   { id: 'settings', manifest: manifest58, manifestPath: resolveManifestPath(import.meta.url, '../settings/manifest.js'), cliCommands: cliCommands58 },
-  { id: 'shipments', manifest: manifest59, manifestPath: resolveManifestPath(import.meta.url, '../shipments/manifest.js') },
+  { id: 'shipments', manifest: manifest59, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-shipments') },
   { id: 'shopping_lists', manifest: manifest60, manifestPath: resolveManifestPath(import.meta.url, '../shopping_lists/manifest.js') },
   { id: 'stripe', manifest: manifest61, manifestPath: resolveManifestPath(import.meta.url, '../stripe/manifest.js') },
   { id: 'taxes', manifest: manifest62, manifestPath: resolveManifestPath(import.meta.url, '../taxes/manifest.js') },

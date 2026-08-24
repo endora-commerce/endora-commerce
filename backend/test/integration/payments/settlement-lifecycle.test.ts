@@ -11,7 +11,7 @@ import {
   SEED_DELIVERY_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethod, type PaymentMethodRow } from '../../helpers/package-entities.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
@@ -73,7 +73,7 @@ describe('payment settlement moves the order through the lifecycle (085 Phase D)
   async function methodWith(statuses: {
     statusOnSuccess?: string;
     statusOnFailure?: string;
-  }): Promise<PaymentMethod> {
+  }): Promise<PaymentMethodRow> {
     const em = h.em();
     const method = em.create(PaymentMethod, {
       code: `sl_${randomUUID().slice(0, 8)}`,
@@ -90,7 +90,7 @@ describe('payment settlement moves the order through the lifecycle (085 Phase D)
   }
 
   /** Places a one-line order as the stub buyer, which is what allocates stock. */
-  async function place(method: PaymentMethod): Promise<PlacedOrder> {
+  async function place(method: PaymentMethodRow): Promise<PlacedOrder> {
     const add = await h.app.inject({
       method: 'POST',
       url: '/api/v1/cart/items',

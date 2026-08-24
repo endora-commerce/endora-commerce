@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { DictionaryReferenceDescriptor } from '@endora-commerce/contracts';
 import { CONTRIBUTION_POLICY_STATED } from '../../../scripts/check-port-dependencies.js';
 import { CountryReferenceRegistry } from '../../../src/modules/dictionaries/services/country-reference-registry.js';
-import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
-import { CurrencyReferenceRegistry } from '../../../src/modules/currencies/services/currency-reference-registry.js';
+import { LanguageReferenceRegistry } from '../../../../packages/modules/languages/src/backend/services/language-reference-registry.js';
+import { CurrencyReferenceRegistry } from '../../../../packages/modules/currencies/src/backend/services/currency-reference-registry.js';
 
 /**
  * The three dictionary reference registries (feature 077, D-87 drain).

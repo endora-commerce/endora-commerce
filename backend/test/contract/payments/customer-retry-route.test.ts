@@ -15,7 +15,7 @@ import {
   TEST_SUSPENDED_CUSTOMER_ID,
   TEST_SUSPENDED_ORGANIZATION_ID,
 } from '../../helpers/seed-commerce.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethod } from '../../helpers/package-entities.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 

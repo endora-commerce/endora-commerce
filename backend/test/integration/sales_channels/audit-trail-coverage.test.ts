@@ -44,13 +44,13 @@ describe('audit trail coverage (T048)', () => {
       // `is_default = false` than juggling cross-test state.
       await em.persistAndFlush(
         em.create(
-          (await import('../../../src/modules/languages/entities/language.entity.js')).Language,
+          (await import('../../helpers/package-entities.js')).Language,
           { code: 'en-T048', label: 'English (T048)', isDefault: false, isActive: true, sortOrder: 99 },
         ),
       );
       await em.persistAndFlush(
         em.create(
-          (await import('../../../src/modules/currencies/entities/currency.entity.js')).Currency,
+          (await import('../../helpers/package-entities.js')).Currency,
           {
             code: 'XEU',
             label: 'Euro (T048)',

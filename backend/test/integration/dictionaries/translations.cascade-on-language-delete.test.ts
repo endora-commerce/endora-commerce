@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 import { DictionaryTranslation } from '../../../src/modules/dictionaries/entities/dictionary-translation.entity.js';
-import { Language } from '../../../src/modules/languages/entities/language.entity.js';
+import { Language } from '../../helpers/package-entities.js';
 import { runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 
 describe('Dictionary translations — cascade on language delete', () => {

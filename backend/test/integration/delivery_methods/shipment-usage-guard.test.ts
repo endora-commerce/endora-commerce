@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
-import { Shipment } from '../../../src/modules/shipments/entities/shipment.entity.js';
+import { Shipment } from '../../helpers/package-entities.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 
 /**

@@ -16,12 +16,12 @@ import {
   type SettlementLogger,
 } from '../../../src/modules/payments/services/receive-payment-handler.js';
 import { PaymentService } from '../../../src/modules/payments/services/payment-service.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethod, type PaymentMethodRow } from '../../helpers/package-entities.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 
 interface Fixture {
-  method: PaymentMethod;
+  method: PaymentMethodRow;
   order: Order;
   payment: Payment;
 }

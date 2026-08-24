@@ -4,10 +4,10 @@ import type { DictionaryReferenceRegistryPort } from '@endora-commerce/contracts
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { CountryReferenceRegistry } from '../../../src/modules/dictionaries/services/country-reference-registry.js';
-import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
-import { CurrencyReferenceRegistry } from '../../../src/modules/currencies/services/currency-reference-registry.js';
+import { LanguageReferenceRegistry } from '../../../../packages/modules/languages/src/backend/services/language-reference-registry.js';
+import { CurrencyReferenceRegistry } from '../../../../packages/modules/currencies/src/backend/services/currency-reference-registry.js';
 import { registerCountryCurrencyReference } from '../../../src/modules/dictionaries/services/country-currency-reference.js';
-import { registerAddressCountryReferences } from '../../../src/modules/addresses/services/address-country-reference.js';
+import { registerAddressCountryReferences } from '../../../../packages/modules/addresses/src/backend/services/address-country-reference.js';
 import { registerTaxCountryReferences } from '../../../src/modules/taxes/services/tax-country-reference.js';
 import { registerOrganizationCountryReferences } from '../../../src/modules/organizations/services/organization-country-reference.js';
 import { registerWarehouseCountryReferences } from '../../../src/modules/inventory/services/warehouse-country-reference.js';
@@ -16,8 +16,8 @@ import { registerCmsLanguageReferences } from '../../../src/modules/cms/services
 import { registerMegamenuLanguageReferences } from '../../../src/modules/megamenu/services/megamenu-language-reference.js';
 import { registerPromotionCurrencyReferences } from '../../../../packages/modules/promotions/src/backend/services/promotion-currency-reference.js';
 import { registerPriceListCurrencyReferences } from '../../../src/modules/price_lists/services/price-list-currency-reference.js';
-import { CurrencyService } from '../../../src/modules/currencies/services/currency-service.js';
-import { LanguageService } from '../../../src/modules/languages/services/language-service.js';
+import { CurrencyService } from '../../../../packages/modules/currencies/src/backend/services/currency-service.js';
+import { LanguageService } from '../../../../packages/modules/languages/src/backend/services/language-service.js';
 
 /**
  * The ten contributed dictionary-reference descriptors, against the real schema

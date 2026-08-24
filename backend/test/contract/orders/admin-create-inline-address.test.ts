@@ -7,7 +7,7 @@ import {
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { Address } from '../../../src/modules/addresses/entities/address.entity.js';
+import { Address } from '../../helpers/package-entities.js';
 
 const SALES_CHANNEL_ID = '00000000-0000-4000-8000-0000000000c1';
 

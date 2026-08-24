@@ -348,26 +348,35 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-platform-surface.ts': {
     prefix: '[platform-surface]',
     run: { kind: 'tsx', path: 'scripts/check-platform-surface.ts', args: [] },
-    files: 1427,
-    // Re-recorded downward, 1642 → 1588, by the move of `quote_requests` into
-    // `packages/modules/` (feature 080, T040b) and by D-167's deletion beside
-    // it. **Every unit of the fall is a reach that stopped existing**, which is
-    // the only reason a downward re-record is legitimate here: a module in a
-    // package writes `@endora-commerce/platform/kernel`, a bare specifier this
-    // check's relative-specifier population does not contain, so its platform
-    // reaches leave the walk as the module leaves the tree.
+    files: 1435,
+    // Re-recorded downward — 1642 → 1588 at module #4, and 1588 → 1414 by the
+    // first **batch** of ten (feature 080, T040b). **Every unit of the fall is a
+    // reach that stopped existing**, which is the only reason a downward
+    // re-record is legitimate here: a module in a package writes
+    // `@endora-commerce/platform/kernel`, a bare specifier this check's
+    // relative-specifier population does not contain, so its platform reaches
+    // leave the walk as the module leaves the tree. That is a blind spot this
+    // check's own header declares, and the batch is what makes it worth saying
+    // out loud: 104 reaches into the host's published surface are now judged by
+    // nothing, and the number grows with every module that moves.
     //
-    // The −39 decomposes, and every part of it was counted rather than
-    // inferred. **−36 for the move**: 33 escaping specifiers in the module's
-    // own sources carrying 36 symbols between them — 32 `from '…'` clauses with
-    // 35 symbols (two of them naming the kernel barrel for three each), plus one
-    // type-position `import('…/events').EventBase` in `rfq-expiry-worker.ts`,
-    // which is the shape §0b of this check's header exists for. **−4 for the
-    // deleted backfill script**: `db/index.ts` for `initOrm` and `closeOrm`, the
-    // kernel for `SalesChannel` and for `enterSystemScope`. **+1 for D-166**:
-    // the new `quote_requests/routes.sales-reps.ts` took `RequireAdminFactory`
-    // before the move carried it out again.
-    sites: 1588,
+    // The −174 has two parts, and only one of them is this batch's.
+    //
+    // **−104 for the ten**, counted with this check's own specifier reader over
+    // `master`'s copies of their files rather than inferred from two runs — a
+    // named binding is one reach, a whole-file or namespace import is one:
+    // `audit_logs` 22, `payment_methods` 17, `shipments` 15, `seo` 14,
+    // `languages` 10, `addresses` 7, `currencies` 7, `import_export` 6,
+    // `analytics` 5, `health_checks` 1.
+    //
+    // **−70 that predates the batch.** 1588 was recorded at module #4; module #5
+    // (`promotions`) moved next and its fall stayed inside the −10% floor, so
+    // nothing re-recorded it and `master` already read 1518. The slack absorbed
+    // one module's worth of a monotone decline — which is exactly what the
+    // `check-release-intent` entry below warns about in the other direction, and
+    // is the reason this number is now the tree rather than the tree plus
+    // whatever the band could still hide.
+    sites: 1414,
     sources: ['manifest-index', 'platform-barrels'],
   },
   'backend/scripts/check-port-shape.ts': {
@@ -403,17 +412,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-release-intent.ts': {
     prefix: '[release-intent]',
     run: { kind: 'tsx', path: 'scripts/check-release-intent.ts', args: [] },
-    // Re-recorded 34 → 17 and 39 → 24, and both fell because the **population**
-    // changed rather than the tree. Each used to fold in `.changeset/*.md`,
-    // whose count follows the release cycle rather than the repository: at 30
-    // pending changesets `files` sat exactly on this band's +50% ceiling, so
-    // the next merge request to add one failed — and a release consuming all
-    // thirty would have dropped it under the −10% floor in the same week. A
-    // band cannot bound a quantity that oscillates in both directions, so the
-    // changesets are read, judged, and reported as `changesets=` beside these
-    // numbers instead of inside them.
-    files: 17,
-    sites: 24,
+    // Re-recorded twice in one day, and the two moves are different kinds.
+    //
+    // **34 → 17 (!966): the population changed, not the tree.** Both numbers
+    // used to fold in `.changeset/*.md`, whose count follows the release cycle
+    // rather than the repository — at 30 pending changesets `files` sat exactly
+    // on this band's +50% ceiling, so the next merge request to add one failed,
+    // and a release consuming all thirty would have dropped it under the −10%
+    // floor in the same week. A band cannot bound a quantity that oscillates in
+    // both directions, so the changesets are read, judged, and reported as
+    // `changesets=` beside these numbers instead of inside them.
+    //
+    // **17 → PLACEHOLDER_FILES (T040b batch one): the tree grew.** The
+    // population is `2 + members`, and ten module packages are ten new members.
+    // This is the ordinary re-record — the remaining ~51 moves will move it
+    // again, and the answer stays "re-record", never "widen".
+    files: PLACEHOLDER_FILES,
+    sites: PLACEHOLDER_SITES,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-shared-table-wipes.ts': {

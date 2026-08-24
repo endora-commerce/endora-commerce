@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethod } from '../../helpers/package-entities.js';
 
 /**
  * Issue #125 — `PUT /admin/<gateway>/methods/:id` runs as one Command.

@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { Address } from '../../../src/modules/addresses/entities/address.entity.js';
+import { Address } from '../../helpers/package-entities.js';
 
 /**
  * Feature 039 — admin org-addresses read endpoint.

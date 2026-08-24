@@ -11,7 +11,7 @@ import {
   SEED_DELIVERY_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethod, type PaymentMethodRow } from '../../helpers/package-entities.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
@@ -65,7 +65,7 @@ describe('who held the order decides whether the buyer may cancel it (#284)', ()
    * method's failure, and it is the configuration on which the two orders this
    * file is about are indistinguishable by column.
    */
-  async function bankTransferMethod(): Promise<PaymentMethod> {
+  async function bankTransferMethod(): Promise<PaymentMethodRow> {
     const em = h.em();
     const method = em.create(PaymentMethod, {
       code: `ha_${randomUUID().slice(0, 8)}`,
@@ -82,7 +82,7 @@ describe('who held the order decides whether the buyer may cancel it (#284)', ()
   }
 
   /** Places a one-line order as the stub buyer, which is what allocates stock. */
-  async function place(method: PaymentMethod): Promise<{ orderId: string; paymentId: string }> {
+  async function place(method: PaymentMethodRow): Promise<{ orderId: string; paymentId: string }> {
     const add = await h.app.inject({
       method: 'POST',
       url: '/api/v1/cart/items',

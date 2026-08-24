@@ -14,9 +14,9 @@ import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@endora-
 import { CustomerAccountReadService } from '../../src/modules/customer_accounts/services/customer-account-ports.js';
 import { OrganizationDetailsService } from '../../src/modules/organizations/services/organization-details-port.js';
 import { CatalogProductReadService } from '../../src/modules/catalog/services/catalog-product-read.service.js';
-import { AddressReadService } from '../../src/modules/addresses/services/address-ports.js';
+import { AddressReadService } from '../../../packages/modules/addresses/src/backend/services/address-ports.js';
 import { DeliveryMethodReadService } from '../../src/modules/delivery_methods/services/delivery-method-read-port.js';
-import { PaymentMethodReadService } from '../../src/modules/payment_methods/services/payment-method-read-port.js';
+import { PaymentMethodReadService } from '../../../packages/modules/payment_methods/src/backend/services/payment-method-read-port.js';
 import { InventoryStockReadService } from '../../src/modules/inventory/services/inventory-read-port.js';
 import type { OrderServiceNeighbourPorts } from '../../src/modules/orders/services/order-service.js';
 import type { BackendServerHandle } from './test-server.js';

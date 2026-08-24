@@ -13,7 +13,7 @@ import {
   ReceivePaymentHandler,
   type SettlementLogger,
 } from '../../../src/modules/payments/services/receive-payment-handler.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethod } from '../../helpers/package-entities.js';
 
 /**
  * Feature 075, C-W3 — the two cross-module reads `receive-payment-handler.ts`

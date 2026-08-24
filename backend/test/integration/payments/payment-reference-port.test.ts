@@ -8,7 +8,7 @@ import {
 } from '../../helpers/test-server.js';
 import { PaymentReferenceService } from '../../../src/modules/payments/services/payment-reference-port.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethod } from '../../helpers/package-entities.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 
 const ADDRESS = {

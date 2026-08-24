@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   ALIAS_HIDDEN_RESOLUTIONS,
@@ -26,6 +27,7 @@ import {
 } from '../../../scripts/check-port-dependencies.js';
 import { defineModuleManifest } from '@endora-commerce/contracts';
 import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * The port-dependency rule (feature 072, T061 / FR-040).
@@ -1301,6 +1303,8 @@ describe('findNonBindingIssues — the guard-rails on `contributes-to`', () => {
   });
 });
 
+const layout = await requireModuleLayout('[port-dependency-check]');
+
 describe('CONTRIBUTION_POLICY_STATED — the registries a contribution may name', () => {
   /**
    * A contribution seam is wired one of two ways in this tree, and the table
@@ -1311,24 +1315,37 @@ describe('CONTRIBUTION_POLICY_STATED — the registries a contribution may name'
    * the reason the payment family's three registries could not be listed at
    * all.
    */
+  /**
+   * The owner's directory is **resolved, never spelled** (feature 080, T040a):
+   * a module lives under the application's source root or in a workspace member
+   * declaring `endora: { type: 'module', id }`, and the two layouts keep the
+   * entry point at different names. An owner this cannot place throws, because
+   * a read that came back empty would report the ledger entry as unheld.
+   */
+  const ownerFile = (owner: string, ...segments: readonly string[]): string | null => {
+    const dir = layout.moduleDirectoryOf(owner);
+    if (dir === null) throw new Error(`[port-dependency-check] no such module: ${owner}`);
+    for (const candidate of [join(dir, ...segments), join(dir, 'src', 'backend', ...segments)]) {
+      if (existsSync(candidate)) return candidate;
+    }
+    return null;
+  };
+
   const holdsName = (owner: string, name: string): boolean => {
-    const file = `/repo/backend/src/modules/${owner}/backend.ts`;
-    const source = readFileSync(
-      new URL(`../../../src/modules/${owner}/backend.ts`, import.meta.url),
-      'utf8',
-    );
-    if (registeredNames(source, file).includes(name)) {
+    const entry = ownerFile(owner, 'backend.ts') ?? ownerFile(owner, 'index.ts');
+    if (entry === null) {
+      throw new Error(`[port-dependency-check] ${owner} has no backend entry point`);
+    }
+    const source = readFileSync(entry, 'utf8');
+    if (registeredNames(source, entry).includes(name)) {
       expect(
-        providedPortNames(source, file),
+        providedPortNames(source, entry),
         `${owner}:${name} is a gated port, so a contribution to it is a pull`,
       ).not.toContain(name);
       return true;
     }
-    const singleton = new URL(
-      `../../../src/modules/${owner}/services/registry-singleton.ts`,
-      import.meta.url,
-    );
-    return existsSync(singleton) && readFileSync(singleton, 'utf8').includes(`export const ${name}`);
+    const singleton = ownerFile(owner, 'services', 'registry-singleton.ts');
+    return singleton !== null && readFileSync(singleton, 'utf8').includes(`export const ${name}`);
   };
 
   it('attributes every listed registry to the module that holds it, ungated', () => {

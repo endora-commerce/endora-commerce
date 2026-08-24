@@ -5,7 +5,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
-import { Language } from '../../../src/modules/languages/entities/language.entity.js';
+import { Language } from '../../helpers/package-entities.js';
 import { BlogCategoryService } from '../../../../packages/modules/blog/src/backend/services/blog-category-service.js';
 import { BlogPostService } from '../../../../packages/modules/blog/src/backend/services/blog-post-service.js';
 

@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Currency } from '../../../src/modules/currencies/entities/currency.entity.js';
+import { Currency } from '../../helpers/package-entities.js';
 
 /**
  * T238 — admin currency CRUD. Mirrors the language test surface; tests

@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { seedSuspendedOrganization } from '../../helpers/seed-commerce.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethod } from '../../helpers/package-entities.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**

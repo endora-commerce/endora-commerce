@@ -5,7 +5,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { dictionaryReadPortsFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { LabelResolver } from '../../../src/modules/dictionaries/services/label-resolver.js';
 import { DictionaryTranslation } from '../../../src/modules/dictionaries/entities/dictionary-translation.entity.js';
-import { Language } from '../../../src/modules/languages/entities/language.entity.js';
+import { Language } from '../../helpers/package-entities.js';
 
 describe('LabelResolver — locale fallback chain', () => {
   let db: TestDb;
