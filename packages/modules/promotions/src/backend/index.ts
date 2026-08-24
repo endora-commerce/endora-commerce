@@ -7,14 +7,22 @@ import type {
   DictionaryValidator,
   DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
+import type {
+  AuditPort,
+  ModuleContext,
+  OrganizationReadPort,
+  RequireAdminFactory,
+  SalesChannelMembershipPort,
+} from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { PromotionUsageFinalizer } from '../ports/index.js';
 import { PromotionService } from './services/promotion-service.js';
-import type { PromotionUsageFinalizer } from './services/promotion-usage-finalizer.js';
+import { Promotion } from './entities/promotion.entity.js';
+import { PromotionRuleEntity } from './entities/promotion-rule.entity.js';
+import { PromotionCoupon } from './entities/promotion-coupon.entity.js';
+import { CouponBatch } from './entities/coupon-batch.entity.js';
+import { PromotionUsage } from './entities/promotion-usage.entity.js';
+import { PromotionUsageCounter } from './entities/promotion-usage-counter.entity.js';
 import { PromotionCodeService } from './services/promotion-code-port.js';
 import { CouponService } from './services/coupon-service.js';
 import { PromotionRuleStore } from './services/promotion-rule-store.js';
@@ -135,11 +143,19 @@ export function registerModule(ctx: ModuleContext): void {
    * `orders` used to reach `finalizeUsage` through `promotionService`, typed
    * by an interface `orders` wrote itself: `lazyPort<T>` is an unchecked cast,
    * so with `T` on the consumer's side nothing verified that this module still
-   * satisfied it. The interface is `PromotionUsageFinalizer`, declared beside
-   * the implementation, and `orders` imports the type — a permanent
-   * cross-module ledger entry naming `promotion_usages_order_fk`, because the
-   * signature carries the caller's `EntityManager` and FR-034 keeps a MikroORM
-   * type out of `@endora-commerce/contracts`.
+   * satisfied it. The interface is `PromotionUsageFinalizer` and it is this
+   * module's to declare — `../ports/index.ts`, published on the type-only
+   * `./ports` subpath (R8), because the signature carries the caller's
+   * `EntityManager` and FR-034 keeps a MikroORM type out of
+   * `@endora-commerce/contracts`.
+   *
+   * It was declared beside the implementation until this module became a
+   * package, and `orders` reached it by a relative path — a `permanent: true`
+   * cross-module ledger entry naming `promotion_usages_order_fk`. D-171 retires
+   * that entry rather than the seam: a subpath the owner declared is contract
+   * surface, so the import is a package dependency and not a reach into
+   * internals. The foreign key, the transaction and the `EntityManager`
+   * parameter are all exactly where they were.
    */
   ctx.di.providePort<PromotionUsageFinalizer>(
     'promotionUsageFinalizer',
@@ -229,3 +245,31 @@ export function registerModule(ctx: ModuleContext): void {
     );
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ *
+ * Six classes, and `promotion_usages` is the one that had to be shown to keep a
+ * foreign key without a named export (D-169): `promotion_usages_order_fk` runs
+ * into `orders.id`, and a constraint is between two column names — it needs the
+ * **table**, never the class. Nothing another module can legitimately do with
+ * `PromotionUsage` is lost. D-32 forbids an ORM relation into it; what `orders`
+ * actually needs is the *method* placement calls, which leaves this package as
+ * `PromotionUsageFinalizer` on the type-only `./ports` subpath.
+ */
+export const entities = [
+  Promotion,
+  PromotionRuleEntity,
+  PromotionCoupon,
+  CouponBatch,
+  PromotionUsage,
+  PromotionUsageCounter,
+];

@@ -1,10 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type PromotionRule } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
 import { Promotion } from '../entities/promotion.entity.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 /**
  * Feature 045 (US6) — CRUD for standalone, named promotion rules and the

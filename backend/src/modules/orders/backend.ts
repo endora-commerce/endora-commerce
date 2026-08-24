@@ -32,19 +32,21 @@ import type {
 } from '@endora-commerce/contracts';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 /**
- * `credit_limits`' own published interface, on its `./ports` subpath
+ * Two owners' own published interfaces, each on that owner's `./ports` subpath
  * (D-169/D-171, layout contract R8).
  *
- * The `lazyPort` call below used to read
- * `lazyPort<OrdersCradle['creditLimitService']>(ctx, 'creditLimitService')` — an
- * indexed access into this module's *own* cradle, which resolves through
- * `OrdersModuleOptions['creditLimit']` and lands back on the same interface by a
- * route nothing states. AGENTS.md is explicit that the type argument must name
- * the **owner's** published contract: `lazyPort<T>` is an unchecked cast, so an
- * argument that reads its own module's shape verifies that this module is
- * self-consistent and never that the provider still satisfies anything.
+ * The `lazyPort` calls below used to read
+ * `lazyPort<OrdersCradle['creditLimitService']>(ctx, 'creditLimitService')` and
+ * `lazyPort<OrdersCradle['promotionUsageFinalizer']>(ctx, 'promotionUsageFinalizer')`
+ * — an indexed access into this module's *own* cradle, which resolves through
+ * `OrdersModuleOptions` and lands back on the same interface by a route nothing
+ * states. AGENTS.md is explicit that the type argument must name the **owner's**
+ * published contract: `lazyPort<T>` is an unchecked cast, so an argument that
+ * reads its own module's shape verifies that this module is self-consistent and
+ * never that the provider still satisfies anything.
  */
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
+import type { PromotionUsageFinalizer } from '@endora-commerce/mod-promotions/ports';
 import { HttpError } from '../../http/error-envelope.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -393,7 +395,7 @@ export function registerModule(ctx: ModuleContext): void {
             creditLimit: lazyPort<CreditLimitPort>(ctx, 'creditLimitService'),
             pricingService: lazyPort<OrdersCradle['pricingService']>(ctx, 'pricingService'),
             promotionService: lazyPort<OrdersCradle['promotionService']>(ctx, 'promotionService'),
-            promotionUsageFinalizer: lazyPort<OrdersCradle['promotionUsageFinalizer']>(
+            promotionUsageFinalizer: lazyPort<PromotionUsageFinalizer>(
               ctx,
               'promotionUsageFinalizer',
             ),

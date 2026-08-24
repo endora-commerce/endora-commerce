@@ -85,17 +85,19 @@ import { StockAllocation } from '../../inventory/entities/stock-allocation.entit
  * D-94.5, which meant `lazyPort<T>`'s unchecked cast had nothing to check the
  * provider against. Each file states its own constraint.
  *
- * **The two are no longer spelled the same way, and the difference is the whole
- * point of D-171.** `credit_limits` is a package, so its interface arrives on a
- * subpath its owner declared, the layout contract enumerates (R8) and
+ * **Both now arrive the same way, and that spelling is the whole point of
+ * D-171.** Each owner is a package, so its interface arrives on a subpath the
+ * owner declared, the layout contract enumerates (R8) and
  * `module-package-ports-surface.test.ts` polices — contract surface, not a reach
- * into a private tree, and `check:module-boundary` stopped counting it. The
- * `promotions` line below is the same seam in its pre-packaging spelling: a
- * relative path into a file that module never offered, still a `permanent: true`
- * ledger entry, and it converts when `promotions` is packaged in its turn.
+ * into a private tree, and `check:module-boundary` counts neither. Both
+ * `permanent: true` ledger entries retired with the packaging, and nothing about
+ * either seam moved: the reservation and the redemption still run on placement's
+ * own `EntityManager`, both foreign keys are untouched, and this module still
+ * acknowledges the two container names rather than declaring the dependency
+ * back — which would close a cycle.
  */
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
-import type { PromotionUsageFinalizer } from '../../promotions/services/promotion-usage-finalizer.js';
+import type { PromotionUsageFinalizer } from '@endora-commerce/mod-promotions/ports';
 /**
  * Re-exported so `plugin.ts` names its own module for the same two types.
  * One seam, one ledger entry each: a second import specifier in the plugin

@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import type { PromotionService } from '../../../../packages/modules/promotions/src/backend/services/promotion-service.js';
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { CatalogQueryService } from '../../../src/modules/catalog/services/catalog-query.service.js';
 import { CatalogProductReadService } from '../../../src/modules/catalog/services/catalog-product-read.service.js';

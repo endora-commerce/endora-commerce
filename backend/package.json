@@ -89,6 +89,7 @@
     "@endora-commerce/mod-blog": "workspace:*",
     "@endora-commerce/mod-credit-limits": "workspace:*",
     "@endora-commerce/mod-google-analytics": "workspace:*",
+    "@endora-commerce/mod-promotions": "workspace:*",
     "@endora-commerce/mod-quote-requests": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:^",
     "@endora-commerce/platform": "workspace:*",

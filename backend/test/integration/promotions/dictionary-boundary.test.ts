@@ -5,7 +5,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Currency } from '../../../src/modules/currencies/entities/currency.entity.js';
-import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { PromotionService } from '../../../../packages/modules/promotions/src/backend/services/promotion-service.js';
 import {
   unreachableCatalogPorts,
   unreachableOrganizationStatus,

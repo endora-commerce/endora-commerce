@@ -135,7 +135,7 @@ import type { BlogCradle } from '../../../packages/modules/blog/src/backend/inde
 import type { DictionariesCradle } from '../../src/modules/dictionaries/backend.js';
 import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
 import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
-import type { PromotionsCradle } from '../../src/modules/promotions/backend.js';
+import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsCradle } from '../../src/modules/settings/backend.js';

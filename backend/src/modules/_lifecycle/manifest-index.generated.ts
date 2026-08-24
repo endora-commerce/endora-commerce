@@ -83,7 +83,7 @@ import { manifest as manifest45 } from '../payu/manifest.js';
 import { manifest as manifest46 } from '../pim_ergonode/manifest.js';
 import { manifest as manifest47, recentActivity as recentActivity47 } from '../price_lists/manifest.js';
 import { manifest as manifest48 } from '../product_feeds/manifest.js';
-import { manifest as manifest49 } from '../promotions/manifest.js';
+import { manifest as manifest49 } from '@endora-commerce/mod-promotions';
 import { manifest as manifest50, recentActivity as recentActivity50 } from '../prompt_actions/manifest.js';
 import { manifest as manifest51 } from '../pwa/manifest.js';
 import { manifest as manifest52 } from '../quick_order/manifest.js';
@@ -167,7 +167,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'pim_ergonode', manifest: manifest46, manifestPath: resolveManifestPath(import.meta.url, '../pim_ergonode/manifest.js') },
   { id: 'price_lists', manifest: manifest47, manifestPath: resolveManifestPath(import.meta.url, '../price_lists/manifest.js'), recentActivity: recentActivity47 },
   { id: 'product_feeds', manifest: manifest48, manifestPath: resolveManifestPath(import.meta.url, '../product_feeds/manifest.js') },
-  { id: 'promotions', manifest: manifest49, manifestPath: resolveManifestPath(import.meta.url, '../promotions/manifest.js') },
+  { id: 'promotions', manifest: manifest49, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-promotions') },
   { id: 'prompt_actions', manifest: manifest50, manifestPath: resolveManifestPath(import.meta.url, '../prompt_actions/manifest.js'), recentActivity: recentActivity50 },
   { id: 'pwa', manifest: manifest51, manifestPath: resolveManifestPath(import.meta.url, '../pwa/manifest.js') },
   { id: 'quick_order', manifest: manifest52, manifestPath: resolveManifestPath(import.meta.url, '../quick_order/manifest.js') },

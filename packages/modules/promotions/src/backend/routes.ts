@@ -34,9 +34,9 @@ import { promotionStatsGroupBySchema } from '@endora-commerce/contracts';
 import type { Promotion } from './entities/promotion.entity.js';
 import type { PromotionCoupon } from './entities/promotion-coupon.entity.js';
 import type { PromotionRuleEntity } from './entities/promotion-rule.entity.js';
-import { PROMOTION_PERMISSIONS } from './manifest.js';
+import { PROMOTION_PERMISSIONS } from '../manifest.js';
 import type { CatalogPromoAttributePort } from '@endora-commerce/contracts';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface PromotionRoutesDeps {
   promotionService: PromotionService;

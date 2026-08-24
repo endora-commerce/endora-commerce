@@ -1,12 +1,12 @@
 import { randomInt } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type GenerateCouponsRequest } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
 import { CouponBatch } from '../entities/coupon-batch.entity.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 /** Hard cap on a single generated batch (avoids a speculative queue, Principle X). */
 export const COUPON_BATCH_MAX = 50_000;
