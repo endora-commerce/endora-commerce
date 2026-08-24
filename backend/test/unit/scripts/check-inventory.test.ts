@@ -71,6 +71,10 @@ import {
   type CrossModuleImportKind,
 } from '../../../scripts/check-module-boundary.js';
 import {
+  modulePackageSurfaces,
+  UnreadableSubpathError,
+} from '../../../scripts/lib/module-package-subpaths.js';
+import {
   compareArtifact,
   containmentSites,
   examineArtifact,
@@ -1430,6 +1434,54 @@ const MODULE_PACKAGE_NAMES: ReadonlyMap<string, string> = new Map([
 function crossModulePackageTargets(source: string, file: string, target: string): number {
   return moduleBoundaryAnalyze(source, file, MODULE_PACKAGE_NAMES).filter(
     (f) => f.target === target,
+  ).length;
+}
+
+/**
+ * A module package's published surface, as the check's CLI reads it (D-171).
+ *
+ * The fixture is a **manifest and an emitted module**, because that is where the
+ * analysis begins: a subpath is contract surface iff the module it resolves to
+ * exports no runtime binding, and both the `exports` resolution and the
+ * emitted-module read decide it. A proof that handed in a ready-made verdict
+ * would prove the `continue` and leave the mechanism unexercised (issue #130).
+ */
+const MODULE_PACKAGE_DIR = '/w/packages/modules/blog';
+const MODULE_PACKAGE_MANIFEST = JSON.stringify({
+  name: '@endora-commerce/mod-blog',
+  endora: { type: 'module', id: 'blog' },
+  exports: {
+    './backend': { types: './dist/backend/index.d.ts', default: './dist/backend/index.js' },
+    './ports': { types: './dist/ports/index.d.ts', default: './dist/ports/index.js' },
+  },
+});
+
+function modulePackageTree(portsEmit: string | null): Readonly<Record<string, string>> {
+  const files: Record<string, string> = {
+    [`${MODULE_PACKAGE_DIR}/package.json`]: MODULE_PACKAGE_MANIFEST,
+    [`${MODULE_PACKAGE_DIR}/dist/backend/index.js`]:
+      'export function registerModule(ctx) {}\nexport const entities = [];\n',
+  };
+  // `null` is the unbuilt subpath: declared, and the file behind it is not
+  // there. It must refuse rather than exempt (issue #113).
+  if (portsEmit !== null) files[`${MODULE_PACKAGE_DIR}/dist/ports/index.js`] = portsEmit;
+  return files;
+}
+
+function packagedReaches(specifier: string, portsEmit: string | null): number {
+  const files = modulePackageTree(portsEmit);
+  return moduleBoundaryAnalyze(
+    `import type { X } from '${specifier}';`,
+    ORDER_SERVICE_FILE,
+    MODULE_PACKAGE_NAMES,
+    modulePackageSurfaces(new Map([['@endora-commerce/mod-blog', MODULE_PACKAGE_DIR]]), {
+      exists: (path) => Object.prototype.hasOwnProperty.call(files, path),
+      read: (path) => {
+        const text = files[path];
+        if (text === undefined) throw new Error(`[d171-fixture] no such file: ${path}`);
+        return text;
+      },
+    }),
   ).length;
 }
 
@@ -2870,6 +2922,38 @@ const CHECKS: readonly CheckEntry[] = [
           'blog',
         ),
       ),
+      // D-171. T050 (!928) gave a module package a type-only `./ports` subpath
+      // so a published port interface has a home, and this check went on
+      // counting a reach into it exactly as it counts `<pkg>/backend` — so
+      // publishing the interface gave it a supported name and did not retire the
+      // consumer's ledger entry, which is what D-169 says the conversion
+      // removes. A subpath is contract surface iff the module it resolves to
+      // exports no runtime binding, derived from the artefact on every run.
+      //
+      // Three proofs and they are one discrimination: "no finding" cannot go red
+      // on its own, so the first is paired with the second, which is the same
+      // specifier and the same consumer one `const` of emitted JavaScript apart.
+      'contract-surface-subpath-is-not-a-reach': top(() =>
+        packagedReaches('@endora-commerce/mod-blog/ports', 'export {};\n') === 0 &&
+        packagedReaches('@endora-commerce/mod-blog/backend', 'export {};\n') === 1
+          ? 1
+          : 0,
+      ),
+      'runtime-binding-on-a-subpath-counts-again': top(() =>
+        packagedReaches('@endora-commerce/mod-blog/ports', "export const NAME = 'blogPort';\n"),
+      ),
+      // Issue #113's shape, in the one direction where a silence grants standing
+      // instead of withholding it: a file the check cannot read must never
+      // become an exemption. `./ports` is declared here and its emitted module
+      // is absent, which is what an unbuilt `dist` looks like from inside.
+      'unreadable-subpath-refuses': top(() => {
+        try {
+          packagedReaches('@endora-commerce/mod-blog/ports', null);
+          return 0;
+        } catch (error) {
+          return error instanceof UnreadableSubpathError ? 1 : 0;
+        }
+      }),
       // The two nesting depths, each from the file position that produces it.
       // A prefix match satisfies one and not the other, and that is the
       // documented 2.2× undercount.
@@ -5402,8 +5486,13 @@ describe('every red proof enters at the top of the analysis', () => {
       // attribution away from the module that owns it. Plus feature 080's one:
       // a module that has become a package is reached by a bare specifier, and
       // the shape was invisible for as long as the header said no such package
-      // existed.
-      'backend/scripts/check-module-boundary.ts': 38,
+      // existed. Plus D-171's three: a subpath whose emitted module exports
+      // nothing is contract surface and not debt, the same subpath counts again
+      // the moment a runtime binding appears on it, and a declared subpath whose
+      // emitted module cannot be read is refused rather than exempted — the one
+      // direction in which issue #113's silence grants standing instead of
+      // withholding it.
+      'backend/scripts/check-module-boundary.ts': 41,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue

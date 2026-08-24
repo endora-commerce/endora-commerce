@@ -141,6 +141,51 @@
  * reconciles the map it built against the layout's own package roots and refuses
  * a run where those disagree.
  *
+ * ## Contract surface is not a reach (D-171)
+ *
+ * Not every subpath of a module package is that module's internals. T050 (!928)
+ * gave one a type-only `./ports` subpath so that an `EntityManager`-taking port
+ * interface has a home — `packages/contracts` is compiled by `admin` and
+ * `storefront` and carries zero `@mikro-orm` imports, so it cannot — and this
+ * check went on counting `import type { X } from '<pkg>/ports'` exactly as it
+ * counts `<pkg>/backend`. Publishing the interface therefore gave it a supported
+ * name and did **not** retire the consumer's ledger entry, which is what D-169
+ * says the conversion removes.
+ *
+ * **A subpath is contract surface iff the module it resolves to exports no
+ * runtime binding.** `./ports` emits `export {};` → exempt; `./backend` exports
+ * `registerModule` and `entities` → reach; `./migrations` exports `migrations`
+ * plus the named classes → reach; the root exports `manifest` → reach. Derived
+ * from the artefact on every run and from nothing written down — a named list in
+ * the layout contract would be D-100 exactly, and a field in the package's own
+ * `endora` block would be a self-certified exemption from this check's ledger,
+ * issued by the measured party.
+ *
+ * Three consequences, each of them the point rather than a side effect. It
+ * **fails closed**: a `const` added to `./ports` makes the reach count again in
+ * the same run T050's guard goes red, and a subpath the package does not declare
+ * at all stays a reach. A later `./types` is exempt automatically and correctly
+ * while a `./services` is not. And the predicate is **one function**, shared with
+ * that guard (`scripts/lib/emitted-exports.ts`), because two derivations of one
+ * fact are two answers waiting to disagree.
+ *
+ * The parity is structural rather than granted: `packages/contracts` is exempt
+ * for carrying no `endora` block at all, so it never enters
+ * {@link ModuleBoundaryInput.modulePackages} and there is no exemption to point
+ * at. A port type there is exempt for *not being a module*; the same type on
+ * `./ports` counted only because its owner *is* one.
+ *
+ * **"Retire by reclassification" is structurally unavailable.**
+ * {@link resolveModulePackage} answers `null` for any specifier starting with
+ * `.`, and an unconverted reach *is* a relative specifier — so it has no subpath
+ * for the exemption to apply to. Reaching the exempt state takes three separable
+ * edits, each visible in the diff: package the owner, publish the interface,
+ * rewrite the specifier. `surfaceOf` is **not** the seam that decides this: it
+ * answers `'port'` for any path holding a `ports` segment, a relative
+ * `services/ports/foo.ts` included, which is a private file — a path-text
+ * heuristic, right for choosing a remedy sentence and wrong as a boundary
+ * decision.
+ *
  * ## Out of scope, each for a stated reason
  *
  *   - `src/composition.ts` and the generated registries — a composition root
@@ -273,10 +318,13 @@
  * Exit 0 = every cross-module reach is ledgered in its own shard;
  * exit 1 = at least one is not, or the ledger lies in one of the other seven ways;
  * exit 2 = the check read nothing — no module sources, no ledger directory, a
- * table→owner map in which **either** in-tree pass resolved zero tables, or an
- * installed package whose declarations could not be enumerated. Each pass proves
- * it looked, and a silently empty migration pass is precisely the entity-only
- * blindness the second source exists to remove (issue #113).
+ * table→owner map in which **either** in-tree pass resolved zero tables, an
+ * installed package whose declarations could not be enumerated, or a module
+ * package subpath a module reached whose **emitted module could not be read**
+ * (D-171). Each pass proves it looked, and a silently empty migration pass is
+ * precisely the entity-only blindness the second source exists to remove
+ * (issue #113) — as is a file whose unreadability would otherwise grant the
+ * reach into it an exemption.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -285,6 +333,12 @@ import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { moduleOf } from './check-container-imports.js';
 import { requireModuleLayout, type ModuleTreeLayout } from './lib/module-roots.js';
+import {
+  EVERY_SUBPATH_IS_A_REACH,
+  modulePackageSurfaces,
+  UnreadableSubpathError,
+  type ModulePackageSurfaces,
+} from './lib/module-package-subpaths.js';
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
 import {
   declaredTableNames,
@@ -673,6 +727,15 @@ export interface ModuleBoundaryInput {
    * only way the absence can mean something other than what it says.
    */
   readonly modulePackages?: ReadonlyMap<string, string>;
+  /**
+   * Which of those packages' subpaths are **contract surface** (D-171).
+   *
+   * Absent is {@link EVERY_SUBPATH_IS_A_REACH}, the behaviour that shipped: an
+   * exemption is granted by a measurement and never by the absence of one. The
+   * CLI builds a real reader over each package's directory, so the answer comes
+   * off the package's own `exports` map and its own emitted module.
+   */
+  readonly modulePackageSurfaces?: ModulePackageSurfaces;
 }
 
 /** The tree with no module package installed — every fixture, and CI before !910. */
@@ -750,21 +813,35 @@ function moduleLocationOf(pathUnderSrc: string): ModuleLocation | null {
  * ledger key naming a build artefact would change whenever the emit layout does.
  * The package root answers `''`, which is what a relative specifier naming the
  * module directory already answers.
+ *
+ * The matched **name** comes back too, because D-171's question is asked of the
+ * package rather than of the module: the exemption is a property of the subpath
+ * the owner declared, and the declaration lives in that package's manifest.
  */
 function resolveModulePackage(
   specifier: string,
   modulePackages: ReadonlyMap<string, string>,
-): { readonly id: string; readonly subpath: string } | null {
+): { readonly id: string; readonly name: string; readonly subpath: string } | null {
   if (specifier.startsWith('.') || modulePackages.size === 0) return null;
-  let best: { readonly id: string; readonly subpath: string; readonly length: number } | null = null;
+  let best: {
+    readonly id: string;
+    readonly name: string;
+    readonly subpath: string;
+    readonly length: number;
+  } | null = null;
   for (const [name, id] of modulePackages) {
     if (!specifier.startsWith(name)) continue;
     const rest = specifier.slice(name.length);
     if (rest !== '' && !rest.startsWith('/')) continue;
     if (best !== null && name.length <= best.length) continue;
-    best = { id, subpath: rest.replace(/^\//, '').replace(/\.(js|ts)$/, ''), length: name.length };
+    best = {
+      id,
+      name,
+      subpath: rest.replace(/^\//, '').replace(/\.(js|ts)$/, ''),
+      length: name.length,
+    };
   }
-  return best === null ? null : { id: best.id, subpath: best.subpath };
+  return best === null ? null : { id: best.id, name: best.name, subpath: best.subpath };
 }
 
 /**
@@ -810,6 +887,7 @@ export function analyzeSource(
   source: string,
   file: string,
   modulePackages: ReadonlyMap<string, string> = NO_MODULE_PACKAGES,
+  surfaces: ModulePackageSurfaces = EVERY_SUBPATH_IS_A_REACH,
 ): CrossModuleImport[] {
   if (GENERATED_MODULE_FILES[file] !== undefined) return [];
   const owner = moduleLocationOf(file);
@@ -823,6 +901,14 @@ export function analyzeSource(
       // the directory comparison answers for the application tree. Compared by
       // id because a bare specifier carries no directory to compare.
       if (packaged.id === owner.id) continue;
+      // D-171: a subpath whose emitted module exports no runtime binding is
+      // contract surface, and reaching contract surface is not cross-module
+      // debt. Derived from the artefact on every run, so a `const` added to a
+      // type-only subpath makes the reach count again in the same run T050's
+      // guard goes red. A subpath whose emitted module cannot be read throws,
+      // and the CLI turns that into exit 2 — an unreadable file must never be
+      // an exemption (issue #113).
+      if (surfaces.surfaceOfSubpath(packaged.name, packaged.subpath).kind === 'contract') continue;
       found.push({
         predicate: 'import',
         file,
@@ -864,7 +950,10 @@ export function analyzeSource(
 /** Every cross-module import in the input, in file then line order. */
 export function findCrossModuleImports(input: ModuleBoundaryInput): CrossModuleImport[] {
   const packages = input.modulePackages ?? NO_MODULE_PACKAGES;
-  const found = [...input.sources].flatMap(([file, text]) => analyzeSource(text, file, packages));
+  const surfaces = input.modulePackageSurfaces ?? EVERY_SUBPATH_IS_A_REACH;
+  const found = [...input.sources].flatMap(([file, text]) =>
+    analyzeSource(text, file, packages, surfaces),
+  );
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return found;
 }
@@ -1329,6 +1418,24 @@ export function collectSchemaFiles(roots: readonly string[]): string[] {
   return roots.flatMap((root) => walk(root));
 }
 
+/**
+ * Each module package's npm name mapped to its own directory (D-171).
+ *
+ * Both halves come off the layout and neither is spelled here: the names are the
+ * ones each member's `endora` block declares, and the directory is the one the
+ * layout resolved the module id to. A package the layout knows the name of and
+ * not the directory of is left out, so the surfaces reader answers `undeclared`
+ * for it — a reach, which is the fail-closed direction.
+ */
+export function modulePackageDirectories(layout: ModuleTreeLayout): ReadonlyMap<string, string> {
+  const directories = new Map<string, string>();
+  for (const [name, id] of layout.modulePackageNames) {
+    const directory = layout.moduleDirectoryOf(id);
+    if (directory !== null) directories.set(name, directory);
+  }
+  return directories;
+}
+
 function walk(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir).sort()) {
@@ -1564,15 +1671,29 @@ async function main(): Promise<void> {
     return;
   }
 
-  const result = checkModuleBoundary(
-    {
-      sources,
-      schema,
-      packageTables: packages.tables,
-      modulePackages: layout.modulePackageNames,
-    },
-    shards,
-  );
+  // D-171's reader, over the module packages the layout found: each package's
+  // own `exports` map and its own emitted modules, so the contract-surface
+  // designation is re-derived here rather than written down anywhere.
+  const surfaces = modulePackageSurfaces(modulePackageDirectories(layout));
+
+  let result: CheckResult;
+  try {
+    result = checkModuleBoundary(
+      {
+        sources,
+        schema,
+        packageTables: packages.tables,
+        modulePackages: layout.modulePackageNames,
+        modulePackageSurfaces: surfaces,
+      },
+      shards,
+    );
+  } catch (error) {
+    if (!(error instanceof UnreadableSubpathError)) throw error;
+    console.error(`[module-boundary] ${error.message}`);
+    process.exit(2);
+    return;
+  }
   const selected = <T extends { readonly moduleId: string }>(entries: readonly T[]): readonly T[] =>
     only === null ? entries : entries.filter((entry) => entry.moduleId === only);
 
@@ -1652,7 +1773,11 @@ async function main(): Promise<void> {
   }
   reportReadSize({
     prefix: '[module-boundary]',
-    files: sources.size + schema.size + packages.filesRead,
+    // The surfaces reader is lazy — it opens a package's manifest and its
+    // emitted module only for a subpath a module actually reached — so its
+    // contribution is 0 on a tree where no module names a package specifier,
+    // and that is the honest number rather than a rounding of it (issue #244).
+    files: sources.size + schema.size + packages.filesRead + surfaces.filesRead(),
     coverage: coverages,
   });
   console.log(

@@ -16,6 +16,7 @@ import {
   keyOf,
   ledgerDirectory,
   loadLedgerShards,
+  modulePackageDirectories,
   permanentEntryIssue,
   reasonOf,
   recordedSites,
@@ -26,6 +27,15 @@ import {
   type LedgerShard,
 } from '../../../scripts/check-module-boundary.js';
 import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
+import {
+  runtimeExportsOfEmittedModule,
+  type SourceReader,
+} from '../../../scripts/lib/emitted-exports.js';
+import {
+  modulePackageSurfaces,
+  UnreadableSubpathError,
+  type ModulePackageSurfaces,
+} from '../../../scripts/lib/module-package-subpaths.js';
 
 /**
  * The module-boundary rule's own test (feature 075, FR-001…FR-005, FR-020…FR-028).
@@ -307,6 +317,248 @@ describe('analyzeSource — a module package is still a module (feature 080)', (
         'modules/orders/services/order-service.ts',
       ),
     ).toEqual([]);
+  });
+});
+
+/**
+ * D-171 — contract surface is not a reach.
+ *
+ * T050 (!928) gave a module package a type-only `./ports` subpath so that an
+ * `EntityManager`-taking port interface has a home, and this check went on
+ * counting a reach into it exactly as it counts one into `./backend`. So
+ * publishing the interface gave it a supported name and did **not** retire the
+ * consumer's ledger entry, which is what D-169 says the conversion removes.
+ *
+ * The rule is one sentence — *a subpath is contract surface iff the module it
+ * resolves to exports no runtime binding* — and every fixture below enters as a
+ * **real `package.json` and a real emitted module** (issue #130). A proof that
+ * handed the analysis a ready-made verdict would prove the `continue` and leave
+ * the two parts that decide it — the `exports` resolution and the emitted-module
+ * read — unexercised, and those are the whole of the mechanism.
+ */
+const PACKAGE_DIR = '/w/packages/modules/quotes';
+
+/** A reader over an in-memory file map, so a fixture enters at the top. */
+function mapReader(files: Readonly<Record<string, string>>): SourceReader {
+  return {
+    exists: (path) => Object.prototype.hasOwnProperty.call(files, path),
+    read: (path) => {
+      const text = files[path];
+      if (text === undefined) throw new Error(`[d171-fixture] no such file: ${path}`);
+      return text;
+    },
+  };
+}
+
+/**
+ * The real module-package manifest shape, in a fixture.
+ *
+ * The subpath set is the one `packages/modules/quote_requests/package.json`
+ * ships — root, `./backend`, `./migrations`, `./package.json` — plus the
+ * `./ports` T050 added and two shapes that have to fail differently:
+ * `./unbuilt`, whose target does not exist, and `./types-only`, which declares a
+ * `types` condition and no runtime one.
+ */
+const PACKAGE_MANIFEST = JSON.stringify({
+  name: '@vendor/quotes',
+  private: true,
+  type: 'module',
+  endora: { type: 'module', id: 'quote_requests' },
+  exports: {
+    '.': { types: './dist/manifest.d.ts', default: './dist/manifest.js' },
+    './backend': { types: './dist/backend/index.d.ts', default: './dist/backend/index.js' },
+    './migrations': {
+      types: './dist/migrations/index.d.ts',
+      default: './dist/migrations/index.js',
+    },
+    './ports': { types: './dist/ports/index.d.ts', default: './dist/ports/index.js' },
+    './unbuilt': { types: './dist/unbuilt/index.d.ts', default: './dist/unbuilt/index.js' },
+    './types-only': { types: './dist/types-only/index.d.ts' },
+    './i18n/*': './i18n/*',
+    './package.json': './package.json',
+  },
+});
+
+/** What `tsc` emits for a module that declares nothing but types. */
+const TYPE_ONLY_EMIT = 'export {};\n';
+
+function packageFiles(portsEmit: string = TYPE_ONLY_EMIT): Record<string, string> {
+  return {
+    [`${PACKAGE_DIR}/package.json`]: PACKAGE_MANIFEST,
+    // What the real barrels compile to: the root exports the manifest,
+    // `./backend` its composition entry point and its entities array, and
+    // `./migrations` the array plus every migration class by name.
+    [`${PACKAGE_DIR}/dist/manifest.js`]: 'export const manifest = { id: "quote_requests" };\n',
+    [`${PACKAGE_DIR}/dist/backend/index.js`]:
+      'export function registerModule(ctx) {}\nexport const entities = [];\n',
+    [`${PACKAGE_DIR}/dist/migrations/index.js`]:
+      'export const migrations = [];\nexport { Migration20260810T101010QuoteRequestsInit } from "./20260810T101010_quote_requests_init.js";\n',
+    [`${PACKAGE_DIR}/dist/ports/index.js`]: portsEmit,
+  };
+}
+
+function surfacesOver(files: Readonly<Record<string, string>>): ModulePackageSurfaces {
+  return modulePackageSurfaces(new Map([['@vendor/quotes', PACKAGE_DIR]]), mapReader(files));
+}
+
+/** One consumer file, judged with a real surfaces reader over the fixture package. */
+function reaches(
+  specifier: string,
+  files: Readonly<Record<string, string>> = packageFiles(),
+): ReturnType<typeof analyzeSource> {
+  return analyzeSource(
+    `import type { X } from '${specifier}';`,
+    ORDER_SERVICE,
+    MODULE_PACKAGES,
+    surfacesOver(files),
+  );
+}
+
+describe('analyzeSource — contract surface is not a reach (D-171)', () => {
+  it('does not count a reach into a subpath whose emitted module exports nothing', () => {
+    // The whole point: `./ports` emits `export {};`, so the specifier names a
+    // key the owner declared rather than a file in the owner's private tree.
+    expect(reaches('@vendor/quotes/ports')).toEqual([]);
+  });
+
+  it('counts it again the moment a runtime binding appears on that subpath', () => {
+    // Fails closed, and in the same run T050's guard goes red — the fixture is
+    // the emitted text, so the exemption evaporates because the measurement
+    // changed and not because anything was edited here.
+    const withAConst = packageFiles("export const QUOTE_PORT_NAME = 'quoteApplyPort';\n");
+    const found = reaches('@vendor/quotes/ports', withAConst);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ target: 'quote_requests', targetPath: 'ports' });
+    // The discrimination, in one assertion: the same specifier, the same
+    // consumer, one byte of emitted JavaScript apart.
+    expect(reaches('@vendor/quotes/ports', packageFiles())).toEqual([]);
+  });
+
+  it('still counts `./backend`, `./migrations` and the package root', () => {
+    for (const [specifier, targetPath] of [
+      ['@vendor/quotes/backend', 'backend'],
+      ['@vendor/quotes/migrations', 'migrations'],
+      ['@vendor/quotes', ''],
+    ] as const) {
+      expect(
+        reaches(specifier).map((f) => f.targetPath),
+        specifier,
+      ).toEqual([targetPath]);
+    }
+  });
+
+  it('counts a subpath the package does not declare', () => {
+    // Fail-closed in the other direction: an exemption is granted by a
+    // measurement of a declared subpath, never by the absence of one.
+    expect(reaches('@vendor/quotes/services/quote-service.js')).toHaveLength(1);
+  });
+
+  it('counts a wildcard subpath, which names no single emitted module', () => {
+    expect(reaches('@vendor/quotes/i18n/en.json')).toHaveLength(1);
+  });
+
+  it('counts `./package.json`, rather than reading JSON as a module that exports nothing', () => {
+    // A declared subpath whose target is not JavaScript. Parsed as a module it
+    // holds no export, which would make it contract surface by a wrong reading.
+    expect(reaches('@vendor/quotes/package.json')).toHaveLength(1);
+  });
+
+  it('refuses a declared subpath whose emitted module is not there', () => {
+    // Issue #113's shape: a file the check cannot read must never become an
+    // exemption. `./unbuilt` is declared and its target does not exist, which is
+    // what an unbuilt `dist` looks like from here.
+    expect(() => reaches('@vendor/quotes/unbuilt')).toThrow(UnreadableSubpathError);
+    expect(() => reaches('@vendor/quotes/unbuilt')).toThrow(/does not exist/);
+  });
+
+  it('refuses a subpath that declares `types` and no runtime condition', () => {
+    // The broken shape D-169's own test names: it type-checks and then answers
+    // `ERR_PACKAGE_PATH_NOT_EXPORTED` to every consumer whose toolchain emits
+    // the import. There is no emitted module to measure, so it is not a subpath
+    // that publishes nothing.
+    expect(() => reaches('@vendor/quotes/types-only')).toThrow(UnreadableSubpathError);
+    expect(() => reaches('@vendor/quotes/types-only')).toThrow(/no runtime condition/);
+  });
+
+  it('refuses a package directory holding no readable manifest', () => {
+    const files = packageFiles();
+    delete files[`${PACKAGE_DIR}/package.json`];
+    expect(() => reaches('@vendor/quotes/ports', files)).toThrow(UnreadableSubpathError);
+  });
+
+  it('still counts a relative reach into another module — there is no subpath to exempt', () => {
+    // "Retire by reclassification" is structurally unavailable:
+    // `resolveModulePackage` answers `null` for any specifier starting with `.`,
+    // so an unconverted reach has nothing for the exemption to apply to.
+    // Reaching the exempt state takes three separable edits, each in the diff:
+    // package the owner, publish the interface, rewrite the specifier.
+    const found = analyzeSource(
+      "import type { CreditLimitPort } from '../../credit_limits/services/credit-limit-port.js';",
+      ORDER_SERVICE,
+      MODULE_PACKAGES,
+      surfacesOver(packageFiles()),
+    );
+    expect(found.map((f) => f.target)).toEqual(['credit_limits']);
+  });
+
+  it('still counts a relative `services/ports/` file — `surfaceOf` is not the exemption', () => {
+    // `surfaceOf` answers `'port'` for any path holding a `ports` segment, a
+    // private file included. It is right for choosing a remedy sentence and
+    // wrong as a boundary decision, so the exemption must not run through it.
+    const found = analyzeSource(
+      "import type { Thing } from '../../catalog/services/ports/catalog-port.js';",
+      ORDER_SERVICE,
+      MODULE_PACKAGES,
+      surfacesOver(packageFiles()),
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ target: 'catalog', surface: 'port' });
+  });
+
+  it('is the same fact T050 guard measures, off the same emitted module', () => {
+    // Not two derivations of one population: the check and the guard both read
+    // `runtimeExportsOfEmittedModule`, so a subpath that has stopped being
+    // type-only is a reach here and a `runtime-export` finding there, from one
+    // measurement of one file.
+    const emitted = `${PACKAGE_DIR}/dist/ports/index.js`;
+    const withAConst = packageFiles("export const QUOTE_PORT_NAME = 'quoteApplyPort';\n");
+    expect(runtimeExportsOfEmittedModule(emitted, mapReader(packageFiles()))).toEqual([]);
+    expect(runtimeExportsOfEmittedModule(emitted, mapReader(withAConst))).toEqual([
+      'QUOTE_PORT_NAME',
+    ]);
+  });
+});
+
+/**
+ * The real packages, classified by the same reader the CLI builds.
+ *
+ * The fixtures above are what can go red; this is what says the shapes they
+ * model are the shapes this repository ships. It is also the reconciliation the
+ * exemption needs: no module package publishes a `./ports` today, so **nothing
+ * is exempt on this tree**, and a run that started exempting something would be
+ * a run whose summary line had moved.
+ */
+describe('D-171 over the module packages this checkout really has', () => {
+  it('classifies every declared subpath of every module package, and exempts none', async () => {
+    const layout = await resolveModuleLayout();
+    const directories = modulePackageDirectories(layout);
+    expect(directories.size).toBeGreaterThan(0);
+    const surfaces = modulePackageSurfaces(directories);
+
+    const exempt: string[] = [];
+    for (const [name, directory] of directories) {
+      const manifest: unknown = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
+      const entries = (manifest as { exports?: Record<string, unknown> }).exports ?? {};
+      const subpaths = Object.keys(entries).map((key) => (key === '.' ? '' : key.slice(2)));
+      expect(subpaths.length, name).toBeGreaterThan(0);
+      for (const subpath of subpaths) {
+        // A throw is the refusal, and it must not happen over a built tree.
+        if (surfaces.surfaceOfSubpath(name, subpath).kind === 'contract') {
+          exempt.push(`${name}/${subpath}`);
+        }
+      }
+    }
+    expect(exempt).toEqual([]);
   });
 });
 
