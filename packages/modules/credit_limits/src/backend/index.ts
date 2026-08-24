@@ -1,14 +1,16 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { CommandBus } from '../../commands/index.js';
-import type { EventBus } from '../../events/bus.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { EventBus } from '@endora-commerce/platform/events';
+import type { ModuleContext, RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
 import type { OrganizationDetailsPort, OrganizationInheritancePort } from '@endora-commerce/contracts';
 import { CreditLimitService, type CreditLimitEventBus } from './services/credit-limit-service.js';
 import { CreditTopupProvider } from './services/credit-topup.js';
 import { registerCreditLimitsRoutes } from './routes.js';
+import { CreditLimit } from './entities/credit-limit.entity.js';
+import { CreditLimitReservation } from './entities/credit-limit-reservation.entity.js';
+import { CreditLimitReturnTopup } from './entities/credit-limit-return-topup.entity.js';
 
 /**
  * `credit_limits` — an optional Command Bus on the one write that must be
@@ -132,3 +134,25 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ *
+ * Three classes, and this module is where the absent named export and a foreign
+ * key had to be shown to coexist (D-169): `credit_limit_reservations` carries
+ * `credit_limit_reservations_order_fk` into `orders.id`, and a constraint is
+ * between two column names — it needs the **table**, never the class. Nothing
+ * another module can legitimately do with `CreditLimitReservation` is lost.
+ * D-32 forbids an ORM relation into it; what `orders` actually needs is the
+ * *method* placement calls, which leaves this package as `CreditLimitPort` on
+ * the type-only `./ports` subpath.
+ */
+export const entities = [CreditLimit, CreditLimitReservation, CreditLimitReturnTopup];

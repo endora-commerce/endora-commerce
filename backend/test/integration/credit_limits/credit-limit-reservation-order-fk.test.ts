@@ -6,9 +6,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk } from '../../../src/modules/credit_limits/migrations/20260818T081252_credit_limits_credit_limit_reservation_order_fk.js';
+import { Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk } from '../../../../packages/modules/credit_limits/src/migrations/20260818T081252_credit_limits_credit_limit_reservation_order_fk.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
+import { CreditLimit } from '../../helpers/package-entities.js';
 
 /**
  * `credit_limit_reservations_order_fk` (D-94.1, site 4 — the one the D-94

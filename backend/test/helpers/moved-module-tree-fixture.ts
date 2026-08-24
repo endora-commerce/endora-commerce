@@ -578,13 +578,27 @@ export function createSplitModuleTreeFixture(
   // fixture does not hold and every proof would die at module resolution. They
   // are copied whole rather than `src`-only, because a package keeps its `i18n/`
   // bundles beside `src/` and `check-error-translations` walks them.
+  //
+  // **`dist` travels with them, and it did not until the fourth package**
+  // (`credit_limits`, which publishes a `./ports`). D-171 designates a subpath
+  // contract surface iff its **emitted** module exports no runtime binding, and
+  // a subpath whose emitted module cannot be read is a *refusal* — exit 2 —
+  // never an exemption, which is the one direction a silence must not go. So a
+  // fixture that copied a package's sources and dropped its build handed
+  // `check-module-boundary` a package it could not classify, and the split tree
+  // went red for a defect it had introduced. Copying `dist` costs little and
+  // makes the fixture what it claims to be: this repository's packages, where
+  // this repository's layout move would put them. It changes no walk — every
+  // module walk skips `dist` by name (`module-roots.ts`, and the package walk in
+  // `check-module-boundary.ts`), which is why the real tree's numbers do not
+  // move for having one.
   const alreadyPackaged = discoverModulePackages(REPO_ROOT).filter((pkg) =>
     DISCOVERED_MANIFESTS.some((entry) => entry.id === pkg.moduleId),
   );
   for (const pkg of alreadyPackaged) {
     cpSync(pkg.dir, join(root, packagedModulePath(pkg.moduleId)), {
       recursive: true,
-      filter: (source) => !source.endsWith(`${sep}dist`) && !source.endsWith(`${sep}node_modules`),
+      filter: (source) => !source.endsWith(`${sep}node_modules`),
     });
   }
 

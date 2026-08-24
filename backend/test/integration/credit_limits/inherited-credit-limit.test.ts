@@ -9,8 +9,8 @@ import {
 import { EventBus } from '../../../src/events/bus.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
-import { CreditLimitReservation } from '../../../src/modules/credit_limits/entities/credit-limit-reservation.entity.js';
+import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
+import { CreditLimitReservation } from '../../helpers/package-entities.js';
 import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
 import { OrganizationInheritanceService } from '../../../src/modules/organizations/services/organization-inheritance-service.js';
 

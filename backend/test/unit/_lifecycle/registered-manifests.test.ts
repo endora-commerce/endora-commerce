@@ -207,8 +207,25 @@ describe('a module’s location is answered, or refused — never guessed (T041a
 
       expect(existsSync(resolved), resolved).toBe(true);
       expect(dirname(resolved)).toBe(pkg.dir);
-      expect(existsSync(join(dirname(resolved), 'i18n', 'en.json')), pkg.name).toBe(true);
-      expect(existsSync(join(dirname(resolved), 'i18n', 'pl.json')), pkg.name).toBe(true);
+
+      // The bundles are asserted **where the manifest declares them**, and the
+      // declared directory is read rather than spelled. This block asserted a
+      // literal `i18n/en.json` for every package until the fourth one arrived:
+      // `credit_limits` declares no `i18n` block at all — its one permission
+      // code lives in the core `PERMISSION_CATALOGUE` and it publishes no
+      // palette action — so it ships no bundle and is right not to. Asserting
+      // one for it would have been this test making up a rule the reconciler
+      // does not have; the rule the reconciler *does* have is "the directory a
+      // manifest declares must be on disk", which is what runs here.
+      const bundlesDir = REGISTERED_MANIFESTS.find((entry) => entry.id === pkg.moduleId)?.manifest
+        .i18n?.bundlesDir;
+      if (bundlesDir === undefined) continue;
+      for (const language of ['en', 'pl']) {
+        expect(
+          existsSync(join(dirname(resolved), bundlesDir, `${language}.json`)),
+          `${pkg.name} declares i18n.bundlesDir='${bundlesDir}' and ships no ${language}.json`,
+        ).toBe(true);
+      }
     }
   });
 

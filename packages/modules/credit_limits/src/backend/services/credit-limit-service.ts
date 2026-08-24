@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { LockMode } from '@mikro-orm/core';
-import type { EventBase, EventBus } from '../../../events/bus.js';
-import type { Command, CommandBus } from '../../../commands/index.js';
+import type { EventBase, EventBus } from '@endora-commerce/platform/events';
+import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { CreditLimit } from '../entities/credit-limit.entity.js';
 import { CreditLimitReservation } from '../entities/credit-limit-reservation.entity.js';
 import { CreditLimitReturnTopup } from '../entities/credit-limit-return-topup.entity.js';

@@ -8,7 +8,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
-import { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
+import { CreditLimit } from '../../helpers/package-entities.js';
 import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { gatewayRefundRegistry } from '../../../src/modules/payments/services/registry-singleton.js';

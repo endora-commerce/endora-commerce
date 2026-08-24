@@ -1,6 +1,6 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
-import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
+import { OrgScoped } from '@endora-commerce/platform/tenancy';
 
 /**
  * One row per return case whose settlement has credited this organization

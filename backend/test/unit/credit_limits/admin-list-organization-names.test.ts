@@ -5,9 +5,9 @@ import type { OrganizationDetailsPort, OrganizationRecord } from '@endora-commer
 import {
   registerCreditLimitsRoutes,
   type CreditLimitsDeps,
-} from '../../../src/modules/credit_limits/routes.js';
-import type { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
-import type { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
+} from '../../../../packages/modules/credit_limits/src/backend/routes.js';
+import type { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
+import type { CreditLimit } from '../../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
 
 /**
  * Feature 075, Phase C — the admin roster reads the organisation's name from

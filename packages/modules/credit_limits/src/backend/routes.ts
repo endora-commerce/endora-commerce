@@ -5,12 +5,39 @@ import {
   grantCreditLimitRequestSchema,
   type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import { isOrgInScope } from '../../tenancy/derived-scope.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { isOrgInScope } from '@endora-commerce/platform/tenancy';
 import type { CreditLimitService } from './services/credit-limit-service.js';
 import type { CreditLimit } from './entities/credit-limit.entity.js';
 import type { CreditLimitReservation } from './entities/credit-limit-reservation.entity.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+
+/**
+ * The harness-supplied admin actor, read through a **local** carrier.
+ *
+ * This module used to import `testAdminUserId` from
+ * `src/http/test-actor-carrier.ts`. That file is classified **A** — host-internal,
+ * deliberately absent from `@endora-commerce/platform/http`'s barrel — by
+ * `specs/080-f4-real-scope/contracts/host-package.md` §1.4j, on the ground that it
+ * exists to narrow *this repository's* test-harness Fastify augmentation and an
+ * installed package has no relationship to it. Packaging this module is the first
+ * time that classification had to bite, and it does so exactly as §1.4n's repair
+ * did for `productAudienceOf`: read the field through a carrier declared where it
+ * is read. Nothing about the read changes — the cast was already there, and a
+ * request the harness never decorated already answered `undefined`.
+ *
+ * A production request resolves its actor through the auth plugin
+ * (`request.actor`) and always gets `undefined` here; `grant` then records no
+ * `grantedByAdminUserId`, which is the behaviour this call had before the move.
+ */
+interface TestActorCarrier {
+  testActor?: { kind: string; adminUserId: string };
+}
+
+function testAdminUserId(request: FastifyRequest): string | undefined {
+  const testActor = (request as FastifyRequest & TestActorCarrier).testActor;
+  return testActor?.kind === 'admin' ? testActor.adminUserId : undefined;
+}
 
 export interface CreditLimitsDeps {
   creditLimitService: CreditLimitService;

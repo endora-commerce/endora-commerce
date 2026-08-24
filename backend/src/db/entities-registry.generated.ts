@@ -80,9 +80,6 @@ import { CmsTemplate } from '../modules/cms/entities/cms-template.entity.js';
 import { ComparisonProduct } from '../modules/comparisons/entities/comparison-product.entity.js';
 import { Comparison } from '../modules/comparisons/entities/comparison.entity.js';
 import { CredentialConfiguration } from '../modules/credentials/entities/credential-configuration.entity.js';
-import { CreditLimitReservation } from '../modules/credit_limits/entities/credit-limit-reservation.entity.js';
-import { CreditLimitReturnTopup } from '../modules/credit_limits/entities/credit-limit-return-topup.entity.js';
-import { CreditLimit } from '../modules/credit_limits/entities/credit-limit.entity.js';
 import { Currency } from '../modules/currencies/entities/currency.entity.js';
 import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../modules/custom_fields/entities/custom-field-option.entity.js';
@@ -236,6 +233,7 @@ import { TransactionalEmail } from '../modules/transactional_emails/entities/tra
 import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
 import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
 import { entities as blogEntities } from '@endora-commerce/mod-blog/backend';
+import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
 
@@ -293,9 +291,6 @@ export const ALL_ENTITIES = [
   ComparisonProduct,
   Comparison,
   CredentialConfiguration,
-  CreditLimitReservation,
-  CreditLimitReturnTopup,
-  CreditLimit,
   Currency,
   CustomFieldDefinition,
   CustomFieldOption,
@@ -449,6 +444,7 @@ export const ALL_ENTITIES = [
   WebhookDelivery,
   Webhook,
   ...(blogEntities as readonly EntityClassLike[]),
+  ...(creditLimitsEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
   ...(quoteRequestsEntities as readonly EntityClassLike[]),
 ] as const;
