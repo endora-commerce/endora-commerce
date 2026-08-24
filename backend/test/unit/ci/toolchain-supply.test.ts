@@ -59,6 +59,8 @@ interface CiJob {
   readonly beforeScript: string;
   /** Everything under `script:`, as raw text — block scalars included. */
   readonly script: string;
+  /** Every line of the job's own block, so a top-level job key can be read. */
+  readonly body: string;
 }
 
 /**
@@ -78,15 +80,22 @@ function readJobs(source: string): readonly CiJob[] {
   let section: 'before_script' | 'script' | null = null;
   let before: string[] = [];
   let script: string[] = [];
+  let body: string[] = [];
 
   const flush = (): void => {
     if (name !== null) {
-      jobs.push({ name, beforeScript: before.join('\n'), script: script.join('\n') });
+      jobs.push({
+        name,
+        beforeScript: before.join('\n'),
+        script: script.join('\n'),
+        body: body.join('\n'),
+      });
     }
     name = null;
     section = null;
     before = [];
     script = [];
+    body = [];
   };
 
   for (const line of lines) {
@@ -103,6 +112,7 @@ function readJobs(source: string): readonly CiJob[] {
       continue;
     }
     if (name === null) continue;
+    body.push(line);
 
     const key = /^ {2}([a-z_]+):/.exec(line);
     if (key !== null) {
@@ -168,12 +178,103 @@ describe('the CI file gives every job what its script needs', () => {
    */
   it('reads the two sections separately, so ordering is part of the rule', () => {
     const invented = readJobs(
-      ['example:', '  before_script:', '    - echo one', '  script:', '    - pnpm --filter backend run x', ''].join('\n'),
+      [
+        'example:',
+        '  before_script:',
+        '    - echo one',
+        '  script:',
+        '    - pnpm --filter backend run x',
+        '',
+      ].join('\n'),
     );
     expect(invented).toHaveLength(1);
     expect(invented[0]?.beforeScript).toContain('echo one');
     expect(invented[0]?.beforeScript).not.toContain('pnpm --filter');
     expect(runsWorkspaceCode(invented[0]?.script ?? '')).toBe(true);
+  });
+});
+
+/**
+ * ## 3. A sharded suite job does not share the runner with a second instance
+ *
+ * Issue #199's second cause. `endora-commerce-runner-1` and `-2` are two
+ * registrations on **one** machine — same `system ID`, same docker host in both
+ * job logs — 4 vCPU and `MemTotal` 7 926 360 kB, and that machine also carries
+ * another project's Magento test server. Measured on it, in the job's own image
+ * with its own NODE_OPTIONS and services: one shard of `test:backend` holds
+ * ~2.5 GB of anonymous memory, flat from its fortieth file to its last, and
+ * completes alone with `oom_kill 0`; two of them collapse the host's
+ * `MemAvailable` to under 500 MB and the **host's** OOM killer takes the larger
+ * fork, which the container's `memory.events` records as `oom 0, oom_kill 1`.
+ * Vitest reports that as `Worker exited unexpectedly` and two hundred files
+ * silently do not run.
+ *
+ * `resource_group` is what stops the second instance starting. It is asserted
+ * here rather than left to the comment above the job because it looks exactly
+ * like a performance regression to anybody who has not read the measurement —
+ * the five shards serialise, and the stage goes from ~75 to ~120 minutes — so
+ * the first instinct on meeting it is to delete it. It is a fact about a
+ * **shared** host, not about the suite: when the runner has a machine to itself
+ * the concurrency should come back, and this assertion is the thing that has to
+ * be retired deliberately for that to happen.
+ *
+ * The population is derived: any job that runs `vitest ... --shard`. A second
+ * sharded suite added tomorrow is covered without being named here.
+ */
+function runsAShardedSuite(text: string): boolean {
+  return /\bvitest\b[^\n]*--shard/.test(text);
+}
+
+describe('a sharded suite job keeps the runner to itself', () => {
+  /** The floor: everything below is also what an empty population says. */
+  it('found the sharded job', () => {
+    expect(JOBS.filter((job) => runsAShardedSuite(job.script)).map((job) => job.name)).toContain(
+      'test:backend',
+    );
+  });
+
+  it('declares a resource_group, so two shards never share the one runner host', () => {
+    const offenders = JOBS.filter(
+      (job) => runsAShardedSuite(job.script) && !/^ {2}resource_group:/m.test(job.body),
+    ).map((job) => job.name);
+
+    expect(
+      offenders,
+      `${offenders.join(', ')}: runs a \`--shard\` suite with no \`resource_group\`. Two ` +
+        'instances of this job on the one shared 7.9 GB runner host make the host OOM killer ' +
+        "take a vitest fork — `memory.events` reports `oom 0, oom_kill 1` — and the run's " +
+        'remaining files silently do not run (issue #199). One whole job costs 2.5 GB of ' +
+        'anonymous memory. If the suite has been given a machine of its own, retire this ' +
+        'assertion with the measurement in the Memory block above the job — do not delete it ' +
+        'to make a pipeline faster.',
+    ).toEqual([]);
+  });
+
+  /**
+   * The predicate reads the job's own block, so a `resource_group` belonging to
+   * the *next* job must not satisfy it. Without this the assertion above is a
+   * substring test over the whole file wearing a per-job costume.
+   */
+  it('reads the resource_group from the job that runs the shard, not from a neighbour', () => {
+    const invented = readJobs(
+      [
+        'sharded:',
+        '  script:',
+        '    - pnpm --filter backend exec vitest run --shard=$CI_NODE_INDEX/$CI_NODE_TOTAL',
+        'other:',
+        '  resource_group: something',
+        '  script:',
+        '    - echo two',
+        '',
+      ].join('\n'),
+    );
+
+    const sharded = invented.find((job) => job.name === 'sharded');
+    expect(runsAShardedSuite(sharded?.script ?? '')).toBe(true);
+    expect(/^ {2}resource_group:/m.test(sharded?.body ?? '')).toBe(false);
+    expect(
+      /^ {2}resource_group:/m.test(invented.find((job) => job.name === 'other')?.body ?? ''),
+    ).toBe(true);
   });
 });
 

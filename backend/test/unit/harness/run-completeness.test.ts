@@ -140,6 +140,52 @@ describe('renderIncompleteRun', () => {
     expect(text).not.toContain('Worker exited unexpectedly');
   });
 
+  /**
+   * The paragraph above states two causes and cannot choose between them; the
+   * kernel can, and `test/oom-evidence.ts` asks it. This is the wiring: the
+   * verdict reaches the reader, and — the case that matters — a verdict of
+   * "I could not look" adds nothing rather than a reassuring sentence.
+   */
+  describe('the cgroup verdict', () => {
+    const died = ['Error: Worker exited unexpectedly'];
+
+    it('names the host when the counters say the kill came from outside the container', () => {
+      const text = renderIncompleteRun(run!, ROOT, died, {
+        kind: 'killed',
+        kills: 1,
+        by: 'host',
+        limitBytes: null,
+      });
+
+      expect(text).toContain('oom_kill');
+      expect(text).toMatch(/host ran out of memory/i);
+    });
+
+    it('says so when the counters say no OOM killer was involved', () => {
+      const text = renderIncompleteRun(run!, ROOT, died, { kind: 'none' });
+
+      expect(text).toMatch(/no process of this container/i);
+    });
+
+    it('adds nothing when there was no cgroup to read — silence is never a verdict', () => {
+      const text = renderIncompleteRun(run!, ROOT, died, { kind: 'unreadable' });
+
+      expect(text).not.toContain('oom_kill');
+      expect(text).not.toMatch(/no process of this container/i);
+    });
+
+    it('adds nothing when the worker did not die, whatever the counters say', () => {
+      const text = renderIncompleteRun(run!, ROOT, [], {
+        kind: 'killed',
+        kills: 1,
+        by: 'host',
+        limitBytes: null,
+      });
+
+      expect(text).not.toContain('oom_kill');
+    });
+  });
+
   /** A 220-file list is not a diagnosis; the first few plus a count is. */
   it('truncates the list of files that never ran', () => {
     const many = Array.from({ length: 220 }, (_, i) => `f${String(i)}.test.ts`);

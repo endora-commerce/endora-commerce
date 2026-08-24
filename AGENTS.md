@@ -133,8 +133,20 @@ in either direction. Choosing that config **is** the run's declaration that it h
 (`BACKEND_TEST_SERVICES=none`); the declaration is never inferred from a connection that failed,
 and a test that needs a service stops the run with a sentence naming the ledger. The remaining
 `test:unit` / `test:contract` / `test:integration` scripts, and `test` itself, are the complete
-side and need the services; `test:backend` in CI shards them five ways and still takes the better
-part of an hour.
+side and need the services; `test:backend` in CI shards them five ways and takes hours rather
+than the better part of one, because since issue #199 the five shards also **serialise**
+(`resource_group: backend-suite`). That is not a performance oversight: the runner host is
+shared — two GitLab registrations are two job slots on one 4 vCPU / 7.9 GB machine, and that
+machine also carries another project's Magento test server — so two shards at once make the
+**host's** OOM killer take whichever fork is largest, and a silent `Worker exited unexpectedly`
+leaves two hundred files unrun. One whole job costs **2.5 GB** of anonymous memory (2396 MB of
+job container plus 202 MB of postgres, redis and meilisearch), flat from its fortieth file to
+its last, so the serialisation is a fact about *this* host and should be reconsidered — from the
+runner's own `concurrent` setting, not from here — once the suite has a machine to itself. The
+numbers and the rejected alternatives, a lower `--max-old-space-size` among them, are in the
+Memory block above the job in `.gitlab-ci.yml`. A run that dies that way now says so in the
+kernel's own words: `test/oom-evidence.ts` reads the container's cgroup `memory.events` and
+`test/run-completeness.ts` prints the verdict beside the files that never ran.
 
 **Two runs at once no longer corrupt each other** (issue #189). Isolation used to be per
 database and per Redis instance, never per invocation: `setupBackendServer` truncates

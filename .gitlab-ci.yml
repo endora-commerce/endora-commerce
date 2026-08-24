@@ -624,32 +624,83 @@ test:backend:deployment:
 # postgres/redis/meilisearch services, and `vitest --shard` splits the test files
 # between them.
 #
-# NOTE: the speedup is bounded by the runner's `concurrent` setting — N shards
-# only run at once if the runner can execute N jobs concurrently. With
-# concurrent=1 the shards queue and you gain nothing (and pay per-shard setup).
-# Sized for a 4 vCPU / 8 GB runner with `concurrent = 2`.
+# Memory: ONE SHARD AT A TIME while this runner is shared, which is what
+# `resource_group` below is for (issue #199, second cause). This block used to
+# say the shard's own retained heap was the wall — "~10 MB per test file, past
+# 1.5 GB at ~130 files" — and to offer two levers, more shards and a bigger
+# `--max-old-space-size`. Every part of that was measured on the runner and none
+# of it survived.
 #
-# Memory: the singleFork worker accumulates ~10 MB of retained heap PER test
-# file (each file rebuilds the whole module graph and the fork never fully
-# reclaims it). At ~130 files/shard that climbs past 1.5 GB and the worker is
-# OOM-killed by the host (silent "Worker exited unexpectedly") or — once the
-# NODE_OPTIONS cap below is in force — dies with an explicit "heap out of
-# memory". Two levers keep each shard in budget:
-#   1. parallel=5 → fewer files/shard, so peak heap drops. With concurrent=2
-#      the shards run in waves, so peak CONCURRENT host memory is still just
-#      2 live shards + their 3 services each.
-#   2. --max-old-space-size=2048 caps each shard's V8 old-space. Inside the
-#      docker executor Node otherwise sees the host's 8 GB and lets the heap
-#      grow unbounded; capping forces earlier GC and turns any remaining
-#      overflow into an actionable heap error instead of a silent SIGKILL.
-#      2 live shards × 2 GB + the 3 services (~1.5 GB) stays well under 8 GB.
-#      Bumped 1536 → 2048 after the suite grew past a marginal ~1.6 GB peak.
-# The proper long-term fix is to plug the per-file leak in the test harness;
-# until then, add shards / raise the cap as the suite grows.
+# **The shard does not climb.** Peak fork RSS is reached at file ~40 of 269 and
+# is flat for the remaining 229: 1.86 GB at the 2048 cap. `heapUsed` peaks near
+# 700 MB against a 2 GB old-space, so the V8 cap is never approached and
+# `test/heap-headroom.ts` never warns. More shards therefore buy nothing — a
+# 40-file shard reaches the same peak — and the per-file leak !915 left unplugged
+# is not measurable across a full shard.
+#
+# **What kills it is the host, and the host is shared.** The job container has no
+# memory limit of its own (`memory.max: max`), and after a failure its cgroup
+# reports `oom 0, oom_kill 1` — a process of this cgroup killed by an OOM killer
+# that was not this cgroup's own limit. Run ALONE the same shard completes all
+# 269 files with `oom_kill 0` and leaves the host 3.7 GB free; run as a
+# concurrent pair the host's MemAvailable collapses from 3.7 GB to under 500 MB
+# and returns the instant the fork dies. Two things share this machine with the
+# suite: `endora-commerce-runner-1` and `-2` are two registrations on ONE box
+# (same `system ID`, same docker host in both job logs), 4 vCPU and MemTotal
+# 7 926 360 kB — and that box also carries another project's live Magento 2 test
+# server. A neighbour with a large and *variable* footprint is why the failure
+# was nondeterministic: shard 4 is simply the largest fork at the moment the host
+# runs out (1730 MB at file 40, against 1668, 1627, 1609 and 1501 for the other
+# four), so it is the one the kernel picks.
+#
+# **`resource_group` is necessary and, on this box, not sufficient — and that
+# retired a sentence that stood here.** It read "`--max-old-space-size=2048`
+# stays. Serialised there is no contention for it to relieve", and it was a
+# reasonable inference the very next pipeline refuted: with the shards
+# serialised, shard 4 still died, at file 251 of 269, with `oom_kill 1`. The
+# inference was wrong because `resource_group` serialises *this project's* jobs
+# and can see nothing else on the machine — not the second registration taking
+# another project's work, and not the neighbour. It is kept anyway: it took shard
+# 4 from 40 of 269 files to 251, and the cost is stated where it will be
+# questioned — the five shards serialise, so this stage goes from three waves
+# (~75 min) to five runs (~120 min). Reconsider it when the runner is no longer
+# shared; do not delete it now to make the pipeline faster.
+#
+# **What one job actually costs, which is the figure to size a machine against.**
+# Measured across a whole 269-file shard, every container of the job read from
+# its own cgroup (`anon`, because page cache is reclaimable under pressure and
+# anonymous memory is not):
+#
+#     job container   2396 MB      services  202 MB      WHOLE JOB  2521 MB
+#                                  (postgres 51, redis 15, meilisearch 183)
+#
+# The services are worth stating because they are easy to over-estimate: their
+# `docker stats` figure is 737 MB, but 535 MB of that is reclaimable page cache.
+# On a dedicated 8 GB machine (~7.7 GB usable) two concurrent jobs are 5.0 GB
+# plus the OS, docker and the runner — it fits with about 2 GB to spare, so the
+# concurrency should come back, driven from the runner's own `concurrent`
+# setting rather than from here: the constraint is physical memory, which is a
+# property of the machine and not of this repository.
+#
+# **`--max-old-space-size=2048` stays, and now for a measured reason rather than
+# the inference above.** 1024 was measured over the same full shard, back to
+# back: it saves 429 MB of the job's 2521 (17%), costs 14% of the wall clock
+# (2319 s -> 2643 s), and takes the files lost to the 30 s `hookTimeout` from one
+# to three — `setupBackendServer` boots the whole platform in a `beforeAll`, and
+# a heap that collects harder boots slower. A cap that turns green files red is
+# not a saving. What 2048 is FOR is unchanged and is not the host: it is what
+# makes a genuine heap exhaustion arrive as a named error instead of a SIGKILL,
+# and with a live set near 600 MB it leaves the headroom guard's 80% warning line
+# (1638 MB) a wide margin that 1024 would cut to ~220 MB.
 test:backend:
   stage: test
   image: node:22.17-slim
   parallel: 5
+  # One shard at a time while the runner host is shared — see the Memory block
+  # above. It is not a performance oversight; reconsider it when the suite has a
+  # machine to itself, and drive the concurrency from the runner's `concurrent`
+  # setting rather than from here.
+  resource_group: backend-suite
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -658,9 +709,11 @@ test:backend:
     - name: getmeili/meilisearch:v1.11
       alias: meilisearch
   variables:
-    # Per-shard V8 heap cap — see the "Memory" note above the job. Safety net
-    # under the 8 GB host with concurrent=2 shards; forces early GC so an
-    # overflow surfaces as a heap error, not a silent OOM-kill.
+    # Per-shard V8 heap cap — see the "Memory" note above the job. It is not
+    # what keeps this job inside the host (`resource_group` is); it is what
+    # makes a genuine heap exhaustion arrive as a named error rather than as a
+    # SIGKILL. Measured peak live set: ~600 MB. 1024 was measured and rejected
+    # there, with the numbers.
     NODE_OPTIONS: --max-old-space-size=2048
     POSTGRES_USER: b2b
     POSTGRES_PASSWORD: b2b
