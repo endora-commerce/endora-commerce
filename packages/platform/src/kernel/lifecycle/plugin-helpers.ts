@@ -325,12 +325,38 @@ export function reconcileModuleWorkers(): void {
     const present = effectiveState.isPresent(moduleId);
     for (const worker of workers) {
       if (present === !worker.isPaused()) continue;
-      // `pause()` waits for the jobs already running to finish, which is the
-      // non-destructive half: an in-flight job completes, and nothing new is
-      // fetched. Fire-and-forget because presence installs are synchronous.
-      void (present ? worker.resume() : worker.pause());
+      applyWorkerPresence(moduleId, worker, present);
     }
   }
+}
+
+/**
+ * Pause or resume one worker, without waiting for it.
+ *
+ * A presence install is synchronous — it happens inside a pub/sub callback or a
+ * timer tick — so this cannot be awaited, and `pause()` deliberately waits for
+ * the jobs already running to finish (the non-destructive half: an in-flight job
+ * completes, and nothing new is fetched).
+ *
+ * The `catch` is not a tolerance and is not a port catch (`Worker.pause` reaches
+ * no module): it is what keeps a fire-and-forget promise from becoming an
+ * **unhandled rejection**, which in a Node process is a crash rather than a
+ * message. It is reachable — `pause()` reconnects the blocking connection to
+ * wait for the active job, and a connection that is closing rejects — and it
+ * costs nothing to say so out loud. The worker is left where it was; the next
+ * presence install (the pub/sub message, or the degraded timer five seconds
+ * later) tries again, which is what level-triggering buys.
+ */
+function applyWorkerPresence(moduleId: string, worker: Worker, present: boolean): void {
+  const settled = present ? Promise.resolve(worker.resume()) : worker.pause();
+  void settled.catch((err: unknown) => {
+    console.warn(
+      `[module-lifecycle] could not ${present ? 'resume' : 'pause'} a queue consumer of ` +
+        `'${moduleId}' (${worker.name}); the next presence refresh will retry: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+    );
+  });
 }
 
 let reconcilerArmed = false;
@@ -375,7 +401,7 @@ export function defineModuleWorker<W extends Worker>(
   });
   // If the module is currently absent at registration time, start paused.
   if (!isPresentOrUnresolved(moduleId)) {
-    void worker.pause();
+    applyWorkerPresence(moduleId, worker, false);
   }
   return worker;
 }
