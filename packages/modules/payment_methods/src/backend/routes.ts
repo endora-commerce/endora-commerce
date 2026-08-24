@@ -8,8 +8,8 @@ import {
   type PaymentMethodAvailability,
   type PaymentReadPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import type { CommandBus } from '../../commands/index.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import {
   makeDeletePaymentMethodCommand,
   makeSetPaymentMethodStatusCommand,
@@ -18,16 +18,16 @@ import {
 import {
   effectiveState,
   toModulePresenceDto,
-} from '../../kernel/lifecycle/effective-state.js';
+} from '@endora-commerce/platform/kernel';
 import { PaymentMethod } from './entities/payment-method.entity.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { PaymentAdapterRegistry } from './services/payment-adapter-registry.js';
 import type { PaymentMethodEligibilityService } from './services/payment-method-eligibility.js';
 import {
   OrderStatusRegistryError,
   type OrderStatusRegistry,
 } from './services/order-status-registry.port.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Public read endpoint: list active payment methods (storefront checkout).

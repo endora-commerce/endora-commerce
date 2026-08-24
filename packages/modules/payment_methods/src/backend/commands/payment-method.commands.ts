@@ -4,8 +4,8 @@ import {
   type PaymentMethodUpsert,
   type PaymentReadPort,
 } from '@endora-commerce/contracts';
-import type { Command } from '../../../commands/command.js';
-import { HttpError } from '../../../http/error-envelope.js';
+import type { Command } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
 import { PaymentMethod } from '../entities/payment-method.entity.js';
 
 /**

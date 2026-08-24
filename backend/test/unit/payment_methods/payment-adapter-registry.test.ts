@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PaymentAdapter } from '@endora-commerce/contracts';
-import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
+import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
 
 const stubAdapter = (adapterKey: string): PaymentAdapter => ({
   adapterKey,

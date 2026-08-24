@@ -1,5 +1,5 @@
 import type { PaymentAdapter, PaymentAdapterRegistryPort } from '@endora-commerce/contracts';
-import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 
 /**
  * PaymentAdapterRegistry (feature 034) — in-memory map of adapter key →

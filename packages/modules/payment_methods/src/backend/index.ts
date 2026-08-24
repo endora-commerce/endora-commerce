@@ -1,11 +1,11 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PaymentMethodReadPort, PaymentReadPort } from '@endora-commerce/contracts';
-import { lazyPort, type ModuleContext } from '../../kernel/index.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
-import type { CommandBus } from '../../commands/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
+import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import {
   registerPaymentMethodsAdminRoutes,
   registerPaymentMethodsPublicRoutes,
@@ -14,6 +14,7 @@ import { EnumOrderStatusRegistry } from './services/order-status-registry.port.j
 import { PaymentMethodEligibilityService } from './services/payment-method-eligibility.js';
 import { PaymentMethodReadService } from './services/payment-method-read-port.js';
 import { paymentAdapterRegistry } from './services/registry-singleton.js';
+import { PaymentMethod } from './entities/payment-method.entity.js';
 
 /**
  * `payment_methods` — the module `orders` was mounting (feature 072, wave 1,
@@ -180,3 +181,18 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  PaymentMethod,
+];

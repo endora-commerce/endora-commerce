@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { publishedDocBlock, publishedMembers } from '../../helpers/published-port-source.js';
-import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
+import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
 
 /**
  * D-98.4 — `PaymentAdapterRegistryPort` publishes the measured demand and

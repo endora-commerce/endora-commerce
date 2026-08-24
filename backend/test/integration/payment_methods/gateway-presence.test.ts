@@ -8,9 +8,9 @@ import {
 import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
-import { PaymentMethodReconciler } from '../../../src/modules/payment_methods/services/payment-method-reconciler.js';
-import { paymentAdapterRegistry } from '../../../src/modules/payment_methods/services/registry-singleton.js';
+import { PaymentMethod } from '../../helpers/package-entities.js';
+import { PaymentMethodReconciler } from '../../../../packages/modules/payment_methods/src/backend/services/payment-method-reconciler.js';
+import { paymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/registry-singleton.js';
 
 /**
  * Issue #96 — a payment method whose gateway module is absent must disappear
