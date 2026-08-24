@@ -57,7 +57,18 @@ class Greeter {
 /** One module, six surfaces, expressed the way every converted module will be. */
 function fixture(): Fixture {
   const pause = vi.fn(async () => {});
-  const worker = { name: 'fixture-queue', pause, on: vi.fn() } as unknown as Worker;
+  // `processFn` and `isPaused` are not decoration: `ctx.worker` installs the
+  // Principle XVII work gate in front of the processor and reconciles the
+  // worker against the registry cache on every presence install, so a stub
+  // without them is refused rather than registered ungated.
+  const worker = {
+    name: 'fixture-queue',
+    pause,
+    resume: vi.fn(),
+    isPaused: vi.fn(() => false),
+    processFn: async () => undefined,
+    on: vi.fn(),
+  } as unknown as Worker;
   const subscriber = vi.fn();
   const interceptor = vi.fn();
   const booted = vi.fn();

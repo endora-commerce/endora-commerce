@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
-import type { Queue } from 'bullmq';
+import type { Queue, Worker } from 'bullmq';
 import { z } from 'zod';
 import type {
   CustomerAccountReadPort,
@@ -103,6 +103,11 @@ export interface PwaModuleHandle {
 export interface PwaModuleResult {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: PwaModuleHandle;
+  /**
+   * The push-delivery consumer, for `backend.ts` to hand to `ctx.worker` — the
+   * shape `ksef` and `catalog` use. Empty when `runWorkers` is false.
+   */
+  workers: Worker<PushDeliveryJobData>[];
 }
 
 export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
@@ -148,13 +153,28 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
 
   // Push-delivery consumer (Principle X). Separable entrypoint; co-located by
   // default given low push volume, split-out-able under load via BACKEND_ROLE.
-  if (options.runWorkers) {
-    const processor = makePushDeliveryProcessor({
-      emFactory: options.emFactory,
-      registry: providerRegistry,
-    });
-    createPushDeliveryWorker(options.redis, processor);
-  }
+  //
+  // It is **handed to `backend.ts`** rather than started here, and that is the
+  // Constitution XVII repair rather than tidiness: this line used to read
+  // `createPushDeliveryWorker(options.redis, processor);`, the value dropped on
+  // the floor. A worker outside `ctx.worker` is in no per-module registry, so
+  // `pauseWorkersFor('pwa')` reached nothing and the presence reconcile had
+  // nothing to reconcile — an operator who switched `pwa` off went on having
+  // push notifications delivered to their customers' devices, on both axes,
+  // while the module's own admin and storefront surfaces refused. That is what
+  // made it invisible, and it is the same shape issue #107 found for
+  // subscribers; `check:subscribe-seam` now refuses it.
+  const workers = options.runWorkers
+    ? [
+        createPushDeliveryWorker(
+          options.redis,
+          makePushDeliveryProcessor({
+            emFactory: options.emFactory,
+            registry: providerRegistry,
+          }),
+        ),
+      ]
+    : [];
 
   const handle: PwaModuleHandle = {
     pushEventHandlers,
@@ -197,5 +217,5 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
     });
   };
 
-  return { plugin, handle };
+  return { plugin, handle, workers };
 }

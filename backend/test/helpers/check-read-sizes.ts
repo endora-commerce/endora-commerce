@@ -527,7 +527,10 @@ export const READ_SIZE_WITHOUT_A_SITE_POPULATION: Readonly<Record<string, string
   'backend/scripts/check-nul-bytes.ts': 'the unit is the file: a NUL anywhere in it is the rule.',
   'backend/scripts/check-subscribe-seam.ts':
     'reports bare subscriptions; the seam-registered ones are in `backend.ts` bodies the ' +
-    'check does not enumerate.',
+    'check does not enumerate. Its queue-consumer half *does* enumerate its own population ' +
+    'in both directions and prints it as `module queue consumers read=`, but one `sites=` ' +
+    'number cannot say two things, and the half that would go silent is the one that cannot ' +
+    'count — so the check refuses (exit 2) on zero worker sites instead.',
   'backend/scripts/check-transaction-context.ts':
     'reports escaping statements; the SQL that stays inside its transaction is not collected.',
   'backend/scripts/i18n-hardcoded-strings.ts':

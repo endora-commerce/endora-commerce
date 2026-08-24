@@ -154,6 +154,18 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.routes(async (app) => {
+    // `ctx.worker` applies `defineModuleWorker('pwa', …)`, which is what puts
+    // the push-delivery consumer in the registry the presence reconcile and
+    // `pauseWorkersFor` iterate (Constitution XVII). Until this landed the
+    // module built the worker and dropped it, so switching `pwa` off refused
+    // its admin and storefront surfaces and went on delivering pushes.
+    // Attached here rather than at registration for `ksef`'s reason: this is
+    // where `app.log` exists, and a `BACKEND_ROLE=worker` process reaches it —
+    // `src/worker.ts` builds the server precisely to register module plugins
+    // and simply never listens.
+    for (const worker of ctx.cradle<PwaCradle>().pwa.workers) {
+      ctx.worker(worker, { logger: app.log });
+    }
     await ctx.cradle<PwaCradle>().pwa.plugin(app);
   });
 }

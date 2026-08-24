@@ -1,7 +1,21 @@
 /**
- * CI check — a module subscribes to the EventBus through its own seam, never
- * through a bare `eventBus.on` (issue #107; Constitution XVII).
+ * CI check — **a module's background consumers reach the module's own seam**:
+ * an EventBus subscription through `ctx.subscribe` and never a bare
+ * `eventBus.on` (issue #107), a BullMQ queue consumer through `ctx.worker` /
+ * `defineModuleWorker` and never a `Worker` nobody registered. Constitution
+ * XVII, in both halves.
  *
+ * The second signal is here rather than in a script of its own because the
+ * paragraph four lines below is the one that made it look unnecessary — *"routes
+ * have the `ctx.routes` seam; workers have `defineModuleWorker`; subscriptions
+ * had nothing"* — and it was wrong about workers in exactly the way it says
+ * subscriptions were wrong. `pwa` constructed its push-delivery `Worker` and
+ * dropped the value on the floor: in no per-module registry, so
+ * `pauseWorkersFor('pwa')` reached nothing and an operator who switched `pwa`
+ * off went on having push notifications delivered to their customers' devices.
+ * One rule, one population (a module's own sources), one ledger.
+ *
+
  * `ctx.subscribe` wraps the handler in `subscribeForModule`, which is what makes
  * the module's effective state decide whether the handler runs at all. A
  * registration written as `eventBus.on(...)` keeps its handler attached for the
@@ -42,9 +56,64 @@
  * has no effective state to gate on — there is no operator switch that makes the
  * settings cache stop invalidating.
  *
+ * ## What counts as a queue consumer
+ *
+ * Two findings, because the tree spells the same thing two ways and only one of
+ * them names `Worker` at the site that matters:
+ *
+ *   1. **`ungated-construction`** — `new Worker(...)` in a module's own sources,
+ *      where `Worker` is the binding the file imported from `bullmq`, and the
+ *      value neither goes into a seam call nor is `return`ed. Returning it is
+ *      what a *factory* does, and a factory is not the registration: ten of the
+ *      fifteen constructions in the tree sit in a `services/queues/*.ts` whose
+ *      caller wraps them.
+ *   2. **`ungated-registration`** — a call to one of those factories whose value
+ *      goes nowhere. This is the one `pwa` failed, and the one a check keyed on
+ *      `new Worker(` cannot see at all.
+ *
+ * "Goes nowhere" is four questions, and each was a real shape in the tree when
+ * this landed: it is not inside a seam call; it is not `return`ed; it is not
+ * bound to a name this file later hands to a seam; and it is not bound to a name
+ * this function **returns** — which is `pwa`'s repaired shape
+ * (`const workers = […]; return { plugin, handle, workers }`) and `ksef`'s
+ * (`worker = createKsefSubmitWorker(…)`, returned as `workers: worker ? [worker] : []`).
+ * The last one is what T051's conversion made the common case: a module's
+ * `plugin.ts` collects its workers and its `backend.ts` hands each to
+ * `ctx.worker`, so the value crosses a file boundary. The analysis stops at the
+ * return — it does not follow the value into the caller — which is stated here
+ * rather than pretended away. What it still catches is the drop on the floor.
+ *
+ * The **seam** is likewise not two literals: `catalog` and `newsletter` take a
+ * `registerWorker(worker, options)` callback from their own `backend.ts` whose
+ * body is `ctx.worker(worker, options)`, so the forwarder names are derived from
+ * the bodies that call the seam, exactly as the factory names are derived from
+ * what they return. Neither set is written down; the next module will name both
+ * something else.
+ *
+ * The factory set is **derived**, never a naming convention: pass one walks the
+ * whole tree for functions that return a BullMQ `Worker` and records their
+ * names, so `createPushDeliveryWorker` is recognised because of what it returns
+ * and a `makeThing` that returns one would be too. A convention (`create*Worker`)
+ * would have had issue #244's defect — a population defined by the presence of
+ * the very habit the rule is about.
+ *
+ * What it cannot see, stated here rather than discovered later: a worker handed
+ * across files to a caller that forgets the seam (the analysis stops at the
+ * return), a `Worker` subclass, a construction behind a computed callee, and a
+ * `defineModuleWorker` called with the **wrong module id** — that last one is a
+ * different rule and `pauseWorkersFor` would find the worker under a name no
+ * manifest has. The seam itself is recognised by callee name — `defineModuleWorker`,
+ * or any `.worker(…)` — which over-approximates in the direction of "gated": a
+ * module that had some *other* collaborator with a `worker(…)` method could hide
+ * a bypass inside its arguments. There is no such method in the tree, and
+ * narrowing the receiver to `ctx` would refuse the next author who names their
+ * `ModuleContext` something else.
+ *
  * Usage: `tsx scripts/check-subscribe-seam.ts [--list]`
- * Exit 0 = every module subscription goes through the seam (or is ledgered);
- * exit 1 = at least one does not, or a ledger entry is stale.
+ * Exit 0 = every module subscription and every module queue consumer goes
+ * through its seam (or is ledgered); exit 1 = at least one does not, or a ledger
+ * entry is stale; exit 2 = the walk read nothing, or the BullMQ vocabulary
+ * resolved to no construction at all, which is the shape a green would be a lie.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -82,6 +151,22 @@ const DYNAMIC = '<dynamic>';
  * the least-wrong behaviour rather than that nobody has moved it yet.
  */
 export const BARE_SUBSCRIPTIONS_TO_DRAIN: Readonly<Record<string, string>> = {};
+
+/**
+ * Queue consumers that may stay outside the seam, with the reason and the
+ * question that would retire the entry.
+ *
+ * Keyed `<path under src/>:<spelling>`, two-way, and empty for the same reason
+ * the subscription ledger is: a worker outside `ctx.worker` is a module doing
+ * work while an operator believes it is switched off, and there is no per-worker
+ * remedy — the registry is the only thing `pauseWorkersFor` and the presence
+ * reconcile can reach. An entry has to say why *that* is the least-wrong
+ * behaviour.
+ */
+export const WORKERS_OUTSIDE_THE_SEAM: Readonly<Record<string, string>> = {};
+
+/** The seam a module's queue consumer has to reach, in the two spellings. */
+const WORKER_SEAM_CALLEES = new Set(['defineModuleWorker', 'worker']);
 
 function walk(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
@@ -194,6 +279,350 @@ export function findBareSubscriptions(input: SubscribeSeamInput): BareSubscripti
   return found;
 }
 
+/* ------------------------------------------------------------------ workers */
+
+export type WorkerSiteKind = 'construction' | 'registration';
+
+export interface WorkerSite {
+  /** Path under `src/`, POSIX separators. */
+  readonly file: string;
+  readonly line: number;
+  /** `null` outside a module — a factory in a shared directory, say. */
+  readonly moduleId: string | null;
+  readonly kind: WorkerSiteKind;
+  /** `new Worker` or the factory's name, for the failure message and the key. */
+  readonly spelling: string;
+  /** Reached `defineModuleWorker` / `ctx.worker`, or was handed to a caller. */
+  readonly gated: boolean;
+}
+
+/** `<file>:<spelling>` — the ledger key, and the identity of a site. */
+export function workerKeyOf(site: WorkerSite): string {
+  return `${site.file}:${site.spelling}`;
+}
+
+/** The local name a file bound BullMQ's `Worker` to, if it imported one. */
+function bullmqWorkerBinding(sf: ts.SourceFile): string | null {
+  let binding: string | null = null;
+  for (const statement of sf.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    if (stringLiteralOf(statement.moduleSpecifier) !== 'bullmq') continue;
+    const clause = statement.importClause;
+    const named = clause?.namedBindings;
+    if (!named || !ts.isNamedImports(named)) continue;
+    for (const element of named.elements) {
+      // `import { Worker }` and `import { Worker as BullWorker }` alike: what
+      // matters is the *imported* name, and the local one is what the site says.
+      if ((element.propertyName ?? element.name).text === 'Worker') {
+        binding = element.name.text;
+      }
+    }
+  }
+  return binding;
+}
+
+/** The callee's own name, whichever of the two shapes it is written in. */
+function calleeName(call: ts.CallExpression): string | null {
+  const callee = call.expression;
+  if (ts.isIdentifier(callee)) return callee.text;
+  if (ts.isPropertyAccessExpression(callee)) return callee.name.text;
+  return null;
+}
+
+/** True when `node` sits inside the arguments of a call to a seam or a forwarder. */
+function insideSeamCall(node: ts.Node, seams: ReadonlySet<string>): boolean {
+  for (let cursor: ts.Node | undefined = node.parent; cursor; cursor = cursor.parent) {
+    if (!ts.isCallExpression(cursor)) continue;
+    const name = calleeName(cursor);
+    if (name !== null && seams.has(name)) return true;
+  }
+  return false;
+}
+
+/** True when `node`'s value is itself returned — a factory hands it to its caller. */
+function isHandedToCaller(node: ts.Node): boolean {
+  for (let cursor: ts.Node | undefined = node.parent; cursor; cursor = cursor.parent) {
+    if (ts.isReturnStatement(cursor)) return true;
+    if (ts.isArrowFunction(cursor) && cursor.body === node) return true;
+    if (ts.isFunctionLike(cursor)) return false;
+  }
+  return false;
+}
+
+/**
+ * The name a call's value lands in, through the wrappers that do not change
+ * whose value it is: an array or object literal, a conditional, a cast, a
+ * `push` onto a collection.
+ *
+ * `const workers = runWorkers ? [createXWorker(…)] : []` and
+ * `worker = createXWorker(…)` both answer with the collection's name, which is
+ * what the two rules below then ask about.
+ */
+function boundCollectionName(node: ts.Node): string | null {
+  let current: ts.Node = node;
+  for (let cursor: ts.Node | undefined = node.parent; cursor; cursor = cursor.parent) {
+    if (ts.isVariableDeclaration(cursor) && ts.isIdentifier(cursor.name)) return cursor.name.text;
+    if (
+      ts.isBinaryExpression(cursor) &&
+      cursor.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(cursor.left)
+    ) {
+      return cursor.left.text;
+    }
+    if (ts.isCallExpression(cursor) && calleeName(cursor) === 'push') {
+      const receiver = cursor.expression;
+      if (ts.isPropertyAccessExpression(receiver) && ts.isIdentifier(receiver.expression)) {
+        return receiver.expression.text;
+      }
+      return null;
+    }
+    const transparent =
+      ts.isArrayLiteralExpression(cursor) ||
+      ts.isObjectLiteralExpression(cursor) ||
+      ts.isPropertyAssignment(cursor) ||
+      ts.isShorthandPropertyAssignment(cursor) ||
+      ts.isConditionalExpression(cursor) ||
+      ts.isParenthesizedExpression(cursor) ||
+      ts.isAsExpression(cursor) ||
+      ts.isNonNullExpression(cursor);
+    if (!transparent) return null;
+    current = cursor;
+  }
+  void current;
+  return null;
+}
+
+/** Every identifier mentioned in a `return` of the function that encloses `node`. */
+function namesReturnedFromEnclosingFunction(node: ts.Node): Set<string> {
+  let fn: ts.Node | undefined;
+  for (let cursor: ts.Node | undefined = node.parent; cursor; cursor = cursor.parent) {
+    if (ts.isFunctionLike(cursor)) {
+      fn = cursor;
+      break;
+    }
+  }
+  const names = new Set<string>();
+  if (!fn) return names;
+  const collect = (n: ts.Node): void => {
+    if (ts.isIdentifier(n)) names.add(n.text);
+    if (ts.isShorthandPropertyAssignment(n)) names.add(n.name.text);
+    n.forEachChild(collect);
+  };
+  const visit = (n: ts.Node): void => {
+    if (ts.isFunctionLike(n) && n !== fn) return;
+    if (ts.isReturnStatement(n) && n.expression) collect(n.expression);
+    n.forEachChild(visit);
+  };
+  const body = (fn as ts.FunctionLikeDeclaration).body;
+  if (body && !ts.isBlock(body)) {
+    collect(body);
+    return names;
+  }
+  if (body) body.forEachChild(visit);
+  return names;
+}
+
+/** The nearest enclosing function's name, for the factory index. */
+function enclosingFunctionName(node: ts.Node): string | null {
+  for (let cursor: ts.Node | undefined = node.parent; cursor; cursor = cursor.parent) {
+    if (ts.isFunctionDeclaration(cursor) || ts.isMethodDeclaration(cursor)) {
+      return cursor.name && ts.isIdentifier(cursor.name) ? cursor.name.text : null;
+    }
+    if (ts.isFunctionExpression(cursor) || ts.isArrowFunction(cursor)) {
+      const parent = cursor.parent;
+      if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) return parent.name.text;
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Pass one — every function in the walked tree that returns a BullMQ `Worker`.
+ *
+ * Derived rather than conventional (see the header): the second finding needs to
+ * know that `createPushDeliveryWorker(...)` **is** a worker, and the only honest
+ * source for that is what the function returns.
+ */
+export function findWorkerFactories(input: SubscribeSeamInput): Set<string> {
+  const names = new Set<string>();
+  for (const [file, text] of input.sources) {
+    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+    const binding = bullmqWorkerBinding(sf);
+    if (binding === null) continue;
+    const visit = (node: ts.Node): void => {
+      if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === binding) {
+        if (isHandedToCaller(node)) {
+          const name = enclosingFunctionName(node);
+          if (name !== null) names.add(name);
+        }
+      }
+      node.forEachChild(visit);
+    };
+    sf.forEachChild(visit);
+  }
+  return names;
+}
+
+/**
+ * Pass one-and-a-half — the names that **forward** to the seam.
+ *
+ * `catalog` and `newsletter` take a `registerWorker(worker, options)` callback
+ * from their own `backend.ts`, whose body is `ctx.worker(worker, options)`. That
+ * is the seam reached one hop away, and a rule that knew only the two literal
+ * spellings would report both modules as bypassing it. The set is **derived**
+ * from the bodies rather than written down, for the reason the factory set is:
+ * the next module will name its callback something else.
+ */
+export function findSeamForwarders(input: SubscribeSeamInput): Set<string> {
+  const names = new Set<string>();
+  for (const [file, text] of input.sources) {
+    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+    const visit = (node: ts.Node): void => {
+      if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name)) {
+        const body = node.initializer;
+        if ((ts.isArrowFunction(body) || ts.isFunctionExpression(body)) && callsSeam(body)) {
+          names.add(node.name.text);
+        }
+      }
+      node.forEachChild(visit);
+    };
+    sf.forEachChild(visit);
+  }
+  return names;
+}
+
+/** Does this function body call one of the two literal seam spellings? */
+function callsSeam(fn: ts.Node): boolean {
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+    if (ts.isCallExpression(node)) {
+      const name = calleeName(node);
+      if (name !== null && WORKER_SEAM_CALLEES.has(name)) found = true;
+    }
+    node.forEachChild(visit);
+  };
+  fn.forEachChild(visit);
+  return found;
+}
+
+/**
+ * Pass two — every queue-consumer site in a module's own sources, gated or not.
+ *
+ * The whole population is returned, not only the findings: the caller reports
+ * how many it read, and a vocabulary that resolved to nothing is exit 2 rather
+ * than a clean bill of health (issue #113).
+ */
+export function findWorkerSites(
+  input: SubscribeSeamInput,
+  factories: ReadonlySet<string>,
+  forwarders: ReadonlySet<string> = new Set(),
+): WorkerSite[] {
+  const sites: WorkerSite[] = [];
+  const seams = new Set([...WORKER_SEAM_CALLEES, ...forwarders]);
+
+  for (const [file, text] of input.sources) {
+    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+    const binding = bullmqWorkerBinding(sf);
+    const lineOf = (node: ts.Node): number =>
+      sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+
+    // One file-local pass first: which names does this file hand to a seam? A
+    // module that writes `const w = createXWorker(…)` and registers `w` two
+    // lines down is right, and the check has to be able to say so.
+    const registeredBindings = new Set<string>();
+    const collectRegistered = (node: ts.Node): void => {
+      if (ts.isCallExpression(node)) {
+        const name = calleeName(node);
+        if (name !== null && seams.has(name)) {
+          for (const argument of node.arguments) {
+            if (ts.isIdentifier(argument)) registeredBindings.add(argument.text);
+          }
+        }
+      }
+      node.forEachChild(collectRegistered);
+    };
+    sf.forEachChild(collectRegistered);
+
+    /**
+     * Gated when the value reaches the seam here, or leaves this function for a
+     * caller that will. Since the T051 conversion the second is the common
+     * shape: a module's `plugin.ts` collects its workers and its `backend.ts`
+     * hands each to `ctx.worker`, so the value crosses a file boundary and this
+     * analysis stops at the return — stated in the header rather than pretended
+     * away. What it still catches is the drop on the floor, which is the defect.
+     */
+    const isGated = (node: ts.Node): boolean => {
+      if (insideSeamCall(node, seams) || isHandedToCaller(node)) return true;
+      const bound = boundCollectionName(node);
+      if (bound === null) return false;
+      return registeredBindings.has(bound) || namesReturnedFromEnclosingFunction(node).has(bound);
+    };
+
+    const visit = (node: ts.Node): void => {
+      if (
+        binding !== null &&
+        ts.isNewExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === binding
+      ) {
+        sites.push({
+          file,
+          line: lineOf(node),
+          moduleId: moduleOf(`/src/${file}`),
+          kind: 'construction',
+          spelling: `new ${binding}`,
+          gated: isGated(node),
+        });
+      }
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+        const callee = node.expression.text;
+        if (factories.has(callee)) {
+          sites.push({
+            file,
+            line: lineOf(node),
+            moduleId: moduleOf(`/src/${file}`),
+            kind: 'registration',
+            spelling: callee,
+            gated: isGated(node),
+          });
+        }
+      }
+      node.forEachChild(visit);
+    };
+    sf.forEachChild(visit);
+  }
+
+  sites.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
+  return sites;
+}
+
+export interface WorkerSeamResult {
+  /** Every site read, gated or not — the population, for the read-size line. */
+  readonly sites: readonly WorkerSite[];
+  readonly violations: readonly WorkerSite[];
+  readonly ledgered: readonly WorkerSite[];
+  readonly stale: readonly string[];
+}
+
+export function checkWorkerSeam(
+  input: SubscribeSeamInput,
+  ledger: Readonly<Record<string, string>> = WORKERS_OUTSIDE_THE_SEAM,
+): WorkerSeamResult {
+  const sites = findWorkerSites(input, findWorkerFactories(input), findSeamForwarders(input));
+  // Only a module has an effective state to gate on; a factory in a shared
+  // directory is judged where it is called.
+  const ungated = sites.filter((site) => !site.gated && site.moduleId !== null);
+  const keys = new Set(ungated.map(workerKeyOf));
+  return {
+    sites,
+    violations: ungated.filter((site) => ledger[workerKeyOf(site)] === undefined),
+    ledgered: ungated.filter((site) => ledger[workerKeyOf(site)] !== undefined),
+    stale: Object.keys(ledger).filter((key) => !keys.has(key)),
+  };
+}
+
 export interface CheckResult {
   readonly total: number;
   readonly violations: readonly BareSubscription[];
@@ -242,6 +671,22 @@ async function main(): Promise<void> {
   });
 
   const result = checkSubscribeSeam({ sources });
+  const workers = checkWorkerSeam({ sources });
+
+  // Issue #113's shape for the worker half, and it needs its own refusal: the
+  // subscription half's floor is the module population, which stays satisfied
+  // by files carrying no queue at all. If BullMQ's `Worker` stopped being a
+  // named export — or the queue files moved out of the walk — every module's
+  // consumer would read as "not a worker" and this check would print a clean
+  // line over an unprotected tree.
+  if (workers.sites.length === 0) {
+    console.error(
+      '[subscribe-seam] read no BullMQ worker site at all. The tree has queue consumers, so ' +
+        'either the walk missed them or the `Worker` import shape changed — a green here would ' +
+        'mean "not looking".',
+    );
+    process.exit(2);
+  }
 
   if (listMode) {
     for (const entry of findBareSubscriptions({ sources })) {
@@ -249,6 +694,16 @@ async function main(): Promise<void> {
         BARE_SUBSCRIPTIONS_TO_DRAIN[keyOf(entry)] !== undefined ? 'LEDGERED' : 'BARE    ';
       console.log(
         `${tag} ${entry.file}:${entry.line}  [${entry.moduleId}] ${entry.receiver}.on('${entry.event}')`,
+      );
+    }
+    for (const site of workers.sites) {
+      const tag = site.gated
+        ? 'SEAMED  '
+        : WORKERS_OUTSIDE_THE_SEAM[workerKeyOf(site)] !== undefined
+          ? 'LEDGERED'
+          : 'UNGATED ';
+      console.log(
+        `${tag} ${site.file}:${site.line}  [${site.moduleId ?? '-'}] ${site.spelling} (${site.kind})`,
       );
     }
     console.log('');
@@ -266,6 +721,31 @@ async function main(): Promise<void> {
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
       `ledger-size=${Object.keys(BARE_SUBSCRIPTIONS_TO_DRAIN).length} stale=${result.stale.length}`,
   );
+  console.log(
+    `[subscribe-seam] module queue consumers read=${workers.sites.length} ` +
+      `outside-the-seam=${workers.violations.length} ledgered=${workers.ledgered.length} ` +
+      `ledger-size=${Object.keys(WORKERS_OUTSIDE_THE_SEAM).length} stale=${workers.stale.length}`,
+  );
+
+  if (workers.violations.length > 0) {
+    console.error(
+      '\nA module built a BullMQ queue consumer outside its gating seam, so the platform\n' +
+        'cannot stop it: it is in no per-module registry, `pauseWorkersFor` reaches nothing,\n' +
+        'and the presence reconcile has nothing to reconcile. The module goes on doing work\n' +
+        'with an operator believing it is switched off (Constitution XVII).\n' +
+        'Hand the worker to `ctx.worker(worker)` — or `defineModuleWorker(<id>, worker)` in a\n' +
+        'module still shaped as a `plugin.ts` — and keep the returned instance.\n',
+    );
+    for (const site of workers.violations) {
+      console.error(
+        `  - ${site.file}:${site.line}  [${site.moduleId}] ${site.spelling} (${site.kind})`,
+      );
+    }
+  }
+  if (workers.stale.length > 0) {
+    console.error('\nStale worker-ledger entries (no longer describe an ungated consumer):');
+    for (const key of workers.stale) console.error(`  - ${key}`);
+  }
 
   if (result.violations.length > 0) {
     console.error(
@@ -285,7 +765,12 @@ async function main(): Promise<void> {
     for (const key of result.stale) console.error(`  - ${key}`);
   }
 
-  process.exit(result.violations.length > 0 || result.stale.length > 0 ? 1 : 0);
+  const failed =
+    result.violations.length > 0 ||
+    result.stale.length > 0 ||
+    workers.violations.length > 0 ||
+    workers.stale.length > 0;
+  process.exit(failed ? 1 : 0);
 }
 
 // CLI only — importing this module (the unit self-test does) must not scan.

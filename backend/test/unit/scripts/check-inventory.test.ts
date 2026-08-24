@@ -108,7 +108,7 @@ import {
 } from '../../../scripts/check-platform-surface.js';
 import { publishedSurface } from '../../../scripts/lib/platform-surface.js';
 import { checkPortShape } from '../../../scripts/check-port-shape.js';
-import { checkSubscribeSeam } from '../../../scripts/check-subscribe-seam.js';
+import { checkSubscribeSeam, checkWorkerSeam } from '../../../scripts/check-subscribe-seam.js';
 import { checkTransactionContext } from '../../../scripts/check-transaction-context.js';
 import {
   checkNulBytes,
@@ -4083,11 +4083,24 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
-    // Three signals, and the fixture for each names only its own: a bus-shaped
-    // receiver with an event name no signal 3 would match, a domain event off a
-    // receiver no signal 1 would match, and a cast around a bus. Written as one
-    // `eventBus.on('a.b.v1', …)` the fixture satisfies two signals at once, so
-    // either could go blind behind the other.
+    // Five signals over one rule — a module's background consumers reach the
+    // module's seam — and the fixture for each names only its own.
+    //
+    // Three for the subscription half: a bus-shaped receiver with an event name
+    // no signal 3 would match, a domain event off a receiver no signal 1 would
+    // match, and a cast around a bus. Written as one `eventBus.on('a.b.v1', …)`
+    // the fixture satisfies two signals at once, so either could go blind behind
+    // the other.
+    //
+    // Two for the queue half, and they are different questions rather than two
+    // spellings of one: `ungated-registration` is a call to a derived worker
+    // factory whose value goes nowhere — the shape `pwa` shipped, invisible to
+    // any predicate keyed on `new Worker(` — and `ungated-construction` is a
+    // module that builds the worker itself and keeps it. Both fixtures enter as
+    // source text at the top of the analysis, so the factory derivation runs:
+    // the registration proof supplies the factory *file* rather than a
+    // pre-computed factory name, which is the only way it can catch a derivation
+    // that has stopped working.
     script: 'backend/scripts/check-subscribe-seam.ts',
     npmScript: 'check:subscribe-seam',
     job: 'quality',
@@ -4137,6 +4150,43 @@ const CHECKS: readonly CheckEntry[] = [
             },
             {},
           ).violations.length,
+      ),
+      'ungated-registration': top(
+        () =>
+          checkWorkerSeam(
+            {
+              sources: new Map([
+                [
+                  'modules/pwa/services/push-delivery-queue.ts',
+                  "import { Worker } from 'bullmq';\n" +
+                    'export function createPushDeliveryWorker(redis, processor) {\n' +
+                    '  return new Worker(QUEUE, (job) => processor(job), { connection: redis });\n' +
+                    '}',
+                ],
+                [
+                  'modules/pwa/plugin.ts',
+                  'createPushDeliveryWorker(options.redis, processor);',
+                ],
+              ]),
+            },
+            {},
+          ).violations.filter((v) => v.kind === 'registration').length,
+      ),
+      'ungated-construction': top(
+        () =>
+          checkWorkerSeam(
+            {
+              sources: new Map([
+                [
+                  'modules/webhooks/plugin.ts',
+                  "import { Worker } from 'bullmq';\n" +
+                    'const w = new Worker(QUEUE, handler, { connection });\n' +
+                    'hold(w);',
+                ],
+              ]),
+            },
+            {},
+          ).violations.filter((v) => v.kind === 'construction').length,
       ),
     },
   },
@@ -5554,7 +5604,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // Three spellings of a whole-table wipe, plus the baseline's second
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,
-      'backend/scripts/check-subscribe-seam.ts': 3,
+      // Three spellings of a bare subscription, plus the two queue-consumer
+      // shapes: a factory call whose value goes nowhere, and a `new Worker` the
+      // module keeps to itself.
+      'backend/scripts/check-subscribe-seam.ts': 5,
       // Two shapes, two scopes, and the ledger's stale direction.
       'backend/scripts/check-transaction-context.ts': 5,
       'backend/scripts/i18n-hardcoded-strings.ts': 2,
