@@ -3,9 +3,29 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
 
 import {
+  hasExportModifier,
+  nodeSourceReader,
+  parseModule as parse,
+  runtimeExportsOfEmittedModule,
+  type SourceReader,
+} from '../../scripts/lib/emitted-exports.js';
+import {
   isInsideNestedCheckout,
   nestedCheckoutRoots,
 } from '../../scripts/lib/nested-checkouts.js';
+
+/**
+ * The reader and the emitted-exports predicate, re-exported under the names this
+ * helper's callers already use.
+ *
+ * `runtimeExportsOfEmittedModule` was defined here until D-171 gave it a second
+ * reader: `check-module-boundary.ts` asks it whether a module package's subpath
+ * is contract surface. The fact is the same one this file's `./ports` guard
+ * measures — *does the emitted module export a runtime binding* — so it moved to
+ * `scripts/lib/emitted-exports.ts`, which a check and a test helper can both
+ * import. Two derivations of one fact are two answers waiting to disagree.
+ */
+export { nodeSourceReader, runtimeExportsOfEmittedModule, type SourceReader };
 
 /**
  * What a module package's `./backend` subpath publishes about its entities
@@ -45,17 +65,6 @@ import {
  * class through an alias assignment or a computed export.
  */
 
-/** A file reader the caller supplies, so a fixture can enter at the top. */
-export interface SourceReader {
-  readonly exists: (path: string) => boolean;
-  readonly read: (path: string) => string;
-}
-
-export const nodeSourceReader: SourceReader = {
-  exists: (path) => existsSync(path),
-  read: (path) => readFileSync(path, 'utf8'),
-};
-
 /** One thing wrong with a module package's published entity surface. */
 export interface BackendSurfaceFinding {
   readonly kind:
@@ -80,10 +89,6 @@ export interface BackendSurface {
 
 /** The decorator the ORM keys on, assembled so this file is not its own match. */
 const ENTITY_DECORATOR_NAME = `${'Ent'}${'ity'}`;
-
-function parse(path: string, text: string): ts.SourceFile {
-  return ts.createSourceFile(path, text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
-}
 
 /** `./x.js` → `<dir>/x.ts`, `./x` → `<dir>/x.ts` or `<dir>/x/index.ts`; `null` for a bare one. */
 function resolveRelative(from: string, specifier: string, reader: SourceReader): string | null {
@@ -626,11 +631,6 @@ interface PortsAccumulator {
   readonly unresolvable: Set<string>;
 }
 
-function hasExportModifier(statement: ts.Statement): boolean {
-  const modifiers = ts.canHaveModifiers(statement) ? ts.getModifiers(statement) : undefined;
-  return modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) === true;
-}
-
 /**
  * The ports barrel's published surface.
  *
@@ -816,51 +816,4 @@ export function d169PortsFindings(
     });
   }
   return findings;
-}
-
-/**
- * Names an **emitted** ES module exports at runtime, read as syntax.
- *
- * The source analysis above answers what the author wrote; this answers what the
- * build actually published, and only the second is what a consumer's bundler
- * loads. A type-only module compiles to `export {};` under
- * `verbatimModuleSyntax`, so the sound answer here is the empty list.
- */
-export function runtimeExportsOfEmittedModule(
-  path: string,
-  reader: SourceReader = nodeSourceReader,
-): string[] {
-  const source = parse(path, reader.read(path));
-  const found = new Set<string>();
-  for (const statement of source.statements) {
-    if (ts.isExportAssignment(statement)) {
-      found.add('default');
-      continue;
-    }
-    if (hasExportModifier(statement)) {
-      if (ts.isClassDeclaration(statement) && statement.name) found.add(statement.name.text);
-      else if (ts.isFunctionDeclaration(statement) && statement.name) found.add(statement.name.text);
-      else if (ts.isEnumDeclaration(statement)) found.add(statement.name.text);
-      else if (ts.isVariableStatement(statement)) {
-        for (const declaration of statement.declarationList.declarations) {
-          if (ts.isIdentifier(declaration.name)) found.add(declaration.name.text);
-        }
-      }
-      continue;
-    }
-    if (!ts.isExportDeclaration(statement)) continue;
-    const specifier =
-      statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)
-        ? statement.moduleSpecifier.text
-        : null;
-    if (statement.exportClause === undefined) {
-      if (specifier !== null) found.add(`* from '${specifier}'`);
-      continue;
-    }
-    if (!ts.isNamedExports(statement.exportClause)) continue;
-    for (const element of statement.exportClause.elements) {
-      found.add(element.name.text);
-    }
-  }
-  return [...found].sort();
 }
