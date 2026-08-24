@@ -438,7 +438,9 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/modules/_lifecycle/scripts/status.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
   'backend/src/modules/_lifecycle/scripts/uninstall.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
 
-  // === DEPLOYMENT_FILE (3) ===
+  // === DEPLOYMENT_FILE (5) ===
+  'backend/src/apps/acceptance/override-manifest.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
+  'backend/src/apps/acceptance/reduced-deployment.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/example/decorations/pricing-service.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/example/override-manifest.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/example/reduced-deployment.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },

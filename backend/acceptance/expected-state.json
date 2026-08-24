@@ -2,7 +2,7 @@
   "$comment": [
     "What the package-schema acceptance criterion answers on this tree, per assertion (D-110).",
     "A two-way ratchet: the CI job fails when a run disagrees with this file in either direction.",
-    "All nine are `pass` since T046, which is the transition this file was written for: it stops",
+    "A1 … A9 are `pass` since T046, which is the transition this file was written for: it stops",
     "being the record of a gap and becomes the guard against regressions. An accidental *red* now",
     "fails the job exactly as an accidental green did — and the green is still the one worth being",
     "careful about, because a change that quietly satisfied an assertion without going through the",
@@ -23,6 +23,11 @@
     "T033a/T036 moved no status and rewrote A7's reason, which its own change falsified.",
     "D-157.6(b) narrows the first-boot reconciler's insert population to core plus overlay, so no",
     "boot will ever converge a package and A7's row has exactly one author, `install`.",
+    "T053(c) added A10 — a tenth, and the only one recorded `fail`. It is not a schema assertion:",
+    "it asks whether the overlay pattern's one customisation seam reaches an owner that has become",
+    "a package, which needed no new harness because this one already packs, installs and composes",
+    "one. It is red on a single cause, named in its entry, and the entry is the deliverable: the",
+    "question stops being open and starts being measured on every merge request.",
     "T046 moved A6 and A7 to `pass`. Neither needed the mechanism its own recorded reason named:",
     "what both needed was for the probe to run the sequence an operator runs. `install` is a",
     "package's only author — of its `module_registrations` row since D-157.6(b), and of its",
@@ -65,6 +70,10 @@
     "A9": {
       "status": "pass",
       "reason": "Passes today, and must, for the same reason: A8 refuses the same package consumed by link from inside this repository. If A9 ever fails, A8 has stopped being able to say no and every other assertion is worth less."
+    },
+    "A10": {
+      "status": "fail",
+      "reason": "**Red, and measured rather than assumed — which is the whole of T053(c).** A per-deployment overlay cannot decorate a registration an installed package owns, and the layer is exactly one: the **order of the arrays in the composition root**. `composeApp` calls `composeModules([...MODULES, ...overlayModuleEntries, ...packageModuleEntries], …)`, and registration runs in array order with no topological pass — so a deployment's overlay module registers *before* the package whose name it wraps, `container.hasRegistration('acceptanceProbeGreeter')` is false, and `ctx.di.decorate` refuses with \"nothing is registered under that name. Decoration wraps an existing registration; register order is topological, so the owning module must come first.\" The refusal is `ModuleCompositionError`-wrapped and takes the whole composition down, so a deployment that tries this does not degrade — it does not boot. Nothing else is wrong: the overlay module was discovered, was composed, and reached `decorate` at all, which is what says `loadOverlayModuleEntries` marked it `overlay: true`. Measured with the two arrays swapped and nothing else changed, A10 answers `pass` — `acceptanceProbeGreeter` resolves to `\"overlay:acceptance probe\"`, the deployment's wrap delegating into the package's own implementation — so the `overlay: true` exemption over a **package** owner works today and is reached by nobody. The swap is not committed: which array composes last is a ruling about the overlay pattern (the comment above that call already claims \"overlay last, so a deployment's decoration wins\" as structural, and for a package owner it is not), and a task row that adds an assertion is not where that gets decided. Record the move here in the merge request that earns it."
     }
   }
 }

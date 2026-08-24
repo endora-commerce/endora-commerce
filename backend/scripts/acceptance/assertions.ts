@@ -16,7 +16,26 @@
 import { realpathSync, lstatSync, readlinkSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
-/** The nine assertions, in the order the contract states them. */
+/**
+ * The assertions, in order: A1 … A9 are the ones the contract states, A10 is
+ * this repository's own and is ahead of it.
+ *
+ * **A10 is not a schema assertion, and it is here rather than in a test of its
+ * own for the reason T053(c) gives**: the thing it needs is an installed
+ * package — packed, installed outside the repository, composed — and this
+ * harness is the only place that exists. Building a second one to ask one
+ * question would be a second answer to "what is an installed package"; asking
+ * it here costs one phase.
+ *
+ * What it asks is the overlay pattern's, not the packaging programme's: a
+ * per-deployment overlay overrides a core service by decorating the
+ * **registration** (feature 072, D-28), and a registration name says nothing
+ * about where its owner's code lives. So an owner that has become a package
+ * ought to be transparent to a decoration. Nothing measured that, and the
+ * decoration exemption an overlay module holds (`overlay: true`, set from the
+ * root it was discovered under — issue #203) is exactly the kind of thing that
+ * can turn out to depend on where the *wrapped* module lives.
+ */
 export const ASSERTION_IDS = [
   'A1',
   'A2',
@@ -27,6 +46,7 @@ export const ASSERTION_IDS = [
   'A7',
   'A8',
   'A9',
+  'A10',
 ] as const;
 export type AssertionId = (typeof ASSERTION_IDS)[number];
 
@@ -316,6 +336,11 @@ export const ASSERTION_CATALOGUE: Readonly<
   A9: {
     title: 'the moved-directory case does not satisfy A8',
     refuses: 'an A8 that has never been seen to refuse anything',
+  },
+  A10: {
+    title: "a deployment's overlay decorates a registration the installed package owns",
+    refuses:
+      'an overlay pattern whose one customisation seam reaches only the modules this repository ships',
   },
 };
 
