@@ -276,10 +276,24 @@ const LIFECYCLE_HOST_HALF =
  * §1.4g and D-103 — a composed module ships `backend.ts` and registers routes
  * through `ctx.routes`; `ModulePlugin` is not published and a module still
  * carrying a `plugin.ts` converts before it can be packaged.
+ *
+ * **Eight of the nine drained in T051, and the retiring condition the entry
+ * used to name was not the one that retired them.** It read *"retires when this
+ * module's `plugin.ts` is gone"*, which conflated the reach with the file: what
+ * a packaged module cannot do is **name an unpublished symbol**, and the attach
+ * function's type is `(app: FastifyInstance) => Promise<void>` whether or not
+ * the body still lives in a `plugin.ts`. The already-packaged `quote_requests`
+ * ships one and types it exactly that way (`src/backend/plugin.ts:124`), which
+ * is the precedent the eight followed. Converting the file is a separate and
+ * larger piece of work; it was never what this reach was waiting for.
+ *
+ * The survivor is `_lifecycle`'s, which retires with D-160.11's merge like its
+ * eleven siblings.
  */
 const MODULE_PLUGIN =
   '§1.4g, D-103 — a composed module ships `backend.ts` and uses `ctx.routes`; `ModulePlugin` ' +
-  'is not published. Retires when this module\'s `plugin.ts` is gone.';
+  'is not published, and the attach function types on `fastify`\'s own `FastifyInstance` ' +
+  'instead. This one is `_lifecycle`\'s and retires with D-160.11.';
 
 /**
  * §1.4j — the clearest **A** on the list. The file's own header says it exists
@@ -418,16 +432,8 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/modules/_lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
   'backend/src/modules/_lifecycle/services/reduced-deployment.ts|backend/src/overlay/overlay-roots.ts': { symbols: ['selectedDeployment'], reason: LIFECYCLE_HOST_HALF },
 
-  // === MODULE_PLUGIN (9) ===
+  // === MODULE_PLUGIN (1) ===
   'backend/src/modules/_lifecycle/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/admin_actions/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/customers/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/invoices/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/ksef/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/mfa/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/newsletter/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/pim_ergonode/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-  'backend/src/modules/product_feeds/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
 
   // === ORM_BOOTSTRAP (5) ===
   'backend/src/modules/_lifecycle/scripts/disable.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },

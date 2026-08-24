@@ -1,5 +1,5 @@
+import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModulePlugin } from '../../http/server.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
 import { CustomerAddressService } from './services/customer-address-service.js';
@@ -46,6 +46,16 @@ import {
   type RequireAdminGuard,
   type ResolveModerationActor,
 } from './routes.admin.js';
+
+/**
+ * The attach function this module hands its composition root.
+ *
+ * Typed on `fastify`'s own `FastifyInstance` rather than on the platform's
+ * `ModulePlugin`, which `contracts/host-package.md` §1.4g classifies **A**: the
+ * host does not publish it, so a packaged module cannot name it. The
+ * already-packaged `quote_requests` types its attach function the same way.
+ */
+type ModuleAttach = (app: FastifyInstance) => Promise<void>;
 
 /**
  * Customers module composition root (feature 040).
@@ -187,7 +197,7 @@ export interface CustomersModuleHandle {
 }
 
 export function customersModule(options: CustomersModuleOptions): {
-  plugin: ModulePlugin;
+  plugin: ModuleAttach;
   handle: () => CustomersModuleHandle;
 } {
   const customerAuthService = options.customerAuthService;
@@ -255,7 +265,7 @@ export function customersModule(options: CustomersModuleOptions): {
     options.resolveDeletionRetentionDays,
   );
 
-  const plugin: ModulePlugin = async (app) => {
+  const plugin: ModuleAttach = async (app) => {
     await registerCustomersRegisterRoutes(app, { registrationService });
     await registerCustomersSelfRoutes(app, {
       accounts: options.customerAccountReadPort,

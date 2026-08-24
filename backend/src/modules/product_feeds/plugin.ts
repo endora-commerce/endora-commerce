@@ -17,7 +17,6 @@ import {
   type TaxServicePort,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '../../commands/index.js';
-import type { ModulePlugin } from '../../http/server.js';
 import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import {
@@ -120,6 +119,16 @@ import {
   DEFAULT_TAXONOMY_SOURCE_URLS,
 } from './manifest.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+
+/**
+ * The attach function this module hands its composition root.
+ *
+ * Typed on `fastify`'s own `FastifyInstance` rather than on the platform's
+ * `ModulePlugin`, which `contracts/host-package.md` §1.4g classifies **A**: the
+ * host does not publish it, so a packaged module cannot name it. The
+ * already-packaged `quote_requests` types its attach function the same way.
+ */
+type ModuleAttach = (app: FastifyInstance) => Promise<void>;
 
 /**
  * Composition root for the Product Feed module — feature 067.
@@ -378,7 +387,7 @@ export interface ProductFeedsModuleHandle {
 }
 
 export interface ProductFeedsModuleResult {
-  plugin: ModulePlugin;
+  plugin: ModuleAttach;
   handle: ProductFeedsModuleHandle;
   /** Closes queues, workers and subscriptions (graceful shutdown / tests). */
   close: () => Promise<void>;

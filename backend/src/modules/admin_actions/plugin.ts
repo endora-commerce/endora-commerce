@@ -5,7 +5,6 @@ import type {
   ModuleAction,
   PermissionReadPort,
 } from '@endora-commerce/contracts';
-import type { ModulePlugin } from '../../http/server.js';
 import { AdminActionsReconciler } from './services/admin-actions-reconciler.js';
 import {
   AdminActionsService,
@@ -14,8 +13,18 @@ import {
 import {
   registerAdminActionsRoutes,
 } from './routes.admin.js';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+
+/**
+ * The attach function this module hands its composition root.
+ *
+ * Typed on `fastify`'s own `FastifyInstance` rather than on the platform's
+ * `ModulePlugin`, which `contracts/host-package.md` §1.4g classifies **A**: the
+ * host does not publish it, so a packaged module cannot name it. The
+ * already-packaged `quote_requests` types its attach function the same way.
+ */
+type ModuleAttach = (app: FastifyInstance) => Promise<void>;
 
 /**
  * Admin Actions module composition root — feature 020.
@@ -101,7 +110,7 @@ export interface AdminActionsModuleHandle {
 
 export interface AdminActionsModule {
   handle: AdminActionsModuleHandle;
-  plugin: ModulePlugin;
+  plugin: ModuleAttach;
 }
 
 export function adminActionsModule(deps: AdminActionsModuleDeps): AdminActionsModule {
@@ -116,7 +125,7 @@ export function adminActionsModule(deps: AdminActionsModuleDeps): AdminActionsMo
     log,
   });
 
-  const plugin: ModulePlugin = async (app) => {
+  const plugin: ModuleAttach = async (app) => {
     const registry =
       typeof deps.registry === 'function' ? deps.registry() : deps.registry;
     if (registry) {

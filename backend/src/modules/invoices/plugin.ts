@@ -1,7 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { OrderReadPort, OrderRecord, TransactionalEmailSender } from '@endora-commerce/contracts';
-import type { ModulePlugin } from '../../http/server.js';
 import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
@@ -14,6 +13,16 @@ import { createAutoIssueReactor } from './services/auto-issue-reactor.js';
 import { registerInvoicesAdminRoutes } from './routes.admin.js';
 import { registerInvoicesCustomerRoutes } from './routes.customer.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+
+/**
+ * The attach function this module hands its composition root.
+ *
+ * Typed on `fastify`'s own `FastifyInstance` rather than on the platform's
+ * `ModulePlugin`, which `contracts/host-package.md` §1.4g classifies **A**: the
+ * host does not publish it, so a packaged module cannot name it. The
+ * already-packaged `quote_requests` types its attach function the same way.
+ */
+type ModuleAttach = (app: FastifyInstance) => Promise<void>;
 
 /**
  * Minimal event-bus surface this module needs. Emission only: the FR-002
@@ -72,7 +81,7 @@ export interface InvoicesModuleHandle {
 
 export function invoicesModule(options: InvoicesModuleOptions): {
   handle: InvoicesModuleHandle;
-  plugin: ModulePlugin;
+  plugin: ModuleAttach;
 } {
   const numberGenerator = new InvoiceNumberGenerator(
     createSettingsPatternResolver(options.settingsService),
@@ -127,7 +136,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     ...(emailDispatcher ? { emailDispatcher } : {}),
   };
 
-  const plugin: ModulePlugin = async (app: FastifyInstance) => {
+  const plugin: ModuleAttach = async (app: FastifyInstance) => {
     // Seed the system generic template once (idempotent).
     await templateService.ensureGenericSeed().catch(() => undefined);
     await registerInvoicesAdminRoutes(app, {

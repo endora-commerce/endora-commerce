@@ -1,8 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { AuthSessionPort, CustomerPasswordStatePort, MfaLoginPort } from '@endora-commerce/contracts';
-import type { ModulePlugin } from '../../http/server.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { CommandBus } from '../../commands/index.js';
 import { ChallengeStore } from './services/challenge-store.js';
@@ -26,6 +25,16 @@ import { registerMfaAdminRoutes } from './routes.admin.js';
 import { registerMfaOrgRoutes } from './routes.org.js';
 import { registerMfaOAuthRoutes } from './routes.oauth.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+
+/**
+ * The attach function this module hands its composition root.
+ *
+ * Typed on `fastify`'s own `FastifyInstance` rather than on the platform's
+ * `ModulePlugin`, which `contracts/host-package.md` §1.4g classifies **A**: the
+ * host does not publish it, so a packaged module cannot name it. The
+ * already-packaged `quote_requests` types its attach function the same way.
+ */
+type ModuleAttach = (app: FastifyInstance) => Promise<void>;
 
 /**
  * MFA module composition root (feature 042).
@@ -99,7 +108,7 @@ export interface MfaModuleHandle {
 }
 
 export function mfaModule(options: MfaModuleOptions): {
-  plugin: ModulePlugin;
+  plugin: ModuleAttach;
   handle: () => MfaModuleHandle;
 } {
   const challengeStore = new ChallengeStore(options.redis);
@@ -132,7 +141,7 @@ export function mfaModule(options: MfaModuleOptions): {
     options.customerPasswordState,
   );
 
-  const plugin: ModulePlugin = async (app) => {
+  const plugin: ModuleAttach = async (app) => {
     if (!enrolmentService) return; // enrolment disabled without an encryption key
     await registerMfaPublicRoutes(app, {
       loginService,

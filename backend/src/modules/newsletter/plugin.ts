@@ -2,11 +2,10 @@ import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import { NEWSLETTER_SETTING_CODES, type EmailMailerPort } from '@endora-commerce/contracts';
-import type { ModulePlugin } from '../../http/server.js';
 import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { NewsletterTokenHelper } from './services/token.helper.js';
 import { NewsletterOptInService } from './services/opt-in.service.js';
 import { NewsletterSubscriberService, type NewsletterLinkBuilder } from './services/subscriber.service.js';
@@ -39,6 +38,16 @@ import { NewsletterSelfService } from './services/self.service.js';
 import { registerNewsletterStorefrontRoutes } from './routes.storefront.js';
 import { registerNewsletterAdminRoutes } from './routes.admin.js';
 import { registerNewsletterSelfRoutes } from './routes.self.js';
+
+/**
+ * The attach function this module hands its composition root.
+ *
+ * Typed on `fastify`'s own `FastifyInstance` rather than on the platform's
+ * `ModulePlugin`, which `contracts/host-package.md` §1.4g classifies **A**: the
+ * host does not publish it, so a packaged module cannot name it. The
+ * already-packaged `quote_requests` types its attach function the same way.
+ */
+type ModuleAttach = (app: FastifyInstance) => Promise<void>;
 
 export interface NewsletterModuleOptions {
   emFactory: () => EntityManager;
@@ -100,7 +109,7 @@ export interface NewsletterModuleOptions {
  * graph, the (optional) BullMQ dispatch queues + workers, and registers the
  * storefront + admin routes, all gated on the module's enabled state.
  */
-export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin {
+export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach {
   const tokens = new NewsletterTokenHelper(options.tokenSecret);
   const optIn = new NewsletterOptInService(options.settings, tokens);
   const content = new NewsletterContentService();
