@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { RecentActivityCatalog } from './recent-activity-catalog.js';
 
 /**

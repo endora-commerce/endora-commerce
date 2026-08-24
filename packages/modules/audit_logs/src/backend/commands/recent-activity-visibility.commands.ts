@@ -1,7 +1,7 @@
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import type { Command } from '../../../commands/command.js';
-import { HttpError } from '../../../http/error-envelope.js';
-import { Setting } from '../../../kernel/settings/setting.entity.js';
+import type { Command } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
+import { Setting } from '@endora-commerce/platform/kernel';
 import type { RecentActivityCatalog } from '../services/recent-activity-catalog.js';
 
 /**

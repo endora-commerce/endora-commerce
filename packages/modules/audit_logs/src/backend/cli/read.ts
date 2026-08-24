@@ -53,8 +53,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
-import { AuditLogEntry } from '../../../kernel/audit/audit-log-entry.entity.js';
-import type { ModuleContext } from '../../../kernel/index.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
  * The full `--help` text is the command's `help` declaration in `manifest.ts`,

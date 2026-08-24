@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { AuditLogEntry } from '../../kernel/audit/audit-log-entry.entity.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { AuditLogEntry } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin Audit Log query route (T195 / FR-084).

@@ -8,13 +8,13 @@ import {
   type RecentActivityVisibilityList,
   type RecentActivityVisibilityResponse,
 } from '@endora-commerce/contracts';
-import type { CommandBus } from '../../commands/index.js';
-import { HttpError } from '../../http/error-envelope.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
 import { makeSetRecentActivityVisibilityCommand } from './commands/recent-activity-visibility.commands.js';
 import type { RecentActivityCatalog } from './services/recent-activity-catalog.js';
 import type { RecentActivityService } from './services/recent-activity-service.js';
 import type { RecentActivityVisibility } from './services/recent-activity-visibility.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Feature 024 — `GET /api/v1/admin/audit-log/recent-activity`, and since

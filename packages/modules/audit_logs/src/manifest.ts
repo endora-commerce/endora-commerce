@@ -1,5 +1,5 @@
 import { defineModuleManifest, type ModuleCliCommand } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/module-context.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
  * Audit Logs module — manifest backfill (Module Lifecycle, feature 018).
@@ -85,6 +85,6 @@ Filters — the same ones the admin HTTP route takes:
   --object-id=<id>       the affected row
   --limit=<n>            1..500, default 100
   --json                 the rows as JSON instead of a table`,
-    run: async (context) => (await import('./cli/read.js')).read(context),
+    run: async (context) => (await import('./backend/cli/read.js')).read(context),
   },
 ];

@@ -4,7 +4,7 @@ import type {
   KnownIconName,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { AuditLogEntry } from '../../../kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import type { AuditActorIdentity } from '../routes.admin.js';
 import type { RecentActivityCatalog } from './recent-activity-catalog.js';
 import type { RecentActivityVisibility } from './recent-activity-visibility.js';

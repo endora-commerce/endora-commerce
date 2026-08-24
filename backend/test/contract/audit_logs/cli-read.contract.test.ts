@@ -5,8 +5,8 @@ import { promisify } from 'node:util';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectModuleCommands, helpFor } from '../../../src/cli/module-commands.js';
-import { cliCommands } from '../../../src/modules/audit_logs/manifest.js';
-import { read } from '../../../src/modules/audit_logs/cli/read.js';
+import { cliCommands } from '../../../../packages/modules/audit_logs/src/manifest.js';
+import { read } from '../../../../packages/modules/audit_logs/src/backend/cli/read.js';
 import type { ModuleContext } from '../../../src/kernel/module-context.js';
 
 const exec = promisify(execFile);

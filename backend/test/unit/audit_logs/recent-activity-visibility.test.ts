@@ -7,8 +7,8 @@ import type { SettingsReadPort, SettingsReadResult } from '../../../src/kernel/p
 import {
   RecentActivityCatalog,
   type RecentActivityDeclarationSource,
-} from '../../../src/modules/audit_logs/services/recent-activity-catalog.js';
-import { RecentActivityVisibility } from '../../../src/modules/audit_logs/services/recent-activity-visibility.js';
+} from '../../../../packages/modules/audit_logs/src/backend/services/recent-activity-catalog.js';
+import { RecentActivityVisibility } from '../../../../packages/modules/audit_logs/src/backend/services/recent-activity-visibility.js';
 
 /**
  * The operator axis of D-163.1 — feature 080, T042j.
