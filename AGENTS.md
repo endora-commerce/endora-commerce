@@ -677,6 +677,26 @@ author can trip over:
 - **A packaged migration is attributed to `endora.id`, never to a path segment** (D-142) — a
   hard uninstall reverts exactly the migrations registered under the module being removed.
 
+**A module package's own `package.json` is generated too, and it is the one generated artefact that
+is also install-affecting** (feature 080, T041). `pnpm --filter backend run manifests:generate`
+renders it from the layer inventory — peers from the bare specifiers the module's sources actually
+import, `exports` from which layers exist, the `endora` block from the module's `manifest.ts` — and
+`manifests:check` fails on drift. Everything about it is **derived**: `google_analytics` gets
+`bullmq` and `ioredis` because it runs a real worker and `quote_requests` gets neither because its
+"worker" is a plain sweep, and that difference falls out of the walk rather than out of an author
+remembering. Node's built-ins are excluded by asking `isBuiltin`, not by a list, and the package's
+own name by reading specifiers as literal AST nodes — a text scan reports every package as depending
+on itself, measured.
+
+**Run `pnpm install --lockfile-only` in the same breath and commit `pnpm-lock.yaml`.** A generated
+manifest changes what a workspace declares, so `pnpm-lock.yaml` goes stale the moment the render
+differs — and `pnpm install --frozen-lockfile` is the **first** thing every CI job does, so the
+whole pipeline dies in `quality` before a single check runs. That is not hypothetical: it is how
+`master` went red on 2026-08-24, from three lines of lockfile left behind after the generator
+correctly dropped a `zod` the package imports nowhere. The pairing is the same one
+`composer:generate` has with its four artefacts; this one is newer and easier to forget, because a
+hand-written manifest never needed it — whoever edited one was already running an install.
+
 **And `manifest-index.generated.ts` carries each entry's real `manifestPath`.**
 `registered-manifests.ts` used to compute it as `<modules root>/<id>/manifest.ts`, a
 convention nothing verified, and every consumer takes `dirname` of it to reach the module's
