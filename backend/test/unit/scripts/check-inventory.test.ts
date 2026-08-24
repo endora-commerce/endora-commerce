@@ -418,7 +418,7 @@ function publishedSurfaceFindings(
     tree.listChangesets,
     diff,
   );
-  if ('reason' in result) return 0;
+  if ('contained' in result || 'reason' in result) return 0;
   return result.findings.filter((finding) => finding.kind === kind).length;
 }
 
@@ -5174,6 +5174,8 @@ const CHECKS: readonly CheckEntry[] = [
         publishedSurfaceFindings(
           HOST_SOURCED_PACKAGE,
           {
+            baseline: 'origin/master',
+            containedInBaseline: false,
             changedPaths: ['apps/host/src/kernel/settings/settings-cache.ts'],
             addedChangesets: [],
           },
@@ -5186,10 +5188,47 @@ const CHECKS: readonly CheckEntry[] = [
       'unreadable-build-configuration': top(() => {
         const tree = releaseIntentCheckout({ 'packages/alpha/tsconfig.build.json': null });
         const result = checkPublishedSurfaceIntent(RELEASE_INTENT_ROOT, tree.fs, tree.listChangesets, {
+          baseline: 'origin/master',
+          containedInBaseline: false,
           changedPaths: ['apps/host/src/a.ts'],
           addedChangesets: [],
         });
         return 'reason' in result && result.reason.includes('could not be read') ? 1 : 0;
+      }),
+      // Pipeline 11491, as a discrimination rather than as one assertion. An
+      // empty diff is two facts, and the refusal belongs to exactly one of them:
+      // a branch with a real fork point that changes no file is still exit 2 —
+      // turning that into a pass is the shape issue #113 exists for — while a
+      // branch the baseline already contains adds nothing to it by construction
+      // and gets a verdict. Proving only the first would be satisfied by a
+      // check that refuses both, which is the failure this repairs; proving only
+      // the second would be satisfied by one that refuses neither, which is the
+      // failure it must not become. So the fixture drives the same empty diff
+      // twice, differing in one field, and both answers have to be right.
+      'empty-diff-from-a-real-fork-point': top(() => {
+        const emptyDiff = (containedInBaseline: boolean): BranchDiff => ({
+          baseline: 'origin/master',
+          containedInBaseline,
+          changedPaths: [],
+          addedChangesets: [],
+        });
+        const answer = (containedInBaseline: boolean) => {
+          const tree = releaseIntentCheckout({});
+          return checkPublishedSurfaceIntent(
+            RELEASE_INTENT_ROOT,
+            tree.fs,
+            tree.listChangesets,
+            emptyDiff(containedInBaseline),
+          );
+        };
+
+        const refused = answer(false);
+        const contained = answer(true);
+        const refusesTheForkPoint =
+          'reason' in refused && refused.reason.includes('changes no file at all');
+        const answersTheMergedBranch =
+          'contained' in contained && contained.contained.includes('already contained');
+        return refusesTheForkPoint && answersTheMergedBranch ? 1 : 0;
       }),
     },
   },
@@ -5417,8 +5456,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // written as `false`, and by deleting a block that reads as boilerplate.
       // Plus D-162's two for `--since`: the ninth finding, and the build
       // configuration it could not read, which read as absent would say the
-      // package publishes nothing outside its own directory.
-      'backend/scripts/check-release-intent.ts': 13,
+      // package publishes nothing outside its own directory. The fourteenth is
+      // pipeline 11491's discrimination — an empty diff from a real fork point
+      // is still a refusal, and an already-merged branch is a verdict — driven
+      // as one proof because either half alone is satisfied by a check that
+      // answers both the same way.
+      'backend/scripts/check-release-intent.ts': 14,
       // Three spellings of a whole-table wipe, plus the baseline's second
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,

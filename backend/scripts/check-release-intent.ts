@@ -154,11 +154,32 @@
  * publishes nothing outside its own directory", which is the answer that lets
  * the gate stay quiet.
  *
+ * ## The empty diff is two facts, and only one of them is a refusal
+ *
+ * Pipeline 11491 failed a correct merge request. !916 changed three Dockerfiles,
+ * a `.dockerignore`, a shell script and a test, and this mode exited 2 on *"the
+ * branch changes no file at all"*. It had been **merged** before the job fetched
+ * its baseline, so `HEAD` was already an ancestor of `origin/master`.
+ *
+ * The baseline is not the bug, and it is worth saying plainly because it is the
+ * first place anyone looks: the diff has been `${since}...HEAD` since !882, and
+ * `git diff A...B` **is** the merge-base diff — a merge request's own diff, and
+ * arguably what `--since` always meant. That is exactly why re-baselining
+ * repairs nothing here. When the branch has been merged, `merge-base` returns
+ * `HEAD`, so the merge base is what produces the empty diff.
+ *
+ * What separates the two cases is a fact the diff does not carry, and one git
+ * command answers it: `git merge-base --is-ancestor HEAD <baseline>`.
+ * {@link ReleaseIntentContainment} has the reasoning in full; the short version
+ * is that a contained branch adds nothing to the baseline **by construction**,
+ * which is a measured verdict, while an empty diff from a real fork point is a
+ * measurement that came back empty and stays exit 2.
+ *
  * Usage: `tsx scripts/check-release-intent.ts [--root <dir>] [--since <ref>]`
  * Exit 0 = the flow can still go red; 1 = a finding; 2 = it did not read.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -618,12 +639,62 @@ export interface PublishedSurface {
   readonly filesRead: number;
 }
 
-/** The branch, as two lists of repository-relative paths. */
+/** The branch, as two lists of repository-relative paths, against a named baseline. */
 export interface BranchDiff {
+  /** The ref the branch was measured against, as it was given on the command line. */
+  readonly baseline: string;
+  /**
+   * Whether every commit of `HEAD` is already reachable from the baseline —
+   * `git merge-base --is-ancestor HEAD <baseline>`.
+   *
+   * This is a **different fact** from an empty {@link changedPaths}, and telling
+   * the two apart is the whole reason it is carried: see
+   * {@link ReleaseIntentContainment}.
+   */
+  readonly containedInBaseline: boolean;
   /** Every file the branch changes, relative to the repository root. */
   readonly changedPaths: readonly string[];
   /** The `.changeset/*.md` files the branch **adds** (README excluded). */
   readonly addedChangesets: readonly string[];
+}
+
+/**
+ * The baseline already contains the branch, so there is no delta to judge.
+ *
+ * **This is a verdict, not a refusal, and the distinction is the repair of
+ * pipeline 11491.** A merge request that changed six files exited 2 on *"the
+ * branch changes no file at all"* because it had already been merged when the
+ * job fetched its baseline: `HEAD` was an ancestor of `origin/master`, so
+ * `merge-base(origin/master, HEAD)` **was** `HEAD` and the three-dot diff
+ * compared the branch with itself. At this project's merge cadence that fires
+ * regularly, and a gate that is red for a reason no author can act on is a gate
+ * people learn to scroll past — which is the same silence issue #113 refuses,
+ * wearing the other costume.
+ *
+ * So the empty diff splits in two, and only one half is a refusal:
+ *
+ *   * **Not contained, and the diff is empty** — a branch with a real fork point
+ *     whose commits change no file. The measurement came back empty; it was not
+ *     empty by construction. That stays exit 2, verbatim.
+ *   * **Contained** — every question this mode asks is of the form *"does this
+ *     branch add X to the baseline without a changeset?"*, and the set of files
+ *     it adds is empty **because the baseline holds them all already**. That is
+ *     a measured answer, established by one git command that returns a definite
+ *     yes, and it is reported as such.
+ *
+ * Containment cannot be manufactured to slip past the gate, which is what makes
+ * the pass safe: to be an ancestor of the target, every commit must already be
+ * in the target — and getting them there needed a merge, whose own pipeline ran
+ * this gate against a baseline that did not yet contain them. A **squash** merge
+ * copies the content and leaves the commit outside that history, so such a
+ * branch is *not* contained and is judged normally.
+ *
+ * The configuration half of this check is unaffected: it runs in `quality`, on
+ * every merge request, with no diff and no baseline.
+ */
+export interface ReleaseIntentContainment {
+  /** Why there is no delta to judge, in full. */
+  readonly contained: string;
 }
 
 export interface PublishedSurfaceResult {
@@ -830,7 +901,24 @@ export function checkPublishedSurfaceIntent(
   fs: WorkspaceFs,
   listChangesets: (dir: string) => readonly string[] | null,
   diff: BranchDiff,
-): PublishedSurfaceResult | ReleaseIntentRefusal {
+): PublishedSurfaceResult | ReleaseIntentContainment | ReleaseIntentRefusal {
+  // First, and before anything is read: containment is a property of the commit
+  // graph, so nothing below it has an input. Answering it here rather than in
+  // the CLI is what lets a red proof drive it where a real run enters, and what
+  // keeps it ahead of the empty-diff refusal it has to be told apart from.
+  if (diff.containedInBaseline) {
+    return {
+      contained:
+        `every commit of HEAD is already reachable from \`${diff.baseline}\`, so the branch is ` +
+        `already contained in \`${diff.baseline}\` and adds no file to it. That is what a merge ` +
+        'request looks like once it has been merged while its own pipeline was still running: ' +
+        'the merge base is HEAD itself, so the diff is the branch against itself. Nothing is ' +
+        'left to attribute to a package and nothing is left to demand a changeset for — this is ' +
+        'an answer, not an empty measurement. The configuration half of this check ran in ' +
+        '`quality` and is unaffected.',
+    };
+  }
+
   const inputs = readReleaseIntent(repoRoot, fs, listChangesets);
   if ('reason' in inputs) return inputs;
 
@@ -853,7 +941,10 @@ export function checkPublishedSurfaceIntent(
     return {
       reason:
         'the branch changes no file at all — every question below would be vacuously true, ' +
-        'and a merge request with an empty diff is not the input this mode was asked about',
+        'and a merge request with an empty diff is not the input this mode was asked about. ' +
+        `It is **not already contained in \`${diff.baseline}\`** either (that answer has its ` +
+        'own line and exits 0), so this is a branch with a real fork point whose commits change ' +
+        'nothing: the measurement came back empty rather than being empty by construction',
     };
   }
 
@@ -908,6 +999,26 @@ function readBranchDiff(repoRoot: string, since: string): BranchDiff | ReleaseIn
   if (run(['merge-base', since, 'HEAD']) === null) {
     return { reason: `there is no merge base between HEAD and \`${since}\`` };
   }
+
+  // `--is-ancestor` answers with an exit code, and 1 is an *answer* rather than
+  // a failure, so this one cannot go through `run` — which reads every non-zero
+  // status as "git could not answer". Anything other than 0 or 1 still is.
+  const containment = spawnSync('git', ['merge-base', '--is-ancestor', 'HEAD', since], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  if (containment.status !== 0 && containment.status !== 1) {
+    return { reason: `\`git merge-base --is-ancestor HEAD ${since}\` failed` };
+  }
+  const containedInBaseline = containment.status === 0;
+
+  // The diff stays three-dot, which is `merge-base(since, HEAD)..HEAD` — a merge
+  // request's own diff, and already the right baseline. It is stated here
+  // because "compare against the merge base" is the first repair anyone reaches
+  // for on seeing pipeline 11491, and it is a no-op: on a merged branch the
+  // merge base *is* HEAD, so the merge base is exactly what produces the empty
+  // diff. The fact above is what tells that case from a branch that changes
+  // nothing; re-baselining cannot.
   const changedPaths = run(['diff', '--no-renames', '--name-only', `${since}...HEAD`]);
   if (changedPaths === null) return { reason: `\`git diff ${since}...HEAD\` failed` };
   const added = run([
@@ -922,6 +1033,8 @@ function readBranchDiff(repoRoot: string, since: string): BranchDiff | ReleaseIn
   if (added === null) return { reason: `\`git diff --diff-filter=A ${since}...HEAD\` failed` };
 
   return {
+    baseline: since,
+    containedInBaseline,
     changedPaths,
     addedChangesets: added.filter(
       (path) => path.endsWith('.md') && !path.toLowerCase().endsWith('readme.md'),
@@ -938,6 +1051,14 @@ function reportPublishedSurface(repoRoot: string, since: string): number {
   }
 
   const result = checkPublishedSurfaceIntent(repoRoot, nodeWorkspaceFs(), listDirectoryFiles, diff);
+  if ('contained' in result) {
+    // Loud on stdout rather than a bare exit 0: the verdict is a pass, and a
+    // pass nobody can tell from an ordinary one is how "measured nothing" would
+    // creep back in through the door this branch opened.
+    console.log(`${PREFIX} --since=${since} contained=yes changed=0 violations=0`);
+    console.log(`${PREFIX} ${result.contained}`);
+    return 0;
+  }
   if ('reason' in result) {
     console.error(`${PREFIX} ${result.reason}; refusing to report a verdict it did not measure.`);
     return 2;
