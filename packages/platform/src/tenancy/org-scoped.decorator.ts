@@ -111,7 +111,7 @@ export function TransitivelyScoped(
 }
 
 /**
- * A `@TransitivelyScoped` chain that does not resolve.
+ * A `@TransitivelyScoped` chain from which no tenant can be read.
  *
  * It is an error and never a fallback. A transitively scoped entity carries no
  * tenant column of its own, so an unresolved parent leaves it reachable with no
@@ -119,6 +119,15 @@ export function TransitivelyScoped(
  * which is exactly the failure mode a name-addressed parent would otherwise
  * introduce. Resolution therefore has two outcomes and no third: the one
  * classified entity carrying that name, or this.
+ *
+ * **It is also the error for a chain that resolves at every step and grounds
+ * nowhere** (D-170): a `global` or `rule` terminus, a cycle, and a run of
+ * transitives reaching no keyed classification. **One error class, deliberately.**
+ * A caller can do nothing different about "your parent does not exist" and "your
+ * parent has no tenant to give you" — both are boot failures with the same
+ * remedy, a decorator to open — and a second class would invite a `catch` that
+ * distinguishes them, which is the beginning of a degraded mode. The degraded
+ * mode is an untenanted read.
  */
 export class UnresolvableTenantParentError extends Error {
   constructor(detail: string) {
@@ -134,8 +143,12 @@ export class UnresolvableTenantParentError extends Error {
  * two cannot come to disagree about what "resolves" means — and so neither has
  * to `catch` the other's throw.
  */
+function describeChild(child: ClassificationMeta): string {
+  return `${child.className} (fk '${child.fk ?? '?'}')`;
+}
+
 function transitiveParentIssue(child: ClassificationMeta): string | null {
-  const where = `${child.className} (fk '${child.fk ?? '?'}')`;
+  const where = describeChild(child);
   if (child.scope !== 'transitive' || child.parentClassName === undefined) {
     return `${where} is classified '${child.scope}' and names no transitive parent`;
   }
@@ -169,6 +182,127 @@ export function resolveTransitiveParent(child: ClassificationMeta): Classificati
   return registry.find((meta) => meta.className === child.parentClassName) as ClassificationMeta;
 }
 
+/** The outcome of walking one chain from a transitive child to wherever it ends. */
+interface ChainWalk {
+  /** Class names from the child to the last hop reached, in order. */
+  readonly path: readonly string[];
+  /** The classification the chain grounds at, when it grounds at one. */
+  readonly terminus?: ClassificationMeta;
+  /** Why the chain is refused, or `null` when it grounds. */
+  readonly issue: string | null;
+}
+
+/** `A -> B -> C`, the shape every message below spells a chain in. */
+function pathText(path: readonly string[]): string {
+  return path.join(' -> ');
+}
+
+/**
+ * Walk `child`'s chain of parents to a classification that carries a tenant key.
+ *
+ * **The rule is `parent.key !== undefined`** (D-170), true for exactly `org` and
+ * `customer` — {@link ClassificationMeta} already encodes it, so nothing new is
+ * stored and the two cannot come to disagree.
+ *
+ * Checking the *immediate* parent, which is what this used to do, leaves three
+ * silences that are all the same failure with a different number of steps: a
+ * `global` terminus, a cycle (`A -> B -> A` resolves at every step and grounds
+ * nowhere), and a run of transitives reaching no keyed classification. In each
+ * of them the entity is reachable with no tenant predicate anywhere on the path.
+ *
+ * **No depth limit.** The repeated-name guard is what terminates the walk — a
+ * chain with no cycle is finite because the registry is — and a legitimate deep
+ * chain is not wrong for being deep.
+ */
+function walkTenancyChain(child: ClassificationMeta): ChainWalk {
+  const path: string[] = [child.className];
+  const seen = new Set<string>([child.className]);
+  let current = child;
+  for (;;) {
+    const issue = transitiveParentIssue(current);
+    if (issue !== null) {
+      // Beyond the first hop the broken decorator is somebody else's — and that
+      // entity is transitive too, so it reports the same issue under its own
+      // name. This one has to say which chain of its own brought it there.
+      return {
+        path,
+        issue:
+          current === child
+            ? issue
+            : `${describeChild(child)} is scoped through ${pathText(path)}, and that chain breaks: ${issue}`,
+      };
+    }
+    const parent = registry.find(
+      (meta) => meta.className === current.parentClassName,
+    ) as ClassificationMeta;
+    path.push(parent.className);
+    if (seen.has(parent.className)) {
+      return {
+        path,
+        issue:
+          `${describeChild(child)} is scoped through ${pathText(path)}, which is a cycle. ` +
+          'It resolves at every step and grounds nowhere, so no tenant predicate is ' +
+          'reachable from it. One of the entities in the cycle owns the tenant and should ' +
+          "carry a column for it — '@OrgScoped' or '@CustomerScoped' — rather than pointing " +
+          'at the next.',
+      };
+    }
+    seen.add(parent.className);
+    if (parent.scope === 'transitive') {
+      current = parent;
+      continue;
+    }
+    if (parent.key !== undefined) return { path, terminus: parent, issue: null };
+    if (parent.scope === 'rule') {
+      return {
+        path,
+        issue:
+          `${describeChild(child)} is scoped through ${pathText(path)}, which terminates at ` +
+          `'${parent.className}' — classified 'rule', so it carries no tenant key. A transitive ` +
+          'chain gives the child a foreign key and a foreign key cannot evaluate a rule: a ' +
+          "rule-scoped entity's org targeting lives in a JSONB rule that 'derived-scope.ts' " +
+          'makes the *query* intersect. This refusal retires the day a rule-scoped entity ' +
+          "gains a resolved-org projection — that projection is '@OrgScoped', and a chain may " +
+          'terminate there.',
+      };
+    }
+    return {
+      path,
+      issue:
+        `${describeChild(child)} is scoped through ${pathText(path)}, which terminates at ` +
+        `'${parent.className}' — classified '${parent.scope}', so it carries no tenant key. A ` +
+        'transitively scoped entity has no tenant column and no filter of its own, and a ' +
+        'global parent has none either, so the chain delivers no tenant predicate anywhere ' +
+        'on the path and no reader can recover one (Principle XI). If this entity genuinely ' +
+        "has no tenant, classify it '@GlobalEntity' itself.",
+    };
+  }
+}
+
+/** Where the reconciliation's `info` lines go; a `PlatformLogger` satisfies it. */
+export interface TenancyChainReporter {
+  info(obj: object, msg: string): void;
+}
+
+/**
+ * The default destination, for a caller that passes none.
+ *
+ * A real write and never a no-op, for the reason `kernel/logging.ts` gives its
+ * own fallback: this runs before `buildServer`, so stdout is what a boot line
+ * has. It is duplicated rather than imported because `kernel/logging.ts` reaches
+ * `kernel/scope.ts`, which imports this directory — and this file is loaded by
+ * every persisted entity class at decoration time, which is no place to drag
+ * the container in behind an import cycle.
+ *
+ * (The ORM's entity decorator is deliberately not spelled out above: the
+ * composer generator collects entity classes by a text match over these
+ * sources, so writing it here would make this file one.)
+ */
+const consoleReporter: TenancyChainReporter = {
+  // eslint-disable-next-line no-console -- the pre-`buildServer` destination; see above.
+  info: (obj, msg) => console.info(obj, msg),
+};
+
 /**
  * Reconcile every transitive chain in the registry, and refuse if any is broken.
  *
@@ -186,15 +320,55 @@ export function resolveTransitiveParent(child: ClassificationMeta): Classificati
  *
  * It reports **every** broken chain, not the first: an author who renamed an
  * entity wants the whole list in one boot, not one per restart.
+ *
+ * ## Three outcomes (D-170)
+ *
+ * Silent for an `org` terminus. **Refused** for `global`, `rule`, a cycle or a
+ * run of transitives that grounds nowhere — see {@link walkTenancyChain}.
+ * **Accepted with one `info` line** for a `customer` terminus, which is legal
+ * because it grounds (a real column, a default-on filter, and `CustomerAccount`
+ * is itself `@OrgScoped`, so the customer axis narrows the org axis rather than
+ * competing with it) and reported because of a measured circularity:
+ * `customerFilterCond()` returns `{ customerAccountId: … }` in `single-org`
+ * mode and **`{}` — no predicate at all — in `allowed-set`**, where that file's
+ * own comment says an org-scoped admin "cannot be expressed as a
+ * customer-account predicate… such rows are reached **via transitive scoping**
+ * where needed". A chain terminating there is therefore unfiltered for an
+ * org-scoped admin, and the recorded remedy for that is the very mechanism doing
+ * the terminating. Worth a line; not worth a throw, since refusing would police
+ * a defect the terminus did not cause — the `{}` applies to all customer-scoped
+ * entities either way — and would forbid a shape with nowhere else to go, a
+ * customer-scoped parent having no `organizationId` column to continue through.
+ *
+ * The notices are emitted before the refusal rather than instead of it: each
+ * chain is judged on its own, and suppressing a true report about one because
+ * another is broken would make the line come and go for unrelated reasons.
  */
-export function assertTransitiveParentsResolve(): void {
-  const failures = registry
-    .filter((meta) => meta.scope === 'transitive')
-    .map(transitiveParentIssue)
-    .filter((issue): issue is string => issue !== null);
+export function assertTransitiveParentsResolve(
+  report: TenancyChainReporter = consoleReporter,
+): void {
+  const failures: string[] = [];
+  const notices: ChainWalk[] = [];
+  for (const child of registry.filter((meta) => meta.scope === 'transitive')) {
+    const walk = walkTenancyChain(child);
+    if (walk.issue !== null) failures.push(walk.issue);
+    else if (walk.terminus?.scope === 'customer') notices.push(walk);
+  }
+  for (const walk of notices) {
+    report.info(
+      {
+        chain: pathText(walk.path),
+        terminus: walk.terminus?.className,
+        terminusScope: walk.terminus?.scope,
+      },
+      'tenancy chain terminates at a customer-scoped entity: filtered in `single-org` mode, ' +
+        'unfiltered in `allowed-set`, where `customerFilterCond()` returns no predicate for an ' +
+        'org-scoped admin',
+    );
+  }
   if (failures.length === 0) return;
   throw new UnresolvableTenantParentError(
-    `${failures.length} tenancy chain(s) do not resolve:\n  - ${failures.join('\n  - ')}`,
+    `${failures.length} tenancy chain(s) do not reach a tenant:\n  - ${failures.join('\n  - ')}`,
   );
 }
 
