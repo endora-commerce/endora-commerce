@@ -1,6 +1,5 @@
 import type { Queue, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
-import { defineModuleWorker } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { FeedRunReaperService } from '../services/feed-run-reaper.service.js';
 import {
   createFeedReaperWorker,
@@ -38,20 +37,17 @@ export interface FeedRunReaperWorkerDeps {
   logWarn?: (message: string, detail: Record<string, unknown>) => void;
 }
 
-export function registerFeedRunReaperWorker(
+export function buildFeedRunReaperWorker(
   deps: FeedRunReaperWorkerDeps,
 ): Worker<FeedReaperJobData> {
-  return defineModuleWorker(
-    'product_feeds',
-    createFeedReaperWorker(deps.redis, async () => {
-      try {
-        await deps.reaper.releaseStaleClaims();
-      } catch (err) {
-        // Logged, never rethrown — see the note above.
-        deps.logWarn?.('product_feeds: stale-claim sweep failed', { error: String(err) });
-      }
-    }),
-  );
+  return createFeedReaperWorker(deps.redis, async () => {
+    try {
+      await deps.reaper.releaseStaleClaims();
+    } catch (err) {
+      // Logged, never rethrown — see the note above.
+      deps.logWarn?.('product_feeds: stale-claim sweep failed', { error: String(err) });
+    }
+  });
 }
 
 /**

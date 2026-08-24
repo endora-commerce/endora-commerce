@@ -117,6 +117,16 @@ export function registerModule(ctx: ModuleContext): void {
           // falls back to inline sending when it does not (Principle X).
           ...(moduleQueueRedis === undefined ? {} : { redis: moduleQueueRedis }),
           runWorkers: process.env['BACKEND_ROLE'] !== 'api',
+          // The lifecycle gate, threaded in rather than imported. The module
+          // builds its consumers inside the attach function — two need
+          // `app.log`, one an awaited settings read — so it has no
+          // `ModuleContext` where the workers exist; it called
+          // `defineModuleWorker('newsletter', …)` for itself until T051, which
+          // `contracts/host-package.md` §1.4c classifies **A**. Same gate,
+          // through the seam a composed module is meant to use.
+          registerWorker: (worker, workerOptions) => {
+            ctx.worker(worker, workerOptions);
+          },
           // Read per call, so a root may contribute branding at any point in
           // its own ordering.
           resolveEmailBranding: async (salesChannelId: string | null) => {

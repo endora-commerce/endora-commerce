@@ -1,6 +1,5 @@
 import type { Job, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
-import { defineModuleWorker } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { FeedGenerationService } from '../services/feed-generation.service.js';
 import type { FeedRunService } from '../services/feed-run.service.js';
 import {
@@ -11,9 +10,9 @@ import {
 /**
  * Generation consumer — feature 067 / FR-032, FR-033, T075.
  *
- * The consumer half of `product_feeds.generate`. Registered through
- * `defineModuleWorker('product_feeds', …)` so the lifecycle orchestrator can
- * pause it when the module is disabled, and started only when
+ * The consumer half of `product_feeds.generate`. Constructed here and handed
+ * to `ctx.worker` by the module's `backend.ts`, which wraps it so the lifecycle
+ * orchestrator can pause it when the module is disabled; started only when
  * `BACKEND_ROLE !== 'api'` (Principle X).
  *
  * ## Two job shapes, one handler
@@ -47,13 +46,10 @@ export interface FeedGenerationWorkerDeps {
   logWarn?: (message: string, detail: Record<string, unknown>) => void;
 }
 
-export function registerFeedGenerationWorker(
+export function buildFeedGenerationWorker(
   deps: FeedGenerationWorkerDeps,
 ): Worker<FeedGenerationJobData> {
-  return defineModuleWorker(
-    'product_feeds',
-    createFeedGenerationWorker(deps.redis, (job) => processGenerationJob(job, deps)),
-  );
+  return createFeedGenerationWorker(deps.redis, (job) => processGenerationJob(job, deps));
 }
 
 export async function processGenerationJob(

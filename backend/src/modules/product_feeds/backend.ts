@@ -268,6 +268,20 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.routes(async (app) => {
+    // `ctx.worker` applies `defineModuleWorker('product_feeds', …)`, which the
+    // four `workers/*.ts` factories used to call for themselves — a reach into
+    // `kernel/lifecycle/plugin-helpers`, classified **A** by
+    // `contracts/host-package.md` §1.4c because a composed module uses this
+    // seam and publishing the wrapper would re-open by bare specifier what
+    // `check:subscribe-seam` closed by relative path.
+    //
+    // Attached here rather than at registration for `webhooks`' reason: this is
+    // where `app.log` exists, and a `BACKEND_ROLE=worker` process reaches it —
+    // `src/worker.ts` builds the server precisely to register module plugins
+    // and simply never listens.
+    for (const worker of ctx.cradle<ProductFeedsCradle>().productFeeds.workers) {
+      ctx.worker(worker, { logger: app.log });
+    }
     await ctx.cradle<ProductFeedsCradle>().productFeeds.plugin(app);
   });
 

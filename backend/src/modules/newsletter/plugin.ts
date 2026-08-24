@@ -1,8 +1,9 @@
 import { z } from 'zod';
+import type { Worker } from 'bullmq';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import { NEWSLETTER_SETTING_CODES, type EmailMailerPort } from '@endora-commerce/contracts';
-import { defineModuleWorker } from '../../kernel/lifecycle/plugin-helpers.js';
+import type { WorkerLogger } from '../../kernel/lifecycle/plugin-helpers.js';
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -92,6 +93,20 @@ export interface NewsletterModuleOptions {
   redis?: Redis;
   /** Whether this process runs queue consumers (BACKEND_ROLE != api). */
   runWorkers?: boolean;
+  /**
+   * The lifecycle gate for a constructed BullMQ worker — `ctx.worker`, threaded
+   * in by `backend.ts`.
+   *
+   * This module builds its three consumers inside the attach function, because
+   * two of them need `app.log` and one needs an awaited settings read, so it
+   * has no `ModuleContext` in scope where the workers exist. It used to call
+   * `defineModuleWorker('newsletter', …)` directly, which
+   * `contracts/host-package.md` §1.4c classifies **A**: publishing that wrapper
+   * would re-open by bare specifier the seam `check:subscribe-seam` closed by
+   * relative path. Taking the seam as an argument is the same gate reached the
+   * sanctioned way.
+   */
+  registerWorker: (worker: Worker, options?: { logger?: WorkerLogger }) => void;
   /**
    * Feature 058 — resolves the `newsletter.email_credentials` reference into a
    * usable SMTP transport. Injected as a narrow port (Principle I); when absent
@@ -226,16 +241,14 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
       } catch {
         // default
       }
-      defineModuleWorker(
-        'newsletter',
+      options.registerWorker(
         createCampaignPlanWorker(options.redis, async (job) => {
           const recordIds = await dispatch.planCampaign(job.data.campaignId);
           for (const recordId of recordIds) await sendQueue.add('send', { recordId });
         }),
         { logger: app.log },
       );
-      defineModuleWorker(
-        'newsletter',
+      options.registerWorker(
         createSendWorker(
           options.redis,
           async (job) => {
@@ -246,8 +259,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
         { logger: app.log },
       );
       if (automationStepQueue) {
-        defineModuleWorker(
-          'newsletter',
+        options.registerWorker(
           createAutomationStepWorker(options.redis, async (job) => {
             await automations.processStep(job.data.runId, job.data.stepIndex);
           }),

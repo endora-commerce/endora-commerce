@@ -1,7 +1,6 @@
 import type { Job, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { FEED_DELIVERY_LIMITS } from '@endora-commerce/contracts';
-import { defineModuleWorker } from '../../../kernel/lifecycle/plugin-helpers.js';
 import type { DeliveryService } from '../services/delivery/delivery.service.js';
 import {
   createFeedDeliveryWorker,
@@ -46,13 +45,10 @@ export interface FeedDeliveryWorkerDeps {
   logWarn?: (message: string, detail: Record<string, unknown>) => void;
 }
 
-export function registerFeedDeliveryWorker(
+export function buildFeedDeliveryWorker(
   deps: FeedDeliveryWorkerDeps,
 ): Worker<FeedDeliveryJobData> {
-  return defineModuleWorker(
-    'product_feeds',
-    createFeedDeliveryWorker(deps.redis, (job) => processDeliveryJob(job, deps)),
-  );
+  return createFeedDeliveryWorker(deps.redis, (job) => processDeliveryJob(job, deps));
 }
 
 export async function processDeliveryJob(

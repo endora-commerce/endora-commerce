@@ -327,14 +327,28 @@ const CONTAINERLESS_CLI =
  * §1.4c — the **A** half of `plugin-helpers`' by-symbol split. A composed module
  * uses `ctx.worker` / `ctx.subscribe`; publishing the wrappers directly would
  * re-open by bare specifier the seam `check:subscribe-seam` closed by relative
- * path. `_lifecycle`'s `pauseWorkersFor` / `resumeWorkersFor` pair is the
- * orchestrator's own and retires with D-160.11.
+ * path.
+ *
+ * **Nine of the ten drained in T051, in two shapes.** Where the worker is
+ * constructed by a factory the module composition calls (`product_feeds`'s
+ * four, `pim_ergonode`'s two, `ksef`'s one), the factory returns the plain
+ * `Worker` and the module's `backend.ts` hands it to `ctx.worker`. Where it is
+ * constructed inside the attach function because it needs `app.log` or an
+ * awaited settings read (`newsletter`'s three, `catalog`'s one), the module
+ * takes `ctx.worker` as a `registerWorker` option — the same gate, reached
+ * through the seam a composed module is meant to use, from a file that has no
+ * `ModuleContext` in scope. `ksef`'s two `subscribeForModule` calls moved to
+ * `ctx.subscribe` in the same way, the handler staying in the module's service
+ * graph and the registration living in `backend.ts` (issue #107).
+ *
+ * The survivor is `_lifecycle`'s `pauseWorkersFor` / `resumeWorkersFor` pair,
+ * which is the orchestrator's own and retires with D-160.11.
  */
 const WORKER_WRAPPERS =
   '§1.4c — the A half of `plugin-helpers`\' by-symbol split: a composed module uses ' +
   '`ctx.worker` / `ctx.subscribe`, and publishing the wrappers would re-open by bare ' +
-  'specifier the seam `check:subscribe-seam` closed. Retires when the registration moves ' +
-  'to `backend.ts`.';
+  'specifier the seam `check:subscribe-seam` closed. This pair is the orchestrator\'s own ' +
+  'and retires with D-160.11.';
 
 /**
  * §1.4h — a packaged module reads presence through `effectiveState` (§1.3 row
@@ -457,17 +471,8 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   // === TOTP_SHIM (1) ===
   'backend/src/modules/auth/services/totp-service.ts|packages/platform/src/kernel/crypto/totp.ts': { symbols: ['EnrolmentResult', 'hashBackupCode', 'matchBackupCode'], reason: TOTP_SHIM },
 
-  // === WORKER_WRAPPERS (10) ===
+  // === WORKER_WRAPPERS (1) ===
   'backend/src/modules/_lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['pauseWorkersFor', 'resumeWorkersFor'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/catalog/plugin.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/ksef/plugin.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker', 'subscribeForModule'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/newsletter/plugin.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/pim_ergonode/workers/import-reaper-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/pim_ergonode/workers/import-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/feed-delivery-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/feed-generation-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/feed-run-reaper-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
-  'backend/src/modules/product_feeds/workers/taxonomy-refresh-worker.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['defineModuleWorker'], reason: WORKER_WRAPPERS },
 };
 
 export interface PlatformSurfaceInput {

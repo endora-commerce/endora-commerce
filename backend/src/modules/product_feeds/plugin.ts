@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { Worker } from 'bullmq';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import { z } from 'zod';
@@ -80,10 +81,10 @@ import {
   FeedScheduleReconciler,
   type TaxonomyRefreshSchedulePort,
 } from './services/feed-schedule-reconciler.js';
-import { registerFeedGenerationWorker } from './workers/feed-generation-worker.js';
+import { buildFeedGenerationWorker } from './workers/feed-generation-worker.js';
 import {
   ensureReaperSchedule,
-  registerFeedRunReaperWorker,
+  buildFeedRunReaperWorker,
 } from './workers/feed-run-reaper-worker.js';
 import { reconcilePredefinedTemplates } from './seeds/predefined-templates.js';
 import {
@@ -97,7 +98,7 @@ import { HttpDeliveryAdapter } from './services/delivery/adapters/http-delivery-
 import { SftpDeliveryAdapter } from './services/delivery/adapters/sftp-delivery-adapter.js';
 import { FtpDeliveryAdapter } from './services/delivery/adapters/ftp-delivery-adapter.js';
 import { createFeedDeliveryQueue } from './services/queues/feed-delivery-queue.js';
-import { registerFeedDeliveryWorker } from './workers/feed-delivery-worker.js';
+import { buildFeedDeliveryWorker } from './workers/feed-delivery-worker.js';
 import { registerProductFeedsPublicRoutes } from './routes.public.js';
 import { registerProductFeedsTemplateRoutes } from './routes.templates.js';
 import { registerProductFeedsTaxonomyRoutes } from './routes.taxonomies.js';
@@ -111,7 +112,7 @@ import type { TaxonomySourceFetcherPort } from './services/taxonomy-source-fetch
 import { createTaxonomyRefreshQueue } from './services/queues/taxonomy-refresh-queue.js';
 import {
   ensureTaxonomyRefreshSchedule,
-  registerTaxonomyRefreshWorker,
+  buildTaxonomyRefreshWorker,
   removeTaxonomyRefreshSchedule,
 } from './workers/taxonomy-refresh-worker.js';
 import {
@@ -389,6 +390,22 @@ export interface ProductFeedsModuleHandle {
 export interface ProductFeedsModuleResult {
   plugin: ModuleAttach;
   handle: ProductFeedsModuleHandle;
+  /**
+   * The queue consumers this composition constructed, **ungated**.
+   *
+   * `backend.ts` hands each one to `ctx.worker`, which is what applies
+   * `defineModuleWorker('product_feeds', …)` — the wrapper the module used to
+   * call itself in `workers/*.ts`. `kernel/lifecycle/plugin-helpers` is
+   * classified **A** for those four symbols by
+   * `contracts/host-package.md` §1.4c: a composed module uses `ctx.worker`, and
+   * publishing the wrapper would re-open by bare specifier the seam
+   * `check:subscribe-seam` closed by relative path.
+   *
+   * Empty when this process runs no consumers (`BACKEND_ROLE=api`) or has no
+   * Redis, which is the same condition that used to decide whether they were
+   * constructed at all.
+   */
+  workers: readonly Worker[];
   /** Closes queues, workers and subscriptions (graceful shutdown / tests). */
   close: () => Promise<void>;
 }
@@ -895,27 +912,27 @@ export function productFeedsModule(
 
   let worker: ReturnType<typeof createFeedGenerationWorker> | undefined;
   let reaperWorker: ReturnType<typeof createFeedReaperWorker> | undefined;
-  let taxonomyRefreshWorker: ReturnType<typeof registerTaxonomyRefreshWorker> | undefined;
-  let deliveryWorker: ReturnType<typeof registerFeedDeliveryWorker> | undefined;
+  let taxonomyRefreshWorker: ReturnType<typeof buildTaxonomyRefreshWorker> | undefined;
+  let deliveryWorker: ReturnType<typeof buildFeedDeliveryWorker> | undefined;
   if (options.redis && options.runWorkers) {
-    worker = registerFeedGenerationWorker({
+    worker = buildFeedGenerationWorker({
       redis: options.redis,
       generation,
       runs,
       logWarn: warn,
     });
-    reaperWorker = registerFeedRunReaperWorker({
+    reaperWorker = buildFeedRunReaperWorker({
       redis: options.redis,
       reaper,
       logWarn: warn,
     });
-    taxonomyRefreshWorker = registerTaxonomyRefreshWorker({
+    taxonomyRefreshWorker = buildTaxonomyRefreshWorker({
       redis: options.redis,
       refresh: taxonomyRefresh,
       logWarn: warn,
     });
     if (deliveryService) {
-      deliveryWorker = registerFeedDeliveryWorker({
+      deliveryWorker = buildFeedDeliveryWorker({
         redis: options.redis,
         delivery: deliveryService,
         maxAttempts: () =>
@@ -1021,6 +1038,9 @@ export function productFeedsModule(
   return {
     plugin,
     handle,
+    workers: [worker, reaperWorker, taxonomyRefreshWorker, deliveryWorker].filter(
+      (w): w is NonNullable<typeof w> => w !== undefined,
+    ),
     close: async () => {
       await worker?.close().catch(() => undefined);
       await reaperWorker?.close().catch(() => undefined);
