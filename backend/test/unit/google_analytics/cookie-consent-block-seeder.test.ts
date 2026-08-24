@@ -4,7 +4,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import {
   COOKIE_CONSENT_BLOCK_CODE,
   ensureCookieConsentBlock,
-} from '../../../src/modules/google_analytics/services/cookie-consent-block-seeder.js';
+} from '../../../../packages/modules/google_analytics/src/backend/services/cookie-consent-block-seeder.js';
 
 /**
  * Feature 075 / D-87 — the twin of `test/unit/newsletter/consent-block-seeder.test.ts`.

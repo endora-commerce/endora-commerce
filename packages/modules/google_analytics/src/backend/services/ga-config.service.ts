@@ -4,7 +4,7 @@ import {
   type GaStorefrontConfig,
   type GaStorefrontCustomEvent,
 } from '@endora-commerce/contracts';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 /**
  * Loader for a channel's enabled custom events, resolved into the storefront

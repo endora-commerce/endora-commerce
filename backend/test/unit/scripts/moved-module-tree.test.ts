@@ -148,21 +148,32 @@ describe('a moved module tree is refused, not reported clean (issue #215)', () =
  * resulting red would be the ledger going stale rather than anything about the
  * roots.
  *
- * Six, not one: a single relocated module would leave every check's walk more
- * than 98% inside the application tree, which is comfortably inside the shape
- * that made #215 possible in the first place.
+ * Several, not one: a single relocated module would leave every check's walk
+ * more than 98% inside the application tree, which is comfortably inside the
+ * shape that made #215 possible in the first place.
+ *
+ * **A module drops off this list the day it really becomes a package**, and
+ * `google_analytics` is the third to do so (feature 080, T040b). The fixture
+ * relocates a module by copying `backend/src/modules/<id>` and deleting the
+ * original, so a module that is no longer there fails the copy outright —
+ * `ENOENT … lstat backend/src/modules/google_analytics`. It is not lost from
+ * the split tree by leaving: `createSplitModuleTreeFixture` copies every module
+ * package this repository already ships, under the same
+ * `packages/modules/<id>/` address and with its own real `package.json`, which
+ * is the state relocation *simulates*. So the packaged half of the split tree
+ * grows by one rather than shrinking, and the count that matters — modules the
+ * estate must find outside `backend/src` — is this list plus the real packages.
  */
 const PACKAGED_MODULES: readonly string[] = [
   'autopay',
   'email',
-  'google_analytics',
   'google_tag_manager',
   'meta_ads',
   'paypal',
 ];
 
 /**
- * The module the half-moved tree strands, and why it is not one of the six.
+ * The module the half-moved tree strands, and why it is not one of the above.
  *
  * `check-error-translations` declares an **exclusion**: its floor is the
  * eighteen modules `ERROR_TRANSLATION_KEYS` routes a code to, because most
@@ -171,7 +182,7 @@ const PACKAGED_MODULES: readonly string[] = [
  * is *correctly* absent from its expectation, and stranding one would leave
  * that check green while the other fifteen went red — a per-check answer, which
  * is exactly what a shared fixture must not have. `comparisons` is routed, so
- * every floor in the estate covers it, and it is not among the packaged six, so
+ * every floor in the estate covers it, and it is not among the packaged modules above, so
  * the passing tree is unaffected.
  */
 const STRANDED_MODULE = 'comparisons';

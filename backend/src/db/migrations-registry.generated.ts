@@ -147,7 +147,7 @@ import { Migration20260506T112634DictionariesDictionaryInit } from '../modules/d
 import { Migration20260817T070014EmailDeliveryRecord } from '../modules/email/migrations/20260817T070014_email_delivery_record.js';
 
 // ── google_analytics ────────────────────────────────────────────────────────
-import { Migration20260715T171116GoogleAnalyticsInit } from '../modules/google_analytics/migrations/20260715T171116_google_analytics_init.js';
+import { Migration20260715T171116GoogleAnalyticsInit } from '@endora-commerce/mod-google-analytics/migrations';
 
 // ── inventory ───────────────────────────────────────────────────────────────
 import { Migration20260503T182812InventoryWorkflow } from '../modules/inventory/migrations/20260503T182812_inventory_workflow.js';

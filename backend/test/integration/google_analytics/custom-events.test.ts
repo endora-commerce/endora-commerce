@@ -2,11 +2,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { GaCustomEvent } from '../../../src/modules/google_analytics/entities/ga-custom-event.entity.js';
+import { GaCustomEvent } from '../../helpers/package-entities.js';
 import {
   GaCustomEventsService,
   type GaChannelPort,
-} from '../../../src/modules/google_analytics/services/custom-events.service.js';
+} from '../../../../packages/modules/google_analytics/src/backend/services/custom-events.service.js';
 
 /**
  * DB-backed integration test for GaCustomEventsService (feature 049, US3).

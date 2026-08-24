@@ -1,5 +1,5 @@
 import type { CmsBlockSeedPort, CmsContentEnvelope } from '@endora-commerce/contracts';
-import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
+import { effectiveState } from '@endora-commerce/platform/kernel';
 
 /**
  * Seeds a predefined **CMS block** `cookieconsent.message` (feature 049) that

@@ -95,7 +95,6 @@ import { Country } from '../modules/dictionaries/entities/country.entity.js';
 import { DictionaryTranslation } from '../modules/dictionaries/entities/dictionary-translation.entity.js';
 import { LanguageCountry } from '../modules/dictionaries/entities/language-country.entity.js';
 import { EmailDelivery } from '../modules/email/entities/email-delivery.entity.js';
-import { GaCustomEvent } from '../modules/google_analytics/entities/ga-custom-event.entity.js';
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
 import { InventoryThreshold } from '../modules/inventory/entities/inventory-threshold.entity.js';
 import { ProductWarehouseLowStockThreshold } from '../modules/inventory/entities/product-warehouse-low-stock-threshold.entity.js';
@@ -237,6 +236,7 @@ import { TransactionalEmail } from '../modules/transactional_emails/entities/tra
 import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
 import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
 import { entities as blogEntities } from '@endora-commerce/mod-blog/backend';
+import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
 
 export const ALL_ENTITIES = [
@@ -308,7 +308,6 @@ export const ALL_ENTITIES = [
   DictionaryTranslation,
   LanguageCountry,
   EmailDelivery,
-  GaCustomEvent,
   AvailabilityNotification,
   InventoryThreshold,
   ProductWarehouseLowStockThreshold,
@@ -450,5 +449,6 @@ export const ALL_ENTITIES = [
   WebhookDelivery,
   Webhook,
   ...(blogEntities as readonly EntityClassLike[]),
+  ...(googleAnalyticsEntities as readonly EntityClassLike[]),
   ...(quoteRequestsEntities as readonly EntityClassLike[]),
 ] as const;

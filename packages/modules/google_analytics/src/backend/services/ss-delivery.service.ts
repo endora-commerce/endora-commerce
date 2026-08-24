@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Processor } from 'bullmq';
 import type { Queue } from 'bullmq';
 import { GOOGLE_ANALYTICS_SETTING_CODES, type GaCollectRequest } from '@endora-commerce/contracts';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { GaDeliveryJobData } from './ss-delivery-queue.js';
 import type { Ga4MpClient } from './ga4-mp-client.js';
 

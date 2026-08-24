@@ -2,12 +2,14 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { CmsBlockSeedPort } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
-import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
+import type {
+  AuditPort,
+  ModuleContext,
+  RequireAdminFactory,
+  SettingsReadPort,
+} from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import { GaConfigService } from './services/ga-config.service.js';
 import {
   GaCustomEventsService,
@@ -21,6 +23,7 @@ import {
 import { makeEnqueuer, makeProcessor } from './services/ss-delivery.service.js';
 import { Ga4MpClient } from './services/ga4-mp-client.js';
 import { ensureCookieConsentBlock } from './services/cookie-consent-block-seeder.js';
+import { GaCustomEvent } from './entities/ga-custom-event.entity.js';
 import { registerGoogleAnalyticsAdminRoutes } from './routes.admin.js';
 import { registerGoogleAnalyticsStorefrontRoutes } from './routes.storefront.js';
 
@@ -179,3 +182,26 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ *
+ * One class, and the absent named export matters here for a reason this module
+ * makes concrete: `ga_custom_events` carries a foreign key into `sales_channels`
+ * (D-169), and a foreign key needs the **table**, never the owner's entity
+ * class. There is nothing another module can legitimately do with `GaCustomEvent`
+ * — D-32 forbids an ORM relation into it, and every cross-module read of this
+ * module's data goes through the storefront config shape. With a named export,
+ * `import type { GaCustomEvent } from '@endora-commerce/mod-google-analytics/backend'`
+ * would compile in any consumer's tree and only a check whose population is this
+ * repository could object.
+ */
+export const entities = [GaCustomEvent];
