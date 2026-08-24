@@ -3,7 +3,7 @@ import { receiveShipmentSchema } from '@endora-commerce/contracts';
 import type { Shipment } from './entities/shipment.entity.js';
 import type { ReceiveShipmentHandler } from './services/receive-shipment-handler.js';
 import type { ShipmentService } from './services/shipment-service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Shipments routes (feature 035).

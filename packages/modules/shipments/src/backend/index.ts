@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EventBus } from '../../events/bus.js';
+import type { EventBus } from '@endora-commerce/platform/events';
 import type {
   CustomerAccountReadPort,
   DeliveryMethodReadPort,
@@ -11,10 +11,10 @@ import type {
   ShippingAdapterRegistryPort,
   ShippingEmailRendererPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { ShipmentService } from './services/shipment-service.js';
 import { ShipmentUsageService } from './services/shipment-usage.service.js';
 import { resolveShippingEmailRenderer } from './services/shipping-email-renderer.js';
@@ -24,6 +24,7 @@ import { registerShipmentsRoutes } from './routes.js';
 import { ShipmentEmailNotifier } from './services/shipment-email-notifier.js';
 import type { ShipmentEmailNotifierDeps } from './services/shipment-email-notifier.js';
 import { SHIPMENT_CREATED_DEFAULT } from './email-templates/transactional-defaults.js';
+import { Shipment } from './entities/shipment.entity.js';
 
 /**
  * `shipments` — a module that owned everything except its own registration
@@ -229,3 +230,18 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  Shipment,
+];

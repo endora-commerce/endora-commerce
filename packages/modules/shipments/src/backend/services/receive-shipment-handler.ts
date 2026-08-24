@@ -6,7 +6,7 @@ import type {
   OrderTransitionOutcome,
   OrderTransitionPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { Shipment } from '../entities/shipment.entity.js';
 import type { ShippingEventBus } from './events.js';
 

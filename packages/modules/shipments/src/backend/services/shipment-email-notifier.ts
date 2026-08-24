@@ -9,8 +9,8 @@ import type {
   ShipmentStatus,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
-import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * Why the shipment-created e-mail did — or did not — go out (issue #78).

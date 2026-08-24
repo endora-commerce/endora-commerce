@@ -27,9 +27,9 @@ import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/s
 import {
   ShipmentService,
   carrierNotContactedReason,
-} from '../../../src/modules/shipments/services/shipment-service.js';
-import type { ShippingEventBus } from '../../../src/modules/shipments/services/events.js';
-import type { Shipment } from '../../../src/modules/shipments/entities/shipment.entity.js';
+} from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
+import type { ShippingEventBus } from '../../../../packages/modules/shipments/src/backend/services/events.js';
+import type { Shipment } from '../../../../packages/modules/shipments/src/backend/entities/shipment.entity.js';
 
 const ORDER_ID = 'cccccccc-0000-4000-8000-000000000001';
 const METHOD_ID = 'cccccccc-0000-4000-8000-000000000002';
