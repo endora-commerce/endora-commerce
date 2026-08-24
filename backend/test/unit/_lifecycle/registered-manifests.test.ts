@@ -217,7 +217,7 @@ describe('a module’s location is answered, or refused — never guessed (T041a
       // one for it would have been this test making up a rule the reconciler
       // does not have; the rule the reconciler *does* have is "the directory a
       // manifest declares must be on disk", which is what runs here.
-      const bundlesDir = REGISTERED_MANIFESTS.find((entry) => entry.id === pkg.moduleId)?.manifest
+      const bundlesDir = REGISTERED_MANIFESTS.find((entry) => entry.manifest.id === pkg.moduleId)?.manifest
         .i18n?.bundlesDir;
       if (bundlesDir === undefined) continue;
       for (const language of ['en', 'pl']) {

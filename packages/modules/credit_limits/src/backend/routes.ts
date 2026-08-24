@@ -13,31 +13,24 @@ import type { CreditLimitReservation } from './entities/credit-limit-reservation
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
- * The harness-supplied admin actor, read through a **local** carrier.
+ * `grantedByAdminUserId` is supplied by the host through `resolveAdminUserId`,
+ * not read off the request here.
  *
- * This module used to import `testAdminUserId` from
- * `src/http/test-actor-carrier.ts`. That file is classified **A** — host-internal,
- * deliberately absent from `@endora-commerce/platform/http`'s barrel — by
- * `specs/080-f4-real-scope/contracts/host-package.md` §1.4j, on the ground that it
- * exists to narrow *this repository's* test-harness Fastify augmentation and an
- * installed package has no relationship to it. Packaging this module is the first
- * time that classification had to bite, and it does so exactly as §1.4n's repair
- * did for `productAudienceOf`: read the field through a carrier declared where it
- * is read. Nothing about the read changes — the cast was already there, and a
- * request the harness never decorated already answered `undefined`.
+ * This module used to import `testAdminUserId` from the host's
+ * `test-actor-carrier.ts`, which `host-package.md` §1.4j classifies **A** —
+ * host-internal, deliberately absent from `@endora-commerce/platform/http`'s
+ * barrel, because it exists to narrow *this repository's* test-harness Fastify
+ * augmentation and an installed package has no relationship to it. Packaging
+ * this module is the first time that classification had to bite.
  *
- * A production request resolves its actor through the auth plugin
- * (`request.actor`) and always gets `undefined` here; `grant` then records no
- * `grantedByAdminUserId`, which is the behaviour this call had before the move.
+ * The repair is not the carrier-declared-locally idiom §1.4n used for
+ * `productAudienceOf`, because that would have preserved a live defect: nothing
+ * under `src/` ever writes `request.testActor`, so a production grant recorded
+ * **no** `grantedByAdminUserId` at all — the audit trail for a financial grant,
+ * empty, with every harness test green because the harness mirrors its actor
+ * onto both fields. The host now injects the resolver, so the production path
+ * and the harness path read the same thing.
  */
-interface TestActorCarrier {
-  testActor?: { kind: string; adminUserId: string };
-}
-
-function testAdminUserId(request: FastifyRequest): string | undefined {
-  const testActor = (request as FastifyRequest & TestActorCarrier).testActor;
-  return testActor?.kind === 'admin' ? testActor.adminUserId : undefined;
-}
 
 export interface CreditLimitsDeps {
   creditLimitService: CreditLimitService;

@@ -5,9 +5,9 @@ import type { OrganizationDetailsPort } from '@endora-commerce/contracts';
 import {
   registerCreditLimitsRoutes,
   type CreditLimitsDeps,
-} from '../../../src/modules/credit_limits/routes.js';
-import type { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
-import type { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
+} from '../../../../packages/modules/credit_limits/src/backend/routes.js';
+import type { CreditLimit } from '../../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
+import type { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
 
 /**
  * Feature 080, T051 — who granted a credit limit is read from the
