@@ -11,6 +11,7 @@ import type {
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { orgConstraintFor } from '../../../tenancy/derived-scope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { CartAuditEntry } from '../entities/cart-audit-entry.entity.js';
@@ -57,6 +58,66 @@ export class CartAdminService {
     private readonly promotion?: AdminCartPromotionPort,
   ) {}
 
+  /**
+   * The organization restriction this surface must apply for itself.
+   *
+   * `Cart` is `@CustomerScoped`, and `customerFilterCond` contributes **no
+   * predicate at all** under `allowed-set` — the mode an assignment-scoped
+   * administrator resolves to — because a customer-account predicate cannot
+   * express an organization restriction. So for a `sales_representative` this
+   * entity behaves exactly as if it were `@GlobalEntity`, and every method
+   * below would answer for every cart on the platform.
+   *
+   * The reason given for that exemption is that customer-scoped entities carry
+   * no org column. `Cart` does carry one, so the constraint is expressible
+   * here, with the helper `derived-scope.ts` exists to provide and that
+   * `returns` already uses for the same reason at its own list.
+   *
+   * A cart with **no** organization is an anonymous or guest cart. It belongs
+   * to no organization, so it is outside the reach of an administrator whose
+   * authority is a set of organizations, and inside a platform administrator's.
+   * `$in` over the assigned ids expresses exactly that — SQL `in` never matches
+   * NULL — so the list needs no separate clause for it and the per-row check
+   * below states it explicitly.
+   */
+  #orgScopeWhere(requested?: string): Record<string, unknown> | 'refuse' {
+    const constraint = orgConstraintFor();
+    if (constraint.kind === 'all') {
+      return requested ? { organizationId: requested } : {};
+    }
+    const allowed =
+      constraint.kind === 'single'
+        ? constraint.organizationId === null
+          ? []
+          : [constraint.organizationId]
+        : [...constraint.organizationIds];
+    // A caller-supplied filter narrows within the scope; it never widens it,
+    // and asking for an organization outside the scope is answered as an empty
+    // page rather than as an error, so the filter is no existence oracle.
+    if (requested) return allowed.includes(requested) ? { organizationId: requested } : 'refuse';
+    return { organizationId: { $in: allowed } };
+  }
+
+  /**
+   * Refuse a cart the caller's organizations do not reach.
+   *
+   * 404 rather than 403, and the same `cart_not_found` code the absent row
+   * gets: an out-of-scope cart must not be distinguishable from one that does
+   * not exist.
+   */
+  #assertCartInScope(cart: Cart): void {
+    const constraint = orgConstraintFor();
+    if (constraint.kind === 'all') return;
+    const organizationId = cart.organizationId ?? null;
+    const allowed =
+      constraint.kind === 'single'
+        ? constraint.organizationId === organizationId
+        : organizationId !== null && constraint.organizationIds.includes(organizationId);
+    if (!allowed) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
+    }
+  }
+
   async list(query: AdminCartsListQuery = {}): Promise<AdminCartsListResponse> {
     const em = this.emFactory();
     const where: Record<string, unknown> = {};
@@ -64,7 +125,13 @@ export class CartAdminService {
     if (query.approvalStatus && query.approvalStatus.length > 0) {
       where['approvalStatus'] = { $in: query.approvalStatus };
     }
-    if (query.organizationId) where['organizationId'] = query.organizationId;
+    const orgWhere = this.#orgScopeWhere(query.organizationId);
+    if (orgWhere === 'refuse') {
+      const emptyPage = query.page ?? 1;
+      const emptySize = Math.min(query.pageSize ?? 50, 200);
+      return { data: [], meta: { page: emptyPage, pageSize: emptySize, totalCount: 0 } };
+    }
+    Object.assign(where, orgWhere);
     if (query.customerAccountId) where['customerAccountId'] = query.customerAccountId;
     if (query.salesChannelId) where['salesChannelId'] = query.salesChannelId;
     if (query.lastActivityFrom || query.lastActivityTo) {
@@ -142,6 +209,7 @@ export class CartAdminService {
     if (!cart) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     }
+    this.#assertCartInScope(cart);
     const items = await em.find(CartItem, { cartId });
     const cust = cart.customerAccountId
       ? await this.customerAccounts.findById(cart.customerAccountId)
@@ -247,6 +315,7 @@ export class CartAdminService {
     if (!cart) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     }
+    this.#assertCartInScope(cart);
     const capped = Math.min(pageSize, 200);
     const [rows, totalCount] = await em.findAndCount(
       CartAuditEntry,
@@ -289,6 +358,7 @@ export class CartAdminService {
     if (!cart) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     }
+    this.#assertCartInScope(cart);
     if (cart.status === 'completed' || cart.status === 'rejected') {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'already_terminal');
     }
