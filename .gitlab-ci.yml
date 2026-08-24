@@ -57,6 +57,24 @@ default:
 
 variables:
   IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+  # Every Node job states its heap, once, here — because the job container now
+  # HAS a memory limit and Node's default is derived from it.
+  #
+  # Node sizes its default old-space from what it believes is available. On an
+  # unlimited container that is the host's RAM; the dedicated runner caps the
+  # container at 3 GB, so Node derives roughly half, and `tsc --noEmit` died at
+  # 1.53 GB with `Ineffective mark-compacts near heap limit` (pipeline 11605,
+  # exit 134). Nothing about the type-check changed. The limit that made an OOM
+  # *legible* — the whole point of adding it, after a host OOM killer spent
+  # weeks looking like a flaky test — also made Node smaller, and that second
+  # effect is easy to miss because it shows up as an unrelated job failing.
+  #
+  # Global rather than per job, deliberately: five Node jobs lacked the setting
+  # when this landed and only one had failed yet. A per-job fix is a fix for the
+  # job that happened to be first. A job that genuinely needs more overrides it
+  # locally — `test:backend` and `perf:backend` already state their own, and
+  # those stay as documentation of a requirement rather than as a difference.
+  NODE_OPTIONS: --max-old-space-size=2048
 
 # ---------------------------------------------------------------------------
 # Quality — typecheck + lint
