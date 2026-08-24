@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import type { PromotionService } from '../../../../packages/modules/promotions/src/backend/services/promotion-service.js';
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';

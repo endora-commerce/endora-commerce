@@ -6,11 +6,11 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
-import type { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import type { PromotionService } from '../../../../packages/modules/promotions/src/backend/services/promotion-service.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { Promotion } from '../../../src/modules/promotions/entities/promotion.entity.js';
+import { Promotion } from '../../helpers/package-entities.js';
 
 /**
  * Issue #251 — the four gates four optional constructor arguments used to

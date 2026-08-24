@@ -12,10 +12,9 @@ import {
   type PromotionCriterion,
   type PromotionRule,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
-import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';

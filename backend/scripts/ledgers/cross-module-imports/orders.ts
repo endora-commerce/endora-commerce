@@ -34,27 +34,32 @@
  *    `stock_allocations_order_item_fk` and, on the two sides that declare
  *    `orders` rather than being imported here,
  *    `promotion_usages_order_fk` and `credit_limit_reservations_order_fk`.
- *  - **one interface its owner writes** — `PromotionUsageFinalizer` (D-94.5).
- *    It names the caller's `EntityManager`, so FR-034 keeps it out of
- *    `@endora-commerce/contracts`; declaring it on the consumer's side, which is
- *    what this module used to do, left `lazyPort<T>`'s unchecked cast with
- *    nothing to check.
  *
- * **It was two, and the second is the first entry this shard has ever retired
- * by its own `retiredBy` sentence coming true** (feature 080, T040b). That
- * entry read *"F4 gives `credit_limits` a package entry point that exports this
- * interface — then it is a package dependency, not an import of internals"*.
- * `credit_limits` is `@endora-commerce/mod-credit-limits` now and
- * `CreditLimitPort` is published on its type-only `./ports` subpath, which
- * D-171 designates contract surface — derived from the artefact, since that
- * subpath's emitted module exports no runtime binding — so the reach is no
- * longer a reach. Nothing about the seam itself changed: the reservation still
- * runs on placement's `EntityManager`, `credit_limit_reservations_order_fk` is
- * untouched, and `orders` still acknowledges `creditLimitService` rather than
- * declaring the dependency back. What changed is that the interface now has a
- * name its owner offered. `PromotionUsageFinalizer` is the identical seam in
- * its pre-packaging spelling and retires the same way, when `promotions` is
- * packaged in its turn.
+ * **There were two more, and both are gone — the only entries this shard has
+ * ever retired by their own `retiredBy` sentence coming true** (feature 080,
+ * T040b). Each read *"F4 gives `<module>` a package entry point that exports
+ * this interface — then it is a package dependency, not an import of
+ * internals"*. `credit_limits` is `@endora-commerce/mod-credit-limits` and
+ * `CreditLimitPort` is on its type-only `./ports` subpath; `promotions` is
+ * `@endora-commerce/mod-promotions` and `PromotionUsageFinalizer` is on its
+ * own. D-171 designates such a subpath contract surface — derived from the
+ * artefact, since its emitted module exports no runtime binding — so neither
+ * reach is a reach any more.
+ *
+ * **Nothing about either seam changed, and that is the point of the ruling.**
+ * The reservation and the redemption still run on placement's own
+ * `EntityManager`; `credit_limit_reservations_order_fk` and
+ * `promotion_usages_order_fk` are untouched; both owners still declare `orders`
+ * for their constraint while this module goes on acknowledging
+ * `creditLimitService`, `promotionService` and `promotionUsageFinalizer` rather
+ * than declaring the dependency back, which would close a cycle. What changed
+ * is that each interface now has a name its owner offered.
+ *
+ * The **`ledger-size`** figure does not move for either retirement, and that is
+ * the expected reading rather than a surprise: both entries were
+ * `permanent: true`, and D-77 excludes a permanent entry from that count on the
+ * ground that an edge a foreign key holds co-transactional is not debt. What
+ * moves is the permanent total, by one per packaged owner.
  *
  * Five entries left with D-94.4 rather than being settled: the
  * `warehouse.entity` fallback and both fulfilment resolvers are now
@@ -94,28 +99,6 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
       'D-78 point 2, settled by D-94.1, on the module-level reading of it — and the entry has to say so, because the constraint is on `stock_allocations` rather than on this table. The `PESSIMISTIC_WRITE` lock this class is loaded under, and the `reserved` increment it carries, are one operation with the allocation insert beside them: it is the allocation`s foreign key (`stock_allocations_order_item_fk`, `on delete restrict`) that pins the whole operation to the placement transaction, and splitting the lock off from the insert it protects would lose the race test/contract/orders/place-stock-race.test.ts asserts. Everything else the reservation used to reach into `inventory` for is gone (D-94.4): the channel -> warehouse binding and the default-warehouse fallback are `inventoryStockReadPort.listChannelWarehouses`, and both strategy resolvers are `inventoryFulfilmentPlanningPort`.',
     retiredBy:
       'F4 gives `inventory` a package entry point that exports the reservation placement performs — then this is a package dependency, not an import of internals. Moving the reservation out of the placement transaction would retire it too, and would cost the `PESSIMISTIC_WRITE` on `stock_levels` that stops two placements allocating the same unit (test/contract/orders/place-stock-race.test.ts).',
-  },
-  'modules/orders/services/order-service.ts:promotions/services/promotion-usage-finalizer': {
-    permanent: true,
-    reason:
-      'D-94.5 — the twin of the `credit_limits` entry above, and the same shape. '
-      + '`PromotionUsageFinalizer.finalizeUsage` takes the placement `EntityManager`, so '
-      + 'FR-034 keeps it out of `@endora-commerce/contracts`; `promotions` declares it beside its '
-      + 'implementation and this module imports the type, which is what gives `tsc` something '
-      + 'to check both ends against. The read half is NOT here: `applyToCart` is '
-      + '`PromotionApplyPort` in the contracts package, resolved under the same container '
-      + 'name `carts` already uses, and the consumer-declared duplicate of it was deleted '
-      + 'with `PromotionPort`. The seam is held by `promotion_usages_order_fk` '
-      + '(`promotion_usages.order_id` -> `orders.id`, `on delete restrict`): the redemption '
-      + 'row cannot exist before the order does, and a cap hit at the last moment has to roll '
-      + 'the placement back with it. `promotions` declares `orders` for the constraint; this '
-      + 'module acknowledges `promotionService` and `promotionUsageFinalizer` rather than '
-      + 'declaring it back, which would close a cycle.',
-    retiredBy:
-      'F4 gives `promotions` a package entry point that exports this interface — then it is a '
-      + 'package dependency, not an import of internals. Moving usage finalization out of the '
-      + 'placement transaction would retire it too, and would cost SC-005: two carts racing '
-      + 'for a coupon`s final use could both succeed.',
   },
   'modules/orders/services/order-service.ts:invoices/entities/invoice.entity': {
     permanent: true,

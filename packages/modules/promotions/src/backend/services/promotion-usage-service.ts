@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
+import type { FinalizeAppliedPromotion, UsageContext } from '../../ports/index.js';
 
 /**
  * Feature 045 (US5) — usage-limit enforcement.
@@ -15,26 +16,15 @@ import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
  * appends the `promotion_usages` rows that feed the statistics aggregates.
  */
 
-export interface UsageContext {
-  organizationId: string | null;
-  customerAccountId: string | null;
-  customerGroupId: string | null;
-  /**
-   * The channel the order was placed through. Non-nullable (D-48): the one
-   * caller is `placeOrder`, which stamps the same id onto the order, and
-   * `promotion_usages.sales_channel_id` is `uuid not null`. It used to be
-   * `string | null` with a `?? randomUUID()` at the insert — issue #85's shape,
-   * one table over: a fabricated id in a column the statistics aggregates
-   * group by, so a usage row could never be joined back to a channel.
-   */
-  salesChannelId: string;
-}
-
-export interface FinalizeAppliedPromotion {
-  promotionId: string;
-  couponId: string | null;
-  amount: number;
-}
+/**
+ * Both shapes are declared on this module's `./ports` subpath and re-exported
+ * here, rather than the other way round: `PromotionUsageFinalizer.finalizeUsage`
+ * names them, and a published signature whose argument type is only reachable at
+ * a private path is a method a consumer cannot write a variable for. The
+ * re-export is type-only, so it erases and this file still emits no binding it
+ * does not own.
+ */
+export type { FinalizeAppliedPromotion, UsageContext } from '../../ports/index.js';
 
 interface CounterGuard {
   scopeType: 'global' | 'organization' | 'customer' | 'coupon' | 'batch';

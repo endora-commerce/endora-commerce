@@ -14,7 +14,7 @@ import { registerWarehouseCountryReferences } from '../../../src/modules/invento
 import { registerBlogLanguageReferences } from '../../../../packages/modules/blog/src/backend/services/blog-language-reference.js';
 import { registerCmsLanguageReferences } from '../../../src/modules/cms/services/cms-language-reference.js';
 import { registerMegamenuLanguageReferences } from '../../../src/modules/megamenu/services/megamenu-language-reference.js';
-import { registerPromotionCurrencyReferences } from '../../../src/modules/promotions/services/promotion-currency-reference.js';
+import { registerPromotionCurrencyReferences } from '../../../../packages/modules/promotions/src/backend/services/promotion-currency-reference.js';
 import { registerPriceListCurrencyReferences } from '../../../src/modules/price_lists/services/price-list-currency-reference.js';
 import { CurrencyService } from '../../../src/modules/currencies/services/currency-service.js';
 import { LanguageService } from '../../../src/modules/languages/services/language-service.js';

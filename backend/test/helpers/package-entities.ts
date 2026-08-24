@@ -1,10 +1,12 @@
 import type { EntityClass } from '@mikro-orm/core';
 import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
+import { entities as promotionsEntities } from '@endora-commerce/mod-promotions/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
 import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
 import type { CreditLimitReservation as CreditLimitReservationRow } from '../../../packages/modules/credit_limits/src/backend/entities/credit-limit-reservation.entity.js';
 import type { GaCustomEvent as GaCustomEventRow } from '../../../packages/modules/google_analytics/src/backend/entities/ga-custom-event.entity.js';
+import type { Promotion as PromotionRow } from '../../../packages/modules/promotions/src/backend/entities/promotion.entity.js';
 import type { QuoteRequest as QuoteRequestRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request.entity.js';
 import type { QuoteRequestItem as QuoteRequestItemRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-item.entity.js';
 import type { QuoteRequestRevision as QuoteRequestRevisionRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-revision.entity.js';
@@ -82,3 +84,5 @@ export const CreditLimitReservation = classNamed<CreditLimitReservationRow>(
   creditLimitsEntities,
   'CreditLimitReservation',
 );
+
+export const Promotion = classNamed<PromotionRow>(promotionsEntities, 'Promotion');

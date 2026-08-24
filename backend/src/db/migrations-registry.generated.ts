@@ -239,9 +239,9 @@ import { Migration20260806T105956ProductFeedsFeedTokenSecret } from '../modules/
 import { Migration20260806T125806ProductFeedsDelivery } from '../modules/product_feeds/migrations/20260806T125806_product_feeds_delivery.js';
 
 // ── promotions ──────────────────────────────────────────────────────────────
-import { Migration20260505T074605PromotionsCriteria } from '../modules/promotions/migrations/20260505T074605_promotions_criteria.js';
-import { Migration20260618T100727PromotionsEngine } from '../modules/promotions/migrations/20260618T100727_promotions_engine.js';
-import { Migration20260818T081251PromotionsPromotionUsageOrderFk } from '../modules/promotions/migrations/20260818T081251_promotions_promotion_usage_order_fk.js';
+import { Migration20260505T074605PromotionsCriteria } from '@endora-commerce/mod-promotions/migrations';
+import { Migration20260618T100727PromotionsEngine } from '@endora-commerce/mod-promotions/migrations';
+import { Migration20260818T081251PromotionsPromotionUsageOrderFk } from '@endora-commerce/mod-promotions/migrations';
 
 // ── prompt_actions ──────────────────────────────────────────────────────────
 import { Migration20260611T140410PromptActionsInit } from '../modules/prompt_actions/migrations/20260611T140410_prompt_actions_init.js';

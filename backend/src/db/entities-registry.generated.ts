@@ -182,12 +182,6 @@ import { FeedTaxonomy } from '../modules/product_feeds/entities/feed-taxonomy.en
 import { FeedTemplateField } from '../modules/product_feeds/entities/feed-template-field.entity.js';
 import { FeedTemplate } from '../modules/product_feeds/entities/feed-template.entity.js';
 import { ProductFeed } from '../modules/product_feeds/entities/product-feed.entity.js';
-import { CouponBatch } from '../modules/promotions/entities/coupon-batch.entity.js';
-import { PromotionCoupon } from '../modules/promotions/entities/promotion-coupon.entity.js';
-import { PromotionRuleEntity } from '../modules/promotions/entities/promotion-rule.entity.js';
-import { PromotionUsageCounter } from '../modules/promotions/entities/promotion-usage-counter.entity.js';
-import { PromotionUsage } from '../modules/promotions/entities/promotion-usage.entity.js';
-import { Promotion } from '../modules/promotions/entities/promotion.entity.js';
 import { PromptActionRequest } from '../modules/prompt_actions/entities/prompt-action-request.entity.js';
 import { PushMessageDelivery } from '../modules/pwa/entities/push-message-delivery.entity.js';
 import { PushMessage } from '../modules/pwa/entities/push-message.entity.js';
@@ -233,6 +227,7 @@ import { TransactionalEmail } from '../modules/transactional_emails/entities/tra
 import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
 import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
 import { entities as blogEntities } from '@endora-commerce/mod-blog/backend';
+import { entities as promotionsEntities } from '@endora-commerce/mod-promotions/backend';
 import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
@@ -393,12 +388,6 @@ export const ALL_ENTITIES = [
   FeedTemplateField,
   FeedTemplate,
   ProductFeed,
-  CouponBatch,
-  PromotionCoupon,
-  PromotionRuleEntity,
-  PromotionUsageCounter,
-  PromotionUsage,
-  Promotion,
   PromptActionRequest,
   PushMessageDelivery,
   PushMessage,
@@ -444,6 +433,7 @@ export const ALL_ENTITIES = [
   WebhookDelivery,
   Webhook,
   ...(blogEntities as readonly EntityClassLike[]),
+  ...(promotionsEntities as readonly EntityClassLike[]),
   ...(creditLimitsEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
   ...(quoteRequestsEntities as readonly EntityClassLike[]),
