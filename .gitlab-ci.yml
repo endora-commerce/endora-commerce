@@ -72,16 +72,24 @@ quality:
     # container showed it the host's 7.9 GB, a 3 GB one shows it 3 GB, and
     # `tsc` died at 1.53 GB (pipeline 11605, exit 134).
     #
-    # **Per job, not global — and that correction is the whole history of this
-    # line.** It was set globally first, on the argument that five Node jobs
-    # carried no heap and fixing only the one that failed first is a fix for
-    # the accident of ordering. That argument was right about the risk and
-    # wrong about the remedy: `NODE_OPTIONS` reaches **every** process,
-    # including each of `vitest.unit.config.ts`'s four forks, so the global
-    # setting let four of them reach 2 GB inside a 3 GB container and
-    # `test:backend:unit` was SIGKILLed at exit 137 (pipeline 11611). A
-    # single-process job and a forked pool want opposite things from this
-    # variable, so it cannot be one number for both.
+    # **Per job, not global.** It was set globally first, on the argument that
+    # five Node jobs carried no heap and fixing only the one that failed first
+    # is a fix for the accident of ordering. The argument was right about the
+    # risk; the remedy was wrong, because `NODE_OPTIONS` reaches **every**
+    # process, including each of `vitest.unit.config.ts`'s four forks, and a
+    # single-process job and a forked pool want opposite things from one
+    # number.
+    #
+    # **Correction to what the commit that moved it said**: the global setting
+    # did **not** cause `test:backend:unit`'s exit 137. MR !951's pipeline runs
+    # on a base that predates it — no global `NODE_OPTIONS` anywhere — and that
+    # job exited 137 there too. The fork pool exceeds 3 GB either way, and this
+    # config's own comment says why: 299 files in one process reach V8's 4 GB
+    # default, which is what four forks exist to bound, and the suite is now
+    # 447 files. That job has most likely always wanted more than 3 GB; nothing
+    # limited it before, so nobody measured it. **The container limit did not
+    # cause that failure, it made it visible — which is what it is for**, and
+    # the fix is the runner's `memory`, not this file.
     NODE_OPTIONS: --max-old-space-size=2048
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
