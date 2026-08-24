@@ -32,10 +32,24 @@
  * — it runs *inside* the fork and names the heap trajectory while the fork is
  * still alive, so between them the commonest cause arrives with a number
  * attached instead of as a silent `SIGKILL`.
+ *
+ * There is a third half, and it is the one that decides between the two causes
+ * this file used to state as an unresolved disjunction: `test/oom-evidence.ts`
+ * reads the job container's own cgroup counters, which the kernel keeps whether
+ * or not anything printed. See that file; the delta is taken across this run,
+ * baseline in {@link RunCompletenessReporter.onInit}.
  */
 import { relative } from 'node:path';
 
 import type { Reporter } from 'vitest/reporters';
+
+import {
+  oomVerdict,
+  readCgroupMemory,
+  renderOomVerdict,
+  type CgroupMemory,
+  type OomVerdict,
+} from './oom-evidence.js';
 
 /** A file vitest reported a result for. `startTime` is null when it collected but never ran. */
 export interface ReportedFile {
@@ -87,6 +101,7 @@ export function renderIncompleteRun(
   run: IncompleteRun,
   root: string,
   unhandledErrors: readonly string[],
+  oom: OomVerdict = { kind: 'unreadable' },
 ): string {
   const rel = (path: string): string => relative(root, path) || path;
   const workerDied = unhandledErrors.some((message) => message.includes(WORKER_EXIT));
@@ -107,11 +122,14 @@ export function renderIncompleteRun(
         'above, and it carries no stack into this repository because there is none to carry: ' +
         'the process is simply gone. The two causes seen in this suite are the fork exhausting ' +
         'its V8 old-space (which prints `FATAL ERROR: ... JavaScript heap out of memory` just ' +
-        'before it dies) and the host killing it for memory (which prints nothing at all). ' +
+        'before it dies) and an OOM killer taking it (which prints nothing at all). ' +
         '`test/heap-headroom.ts` reports the live set of every file that crosses its warning ' +
         'line, so the last such line in this log is where the trajectory was going.',
       '',
     );
+
+    const evidence = renderOomVerdict(oom);
+    if (evidence !== '') lines.push(evidence, '');
   }
 
   lines.push(
@@ -215,10 +233,18 @@ export class RunCompletenessReporter implements Reporter {
   private ctx: VitestLike = {};
   private root = process.cwd();
   private write: (text: string) => void = (text) => process.stderr.write(text);
+  /**
+   * The cgroup counters as this run found them. `memory.events` is cumulative
+   * over the container's whole life and a job's `before_script` can lose a
+   * process of its own, so the verdict is a delta and the baseline has to be
+   * taken here — before a single test file runs.
+   */
+  private oomBaseline: CgroupMemory | null = null;
 
   onInit(ctx: VitestLike): void {
     this.ctx = ctx;
     this.root = ctx.config?.root ?? process.cwd();
+    this.oomBaseline = readCgroupMemory();
   }
 
   onPathsCollected(paths?: string[]): void {
@@ -253,6 +279,7 @@ export class RunCompletenessReporter implements Reporter {
         run,
         this.root,
         errors.map((error) => (error instanceof Error ? error.message : String(error))),
+        oomVerdict(this.oomBaseline, readCgroupMemory()),
       ),
     );
     process.exitCode = 1;
