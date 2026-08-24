@@ -37,12 +37,26 @@ Add **exactly one** classification decorator to every `*.entity.ts` (the CI chec
 |-----------|----------------------|
 | `@OrgScoped()` | has an `organizationId` column |
 | `@CustomerScoped()` | has a `customerAccountId` column and no org column |
-| `@TransitivelyScoped(() => Parent, 'fk')` | is scoped through a parent aggregate's org (e.g. `Invoice` → `Order`) |
+| `@TransitivelyScoped('Parent', 'fk')` | is scoped through a parent aggregate's org (e.g. `Invoice` → `Order`) |
 | `@RuleScoped()` | targets orgs via a rule/JSONB, not a column (e.g. `price_lists.applicationRule`) |
 | `@GlobalEntity()` | is platform-global / config (no tenant) |
 
 `@OrgScoped` / `@CustomerScoped` attach the filter; the others are metadata only —
 their enforcement (where needed) is explicit in the owning service.
+
+**The transitive parent is named by its class name, not by the class** (ruling
+D-169). Both of this platform's transitive chains cross a module boundary, and a
+module that has become a package publishes an `entities` array and no named
+entity class — so `@TransitivelyScoped(() => Order, 'orderId')` would be an
+import the child cannot write. The name is resolved lazily against the
+classification registry, because a child is routinely imported before its
+parent, and the whole registry is reconciled once at boot, in
+`backend/src/db/configured-entities.ts`, the instant after every classification
+decorator has run and before the ORM exists. A name that resolves to nothing —
+or to more than one entity — stops the boot with
+`UnresolvableTenantParentError`. There is no fallback: a transitively scoped
+entity has no tenant column of its own, so a chain that quietly stopped
+resolving would be an untenanted read.
 
 You do **not** write a tenant filter by hand — `em.find(MyEntity, { ...business filters })`
 is already confined to the ambient tenant.

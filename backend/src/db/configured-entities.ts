@@ -1,5 +1,6 @@
 import { ALL_ENTITIES } from './entities-registry.generated.js';
 import { discoverPackageSchema, type EntityClassLike } from '../packages/package-runtime.js';
+import { assertTransitiveParentsResolve } from '../tenancy/org-scoped.decorator.js';
 
 /**
  * The entity classes this platform registers: the committed core registry plus
@@ -26,6 +27,23 @@ import { discoverPackageSchema, type EntityClassLike } from '../packages/package
  * answer different questions to different readers — the ORM configuration is
  * the only reader of the entity set, while the order has three — but both are
  * one merge over the one discovery in `src/packages/`.
+ *
+ * ## It is also where the tenancy chains are reconciled (feature 080, T049)
+ *
+ * Since D-169 a `@TransitivelyScoped` entity names its parent by class name
+ * rather than by importing the class, so a name that resolves to nothing is
+ * possible in a way it was not before — and a transitively scoped entity has no
+ * tenant column of its own, so that would leave it reachable with no tenant
+ * predicate at all (Principle XI, non-negotiable).
+ *
+ * This is the first moment the question can honestly be asked. The decorator
+ * cannot ask it: entity classes register in import order and a child is
+ * routinely imported before its parent. The line below is the instant after
+ * every classification decorator has run — the committed registry above plus
+ * every installed package's entities — and still before the ORM exists, so no
+ * query can have been issued under a chain that does not resolve. It throws
+ * `UnresolvableTenantParentError`, which stops the boot; there is deliberately
+ * no degraded mode, because the degraded mode is an untenanted read.
  */
 export type ConfiguredEntity = (typeof ALL_ENTITIES)[number] | EntityClassLike;
 
@@ -36,7 +54,12 @@ export async function configuredEntities(
 ): Promise<readonly ConfiguredEntity[]> {
   memoised ??= (async () => {
     const packages = await discoverPackageSchema(env);
-    return [...ALL_ENTITIES, ...packages.flatMap((contribution) => contribution.entities)];
+    const entities = [
+      ...ALL_ENTITIES,
+      ...packages.flatMap((contribution) => contribution.entities),
+    ];
+    assertTransitiveParentsResolve();
+    return entities;
   })();
   return memoised;
 }
