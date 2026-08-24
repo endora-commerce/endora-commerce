@@ -13,6 +13,8 @@
     "composer:generate": "tsx scripts/generate-composer.ts",
     "manifest-index:generate": "tsx scripts/generate-composer.ts",
     "composer:check": "tsx scripts/generate-composer.ts --check",
+    "manifests:generate": "tsx scripts/generate-module-manifests.ts",
+    "manifests:check": "tsx scripts/generate-module-manifests.ts --check",
     "overlay:manifest": "tsx scripts/generate-override-manifest.ts",
     "overlay:check": "tsx scripts/check-overlay-determinism.ts",
     "start": "node dist/index.js",

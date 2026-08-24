@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
-  "description": "The Blog module as a package (feature 080, T040b) \u2014 the first module to leave backend/src/modules. Ships compiled output (D-164); the manifest id 'blog' stays identity of record everywhere (D-142).",
+  "description": "The Blog module as a package (feature 080, T040b) — the first module to leave backend/src/modules. Ships compiled output (D-164); the manifest id 'blog' stays identity of record everywhere (D-142).",
   "endora": {
     "type": "module",
     "id": "blog"
