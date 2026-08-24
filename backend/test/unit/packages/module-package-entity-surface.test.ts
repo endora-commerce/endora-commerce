@@ -1,12 +1,4 @@
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +11,9 @@ import {
   d168Findings,
   declaredEntityClassesUnder,
   emitLayoutOfBuild,
+  moduleManifestsInCheckout,
   readBackendSurface,
+  type ScannedModuleManifest,
 } from '../../helpers/module-package-surface.js';
 
 /**
@@ -43,19 +37,20 @@ import {
  * fixture package too, which is not a workspace member by design and is
  * therefore invisible to `discoverModulePackages`; it is a module package all
  * the same and D-168 is about what a module package publishes.
+ *
+ * **"In this checkout" excludes a checkout nested inside it.** The scan is
+ * `moduleManifestsInCheckout`, and the prune is the whole reason it lives in a
+ * helper rather than here: agents work in `git worktree`s created under the
+ * repository directory, so within an hour of merging this guard was red on
+ * every developer machine and green in CI — one unaccounted fixture package per
+ * worktree, fifty-one of them, and CI right only because it has no nested
+ * worktrees. The population was the defect, not the accounting.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = findRepoRoot(here);
 
-interface Subject {
-  readonly moduleId: string;
-  readonly name: string;
-  readonly dir: string;
-  readonly backendTarget: string | null;
-  /** The package's own `build` script, which names the tsconfig its emit follows. */
-  readonly buildScript: string | undefined;
-}
+type Subject = ScannedModuleManifest;
 
 /**
  * Module packages this repository ships that the workspace globs do not reach.
@@ -92,59 +87,6 @@ const FIXTURE_ROOTS: Readonly<Record<string, string>> = {
     'a TypeScript source barrel this analysis could read.',
 };
 
-/** Directories a scan for module manifests never enters. */
-const SKIPPED = new Set(['node_modules', 'dist', '.git', 'coverage', '.next', 'build']);
-
-function backendTargetOf(manifest: Record<string, unknown>): string | null {
-  const exportsMap = manifest['exports'] as Record<string, unknown> | undefined;
-  const backend = exportsMap?.['./backend'];
-  if (typeof backend === 'string') return backend;
-  const withConditions = backend as { default?: unknown } | undefined;
-  return typeof withConditions?.default === 'string' ? withConditions.default : null;
-}
-
-/** Every `endora: { type: 'module' }` manifest under the checkout, fixtures included. */
-function scanForModuleManifests(root: string, out: Subject[] = [], depth = 0): Subject[] {
-  if (depth > 6) return out;
-  let entries: string[];
-  try {
-    entries = readdirSync(root);
-  } catch {
-    return out;
-  }
-  if (entries.includes('package.json')) {
-    let manifest: Record<string, unknown> | null = null;
-    try {
-      manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as Record<
-        string,
-        unknown
-      >;
-    } catch {
-      manifest = null;
-    }
-    const endora = manifest?.['endora'] as { type?: unknown; id?: unknown } | undefined;
-    if (manifest !== null && endora?.type === 'module' && typeof endora.id === 'string') {
-      out.push({
-        moduleId: endora.id,
-        name: String(manifest['name'] ?? endora.id),
-        dir: root,
-        backendTarget: backendTargetOf(manifest),
-        buildScript: (manifest['scripts'] as Record<string, string> | undefined)?.['build'],
-      });
-    }
-  }
-  for (const entry of entries) {
-    if (SKIPPED.has(entry)) continue;
-    const full = join(root, entry);
-    try {
-      if (statSync(full).isDirectory()) scanForModuleManifests(full, out, depth + 1);
-    } catch {
-      /* a dangling link is not a package */
-    }
-  }
-  return out;
-}
-
 function isUnder(dir: string, root: string, relative: string): boolean {
   const base = join(root, relative);
   return dir === base || dir.startsWith(`${base}/`);
@@ -155,7 +97,7 @@ function subjectsIn(root: string): Subject[] {
     Object.keys(MODULE_PACKAGES_OUTSIDE_THE_WORKSPACE).map((relative) => join(root, relative)),
   );
   const members = new Set(discoverModulePackages(root).map((pkg) => pkg.dir));
-  return scanForModuleManifests(root)
+  return moduleManifestsInCheckout(root)
     .filter((subject) => members.has(subject.dir) || declared.has(subject.dir))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -164,7 +106,7 @@ describe('D-168 — a module package publishes its entities as one array and no 
   if (repoRoot === null) throw new Error('[d168] no repository root above the test tree');
   const root: string = repoRoot;
 
-  const scanned = scanForModuleManifests(root);
+  const scanned = moduleManifestsInCheckout(root);
   const workspacePackages = discoverModulePackages(root);
   const subjects = subjectsIn(root);
 
@@ -415,6 +357,99 @@ describe('D-168 — the shapes the analysis refuses', () => {
     );
 
     expect(d168Findings(readBackendSurface(barrel), ['Widget'])).toEqual([]);
+  });
+});
+
+/**
+ * The scan's own red proofs, over a fixture checkout on disk (issue #130).
+ *
+ * The sweep above is green by construction once the tree is right, and it was
+ * green in CI while being wrong: a population defect shows up as an accounting
+ * failure on the machines that have the nested checkouts and nowhere else.
+ * These are the cases that fail if the prune is removed, and the two that fail
+ * if it over-reaches — the outer checkout carries the same `.git` marker a
+ * nested one does, and pruning on the marker alone would answer "no module
+ * package here", which the accounting half reports as clean.
+ */
+describe('D-168 — the scan reads this checkout and no other', () => {
+  let checkout: string;
+
+  const MODULE_MANIFEST = JSON.stringify({
+    name: '@endora-commerce/mod-widgets',
+    endora: { type: 'module', id: 'widgets' },
+    exports: { './backend': './dist/backend/index.js' },
+    scripts: { build: 'tsc -p tsconfig.build.json' },
+  });
+
+  function plant(relative: string, contents = MODULE_MANIFEST): void {
+    const full = join(checkout, relative, 'package.json');
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, `${contents}\n`, 'utf8');
+  }
+
+  /** The gitfile `git worktree add` leaves; a clone leaves a directory instead. */
+  function nest(relative: string, kind: 'worktree' | 'clone' = 'worktree'): void {
+    if (kind === 'worktree') {
+      mkdirSync(join(checkout, relative), { recursive: true });
+      writeFileSync(join(checkout, relative, '.git'), 'gitdir: /elsewhere\n', 'utf8');
+      return;
+    }
+    mkdirSync(join(checkout, relative, '.git'), { recursive: true });
+    writeFileSync(join(checkout, relative, '.git', 'HEAD'), 'ref: refs/heads/master\n', 'utf8');
+  }
+
+  beforeAll(() => {
+    checkout = mkdtempSync(join(tmpdir(), 'd168-checkout-'));
+    // The subject is a checkout, so it carries the marker a checkout carries.
+    mkdirSync(join(checkout, '.git'), { recursive: true });
+    writeFileSync(join(checkout, '.git', 'HEAD'), 'ref: refs/heads/master\n', 'utf8');
+  });
+  afterAll(() => {
+    rmSync(checkout, { recursive: true, force: true });
+  });
+
+  it('reads this checkout’s own module packages', () => {
+    // Without this the two cases below could both pass on a scan that found
+    // nothing at all, which is exactly the shape they exist to refuse.
+    plant('packages/modules/widgets');
+    plant('backend/acceptance/fixture-package');
+
+    expect(moduleManifestsInCheckout(checkout).map((s) => s.moduleId).sort()).toEqual([
+      'widgets',
+      'widgets',
+    ]);
+  });
+
+  it('does not read a work tree nested under the repository directory', () => {
+    // The measured failure: one acceptance fixture package per worktree, every
+    // one of them unaccounted, on every machine where work was happening.
+    nest('.claude/worktrees/agent-x');
+    plant('.claude/worktrees/agent-x/backend/acceptance/fixture-package');
+
+    expect(moduleManifestsInCheckout(checkout).map((s) => s.dir)).not.toContain(
+      join(checkout, '.claude/worktrees/agent-x/backend/acceptance/fixture-package'),
+    );
+    expect(moduleManifestsInCheckout(checkout)).toHaveLength(2);
+  });
+
+  it('does not read a nested clone either, wherever it is parked', () => {
+    // The second marker git writes, and a path `.claude/worktrees` would not
+    // have covered — which is why the discriminator is the marker (D-100).
+    nest('vendor/fork', 'clone');
+    plant('vendor/fork/packages/modules/widgets');
+
+    expect(moduleManifestsInCheckout(checkout)).toHaveLength(2);
+  });
+
+  it('keeps reading a sibling whose name merely starts like a nested root', () => {
+    // The over-reach direction, asserted by containment rather than by a count
+    // so that it can only fail for over-reach: `vendor/fork` must not swallow
+    // `vendor/fork-of-ours`, which is this checkout's own source.
+    plant('vendor/fork-of-ours');
+
+    expect(moduleManifestsInCheckout(checkout).map((s) => s.dir)).toContain(
+      join(checkout, 'vendor/fork-of-ours'),
+    );
   });
 });
 
