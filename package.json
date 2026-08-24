@@ -1,8 +1,8 @@
 {
-  "name": "b2b-platform",
+  "name": "endora-commerce",
   "version": "0.0.0",
   "private": true,
-  "description": "B2B commerce platform — catalog, Quote Requests, cart, checkout, orders, organizations, admin panel, and integration-ready API. See specs/001-b2b-platform-foundation/ for the spec, plan, and tasks.",
+  "description": "Endora Commerce — catalog, Quote Requests, cart, checkout, orders, organizations, admin panel, and integration-ready API. See specs/001-b2b-platform-foundation/ for the spec, plan, and tasks.",
   "license": "MIT",
   "packageManager": "pnpm@9.15.0",
   "engines": {
