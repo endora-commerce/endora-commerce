@@ -171,7 +171,26 @@ export class ShipmentService {
     return result.shipment;
   }
 
+  /**
+   * The order's shipment attempts — for the admin panel.
+   *
+   * The `orderRead` call is the tenant boundary, not a convenience: `Shipment`
+   * is `@GlobalEntity`, so `em.find(Shipment, { orderId })` carries no filter
+   * and answers for every order on the platform, while `Order` is `@OrgScoped`
+   * and this port reads it through a filtered EntityManager. An
+   * assignment-scoped administrator therefore gets `null` here and no tracking
+   * number from an organization they are not assigned to.
+   *
+   * `createShipment` above has always made this read for its own reasons and so
+   * was never exposed; this one had no reason to make it, which is exactly how
+   * the gap arrived. 404 rather than 403 — an out-of-scope order must read the
+   * same as one that is not there.
+   */
   async listForOrder(orderId: string): Promise<Shipment[]> {
+    const order = await this.orderRead.findById(orderId);
+    if (!order) {
+      throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+    }
     const em = this.emFactory();
     return em.find(Shipment, { orderId }, { orderBy: { attemptNo: 'asc' } });
   }

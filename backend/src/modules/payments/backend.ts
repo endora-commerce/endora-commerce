@@ -143,7 +143,12 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.di.providePort(
     'paymentService',
-    ctx.asFunction(({ emFactory }: PaymentsCradle) => new PaymentService(emFactory)).singleton(),
+    ctx
+      .asFunction(
+        ({ emFactory }: PaymentsCradle) =>
+          new PaymentService(emFactory, lazyPort<OrderReadPort>(ctx, 'orderReadPort')),
+      )
+      .singleton(),
   );
 
   /**

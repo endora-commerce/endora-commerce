@@ -1,6 +1,6 @@
 import { LockMode } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, type OrderReadPort } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Payment } from '../entities/payment.entity.js';
 
@@ -35,7 +35,41 @@ export interface OpenRetryResult {
  * they have already spent.
  */
 export class PaymentService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly orderRead: OrderReadPort,
+  ) {}
+
+  /**
+   * Resolve the order every method below is keyed on, through its owner.
+   *
+   * `Payment` is `@GlobalEntity` — no organization column, no filter — so
+   * `em.find(Payment, { orderId })` answers for every order on the platform.
+   * `Order` is `@OrgScoped`, and `orderReadPort.findById` goes through a
+   * filtered EntityManager, so this read is the whole tenant boundary for an
+   * order-keyed payment operation: an assignment-scoped administrator gets
+   * `null` for an order outside their organizations and the caller stops here.
+   *
+   * It sits in the service rather than in the two admin route handlers on
+   * purpose. A route-level guard protects the routes that exist on the day it
+   * is written; this one protects the next caller too, and both of the routes
+   * that shipped without it were written by someone who had no reason to know
+   * the child carried no filter.
+   *
+   * The buyer's own retry (`PaymentRetryService`) reads and authorises the
+   * order before it gets here, so for that path this is a second read of a row
+   * the identity map already holds — deliberately not optimised away, because
+   * the guarantee must not depend on which caller arrives.
+   *
+   * 404 rather than 403, matching the order-keyed routes in `orders`: an
+   * out-of-scope order must not be distinguishable from one that is not there.
+   */
+  async #assertOrderInScope(orderId: string): Promise<void> {
+    const order = await this.orderRead.findById(orderId);
+    if (!order) {
+      throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+    }
+  }
 
   /**
    * The next attempt for `orderId`, opening one only when the latest has
@@ -51,6 +85,7 @@ export class PaymentService {
     // command-coverage-ignore: opens a new payment attempt after a failure —
     // checkout retry mechanics; the order/payment status transition is audited in
     // the orders flow.
+    await this.#assertOrderInScope(orderId);
     const em = this.emFactory();
     return em.transactional(async (tx) => {
       const latest = await tx.findOne(
@@ -121,6 +156,7 @@ export class PaymentService {
   }
 
   async listForOrder(orderId: string): Promise<Payment[]> {
+    await this.#assertOrderInScope(orderId);
     const em = this.emFactory();
     return em.find(Payment, { orderId }, { orderBy: { attemptNo: 'asc' } });
   }

@@ -26,8 +26,27 @@ export interface ReturnShipmentServiceDeps {
 export class ReturnShipmentService {
   constructor(private readonly deps: ReturnShipmentServiceDeps) {}
 
+  /**
+   * Resolve the case every method below is keyed on.
+   *
+   * `ReturnShipment` is `@GlobalEntity` — no organization column, no filter —
+   * so a read keyed on `returnCaseId` answers for every case on the platform.
+   * `ReturnCase` is `@OrgScoped`, so this read *is* the tenant boundary: an
+   * assignment-scoped administrator gets nothing back and the caller stops.
+   *
+   * `create` has made this read since it was written, for its own reasons;
+   * `listForCase` and `receive` had no reason of their own to make it, which is
+   * exactly how they came to have none.
+   */
+  async #loadCase(em: EntityManager, caseId: string): Promise<ReturnCase> {
+    const rc = await em.findOne(ReturnCase, { id: caseId });
+    if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
+    return rc;
+  }
+
   async listForCase(caseId: string): Promise<ReturnShipmentDto[]> {
     const em = this.deps.emFactory();
+    await this.#loadCase(em, caseId);
     const rows = await em.find(ReturnShipment, { returnCaseId: caseId }, { orderBy: { createdAt: 'asc' } });
     return rows.map(toDto);
   }
@@ -41,8 +60,7 @@ export class ReturnShipmentService {
     },
   ): Promise<ReturnShipmentDto> {
     const em = this.deps.emFactory();
-    const rc = await em.findOne(ReturnCase, { id: caseId });
-    if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
+    await this.#loadCase(em, caseId);
     const shipment = em.create(ReturnShipment, {
       returnCaseId: caseId,
       direction: input.direction,
@@ -64,9 +82,19 @@ export class ReturnShipmentService {
     return toDto(shipment);
   }
 
-  /** Mark an inbound shipment received and advance the case to `received`. */
+  /**
+   * Mark an inbound shipment received and advance the case to `received`.
+   *
+   * The case read comes first, and that ordering is the point rather than a
+   * tidiness: the shipment row is flushed before the transition is attempted,
+   * so a caller that reached the transition's own refusal had already written
+   * `received` onto a case in an organization it cannot see, and been told 404.
+   * Both ids on this route are the caller's, and neither entity carries a
+   * filter.
+   */
   async receive(caseId: string, shipmentId: string, adminUserId: string): Promise<ReturnShipmentDto> {
     const em = this.deps.emFactory();
+    await this.#loadCase(em, caseId);
     const shipment = await em.findOne(ReturnShipment, { id: shipmentId, returnCaseId: caseId });
     if (!shipment) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return shipment not found.');
     shipment.status = 'received';
