@@ -12,10 +12,10 @@ import {
   type LanguageReadPort,
   type LanguageSeedPort,
 } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { DictionaryCache } from './services/dictionary-cache.js';
 import { DictionaryValidator as DictionaryValidatorService } from './services/dictionary-validator.js';
 import { DictionaryReadService } from './services/dictionary-read-service.js';
@@ -28,6 +28,9 @@ import { LanguageCountryService } from './services/language-country-service.js';
 import { runDictionarySeedReconciler } from './services/seed-reconciler.js';
 import { registerDictionaryAdminRoutes } from './routes.admin.js';
 import { registerDictionaryStorefrontRoutes } from './routes.storefront.js';
+import { Country } from './entities/country.entity.js';
+import { DictionaryTranslation } from './entities/dictionary-translation.entity.js';
+import { LanguageCountry } from './entities/language-country.entity.js';
 
 /**
  * `dictionaries` — the module that owns the cache everybody else announces to
@@ -270,3 +273,20 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  Country,
+  DictionaryTranslation,
+  LanguageCountry,
+];

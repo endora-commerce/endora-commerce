@@ -23,7 +23,7 @@ import {
   type UpdateCurrencyInput,
   type UpdateLanguageInput,
 } from '@endora-commerce/contracts';
-import { DICTIONARY_PERMISSIONS } from './manifest.js';
+import { DICTIONARY_PERMISSIONS } from '../manifest.js';
 import type {
   CountryService} from './services/country-service.js';
 import {
@@ -35,8 +35,8 @@ import type { Country } from './entities/country.entity.js';
 import type { DictionaryTranslation } from './entities/dictionary-translation.entity.js';
 import type { LanguageCountry } from './entities/language-country.entity.js';
 import type { TranslationService } from './services/translation-service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * Feature 075, Phase C — this module hosts the admin screen for two tables it

@@ -5,11 +5,11 @@ import {
   type DictionaryEntryType,
   type LanguageReadPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { Country } from '../entities/country.entity.js';
 import { DictionaryTranslation } from '../entities/dictionary-translation.entity.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 export interface UpsertTranslationInput {
   entryType: DictionaryEntryType;

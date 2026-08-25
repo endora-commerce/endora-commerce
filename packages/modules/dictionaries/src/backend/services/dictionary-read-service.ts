@@ -7,8 +7,8 @@ import {
   type DictionaryRegistryResponse,
   type LanguageReadPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Country } from '../entities/country.entity.js';
 import { LanguageCountry } from '../entities/language-country.entity.js';
 import { DictionaryCache, GLOBAL_CACHE_KEY_SEGMENT } from './dictionary-cache.js';

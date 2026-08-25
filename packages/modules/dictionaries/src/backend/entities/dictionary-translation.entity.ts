@@ -1,5 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
-import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
+import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 
 /**
  * DictionaryTranslation — per-Language display-label override for a Country,
