@@ -124,6 +124,32 @@ describe('customers — the cut edges fail closed (feature 075, Phase C)', () =>
     expect(restored.statusCode).toBe(200);
   });
 
+  /**
+   * Feature 080, T048 (D-169) — the customer-detail **header**, not the orders
+   * panel below it.
+   *
+   * The detail response carries `salesChannelIds`: the channels this buyer has
+   * ordered on. Until T048 that was `em.find(Order, {
+   * placedByCustomerAccountId }, { fields: ['salesChannelId'] })` written
+   * inside `customers`, so the header went on answering out of an `orders` the
+   * platform was not serving — and answering *correctly*, which is what made it
+   * invisible. It is `orderReadPort.salesChannelIdsForCustomer` now, so the
+   * whole detail refuses rather than half of it quietly staying true.
+   */
+  it('refuses the customer detail while `orders` is unavailable', async () => {
+    const before = await get(`/api/v1/admin/customers/${customerId}`);
+    expect(before.statusCode).toBe(200);
+
+    await withModuleOff('orders', 'platform-unavailable', async () => {
+      const res = await get(`/api/v1/admin/customers/${customerId}`);
+      expect(res.statusCode).toBe(503);
+      expect(errorCode(res)).toBe('MODULE_DISABLED');
+    });
+
+    const restored = await get(`/api/v1/admin/customers/${customerId}`);
+    expect(restored.statusCode).toBe(200);
+  });
+
   it('refuses the cart panel while `carts` is unavailable', async () => {
     const before = await get(`/api/v1/admin/customers/${customerId}/carts`);
     expect(before.statusCode).toBe(200);

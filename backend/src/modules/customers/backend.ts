@@ -19,6 +19,7 @@ import type {
   EmailMailerPort,
   ImpersonationPort,
   OrderListPort,
+  OrderReadPort,
   OrganizationDetailsPort,
   PersonalOrganizationPort,
   RfqCustomerPort,
@@ -224,6 +225,14 @@ export function registerModule(ctx: ModuleContext): void {
             // and the panels have no absent state to degrade into: the port's
             // own 503 covers the window before `orders` registers its routes.
             orderList: lazyPort<OrderListPort>(ctx, 'orderListPort'),
+            // Feature 080, T048 (D-169) — `orders`' row-level read, for the
+            // customer-detail header's sales-channel list. That list was an
+            // `em.find(Order, …)` inside this module: a plain read of another
+            // module's table, which kept answering out of an `orders` the
+            // platform was not serving. A read takes a read-port method, never
+            // an `EntityManager`-taking apply port. Same binding edge as
+            // `orderListPort` above and the same manifest `dependencies` entry.
+            orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
             // Feature 076 (D-86) — `organizations`' port, resolved lazily: the
             // factory below is a singleton and stores what it is handed, and a
             // captured gate keeps answering after its owner is switched off.

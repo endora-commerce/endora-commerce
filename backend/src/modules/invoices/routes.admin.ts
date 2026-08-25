@@ -7,7 +7,6 @@ import {
   type OrderReadPort,
 } from '@endora-commerce/contracts';
 import { Invoice } from './entities/invoice.entity.js';
-import { Order } from '../orders/entities/order.entity.js';
 import { isOrgInScope } from '../../tenancy/derived-scope.js';
 import { z } from 'zod';
 import type { InvoiceService } from './services/invoice-service.js';
@@ -80,17 +79,20 @@ export async function registerInvoicesAdminRoutes(
 
       // Filter by order number (business id): resolve matching orders first,
       // then constrain invoices to those order ids. A no-match short-circuits.
+      //
+      // Feature 080, T048 (D-169) — the lookup is `orders`' own search now. It
+      // was `em.find(Order, { businessId: { $ilike } }, { limit: 500 })` here,
+      // a plain read of that module's table, so it takes a read-port method and
+      // not an `EntityManager`-taking apply port. The short-circuit is what
+      // made it worth cutting: an absent `orders` used to answer "no invoice
+      // for that order number" out of a table nobody was serving.
       const orderNumber = q['filter[orderNumber]']?.trim();
       if (orderNumber) {
-        const matchingOrders = await em.find(
-          Order,
-          { businessId: { $ilike: `%${orderNumber}%` } },
-          { fields: ['id'], limit: 500 },
-        );
-        if (matchingOrders.length === 0) {
+        const matchingOrderIds = await orderReadPort.findIdsByBusinessIdLike(orderNumber, 500);
+        if (matchingOrderIds.length === 0) {
           return { data: [], pagination: { cursor: null, hasMore: false, limit: 0 } };
         }
-        where['orderId'] = { $in: matchingOrders.map((o) => o.id) };
+        where['orderId'] = { $in: matchingOrderIds };
       }
 
       const limit = Math.min(Math.max(Number.parseInt(q['limit'] ?? '50', 10), 1), 200);

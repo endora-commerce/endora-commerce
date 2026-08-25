@@ -30,6 +30,7 @@ import type {
   EmailMailerPort,
   ImpersonationPort,
   OrderListPort,
+  OrderReadPort,
   OrganizationDetailsPort,
   PersonalOrganizationPort,
   RfqCustomerPort,
@@ -148,6 +149,13 @@ export interface CustomersModuleOptions {
    * `null` two route files had to remember to check.
    */
   orderList: OrderListPort;
+  /**
+   * `orders`' row-level read. Only the customer-detail header's sales-channel
+   * list uses it, and that list was an `em.find(Order, …)` in this module until
+   * feature 080's T048 (D-169) — a plain read of another module's table, so a
+   * read-port method rather than an `EntityManager`-taking apply port.
+   */
+  orderReadPort: OrderReadPort;
   rfqService: RfqCustomerPort;
   auditLogService: AuditPort;
   /**
@@ -229,11 +237,12 @@ export function customersModule(options: CustomersModuleOptions): {
         options.sessionService.destroyAllForCustomer(customerAccountId),
     },
   );
-  const queryService = new CustomerAdminQueryService(options.emFactory, customerDefaultsService, {
+  const queryService = new CustomerAdminQueryService(customerDefaultsService, {
     accounts: options.customerAccountReadPort,
     accountSearch: options.customerAccountAdminSearchPort,
     organizations: options.organizationDetailsPort,
     customerGroups: options.customerGroupReadPort,
+    orders: options.orderReadPort,
   });
   const orgAssignmentService = new CustomerOrgAssignmentService(
     options.customerAccountReadPort,

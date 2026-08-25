@@ -162,6 +162,10 @@ function readPort(
       calls.push(`findIdsByBusinessIdLike:${fragment}:${limit}`);
       return order ? [order.id] : [];
     },
+    salesChannelIdsForCustomer: async (customerAccountId) => {
+      calls.push(`salesChannelIdsForCustomer:${customerAccountId}`);
+      return order ? [order.salesChannelId] : [];
+    },
   };
   return { port, calls: () => calls };
 }
