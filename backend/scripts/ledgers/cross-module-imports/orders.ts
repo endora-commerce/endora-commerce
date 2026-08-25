@@ -26,14 +26,34 @@
  * a neighbour's table, held by a foreign key, with a doc comment on both sides
  * naming the transaction it runs in.
  *
- *  - **six rows placement opens** — `payments` and `invoices` (D-78 point 2,
- *    settled when the entries were written) plus `carts` (two entries),
- *    `stock_allocations` and `stock_levels`, which were escalated under D-78
- *    point 3 for one reason: the constraint that would have justified them did
- *    not exist. D-94.1 adds all four — `carts_completed_order_fk`,
- *    `stock_allocations_order_item_fk` and, on the two sides that declare
- *    `orders` rather than being imported here,
+ *  - **the rows placement opens in a neighbour's table** — `payments` and
+ *    `invoices` (D-78 point 2, settled when the entries were written) plus
+ *    `carts`, `stock_allocations` and `stock_levels`, which were escalated
+ *    under D-78 point 3 for one reason: the constraint that would have
+ *    justified them did not exist. D-94.1 adds all four —
+ *    `carts_completed_order_fk`, `stock_allocations_order_item_fk` and, on the
+ *    two sides that declare `orders` rather than being imported here,
  *    `promotion_usages_order_fk` and `credit_limit_reservations_order_fk`.
+ *
+ * **Feature 080's T048 converts what crosses on two of them, and moves no
+ * transaction and no constraint** (D-169). `carts` and `invoices` were entity
+ * classes used as MikroORM repository handles — `em.findOne(Cart, …)`,
+ * `tx.create(Invoice, …)` — and D-168 leaves a packaged owner no supported
+ * spelling for one, so each is now that owner's own `EntityManager`-taking
+ * interface on its own `ports/` directory, and the owner writes its own row.
+ * The three carts keys became one (two entity classes, one interface). The
+ * `payments` entry is unchanged and is the last of the family in this file
+ * apart from `inventory`'s two: converting it forces a product decision about
+ * what checkout does when an operator has switched `payments` off, because the
+ * port that would replace the `tx.create` is gated and `payments.enabled` is a
+ * real control. That decision is worth more than the conversion and is not this
+ * merge request's to make.
+ *
+ * Both converted entries stay, and stay `permanent: true`, exactly as D-171
+ * predicts: `resolveModulePackage` returns `null` for any specifier starting
+ * with `.`, so a relative import into an owner's `ports/` directory has no
+ * subpath for the exemption to apply to. Each `retiredBy` names the packaging
+ * that finishes it.
  *
  * **There were two more, and both are gone — the only entries this shard has
  * ever retired by their own `retiredBy` sentence coming true** (feature 080,
@@ -70,19 +90,12 @@
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/orders/services/order-service.ts:carts/entities/cart-item.entity': {
+  'modules/orders/services/order-service.ts:carts/ports/index': {
     permanent: true,
     reason:
-      'D-78 point 2, settled by D-94.1 — a co-transactional write the database holds together. Placement ends by deleting the cart`s items, marking it `completed` and stamping `completed_order_id`, inside the placement transaction and on the same `Cart` object the totals were read from. Until D-94 there was no foreign key in either direction, which is why this entry was escalated rather than settled; `carts/migrations/20260818T081253_carts_cart_completed_order_fk.ts` adds `carts_completed_order_fk` (`carts.completed_order_id` -> `orders.id`, `on delete set null`), so the pointer cannot be written before the order exists and the order does not commit until placement returns. The **cart-side** column is what forces that: an `orders.cart_id` would have been satisfiable by completing the cart in a second transaction, because the cart is already committed when the order row is written. A `cartWritePort` call is still refused for the same reason it always was — it would leave a buyer with an emptied cart and no order whenever placement then fails (test/integration/orders/place-order-failure-preserves-cart.test.ts asserts the opposite). `carts` declares `orders` for the constraint, so the manifest edge is carried on that side; this module acknowledges `cartWritePort` rather than declaring `carts`, which would close a cycle. The reorder path`s cart write was a different question and is already cut, through `cartWritePort.replaceItemsForCustomer`.',
+      'D-78 point 2, settled by D-94.1 and converted by feature 080`s T048 — a co-transactional write the database holds together, now expressed as the owner`s own `EntityManager`-taking interface instead of its two entity classes. Placement reads the basket it is turning into an order and then, once the order exists, deletes its lines, marks it `completed` and stamps `completed_order_id`, all on the placement `EntityManager`. `carts/migrations/20260818T081253_carts_cart_completed_order_fk.ts` adds `carts_completed_order_fk` (`carts.completed_order_id` -> `orders.id`, `on delete set null`), so the pointer cannot be written before the order exists and the order does not commit until placement returns. The **cart-side** column is what forces that: an `orders.cart_id` would have been satisfiable by completing the cart in a second transaction, because the cart is already committed when the order row is written. A `cartWritePort` call is still refused for the same reason it always was — it opens its own transaction, so it would leave a buyer with an emptied cart and no order whenever placement then fails (test/integration/orders/place-order-failure-preserves-cart.test.ts asserts the opposite). What T048 removed is the entity class, which D-168 leaves a packaged `carts` no supported spelling for: the foreign key needs the **table** and never the class (D-169), so the constraint is untouched and what crosses is `CartWithItems`, published records rather than two managed rows this module could have moved any column of. One site: the `import type` of `CartPlacementApplyPort`. The standalone read this file also makes — the storefront total preview, which opens no transaction — is `CartReadPort` in `@endora-commerce/contracts` and is therefore no reach at all; that is D-169`s rule that a read handed an `EntityManager` is a write seam re-opened to serve a read, and it is why there are two `carts` names here rather than one widened interface. `carts` declares `orders` for the constraint, so the manifest edge is carried on that side; this module acknowledges `cartPlacementApplyPort` and `cartReadPort` rather than declaring `carts`, which would close a cycle.',
     retiredBy:
-      'F4 gives `carts` a package entry point that exports the completion the placement transaction performs — then this is a package dependency, not an import of internals. Moving the completion out of the placement transaction would retire it too, and would cost the property test/integration/orders/place-order-failure-preserves-cart.test.ts asserts: a placement that fails leaves the basket exactly as the buyer left it.',
-  },
-  'modules/orders/services/order-service.ts:carts/entities/cart.entity': {
-    permanent: true,
-    reason:
-      'D-78 point 2, settled by D-94.1 — a co-transactional write the database holds together. Placement ends by deleting the cart`s items, marking it `completed` and stamping `completed_order_id`, inside the placement transaction and on the same `Cart` object the totals were read from. Until D-94 there was no foreign key in either direction, which is why this entry was escalated rather than settled; `carts/migrations/20260818T081253_carts_cart_completed_order_fk.ts` adds `carts_completed_order_fk` (`carts.completed_order_id` -> `orders.id`, `on delete set null`), so the pointer cannot be written before the order exists and the order does not commit until placement returns. The **cart-side** column is what forces that: an `orders.cart_id` would have been satisfiable by completing the cart in a second transaction, because the cart is already committed when the order row is written. A `cartWritePort` call is still refused for the same reason it always was — it would leave a buyer with an emptied cart and no order whenever placement then fails (test/integration/orders/place-order-failure-preserves-cart.test.ts asserts the opposite). `carts` declares `orders` for the constraint, so the manifest edge is carried on that side; this module acknowledges `cartWritePort` rather than declaring `carts`, which would close a cycle. The reorder path`s cart write was a different question and is already cut, through `cartWritePort.replaceItemsForCustomer`.',
-    retiredBy:
-      'F4 gives `carts` a package entry point that exports the completion the placement transaction performs — then this is a package dependency, not an import of internals. Moving the completion out of the placement transaction would retire it too, and would cost the property test/integration/orders/place-order-failure-preserves-cart.test.ts asserts: a placement that fails leaves the basket exactly as the buyer left it.',
+      'F4 packages `carts`, at which point that same directory is the package`s `./ports` subpath, D-171 stops counting the reach, and the consumer-side edit is this one specifier. It is not retired by the relocation alone: `resolveModulePackage` returns `null` for anything starting with `.`, so a relative specifier has no subpath for the exemption to apply to, and the three edits (package the owner, publish the interface, rewrite the specifier) are separable by design — this entry stands with the second done. Moving the completion out of the placement transaction would retire it too, and would cost the property test/integration/orders/place-order-failure-preserves-cart.test.ts asserts: a placement that fails leaves the basket exactly as the buyer left it.',
   },
   'modules/orders/services/order-service.ts:inventory/entities/stock-allocation.entity': {
     permanent: true,
@@ -100,23 +113,31 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     retiredBy:
       'F4 gives `inventory` a package entry point that exports the reservation placement performs — then this is a package dependency, not an import of internals. Moving the reservation out of the placement transaction would retire it too, and would cost the `PESSIMISTIC_WRITE` on `stock_levels` that stops two placements allocating the same unit (test/contract/orders/place-stock-race.test.ts).',
   },
-  'modules/orders/services/order-service.ts:invoices/entities/invoice.entity': {
+  'modules/orders/services/order-service.ts:invoices/ports/index': {
     permanent: true,
     reason:
-      'D-78 point 2, and the twin of the `payments` entry below. ' +
+      'D-78 point 2, converted by feature 080`s T048 — the twin of the `payments` entry below, one edit ahead of it. ' +
       '`db/migrations/20260425T050720_core_commerce_init.ts:195` declares `invoices_order_fk` ' +
       '(`invoices.order_id` -> `orders.id`, `on delete restrict`), so the proforma row ' +
-      '`placeOrder` opens must see its order inside one transaction. `invoices` declares ' +
+      '`placeOrder` opens must see its order inside one transaction. What crosses is now the ' +
+      'owner`s `EntityManager`-taking interface rather than its `Invoice` class, which is ' +
+      'what D-168 leaves a packaged `invoices` no supported spelling for; the constraint is ' +
+      'untouched, because a foreign key needs the **table** and never the class (D-169), and ' +
+      'the row is written by the module that owns the table. `invoices` declares ' +
       '`orders`, so the manifest edge the constraint requires is already carried on that ' +
-      'side; declaring the reverse would close a cycle `module-graph.test.ts` fails on. The ' +
+      'side; declaring the reverse would close a cycle `module-graph.test.ts` fails on, and ' +
+      'acknowledging it would keep the bind and make `invoices.enabled` unusable — so the ' +
+      'edge is `degrades-without` and placement asks presence before the call. The ' +
       'read half of this module`s invoice surface is NOT here — the customer download and the ' +
       'admin bulk print go through `invoiceReadPort` / `invoicePdfPort` and are declared ' +
-      '`degrades-without`. Only the co-transactional create is left.',
+      '`degrades-without` too. Only the co-transactional create is left.',
     retiredBy:
-      'F4 gives `invoices` a package entry point exporting the row an order opens. Moving ' +
-      'invoice creation out of the placement transaction — to an `order.created.v1` reactor — ' +
-      'would retire it too, and is a product decision about whether a placed order may exist ' +
-      'for a moment with no document.',
+      'F4 packages `invoices`, at which point that same directory is the package`s `./ports` ' +
+      'subpath, D-171 stops counting the reach, and the consumer-side edit is this one ' +
+      'specifier — the second of D-171`s three separable edits is done and this entry stands ' +
+      'with it. Moving invoice creation out of the placement transaction — to an ' +
+      '`order.created.v1` reactor — would retire it too, and is a product decision about ' +
+      'whether a placed order may exist for a moment with no document.',
   },
   'modules/orders/services/order-service.ts:payments/entities/payment.entity': {
     permanent: true,

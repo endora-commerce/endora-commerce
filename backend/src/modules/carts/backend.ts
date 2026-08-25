@@ -17,6 +17,7 @@ import type {
   QuoteRequestReadPort,
   RfqCustomerPort,
 } from '@endora-commerce/contracts';
+import type { CartPlacementApplyPort } from './ports/index.js';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
@@ -26,6 +27,7 @@ import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channe
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 import { abandonmentSettingsReaders } from './services/cart-abandonment-settings.js';
 import { CartQueryService } from './services/cart-query-service.js';
+import { CartPlacementApplyService } from './services/cart-placement-apply-port.js';
 import { CartReadService, createCartWritePort } from './services/cart-read-port.js';
 import { CartService } from './services/cart-service.js';
 import { CartUpsellService } from './services/cart-upsell-service.js';
@@ -263,6 +265,30 @@ export function registerModule(ctx: ModuleContext): void {
         createCartWritePort(emFactory, () => ctx.cradle<CartsCradle>().cartService),
       )
       .singleton(),
+  );
+
+  /**
+   * The basket half of order placement, on the **caller's** `EntityManager`
+   * (feature 080, T048; D-169).
+   *
+   * `orders` imported this module's `Cart` and `CartItem` classes for it until
+   * T048 — a co-transactional seam D-78 point 2 ruled permanent and D-94.1
+   * settled with `carts_completed_order_fk`. The constraint and the transaction
+   * are unchanged; what moved is the four statements, to the module that owns
+   * the two tables. `CartPlacementApplyPort` is declared in this module's
+   * `ports/` directory rather than in `@endora-commerce/contracts`, because its
+   * methods take a MikroORM `EntityManager` and FR-034 keeps that package free
+   * of them.
+   *
+   * It sits beside `cartReadPort` rather than replacing it: that port is the
+   * standalone read, on this module's own `EntityManager`, and `orders`' total
+   * preview is its consumer. The doc block on `CartReadPort` predicted both
+   * halves of this arrangement and asked whoever settled the escalation to
+   * write the real consumer down; T048 is that settlement.
+   */
+  ctx.di.providePort<CartPlacementApplyPort>(
+    'cartPlacementApplyPort',
+    ctx.asFunction(() => new CartPlacementApplyService()).singleton(),
   );
 
   ctx.di.providePort<CartQueryPort>(

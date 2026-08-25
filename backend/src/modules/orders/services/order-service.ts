@@ -29,26 +29,36 @@ import {
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { actorFromContext } from '../../../commands/index.js';
 import { getTenantContext } from '../../../tenancy/index.js';
-import { Cart } from '../../carts/entities/cart.entity.js';
-import { CartItem } from '../../carts/entities/cart-item.entity.js';
 import { NoSystemDefaultChannel } from '../../../kernel/sales-channels/no-system-default-channel.error.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
 import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entity.js';
 /**
- * The two rows placement opens in another module's table, and the two imports
- * feature 075 keeps on purpose (D-78 point 2, `check-module-boundary`'s
+ * The payment row placement opens in `payments`' table, and the seam feature
+ * 075 keeps on purpose (D-78 point 2, `check-module-boundary`'s
  * `permanent: true`).
  *
- * `payments_order_fk` and `invoices_order_fk` both reference `orders.id` with
- * `on delete restrict`, so each child row must see its order **inside the
- * placement transaction below** — a port would open a second transaction and
- * could not satisfy a foreign key against a row that has not committed. The
- * ledger entries name the constraints and what would retire them.
+ * `payments_order_fk` references `orders.id` with `on delete restrict`, so the
+ * row must see its order **inside the placement transaction below** — a port
+ * that opened a second transaction could not satisfy a foreign key against a
+ * row that has not committed.
+ *
+ * **It is the last entity-class reach of this family left in this file apart
+ * from `inventory`'s, and it is deferred by a question rather than by effort.**
+ * D-169 says what replaces it: the caller's `EntityManager` in the owner's
+ * signature, not the owner's class here — a foreign key needs the **table** and
+ * never the class, so the constraint would be untouched. That is exactly what
+ * feature 080's T048 did to the `carts` and `invoices` reaches that stood
+ * beside this one. `payments` is different in one respect that decides the
+ * shape: it is a **switchable** module, and the port replacing this `tx.create`
+ * would be gated, so the conversion forces an answer to *"what does checkout do
+ * when an operator has switched payments off?"* — refuse the placement, or
+ * place an order with no payment record and no gateway hand-off. Neither is
+ * obvious, both are visible to a buyer, and the answer is worth more than the
+ * conversion that needs it. Until then this stays, and the ledger entry says so.
  */
 import { Payment } from '../../payments/entities/payment.entity.js';
-import { Invoice } from '../../invoices/entities/invoice.entity.js';
 /**
  * The stock reservation, and the two `inventory` classes it writes on the
  * placement `EntityManager` (D-94.1 / D-94.4).
@@ -96,18 +106,51 @@ import { StockAllocation } from '../../inventory/entities/stock-allocation.entit
  * acknowledges the two container names rather than declaring the dependency
  * back — which would close a cycle.
  */
+/**
+ * The two neighbours whose row placement opens through an
+ * `EntityManager`-taking port rather than through their entity class (feature
+ * 080, T048; D-169).
+ *
+ * Both interfaces are declared by their **owner**, in that owner's `ports/`
+ * directory, for the reason the `credit_limits` / `promotions` block above
+ * gives: `lazyPort<T>` is an unchecked cast, so a `T` this module wrote would
+ * verify that this module is self-consistent and never that the provider still
+ * satisfies it. Neither can live in `@endora-commerce/contracts` — both name a
+ * MikroORM `EntityManager`, and FR-034 keeps that package free of them because
+ * `admin` and `storefront` both compile it.
+ *
+ * Both are relative specifiers and both are still counted by
+ * `check:module-boundary`: D-171 exempts a **subpath**, and only a package has
+ * one. The conversion and the retirement are two merge requests, and this is
+ * the first.
+ *
+ * The two differ on one axis and it decides how each is reached below. `carts`
+ * is non-deactivatable, so its port is an ordinary field and its absence is not
+ * a state; `invoices` is switchable, so its accessor answers `null` when an
+ * operator has switched it off and placement opens no proforma — the
+ * `degrades-without` entry in this module's manifest is what that promises, and
+ * writing the row anyway is what this module did before.
+ */
+import type { CartPlacementApplyPort } from '../../carts/ports/index.js';
+import type { InvoicePlacementApplyPort } from '../../invoices/ports/index.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
 import type { PromotionUsageFinalizer } from '@endora-commerce/mod-promotions/ports';
 /**
- * Re-exported so `plugin.ts` names its own module for the same two types.
+ * Re-exported so `plugin.ts` names its own module for the same four types.
  * One seam, one ledger entry each: a second import specifier in the plugin
  * would be a second crossing of a boundary that has exactly one reason to be
  * crossed, and the reason is stated above and in each owner's file.
  */
-export type { CreditLimitPort, PromotionUsageFinalizer };
+export type {
+  CartPlacementApplyPort,
+  CreditLimitPort,
+  InvoicePlacementApplyPort,
+  PromotionUsageFinalizer,
+};
 import { OrderAccessService } from './order-access-service.js';
 import type {
   AddressReadPort,
+  CartReadPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
   DeliveryMethodReadPort,
@@ -231,6 +274,32 @@ export interface OrderServiceNeighbourPorts {
     readonly stockRead: InventoryStockReadPort;
     readonly planning: InventoryFulfilmentPlanningPort;
   } | null;
+  /**
+   * The basket half of placement, on this transaction's own `EntityManager`
+   * (feature 080, T048). Not an accessor: `carts` is non-deactivatable, so
+   * there is no absent state to answer for, and a placement that cannot see the
+   * basket has nothing to place.
+   */
+  readonly cartPlacementApply: CartPlacementApplyPort;
+  /**
+   * The customer's active basket, read **outside** any transaction, for the
+   * total preview. A different port from the one above on purpose: this one
+   * takes no `EntityManager`, because a read handed one is a write seam
+   * re-opened to serve a read (D-169).
+   */
+  readonly cartRead: CartReadPort;
+  /**
+   * The proforma placement opens — `null` when `invoices` is not effectively
+   * present (feature 080, T048).
+   *
+   * An accessor rather than a field, and for the same reason `inventory` above
+   * is one: the module is switchable, this module is not, so the edge is
+   * declared `degrades-without` and placement asks before it calls. With
+   * invoicing off no proforma is opened and nothing else about the order
+   * changes — which is what `invoices.enabled`'s own description promises an
+   * operator, and what this module did not do while it wrote the row itself.
+   */
+  readonly invoicePlacementApply: () => InvoicePlacementApplyPort | null;
 }
 
 export class OrderService {
@@ -997,13 +1066,33 @@ export class OrderService {
     total: number;
     currency: string;
   }> {
-    const em = this.emFactory();
+    // No `EntityManager` at all any more: the last thing this method used one
+    // for was the basket read below, and it is a port now (feature 080, T048).
     const org = await this.neighbours.organizationDetails.findById(ctx.organizationId);
-    const cart = await em.findOne(Cart, {
+    // The **standalone** read, through `cartReadPort` — no `EntityManager`,
+    // because this method opens no transaction and a read handed one is a
+    // write seam re-opened to serve a read (D-169). Placement's own read is a
+    // different port for exactly that reason; see `cartPlacementApply` below.
+    //
+    // `CartReadPort`'s own doc block recorded this seam as a port published for
+    // a demand the tree had ruled out, and asked whoever settled the
+    // escalation to write the real consumer down. This is it (feature 080,
+    // T048).
+    //
+    // `organizationId: null` is deliberate and preserves the query this
+    // replaces exactly. `CartReadPort` adds an `organization_id` predicate when
+    // it is given one, and the read here — like placement's — filtered on the
+    // customer account and the status alone; `Cart` is `@CustomerScoped`, so
+    // the tenant guard is on the customer and not on the organisation, and
+    // `carts.organization_id` is nullable for a customer account that has none.
+    // Narrowing it would be a real change of behaviour for those rows and is
+    // not this conversion's to make.
+    const basket = await this.neighbours.cartRead.findActiveForCustomer({
       customerAccountId: ctx.customerAccountId,
-      status: 'active',
+      organizationId: null,
     });
-    const items = cart ? await em.find(CartItem, { cartId: cart.id }) : [];
+    const cart = basket?.cart ?? null;
+    const items = basket?.items ?? [];
     if (!cart || items.length === 0) {
       throw new HttpError(409, ERROR_CODES.CART_EMPTY, 'Cart is empty.');
     }
@@ -1102,11 +1191,19 @@ export class OrderService {
         );
       }
 
-      const cart = await tx.findOne(Cart, {
+      // The basket, read on **this** transaction through the port `carts`
+      // publishes for placement (feature 080, T048). It is the same
+      // `EntityManager` the completion below writes on, which is the whole
+      // content of the seam: a read on a second one would put a commit boundary
+      // between the totals this method quotes and the basket it clears.
+      const basket = await this.neighbours.cartPlacementApply.readActiveForPlacement(tx, {
         customerAccountId: ctx.customerAccountId,
-        status: 'active',
+        // `null` for the reason `previewTotal` states above: the query this
+        // replaces filtered on the customer account and the status alone.
+        organizationId: null,
       });
-      const items = cart ? await tx.find(CartItem, { cartId: cart.id }) : [];
+      const cart = basket?.cart ?? null;
+      const items = basket?.items ?? [];
       if (!cart || items.length === 0) {
         throw new HttpError(409, ERROR_CODES.CART_EMPTY, 'Cart is empty.');
       }
@@ -1712,19 +1809,32 @@ export class OrderService {
         payment.status = 'deferred';
       }
 
-      // Kick off invoice row — status stays `pending` for the unit test that
+      // Kick off the proforma — status stays `pending` for the unit test that
       // hits the "not ready" contract; fixtures transition it to `ready` for
       // the download test.
-      // The `payments` note above, for `invoices_order_fk`.
-      const invoice = tx.create(Invoice, {
-        orderId: order.id,
-        kind: 'proforma',
-        number: `${new Date().toISOString().slice(0, 10)}/${order.id.slice(0, 8)}`,
-        currency,
-        total: total.toFixed(2),
-        status: 'pending',
-      });
-      await tx.persistAndFlush(invoice);
+      //
+      // Written by `invoices`, on **this** transaction, for the reason the
+      // `payments` note above gives about `invoices_order_fk` (feature 080,
+      // T048; D-169). The constraint is untouched — a foreign key needs the
+      // table and never the class — and what moved is the statement, to the
+      // module that owns the table.
+      //
+      // **Presence is decided here, and the call is skipped whole.** `invoices`
+      // is switchable and this module is not, so the edge is declared
+      // `degrades-without` with `whenAbsent: 'an order is placed without a
+      // proforma document'`, and this is the check that declaration obliges.
+      // Until it existed, an operator who switched invoicing off went on having
+      // a row written into `invoices`' own table by every placement — the shape
+      // issue #188 names, one table over — while `invoices.enabled`'s
+      // description promised them the opposite.
+      const invoicePlacement = this.neighbours.invoicePlacementApply();
+      if (invoicePlacement !== null) {
+        await invoicePlacement.createProformaForOrder(tx, {
+          orderId: order.id,
+          currency,
+          total: total.toFixed(2),
+        });
+      }
 
       // Clear cart — the cart produced an Order, so its lifecycle terminates
       // in `completed` per feature 027's renamed status vocabulary. Also
@@ -1732,19 +1842,25 @@ export class OrderService {
       // checkout today, but defensively cleared for future edge cases
       // where a customer might check out from an anon-derived cart that
       // still carries the token).
-      await tx.nativeDelete(CartItem, { cartId: cart.id });
-      cart.status = 'completed';
-      // Which order emptied this cart (D-94.1). Written here rather than by a
-      // `cartWritePort` call, and held by `carts_completed_order_fk`
-      // (`carts.completed_order_id` -> `orders.id`, `on delete set null`): the
-      // pointer cannot be written before the order exists, and a second
-      // transaction would commit the completion for a placement that then
-      // failed — which is the property
+      // Written by `carts`, on **this** transaction, and held by
+      // `carts_completed_order_fk` (`carts.completed_order_id` -> `orders.id`,
+      // `on delete set null`): the pointer cannot be written before the order
+      // exists, and a second transaction would commit the completion for a
+      // placement that then failed — which is the property
       // `test/integration/orders/place-order-failure-preserves-cart.test.ts`
       // asserts. The cart-side column is the direction that forces that;
       // `orders.cart_id` would have been satisfiable by a split.
-      cart.completedOrderId = order.id;
-      cart.anonymousCartToken = null;
+      //
+      // It was four statements written here against `carts`' two tables until
+      // feature 080's T048. The transaction is unchanged and so is the
+      // constraint — a foreign key needs the table and never the class (D-169)
+      // — and what moved is the statements, to the module that owns them. Not a
+      // `cartWritePort` call even now: that port opens its own transaction, and
+      // this one may not.
+      await this.neighbours.cartPlacementApply.completeForOrder(tx, {
+        cartId: cart.id,
+        orderId: order.id,
+      });
       await tx.flush();
 
       this.events.emit('order.created.v1', {

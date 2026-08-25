@@ -20,7 +20,11 @@ import { lazyPort } from '../../kernel/index.js';
 import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import { builtInPaymentAdapters } from './adapters/built-in-adapters.js';
-import { ReceivePaymentHandler, type PaymentEventBus } from './services/receive-payment-handler.js';
+import {
+  ReceivePaymentHandler,
+  type OrderPaymentStatusApplyPort,
+  type PaymentEventBus,
+} from './services/receive-payment-handler.js';
 import { PaymentService } from './services/payment-service.js';
 import { PaymentRetryService } from './services/payment-retry-service.js';
 import { PaymentReadService } from './services/payment-read-port.js';
@@ -287,12 +291,23 @@ export function registerModule(ctx: ModuleContext): void {
    * Both edges were ledgered as blocked on this constructor: the four gateways
    * built their own handler, so it could take no port they could not build.
    * They resolve `receivePaymentPort` since the C-W3 gateway cuts, so this is
-   * the only construction left and `ctx` is in hand. The `Order` entity import
-   * inside the handler stays and stays permanent — `payments_order_fk` holds
+   * the only construction left and `ctx` is in hand.
+   *
+   * **The `Order` entity import inside the handler is gone since feature 080's
+   * T048**, and the seam it stood for is not: `payments_order_fk` still holds
    * the payment row and the order's payment status co-transactional (D-78 point
-   * 2) — and neither port shares that: `paymentMethodReadPort` is a read of a
-   * row the settlement never writes, and `orderTransitionPort` is called after
-   * the commit.
+   * 2), so the write still runs on the settlement's own `EntityManager` — it is
+   * `orderPaymentStatusApplyPort` that performs it now, an interface `orders`
+   * declares in its `ports/` directory precisely because an `EntityManager`
+   * parameter bars it from `@endora-commerce/contracts` (FR-034). D-168 leaves a
+   * packaged `orders` no entity class for this module to name, which is what
+   * made the conversion due before that module moves.
+   *
+   * The three `orders`/`payment_methods` ports this constructor takes are not
+   * three of a kind, and the difference is which transaction each runs in:
+   * `paymentMethodReadPort` is a read of a row the settlement never writes,
+   * `orderPaymentStatusApplyPort` is the co-transactional write above, and
+   * `orderTransitionPort` is called after the commit.
    *
    * **`orderTransitionPort` replaces two of the three names this used to take**
    * (feature 085 Phase D). `orderStatusAnnouncePort` goes because the transition
@@ -311,6 +326,7 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             lazyPort<PaymentMethodReadPort>(ctx, 'paymentMethodReadPort'),
             lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
+            lazyPort<OrderPaymentStatusApplyPort>(ctx, 'orderPaymentStatusApplyPort'),
             ctx.log,
             eventBus as PaymentEventBus,
           ),

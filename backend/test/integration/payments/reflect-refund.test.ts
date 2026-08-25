@@ -10,6 +10,7 @@ import {
   ReceivePaymentHandler,
   type SettlementLogger,
 } from '../../../src/modules/payments/services/receive-payment-handler.js';
+import type { OrderPaymentStatusApplyPort } from '../../../src/modules/orders/ports/index.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 
@@ -66,6 +67,10 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
       // like any other since feature 085 Phase D, so it is audited and its
       // side-effects run.
       h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+      // The co-transactional half (feature 080, T048): the order's payment
+      // status moves to `refunded` on this handler's own transaction, through
+      // the port `orders` publishes for it.
+      h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
       quiet,
     );
 

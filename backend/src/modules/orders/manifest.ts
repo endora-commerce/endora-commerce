@@ -151,6 +151,33 @@ export const manifest = defineModuleManifest({
         'nothing an operator can reach.',
     },
     {
+      moduleId: 'carts',
+      port: 'cartPlacementApplyPort',
+      reason:
+        'The basket half of placement — the lines the order is built from, and the ' +
+        'completion that empties the basket and stamps `completed_order_id` — both on the ' +
+        'placement `EntityManager` (feature 080, T048; D-169). A second `carts` name rather ' +
+        'than a widening of `cartWritePort`, because it runs in a different transaction: ' +
+        'that port opens its own, and this one may not. `carts_completed_order_fk` obliges ' +
+        '`carts` to declare this module, so a `dependencies` entry here would close ' +
+        '`orders -> carts -> orders`; acknowledging withdraws that ordering claim and ' +
+        'withdraws nothing else. The bind is kept and is real: a checkout that cannot see ' +
+        'the basket has nothing to turn into an order, so with `carts` absent placement ' +
+        'must refuse rather than place an empty one.',
+    },
+    {
+      moduleId: 'carts',
+      port: 'cartReadPort',
+      reason:
+        'The customer`s active basket, read **outside** any transaction, for the storefront ' +
+        'total preview (feature 080, T048). A third `carts` name beside the two above ' +
+        'because it runs in no transaction at all: handing a read an `EntityManager` would ' +
+        're-open a write seam to serve it (D-169). Same cycle as the two above — ' +
+        '`carts_completed_order_fk` obliges `carts` to declare this module — and the same ' +
+        'bind: a preview that cannot read the basket must refuse rather than quote a total ' +
+        'for lines it has not seen.',
+    },
+    {
       moduleId: 'credit_limits',
       port: 'creditLimitService',
       reason:
@@ -330,6 +357,22 @@ export const manifest = defineModuleManifest({
         'this module is non-deactivatable. Both routes ask presence and answer 404 ' +
         '`INVOICE_NOT_READY`, which is the answer an order that has not been invoiced yet ' +
         'already gets.',
+    },
+    {
+      moduleId: 'invoices',
+      name: 'invoicePlacementApplyPort',
+      kind: 'degrades-without',
+      whenAbsent: 'an order is placed without a proforma document; nothing else about the order changes',
+      reason:
+        'The proforma row placement opens, on the placement `EntityManager` because ' +
+        '`invoices_order_fk` (`on delete restrict`) means it cannot exist before its order ' +
+        'does (feature 080, T048; D-169). Same ground as the two entries above: `invoices` ' +
+        'declares this module, so `dependencies` would close a cycle, and an acknowledged ' +
+        'edge would keep the bind and make `invoices.enabled` unusable, because this module ' +
+        'is non-deactivatable. `order-service.ts` asks `effectiveState.isPresent` before the ' +
+        'call and skips it whole. The degrade is the repair, not its cost: until T048 this ' +
+        'module wrote the row itself, so an operator who had switched invoicing off went on ' +
+        'having a document opened in every placement.',
     },
     {
       moduleId: 'invoices',
