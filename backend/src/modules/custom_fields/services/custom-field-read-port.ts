@@ -17,6 +17,12 @@ import type { DefinitionSource } from './custom-field-value.service.js';
  */
 export interface FreshDefinitionSource extends DefinitionSource {
   listForEntityFresh(entityType: SupportedEntityType): Promise<CachedDefinition[]>;
+  /**
+   * Feature 080, T053(b) — the single-definition read the apply seam used to
+   * answer for `catalog`. It returns `CachedDefinition`, which carries the two
+   * ORM entities, which is precisely what the adapter below maps away.
+   */
+  getById(id: string): Promise<CachedDefinition | null>;
 }
 
 /**
@@ -54,6 +60,20 @@ export class CustomFieldDefinitionReadService implements CustomFieldDefinitionRe
     entityType: SupportedEntityType,
   ): Promise<CustomFieldDefinitionWithOptions[]> {
     return (await this.source.listForEntityFresh(entityType)).map(toDefinitionWithOptions);
+  }
+
+  /**
+   * Feature 080, T053(b) — the committed-state read of one definition.
+   *
+   * `catalog`'s attribute Commands took this off the apply seam until now, and
+   * the seam handed back the managed entities: a record-shaped type over
+   * `CustomFieldDefinition` and `CustomFieldOption`, which are structurally
+   * assignable to the published records, so nothing complained. The mapping
+   * below is what makes the published type true.
+   */
+  async getById(id: string): Promise<CustomFieldDefinitionWithOptions | null> {
+    const cached = await this.source.getById(id);
+    return cached ? toDefinitionWithOptions(cached) : null;
   }
 }
 

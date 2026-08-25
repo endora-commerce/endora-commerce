@@ -31,10 +31,13 @@ import { CatalogQueryService } from './services/catalog-query.service.js';
 import {
   CatalogAdminService,
   type CatalogWarehouseThresholdCopy,
-  type CatalogCustomFieldsPort,
   type CatalogEventBus,
 } from './services/catalog-admin.service.js';
 import { CatalogAttributeReadService } from './services/catalog-attribute-read.service.js';
+// D-77 — the apply seam's type is named once in this module, by
+// `commands/attribute-commands.ts`; every other file takes that re-export, so
+// the boundary ledger carries one entry rather than one per consumer.
+import type { CustomFieldDefinitionApplyApi } from './commands/attribute-commands.js';
 import { CatalogBulkUpdateService } from './services/catalog-bulk-update.service.js';
 import {
   BulkOperationService,
@@ -228,16 +231,17 @@ export interface CatalogModuleOptions {
    *
    * Feature 061 — the same object (production wiring passes the
    * `CustomFieldDefinitionService`) also backs the composed attribute read
-   * model and, when it satisfies {@link CatalogCustomFieldsPort}, the
-   * attribute write path (apply seam).
+   * model, and since T053(b) the attribute write path's committed-state
+   * definition read with it.
    */
   customFieldDefinitions?: CustomFieldDefinitionReadPort;
   /**
-   * Feature 061 — the custom_fields apply seam + committed-state read used by
-   * the attribute Commands. Production + test composition pass the
-   * `CustomFieldDefinitionService` here (it satisfies the port structurally).
+   * Feature 061 — the custom_fields apply seam used by the attribute Commands.
+   * Production + test composition pass the `CustomFieldDefinitionService` here
+   * (it implements the interface). The committed-state definition read that
+   * used to travel with it is `customFieldDefinitions`' since T053(b).
    */
-  customFieldsPort?: CatalogCustomFieldsPort;
+  customFieldsPort?: CustomFieldDefinitionApplyApi;
   /**
    * Feature 061 — pre-built composed attribute read service. When omitted but
    * `customFieldDefinitions` is present, the plugin constructs its own.

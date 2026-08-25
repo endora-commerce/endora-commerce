@@ -17,7 +17,7 @@
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/catalog/commands/attribute-commands.ts:custom_fields/services/custom-field-definition.service':
+  'modules/catalog/commands/attribute-commands.ts:custom_fields/ports/index':
     {
       permanent: true,
       reason:
@@ -36,12 +36,22 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
         'manifest declares `custom_fields`, as AGENTS.md § Migrations item 4 requires of a ' +
         'cross-module foreign key. What crosses is now ONE type, in THIS file: the returns are ' +
         '`CustomFieldDefinitionRecord` / `CustomFieldOptionRecord`, the failure is the published ' +
-        'code union and guard, and `catalog-admin.service.ts` names the re-export here.',
+        'code union and guard, and `catalog-admin.service.ts` and `plugin.ts` name the re-export ' +
+        'here. T053(b) took the last two things off it that were not the seam: the specifier now ' +
+        "names the owner's `ports/` directory, a file that compiles to `export {};` and can hand " +
+        'out nothing else, and the committed-state definition read it used to carry is ' +
+        '`CustomFieldDefinitionReadPort.getById` — a read, so by D-169 it may not take an ' +
+        '`EntityManager`, and the seam was answering it with the owner\'s two managed ORM ' +
+        'entities typed as records.',
       retiredBy:
-        'F4 gives `custom_fields` a package entry point that exports `CustomFieldDefinitionApplyApi` ' +
-        '— then this is a package dependency the manifest already declares, not an import of ' +
-        'internals. Dropping `fk_product_attributes_custom_field_definition` would retire it too, ' +
-        'and would cost the invariant the constraint buys.',
+        'F4 packages `custom_fields`, at which point that same directory is the package\'s ' +
+        '`./ports` subpath, D-171 stops counting the reach, and the consumer-side edit is this one ' +
+        'specifier. It is not retired by the relocation alone: `resolveModulePackage` returns ' +
+        '`null` for anything starting with `.`, so a relative specifier has no subpath for the ' +
+        'exemption to apply to, and the three edits (package the owner, publish the interface, ' +
+        'rewrite the specifier) are separable by design — this entry stands with the second done. ' +
+        'Dropping `fk_product_attributes_custom_field_definition` would retire it too, and would ' +
+        'cost the invariant the constraint buys.',
     },
   'modules/catalog/services/catalog-admin.service.ts:sql:carts/cart_items':
     'Issue #187 seed — `assertProductDeletable` refuses a product delete that would ' +

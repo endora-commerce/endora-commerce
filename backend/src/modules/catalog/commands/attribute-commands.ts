@@ -9,7 +9,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { Command } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { CustomFieldDefinitionApplyApi } from '../../custom_fields/services/custom-field-definition.service.js';
+import type { CustomFieldDefinitionApplyApi } from '../../custom_fields/ports/index.js';
 
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import {
@@ -42,12 +42,10 @@ import type { CatalogAttributeOptionView } from '../services/catalog-attribute-r
 /**
  * The apply seam's type, named **once** in this module (D-77).
  *
- * `catalog` reached `custom_fields`' definition service from two files; the
- * second was `catalog-admin.service.ts`, which extends this interface into
- * `CatalogCustomFieldsPort`. It names this re-export now, so the permanent
- * residue is one type in one file rather than one type in two — and the entry
- * that stays in the boundary ledger is the entry the foreign key actually
- * entails.
+ * `catalog` reached `custom_fields` from two files; the second is
+ * `catalog-admin.service.ts`, which names this re-export, so the residue the
+ * boundary ledger carries is one type in one file rather than one type in two
+ * — and it is the entry the foreign key actually entails.
  *
  * It is a re-export rather than a local declaration on purpose. `lazyPort<T>`
  * is an unchecked cast: with the type declared on the consumer's side nothing
@@ -55,13 +53,28 @@ import type { CatalogAttributeOptionView } from '../services/catalog-attribute-r
  * compile-time proof — the provider's class implements the interface the
  * consumer imports — is what stands between an FK-backed invariant and a
  * runtime surprise.
+ *
+ * **The specifier is the owner's `ports/` directory since T053(b)**, not its
+ * definition service. That file compiles to `export {};` — no runtime binding
+ * — which is the property D-171 makes its boundary decision on, and it is the
+ * directory that becomes the package's `./ports` when `custom_fields` moves,
+ * at which point this line is the whole of the consumer-side edit. Until then
+ * it is still a relative specifier and `check:module-boundary` still counts it:
+ * `resolveModulePackage` returns `null` for anything starting with `.`, so
+ * there is no subpath for the exemption to apply to.
  */
 export type { CustomFieldDefinitionApplyApi };
 
 export interface AttributeCommandDeps {
   /** The custom_fields transactional apply seam (definition/option writes). */
   apply: CustomFieldDefinitionApplyApi;
-  /** Committed-state definition read (capture snapshots + guard inputs). */
+  /**
+   * Committed-state definition read (capture snapshots + guard inputs).
+   *
+   * Served by `CustomFieldDefinitionReadPort.getById` since T053(b) — a read,
+   * so it takes no `EntityManager` and does not belong on the apply seam that
+   * used to answer it (D-169).
+   */
   readDefinition: (id: string) => Promise<CustomFieldDefinitionWithOptions | null>;
 }
 

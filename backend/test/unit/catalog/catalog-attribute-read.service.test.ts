@@ -125,6 +125,8 @@ function makeService(defs: StubDef[], exts: StubExt[]): CatalogAttributeReadServ
   const definitions = {
     listForEntity: async () => defs.map(makeDefinition),
     listForEntityFresh: async () => defs.map(makeDefinition),
+    getById: async (id: string) =>
+      defs.filter((d) => d.id === id).map(makeDefinition)[0] ?? null,
   };
   return new CatalogAttributeReadService(() => fakeEm, definitions);
 }
@@ -149,6 +151,8 @@ function makeHealingService(input: {
       input.onFresh();
       return input.fresh.map(makeDefinition);
     },
+    getById: async (id: string) =>
+      input.fresh.filter((d) => d.id === id).map(makeDefinition)[0] ?? null,
   };
   return new CatalogAttributeReadService(() => fakeEm, definitions);
 }
