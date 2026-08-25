@@ -426,6 +426,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     pimAkeneoRunWorkers: runWorkers,
     pimPimcoreRunWorkers: runWorkers,
     productFeedsRunWorkers: runWorkers,
+    pimAkeneoPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsTokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
     // The one connection ioredis has put into subscriber mode. Shared, because

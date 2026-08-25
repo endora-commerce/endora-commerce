@@ -968,6 +968,7 @@ export async function setupBackendServer(
     pimAkeneoRunWorkers: false,
     pimPimcoreRunWorkers: false,
     productFeedsRunWorkers: false,
+    pimAkeneoPublicBaseUrl: 'http://localhost',
     productFeedsPublicBaseUrl: 'http://feeds.test.local',
     productFeedsTokenEncryptionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
     // Mirrors `composition.ts` — but only when a test asks for pub/sub.
