@@ -322,17 +322,25 @@ export async function registerCustomersAdminRoutes(
         body.organizationId,
         actor,
       );
-      return { data: { id: customer.id, organizationId: customer.organizationId ?? null } };
+      return { data: { id: customer.id, organizationId: customer.organizationId } };
     },
   );
 
+  /**
+   * Detach a customer from the company they belong to.
+   *
+   * The verb is still `DELETE` and the response still carries the customer's
+   * organisation, but since D-178 the organisation it carries is the customer's
+   * **own** personal one rather than `null`. An account with no organisation
+   * cannot transact and cannot be scoped, and the column refuses one.
+   */
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/organization',
     { preHandler: requireAdmin('customers:manage') },
     async (request) => {
       const actor = await resolveModerationActor(request);
       const customer = await deps.orgAssignmentService.unassign(request.params.id, actor);
-      return { data: { id: customer.id, organizationId: customer.organizationId ?? null } };
+      return { data: { id: customer.id, organizationId: customer.organizationId } };
     },
   );
 
@@ -362,8 +370,13 @@ export async function registerCustomersAdminRoutes(
       await resolveModerationActor(request);
       const customer = await accounts.findById(request.params.id);
       const personal = await deps.addressService.listPersonal(request.params.id);
+      // `customer` is `null` when no such account exists; the organisation half
+      // is then empty rather than 404. D-178 narrowed what this condition
+      // covers — it used to fold "the customer has no organisation" in with it,
+      // and that state is gone — but the missing-customer arm is unchanged and
+      // is not this ruling's to settle.
       const organization =
-        customer?.organizationId == null
+        customer === null
           ? []
           : await deps.addressService.listOrganizationAddresses(customer.organizationId);
       return {

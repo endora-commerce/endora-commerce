@@ -589,12 +589,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   /**
    * Resolver for routes that require an authenticated Customer **with** an
-   * Organization. Feature 026 US2 introduces no-org Customer accounts;
-   * routes that read price lists, credit limit, addresses, or place orders
-   * still need an Organization, so this resolver throws 422 when one is
-   * missing. Routes that genuinely work without an Organization (cart-add,
-   * browsing, profile-read) use `resolveCartActor` or read `request.actor`
-   * directly.
+   * Organization. Routes that work without one (cart-add, browsing,
+   * profile-read) use `resolveCartActor` or read `request.actor` directly.
+   *
+   * **The refusal below asserts an invariant; it does not describe a business
+   * state** (D-178). It was a 422 `organization_required`, introduced by
+   * feature 026 US2 for accounts that were allowed to have no Organization.
+   * Every transacting customer has one — `customer_accounts.organization_id` is
+   * `NOT NULL` and an individual is backed by a personal organisation — so a
+   * caller reaching this branch is a broken invariant, and a 422 telling a buyer
+   * to attach an Organization they have no way to attach is a lie with a
+   * remedy attached.
+   *
+   * The guard is **kept** rather than deleted: `request.actor.organizationId` is
+   * `string | null | undefined` at this seam and the consumers' input type is
+   * `organizationId: string`, so removing the check would push `undefined`
+   * through silently.
    */
   const customerResolver = (
     request: FastifyRequest,
@@ -608,10 +618,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }
     if (!request.actor.organizationId) {
       throw new HttpError(
-        422,
-        ERROR_CODES.VALIDATION_FAILED,
-        'This action requires an Organization attached to your account.',
-        { code: 'organization_required' },
+        500,
+        ERROR_CODES.INTERNAL,
+        'Invariant violated: a customer account has no Organization (Principle XI).',
+        { code: 'customer_account_organization_missing' },
       );
     }
     return {
@@ -1769,12 +1779,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
       }
+      // D-178 — an invariant, not a business state; see `customerResolver`.
       if (!request.actor.organizationId) {
         throw new HttpError(
-          422,
-          ERROR_CODES.VALIDATION_FAILED,
-          'Quote Requests require an Organization attached to your account.',
-          { code: 'organization_required' },
+          500,
+          ERROR_CODES.INTERNAL,
+          'Invariant violated: a customer account has no Organization (Principle XI).',
+          { code: 'customer_account_organization_missing' },
         );
       }
       const account = await identityPorts().customerAccountReadPort.findById(

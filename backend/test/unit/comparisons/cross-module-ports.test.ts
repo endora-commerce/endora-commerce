@@ -86,7 +86,7 @@ function productRecord(id: string): CatalogProductRecord {
 function accountRecord(id: string, email: string): CustomerAccountRecord {
   return {
     id,
-    organizationId: null,
+    organizationId: 'org-1',
     email,
     firstName: 'Ada',
     lastName: 'Lovelace',

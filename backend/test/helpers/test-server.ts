@@ -2786,10 +2786,13 @@ function customerResolver(request: FastifyRequest): {
   if (request.testActor?.kind !== 'customer') {
     return { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID };
   }
-  // Feature 026 US2 — testActor.organizationId may be null (no-org Customer).
-  // Tests that drive routes requiring an Organization fall back to the
-  // shared TEST_ORGANIZATION_ID; tests that genuinely exercise the no-org
-  // path use `cartActorResolver` or call services directly.
+  // The test actor carries an optional organisation, so a test that names none
+  // falls back to the shared TEST_ORGANIZATION_ID. This is the harness's
+  // deliberate divergence from `composition.ts`'s resolver, which refuses
+  // instead — and since D-178 that refusal is a 500 asserting an invariant
+  // rather than a 422 describing a business state. Substituting here is still
+  // right: the actor is a fixture, not a row, and a test that wants the
+  // invariant's refusal drives the composed resolver.
   return {
     customerAccountId: request.testActor.customerAccountId,
     organizationId: request.testActor.organizationId ?? TEST_ORGANIZATION_ID,

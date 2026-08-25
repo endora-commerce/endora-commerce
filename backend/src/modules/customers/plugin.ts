@@ -214,7 +214,6 @@ export function customersModule(options: CustomersModuleOptions): {
     sessionService: options.sessionService,
     resolveAllowRegistrationWithoutOrganization:
       options.resolveAllowRegistrationWithoutOrganization,
-    personalOrganizations: options.personalOrganizationPort,
   });
   const customerAddressService = new CustomerAddressService(
     options.emFactory,
@@ -249,6 +248,7 @@ export function customersModule(options: CustomersModuleOptions): {
     options.customerAccountLifecycleWritePort,
     options.organizationDetailsPort,
     authorityService,
+    options.personalOrganizationPort,
   );
   const deletionService = new CustomerDeletionService(
     options.customerAccountReadPort,

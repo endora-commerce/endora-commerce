@@ -85,6 +85,20 @@ export class CartAdminService {
     if (constraint.kind === 'all') {
       return requested ? { organizationId: requested } : {};
     }
+    // The `single` arm's null branch matches nothing since D-178, and that is
+    // the resolution of feature 087's R-4 rather than an answer to it: R-4 asks
+    // which of two shipped semantics for "a single-org actor whose organisation
+    // is null" is correct — this one's "matches nothing" or `orgFilterCond`'s
+    // "matches null-org rows". There is no such actor any more, so both arms
+    // die and neither semantic has to win.
+    //
+    // That holds **because the tightening landed first**, and the condition
+    // does not travel separately from the claim. Feature 087's Group B adds a
+    // nullable `organization_id` to five tables and leaves ownerless rows in
+    // place; in the other order those rows would exist while the null-org actor
+    // still did, `orgFilterCond`'s `{ organizationId: null }` would start
+    // matching real data, and the two semantics would begin disagreeing about
+    // rows a buyer can see rather than about an empty set.
     const allowed =
       constraint.kind === 'single'
         ? constraint.organizationId === null
@@ -108,6 +122,11 @@ export class CartAdminService {
   #assertCartInScope(cart: Cart): void {
     const constraint = orgConstraintFor();
     if (constraint.kind === 'all') return;
+    // The cart's own organisation is still nullable — an anonymous visitor's
+    // cart has none, and feature 087's Group B is what settles that. What is
+    // gone since D-178 is the other half of the pairing: a `single-org` *actor*
+    // whose organisation is null, which is why the `single` arm can no longer
+    // match one of those carts by having a null of its own.
     const organizationId = cart.organizationId ?? null;
     const allowed =
       constraint.kind === 'single'

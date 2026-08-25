@@ -3,7 +3,6 @@ import {
   type AuthSessionPort,
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountRecord,
-  type PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 
@@ -15,10 +14,10 @@ import { HttpError } from '../../../http/error-envelope.js';
  * when disabled, registration is refused with a clear, actionable error so
  * the storefront can steer the visitor toward Organization registration.
  *
- * On success the new account is created with `organizationId = null`, a
- * personal organization is provisioned for it, and an auto-login session is
- * minted (parity with the Organization registration flow which also logs the
- * first user straight in).
+ * On success the new account and the individual's single-member personal
+ * organization are written in one transaction by `customer_accounts` (D-178),
+ * and an auto-login session is minted (parity with the Organization
+ * registration flow, which also logs the first user straight in).
  *
  * **Feature 075, Phase C — this service writes no table.** It used to create
  * `customer_accounts`' entity itself, hash the password with `auth`'s hasher,
@@ -26,9 +25,9 @@ import { HttpError } from '../../../http/error-envelope.js';
  * are owner-side now: the account and its audit row come from
  * `customerAccountLifecycleWritePort`, the hashing goes with them (a caller
  * that hashes is a caller that has to be told which algorithm the owner uses),
- * and the organisation comes from `personalOrganizationPort`. What is left
- * here is the policy — whether an org-less registration is allowed at all —
- * which is this module's setting.
+ * and the organisation is provisioned inside that same write (D-178). What is left
+ * here is the policy — whether a registration outside a company organization is
+ * allowed at all — which is this module's setting.
  */
 export interface CustomerRegistrationDeps {
   /** `customer_accounts`' account lifecycle. Creates the row and audits it. */
@@ -42,8 +41,6 @@ export interface CustomerRegistrationDeps {
   sessionService: AuthSessionPort;
   /** Reads `customers.allow_registration_without_organization` (the per-channel B2C gate). */
   resolveAllowRegistrationWithoutOrganization: () => Promise<boolean>;
-  /** Feature 051 — provisions a single-member personal organization for a B2C customer. */
-  personalOrganizations: PersonalOrganizationPort;
 }
 
 export interface RegisterStandaloneInput {
@@ -80,21 +77,20 @@ export class CustomerRegistrationService {
     // The duplicate-address refusal is inside the write, so a registration
     // racing its own pre-check still answers 409 rather than a 500 off the
     // unique index.
+    //
+    // D-178 — the personal organization feature 051 requires is provisioned
+    // inside that call, in the same transaction as the account, so the record
+    // that comes back already carries it. This service used to call
+    // `personalOrganizationPort.ensureForCustomerAccount` on the next line, and
+    // that second unit of work is exactly what left a committed account with no
+    // organization whenever it failed: the visitor had no session to retry from
+    // and nothing anywhere re-ran the provisioning.
     const customerAccount = await this.deps.accounts.createStandalone({
       email: input.email,
       password: input.password,
       firstName: input.firstName,
       lastName: input.lastName,
     });
-
-    // Feature 051 — a B2C customer is backed by a single-member personal
-    // organization, so ordering/RFQ/credit/invoices work and the tenant guard
-    // isolates each individual as their own tenant (no null-org path). The
-    // binding is written on `customer_accounts`' side of that port, so the
-    // record this service already holds is one field out of date.
-    const organization = await this.deps.personalOrganizations.ensureForCustomerAccount(
-      customerAccount.id,
-    );
 
     const session = await this.deps.sessionService.createSession({
       kind: 'customer',
@@ -104,7 +100,7 @@ export class CustomerRegistrationService {
     });
 
     return {
-      customerAccount: { ...customerAccount, organizationId: organization.id },
+      customerAccount,
       sessionCookieValue: session.cookieValue,
       sessionExpiresAt: session.expiresAt,
     };

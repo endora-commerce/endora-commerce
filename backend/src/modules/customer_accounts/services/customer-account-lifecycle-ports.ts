@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
@@ -16,6 +17,13 @@ import { recordAuditFromContext } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
+// D-178 — the one co-transactional seam this module consumes, and the reason it
+// is imported from another module's directory rather than from
+// `@endora-commerce/contracts` is on the interface itself: its signature carries
+// an `EntityManager`, which FR-034 keeps out of that package. Ledgered
+// `permanent: true` in `scripts/ledgers/cross-module-imports/customer_accounts.ts`,
+// beside the foreign key that holds it.
+import type { PersonalOrganizationProvisionApi } from '../../organizations/ports/personal-organization-provision.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { toCustomerAccountRecord } from './customer-account-ports.js';
 
@@ -69,6 +77,14 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     private readonly emFactory: () => EntityManager,
     private readonly auditLog: AuditPort,
     /**
+     * D-178 — `organizations`' co-transactional provisioning seam, held here
+     * because {@link createStandalone} writes the account **and** the individual's
+     * personal organisation in one transaction. See
+     * `organizations/ports/personal-organization-provision.ts` for the foreign
+     * key that makes that a requirement rather than a preference.
+     */
+    private readonly personalOrganizations: PersonalOrganizationProvisionApi,
+    /**
      * Only {@link setCustomFieldValues} needs it, because that one write is a
      * read-modify-write and has to stay in one transaction. The method says so
      * and refuses without it.
@@ -76,6 +92,24 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     private readonly commandBus?: CommandBus,
   ) {}
 
+  /**
+   * Self-registration: the account row **and** the tenant that scopes it, in one
+   * transaction (D-178).
+   *
+   * It used to be two committed units of work — this method wrote
+   * `organizationId: null` and flushed, and `customers`' registration service
+   * then called `personalOrganizationPort.ensureForCustomerAccount`. A failure
+   * between them (the port disabled, the database blipping, the process killed)
+   * left a durable account with no organisation, no session for the visitor to
+   * retry from, and nothing anywhere that re-ran the provisioning. That is one
+   * of the three producers D-178 closed, and the column is `NOT NULL` now, so
+   * the old order would fail at the insert rather than leave a bad row.
+   *
+   * The account id is generated here rather than by the entity default because
+   * the organisation has to exist first — its `taxId` is derived from that id,
+   * which is what makes the provisioning re-runnable — and the account's foreign
+   * key has to point at it.
+   */
   async createStandalone(
     input: CustomerAccountStandaloneCreateInput,
   ): Promise<CustomerAccountRecord> {
@@ -94,39 +128,52 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         'An account with this email already exists.',
       );
     }
-    const account = em.create(CustomerAccount, {
-      email,
-      passwordHash: await hashPassword(input.password),
-      // Issue #222 — the visitor typed this password on the registration form.
-      passwordSetAt: new Date(),
-      firstName: input.firstName,
-      lastName: input.lastName,
-      organizationId: null,
-    });
-    // Self-registration is pre-auth, so there is no ambient actor and the row
-    // is recorded with a null one — as it was before this write moved here.
-    recordAuditFromContext(this.auditLog, em, {
-      action: 'customer_account.register_standalone',
-      objectType: 'customer_account',
-      objectId: account.id,
-      stateBefore: null,
-      stateAfter: { email: account.email },
-    });
-    try {
-      await em.persistAndFlush(account);
-    } catch (err) {
-      // The unique index is the real arbiter; the pre-check above only buys a
-      // better message for the common case.
-      if (err instanceof UniqueConstraintViolationException) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.EMAIL_ALREADY_REGISTERED,
-          'An account with this email already exists.',
-        );
+    const customerAccountId = randomUUID();
+    const passwordHash = await hashPassword(input.password);
+    return em.transactional(async (tem) => {
+      const organization = await this.personalOrganizations.provisionFor(tem, {
+        customerAccountId,
+        email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+      });
+      const account = tem.create(CustomerAccount, {
+        id: customerAccountId,
+        email,
+        passwordHash,
+        // Issue #222 — the visitor typed this password on the registration form.
+        passwordSetAt: new Date(),
+        firstName: input.firstName,
+        lastName: input.lastName,
+        organizationId: organization.id,
+      });
+      // Self-registration is pre-auth, so there is no ambient actor and the row
+      // is recorded with a null one — as it was before this write moved here.
+      recordAuditFromContext(this.auditLog, tem, {
+        action: 'customer_account.register_standalone',
+        objectType: 'customer_account',
+        objectId: account.id,
+        stateBefore: null,
+        stateAfter: { email: account.email },
+      });
+      try {
+        await tem.flush();
+      } catch (err) {
+        // The unique index is the real arbiter; the pre-check above only buys a
+        // better message for the common case. The port call is deliberately
+        // outside this `catch`: a `ModuleDisabledError` from it must reach the
+        // caller as the 503 it is, not as a duplicate-address 409.
+        if (err instanceof UniqueConstraintViolationException) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.EMAIL_ALREADY_REGISTERED,
+            'An account with this email already exists.',
+          );
+        }
+        throw err;
       }
-      throw err;
-    }
-    return toCustomerAccountRecord(account);
+      return toCustomerAccountRecord(account);
+    });
   }
 
   async block(
@@ -242,23 +289,56 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
 
   async setOrganization(
     customerAccountId: string,
-    organizationId: string | null,
+    organizationId: string,
+    input: { actorAdminUserId: string },
+  ): Promise<CustomerAccountRecord> {
+    return this.#writeOrganization(
+      'customer_account.organization_assigned',
+      customerAccountId,
+      organizationId,
+      input,
+    );
+  }
+
+  /**
+   * D-178 — an operator detaching a member from a company.
+   *
+   * The write is byte-identical to {@link setOrganization}'s; only the audit
+   * verb differs, and it is the verb this operation has always recorded. What
+   * changed is what it writes: `organization_id = NULL` until D-178, which left
+   * an account that could not place an order, submit an RFQ or read an address —
+   * and which the column now refuses outright.
+   *
+   * The destination is the account's own personal organisation, resolved by the
+   * caller through `organizations`. This module does not resolve it, because
+   * that would make the account table's owner responsible for the tenancy
+   * policy of the module it points at.
+   */
+  async detachToPersonalOrganization(
+    customerAccountId: string,
+    personalOrganizationId: string,
+    input: { actorAdminUserId: string },
+  ): Promise<CustomerAccountRecord> {
+    return this.#writeOrganization(
+      'customer_account.organization_unassigned',
+      customerAccountId,
+      personalOrganizationId,
+      input,
+    );
+  }
+
+  async #writeOrganization(
+    action: string,
+    customerAccountId: string,
+    organizationId: string,
     input: { actorAdminUserId: string },
   ): Promise<CustomerAccountRecord> {
     const em = this.emFactory();
     const account = await this.#loadLive(em, customerAccountId);
-    const before = { organizationId: account.organizationId ?? null };
+    const before = { organizationId: account.organizationId };
     account.organizationId = organizationId;
     await em.flush();
-    await this.#record(
-      organizationId === null
-        ? 'customer_account.organization_unassigned'
-        : 'customer_account.organization_assigned',
-      account.id,
-      input.actorAdminUserId,
-      before,
-      { organizationId },
-    );
+    await this.#record(action, account.id, input.actorAdminUserId, before, { organizationId });
     return toCustomerAccountRecord(account);
   }
 
@@ -417,14 +497,18 @@ export class CustomerAccountAdminSearchService implements CustomerAccountAdminSe
     if (criteria.customerGroupId) and.push({ customerGroupId: criteria.customerGroupId });
 
     // `null` is the platform administrator's unscoped read. Anything else is a
-    // sales rep's territory, and a standalone account belongs to nobody's.
+    // sales rep's territory.
+    //
+    // D-178 removed an `$or` arm here that also matched `organizationId: null`.
+    // Its comment said a standalone account belonged to nobody's territory and
+    // the predicate put it in **everybody's**: every sales representative's
+    // customer list contained every null-organisation account on the platform,
+    // and the population grew on every federated sign-in. That was a live
+    // cross-territory disclosure, not an optimisation, and it is gone rather
+    // than left unreachable — a predicate with no population still reads as
+    // policy to whoever finds it next.
     if (criteria.allowedOrganizationIds !== null) {
-      and.push({
-        $or: [
-          { organizationId: null },
-          { organizationId: { $in: [...criteria.allowedOrganizationIds] } },
-        ],
-      });
+      and.push({ organizationId: { $in: [...criteria.allowedOrganizationIds] } });
     }
 
     const q = criteria.q?.trim();

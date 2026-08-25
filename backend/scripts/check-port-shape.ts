@@ -372,6 +372,22 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
     'extraction. Retired by F4 package entry points, or by dropping the constraint — the ' +
     'same two conditions the D-77 note on `CustomFieldDefinitionApplyApi` names, and the ' +
     "same shape as `orders`' two entries above.",
+  // D-178's seam, and the fourth of exactly one shape: an interface the owner
+  // declares beside its implementation, kept out of
+  // `@endora-commerce/contracts` because its signature carries the caller's
+  // `EntityManager`, held co-transactional by a foreign key.
+  'customer_accounts:personalOrganizationProvisionApi':
+    'D-178 — `PersonalOrganizationProvisionApi` is declared by `organizations` beside its ' +
+    'implementation and stays out of `@endora-commerce/contracts` because `provisionFor` takes ' +
+    "the caller's `EntityManager` (FR-034). What holds it co-transactional is " +
+    '`customer_accounts_organization_fk` (`on delete restrict`) over a column D-178 makes ' +
+    '`NOT NULL`: the account row cannot be inserted before its Organization exists, and a ' +
+    'second transaction cannot satisfy a foreign key against a row it cannot see. Splitting ' +
+    'the two reopens the window that ruling closed — a committed account with no tenant, and ' +
+    'nothing that retries. The **read**-shaped half of the same capability is published, as ' +
+    "`PersonalOrganizationPort`; this name answers only the write. Retired by F4 package " +
+    "entry points, as the matching `permanent: true` entries in this module's " +
+    'cross-module-imports shard say.',
 };
 
 export interface PortShapeInput {

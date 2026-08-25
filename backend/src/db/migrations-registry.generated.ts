@@ -134,6 +134,7 @@ import { Migration20260720T044255CustomerAccountsCustomerSubtreeRollup } from '.
 import { Migration20260819T074816CustomerAccountsPasswordSetAt } from '../modules/customer_accounts/migrations/20260819T074816_customer_accounts_password_set_at.js';
 import { Migration20260819T142837CustomerAccountsFoldEmailCase } from '../modules/customer_accounts/migrations/20260819T142837_customer_accounts_fold_email_case.js';
 import { Migration20260825T124759CustomerAccountsDropLegacyTwoFactorSecret } from '../modules/customer_accounts/migrations/20260825T124759_customer_accounts_drop_legacy_two_factor_secret.js';
+import { Migration20260825T141659CustomerAccountsOrganizationRequired } from '../modules/customer_accounts/migrations/20260825T141659_customer_accounts_organization_required.js';
 
 // ── customers ───────────────────────────────────────────────────────────────
 import { Migration20260611T140404CustomersCustomerAddressesInit } from '../modules/customers/migrations/20260611T140404_customers_customer_addresses_init.js';
@@ -412,6 +413,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('customer_accounts', Migration20260819T074816CustomerAccountsPasswordSetAt),
   migration('customer_accounts', Migration20260819T142837CustomerAccountsFoldEmailCase),
   migration('customer_accounts', Migration20260825T124759CustomerAccountsDropLegacyTwoFactorSecret),
+  migration('customer_accounts', Migration20260825T141659CustomerAccountsOrganizationRequired),
 
   // ── customers ───────────────────────────────────────────────────────────────
   migration('customers', Migration20260611T140404CustomersCustomerAddressesInit),

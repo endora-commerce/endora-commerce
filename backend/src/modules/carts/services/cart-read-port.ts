@@ -34,6 +34,9 @@ export class CartReadService implements CartReadPort {
     const em = this.emFactory();
     const cart = await em.findOne(Cart, {
       customerAccountId: ctx.customerAccountId,
+      // The organisation is always present for a signed-in customer since
+      // D-178, so the empty arm is unreachable rather than a supported mode.
+      // It stays because the context type still admits a null.
       ...(ctx.organizationId === null ? {} : { organizationId: ctx.organizationId }),
       status: 'active',
     });

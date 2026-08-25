@@ -23,6 +23,11 @@ export function orgConstraintFor(ctx: TenantContext | undefined = getTenantConte
     case 'system':
       return { kind: 'all' };
     case 'single-org':
+      // Null since D-178 only where `TenantContext`'s optional field is unset:
+      // a signed-in customer always carries an organisation, because
+      // `customer_accounts.organization_id` is `NOT NULL`. See
+      // `orgFilterCond`'s note in `filters.ts` — same coalesce, same reason it
+      // has no reachable caller.
       return { kind: 'single', organizationId: ctx.organizationId ?? null };
     case 'allowed-set':
       return { kind: 'set', organizationIds: ctx.allowedOrganizationIds ?? [] };

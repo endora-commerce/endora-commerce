@@ -91,7 +91,13 @@ export type CustomerAccountBlockSource = 'staff' | 'org_owner';
  */
 export interface CustomerAccountRecord {
   id: string;
-  organizationId: string | null;
+  /**
+   * The tenant that scopes this account. Never `null` since D-178:
+   * `customer_accounts.organization_id` is `NOT NULL`, an individual is backed
+   * by a single-member personal organisation, and there is no
+   * "no-organization" scoping path (Principle XI).
+   */
+  organizationId: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -555,10 +561,13 @@ export interface CustomerRolePort {
  * side of the port, and a caller that hashes is a caller that has to be told
  * which algorithm the owner uses and be trusted to keep using it.
  *
- * There is no `organizationId`: the account is created org-less and
- * `organizations`' `personalOrganizationPort` binds it to the personal
- * organisation it provisions, in its own unit of work. That order is the
- * recoverable one — see {@link PersonalOrganizationPort}.
+ * There is no `organizationId`, and since D-178 that is not because the account
+ * is created without one. The owner provisions the individual's personal
+ * organisation and writes the account **in one transaction**, so the caller has
+ * no organisation to supply and no window in which to supply it: the account
+ * row and its tenant either both exist or neither does. Before D-178 the two
+ * were separate units of work and a failure between them left a committed
+ * account with `organization_id = NULL` that nothing retried.
  */
 export interface CustomerAccountStandaloneCreateInput {
   email: string;
@@ -720,10 +729,38 @@ export interface CustomerAccountLifecycleWritePort {
     input: { actorAdminUserId: string },
   ): Promise<CustomerAccountRecord>;
 
-  /** `null` detaches the account, leaving it standalone. */
+  /**
+   * Moves the account into `organizationId`, recording
+   * `customer_account.organization_assigned`.
+   *
+   * The parameter was `string | null` until D-178, and the `null` meant "detach
+   * this account, leaving it standalone" — a durable row with no tenant, which
+   * Principle XI forbids and `customer_accounts.organization_id NOT NULL` now
+   * refuses at the column. What an operator detaching a member actually wants
+   * is {@link detachToPersonalOrganization} below.
+   */
   setOrganization(
     customerAccountId: string,
-    organizationId: string | null,
+    organizationId: string,
+    input: { actorAdminUserId: string },
+  ): Promise<CustomerAccountRecord>;
+
+  /**
+   * D-178 — the operator's "this person no longer belongs to that company",
+   * expressed as the move it has to be rather than as the detach it used to be.
+   *
+   * `personalOrganizationId` is the account's own personal organisation, which
+   * the caller obtains from
+   * `PersonalOrganizationPort.provisionPersonalOrganization`; passing anything
+   * else is a plain assignment and belongs in {@link setOrganization}. It is a
+   * separate method rather than a flag because each write on this port owns one
+   * audit verb, and this one keeps `customer_account.organization_unassigned` —
+   * the verb an operator's history already reads, now describing what really
+   * happened.
+   */
+  detachToPersonalOrganization(
+    customerAccountId: string,
+    personalOrganizationId: string,
     input: { actorAdminUserId: string },
   ): Promise<CustomerAccountRecord>;
 

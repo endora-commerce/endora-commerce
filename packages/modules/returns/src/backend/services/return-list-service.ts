@@ -121,6 +121,10 @@ export class ReturnListService {
       .groupBy('status_code');
     const constraint = orgConstraintFor();
     if (constraint.kind === 'single') {
+      // `whereNull` matches nothing since D-178: the only actor that reached it
+      // was a signed-in customer with no Organization, and
+      // `customer_accounts.organization_id` is `NOT NULL` now. Kept because the
+      // constraint type still admits a null.
       if (constraint.organizationId === null) void qb.whereNull('organization_id');
       else void qb.where('organization_id', constraint.organizationId);
     } else if (constraint.kind === 'set') {

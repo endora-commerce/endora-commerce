@@ -7,11 +7,20 @@
  *     a platform admin is decided by the caller (route layer) and passed in —
  *     mirroring `SalesRepAssignmentService.canSeeOrganization`, which checks
  *     the assignment table only.
- *   - For a standalone (org-less) customer, any Salesperson may act.
- *   - For an org-bound customer, only the Salesperson responsible for that
+ *   - Only the Salesperson responsible for that
  *     customer's Organization may act — "responsible" = assigned via
  *     `OrganizationSalesRepAssignment`, including the unassigned-org fallback
  *     (an org with zero assigned reps is visible to every Salesperson).
+ *
+ * **D-178 removed a third rule** — *"for a standalone (org-less) customer, any
+ * Salesperson may act"* — because there is no such customer:
+ * `customer_accounts.organization_id` is `NOT NULL` and an individual is backed
+ * by a personal organisation. The outcome is unchanged rather than merely
+ * unreachable: `SalesRepAssignmentService` refuses to assign a rep to a personal
+ * organisation, so such an organisation always has zero assigned reps and the
+ * unassigned-org fallback answers `true` for every Salesperson — which is what
+ * the deleted rule said, arrived at through the assignment table instead of
+ * through the absence of a tenant.
  *
  * The route layer is responsible for the coarse permission gate
  * (`requireAdmin('customers:manage')`) before this finer check runs.
@@ -25,8 +34,8 @@ export interface CustomerAuthorityInput {
   /** True when the acting admin is a Platform Administrator (caller-decided). */
   isPlatformAdmin: boolean;
   adminUserId: string;
-  /** The target customer's Organization, or null for a standalone customer. */
-  customerOrganizationId: string | null;
+  /** The target customer's Organization. Never null since D-178. */
+  customerOrganizationId: string;
 }
 
 export class CustomerAuthorityService {
@@ -37,7 +46,6 @@ export class CustomerAuthorityService {
    */
   async canManageCustomer(input: CustomerAuthorityInput): Promise<boolean> {
     if (input.isPlatformAdmin) return true;
-    if (input.customerOrganizationId === null) return true;
     return this.salesReps.canSeeOrganization(
       input.adminUserId,
       input.customerOrganizationId,

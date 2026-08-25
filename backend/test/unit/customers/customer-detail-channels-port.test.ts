@@ -35,7 +35,7 @@ import type { CustomerDefaultsService } from '../../../src/modules/customers/ser
 function customerRecord(over: Partial<CustomerAccountRecord> = {}): CustomerAccountRecord {
   return {
     id: 'cust-1',
-    organizationId: null,
+    organizationId: 'org-1',
     email: 'buyer@example.test',
     firstName: 'Buyer',
     lastName: 'One',

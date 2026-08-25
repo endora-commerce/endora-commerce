@@ -7,6 +7,8 @@ import type {
 } from '@endora-commerce/contracts';
 import type { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../src/commands/index.js';
+import type { PersonalOrganizationProvisionApi } from '../../src/modules/organizations/ports/personal-organization-provision.js';
+import { PersonalOrganizationService } from '../../src/modules/organizations/services/personal-organization-service.js';
 import {
   CustomerAccountMemberWriteService,
   CustomerAccountReadService,
@@ -46,8 +48,42 @@ export function customerAccountLifecycleWriteFor(
   emFactory: () => EntityManager,
   auditLog: AuditLogService,
   commandBus?: CommandBus,
+  personalOrganizations: PersonalOrganizationProvisionApi = personalOrganizationProvisionFor(
+    emFactory,
+  ),
 ): CustomerAccountLifecycleWritePort {
-  return new CustomerAccountLifecycleWriteService(emFactory, auditLog, commandBus);
+  return new CustomerAccountLifecycleWriteService(
+    emFactory,
+    auditLog,
+    personalOrganizations,
+    commandBus,
+  );
+}
+
+/**
+ * D-178 — `organizations`' co-transactional provisioning seam, the real
+ * implementation, for the same reason the two ports above are real: it is what
+ * makes `createStandalone` write the account **and** its personal organisation
+ * in one transaction, and a stub here would make every assertion about that
+ * atomicity vacuous.
+ *
+ * It needs neither of `customer_accounts`' ports — `provisionFor` reads and
+ * writes only `organizations`' own table — so the `PersonalOrganizationService`
+ * built here is handed a pair that throws if anything ever reaches for one.
+ */
+export function personalOrganizationProvisionFor(
+  emFactory: () => EntityManager,
+): PersonalOrganizationProvisionApi {
+  const unreachable = (): never => {
+    throw new Error('provisionFor touches no customer_accounts port');
+  };
+  const service = new PersonalOrganizationService(emFactory, {
+    read: new Proxy({} as CustomerAccountReadPort, { get: unreachable }),
+    write: new Proxy({} as CustomerAccountMemberWritePort, { get: unreachable }),
+  });
+  return {
+    provisionFor: async (em, input) => ({ id: (await service.provisionFor(em, input)).id }),
+  };
 }
 
 export function customerAccountAdminSearchFor(
