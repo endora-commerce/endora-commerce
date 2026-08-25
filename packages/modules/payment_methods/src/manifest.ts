@@ -51,8 +51,14 @@ export const manifest = defineModuleManifest({
         // Feature 073 — the operator's activation control. Platform-wide.
         code: 'payment_methods.enabled',
         name: 'Payment methods enabled',
+        // Same missing consequence as its delivery twin: with no method to
+        // pick, order placement answers "Payment method is not active" and no
+        // order can be completed at all. Switching this off is a different act
+        // from switching `payments` off — that one withdraws the adapters the
+        // methods are configured against — and both end the same way for a
+        // buyer, so both descriptions have to say so.
         description:
-          'Switches the payment-method catalog on or off: the admin screens that define methods and their per-channel availability, and the public list a checkout picks from. Nothing is dropped — every method, its channel bindings, its per-organization allow-list and the payments already taken against it stay in the database, and the catalog returns exactly as configured when you switch it back on.',
+          'Switches the payment-method catalog on or off: the admin screens that define methods and their per-channel availability, and the public list a checkout picks from. With no method to pick, checkout cannot be completed and the shop stops taking orders. Nothing is dropped — every method, its channel bindings, its per-organization allow-list and the payments already taken against it stay in the database, and the catalog returns exactly as configured when you switch it back on.',
         groupCode: 'payment_methods',
         valueType: 'boolean',
         defaultValue: true,

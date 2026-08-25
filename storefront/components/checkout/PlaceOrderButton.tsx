@@ -46,8 +46,13 @@ export function PlaceOrderButton({
   label: string;
   /** Label shown while the order placement is in flight. */
   pendingLabel: string;
-  /** Tooltip explaining `blocked`; shown only while something is blocking. */
-  title?: string;
+  /**
+   * Tooltip explaining `blocked`; shown only while something is blocking, so
+   * `undefined` is the ordinary value rather than an omission — it is what
+   * `blockTitle` answers for an unblocked button under
+   * `exactOptionalPropertyTypes`.
+   */
+  title?: string | undefined;
 }): ReactNode {
   const { pending } = useFormStatus();
   const disabled = blocked !== null || pending;

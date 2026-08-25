@@ -75,8 +75,13 @@ describe('selectablePaymentMethods', () => {
     // not, and submitting would have sent `paymentMethodId=""` to a uuid schema.
     const offered = selectablePaymentMethods([credit], { creditAvailable: null, cartTotal: 100 });
     expect(offered).toEqual([]);
-    expect(placeOrderBlock({ canTransact: true, paymentMethodCount: offered.length })).toBe(
-      'no-payment-method',
-    );
+    expect(
+      placeOrderBlock({
+        canTransact: true,
+        // A shippable shop, so the gate that answers here is the payment one.
+        deliveryMethodCount: 1,
+        paymentMethodCount: offered.length,
+      }),
+    ).toBe('no-payment-method');
   });
 });

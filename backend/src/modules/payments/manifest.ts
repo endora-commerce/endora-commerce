@@ -7,8 +7,13 @@ export const paymentsSettingsManifest = defineModuleSettingsManifest({
     {
       code: 'payments.enabled',
       name: 'Payments enabled',
+      // The description used to describe the settlement half only, and stopped
+      // exactly where an operator most needs it: it never said that this module
+      // contributes every built-in payment adapter, so switching it off empties
+      // checkout's payment list and the shop stops taking orders. An operator
+      // cannot learn a switch's consequence from anywhere but the switch.
       description:
-        'Switches the payment lifecycle on or off: the receive_payment ingress, both retry paths (the operator\'s and the buyer\'s), the per-order payment history and the payment-status e-mail. Nothing is dropped — every payment, its status transitions and its provider references stay in the database, and an order mid-settlement keeps its record.',
+        'Switches the whole payment capability on or off. While it is off the platform offers no payment method at all: this module contributes the four built-in payment adapters (bank transfer, in-person pickup, credit limit and the gateway placeholder), so every payment method configured against one of them disappears from checkout and an order naming it is refused. Unless another installed integration supplies a payment method of its own, that means the shop stops taking orders. The settlement lifecycle stops with it: the receive_payment ingress, both retry paths (the operator\'s and the buyer\'s), the per-order payment history and the payment-status e-mail. Nothing is dropped — every payment, its status transitions and its provider references stay in the database, an order mid-settlement keeps its record, and every payment method, permission and setting comes back exactly as configured when you switch it on again. It is not an uninstall, and it is not the way to switch off a single payment provider: a gateway integration depends on this module, so the platform refuses to switch this off while such an integration is still on — switch that integration off instead.',
       groupCode: 'payments',
       valueType: 'boolean',
       defaultValue: true,
@@ -27,8 +32,13 @@ export const paymentsSettingsManifest = defineModuleSettingsManifest({
 export const manifest = defineModuleManifest({
   id: 'payments',
   name: 'Payments',
+  // What renders beside the activation control on `/platform/modules` is this
+  // string, not the activation Setting's — the Setting's description is served
+  // in the settings DTO and rendered on no screen today. So the consequence has
+  // to be legible here too, in one sentence: 'Payment driver abstraction and PSP
+  // integrations' told an operator nothing about what flipping the switch does.
   description:
-    'Payment driver abstraction and PSP integrations.',
+    'The platform payment capability: the built-in payment adapters (bank transfer, in-person pickup, credit limit, gateway), the payment record every order carries, and the settlement lifecycle that PSP integrations plug into. Switched off, checkout offers no payment method and the shop takes no orders.',
   version: '1.0.0',
   // Feature 075 Phase C — `customer_accounts` joins the five that were already
   // here: the payment-status e-mail resolves its recipient over

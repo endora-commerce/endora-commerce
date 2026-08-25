@@ -85,21 +85,28 @@ describe('the new checkout copy', () => {
 });
 
 describe('placeOrderBlock', () => {
+  // A delivery method is present throughout, so these cases keep measuring the
+  // payment gate after the delivery one joined above it; the delivery gate's own
+  // cases live in `delivery-catalogue-absence.test.tsx`.
+  const shippable = { canTransact: true, deliveryMethodCount: 1 };
+
   it('blocks on an empty payment catalogue', () => {
-    expect(placeOrderBlock({ canTransact: true, paymentMethodCount: 0 })).toBe(
-      'no-payment-method',
-    );
+    expect(placeOrderBlock({ ...shippable, paymentMethodCount: 0 })).toBe('no-payment-method');
   });
 
   it('lets a buyer with at least one method through', () => {
-    expect(placeOrderBlock({ canTransact: true, paymentMethodCount: 1 })).toBeNull();
+    expect(placeOrderBlock({ ...shippable, paymentMethodCount: 1 })).toBeNull();
   });
 
   it('ranks the moderation gate above the payment one', () => {
     // Both are true at once for an unmoderated org in a shop with no methods.
     // Moderation wins, because a payment method would not help.
-    expect(placeOrderBlock({ canTransact: false, paymentMethodCount: 0 })).toBe('moderation');
-    expect(placeOrderBlock({ canTransact: false, paymentMethodCount: 3 })).toBe('moderation');
+    expect(
+      placeOrderBlock({ canTransact: false, deliveryMethodCount: 1, paymentMethodCount: 0 }),
+    ).toBe('moderation');
+    expect(
+      placeOrderBlock({ canTransact: false, deliveryMethodCount: 1, paymentMethodCount: 3 }),
+    ).toBe('moderation');
   });
 });
 
