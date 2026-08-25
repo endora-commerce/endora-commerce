@@ -15,7 +15,7 @@ import { InvoiceLine } from '../../../src/modules/invoices/entities/invoice-line
 import type {
   CorrectiveInvoiceInput,
   CorrectiveInvoiceIssued,
-} from '../../../src/modules/returns/ports/corrective-invoice.port.js';
+} from '../../../../packages/modules/returns/src/backend/ports/corrective-invoice.port.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 

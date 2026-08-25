@@ -21,8 +21,8 @@ import type {
   TransactionalEmailSender,
   TransactionalSendOutcome,
 } from '@endora-commerce/contracts';
-import { ReturnEmailNotifier } from '../../../src/modules/returns/services/return-email-notifier.js';
-import type { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
+import { ReturnEmailNotifier } from '../../../../packages/modules/returns/src/backend/services/return-email-notifier.js';
+import type { ReturnCase } from '../../../../packages/modules/returns/src/backend/entities/return-case.entity.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 
 const CHANNEL_ID = 'cccccccc-0000-4000-8000-0000000000aa';
