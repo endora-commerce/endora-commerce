@@ -125,6 +125,12 @@ export type MessageKey =
   | 'order.cancel.cta'
   | 'order.cancel.hint'
   | 'order.cancel.failed'
+  // What the buyer is told when checkout can offer no delivery method at all.
+  // One sentence for two causes — a shop that has configured none, and a
+  // platform whose `delivery_methods` module an operator switched off — for the
+  // same reason its payment twin below has one: a buyer cannot act on the
+  // difference, and the platform's module topology is not checkout copy.
+  | 'checkout.delivery.none'
   // What the buyer is told when checkout can offer no payment method at all.
   // One sentence for two causes — a shop that has configured none, and a
   // platform whose payment capability an operator switched off — because a
@@ -411,6 +417,8 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'order.cancel.hint':
       'You have not paid for this order yet and we have not started on it, so you can still cancel it. The goods it reserves go straight back on the shelf.',
     'order.cancel.failed': 'We could not cancel this order. Please contact us and we will help.',
+    'checkout.delivery.none':
+      'No delivery method is available for your account on this sales channel.',
     'checkout.payment.none':
       'No payment method is available for your account on this sales channel.',
     'checkout.error.title': 'We could not load checkout',
@@ -706,6 +714,8 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'order.cancel.hint':
       'To zamowienie nie zostalo jeszcze oplacone i nie zaczelismy go realizowac, wiec mozesz je anulowac. Zarezerwowany towar wroci od razu na stan.',
     'order.cancel.failed': 'Nie udalo sie anulowac tego zamowienia. Skontaktuj sie z nami, pomozemy.',
+    'checkout.delivery.none':
+      'Brak dostępnych metod dostawy dla Twojego konta w tym kanale sprzedaży.',
     'checkout.payment.none':
       'Brak dostępnych metod płatności dla Twojego konta w tym kanale sprzedaży.',
     'checkout.error.title': 'Nie udało się wczytać kasy',

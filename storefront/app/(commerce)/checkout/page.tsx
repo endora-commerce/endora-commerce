@@ -36,7 +36,7 @@ import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
 import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
 import { AddressSection } from '../../../components/checkout/AddressSection';
 import { PlaceOrderButton } from '../../../components/checkout/PlaceOrderButton';
-import { placeOrderBlock } from '../../../lib/checkout/place-order-gate';
+import { blockTitle, placeOrderBlock } from '../../../lib/checkout/place-order-gate';
 import { selectablePaymentMethods } from '../../../lib/checkout/payment-method-eligibility';
 import { tForLocale } from '../../../lib/i18n/messages';
 import { CouponField } from '../../../components/checkout/CouponField';
@@ -232,13 +232,16 @@ export default async function CheckoutPage({
     }
   }
 
-  // Why the buyer cannot submit, if they cannot. Counted off the *final* list —
-  // after the credit-limit eligibility filter and the gateway collapses above —
-  // because an option checkout does not render is not an option. The empty list
-  // covers both an unconfigured shop and a switched-off `payment_methods` /
-  // `payments`, which `listPaymentMethods` degrades to the same empty answer.
+  // Why the buyer cannot submit, if they cannot. Both counts are off the *final*
+  // lists — after the credit-limit eligibility filter and the gateway collapses
+  // above — because an option checkout does not render is not an option. An
+  // empty list covers both an unconfigured shop and a switched-off module
+  // (`delivery_methods` for one, `payment_methods` / `payments` for the other),
+  // which `listDeliveryMethods` and `listPaymentMethods` degrade to the same
+  // empty answer. Which reason wins is `placeOrderBlock`'s and not this page's.
   const placeOrderBlockReason = placeOrderBlock({
     canTransact,
+    deliveryMethodCount: deliveryMethods.length,
     paymentMethodCount: paymentMethods.length,
   });
   const tr = tForLocale(locale);
@@ -326,7 +329,11 @@ export default async function CheckoutPage({
           organizationTaxId={me?.organization?.taxId ?? null}
         />
 
-        <ShippingMethods methods={deliveryMethods} preferredId={defaults?.deliveryMethodId ?? null} />
+        <ShippingMethods
+          methods={deliveryMethods}
+          preferredId={defaults?.deliveryMethodId ?? null}
+          locale={locale}
+        />
 
         {inlineStripe && stripeConfig ? (
           <StripeInlinePaymentMethods
@@ -439,11 +446,7 @@ export default async function CheckoutPage({
             blocked={placeOrderBlockReason}
             label="Place order"
             pendingLabel="Placing order…"
-            title={
-              placeOrderBlockReason === 'no-payment-method'
-                ? tr('checkout.payment.none')
-                : (me?.organization?.moderationMessage ?? 'Ordering is currently unavailable.')
-            }
+            title={blockTitle(placeOrderBlockReason, tr, me?.organization?.moderationMessage ?? null)}
           />
         </div>
       </form>

@@ -30,7 +30,35 @@ export interface PaymentMethodSummary {
   rendererKey: string | null;
 }
 
+/**
+ * The delivery catalogue, or **no methods** when `delivery_methods` is switched
+ * off (Constitution XVII: a module that is off behaves as if never installed).
+ *
+ * The route is owned by `delivery_methods` and its registration seam is gated,
+ * so an operator who deactivates that module makes this endpoint answer
+ * `503 MODULE_DISABLED` rather than `200 {"data": []}`. Every caller of this
+ * function renders a catalogue. Before the checkout error boundary landed, that
+ * refusal reached the buyer as Next's 500 page; after it, as *"we could not load
+ * checkout"* — an improvement, and still not "as if never installed", which is
+ * the shop rendering the section's ordinary empty state.
+ *
+ * The absence value is the **empty list** and not a distinct sentinel, for the
+ * reason its payment twin gives: a shop that configured no method and a platform
+ * whose delivery capability is off both answer "you cannot have this shipped",
+ * and a buyer cannot act on the difference. The operator-facing difference
+ * belongs to the deactivation-consequence dialog.
+ *
+ * `withModuleAbsence` is what keeps this from becoming a blanket catch: only the
+ * `MODULE_DISABLED` envelope degrades. A 500, a 503 that is a draining load
+ * balancer rather than a module refusal, a timeout or an unparseable body all
+ * still throw, and the checkout error boundary — not this empty state — is what
+ * the buyer sees for those.
+ */
 export async function listDeliveryMethods(): Promise<DeliveryMethodSummary[]> {
+  return withModuleAbsence(fetchDeliveryMethods, []);
+}
+
+async function fetchDeliveryMethods(): Promise<DeliveryMethodSummary[]> {
   const payload = await apiGet<{ data: DeliveryMethodSummary[] }>('/api/v1/delivery-methods');
   return payload.data;
 }
