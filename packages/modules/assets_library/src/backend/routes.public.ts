@@ -14,7 +14,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { Asset } from './entities/asset.entity.js';
 import { LocalFsStorageAdapter } from './services/storage/local-fs-adapter.js';
 import type { AdapterRegistry } from './services/storage/adapter-registry.js';

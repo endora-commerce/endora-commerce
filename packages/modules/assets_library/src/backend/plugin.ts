@@ -9,13 +9,13 @@ import { AssetsLibraryService } from './services/assets-library.service.js';
 import { FoldersService } from './services/folders.service.js';
 import { AssetReferenceRegistry } from './services/reference-registry.js';
 import { HmacSigner } from './services/hmac.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { createSettingsView } from './services/storage/settings-view.js';
-import { Setting } from '../../kernel/settings/setting.entity.js';
-import { SettingValue } from '../../kernel/settings/setting-value.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
 import { registerAssetsLibraryAdminRoutes } from './routes.admin.js';
 import { registerAssetsLibraryPublicRoutes } from './routes.public.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface AssetsLibraryModuleOptions {
   emFactory: () => EntityManager;

@@ -6,7 +6,7 @@ import { composeModules } from '../../../src/kernel/compose.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
+import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
 import { LanguageReferenceRegistry } from '../../../../packages/modules/languages/src/backend/services/language-reference-registry.js';
 
 /**

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { randomUUID } from 'crypto';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { registerBlogAssetReferences } from '../../../../packages/modules/blog/src/backend/services/blog-asset-references.js';
-import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
+import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
 
 const ASSET_A = '33333333-3333-3333-3333-333333333333';
 const ASSET_B = '44444444-4444-4444-4444-444444444444';

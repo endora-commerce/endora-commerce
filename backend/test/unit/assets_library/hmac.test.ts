@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HmacSigner } from '../../../src/modules/assets_library/services/hmac.js';
+import { HmacSigner } from '../../../../packages/modules/assets_library/src/backend/services/hmac.js';
 
 const KEY_HEX = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
 

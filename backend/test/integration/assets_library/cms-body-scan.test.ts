@@ -1,12 +1,16 @@
+import { Asset } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { randomUUID } from 'node:crypto';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Asset } from '../../../src/modules/assets_library/entities/asset.entity.js';
+
 import { CmsPage } from '../../helpers/package-entities.js';
+
 
 /**
  * T093 — CMS body scan reference descriptor.

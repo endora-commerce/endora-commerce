@@ -20,9 +20,9 @@ import { Readable, Transform } from 'node:stream';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 
 import { Asset } from '../entities/asset.entity.js';
-import { HttpError } from '../../../http/error-envelope.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { AdapterRegistry } from './storage/adapter-registry.js';
 import type { AssetVisibility } from './storage/storage-adapter.js';
 

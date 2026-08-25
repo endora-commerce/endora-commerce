@@ -1,16 +1,24 @@
+import { Asset } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { mkdtemp, readFile, rm, stat, mkdir } from 'node:fs/promises';
+
 import { tmpdir } from 'node:os';
+
 import { join } from 'node:path';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
-import { Asset } from '../../../src/modules/assets_library/entities/asset.entity.js';
+
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+
 
 /**
  * T035 — Contract test: POST /api/v1/admin/assets (multipart upload).

@@ -5,13 +5,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type AssetSummary, type AssetDetail } from '@endora-commerce/contracts';
 import { Asset } from '../entities/asset.entity.js';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { AdapterRegistry } from './storage/adapter-registry.js';
 import type { AssetReferenceRegistry } from './reference-registry.js';
 import { UploadPipeline, type UploadInput, type UploadPolicy } from './upload-pipeline.js';
 import { LegacyAssetCannotHardenError } from './storage/errors.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 export class NotImplementedYet extends Error {
   override readonly name = 'NotImplementedYet';

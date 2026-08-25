@@ -1,10 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AssetReadPort, AssetsLibraryPort } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { assetsLibraryModule } from './plugin.js';
 import { AssetReadService } from './services/asset-read-port.js';
+import { AssetFolder } from './entities/asset-folder.entity.js';
+import { Asset } from './entities/asset.entity.js';
 
 /**
  * `assets_library` — the module whose permission gate defaulted to open
@@ -119,3 +121,19 @@ export function registerModule(ctx: ModuleContext): void {
     await ctx.cradle<AssetsLibraryCradle>().assetsLibrary.plugin(app);
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  AssetFolder,
+  Asset,
+];

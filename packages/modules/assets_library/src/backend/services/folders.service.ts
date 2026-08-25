@@ -6,11 +6,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type AssetFolder as AssetFolderDto } from '@endora-commerce/contracts';
 
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { AssetFolder } from '../entities/asset-folder.entity.js';
 import { Asset } from '../entities/asset.entity.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { AssetReferenceRegistry } from './reference-registry.js';
 
 export class FoldersService {

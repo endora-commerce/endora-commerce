@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findAssetRefIds } from '../../../src/modules/assets_library/services/cms-body-resolver.js';
+import { findAssetRefIds } from '../../../../packages/modules/assets_library/src/backend/services/cms-body-resolver.js';
 
 describe('findAssetRefIds', () => {
   it('finds a single asset_ref node at the root', () => {

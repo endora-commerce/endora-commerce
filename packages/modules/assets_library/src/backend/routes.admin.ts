@@ -24,12 +24,12 @@ import {
   moveManyAssetsRequestSchema,
 } from '@endora-commerce/contracts';
 
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { Asset } from './entities/asset.entity.js';
 import type { AssetsLibraryService } from './services/assets-library.service.js';
 import type { FoldersService } from './services/folders.service.js';
 import type { AdapterRegistry } from './services/storage/adapter-registry.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface AdminRoutesDeps {
   service: AssetsLibraryService;
