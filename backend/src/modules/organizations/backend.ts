@@ -4,6 +4,7 @@ import type {
   AddressServicePort,
   AdminNotificationRecordPort,
   AdminUserReadPort,
+  CreditLimitReadPort,
   CustomFieldValuePort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
@@ -610,6 +611,13 @@ export function registerModule(ctx: ModuleContext): void {
             // Its own port, and gated all the same — a singleton may not hold
             // the gate.
             lazyPort<OrganizationTreeService>(ctx, 'organizationTreeService'),
+            // `credit_limits`' membership read (feature 077, D-87). Lazily for
+            // the same reason and one more: it is another module's gate, so a
+            // captured reference would keep answering after an operator
+            // switched credit limits off. The edge is mutual — that module
+            // declares this one — so it is an `acknowledgedDependencies` entry
+            // in this manifest rather than a `dependencies` one.
+            lazyPort<CreditLimitReadPort>(ctx, 'creditLimitReadPort'),
             () =>
             readSetting<'shared_pool' | 'independent_default'>(
               ORGANIZATIONS_SETTING_CODES.CREDIT_INHERITANCE_MODE,

@@ -177,6 +177,21 @@ export const manifest = defineModuleManifest({
         'the audit rows stayed here. Same mutual pair, same trade.',
     },
     {
+      moduleId: 'credit_limits',
+      port: 'creditLimitReadPort',
+      reason:
+        'Feature 077, D-87. `creditOwner` walks an ancestor chain and has to know which of ' +
+        "those organisations hold a credit limit. It selected from that module's table — a " +
+        'statement naming no import specifier, so the boundary compiled and returned rows ' +
+        'whatever state the owner was in. It asks `creditLimitReadPort` now, for ids rather ' +
+        "than that module's rows. Acknowledged rather than declared because `credit_limits` " +
+        'declares this module (D-94.1 puts a foreign key behind it), so the second direction ' +
+        'closes the cycle. **Off, the call refuses** — an empty set would read as "nobody ' +
+        'here holds a limit", which on a credit check is the difference between refusing an ' +
+        "order and quoting unlimited credit. No operator sees it: the only caller is that " +
+        "module's own service, stopped by its own gate first.",
+    },
+    {
       moduleId: 'price_lists',
       port: 'priceListReadPort',
       reason:

@@ -14,6 +14,7 @@ import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.e
 import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
 import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
 import { OrganizationInheritanceService } from '../../../src/modules/organizations/services/organization-inheritance-service.js';
+import { CreditLimitReadService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-read.js';
 import { SalesRepAssignmentService } from '../../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
 import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
@@ -89,7 +90,12 @@ describe('flat-behavior preservation (feature 056, FR-001/FR-013)', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     tree = new OrganizationTreeService(h.em);
-    inheritance = new OrganizationInheritanceService(h.em, tree, async () => 'shared_pool');
+    inheritance = new OrganizationInheritanceService(
+      h.em,
+      tree,
+      new CreditLimitReadService(h.em),
+      async () => 'shared_pool',
+    );
   });
 
   afterAll(async () => {
