@@ -378,10 +378,60 @@ operator may switch off one of four outcomes:
 
 | Outcome | Mechanism |
 | --- | --- |
-| **fails closed** | a call-time read of a gated port, or of a registry whose host *skips* an absent owner's entry — the caller gets nothing back, which is the same answer arriving at enumeration instead of at the port |
+| **fails closed** | a call-time read of a gated port, or of a registry whose host *skips* an absent owner's entry — the caller gets nothing back, which is the same answer arriving at enumeration instead of at the port. The dependent's own `nonBindingDependencies` entry of kind `refuses-without` reaches the same outcome and brings the operator's sentence with it |
 | **degrades** | the dependent's own `nonBindingDependencies` entry of kind `degrades-without`; its `whenAbsent` is the sentence an operator is shown |
 | **contributes** | a boot-time push into an ungated table the host filters, or a host that deliberately *honours* an absent owner's entry |
 | **schema-only** | a `dependencies` edge with no container read under it: deactivation drops no tables, so a foreign key stays valid |
+
+### `refuses-without` — saying "it fails closed" without binding the operator
+
+Fail-closed is the outcome the platform infers when a gated port is read at call
+time and nothing is declared about it. Until the owner ruling of 2026-08-25 it
+was also the *only* outcome a dependent could not **say**: the two spellings for
+"I read this and I have no fallback" were `dependencies` and
+`acknowledgedDependencies`, and both bind the lifecycle. For a dependent that
+itself declares `activation.nonDeactivatable` that turns the **owner's**
+activation control into a dead switch — the operator flips it, the flip-time
+refusal names a module that will never go away, and nothing happens. A control
+that lies is a worse answer than either alternative.
+
+`nonBindingDependencies` therefore has a third kind. `refuses-without` says: the
+operation answers 503 `MODULE_DISABLED`, the rest of the declaring module keeps
+working, and the owner's activation control keeps working. It classifies
+`fails-closed` — the same behaviour the gate already produces — and its
+`whenAbsent` is what the operator's confirmation dialog renders instead of the
+platform's translated default:
+
+```
+orders — unavailable: checkout cannot take an order, because no payment
+method is available
+```
+
+Three things hold it honest, and none of them is the author's word:
+
+- **The name must be a `di.providePort` registration.** An ungated registration
+  keeps resolving, or resolves to nothing; either way nothing refuses.
+  `check-port-dependencies.ts` reports `refusal-over-an-ungated-name` — the
+  mirror of `contribution-over-a-gated-port`, and the two together say one thing
+  once: a pull with a failure mode needs a gate, an inert push must not sit
+  behind one.
+- **The declaring manifest must not bind the owner.** `dependencies` and
+  `acknowledgedDependencies` are exactly what `ModuleGatingGraph` builds the
+  flip-time refusal from, so an entry claiming the owner's control still works
+  beside one of those is a manifest saying both things at once.
+  `defineModuleManifest`'s "one edge, one claim, in one place" rule refuses it
+  first; the check re-derives the same fact for a manifest built without the
+  helper (`refusal-over-a-bound-owner`).
+- **It must carry a `whenAbsent`.** Without it the entry classifies exactly as
+  no entry at all, so the sentence is the whole of what the declaration buys
+  (`refusal-without-a-sentence`).
+
+A fourth is structural rather than checked: a gated port resolved at boot or at
+wiring is `gated-port-before-first-request`, which the ledger assigns **before**
+it consults any declaration, so no entry can rescue one.
+
+Write the sentence for the operator who will read it — *what* refuses, in terms
+of the capability, never "a port throws".
 
 An edge that gets none is reported by shape, and `check-port-dependencies.ts`
 fails the build on it. There are three, each a *fail-open* rather than a

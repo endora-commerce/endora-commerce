@@ -133,6 +133,134 @@ describe('the four acceptable outcomes', () => {
   });
 });
 
+/**
+ * `refuses-without` — the third `nonBindingDependencies` kind (owner ruling,
+ * 2026-08-25).
+ *
+ * The outcome it produces is the one O1 already produces, so what is asserted
+ * here is not the classification on its own but the **difference the
+ * declaration makes**: an operator's row that names the capability instead of
+ * falling back to the platform's translated default, bought without the
+ * dependent binding the owner's activation control.
+ *
+ * The last two cases are the boundaries of that, and both are refusals rather
+ * than features: an entry cannot rescue a shape the ledger reports as
+ * fail-*open*, and an entry with no sentence classifies as if it were not
+ * there — which is exactly why `check-port-dependencies.ts` refuses one.
+ */
+describe('a `refuses-without` declaration — fail closed, with the sentence', () => {
+  const refusingRead = read({
+    moduleId: 'orders',
+    dependsOn: 'payments',
+    name: 'orderPlacementPaymentApplyPort',
+    gated: true,
+  });
+  const refusingEdge = {
+    moduleId: 'orders',
+    dependsOn: 'payments',
+    name: 'orderPlacementPaymentApplyPort',
+    kind: 'refuses-without' as const,
+    whenAbsent: 'checkout cannot take an order, because no payment method is available',
+    reason: 'a fixture edge; this test asserts the mechanism, not any tree declaration',
+  };
+
+  it('classifies fails-closed and keeps the declared sentence', () => {
+    const ledger = buildDeactivationLedger(
+      input({ reads: [refusingRead], nonBinding: [refusingEdge] }),
+    );
+
+    expect(ledger.unassigned).toEqual([]);
+    expect(ledger.entries).toEqual([
+      {
+        moduleId: 'orders',
+        dependsOn: 'payments',
+        name: 'orderPlacementPaymentApplyPort',
+        outcome: 'fails-closed',
+        whenAbsent: 'checkout cannot take an order, because no payment method is available',
+      },
+    ]);
+  });
+
+  it('is what the operator reads, where the same edge undeclared reads as a default', () => {
+    const declared = buildDeactivationLedger(
+      input({ reads: [refusingRead], nonBinding: [refusingEdge] }),
+    );
+    const undeclared = buildDeactivationLedger(input({ reads: [refusingRead] }));
+
+    expect(deactivationConsequencesFor(declared.entries, 'payments', () => true)).toEqual([
+      {
+        moduleId: 'orders',
+        effect: 'unavailable',
+        description: 'checkout cannot take an order, because no payment method is available',
+      },
+    ]);
+    // Same behaviour, same effect word, and nothing specific to show for it.
+    expect(deactivationConsequencesFor(undeclared.entries, 'payments', () => true)).toEqual([
+      { moduleId: 'orders', effect: 'unavailable', description: null },
+    ]);
+  });
+
+  it('gives the row the winning effect’s own sentence, never the degrade’s', () => {
+    // One dependent, two edges into one owner. `unavailable` wins, so pairing
+    // it with the degrade's "keeps working with less" sentence would be a row
+    // that contradicts itself — and the assertion holds in both orders,
+    // because a projection that depends on which edge the scanner saw first is
+    // not an answer.
+    const edges = [
+      {
+        moduleId: 'orders',
+        dependsOn: 'payments',
+        name: 'paymentEmailRendererPort',
+        kind: 'degrades-without' as const,
+        whenAbsent: 'the payment confirmation e-mail is not sent',
+        reason: 'a fixture edge',
+      },
+      refusingEdge,
+    ];
+    const reads = [
+      read({ moduleId: 'orders', dependsOn: 'payments', name: 'paymentEmailRendererPort', gated: true }),
+      refusingRead,
+    ];
+
+    for (const order of [0, 1]) {
+      const ledger = buildDeactivationLedger(
+        input({
+          reads: order === 0 ? reads : [...reads].reverse(),
+          nonBinding: order === 0 ? edges : [...edges].reverse(),
+        }),
+      );
+
+      expect(deactivationConsequencesFor(ledger.entries, 'payments', () => true)).toEqual([
+        {
+          moduleId: 'orders',
+          effect: 'unavailable',
+          description: 'checkout cannot take an order, because no payment method is available',
+        },
+      ]);
+    }
+  });
+
+  it('cannot rescue a gated port resolved before the first request', () => {
+    const ledger = buildDeactivationLedger(
+      input({ reads: [{ ...refusingRead, site: 'boot' }], nonBinding: [refusingEdge] }),
+    );
+
+    expect(ledger.entries).toEqual([]);
+    expect(ledger.unassigned[0]?.shape).toBe('gated-port-before-first-request');
+  });
+
+  it('classifies an entry with no sentence exactly as no entry at all', () => {
+    const ledger = buildDeactivationLedger(
+      input({
+        reads: [refusingRead],
+        nonBinding: [{ ...refusingEdge, whenAbsent: null }],
+      }),
+    );
+
+    expect(ledger.entries[0]).toMatchObject({ outcome: 'fails-closed', whenAbsent: null });
+  });
+});
+
 describe('the one unacceptable outcome, by shape', () => {
   it('refuses a captured cross-module registration', () => {
     const ledger = buildDeactivationLedger(

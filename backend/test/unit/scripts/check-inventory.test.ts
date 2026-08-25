@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { defineModuleManifest, type ModuleManifest } from '@endora-commerce/contracts';
+import {
+  ModuleManifestSchema,
+  defineModuleManifest,
+  type ModuleManifest,
+} from '@endora-commerce/contracts';
 
 import {
   analyzeSource as channelAnalyze,
@@ -864,12 +868,22 @@ const KERNEL_REGISTERS_SOMETHING_ELSE = 'container.register({ orm: asValue(orm) 
  * A contribution host and the module that pushes into it, as source text — the
  * top of `findNonBindingIssues`.
  *
- * Its five shapes are all statements about the tree that a `nonBindingDependencies`
+ * Its eight shapes are all statements about the tree that a `nonBindingDependencies`
  * entry makes and the check refuses to take on the author's word, so the fixture
  * is a real manifest (through `defineModuleManifest`, so the contract's own
  * rules apply) plus the two module sources. `nonBindingPortEdgesFrom` flattens
  * the declaration, `registeredNames` and `providedPortNames` decide who owns the
  * name, and `resolvedNames` decides where it is read — every stage on the way.
+ *
+ * **One shape cannot go through `defineModuleManifest`, and that is the point
+ * of it.** `refusal-over-a-bound-owner` is a manifest that names its owner in
+ * both `dependencies` and `nonBindingDependencies`, which the helper's rule 2
+ * refuses outright — so the fixture builds that one through
+ * `ModuleManifestSchema.parse` instead, which is precisely the route a manifest
+ * object written without the helper takes into a real composition. Its
+ * `boundOwners` map is then derived **from that manifest**, exactly as `main`
+ * derives it, rather than handed in beside it: a fixture that supplied the map
+ * directly would prove the branch and not the derivation.
  */
 const PROMPT_ACTIONS_FILE = '/repo/backend/src/modules/prompt_actions/backend.ts';
 const CATALOG_FILE = '/repo/backend/src/modules/catalog/backend.ts';
@@ -913,14 +927,24 @@ function nonBindingIssues(input: {
   readonly ownerSource: string;
   readonly consumerSource: string;
   readonly policies: Readonly<Record<string, 'skip' | 'honour'>>;
+  readonly dependencies?: readonly string[];
+  /**
+   * Build the manifest through `ModuleManifestSchema.parse` rather than
+   * `defineModuleManifest` — see the note above the fixtures. Never a
+   * convenience: the two `refuses-without` shapes the helper refuses outright
+   * have no other way into a composition, and this is the way they take.
+   */
+  readonly unhelped?: boolean;
 }): NonBindingIssue[] {
-  const manifest = defineModuleManifest({
+  const draft = {
     id: 'catalog',
     name: 'Catalog',
     version: '1.0.0',
-    dependencies: [],
+    dependencies: [...(input.dependencies ?? [])],
     nonBindingDependencies: [input.edge],
-  });
+  };
+  const manifest =
+    input.unhelped === true ? ModuleManifestSchema.parse(draft) : defineModuleManifest(draft);
   return findNonBindingIssues({
     edges: nonBindingPortEdgesFrom([manifest]),
     owners: new Map(
@@ -937,6 +961,15 @@ function nonBindingIssues(input: {
     ),
     resolutions: resolvedNames(input.consumerSource, CATALOG_FILE),
     contributionPolicies: input.policies,
+    boundOwners: new Map([
+      [
+        manifest.id,
+        new Set<string>([
+          ...manifest.dependencies,
+          ...(manifest.acknowledgedDependencies ?? []).map((edge) => edge.moduleId),
+        ]),
+      ],
+    ]),
   });
 }
 
@@ -3794,6 +3827,63 @@ const CHECKS: readonly CheckEntry[] = [
             policies: { 'prompt_actions:promptActionToolRegistry': 'skip' },
           }).filter((issue) => issue.kind === 'contribution-not-pushed-at-boot').length,
       ),
+      // The mirror rail, on `refuses-without` (owner ruling, 2026-08-25). The
+      // kind claims two things — the operation refuses, and the owner's
+      // control keeps working — and each fixture is the *accepted* declaration
+      // with exactly one of them falsified, because both signals are absences
+      // and a fixture that satisfied neither could not say which it caught.
+      'refusal-over-an-ungated-name': top(
+        () =>
+          nonBindingIssues({
+            edge: {
+              moduleId: 'prompt_actions',
+              name: 'promptActionToolRegistry',
+              kind: 'refuses-without',
+              whenAbsent: 'the assistant answers nothing at all',
+              reason: 'The tool call has no fallback and lets the refusal reach the caller.',
+            },
+            // A plain `ctx.di.register`, so there is no gate and nothing to
+            // refuse — the exact mirror of `contribution-over-a-gated-port`.
+            ownerSource: PROMPT_ACTIONS_REGISTERS,
+            consumerSource: CATALOG_READS_AT_CALL,
+            policies: {},
+          }).filter((issue) => issue.kind === 'refusal-over-an-ungated-name').length,
+      ),
+      'refusal-over-a-bound-owner': top(
+        () =>
+          nonBindingIssues({
+            edge: {
+              moduleId: 'prompt_actions',
+              name: 'promptActionToolRegistry',
+              kind: 'refuses-without',
+              whenAbsent: 'the assistant answers nothing at all',
+              reason: 'The tool call has no fallback and lets the refusal reach the caller.',
+            },
+            ownerSource: PROMPT_ACTIONS_PROVIDES_A_PORT,
+            consumerSource: CATALOG_READS_AT_CALL,
+            policies: {},
+            // The bind the entry denies. `defineModuleManifest` refuses this
+            // manifest outright, so the fixture takes the other route into a
+            // composition — see the note above `nonBindingIssues`.
+            dependencies: ['prompt_actions'],
+            unhelped: true,
+          }).filter((issue) => issue.kind === 'refusal-over-a-bound-owner').length,
+      ),
+      'refusal-without-a-sentence': top(
+        () =>
+          nonBindingIssues({
+            edge: {
+              moduleId: 'prompt_actions',
+              name: 'promptActionToolRegistry',
+              kind: 'refuses-without',
+              reason: 'The tool call has no fallback and lets the refusal reach the caller.',
+            },
+            ownerSource: PROMPT_ACTIONS_PROVIDES_A_PORT,
+            consumerSource: CATALOG_READS_AT_CALL,
+            policies: {},
+            unhelped: true,
+          }).filter((issue) => issue.kind === 'refusal-without-a-sentence').length,
+      ),
       // `importedContributionSeams` — the two spellings of a push into an
       // imported singleton, each in its own fixture so neither can go blind
       // behind the other's red.
@@ -5763,8 +5853,13 @@ describe('every red proof enters at the top of the analysis', () => {
       // analysis cannot follow this" is not "this is not a port".
       'backend/scripts/check-port-catches.ts': 13,
       // Plus T034's one: a name an installed package owns is an undeclared
-      // edge, not the consumer's wiring bug the short map reported.
-      'backend/scripts/check-port-dependencies.ts': 20,
+      // edge, not the consumer's wiring bug the short map reported. Plus the
+      // 2026-08-25 ruling's three for the `refuses-without` rail: a refusal
+      // claimed over a name nothing gates, one claimed beside the bind that
+      // makes it false, and one carrying nothing for the operator to read —
+      // the last two entering through `ModuleManifestSchema` rather than
+      // `defineModuleManifest`, which is the only route they have.
+      'backend/scripts/check-port-dependencies.ts': 23,
       // Two for the optional-method rule: the published port and the interface
       // widening one, which is exactly where it bites. Plus issue #192's three
       // for the container-name signal — the two shapes a wrong name takes, and

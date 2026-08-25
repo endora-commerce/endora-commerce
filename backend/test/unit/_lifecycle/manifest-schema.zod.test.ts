@@ -224,6 +224,75 @@ describe('defineModuleManifest — nonBindingDependencies', () => {
     ).toThrow(/whenAbsent/);
   });
 
+  it('accepts a refuses-without edge that names what refuses', () => {
+    const m = defineModuleManifest({
+      id: 'demo',
+      name: 'Demo',
+      version: '1.0.0',
+      dependencies: [],
+      nonBindingDependencies: [
+        {
+          moduleId: 'payments',
+          name: 'orderPlacementPaymentApplyPort',
+          kind: 'refuses-without',
+          whenAbsent: 'checkout cannot take an order, because no payment method is available',
+          reason:
+            'The placement seam has no fallback and lets the 503 reach the buyer; binding ' +
+            'would make the owner a module nobody can switch off.',
+        },
+      ],
+    });
+    expect(m.nonBindingDependencies?.[0]?.kind).toBe('refuses-without');
+  });
+
+  it('rejects a refuses-without edge with no whenAbsent', () => {
+    // The outcome such an edge produces is the one an undeclared gated port
+    // produces anyway, so without the sentence the declaration is inert — and
+    // an inert declaration is worse than none, because it reads as an answer.
+    expect(() =>
+      defineModuleManifest({
+        id: 'demo',
+        name: 'Demo',
+        version: '1.0.0',
+        dependencies: [],
+        nonBindingDependencies: [
+          {
+            moduleId: 'payments',
+            name: 'orderPlacementPaymentApplyPort',
+            kind: 'refuses-without',
+            reason: 'The placement seam has no fallback.',
+          },
+        ],
+      }),
+    ).toThrow(/whenAbsent/);
+  });
+
+  it('rejects a refuses-without edge whose owner the same manifest binds', () => {
+    // This is the guard that keeps the kind honest, and it is rule 2 rather
+    // than a rule of its own: `dependencies` is what `ModuleGatingGraph`
+    // builds the flip-time refusal from, so an entry claiming "the owner's
+    // control keeps working" beside one is a manifest saying both things at
+    // once. It is refused for every kind and has been since D-44; the value
+    // here is that the new kind's whole point rests on it.
+    expect(() =>
+      defineModuleManifest({
+        id: 'demo',
+        name: 'Demo',
+        version: '1.0.0',
+        dependencies: ['payments'],
+        nonBindingDependencies: [
+          {
+            moduleId: 'payments',
+            name: 'orderPlacementPaymentApplyPort',
+            kind: 'refuses-without',
+            whenAbsent: 'checkout cannot take an order',
+            reason: 'The placement seam has no fallback.',
+          },
+        ],
+      }),
+    ).toThrow(/already declares/);
+  });
+
   it('rejects a contributes-to edge that carries a whenAbsent', () => {
     // Nothing degrades when a push lands in a table nobody enumerates, so a
     // sentence saying otherwise is a claim the code does not make.

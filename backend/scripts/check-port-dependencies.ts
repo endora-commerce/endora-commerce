@@ -692,7 +692,10 @@ export interface NonBindingIssue {
     | 'nothing-resolves'
     | 'contribution-registry-without-policy'
     | 'contribution-over-a-gated-port'
-    | 'contribution-not-pushed-at-boot';
+    | 'contribution-not-pushed-at-boot'
+    | 'refusal-over-an-ungated-name'
+    | 'refusal-over-a-bound-owner'
+    | 'refusal-without-a-sentence';
   readonly edge: NonBindingPortEdge;
   readonly detail: string;
 }
@@ -704,21 +707,67 @@ export interface NonBindingInput {
   readonly resolutions: readonly PortResolution[];
   /** Defaults to {@link CONTRIBUTION_POLICY_STATED}; a fixture supplies its own. */
   readonly contributionPolicies?: Readonly<Record<string, 'skip' | 'honour'>> | undefined;
+  /**
+   * `<declaring module>` → the modules it names in `dependencies` **or**
+   * `acknowledgedDependencies` — the two arrays the flip-time refusal reads
+   * (`ModuleGatingGraph`'s `dependentsOf`).
+   *
+   * It is the input the `refuses-without` guard needs and nothing else here
+   * uses: that kind's claim is *"the owner's control keeps working"*, and this
+   * is the one thing in the tree that can contradict it.
+   */
+  readonly boundOwners?: ReadonlyMap<string, ReadonlySet<string>> | undefined;
 }
 
 /**
  * What a `nonBindingDependencies` entry has to be true of, checked against the
  * tree rather than taken on the author's word.
  *
- * Two of the five are about the declaration itself — it names the module that
+ * Two of the eight are about the declaration itself — it names the module that
  * really owns the name, and something really resolves it — because the entry
  * clears an `undeclared-dependency` outright and a wrong or stale one clears a
- * resolution nobody declared. The other three are D-44 §7's guard-rails on
+ * resolution nobody declared. Three are D-44 §7's guard-rails on
  * `contributes-to`, and they exist because that kind withdraws the refusal on
  * the strength of an argument that only holds for a push into a stated-policy
  * registry. `degrades-without` withdraws it on the strength of a written
  * degradation and an off-state test, which no static check can see, so it is
  * held only to the first two.
+ *
+ * The last three are the mirror of the `contributes-to` rail, for
+ * `refuses-without`. That kind makes a claim with two halves — *the operation
+ * refuses* and *the owner's control keeps working* — and both halves are
+ * decidable here:
+ *
+ *  - `refusal-over-an-ungated-name` — the name is not a `di.providePort`
+ *    registration, so there is no gate and nothing refuses. This is
+ *    `contribution-over-a-gated-port` walked the other way, and the two
+ *    together say the same thing once: a pull with a failure mode needs a
+ *    gate, an inert push must not sit behind one.
+ *  - `refusal-over-a-bound-owner` — the declaring module also names the owner
+ *    in `dependencies` or `acknowledgedDependencies`. Those are exactly the
+ *    arrays `ModuleGatingGraph` builds `dependentsOf` from, so the flip-time
+ *    refusal fires while the entry claims it does not. Whichever of the two is
+ *    the mistake, they cannot both stand.
+ *  - `refusal-without-a-sentence` — no `whenAbsent`. The outcome of such an
+ *    entry is byte-identical to declaring nothing at all, so the declaration
+ *    bought the operator nothing; the sentence *is* the kind's payload.
+ *
+ * The last two are also refused, earlier and with a better message, by
+ * `assertNonBindingRules` in `packages/contracts/src/modules.ts` — rules 2 and
+ * 3a, which every manifest written through `defineModuleManifest` passes
+ * through. They are re-derived here rather than assumed because that helper is
+ * a convention and this is a gate: a manifest object built without it reaches
+ * the composition all the same, and the two facts these rules rest on
+ * (`dependencies` + `acknowledgedDependencies`, and the presence of a
+ * sentence) are on the manifest, so deriving them costs nothing and closes the
+ * one route that skips the helper.
+ *
+ * The third half of that claim — that the resolution happens at call time — is
+ * not checked here, and deliberately: `buildDeactivationLedger` already
+ * refuses a gated port read at boot or wiring as
+ * `gated-port-before-first-request`, **before** it consults any declaration, so
+ * a `refuses-without` entry cannot rescue one. A second guard for it would be a
+ * second answer waiting to disagree with the first.
  */
 export function findNonBindingIssues(input: NonBindingInput): NonBindingIssue[] {
   const policies = input.contributionPolicies ?? CONTRIBUTION_POLICY_STATED;
@@ -745,6 +794,31 @@ export function findNonBindingIssues(input: NonBindingInput): NonBindingIssue[] 
         edge,
         detail: `'${edge.moduleId}' resolves no name '${edge.name}' anywhere`,
       });
+      continue;
+    }
+    if (edge.kind === 'refuses-without') {
+      if (input.providedPorts.get(edge.name) === undefined) {
+        issues.push({
+          kind: 'refusal-over-an-ungated-name',
+          edge,
+          detail: `'${edge.name}' is not registered with di.providePort, so resolving it asks no gate`,
+        });
+      }
+      const bound = input.boundOwners?.get(edge.moduleId);
+      if (bound?.has(edge.dependsOn) === true) {
+        issues.push({
+          kind: 'refusal-over-a-bound-owner',
+          edge,
+          detail: `'${edge.moduleId}' also names '${edge.dependsOn}' in dependencies or acknowledgedDependencies`,
+        });
+      }
+      if (edge.whenAbsent === null) {
+        issues.push({
+          kind: 'refusal-without-a-sentence',
+          edge,
+          detail: `no \`whenAbsent\`, so the operator's row would read exactly as if nothing were declared`,
+        });
+      }
       continue;
     }
     if (edge.kind !== 'contributes-to') continue;
@@ -799,6 +873,22 @@ export function describeNonBindingIssue(issue: NonBindingIssue): string {
       `    Reading an answer out of an ungated registry is a pull. \`contributes-to\` is for a\n` +
       `    push, which happens once from a boot hook and reads nothing back; anything resolved\n` +
       `    at call or wiring time needs \`degrades-without\` and an off-state test for the edge.`,
+    'refusal-over-an-ungated-name':
+      `    \`refuses-without\` says the operation answers 503 \`MODULE_DISABLED\` and the rest of\n` +
+      `    the module carries on. Only a \`di.providePort\` gate produces that answer: an ungated\n` +
+      `    registration keeps resolving, or resolves to nothing, and either way nothing refuses.\n` +
+      `    Ask the owner to publish the name as a port, or declare the real behaviour with\n` +
+      `    \`degrades-without\`.`,
+    'refusal-over-a-bound-owner':
+      `    The two halves of \`refuses-without\` are "the operation refuses" and "the owner's\n` +
+      `    activation control keeps working". \`dependencies\` and \`acknowledgedDependencies\` are\n` +
+      `    what the flip-time refusal reads, so naming the owner there makes the second half\n` +
+      `    false and the owner's control a dead switch. Drop the entry, or drop the owner from\n` +
+      `    the binding array — whichever of the two states what you meant.`,
+    'refusal-without-a-sentence':
+      `    A gated port with no declaration already classifies as \`fails-closed\`, so an entry\n` +
+      `    with no \`whenAbsent\` changes nothing an operator can see. Write what refuses — the\n` +
+      `    capability, in the operator's words, not "a port throws".`,
   };
   return `${head}\n${tail[issue.kind]}`;
 }
@@ -2367,6 +2457,19 @@ async function main(): Promise<void> {
     owners,
     providedPorts: moduleRegistered,
     resolutions,
+    // The two arrays `ModuleGatingGraph` builds its `dependentsOf` — and hence
+    // the flip-time refusal — from. Derived here from the same manifests
+    // rather than restated, so an owner moved between the arrays changes this
+    // answer in the same run.
+    boundOwners: new Map(
+      manifests.map((manifest) => [
+        manifest.id,
+        new Set<string>([
+          ...(manifest.dependencies ?? []),
+          ...(manifest.acknowledgedDependencies ?? []).map((edge) => edge.moduleId),
+        ]),
+      ]),
+    ),
   });
 
   // The deactivation-consequence ledger (feature 074) — the same edges,
@@ -2561,9 +2664,11 @@ async function main(): Promise<void> {
   if (unassigned.length > 0) {
     console.error(
       `\nAn edge into a module an operator may switch off has no defined behaviour. Every ` +
-        `such edge answers one of four ways — it fails closed at the seam, it degrades as its ` +
-        `own manifest declares, it is a contribution the host filters, or it is schema-only ` +
-        `and nothing stops. These answer a fifth way, which is silently wrong:`,
+        `such edge answers one of four ways — it fails closed at the seam (say so with a ` +
+        `\`refuses-without\` entry, which adds the operator's sentence and keeps the owner's ` +
+        `control alive), it degrades as its own manifest declares, it is a contribution the ` +
+        `host filters, or it is schema-only and nothing stops. These answer a fifth way, ` +
+        `which is silently wrong:`,
     );
     for (const edge of unassigned) console.error(describeUnassignedEdge(edge));
   }

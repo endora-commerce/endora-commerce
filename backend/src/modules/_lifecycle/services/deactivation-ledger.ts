@@ -51,7 +51,8 @@ import type { NonBindingPortEdge } from './gating-graph.js';
  *    default for a call-time read of a gated port, and equally for a read of a
  *    registry whose host *skips* an absent owner's entry: the caller gets
  *    nothing back, which is the same answer arriving at enumeration instead of
- *    at the port.
+ *    at the port. A `refuses-without` entry reaches the same outcome **and
+ *    brings a sentence with it** — same behaviour, named rather than inferred.
  *  - `degrades` — the dependent keeps working with less, as its own manifest
  *    declares. The `whenAbsent` sentence is the one the dialog renders.
  *  - `contributes` — nothing happens: a boot-time push into an ungated table
@@ -105,7 +106,11 @@ export interface LedgerEntry {
   /** The registration the edge runs over; `null` for an edge with no container read under it. */
   readonly name: string | null;
   readonly outcome: DeactivationOutcome;
-  /** The dependent's own sentence, `degrades` only. */
+  /**
+   * The dependent's own sentence. Always set for `degrades`; set for
+   * `fails-closed` when the dependent declared `refuses-without`, and `null`
+   * for the fail-closed the gate produces on its own.
+   */
   readonly whenAbsent: string | null;
 }
 
@@ -197,9 +202,19 @@ export function buildDeactivationLedger(input: LedgerInput): DeactivationLedger 
   let excluded = 0;
 
   const degrades = new Map<string, string>();
+  // Beside it rather than merged into it: the two declarations produce
+  // different outcomes and the operator's row says different things. A
+  // `refuses-without` entry with no sentence is refused by the schema and
+  // reported by `check-port-dependencies.ts`; it is classified here anyway, so
+  // that a declaration this file cannot render still cannot silently become
+  // some *other* classification.
+  const refuses = new Map<string, string | null>();
   for (const edge of input.nonBinding) {
     if (edge.kind === 'degrades-without' && edge.whenAbsent !== null) {
       degrades.set(keyOf(edge.moduleId, edge.name), edge.whenAbsent);
+    }
+    if (edge.kind === 'refuses-without') {
+      refuses.set(keyOf(edge.moduleId, edge.name), edge.whenAbsent);
     }
   }
 
@@ -253,6 +268,15 @@ export function buildDeactivationLedger(input: LedgerInput): DeactivationLedger 
     }
     if (declared !== undefined) {
       entries.push({ ...edge, outcome: 'degrades', whenAbsent: declared });
+      continue;
+    }
+    // Before the bare gate below, and the order is what the kind buys: the
+    // outcome is the same either way, so the only difference this branch makes
+    // is that the operator's row carries the dependent's own sentence instead
+    // of the platform's translated default.
+    const refusal = refuses.get(keyOf(read.moduleId, read.name));
+    if (refusal !== undefined) {
+      entries.push({ ...edge, outcome: 'fails-closed', whenAbsent: refusal });
       continue;
     }
     if (read.gated) {
@@ -316,9 +340,15 @@ export interface ConsequenceRow {
  * operator is choosing about modules, not about registrations. Where a
  * dependent both pulls and contributes, **the pull decides** — a contribution
  * costs nothing and saying so beside a capability that stops would be a
- * consequence list that reads as reassurance. A declared sentence is kept even
- * when the stronger effect wins, because it is the only specific thing the
- * platform knows about that edge.
+ * consequence list that reads as reassurance.
+ *
+ * **The sentence follows the effect that wins**, and it has to, now that
+ * `fails-closed` can carry one. A dependent that degrades on one edge and
+ * refuses on another gets `unavailable`, and pairing that word with the
+ * degrade's *"keeps working with less"* sentence would be a row that
+ * contradicts itself in six words. A declared sentence is still kept when the
+ * winning effect has none of its own, because it is then the only specific
+ * thing the platform knows about that dependent.
  */
 export function deactivationConsequencesFor(
   entries: readonly LedgerEntry[],
@@ -332,10 +362,15 @@ export function deactivationConsequencesFor(
     if (!isPresent(entry.moduleId)) continue;
     const existing = rows.get(entry.moduleId);
     const effect = entry.outcome === 'degrades' ? 'degraded' : 'unavailable';
+    const winning =
+      existing?.effect === 'unavailable' || effect === 'unavailable' ? 'unavailable' : 'degraded';
     rows.set(entry.moduleId, {
       moduleId: entry.moduleId,
-      effect: existing?.effect === 'unavailable' || effect === 'unavailable' ? 'unavailable' : 'degraded',
-      description: entry.whenAbsent ?? existing?.description ?? null,
+      effect: winning,
+      description:
+        effect === winning
+          ? (entry.whenAbsent ?? existing?.description ?? null)
+          : (existing?.description ?? entry.whenAbsent ?? null),
     });
   }
   return [...rows.values()].sort((a, b) => a.moduleId.localeCompare(b.moduleId));
