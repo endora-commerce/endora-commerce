@@ -9,8 +9,8 @@ import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerAuthorityService } from '../../../src/modules/customers/services/customer-authority-service.js';
-import { CustomerDeletionService } from '../../../src/modules/customers/services/customer-deletion-service.js';
+import { CustomerAuthorityService } from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
+import { CustomerDeletionService } from '../../../../packages/modules/customers/src/backend/services/customer-deletion-service.js';
 import { PersonalOrganizationService } from '../../../src/modules/organizations/services/personal-organization-service.js';
 import { toOrganizationRecord } from '../../../src/modules/organizations/services/organization-details-port.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';

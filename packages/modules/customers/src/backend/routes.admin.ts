@@ -1,3 +1,12 @@
+// `reply.setCookie` is not on `FastifyReply`: it is a declaration-merging
+// augmentation `@fastify/cookie` contributes. Inside `backend/src` that
+// augmentation arrived ambiently, through the host's own dependency and its
+// `types` graph — so nothing in this module ever named it. A package compiles
+// against its own manifest, where an unnamed dependency does not exist, and the
+// property simply is not there (TS2339). The import is type-only, so it loads
+// the declarations and emits nothing: registering the plugin stays the host's
+// job, exactly as before.
+import type {} from '@fastify/cookie';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import {
   blockCustomerRequestSchema,
@@ -21,8 +30,8 @@ import {
   type RfqCustomerPort,
   type VatValidator,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { CustomerModerationService } from './services/customer-moderation-service.js';
 import type { CustomerAdminQueryService } from './services/customer-admin-query-service.js';
 import type { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
@@ -30,7 +39,7 @@ import type { CustomerDeletionService } from './services/customer-deletion-servi
 import type { CustomerPresenceService } from './services/customer-presence-service.js';
 import type { CustomerAddressService } from './services/customer-address-service.js';
 import type { CustomerPasswordResetPort } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import {
   serializeCustomerAddress,
   serializeOrganizationAddress,

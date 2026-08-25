@@ -4,7 +4,7 @@ import {
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountRecord,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 /**
  * CustomerRegistrationService — standalone (org-less) sign-up (feature 040,

@@ -11,7 +11,7 @@ import {
   updateCustomerDefaultsRequestSchema,
   ERROR_CODES,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { CustomerAddressService } from './services/customer-address-service.js';
 import type { CustomerDefaultsService } from './services/customer-defaults-service.js';
 import {
