@@ -1,6 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { z } from 'zod';
 import {
   changePasswordRequestSchema,
   createAddressRequestSchema,
@@ -10,7 +9,6 @@ import {
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type CustomerAuthPort,
-  type CustomerTotpEnrolmentPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { Organization } from './entities/organization.entity.js';
@@ -18,7 +16,6 @@ import { Organization } from './entities/organization.entity.js';
 export interface OrganizationsCustomerDeps {
   customerAuthService: CustomerAuthPort;
   addressService: AddressServicePort;
-  totpEnrolmentService: CustomerTotpEnrolmentPort;
   /**
    * `customer_accounts`' own read, where `GET /api/v1/me` used to load that
    * module's entity (feature 075, Phase C). With it off the endpoint fails
@@ -45,8 +42,6 @@ export interface OrganizationsCustomerDeps {
   emFactory: () => EntityManager;
 }
 
-const twoFactorCodeBodySchema = z.object({ code: z.string().min(4).max(64) });
-
 export async function registerOrganizationsCustomerRoutes(
   app: FastifyInstance,
   deps: OrganizationsCustomerDeps,
@@ -54,7 +49,6 @@ export async function registerOrganizationsCustomerRoutes(
   const {
     customerAuthService,
     addressService,
-    totpEnrolmentService,
     requireCustomer,
     resolveCustomerContext,
   } = deps;
@@ -157,39 +151,6 @@ export async function registerOrganizationsCustomerRoutes(
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
       await addressService.deleteAddress(ctx.organizationId, request.params.id);
-      return reply.status(204).send();
-    },
-  );
-
-  // --- 2FA enrolment (T119) -------------------------------------------------
-  app.post(
-    '/api/v1/me/two-factor/enable',
-    { preHandler: requireCustomer },
-    async (request) => {
-      const ctx = resolveCustomerContext(request);
-      const result = await totpEnrolmentService.enable(ctx.customerAccountId);
-      return { data: result };
-    },
-  );
-
-  app.post(
-    '/api/v1/me/two-factor/confirm',
-    { preHandler: requireCustomer, schema: { body: twoFactorCodeBodySchema } },
-    async (request, reply) => {
-      const ctx = resolveCustomerContext(request);
-      const body = twoFactorCodeBodySchema.parse(request.body);
-      await totpEnrolmentService.confirm(ctx.customerAccountId, body.code);
-      return reply.status(204).send();
-    },
-  );
-
-  app.post(
-    '/api/v1/me/two-factor/disable',
-    { preHandler: requireCustomer, schema: { body: twoFactorCodeBodySchema } },
-    async (request, reply) => {
-      const ctx = resolveCustomerContext(request);
-      const body = twoFactorCodeBodySchema.parse(request.body);
-      await totpEnrolmentService.disable(ctx.customerAccountId, body.code);
       return reply.status(204).send();
     },
   );

@@ -9,7 +9,6 @@ import type {
   CustomerAuthPort,
   CustomerPasswordResetPort,
   CustomerRolePort,
-  CustomerTotpEnrolmentPort,
   EmailMailerPort,
 } from '@endora-commerce/contracts';
 import type { EventBus } from '../../events/bus.js';
@@ -52,7 +51,6 @@ export interface OrganizationsModuleOptions {
   customerAuthService: CustomerAuthPort;
   passwordResetService: CustomerPasswordResetPort;
   customerRoleService: CustomerRolePort;
-  totpEnrolmentService: CustomerTotpEnrolmentPort;
   /**
    * `customer_accounts`' published read and member write (feature 075, Phase
    * C). Registration, invitation accept, the member panel, `GET /me` and the
@@ -191,7 +189,6 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
     );
     const roleService = options.customerRoleService;
     const passwordResetService = options.passwordResetService;
-    const totpEnrolmentService = options.totpEnrolmentService;
     const addressService = options.addressService;
     const latestInvitationToken: { value: string | null } = { value: null };
 
@@ -210,7 +207,6 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
     await registerOrganizationsCustomerRoutes(app, {
       customerAuthService,
       addressService,
-      totpEnrolmentService,
       customerAccountRead: options.customerAccountRead,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,

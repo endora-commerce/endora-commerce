@@ -131,13 +131,13 @@ export const manifest = defineModuleManifest({
       moduleId: 'customer_accounts',
       port: 'customerAuthPort',
       reason:
-        'The same mutual pair, six names over. `customer_accounts` declares this ' +
+        'The same mutual pair, five names over. `customer_accounts` declares this ' +
         'module — every account belongs to one, and feature 051 made that the tenancy ' +
-        "direction — while this module's public registration, login, password-reset " +
-        'and TOTP routes are served by those services. The manifest already ' +
+        "direction — while this module's public registration, login and password-reset " +
+        'routes are served by those services. The manifest already ' +
         'records the mirror of this as an acknowledged FK edge ' +
         '(`email_verification_tokens.customer_account_id`). Feature 075 Phase C ' +
-        'renamed two of the six: `customerAuthService` and `customerRoleService` hand ' +
+        'renamed two of the five: `customerAuthService` and `customerRoleService` hand ' +
         "back that module's entity, and this module resolves the record-returning " +
         '`customerAuthPort` / `customerRolePort` beside them instead.',
     },
@@ -149,11 +149,6 @@ export const manifest = defineModuleManifest({
     {
       moduleId: 'customer_accounts',
       port: 'customerRolePort',
-      reason: 'See the `customerAuthPort` edge above — same mutual pair.',
-    },
-    {
-      moduleId: 'customer_accounts',
-      port: 'totpEnrolmentService',
       reason: 'See the `customerAuthPort` edge above — same mutual pair.',
     },
     {

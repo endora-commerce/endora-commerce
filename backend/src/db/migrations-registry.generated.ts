@@ -45,6 +45,7 @@ import { Migration20260611T140350AdminNotificationsInit } from '@endora-commerce
 // ── admin_users ─────────────────────────────────────────────────────────────
 import { Migration20260425T053028AdminUsersInit } from '../modules/admin_users/migrations/20260425T053028_admin_users_init.js';
 import { Migration20260819T155150AdminUsersFoldEmailCase } from '../modules/admin_users/migrations/20260819T155150_admin_users_fold_email_case.js';
+import { Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret } from '../modules/admin_users/migrations/20260825T124801_admin_users_drop_legacy_two_factor_secret.js';
 
 // ── analytics ───────────────────────────────────────────────────────────────
 import { Migration20260425T143139AnalyticsInit } from '@endora-commerce/mod-analytics/migrations';
@@ -132,6 +133,7 @@ import { Migration20260718T200341CustomerAccountsCustomerAccountCustomFieldValue
 import { Migration20260720T044255CustomerAccountsCustomerSubtreeRollup } from '../modules/customer_accounts/migrations/20260720T044255_customer_accounts_customer_subtree_rollup.js';
 import { Migration20260819T074816CustomerAccountsPasswordSetAt } from '../modules/customer_accounts/migrations/20260819T074816_customer_accounts_password_set_at.js';
 import { Migration20260819T142837CustomerAccountsFoldEmailCase } from '../modules/customer_accounts/migrations/20260819T142837_customer_accounts_fold_email_case.js';
+import { Migration20260825T124759CustomerAccountsDropLegacyTwoFactorSecret } from '../modules/customer_accounts/migrations/20260825T124759_customer_accounts_drop_legacy_two_factor_secret.js';
 
 // ── customers ───────────────────────────────────────────────────────────────
 import { Migration20260611T140404CustomersCustomerAddressesInit } from '../modules/customers/migrations/20260611T140404_customers_customer_addresses_init.js';
@@ -321,6 +323,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── admin_users ─────────────────────────────────────────────────────────────
   migration('admin_users', Migration20260425T053028AdminUsersInit),
   migration('admin_users', Migration20260819T155150AdminUsersFoldEmailCase),
+  migration('admin_users', Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret),
 
   // ── analytics ───────────────────────────────────────────────────────────────
   migration('analytics', Migration20260425T143139AnalyticsInit),
@@ -408,6 +411,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('customer_accounts', Migration20260720T044255CustomerAccountsCustomerSubtreeRollup),
   migration('customer_accounts', Migration20260819T074816CustomerAccountsPasswordSetAt),
   migration('customer_accounts', Migration20260819T142837CustomerAccountsFoldEmailCase),
+  migration('customer_accounts', Migration20260825T124759CustomerAccountsDropLegacyTwoFactorSecret),
 
   // ── customers ───────────────────────────────────────────────────────────────
   migration('customers', Migration20260611T140404CustomersCustomerAddressesInit),

@@ -15,10 +15,9 @@
  * An admin user as it crosses a module boundary — a plain shape, never the ORM
  * entity (FR-011).
  *
- * `passwordHash` and `twoFactorSecret` are absent, as they are from
- * `CustomerAccountRecord` and for the same reason: exactly one module reads
- * either, and a record that carried them would turn every consumer into a
- * place a credential can leak from.
+ * `passwordHash` is absent, as it is from `CustomerAccountRecord` and for the
+ * same reason: exactly one module reads it, and a record that carried it would
+ * turn every consumer into a place a credential can leak from.
  */
 export interface AdminUserRecord {
   id: string;

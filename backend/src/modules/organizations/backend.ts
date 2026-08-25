@@ -11,7 +11,6 @@ import type {
   CustomerAuthPort,
   CustomerPasswordResetPort,
   CustomerRolePort,
-  CustomerTotpEnrolmentPort,
   DictionaryValidator,
   EmailDefaultsRegistryPort,
   EmailMailerPort,
@@ -170,7 +169,6 @@ export interface OrganizationsCradle {
   readonly customerAuthPort: CustomerAuthPort;
   readonly passwordResetService: CustomerPasswordResetPort;
   readonly customerRolePort: CustomerRolePort;
-  readonly totpEnrolmentService: CustomerTotpEnrolmentPort;
   /**
    * The two halves of `customer_accounts`' published surface this module runs
    * its member lifecycle over (feature 075, Phase C). Every route file and
@@ -395,10 +393,6 @@ export function registerModule(ctx: ModuleContext): void {
               'passwordResetService',
             ),
             customerRoleService: lazyPort<CustomerRolePort>(ctx, 'customerRolePort'),
-            totpEnrolmentService: lazyPort<CustomerTotpEnrolmentPort>(
-              ctx,
-              'totpEnrolmentService',
-            ),
             customerAccountRead: lazyPort<CustomerAccountReadPort>(
               ctx,
               'customerAccountReadPort',

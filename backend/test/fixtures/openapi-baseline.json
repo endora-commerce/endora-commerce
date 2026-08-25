@@ -6805,33 +6805,6 @@
         }
       }
     },
-    "/api/v1/me/two-factor/confirm": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/me/two-factor/disable": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/me/two-factor/enable": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/megamenu/by-channel": {
       "get": {
         "responses": {

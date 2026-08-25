@@ -7,8 +7,7 @@ import { randomUUID } from 'crypto';
  * CustomerAccount installation-wide (FR-041).
  *
  * `passwordHash` is an argon2id-derived key (see services/password-hasher.ts
- * in the auth module). `twoFactorSecret` holds the base32 TOTP secret only
- * once 2FA is confirmed.
+ * in the auth module).
  */
 @OrgScoped()
 @Entity({ tableName: 'customer_accounts' })
@@ -21,7 +20,6 @@ export class CustomerAccount {
     | 'role'
     | 'emailVerifiedAt'
     | 'passwordSetAt'
-    | 'twoFactorSecret'
     | 'twoFactorConfirmedAt'
     | 'lastLoginAt'
     | 'deletedAt'
@@ -90,9 +88,20 @@ export class CustomerAccount {
   @Property({ type: 'datetime', nullable: true })
   emailVerifiedAt?: Date | null;
 
-  @Property({ type: 'string', length: 64, nullable: true })
-  twoFactorSecret?: string | null;
-
+  /**
+   * Never written. Its only non-null writer was the superseded customer 2FA
+   * path, deleted with `two_factor_secret`, so the published
+   * `twoFactorEnabled` derived from it is a **provably constant `false`** —
+   * not merely unpopulated, and not "possibly stale". The live answer is
+   * `mfa`'s `mfa_enrolments`, served as `totpActive` by
+   * `GET /api/v1/account/mfa/status`.
+   *
+   * Deferred deliberately, with a clock: the column and the field go when the
+   * five sites deriving it are repointed at `mfa`, and if that is not built
+   * within a release the field is deleted instead. See
+   * `specs/deferred-defects.md` and
+   * `specs/087-tenant-scope-enforcement/superseded-2fa-analysis.md` §7.
+   */
   @Property({ type: 'datetime', nullable: true })
   twoFactorConfirmedAt?: Date | null;
 

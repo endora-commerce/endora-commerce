@@ -16,7 +16,6 @@ export class AdminUser {
     | 'updatedAt'
     | 'status'
     | 'adminRoleId'
-    | 'twoFactorSecret'
     | 'twoFactorConfirmedAt'
     | 'lastLoginAt'
     | 'deletedAt'
@@ -46,9 +45,17 @@ export class AdminUser {
   @Index()
   status: 'active' | 'inactive' = 'active';
 
-  @Property({ type: 'string', length: 64, nullable: true })
-  twoFactorSecret?: string | null;
-
+  /**
+   * Never written — this table has no writer for it at all, not even a broken
+   * one. The published `twoFactorEnabled` derived from it is therefore a
+   * **provably constant `false`**, while the live admin second factor is
+   * `mfa`'s, over `mfa_enrolments`. So `/admin-users` reports no second factor
+   * for an administrator who enrolled an hour earlier.
+   *
+   * Deferred deliberately, with a clock — see the twin comment on
+   * `CustomerAccount.twoFactorConfirmedAt`, `specs/deferred-defects.md` and
+   * `specs/087-tenant-scope-enforcement/superseded-2fa-analysis.md` §7.
+   */
   @Property({ type: 'datetime', nullable: true })
   twoFactorConfirmedAt?: Date | null;
 
