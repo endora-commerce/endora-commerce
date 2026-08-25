@@ -36,6 +36,9 @@ import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
 import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
 import { AddressSection } from '../../../components/checkout/AddressSection';
 import { PlaceOrderButton } from '../../../components/checkout/PlaceOrderButton';
+import { placeOrderBlock } from '../../../lib/checkout/place-order-gate';
+import { selectablePaymentMethods } from '../../../lib/checkout/payment-method-eligibility';
+import { tForLocale } from '../../../lib/i18n/messages';
 import { CouponField } from '../../../components/checkout/CouponField';
 import { getServerContext } from '../../../lib/server-context';
 import { formatMoney } from '../../../lib/i18n/money';
@@ -139,20 +142,16 @@ export default async function CheckoutPage({
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
   const canTransact = me?.organization?.canTransact ?? true;
-  // Hide the credit_limit-kind method(s) when the buyer's organization
-  // hasn't been granted a limit, or when the cart total clearly exceeds
-  // the available credit. The backend rejects an over-limit reservation
-  // anyway, but a friendlier UX is to drop the option early.
   const creditAvailable = creditLimit?.availableAmount ?? 0;
   const cartTotal = cart.subtotal.amount;
-  let paymentMethods = paymentMethodsRaw.filter((m) => {
-    // Defensive: the backend already only returns active methods, but never
-    // offer an inactive method at checkout even if one slips through (feature
-    // 049 — an inactive method must not be selectable).
-    if (m.status !== 'active') return false;
-    if (m.kind !== 'credit_limit') return true;
-    if (!creditLimit) return false;
-    return creditAvailable >= cartTotal;
+  // Which methods this buyer may actually pick — inactive rows dropped, and the
+  // credit-limit method(s) hidden from an organization with no grant or too
+  // little of one. Extracted so the rule is assertable and so the Place Order
+  // gate below can count what checkout really offers rather than what the
+  // catalogue returned; see `lib/checkout/payment-method-eligibility.ts`.
+  let paymentMethods = selectablePaymentMethods(paymentMethodsRaw, {
+    creditAvailable: creditLimit ? creditAvailable : null,
+    cartTotal,
   });
 
   // Feature 049 — in Stripe "redirect" display mode the whole payment happens on
@@ -232,6 +231,17 @@ export default async function CheckoutPage({
       paymentMethods = [...nonPaypal, collapsed];
     }
   }
+
+  // Why the buyer cannot submit, if they cannot. Counted off the *final* list —
+  // after the credit-limit eligibility filter and the gateway collapses above —
+  // because an option checkout does not render is not an option. The empty list
+  // covers both an unconfigured shop and a switched-off `payment_methods` /
+  // `payments`, which `listPaymentMethods` degrades to the same empty answer.
+  const placeOrderBlockReason = placeOrderBlock({
+    canTransact,
+    paymentMethodCount: paymentMethods.length,
+  });
+  const tr = tForLocale(locale);
 
   if (cart.items.length === 0) {
     return (
@@ -426,10 +436,14 @@ export default async function CheckoutPage({
             ← Back to cart
           </Link>
           <PlaceOrderButton
-            canTransact={canTransact}
+            blocked={placeOrderBlockReason}
             label="Place order"
             pendingLabel="Placing order…"
-            title={me?.organization?.moderationMessage ?? 'Ordering is currently unavailable.'}
+            title={
+              placeOrderBlockReason === 'no-payment-method'
+                ? tr('checkout.payment.none')
+                : (me?.organization?.moderationMessage ?? 'Ordering is currently unavailable.')
+            }
           />
         </div>
       </form>
