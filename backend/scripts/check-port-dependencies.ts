@@ -214,6 +214,7 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // (Principle X). A deployment decision, read at construction because it
   // decides whether the consumers are built at all (T131).
   'pimErgonodeRunWorkers',
+  'pimAkeneoRunWorkers',
   'pimPimcoreRunWorkers',
   'productFeedsRunWorkers',
   // Pinned per composition and read at construction, so each root registers
@@ -527,6 +528,8 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // Same category: whether this process runs the Pimcore import consumer
   // (feature 089).
   'pimPimcoreRunWorkers',
+  // Same category: whether this process runs the Akeneo apply consumer.
+  'pimAkeneoRunWorkers',
   // Same category: whether this process runs the feed generation and reaper
   // consumers, read at construction because it decides whether they are built
   // at all (T137).

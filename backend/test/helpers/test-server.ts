@@ -965,6 +965,7 @@ export async function setupBackendServer(
     apiInterceptors,
     // The module's `ctx.onBoot` schedule reconcile resolves this (T131).
     pimErgonodeRunWorkers: false,
+    pimAkeneoRunWorkers: false,
     pimPimcoreRunWorkers: false,
     productFeedsRunWorkers: false,
     productFeedsPublicBaseUrl: 'http://feeds.test.local',
