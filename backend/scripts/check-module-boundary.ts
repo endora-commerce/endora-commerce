@@ -194,9 +194,6 @@
  *   - `src/kernel`, `src/http`, `src/events`, `src/tenancy`, `src/commands`,
  *     `src/db`, `src/overlay` — not modules. The reverse direction is
  *     `check-kernel-boundary.ts` rules B and C.
- *   - `src/apps/<deployment>/decorations/**` — a decoration names the core
- *     service interface it wraps; that is its contract with `tsc` (features
- *     057/072).
  *   - `backend/test/**` — reporting only, under `--tests`. A test is allowed to
  *     know more than the code it tests, and after F4 a test importing another
  *     module's entity is a `devDependency` edge.

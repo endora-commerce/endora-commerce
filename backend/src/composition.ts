@@ -127,11 +127,10 @@ import {
   type RegisteredManifestEntry,
 } from './modules/_lifecycle/registered-manifests.js';
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
-import { loadOverlayDecorations, loadOverlayModuleEntries } from './overlay/overlay-runtime.js';
+import { loadOverlayModuleEntries } from './overlay/overlay-runtime.js';
 // Feature 080 — installed extension packages, discovered at runtime (D-155).
 import { loadPackageModuleEntries } from './packages/package-runtime.js';
 import { configuredMigrations } from './db/configured-migrations.js';
-import type { PricingServiceContract } from './modules/price_lists/services/pricing-service.interface.js';
 import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 // D-54 — the error envelope takes this map by injection: `src/http` is a
 // kernel-obeying platform peer and may not name a module (D-52). A root may.
@@ -290,14 +289,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // build (no DEPLOYMENT / no overlay dir) all of these are empty and the wiring
   // below is byte-for-byte unchanged. `resolvedRegistry` = the hand-maintained
   // core registry + overlay-only modules (the core array is never edited).
-  // Feature 072 (T066) — a deployment's client overrides, as decorations
-  // keyed by the registration they wrap. The overrides that reach a module
-  // decorate a core registration are applied by `composeModules`; the lookup
-  // survives only to hand that call the decorations it should apply.
-  const overlayDecorations = await loadOverlayDecorations();
-  const decoratePricingService = overlayDecorations.get('pricingService') as
-    | ((inner: PricingServiceContract) => PricingServiceContract)
-    | undefined;
   // D-104 — one implementation of "the deployment-resolved manifest set", and
   // one of "the deployment's composed modules". Both are runtime discoveries
   // over the deployment root, because both answers depend on which deployment
@@ -791,7 +782,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
       return { actorAdminUserId: actor.adminUserId };
     },
-    ...(decoratePricingService ? { decoratePricingService } : {}),
   });
   // Feature 072 (T119) — `taxes` owns its service and routes now.
   const taxesCradle = container.cradle as unknown as TaxesCradle;

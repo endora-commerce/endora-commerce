@@ -53,19 +53,6 @@ export interface PriceListsModuleOptions {
    */
   resolveOrgChain?: (orgId: string) => Promise<readonly string[]>;
   /**
-   * A client override of the pricing engine, as a **decoration** (feature 072,
-   * D-28): it receives the core implementation and returns one that wraps it.
-   *
-   * This replaced feature 057's `pricingServiceClass`, which handed in a
-   * subclass to construct *instead of* core. Replacement is why a client
-   * override stopped receiving core fixes the day it was written — the next fix
-   * to `resolveLinePrice` landed in a class the deployment no longer
-   * instantiated. Wrapping keeps core in the call path.
-   *
-   * Absent ⇒ core, byte-for-byte unchanged for the bare-core build.
-   */
-  decoratePricingService?: (inner: PricingServiceContract) => PricingServiceContract;
-  /**
    * Feature 075 Phase C — the neighbour read ports this module resolves instead
    * of importing `catalog`'s, `organizations`' and `customer_accounts`'
    * entities. Required: every one of them is a real dependency this module has
@@ -100,19 +87,23 @@ export function priceListsModule(options: PriceListsModuleOptions): {
     options.commandBus,
     options.targetReads,
   );
-  // Core is always constructed; a deployment override wraps it rather than
-  // taking its place (feature 072, D-28). Consumers read
-  // `handle.pricingService` unchanged, so the wrap propagates everywhere it is
-  // used — and they read it as the *contract*, because a decorated engine is
-  // deliberately not an instance of the core class.
-  const corePricingService = new PricingService(
+  // This module builds the engine; a deployment that overrides it wraps the
+  // `pricingService` **registration** from an overlay module's
+  // `ctx.di.decorate` (D-103), so nothing about the override reaches this
+  // factory. It used to: `decoratePricingService` was a contribution point a
+  // composition root filled from a file under `apps/<deployment>/decorations/`,
+  // and that seam is retired — one mechanism, and it is the one that needs no
+  // edit here when a second deployment overrides a second service.
+  //
+  // Consumers read `handle.pricingService` as the *contract* rather than as the
+  // class, and that still matters: what the container hands out is a wrapper
+  // whenever a deployment decorates the registration.
+  const pricingService: PricingServiceContract = new PricingService(
     options.emFactory,
     pricingCache,
     options.resolveOrgChain,
     options.targetReads,
   );
-  const pricingService: PricingServiceContract =
-    options.decoratePricingService?.(corePricingService) ?? corePricingService;
   const statusWorker = new PriceListStatusWorker(options.emFactory);
 
   return {

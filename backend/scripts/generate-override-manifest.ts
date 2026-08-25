@@ -9,11 +9,19 @@
 //
 // Service overrides are NOT in this manifest since feature 072 (T067): they are
 // decorations of container registrations, not shadowed files, so there is no
-// path to record and nothing for a resolver to classify. `tsc` remains the
-// contract gate — a decoration is written against the core interface and stops
-// being assignable when that interface changes. The composer's own override
-// report (`ComposedModules.decorations`, T065) is where a build's decorations
-// are enumerated.
+// path to record and nothing for a resolver to classify. A deployment writes
+// one from its own overlay module — `ctx.di.decorate('<name>', …)` (D-103) —
+// and the composer's own override report (`ComposedModules.decorations`, T065)
+// is where a build's decorations are enumerated.
+//
+// This header used to add "`tsc` remains the contract gate — a decoration is
+// written against the core interface and stops being assignable when that
+// interface changes". That was true of the retired `apps/<deployment>/
+// decorations/` file seam, which imported the owner's `*.interface.ts`. It is
+// not true of `ctx.di.decorate<T>`, where `T` is asserted by the caller: the
+// wrapped shape is declared structurally and nothing compares it to the owner's
+// interface. The gate went with the seam; restoring it means publishing the
+// interface on the owner's `./ports` subpath and naming it from the overlay.
 //
 // Output:
 //   - bare core:  backend/src/overlay/override-manifest.core.generated.ts

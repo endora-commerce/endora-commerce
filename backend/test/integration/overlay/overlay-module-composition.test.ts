@@ -75,14 +75,24 @@ describe('T-B — the example deployment’s overlay module is composed and reac
     expect(assignable.has('example_overlay:manage')).toBe(true);
   });
 
-  it('decorates the core pricing registration for this deployment', async () => {
+  it('decorates the core pricing registration for this deployment, exactly once', async () => {
     // The decoration is applied by `composeModules`, so what a consumer of
     // `pricingService` resolves in a real composition is the wrapper. Asserted
     // on the resolved object rather than on a price, because the pricing inputs
     // are `price_lists`' business and this is a composition question.
     const cradle = h.container.cradle as unknown as Record<string, unknown>;
     expect(cradle['pricingService']).toBeDefined();
-    expect(h.composedDecorations.some((d) => d.name === 'pricingService')).toBe(true);
+
+    // **Exactly one**, and the count is the assertion. This deployment used to
+    // override `pricingService` twice — once from `example_overlay` and once
+    // from `apps/example/decorations/pricing-service.ts` — so a resolved line
+    // price came back tagged `overlay:overlay:<id>` in production while the
+    // harness, which composed only the first, produced one tag. There is one
+    // mechanism now, both roots run it, and this is where a second one
+    // reappearing would show up.
+    const wraps = h.composedDecorations.filter((entry) => entry.name === 'pricingService');
+    expect(wraps).toHaveLength(1);
+    expect(wraps[0]?.moduleId).toBe('example_overlay');
   });
 });
 

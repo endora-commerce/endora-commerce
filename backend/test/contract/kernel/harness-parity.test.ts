@@ -65,6 +65,101 @@ function moduleFactories(source: string): Set<string> {
   return names;
 }
 
+/**
+ * The two roots' composition functions, by name.
+ *
+ * Written down because they are entry points rather than derived facts, and
+ * {@link compositionTimeCalls} **refuses** a name it cannot find rather than
+ * returning an empty set: a rename that emptied the population would otherwise
+ * make every ledger below vacuously correct, which is the one way this file can
+ * report green while looking at nothing (issue #113).
+ */
+const COMPOSITION_FUNCTIONS = { production: 'composeApp', harness: 'setupBackendServer' } as const;
+
+/** Every named binding a root imports as a value — the callables it did not write itself. */
+function importedValueNames(source: string): Set<string> {
+  const sourceFile = ts.createSourceFile('root.ts', source, ts.ScriptTarget.ES2022, true);
+  const names = new Set<string>();
+  sourceFile.forEachChild((node) => {
+    if (!ts.isImportDeclaration(node)) return;
+    const clause = node.importClause;
+    if (!clause || clause.isTypeOnly) return;
+    const bindings = clause.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) return;
+    for (const element of bindings.elements) {
+      if (!element.isTypeOnly) names.add(element.name.text);
+    }
+  });
+  return names;
+}
+
+/**
+ * Imported functions a root calls **while composing** — its boot steps.
+ *
+ * The two ledgers above derive their population from the source with `new X(`
+ * and `xModule(`; this one could not, because a boot step is an ordinary call
+ * and looks like every other call in the file. Two facts make it decidable
+ * without a heuristic:
+ *
+ *   - **Imported.** A root's own local helpers are not boot steps; the steps are
+ *     things the platform provides and a root invokes.
+ *   - **Called while composing.** The walk starts at the composition function's
+ *     own statements and descends, and it crosses a function literal only when
+ *     that literal is an **argument** of a call already inside the region. That
+ *     is the difference between a step that runs during composition — including
+ *     the scoped shape `enterSystemScope('…', () => loadModulePresence(…))`,
+ *     which is how production writes one — and a closure that is merely *stored*
+ *     for a request handler to run later. Without it the population picks up
+ *     every helper either root calls from inside a route, and a ledger whose
+ *     entries mostly say "not a boot step" has outgrown its predicate.
+ */
+function compositionTimeCalls(source: string, functionName: string): Set<string> {
+  const sourceFile = ts.createSourceFile('root.ts', source, ts.ScriptTarget.ES2022, true);
+  let composition: ts.FunctionDeclaration | undefined;
+  sourceFile.forEachChild((node) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === functionName) composition = node;
+  });
+  if (composition?.body === undefined) {
+    throw new Error(
+      `[harness-parity] no composition function '${functionName}' in this root. It was ` +
+        `renamed or moved; point COMPOSITION_FUNCTIONS at the new name. An empty population ` +
+        `would make the boot-step ledger below vacuously correct.`,
+    );
+  }
+
+  const names = new Set<string>();
+  const visit = (node: ts.Node, composing: boolean): void => {
+    if (composing && ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      names.add(node.expression.text);
+      node.forEachChild((child) => visit(child, true));
+      return;
+    }
+    if (ts.isFunctionLike(node)) {
+      const parent = node.parent;
+      const isArgumentOfAComposingCall =
+        composing &&
+        parent !== undefined &&
+        ts.isCallExpression(parent) &&
+        (parent.arguments as readonly ts.Node[]).includes(node);
+      node.forEachChild((child) => visit(child, isArgumentOfAComposingCall));
+      return;
+    }
+    node.forEachChild((child) => visit(child, composing));
+  };
+  for (const statement of composition.body.statements) visit(statement, true);
+  return names;
+}
+
+/** The boot steps one root performs — imported, and called while composing. */
+function bootSteps(source: string, functionName: string): Set<string> {
+  const imported = importedValueNames(source);
+  return new Set(
+    [...compositionTimeCalls(codeOnly(source), functionName)].filter((name) =>
+      imported.has(name),
+    ),
+  );
+}
+
 describe('T075 — a converted module costs no test-helper edit', () => {
   it('the harness names no module from the generated composer', () => {
     // A module that has converted declares itself through `registerModule`, and
@@ -89,11 +184,13 @@ describe('T075 — a converted module costs no test-helper edit', () => {
     // The spelling is pinned including both **appends**: D-104's, a
     // deployment's overlay modules discovered at runtime, and T031's, the
     // instance's installed packages. Both go into this same single call, after
-    // the frozen core list, which is what makes "overlay last, so a
-    // deployment's decoration wins" structural rather than a property of a
-    // generator's sort. Extending the array is allowed and must be spelled
-    // identically in both roots; narrowing it is what this refuses, and any
-    // `MODULES.filter(` would fail the exact-match below.
+    // the frozen core list. What that buys is one registration pass in both
+    // roots — not a decoration policy: this comment used to say it made
+    // "overlay last, so a deployment's decoration wins" structural, and since
+    // D-176's drain array position decides nothing about a wrap at all.
+    // Extending the array is allowed and must be spelled identically in both
+    // roots; narrowing it is what this refuses, and any `MODULES.filter(` would
+    // fail the exact-match below.
     //
     // The **array literal** is pinned rather than the whole call, because the
     // call is now long enough that the formatter wraps it and a pin including
@@ -280,43 +377,85 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
   });
 
   /**
-   * Boot steps production performs and the harness does not — D-101's own entry.
+   * Boot steps production performs and the harness does not — the third ledger.
    *
-   * The other two ledgers above are computed from `new X(` and `xModule(`, so a
-   * divergence that is neither cannot appear in them. This one is: production
-   * calls `loadModulePresence()` before the first module registers, and the
-   * harness seeds the registry cache directly instead. That is a deliberate
-   * decision recorded in `test-server.ts` — the harness has no database state to
-   * reconcile and wants the two axes set by hand — and it has a consequence that
-   * has to be written down rather than discovered: **every refusal, reconcile
-   * and derivation inside that boot step is exercised by nothing in the suite.**
+   * The other two are computed from `new X(` and `xModule(`, so a divergence
+   * that is neither cannot appear in them. This one used to be computed from
+   * **nothing**: its test iterated `Object.entries(PRODUCTION_ONLY_BOOT_STEPS)`
+   * and asked, of each declared entry, whether it was still true. A ledger that
+   * iterates its own declarations can report a stale entry and can never report
+   * an **omission** — which is "green means not looking" (issue #113) inside the
+   * one test whose job is to name the divergences. It shipped that way with
+   * exactly one entry while `loadOverlayDecorations` — a production-only boot
+   * step, absent from the harness, loading the per-deployment file decorations
+   * nothing in the suite ever composed — sat beside it unwritten and unseeable.
    *
-   * D-101's boot refusal is the newest thing behind it, which is exactly why the
+   * It is computed both ways now, exactly as its two siblings are: the
+   * population comes off both roots' sources, and the set difference is compared
+   * to the ledger's keys. A new divergence fails, and so does an entry the
+   * harness has since closed.
+   *
+   * `loadModulePresence` is the surviving entry, and it is a deliberate
+   * decision recorded in `test-server.ts`: the harness has no database state to
+   * reconcile and wants the two axes set by hand. Its consequence has to be
+   * written down rather than discovered — **every refusal, reconcile and
+   * derivation inside that boot step is exercised by nothing in the suite.**
+   * D-101's boot refusal is the newest thing behind it, which is why that
    * decision put the analysis in a pure function (`assertLockedModulesPresent`)
-   * and left only the call in the boot step. `test/unit/_lifecycle/locked-modules-present.test.ts`
-   * is its proof, and it runs because it needs no composition at all.
+   * and left only the call in the boot step;
+   * `test/unit/_lifecycle/locked-modules-present.test.ts` is its proof, and it
+   * runs because it needs no composition at all.
    */
   const PRODUCTION_ONLY_BOOT_STEPS: Readonly<Record<string, string>> = {
+    assertPublicApiBaseUrlConfigured:
+      'Production refuses to boot without PUBLIC_API_BASE_URL; the harness supplies its own ' +
+      'base URL, so the refusal itself — the message an operator sees on a misconfigured ' +
+      'deployment — is exercised by nothing here. `test/unit/config/public-api-base-url.test.ts` ' +
+      'covers the resolver over its inputs instead.',
+    configuredMigrations:
+      'Production builds the ordered migration list for the running ORM; the harness migrates ' +
+      'through the test template instead (`test/global-setup.ts`), so a defect in the wiring ' +
+      'between the registry and the ORM config would not fail a test here. The ordering itself ' +
+      'is proved by `test/unit/db/migrations-registry.test.ts` and `migration-order.test.ts`.',
+    enterSystemScope:
+      'Production wraps its boot-time database work in the system tenant scope; the harness ' +
+      'composes inside the scope its own setup already established. A boot step that forgot the ' +
+      'scope would therefore fail in production and pass here.',
+    lifecycleModuleFromStaticEntries:
+      'Production builds the lifecycle module from the deployment-resolved manifest set; the ' +
+      'harness builds its own registry through `harnessManifestRegistry()` so a test can pin ' +
+      'the two axes. A divergence between the resolved set and what the lifecycle module sees ' +
+      'is invisible to the suite; `test/unit/_lifecycle/registered-manifests.test.ts` covers ' +
+      'the resolution over its inputs.',
     loadModulePresence:
       'The harness seeds the registry cache by hand, so the reconciler, the gating-graph ' +
       'install and D-101’s two refusals never run in a test composition. Each is proved by a ' +
       'unit test over its pure half instead; a boot-level assertion here would be green for ' +
       'the wrong reason. It drains when the harness composes presence the way production ' +
       'does, which is T073’s open half.',
+    resolvePublicApiBaseUrl:
+      'The same seam as the assertion above, one call earlier: production derives the public ' +
+      'base URL every absolute link is built from, and the harness sets one. A deployment whose ' +
+      'derivation produced the wrong origin would ship links nobody in the suite ever reads.',
   };
 
   it('lists every boot step production runs and the harness does not', () => {
     // Comments are stripped first, and that is not a detail: `test-server.ts`
     // *names* `loadModulePresence()` in the comment explaining why it seeds the
-    // cache instead of calling it. A ledger that read the mention as a call
+    // cache instead of calling it. A population that read the mention as a call
     // would report the divergence closed by the very sentence documenting it.
-    const productionCode = codeOnly(production);
-    const harnessCode = codeOnly(harness);
+    const productionSteps = bootSteps(production, COMPOSITION_FUNCTIONS.production);
+    const harnessSteps = bootSteps(harness, COMPOSITION_FUNCTIONS.harness);
+
+    // The vacuous-pass guard. Both roots compose, so both must have been read;
+    // an empty population would agree with an empty ledger.
+    expect(productionSteps.has('composeModules')).toBe(true);
+    expect(harnessSteps.has('composeModules')).toBe(true);
+
+    const missing = [...productionSteps].filter((step) => !harnessSteps.has(step)).sort();
+
+    expect(missing).toEqual(Object.keys(PRODUCTION_ONLY_BOOT_STEPS).sort());
     for (const [step, cost] of Object.entries(PRODUCTION_ONLY_BOOT_STEPS)) {
-      expect(productionCode, `production does not run ${step}`).toContain(`${step}(`);
-      expect(harnessCode, `the harness runs ${step} after all — remove the entry`).not.toContain(
-        `${step}(`,
-      );
       expect(cost.length, `${step} has no recorded cost`).toBeGreaterThan(20);
     }
   });

@@ -26,13 +26,17 @@ import { registerPriceListCurrencyReferences } from './services/price-list-curre
 /**
  * `price_lists` — the decoration proof target (feature 072, wave 3, T127).
  *
- * `decoratePricingService` is why this module is in the feature at all, and it
- * survives the conversion unchanged in shape: a contribution point the module
- * owns and defaults absent, which a deployment fills with a wrapper over core.
- * D-28's whole argument is that a client override must *receive* the core
- * implementation rather than replace it, and a contribution point is exactly
- * that shape — the module always constructs core and hands it to whatever the
- * root contributed.
+ * It is still that, and it no longer knows it. `decoratePricingService` was a
+ * contribution point this module owned and defaulted absent, which a
+ * composition root filled from a file under `apps/<deployment>/decorations/`.
+ * That seam is retired: a deployment overrides a service from its own overlay
+ * module with `ctx.di.decorate('pricingService', …)` (D-103), which wraps the
+ * **registration** below rather than an argument to the engine factory. D-28's
+ * argument is unchanged and is now the container's to keep — a client override
+ * receives the core implementation and delegates to it — and the module is out
+ * of the loop entirely, which is the property the contribution point could not
+ * have: overriding a second service costs this module nothing, where the
+ * contribution point cost one field here and one `composition.ts` edit each.
  *
  * Two options are root-supplied rather than env-derived, and for the reason
  * that has now bitten four conversions: the test harness genuinely differs.
@@ -90,8 +94,6 @@ export interface PriceListsCradle {
   readonly priceListsAdminAuditContext: NonNullable<
     PriceListsModuleOptions['resolveAdminAuditContext']
   >;
-  /** Contribution point (D-28): absent ⇒ core pricing, byte for byte. */
-  readonly decoratePricingService: PriceListsModuleOptions['decoratePricingService'];
   readonly priceLists: ReturnType<typeof priceListsModule>;
   readonly pricingService: PricingServiceContract;
   readonly priceListService: ReturnType<typeof priceListsModule>['handle']['priceListService'];
@@ -99,11 +101,6 @@ export interface PriceListsCradle {
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
-    // Contribution point, absent by default: the bare-core build.
-    decoratePricingService: ctx
-      .asFunction((): PriceListsCradle['decoratePricingService'] => undefined)
-      .singleton(),
-
     // Contribution point, defaulted to the module's own constant (T143a). A
     // root that wants the shipped behaviour now writes nothing; the harness
     // overrides it in the root contribution slot — after `composeModules`,
@@ -157,15 +154,6 @@ export function registerModule(ctx: ModuleContext): void {
             // fails closed, deliberately: refusing the probe is better than
             // pricing for a customer the platform will not identify.
             customerAccountRead: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
-            // Read at construction, and it has to be: the decoration decides
-            // which object every consumer then holds, so it cannot be deferred
-            // past the moment the engine is built.
-            ...(ctx.cradle<PriceListsCradle>().decoratePricingService === undefined
-              ? {}
-              : {
-                  decoratePricingService: ctx.cradle<PriceListsCradle>()
-                    .decoratePricingService!,
-                }),
           }),
       )
       .singleton(),
@@ -195,9 +183,19 @@ export function registerModule(ctx: ModuleContext): void {
   // `customer_accounts` owns it and this module resolves it.
   //
   // `priceListAdminPort` narrows `PriceListService` to the five methods
-  // `pim_ergonode` measurably calls during an import run. `PricingServiceContract`
-  // stays in `services/pricing-service.interface.ts` — it is the feature-057
-  // decoration's contract gate, and moving it would move the gate.
+  // `pim_ergonode` measurably calls during an import run.
+  //
+  // `PricingServiceContract` used to be pinned to
+  // `services/pricing-service.interface.ts` because it was the feature-057
+  // decoration's contract gate: a deployment's `decorations/pricing-service.ts`
+  // imported it, so `tsc` refused a wrapper that had stopped matching. That
+  // seam is retired, and the gate went with it — an overlay module's
+  // `ctx.di.decorate<T>` asserts `T`, so nothing compares the wrapper to this
+  // interface. The type is free to move now. If the gate is wanted back, the
+  // way to get it is to publish this interface on this module's `./ports`
+  // subpath once it is a package and have the overlay name it there (D-171
+  // makes a type-only `./ports` reach not a boundary reach) — not to
+  // reintroduce a file seam.
   // ---------------------------------------------------------------------------
 
   ctx.di.providePort<PriceListReadPort>(
