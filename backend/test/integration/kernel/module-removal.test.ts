@@ -334,18 +334,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // is excluded here by construction — deleting the directory and regenerating
   // removes the reference, which is the whole point of generating it (FR-030).
   _lifecycle: ['src/cli.ts', 'src/composition.ts', 'src/db/configured-migrations.ts'],
-  // `price_lists` (wave 3, T127). Both roots contribute the sweeper flag, the
-  // cache TTL and the admin audit shape, and production contributes the pricing
-  // decoration (D-28) — the seam this module exists in the feature to prove.
-  price_lists: [
-    // The overlay decoration itself — `decorate(inner)` written against
-    // `pricing-service.interface.ts`. It is the point of D-28 rather than
-    // residue: a deployment that wraps the pricing engine names the module it
-    // wraps, and `tsc` is the gate that keeps the wrapper assignable.
-    'src/apps/example/decorations/pricing-service.ts',
-    'src/composition.ts',
-    'src/seeds/dev-catalog-seed.ts',
-  ],
+  // `price_lists` (wave 3, T127). Two entries left this ledger together when
+  // the `apps/<deployment>/decorations/` seam was retired: the decoration file
+  // itself, and `src/composition.ts` — which named this module for exactly one
+  // reason, the `PricingServiceContract` type import the decoration lookup
+  // needed. A deployment wraps the `pricingService` registration from its own
+  // overlay module now (D-103), and that module declares the wrapped shape
+  // structurally, so no file outside this directory names it. What remains is
+  // the dev seed, which value-constructs `DefaultPriceListMigrator`.
+  price_lists: ['src/seeds/dev-catalog-seed.ts'],
   // `inventory` left this ledger with D-44 — its last root reference was the
   // prompt-tool contribution, and the module pushes that from its own boot hook
   // now — and came back above under `src/seeds/`, holding four entity imports

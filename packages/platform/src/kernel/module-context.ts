@@ -269,14 +269,19 @@ export class AmbiguousDecorationError extends Error {
  * `auditLogService` to change what the audit records — so the rule as stated
  * and the code as written disagree, and the code is the one that runs.
  *
- * **That is deliberate and it stays.** A deployment owns its instance outright.
- * It already ships file-based decorations under
- * `backend/src/apps/<deployment>/decorations/` that can wrap any registration,
- * it edits its own `apps/<deployment>/` tree, and it answers to nobody but
- * itself — so refusing it `commandBus` would defend the audit path against the
- * one party entitled to change it, while a deployment that wanted to could
- * simply do it another way. The defended set is a boundary against *strangers*,
- * and a deployment is not one.
+ * **That is deliberate and it stays.** A deployment owns its instance outright:
+ * it edits its own `apps/<deployment>/` tree, it builds the image, and it
+ * answers to nobody but itself — so refusing it `commandBus` would defend the
+ * audit path against the one party entitled to change it, while a deployment
+ * that wanted to could simply do it another way. The defended set is a boundary
+ * against *strangers*, and a deployment is not one.
+ *
+ * This paragraph used to rest part of that argument on a second mechanism — a
+ * file under `backend/src/apps/<deployment>/decorations/` that could wrap any
+ * registration. That seam is retired: it was wired for one hard-coded name, and
+ * D-103 had already made an overlay module's `ctx.di.decorate` do the same job
+ * with none of its costs. The argument stands on the sentence above it, which
+ * never needed the second mechanism.
  *
  * **An installed extension package is** (D-156.1–D-156.9). `loadPackageModuleEntries`
  * therefore sets no `overlay` flag, and that is the ruled behaviour rather than

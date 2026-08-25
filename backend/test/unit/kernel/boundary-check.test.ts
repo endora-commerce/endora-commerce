@@ -337,9 +337,13 @@ describe('analyzePlatformImports', () => {
     expect(isImportViolation(findings[0]!)).toBe(true);
   });
 
-  it('refuses a deployment decoration — a kernel that differs per deployment is not a kernel', () => {
+  it('refuses a per-deployment file — a kernel that differs per deployment is not a kernel', () => {
+    // The fixture named `apps/example/decorations/catalog-service.js` until the
+    // file seam was retired. What the rule refuses is a platform root reaching
+    // *any* file a deployment owns, so the fixture names one that exists: the
+    // attribution is to `apps/<deployment>`, not to the directory below it.
     const findings = analyzePlatformImports(
-      "import { decorate } from '../apps/example/decorations/catalog-service.js';",
+      "import { REDUCED } from '../apps/example/reduced-deployment.js';",
       kernelFile('compose.ts'),
       PLATFORM_ROOT,
     );

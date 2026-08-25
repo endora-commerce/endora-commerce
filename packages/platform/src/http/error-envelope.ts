@@ -82,9 +82,9 @@ export interface ErrorEnvelopeOptions {
    * deployment cannot substitute it without editing a core file, which is the
    * thing the overlay pattern exists to avoid. What a deployment *can* already
    * do, with no new machinery, is decorate the `adminI18nService` registration
-   * (`backend/src/apps/<deployment>/decorations/`) and answer differently for
-   * the keys it cares about — a lever that reaches every string rather than only
-   * an error family. Whether that is the answer #106 wants is a product
+   * from its own overlay module (`ctx.di.decorate`, D-103) and answer
+   * differently for the keys it cares about — a lever that reaches every string
+   * rather than only an error family. Whether that is the answer #106 wants is a product
    * question, not a technical one, and nothing here assumes an answer: this hook
    * chooses the **key** and the **params**, never the value, so a value-level
    * override built later slots underneath both it and issue #65's token rule

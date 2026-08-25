@@ -992,8 +992,10 @@ export async function setupBackendServer(
   // point in the boot order `composition.ts` composes it. Its boot hooks run
   // once, at the bottom of this function, after every contribution below.
   // D-103/D-104 — mirrors `composition.ts`: the deployment's overlay modules
-  // are appended to this one list rather than composed by a second path, so
-  // "overlay last" is structural and D-45's single pass is preserved.
+  // are appended to this one list rather than composed by a second path, which
+  // is what preserves D-45's single pass. It is not what decides a decoration:
+  // since D-176 the wraps are drained after the last module registers, so
+  // position in this array grants and refuses nothing.
   // T031 — and the instance's installed packages after them, same list, same
   // reason.
   const composedModules = composeModules(

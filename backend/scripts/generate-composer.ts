@@ -471,10 +471,17 @@ export function emitComposer(nodes: readonly ComposerNode[]): string {
 // This list is bare core under every value of \`DEPLOYMENT\` (D-104). A
 // deployment's overlay modules are discovered at runtime by
 // \`loadOverlayModuleEntries\` (\`src/overlay/overlay-runtime.ts\`) and **appended**
-// to this list in the one \`composeModules\` call, which is what makes "overlay
-// last, so a deployment's \`di.decorate\` wins" structural rather than a property
-// of this generator's sort — and what keeps this committed artefact meaning the
-// same thing in every environment.
+// to this list in the one \`composeModules\` call, which is what keeps this
+// committed artefact meaning the same thing in every environment.
+//
+// **Position in this array decides nothing about decoration**, and this header
+// used to say it did: it read "overlay last, so a deployment's
+// \`di.decorate\` wins". There is no winning — two modules decorating one name
+// is refused outright (\`AmbiguousDecorationError\`) — and since D-176 every
+// \`ctx.di.decorate\` is queued during registration and drained after the last
+// module has registered, so a wrap cannot depend on who composed first. The
+// ownership guard is the only policy instrument, which is exactly what D-176
+// Q1 ruled the array order is not.
 //
 // A module missing from this list is a module the tree walk found no
 // \`backend.ts\` for. Every core module exports \`registerModule\` today, so an

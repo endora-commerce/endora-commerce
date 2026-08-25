@@ -22,16 +22,12 @@
 // — and the path that comes back is the file that exists, which is what every
 // consumer of `filePath` needs anyway.
 
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
 import type { ModuleEntry } from '../kernel/compose.js';
-import {
-  activeOverlayDecorationsRoot,
-  activeOverlayModulesRoot,
-  coreModulesRoot,
-} from './overlay-roots.js';
+import { activeOverlayModulesRoot, coreModulesRoot } from './overlay-roots.js';
 import { indexCore, scanOverlay } from './resolve-overlay.js';
 
 /**
@@ -66,54 +62,6 @@ function unitCandidates(dir: string, stem: string): string {
 /** Convert an absolute path to an importable URL. */
 function importUrlFor(absPath: string): string {
   return pathToFileURL(absPath).href;
-}
-
-// ---- Decorations (feature 072, T066) ---------------------------------------
-
-/**
- * A client override, in the one shape D-28 permits: it receives the
- * implementation it replaces and returns one that wraps it.
- *
- * This is what replaced the service-class override of feature 057. That
- * mechanism *replaced* the core class, so a deployment stopped receiving core
- * fixes to the overridden methods the day the override was written — whatever
- * core did there next happened in a file the deployment no longer ran.
- * Delegation keeps core in the call path unless the override deliberately
- * intercepts.
- */
-export type OverlayDecorator = (inner: unknown) => unknown;
-
-/** `pricing-service` → `pricingService`: the registration name, not a path. */
-function camelCase(fileStem: string): string {
-  const [head, ...rest] = fileStem.split(/[-_.]/).filter(Boolean);
-  return [head ?? '', ...rest.map((p) => p.charAt(0).toUpperCase() + p.slice(1))].join('');
-}
-
-/**
- * Load the active deployment's decorations, keyed by the **registration name**
- * they wrap. Empty for a bare-core build, and empty is the whole story: a
- * deployment with no decorations composes byte-for-byte like core.
- *
- * Each file under `apps/<deployment>/decorations/` exports `decorate` (or a
- * default) and is named after its target registration —
- * `pricing-service.ts` decorates `pricingService`.
- */
-export async function loadOverlayDecorations(
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<Map<string, OverlayDecorator>> {
-  const map = new Map<string, OverlayDecorator>();
-  const root = activeOverlayDecorationsRoot(env);
-  if (root === null) return map;
-
-  for (const file of readdirSync(root).sort()) {
-    if (!file.endsWith('.ts') && !file.endsWith('.js')) continue;
-    if (file.endsWith('.d.ts')) continue;
-    const mod = (await import(importUrlFor(join(root, file)))) as Record<string, unknown>;
-    const decorate = mod['decorate'] ?? mod['default'];
-    if (typeof decorate !== 'function') continue;
-    map.set(camelCase(file.replace(/\.[jt]s$/, '')), decorate as OverlayDecorator);
-  }
-  return map;
 }
 
 // ---- Overlay-only modules (US2, D-103/D-104) -------------------------------
@@ -259,9 +207,14 @@ export async function overlayModuleManifestsUnder(
  * from the rule that a module may decorate only what it registered, so it may
  * never be a claim a module makes about itself.
  *
- * Ordering is structural rather than sorted: the entries come back in id order
- * and a root appends them after a frozen core list, so a deployment's
- * decoration always wraps a core registration that is already there.
+ * Ordering is deterministic — the entries come back in id order and a root
+ * appends them after a frozen core list — and it decides nothing about
+ * decoration. It used to: this paragraph read "so a deployment's decoration
+ * always wraps a core registration that is already there", which was the
+ * composer's array position doing policy work. Since D-176 every
+ * `ctx.di.decorate` is queued during registration and drained once the last
+ * module has registered, so where a module sits in the array cannot grant or
+ * refuse a wrap; the ownership guard decides, alone.
  *
  * A module directory with no backend entry point **in either spelling** is
  * skipped, not thrown at — a deployment may ship an overlay directory that only

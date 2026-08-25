@@ -326,11 +326,15 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
     expect(files.some((f) => f.includes('/audit_logs/'))).toBe(false);
   });
 
-  it('reaches overlay modules and decorations under src/apps', () => {
+  it('reaches a deployment’s overlay modules under src/apps', () => {
+    // It used to assert a `decorations/` file here as well. That seam is
+    // retired — a deployment overrides a service from its overlay module's
+    // `ctx.di.decorate` (D-103) — so the whole population under `src/apps/` is
+    // overlay modules and the two per-deployment declaration files.
     const appsRoot = fileURLToPath(new URL('../../../src/apps', import.meta.url));
     const overlay = collectScannedFiles(appsRoot).map((f) => f.replace(appsRoot, ''));
-    expect(overlay.some((f) => f.endsWith('/decorations/pricing-service.ts'))).toBe(true);
     expect(overlay.some((f) => f.includes('/modules/example_overlay/'))).toBe(true);
+    expect(overlay.some((f) => f.endsWith('/reduced-deployment.ts'))).toBe(true);
   });
 });
 

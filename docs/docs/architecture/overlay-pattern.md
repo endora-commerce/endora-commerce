@@ -33,7 +33,7 @@ core stays deployment-agnostic and the bare-core build keeps working unchanged.
 
 | Kind | Overridable? | Notes |
 |------|--------------|-------|
-| Service | ✅ | By **decoration**, not by shadowing a file — see below. |
+| Service | ✅ | By **decoration** from the deployment's overlay module, not by shadowing a file — see below. |
 | Route / plugin | ✅ | Same route mechanism as core. |
 | Config / manifest | ✅ | |
 | Whole new module | ✅ (no schema — see below) | Registered without editing the core registry. Ships `backend.ts`, never `plugin.ts`. |
@@ -86,25 +86,56 @@ deployment no longer instantiates, and nobody finds out until the behaviour
 diverges in production. A wrapper keeps core in the call path, so a core fix
 arrives *and* the client behaviour survives it.
 
-A decoration lives in `backend/src/apps/<deployment>/decorations/`, one file per
-registration it wraps, exporting `decorate`:
+A decoration is written from the deployment's **own overlay module**, in its
+`registerModule`, and there is no other way to write one:
 
 ```ts
-// backend/src/apps/acme/decorations/pricing-service.ts → decorates `pricingService`
-export function decorate(inner: PricingServiceContract): PricingServiceContract {
-  return new AcmePricingService(inner);
+// backend/src/apps/acme/modules/acme_pricing/backend.ts
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.decorate<DecoratedPricing>('pricingService', (inner) => wrap(inner));
 }
 ```
 
-The file is named after the **registration**, not after the core file's path, so
-core moving a file breaks nothing. `tsc` remains the contract gate: the
-decoration is written against the core interface (`*.interface.ts`) and stops
-being assignable the moment that interface changes, so contract drift is a build
-failure rather than a per-deployment runtime surprise.
+It names the **registration**, not a file, so core moving a file breaks nothing
+and a deployment can override a second service without a core edit of any kind.
 
 Where two modules decorate the same registration, the wrapping order must be
 declared — composition fails rather than picking by package load order — and
 every applied decoration appears in the composer's override report.
+
+### There used to be a second mechanism, and it is retired
+
+Until 2026-08 a deployment could also drop a file under
+`backend/src/apps/<deployment>/decorations/`, named after the registration it
+wrapped and exporting `decorate(inner)`. If you are reading a client tree that
+still has one, or a document that still describes one, this is why it is gone
+and why you should not reinvent it.
+
+It existed because feature 072 predated ruling D-103. An overlay module was then
+a `plugin.ts` over a frozen seven-field context: it could not reach the
+container, so it could not decorate anything, and a deployment that wanted to
+wrap a service had nowhere else to go. D-103 made an overlay module an ordinary
+composed participant with a full `ModuleContext` — `ctx.di.decorate` included —
+which left the file seam with no capability of its own.
+
+It was also, as shipped, a documented capability that silently did nothing for
+every registration but one. The loader read *every* file in that directory and
+keyed a map by the registration name derived from each filename; the single
+consumer looked up one hard-coded key and threw the rest of the map away. A
+deployment adding `decorations/command-bus.ts` got no wrap, no warning and no
+error. Extending it meant a core edit per registration — exactly the coupling the
+overlay pattern exists to remove.
+
+**One thing was genuinely given up.** The file imported the owner's
+`*.interface.ts`, so `tsc` held the wrapper to that interface and refused it the
+moment the interface changed — feature 057's contract gate. `ctx.di.decorate<T>`
+asserts `T` at the call site and compares it to nothing, so the wrapped shape is
+declared **structurally** and interface drift surfaces at runtime instead of at
+build time. When a deployment wants the gate back, the way to get it is for the
+owning module to publish its interface on its package's `./ports` subpath and
+for the overlay to name it there: a type-only `./ports` reach is not a module
+boundary reach (D-171), and a published type's shape changes cost a major
+version.
 
 ### Decorating across owners is the deployment's, and only the deployment's
 
@@ -135,7 +166,7 @@ the package and the registration. The reason is that there is nothing to write
 the wrap *against*: a package's `exports` map publishes `registerModule`, its
 entities, its migrations and `./ports`, and the container names it registers
 internally are published by none of them, so the name may change in a patch
-release. The `*.interface.ts` gate this page describes above does not transfer
+release. The `*.interface.ts` gate the retired file seam carried did not transfer
 either — for a package the compiler would be holding the deployment to a
 `dist/*.d.ts` written by someone the deployment does not employ. The message says
 *not offered yet* rather than *forbidden*, and names the exit: a package
@@ -178,12 +209,11 @@ and pass the permission-inventory check per deployment.
 ## Adding an overlay
 
 ```bash
-# 1. Override a core service by decorating it (its interface must already exist):
-#    backend/src/apps/acme/decorations/pricing-service.ts
-#    → export function decorate(inner: PricingServiceContract) { … }
+# 1. Add the deployment's overlay module (it ships backend.ts, never plugin.ts):
+#    backend/src/apps/acme/modules/acme_loyalty/{manifest,backend}.ts
 
-# 2. Or add a client-only module:
-#    backend/src/apps/acme/modules/acme_loyalty/{manifest,plugin,routes.admin}.ts
+# 2. Override a core service from its registerModule, by registration name:
+#    ctx.di.decorate('pricingService', (inner) => wrap(inner))
 
 # 3. Build for the deployment (resolver + manifest run automatically):
 DEPLOYMENT=acme pnpm --filter backend run build

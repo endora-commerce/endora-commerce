@@ -1149,12 +1149,30 @@ untouched — FR-004). It is an ordinary lifecycle participant, so every checkli
 applies, with one difference: its admin permissions must appear on `/admin-roles` and pass
 the permission-inventory check **for that deployment** — run the inventory test with
 `DEPLOYMENT=<name>` set. Overriding a core **service** is a **decoration**, not a file
-shadowing it (feature 072): a file under `backend/src/apps/<deployment>/decorations/`, named
-after the registration it wraps, exporting `decorate(inner)` — it receives the core
-implementation and returns one that delegates to it, so core fixes keep flowing. `tsc` is the
-contract gate: the decoration is written against the core service's `*.interface.ts` and
-stops being assignable when that interface changes. A `services/` file under an overlay is
-now an **unknown override target** and fails the build.
+shadowing it (feature 072), and there is exactly one way to write one: from the deployment's
+own overlay module, `ctx.di.decorate('<registrationName>', (inner) => …)`, which receives the
+core implementation and returns one that delegates to it, so core fixes keep flowing.
+`backend/src/apps/example/modules/example_overlay/backend.ts` is the worked example. A
+`services/` file under an overlay is an **unknown override target** and fails the build.
+
+**There used to be a second way, and it is retired** — a file under
+`backend/src/apps/<deployment>/decorations/`, named after the registration it wraps, exporting
+`decorate(inner)`. It existed because feature 072 predated D-103: an overlay module was then a
+`plugin.ts` over a frozen seven-field context that could not decorate anything, so a
+deployment that wanted to wrap a service and did not want to write a module had nowhere else
+to go. D-103 made an overlay module an ordinary composed participant with the whole
+`ModuleContext`, which left the file seam redundant — and worse than redundant: it was
+documented as the general service-override mechanism and wired for exactly **one** hard-coded
+registration name, so any other file in that directory was imported, keyed, and discarded
+without a warning. Do not reintroduce it; do not look for it in a client tree.
+**One thing was genuinely given up with it.** The file imported the owner's
+`*.interface.ts`, so `tsc` refused a wrapper that had stopped matching the interface —
+feature 057's contract gate. `ctx.di.decorate<T>` asserts `T` at the call site and compares it
+to nothing, so the wrapped shape is now declared **structurally** and interface drift is a
+runtime surprise rather than a build failure. The cheap way to get the gate back, when a
+deployment wants it, is for the owning module to publish its interface on its package's
+`./ports` subpath and for the overlay to name it there — a type-only `./ports` reach is not a
+boundary reach (D-171).
 **Decorating across owners is the deployment's alone** (issue #203):
 `ctx.di.decorate` refuses a module that wraps a registration it did not register — including
 one a composition root registered, which no module owns — because decoration rewrites what

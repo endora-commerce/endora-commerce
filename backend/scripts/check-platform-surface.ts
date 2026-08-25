@@ -406,10 +406,10 @@ const WORKER_WRAPPERS =
 /**
  * Not a module's file at all.
  *
- * `src/apps/<deployment>/` holds a deployment's decorations, its
- * reduced-deployment declaration and its generated override manifest **beside**
- * its overlay modules, and the walk covers that root whole. The rule is about
- * modules, and a deployment's own files are never packaged (D-104).
+ * `src/apps/<deployment>/` holds a deployment's reduced-deployment declaration
+ * and its generated override manifest **beside** its overlay modules, and the
+ * walk covers that root whole. The rule is about modules, and a deployment's own
+ * files are never packaged (D-104).
  *
  * They are ledgered rather than filtered out on purpose: a filter would make
  * every file the attribution loses invisible, and a *module* file that stopped
@@ -417,7 +417,7 @@ const WORKER_WRAPPERS =
  * — which is #215 one layer in (!879).
  */
 const DEPLOYMENT_FILE =
-  'a per-deployment file, not a module\'s: `src/apps/<deployment>/` holds decorations, the ' +
+  'a per-deployment file, not a module\'s: `src/apps/<deployment>/` holds the ' +
   'reduced-deployment declaration and the generated override manifest beside its overlay ' +
   'modules, and none of them is ever packaged (D-104). Ledgered rather than filtered so a ' +
   'module file the attribution loses cannot hide among them.';
@@ -456,10 +456,9 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/modules/_lifecycle/scripts/status.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
   'backend/src/modules/_lifecycle/scripts/uninstall.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
 
-  // === DEPLOYMENT_FILE (5) ===
+  // === DEPLOYMENT_FILE (4) ===
   'backend/src/apps/acceptance/override-manifest.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/acceptance/reduced-deployment.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
-  'backend/src/apps/example/decorations/pricing-service.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/example/override-manifest.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/example/reduced-deployment.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
 
