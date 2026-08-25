@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { createApiKeyRequestSchema } from '@endora-commerce/contracts';
 import type { ApiKeyService } from './services/api-key-service.js';
 import type { ApiKey } from './entities/api-key.entity.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface ApiKeysAdminDeps {
   apiKeyService: ApiKeyService;

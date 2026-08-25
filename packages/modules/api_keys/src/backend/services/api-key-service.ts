@@ -6,11 +6,11 @@ import {
   type CustomerAccountReadPort,
   type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { ApiKey } from '../entities/api-key.entity.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 /**
  * ApiKeyService (T227, extended by feature 062 — distributor binding).

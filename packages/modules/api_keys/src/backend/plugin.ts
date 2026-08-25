@@ -1,15 +1,15 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import {
   ApiKeyService,
   type ApiKeyBindingPorts,
   type AuthenticatedApiKey,
 } from './services/api-key-service.js';
 import { registerApiKeysAdminRoutes } from './routes.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Composition root for the US7 surface — API keys + webhooks.
