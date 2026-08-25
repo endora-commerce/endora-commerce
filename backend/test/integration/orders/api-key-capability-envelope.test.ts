@@ -1,12 +1,18 @@
+import { Cart, CartItem } from '../../helpers/package-entities.js';
 import { randomUUID } from 'node:crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { ERROR_CODES } from '@endora-commerce/contracts';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+
 import {
   seedSuspendedOrganization,
   SEED_ADDRESS_BILLING_ID,
@@ -16,16 +22,20 @@ import {
   TEST_SUSPENDED_CUSTOMER_ID,
   TEST_SUSPENDED_ORGANIZATION_ID,
 } from '../../helpers/seed-commerce.js';
+
 import {
   seedCreditLimitRaceFixture,
   SEED_CREDIT_LIMIT_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-credit-limit.js';
+
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
+
 import { DeliveryMethod } from '../../helpers/package-entities.js';
+
 
 /**
  * Feature 062 / T022 — FR-021 / SC-009 capability envelope, verified by

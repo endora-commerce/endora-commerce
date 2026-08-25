@@ -2,14 +2,14 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from '@fastify/type-provider-zod';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { issueInvoiceResponseSchema, type InvoiceDetail } from '@endora-commerce/contracts';
-import { registerInvoicesAdminRoutes } from '../../../src/modules/invoices/routes.admin.js';
+import { registerInvoicesAdminRoutes } from '../../../../packages/modules/invoices/src/backend/routes.admin.js';
 import type {
   InvoiceEmailDispatcher,
   InvoicesAdminDeps,
-} from '../../../src/modules/invoices/routes.admin.js';
-import type { InvoiceService } from '../../../src/modules/invoices/services/invoice-service.js';
-import type { InvoicePdfRenderer } from '../../../src/modules/invoices/services/invoice-pdf-renderer.js';
-import type { InvoiceTemplateService } from '../../../src/modules/invoices/services/invoice-template-service.js';
+} from '../../../../packages/modules/invoices/src/backend/routes.admin.js';
+import type { InvoiceService } from '../../../../packages/modules/invoices/src/backend/services/invoice-service.js';
+import type { InvoicePdfRenderer } from '../../../../packages/modules/invoices/src/backend/services/invoice-pdf-renderer.js';
+import type { InvoiceTemplateService } from '../../../../packages/modules/invoices/src/backend/services/invoice-template-service.js';
 
 /**
  * Issue #149 — the send-on-issue route reports what became of the e-mail.

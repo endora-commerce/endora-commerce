@@ -1,12 +1,18 @@
+import { CustomerAddress } from '../../helpers/package-entities.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { CustomerAddressService } from '../../../src/modules/customers/services/customer-address-service.js';
-import { CustomerAddress } from '../../../src/modules/customers/entities/customer-address.entity.js';
+
+import { CustomerAddressService } from '../../../../packages/modules/customers/src/backend/services/customer-address-service.js';
+
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+
 import { AddressReadService } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
+
 import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
+
 
 /**
  * Feature 040, US2 — personal address book: one-default-per-(customer, kind)

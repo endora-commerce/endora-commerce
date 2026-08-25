@@ -1,11 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { CreditLimit, CreditLimitReservation, PaymentMethod } from './package-entities.js';
+import { Cart, CartItem, CreditLimit, CreditLimitReservation, Invoice, PaymentMethod } from './package-entities.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { Cart } from '../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../src/modules/carts/entities/cart-item.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import { Payment } from '../../src/modules/payments/entities/payment.entity.js';
-import { Invoice } from '../../src/modules/invoices/entities/invoice.entity.js';
 import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
 import { SEED_PRODUCT_101_ID } from './seed-catalog.js';

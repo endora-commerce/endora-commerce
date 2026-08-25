@@ -1,23 +1,49 @@
+import { Invoice, InvoiceLine, InvoiceNumberCounter } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { HttpError } from '../../../src/http/error-envelope.js';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
+
 import type { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
-import { InvoiceLine } from '../../../src/modules/invoices/entities/invoice-line.entity.js';
-import { InvoiceNumberCounter } from '../../../src/modules/invoices/entities/invoice-number-counter.entity.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+
 import {
   ensureSalesChannel,
   systemDefaultSalesChannel,
 } from '../../helpers/sales-channel-fixtures.js';
-import { CorrectiveInvoiceProvider } from '../../../src/modules/invoices/services/corrective-invoice.js';
+
+/**
+ * **The `invoices` services below are imported from the package's `dist`, not from
+ * its `src`, and it is the only spelling that works here** (feature 080, T040b,
+ * batch four; D-160.6.1).
+ *
+ * Each of them value-imports one of this module's entity classes — a decorated
+ * `@Entity()` file — so importing the *service* from source evaluates the *entity*
+ * from source, a second time, beside the copy the ORM registered out of `dist`.
+ * For most packages that duplication is silent. For this one it is a hard refusal
+ * at ORM init: `KsefSubmission` is `@TransitivelyScoped` through `Invoice`, and
+ * `assertTransitiveParentsResolve` resolves a chain by **class name**, so two
+ * `Invoice` classes are an ambiguity it refuses rather than guesses at —
+ * `UnresolvableTenantParentError`, in `setupBackendServer`, taking every test file
+ * in the process with it.
+ *
+ * `dist` is the same module instance the composed platform holds, so the provider
+ * this file constructs operates on the entity classes the ORM knows. That is the
+ * assertion these tests were always making; before the move it was true for free.
+ */
+import { CorrectiveInvoiceProvider } from '../../../../packages/modules/invoices/dist/backend/services/corrective-invoice.js';
+
 import { seedInvoiceableOrder, setSellerSettings } from './helpers.js';
+
 
 /**
  * Feature 078, D-95.2 — `409 INVOICE_NUMBER_ALREADY_ISSUED` at issuance.

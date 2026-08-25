@@ -4,7 +4,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { SessionService } from '../../../src/modules/auth/services/session-service.js';
 import { createAuthSessionPort } from '../../../src/modules/auth/services/session-port.js';
-import { CustomerRegistrationService } from '../../../src/modules/customers/services/customer-registration-service.js';
+import { CustomerRegistrationService } from '../../../../packages/modules/customers/src/backend/services/customer-registration-service.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';

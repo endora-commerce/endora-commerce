@@ -1,27 +1,37 @@
+import { Cart, CartItem, Invoice } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
+
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+
 import { EventBus } from '../../../src/events/bus.js';
+
 import {
   OrderService,
   type OrderEventBus,
   type OrderServiceNeighbourPorts,
 } from '../../../src/modules/orders/services/order-service.js';
+
 import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
+
 import { EnumOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
+
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
+
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
-import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
+
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+
 import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
+
 
 /**
  * Feature 080, T048 — the three seams `placeOrder` used to spell with another

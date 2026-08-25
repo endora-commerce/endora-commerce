@@ -10,8 +10,8 @@ import { withModuleOff } from '../../helpers/off-state.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
 import { composeModules } from '../../../src/kernel/compose.js';
-import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
-import { AssetsLibraryService } from '../../../src/modules/assets_library/services/assets-library.service.js';
+import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
+import { AssetsLibraryService } from '../../../../packages/modules/assets_library/src/backend/services/assets-library.service.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { LanguageReferenceRegistry } from '../../../../packages/modules/languages/src/backend/services/language-reference-registry.js';
 

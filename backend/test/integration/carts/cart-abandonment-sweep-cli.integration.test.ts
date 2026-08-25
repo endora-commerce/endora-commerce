@@ -1,19 +1,30 @@
+import { Cart, CartAuditEntry, type CartRow } from '../../helpers/package-entities.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartAuditEntry } from '../../../src/modules/carts/entities/cart-audit-entry.entity.js';
-import { cliCommands } from '../../../src/modules/carts/manifest.js';
-import { CartAbandonmentWorker } from '../../../src/modules/carts/services/cart-abandonment-worker.js';
-import { CartAuditService } from '../../../src/modules/carts/services/cart-audit-service.js';
+
+import { cliCommands } from '../../../../packages/modules/carts/src/manifest.js';
+
+import { CartAbandonmentWorker } from '../../../../packages/modules/carts/src/backend/services/cart-abandonment-worker.js';
+
+import { CartAuditService } from '../../../../packages/modules/carts/src/backend/services/cart-audit-service.js';
+
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+
 import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
+
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+
 import type { ModuleContext } from '../../../src/kernel/module-context.js';
 import { runModuleCommand } from '../../../src/cli/module-commands.js';
+
 import { enterSystemScope } from '../../../src/kernel/scope.js';
+
 
 /**
  * Issue #54, re-proved at the seam feature 080's T042b moved it to.
@@ -66,7 +77,7 @@ describe('cart abandonment-sweep command — module presence', () => {
   });
 
   /** An idle cart the sweep would take if it were allowed to run. */
-  function seedIdleCart(token: string): Cart {
+  function seedIdleCart(token: string): CartRow {
     const em = db.em();
     return em.create(Cart, {
       anonymousCartToken: token,

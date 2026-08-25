@@ -163,6 +163,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // module's directory. That is the residue this ledger exists to watch drain,
   // draining — the entry is deleted rather than re-pointed, because a bare
   // specifier into a package is not a reference into `backend/src/modules/`.
+  // `custom_fields` **keeps** its entry, and the reason is criterion 7's rather
+  // than a conversion left undone (T040b, batch four). The module is a package,
+  // so `attribute-fixtures.ts` takes both classes off the published `entities`
+  // array by a bare specifier — and needs a row type to do it precisely, which is
+  // a caller-supplied `import type` of the declaration inside the package's built
+  // artefact. `packages/modules/custom_fields/dist/backend/entities/…` carries the
+  // same `modules/custom_fields/` substring this scan reads, so the reference is
+  // real: deleting the package breaks the **build**. It is not runtime coupling —
+  // the type imports erase — and it retires on the same condition as the
+  // `delivery_methods` / `payment_methods` / `taxes` block below.
   custom_fields: ['src/seeds/attribute-fixtures.ts'],
   inventory: ['src/seeds/dev-catalog-seed.ts'],
   // ── Criterion 7's cost, and it is a cost of a decision rather than a defect ─
@@ -232,7 +242,14 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // (D-160.6.1). Feature 080's T040b moved the function to the platform rather
   // than converting the call: it had no consumer inside `email` at all, so it
   // was a deployment-origin helper filed under the module that first needed it.
-  email: ['src/composition.ts'],
+  //
+  // **`email` is now absent, and so are `assets_library`, `carts` and
+  // `invoices`** (T040b, batch four). All four held exactly one reach —
+  // `src/composition.ts`, for a cradle or bridge **type** — and all four are
+  // packages now, so the root writes `@endora-commerce/mod-<id>/backend`. A bare
+  // specifier into a package is not a reference into `backend/src/modules/`,
+  // which is the same reason the `payment_methods` note above gives. The entries
+  // are deleted rather than re-pointed.
   // `auth` (T078). `composition.ts` imports `promoteAdminActor` and the
   // `AuthCradle` type. The type import is the ordinary shape of a root
   // resolving a module's registrations. `promoteAdminActor` is the interesting
@@ -277,7 +294,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `megamenu` reference resolvers to. Contributing those is a root's job —
   // which modules a deployment ships is not this module's business — so that
   // one stays.
-  assets_library: ['src/composition.ts'],
   // `_i18n` (wave 1, T089). `composition.ts` imports the cradle type and, since
   // D-54, the `ERROR_TRANSLATION_KEYS` map it injects into the error envelope.
   // That map used to be imported by `src/http/error-envelope.ts` itself, which
@@ -298,7 +314,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // to reach `invoiceNumberGenerator` for a `CorrectiveInvoiceProvider` the root
   // built, and that adapter is `correctiveInvoicePort` now — which is also what
   // ended the two roots numbering corrections out of two different counters.
-  invoices: ['src/composition.ts'],
   // `admin_users` (wave 2, T121). Both roots contribute the late-bound MFA
   // getter and the `auditActorResolver` adapter that `audit_logs` owns the name
   // for. The second is a root's by design — see `audit_logs/backend.ts` — and
@@ -370,7 +385,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `carts` (wave 3, T136). Both roots contribute who is asking and the bridge
   // into `shopping_lists`, which points outward and so cannot be a port. The
   // abandonment-sweep CLI still constructs its own services — filed separately.
-  carts: ['src/composition.ts'],
   // Every other module is absent, and absence is the record: an absent key
   // means "no residue", which is not the same as a key with an empty list. The
   // scan only reports modules something still refers to, so an empty array

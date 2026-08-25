@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Asset } from '../../src/modules/assets_library/entities/asset.entity.js';
+import { Asset } from '../../../packages/modules/assets_library/src/backend/entities/asset.entity.js';
 import { Category } from '../../src/modules/catalog/entities/category.entity.js';
 import { GalleryItem } from '../../src/modules/catalog/entities/gallery-item.entity.js';
 import { GalleryItemLabel } from '../../src/modules/catalog/entities/gallery-item-label.entity.js';

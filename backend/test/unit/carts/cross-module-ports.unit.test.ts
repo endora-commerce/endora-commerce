@@ -11,12 +11,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { ANONYMOUS_PRODUCT_AUDIENCE, ERROR_CODES } from '@endora-commerce/contracts';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
+import { Cart } from '../../../../packages/modules/carts/src/backend/entities/cart.entity.js';
+import { CartItem } from '../../../../packages/modules/carts/src/backend/entities/cart-item.entity.js';
 import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
-import { CartConversionService } from '../../../src/modules/carts/services/cart-conversion-service.js';
-import { CartUpsellService } from '../../../src/modules/carts/services/cart-upsell-service.js';
-import { CartOrganizationVisibilityService } from '../../../src/modules/carts/services/cart-organization-visibility-service.js';
+import { CartConversionService } from '../../../../packages/modules/carts/src/backend/services/cart-conversion-service.js';
+import { CartUpsellService } from '../../../../packages/modules/carts/src/backend/services/cart-upsell-service.js';
+import { CartOrganizationVisibilityService } from '../../../../packages/modules/carts/src/backend/services/cart-organization-visibility-service.js';
 
 /**
  * Feature 075, Phase C — `carts` asks its five neighbours instead of querying

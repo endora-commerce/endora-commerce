@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   customersModule,
   type CustomersModuleOptions,
-} from '../../../src/modules/customers/plugin.js';
-import type { SalesRepVisibility } from '../../../src/modules/customers/services/customer-authority-service.js';
+} from '../../../../packages/modules/customers/src/backend/plugin.js';
+import type { SalesRepVisibility } from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
 
 /**
  * Issue #108 — `customers` must not build its own sales-rep scope.

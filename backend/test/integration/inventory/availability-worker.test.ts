@@ -9,7 +9,7 @@ import { AvailabilityWorker } from '../../../src/modules/inventory/services/avai
 import { AvailabilityNotification } from '../../../src/modules/inventory/entities/availability-notification.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 
 /**
  * The container's own registrations — feature 075, Phase C. The worker takes

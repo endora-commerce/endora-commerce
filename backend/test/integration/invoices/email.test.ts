@@ -1,4 +1,6 @@
+import { Invoice } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import type {
   TransactionalEmailSendInput,
   TransactionalEmailSender,
@@ -9,22 +11,50 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 // Feature 075, Phase C — `invoices` reads orders over `orders`' published port,
 // so a hand-built service in a test takes the same implementation the container
 // registers under `orderReadPort`.
 import { OrderReadService } from '../../../src/modules/orders/services/order-read-port.js';
-import { InvoiceEmailDispatcher } from '../../../src/modules/invoices/services/invoice-email-dispatch.js';
-import { InvoiceService } from '../../../src/modules/invoices/services/invoice-service.js';
-import { InvoicePdfRenderer } from '../../../src/modules/invoices/services/invoice-pdf-renderer.js';
+
+/**
+ * **The `invoices` services below are imported from the package's `dist`, not from
+ * its `src`, and it is the only spelling that works here** (feature 080, T040b,
+ * batch four; D-160.6.1).
+ *
+ * Each of them value-imports one of this module's entity classes — a decorated
+ * `@Entity()` file — so importing the *service* from source evaluates the *entity*
+ * from source, a second time, beside the copy the ORM registered out of `dist`.
+ * For most packages that duplication is silent. For this one it is a hard refusal
+ * at ORM init: `KsefSubmission` is `@TransitivelyScoped` through `Invoice`, and
+ * `assertTransitiveParentsResolve` resolves a chain by **class name**, so two
+ * `Invoice` classes are an ambiguity it refuses rather than guesses at —
+ * `UnresolvableTenantParentError`, in `setupBackendServer`, taking every test file
+ * in the process with it.
+ *
+ * `dist` is the same module instance the composed platform holds, so the provider
+ * this file constructs operates on the entity classes the ORM knows. That is the
+ * assertion these tests were always making; before the move it was true for free.
+ */
+import { InvoiceEmailDispatcher } from '../../../../packages/modules/invoices/dist/backend/services/invoice-email-dispatch.js';
+
+import { InvoiceService } from '../../../../packages/modules/invoices/dist/backend/services/invoice-service.js';
+
+import { InvoicePdfRenderer } from '../../../../packages/modules/invoices/dist/backend/services/invoice-pdf-renderer.js';
+
 import {
   InvoiceNumberGenerator,
   createSettingsPatternResolver,
-} from '../../../src/modules/invoices/services/invoice-number-generator.js';
-import { SellerSettingsResolver } from '../../../src/modules/invoices/services/seller-settings.js';
-import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
+} from '../../../../packages/modules/invoices/dist/backend/services/invoice-number-generator.js';
+
+import { SellerSettingsResolver } from '../../../../packages/modules/invoices/dist/backend/services/seller-settings.js';
+
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
+
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+
 
 // Feature 078, D-95: `{channel}` is rendered from the `sales_channels`
 

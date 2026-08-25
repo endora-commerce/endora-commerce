@@ -26,6 +26,12 @@ import { entities as dictionariesEntities } from '@endora-commerce/mod-dictionar
 import { entities as ksefEntities } from '@endora-commerce/mod-ksef/backend';
 import { entities as searchEntities } from '@endora-commerce/mod-search/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
+import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-library/backend';
+import { entities as cartsEntities } from '@endora-commerce/mod-carts/backend';
+import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fields/backend';
+import { entities as customersEntities } from '@endora-commerce/mod-customers/backend';
+import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
+import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import type { Address as AddressRow } from '../../../packages/modules/addresses/src/backend/entities/address.entity.js';
 import type { AnalyticsEvent as AnalyticsEventRow } from '../../../packages/modules/analytics/src/backend/entities/analytics-event.entity.js';
 import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
@@ -78,6 +84,19 @@ import type { KsefCredential as KsefCredentialRow } from '../../../packages/modu
 import type { KsefSubmission as KsefSubmissionRow } from '../../../packages/modules/ksef/src/backend/entities/ksef-submission.entity.js';
 import type { SearchPhraseRecord as SearchPhraseRecordRow } from '../../../packages/modules/search/src/backend/entities/search-phrase-record.entity.js';
 import type { Tax as TaxRow } from '../../../packages/modules/taxes/src/backend/entities/tax.entity.js';
+import type { Asset as AssetRow } from '../../../packages/modules/assets_library/src/backend/entities/asset.entity.js';
+import type { AssetFolder as AssetFolderRow } from '../../../packages/modules/assets_library/src/backend/entities/asset-folder.entity.js';
+import type { Cart as CartRow } from '../../../packages/modules/carts/src/backend/entities/cart.entity.js';
+import type { CartItem as CartItemRow } from '../../../packages/modules/carts/src/backend/entities/cart-item.entity.js';
+import type { CartAuditEntry as CartAuditEntryRow } from '../../../packages/modules/carts/src/backend/entities/cart-audit-entry.entity.js';
+import type { CustomFieldDefinition as CustomFieldDefinitionRow } from '../../../packages/modules/custom_fields/src/backend/entities/custom-field-definition.entity.js';
+import type { CustomFieldOption as CustomFieldOptionRow } from '../../../packages/modules/custom_fields/src/backend/entities/custom-field-option.entity.js';
+import type { CustomerAddress as CustomerAddressRow } from '../../../packages/modules/customers/src/backend/entities/customer-address.entity.js';
+import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
+import type { Invoice as InvoiceRow } from '../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
+import type { InvoiceLine as InvoiceLineRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
+import type { InvoiceNumberCounter as InvoiceNumberCounterRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-number-counter.entity.js';
+import type { InvoiceTemplate as InvoiceTemplateRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-template.entity.js';
 
 /**
  * How a test names a **module package's** entity class (D-168).
@@ -284,3 +303,44 @@ export type {
   SearchPhraseRecordRow,
   TaxRow,
 };
+
+/**
+ * Batch four (feature 080, T040b). Thirteen classes across six packages, each one a
+ * class an integration or contract test hands to a live `EntityManager`.
+ *
+ * Same rule as batches two and three — the *file* decides, not the class — and this
+ * batch is the one where the rule bit hardest: `Cart` and `CartItem` are reached from
+ * 48 sites between them, because a cart is what almost every checkout, pricing and
+ * promotion test builds its fixture out of. Every one of those hands the class to the
+ * harness's own `EntityManager`, so every one needed the composed copy; the unit tests
+ * that construct a `Cart` against a stub keep their relative import into the package
+ * source, which is a different object on purpose.
+ *
+ * `InvoiceTemplate` is here with no reaching test today. It is the fourth class of a
+ * four-class package, and leaving it out would make this block a record of which tests
+ * happen to exist rather than of what the package publishes — the next test to persist
+ * one would otherwise reach for the source copy and find nothing telling it not to.
+ */
+export const Asset = classNamed<AssetRow>(assetsLibraryEntities, 'Asset');
+export const AssetFolder = classNamed<AssetFolderRow>(assetsLibraryEntities, 'AssetFolder');
+export const Cart = classNamed<CartRow>(cartsEntities, 'Cart');
+export const CartItem = classNamed<CartItemRow>(cartsEntities, 'CartItem');
+export const CartAuditEntry = classNamed<CartAuditEntryRow>(cartsEntities, 'CartAuditEntry');
+export const CustomFieldDefinition = classNamed<CustomFieldDefinitionRow>(customFieldsEntities, 'CustomFieldDefinition');
+export const CustomFieldOption = classNamed<CustomFieldOptionRow>(customFieldsEntities, 'CustomFieldOption');
+export const CustomerAddress = classNamed<CustomerAddressRow>(customersEntities, 'CustomerAddress');
+export const EmailDelivery = classNamed<EmailDeliveryRow>(emailEntities, 'EmailDelivery');
+export const Invoice = classNamed<InvoiceRow>(invoicesEntities, 'Invoice');
+export const InvoiceLine = classNamed<InvoiceLineRow>(invoicesEntities, 'InvoiceLine');
+export const InvoiceNumberCounter = classNamed<InvoiceNumberCounterRow>(invoicesEntities, 'InvoiceNumberCounter');
+export const InvoiceTemplate = classNamed<InvoiceTemplateRow>(invoicesEntities, 'InvoiceTemplate');
+
+/**
+ * The **row shapes** batch four's tests annotate with, on the same terms as
+ * `PaymentMethodRow` above: `classNamed` returns a value, so a test that writes
+ * `Promise<Cart>` needs the type under its own name. Four sites do —
+ * `carts/cart-abandonment-sweep-cli`, `carts/cart-completed-order-fk`,
+ * `perf/carts/abandonment-sweep` and `organizations/moderation-notification-scope`.
+ * `export type` erases, so nothing is constructed and no second copy exists.
+ */
+export type { CartRow, CartItemRow, InvoiceRow, EmailDeliveryRow, AssetRow };

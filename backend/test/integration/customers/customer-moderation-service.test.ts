@@ -12,8 +12,8 @@ import { Organization } from '../../../src/modules/organizations/entities/organi
 import {
   CustomerAuthorityService,
   type SalesRepVisibility,
-} from '../../../src/modules/customers/services/customer-authority-service.js';
-import { CustomerModerationService } from '../../../src/modules/customers/services/customer-moderation-service.js';
+} from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
+import { CustomerModerationService } from '../../../../packages/modules/customers/src/backend/services/customer-moderation-service.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
 import { customerAccountLifecycleWriteFor } from '../../helpers/customer-account-ports.js';

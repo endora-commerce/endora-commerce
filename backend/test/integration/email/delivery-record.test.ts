@@ -1,13 +1,16 @@
+import { EmailDelivery } from '../../helpers/package-entities.js';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { EmailCradle } from '../../../src/modules/email/backend.js';
-import { EmailDelivery } from '../../../src/modules/email/entities/email-delivery.entity.js';
-import { PersistentEmailDeliveryRecorder } from '../../../src/modules/email/services/email-delivery-recorder.js';
+
+import type { EmailCradle } from '../../../../packages/modules/email/src/backend/index.js';
+import { PersistentEmailDeliveryRecorder } from '../../../../packages/modules/email/src/backend/services/email-delivery-recorder.js';
+
 
 /**
  * D-59 — the durable half of "best-effort send, full visibility".

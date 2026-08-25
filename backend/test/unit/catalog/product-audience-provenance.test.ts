@@ -72,7 +72,9 @@ const SANCTIONED_AUDIENCE_SOURCES: ReadonlyMap<string, string> = new Map([
     'the resolver itself — reads `request.actor` and is the source every route uses',
   ],
   [
-    'src/modules/carts/services/cart-service.ts',
+    // Repository-relative for the same reason as the two entries below: `carts`
+    // is a module package since T040b's fourth batch.
+    'packages/modules/carts/src/backend/services/cart-service.ts',
     '`cartAudience` — a cart operation carries its own actor (`{ customer?, anonymousToken? }`) ' +
       'rather than a request, because the same service answers the merge and conversion paths',
   ],

@@ -1,18 +1,21 @@
+import { Cart, CartAuditEntry, CartItem } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
-import { CartAuditEntry } from '../../../src/modules/carts/entities/cart-audit-entry.entity.js';
+
 import {
   TEST_CUSTOMER_RFQ_ID,
   TEST_ORGANIZATION_ID,
 } from '../../helpers/test-actors.js';
+
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID } from '../../helpers/seed-catalog.js';
+
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
+
 
 /**
  * End-to-end integration test for the cart-merge-on-login flow

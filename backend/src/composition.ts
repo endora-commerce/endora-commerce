@@ -1,5 +1,5 @@
-import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
-import type { CartShoppingListBridge, CartsCradle } from './modules/carts/backend.js';
+import type { AssetsLibraryCradle } from '@endora-commerce/mod-assets-library/backend';
+import type { CartShoppingListBridge, CartsCradle } from '@endora-commerce/mod-carts/backend';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import { Redis } from 'ioredis';
@@ -96,10 +96,10 @@ import type { OrganizationTaxProfilePort } from './modules/organizations/backend
 // `email` at all, so it was a deployment-origin helper filed under the module
 // that first needed it — and a root value import of a module's source is a
 // spelling that ends the day that module becomes a package (D-160.6.1).
-import type { EmailCradle } from './modules/email/backend.js';
+import type { EmailCradle } from '@endora-commerce/mod-email/backend';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
-import type { InvoicesBridge } from './modules/invoices/backend.js';
+import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
 import type { KsefCradle } from '@endora-commerce/mod-ksef/backend';
 import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';

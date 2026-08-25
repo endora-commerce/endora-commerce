@@ -1,10 +1,14 @@
+import { Cart, CartAuditEntry } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it } from 'vitest';
+
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartAuditEntry } from '../../../src/modules/carts/entities/cart-audit-entry.entity.js';
+
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import { CartAuditService } from '../../../src/modules/carts/services/cart-audit-service.js';
+
+import { CartAuditService } from '../../../../packages/modules/carts/src/backend/services/cart-audit-service.js';
+
 
 /**
  * T019 (feature 027) — Cart audit writer lands two rows per record() call,

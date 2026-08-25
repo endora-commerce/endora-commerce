@@ -113,9 +113,9 @@ import { Payment } from '../../payments/entities/payment.entity.js';
  * `PlacementStockSnapshot`, published records rather than the managed rows this
  * module could have moved any column of.
  */
-import type { CartPlacementApplyPort } from '../../carts/ports/index.js';
+import type { CartPlacementApplyPort } from '@endora-commerce/mod-carts/ports';
 import type { InventoryReservationApplyPort } from '../../inventory/ports/index.js';
-import type { InvoicePlacementApplyPort } from '../../invoices/ports/index.js';
+import type { InvoicePlacementApplyPort } from '@endora-commerce/mod-invoices/ports';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
 import type { PromotionUsageFinalizer } from '@endora-commerce/mod-promotions/ports';
 /**

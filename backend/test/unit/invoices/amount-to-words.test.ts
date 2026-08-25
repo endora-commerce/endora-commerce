@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { amountToWords } from '../../../src/modules/invoices/services/amount-to-words.js';
+import { amountToWords } from '../../../../packages/modules/invoices/src/backend/services/amount-to-words.js';
 
 describe('amountToWords — Polish', () => {
   it('spells the reference invoice total (6648.15 PLN)', () => {

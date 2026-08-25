@@ -1,18 +1,22 @@
+import { Cart, CartItem } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
+
 import {
   TEST_CUSTOMER_EMPTY_ID,
   TEST_CUSTOMER_RFQ_ID,
   TEST_ORGANIZATION_ID,
 } from '../../helpers/test-actors.js';
+
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID } from '../../helpers/seed-catalog.js';
+
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
+
 
 /**
  * Feature 037-cart-merge-on-login — contract test for the customer-login

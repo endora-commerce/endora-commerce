@@ -3,7 +3,7 @@ import type { Redis } from 'ioredis';
 import {
   CacheAdminService,
   CACHE_NAMESPACES,
-} from '../../../src/modules/settings/services/cache-admin.service.js';
+} from '../../../../packages/modules/settings/src/backend/services/cache-admin.service.js';
 import { InProcessCacheRegistry } from '../../../src/kernel/cache/in-process-cache-registry.js';
 
 /**
