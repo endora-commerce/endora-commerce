@@ -12,8 +12,8 @@ import {
   type QuickOrderPreferenceUpsert,
   type QuickOrderResolvedDefaults,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { QuickOrderDefaultPreference } from '../entities/quick-order-default-preference.entity.js';
 import type { PreferenceAuditContext } from '@endora-commerce/contracts';
 import { canManagePreference, type PreferenceActor } from './default-preference-authz.js';

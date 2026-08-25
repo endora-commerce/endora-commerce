@@ -1,6 +1,6 @@
 import { isProductVisibleTo, type CatalogProductReadPort } from '@endora-commerce/contracts';
-import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
-import { productIdsInRequestChannel } from '../../../kernel/sales-channels/request-channel-assortment.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import { productIdsInRequestChannel } from '@endora-commerce/platform/kernel';
 import type {
   ProductLike,
   QuickOrderCatalogLookup,

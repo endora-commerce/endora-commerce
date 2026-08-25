@@ -5,7 +5,7 @@ import {
   type QuickOrderTarget,
   type RfqCustomerPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 /**
  * Context for a quick-order build. `organizationId` may be null for a no-org

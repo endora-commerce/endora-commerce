@@ -5,8 +5,8 @@ import {
   quickOrderSearchQuerySchema,
   type CatalogQuickSearchPort,
 } from '@endora-commerce/contracts';
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
-import { productAudienceOf } from '../../http/product-audience.js';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
+import { productAudienceOf } from '@endora-commerce/platform/http';
 import type { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import type { QuickOrderBuildService } from './services/quick-order-build-service.js';
 import { parseImportRequest } from './services/import-from-request.js';

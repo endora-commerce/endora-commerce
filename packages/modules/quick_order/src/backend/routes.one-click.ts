@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { quickOrderOneClickRequestSchema } from '@endora-commerce/contracts';
-import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import type { OneClickService } from './services/one-click-service.js';
 
 /**

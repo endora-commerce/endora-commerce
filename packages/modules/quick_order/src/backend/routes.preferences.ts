@@ -5,7 +5,7 @@ import {
   quickOrderPreferenceUpsertSchema,
   type CustomerAccountReadPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { DefaultPreferenceService } from './services/default-preference-service.js';
 import { canManagePreference, type PreferenceActor } from './services/default-preference-authz.js';
 

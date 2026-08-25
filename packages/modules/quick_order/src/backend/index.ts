@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type {
   AddressReadPort,
   CartWritePort,
@@ -17,18 +17,18 @@ import type {
   RfqCustomerPort,
   SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
-import { SettingNotRegistered, SettingOutOfScopeForChannel } from '../../kernel/settings/settings.service.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import { SettingNotRegistered, SettingOutOfScopeForChannel } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import {
   QUICK_ORDER_SETTING_CODES,
   DEFAULT_IMPORT_MAX_ROWS,
   DEFAULT_ONE_CLICK_BUY_ENABLED,
-} from './manifest.js';
+} from '../manifest.js';
 import { CatalogPortLookup } from './services/catalog-lookup.js';
 import { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import { QuickOrderBuildService } from './services/quick-order-build-service.js';
@@ -39,6 +39,7 @@ import { registerQuickOrderAdminRoutes } from './routes.admin.js';
 import { registerQuickOrderPreferenceRoutes } from './routes.preferences.js';
 import { registerQuickOrderPreferenceAdminRoutes } from './routes.preferences.admin.js';
 import { registerQuickOrderOneClickRoutes } from './routes.one-click.js';
+import { QuickOrderDefaultPreference } from './entities/quick-order-default-preference.entity.js';
 
 /**
  * `quick_order` — a module that owned five route files and was mounted by
@@ -375,3 +376,18 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  QuickOrderDefaultPreference,
+];

@@ -5,7 +5,7 @@ import {
   type PlacedOrderRecord,
   type QuickOrderOneClickEligibility,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { DefaultPreferenceService } from './default-preference-service.js';
 
 export interface OneClickContext {
