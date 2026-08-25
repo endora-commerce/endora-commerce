@@ -72,7 +72,11 @@ beforeEach(() => {
 });
 
 function renderTab(): void {
-  renderWithI18n(<OrderShipmentsTab orderId="o1" />, BUNDLE);
+  // Deliberately not a `dhl_parcel_*` code: this file is #250's
+  // carrier-not-contacted state, which is carrier-agnostic, and the prop only
+  // selects DHL's own panels. A DHL code here would render UI this file does
+  // not assert on and quietly change what it measures.
+  renderWithI18n(<OrderShipmentsTab orderId="o1" deliveryMethodCode="courier" />, BUNDLE);
 }
 
 describe('OrderShipmentsTab — a shipment no carrier was asked for (#250)', () => {
