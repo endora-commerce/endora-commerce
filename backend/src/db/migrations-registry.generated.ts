@@ -236,6 +236,9 @@ import { Migration20260801T100943PayuInit } from '@endora-commerce/mod-payu/migr
 import { Migration20260816T053830PayuSeedPaymentMethods } from '@endora-commerce/mod-payu/migrations';
 import { Migration20260821T084923PayuFailureStatusOnHold } from '@endora-commerce/mod-payu/migrations';
 
+// ── pim_akeneo ──────────────────────────────────────────────────────────────
+import { Migration20260825T124458PimAkeneoInit } from '../modules/pim_akeneo/migrations/20260825T124458_pim_akeneo_init.js';
+
 // ── pim_ergonode ────────────────────────────────────────────────────────────
 import { Migration20260804T190439PimErgonodeInit } from '@endora-commerce/mod-pim-ergonode/migrations';
 import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-commerce/mod-pim-ergonode/migrations';
@@ -534,6 +537,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('payu', Migration20260801T100943PayuInit),
   migration('payu', Migration20260816T053830PayuSeedPaymentMethods),
   migration('payu', Migration20260821T084923PayuFailureStatusOnHold),
+
+  // ── pim_akeneo ──────────────────────────────────────────────────────────────
+  migration('pim_akeneo', Migration20260825T124458PimAkeneoInit),
 
   // ── pim_ergonode ────────────────────────────────────────────────────────────
   migration('pim_ergonode', Migration20260804T190439PimErgonodeInit),

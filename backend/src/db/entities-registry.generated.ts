@@ -33,6 +33,15 @@ import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
 import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
 import { SettingValue } from '../kernel/settings/setting-value.entity.js';
 import { Setting } from '../kernel/settings/setting.entity.js';
+import { AkeneoCatalogueDelivery } from '../modules/pim_akeneo/entities/akeneo-catalogue-delivery.entity.js';
+import { AkeneoConnection } from '../modules/pim_akeneo/entities/akeneo-connection.entity.js';
+import { AkeneoDeliveredRecord } from '../modules/pim_akeneo/entities/akeneo-delivered-record.entity.js';
+import { AkeneoFieldProtection } from '../modules/pim_akeneo/entities/akeneo-field-protection.entity.js';
+import { AkeneoHmacReplay } from '../modules/pim_akeneo/entities/akeneo-hmac-replay.entity.js';
+import { AkeneoImportIssue } from '../modules/pim_akeneo/entities/akeneo-import-issue.entity.js';
+import { AkeneoImportRun } from '../modules/pim_akeneo/entities/akeneo-import-run.entity.js';
+import { AkeneoMediaLink } from '../modules/pim_akeneo/entities/akeneo-media-link.entity.js';
+import { AkeneoSourceLink } from '../modules/pim_akeneo/entities/akeneo-source-link.entity.js';
 import { entities as addressesEntities } from '@endora-commerce/mod-addresses/backend';
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
 import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
@@ -103,6 +112,15 @@ export const ALL_ENTITIES = [
   SettingGroup,
   SettingValue,
   Setting,
+  AkeneoCatalogueDelivery,
+  AkeneoConnection,
+  AkeneoDeliveredRecord,
+  AkeneoFieldProtection,
+  AkeneoHmacReplay,
+  AkeneoImportIssue,
+  AkeneoImportRun,
+  AkeneoMediaLink,
+  AkeneoSourceLink,
   ...(addressesEntities as readonly EntityClassLike[]),
   ...(adminNotificationsEntities as readonly EntityClassLike[]),
   ...(adminRolesEntities as readonly EntityClassLike[]),
