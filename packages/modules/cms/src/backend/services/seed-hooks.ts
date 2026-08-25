@@ -9,7 +9,7 @@
 
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { CmsHook } from '../entities/cms-hook.entity.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 export interface SeededHook {
   code: string;

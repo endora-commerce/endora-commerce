@@ -7,8 +7,8 @@ import {
   type CreateCmsPageRequest,
   type PatchCmsPageRequest,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { walkBlockEmbeds, walkUnknownComponents } from './content-tree-walker.js';
 import type { CmsCache } from './cms-cache.js';
 import type { CmsReferenceRegistry } from './cms-reference-registry.js';

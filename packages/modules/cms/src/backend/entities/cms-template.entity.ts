@@ -1,20 +1,20 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
-import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
+import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 
 /**
- * CmsBlock — reusable content fragment authored via the Page Builder.
- * Per-channel-unique `code`. Embeddable in Pages and Templates via the
- * `InsertBlock` component, attachable to Hooks for storefront rendering.
+ * CmsTemplate — reusable Page Builder fragment embedded in Pages by `code`
+ * via the `InsertTemplate` component. Differs from CmsBlock by having no
+ * `active` flag (FR-006); its visibility is governed entirely by its
+ * channel/language scope and by who references it.
  */
 @GlobalEntity()
-@Entity({ tableName: 'cms_blocks' })
-export class CmsBlock {
+@Entity({ tableName: 'cms_templates' })
+export class CmsTemplate {
   [OptionalProps]?:
     | 'id'
     | 'createdAt'
     | 'updatedAt'
-    | 'active'
     | 'description'
     | 'content'
     | 'languages'
@@ -29,9 +29,6 @@ export class CmsBlock {
   @Property({ type: 'string', length: 180 })
   @Index()
   code!: string;
-
-  @Property({ type: 'boolean' })
-  active: boolean = true;
 
   @Property({ type: 'text', nullable: true })
   description?: string | null;

@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { CmsBlockSeedService } from '../../../src/modules/cms/services/cms-block-seed-port.js';
+import { CmsBlockSeedService } from '../../../../packages/modules/cms/src/backend/services/cms-block-seed-port.js';
 import {
   ensureCookieConsentBlock,
   COOKIE_CONSENT_BLOCK_CODE,

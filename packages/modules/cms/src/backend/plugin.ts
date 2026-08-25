@@ -14,7 +14,7 @@ import type { CmsColorPaletteEntry } from '@endora-commerce/contracts';
 
 import { PageBuilderRegistry, type PageBuilderBreakpointsResolver, type ColorPaletteResolver } from './services/page-builder-registry.js';
 import { reconcileSeededHooks } from './services/seed-hooks.js';
-import { resolvePageBuilderBreakpointsFromEnv } from './manifest.js';
+import { resolvePageBuilderBreakpointsFromEnv } from '../manifest.js';
 import { CmsPageService } from './services/cms-page-service.js';
 import { CmsBlockService } from './services/cms-block-service.js';
 import { CmsTemplateService } from './services/cms-template-service.js';
@@ -24,7 +24,7 @@ import { CmsHookService } from './services/cms-hook-service.js';
 import { CmsCache } from './services/cms-cache.js';
 import { registerCmsAdminRoutes } from './routes.admin.js';
 import { registerCmsStorefrontRoutes } from './routes.storefront.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface ColorPaletteAuditContext {
   actorAdminUserId: string | null;

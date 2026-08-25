@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { reconcileSeededHooks } from '../../../src/modules/cms/services/seed-hooks.js';
+import { reconcileSeededHooks } from '../../../../packages/modules/cms/src/backend/services/seed-hooks.js';
 
 /**
  * Feature 075 / D-87 — `reconcileSeededHooks` used to bind its system hooks to

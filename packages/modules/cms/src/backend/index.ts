@@ -8,18 +8,23 @@ import {
   type CmsColorPalette,
   type DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
-import { CMS_PAGE_BUILDER_SETTING_CODES } from './manifest.js';
+import { CMS_PAGE_BUILDER_SETTING_CODES } from '../manifest.js';
 import type { CmsPageReadPort } from '@endora-commerce/contracts';
 import { CmsBlockSeedService } from './services/cms-block-seed-port.js';
 import { CmsPageReadService } from './services/cms-page-read-port.js';
-import { lazyPort, type ModuleContext } from '../../kernel/index.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
-import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { cmsModule } from './plugin.js';
 import type { CmsAssetResolver } from './services/storefront-resolver.js';
 import { registerCmsAssetReferences } from './services/asset-references.js';
 import { registerCmsLanguageReferences } from './services/cms-language-reference.js';
+import { CmsBlock } from './entities/cms-block.entity.js';
+import { CmsHookBlockAttachment } from './entities/cms-hook-block-attachment.entity.js';
+import { CmsHook } from './entities/cms-hook.entity.js';
+import { CmsPage } from './entities/cms-page.entity.js';
+import { CmsTemplate } from './entities/cms-template.entity.js';
 
 /**
  * `cms` — the endpoint that only worked in production (feature 072, wave 1,
@@ -313,3 +318,22 @@ export function registerModule(ctx: ModuleContext): void {
     );
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  CmsBlock,
+  CmsHookBlockAttachment,
+  CmsHook,
+  CmsPage,
+  CmsTemplate,
+];

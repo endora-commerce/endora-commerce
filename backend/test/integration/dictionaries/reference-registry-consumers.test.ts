@@ -12,7 +12,7 @@ import { registerTaxCountryReferences } from '../../../src/modules/taxes/service
 import { registerOrganizationCountryReferences } from '../../../src/modules/organizations/services/organization-country-reference.js';
 import { registerWarehouseCountryReferences } from '../../../src/modules/inventory/services/warehouse-country-reference.js';
 import { registerBlogLanguageReferences } from '../../../../packages/modules/blog/src/backend/services/blog-language-reference.js';
-import { registerCmsLanguageReferences } from '../../../src/modules/cms/services/cms-language-reference.js';
+import { registerCmsLanguageReferences } from '../../../../packages/modules/cms/src/backend/services/cms-language-reference.js';
 import { registerMegamenuLanguageReferences } from '../../../src/modules/megamenu/services/megamenu-language-reference.js';
 import { registerPromotionCurrencyReferences } from '../../../../packages/modules/promotions/src/backend/services/promotion-currency-reference.js';
 import { registerPriceListCurrencyReferences } from '../../../src/modules/price_lists/services/price-list-currency-reference.js';

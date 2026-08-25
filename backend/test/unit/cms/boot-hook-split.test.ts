@@ -31,7 +31,12 @@ const reconcile = vi.fn(async () => undefined);
 // The module under test is `backend.ts`, not the CMS engine: the plugin is
 // stubbed so the boot hooks meet a handle whose `reconcile` records whether it
 // was called, with no Redis client and no Postgres connection built.
-vi.mock('../../../src/modules/cms/plugin.js', () => ({
+// A `vi.mock` specifier is a module path a rewrite of import specifiers does
+// not see, and a mock that stops applying is silent in the direction that
+// matters: the off-state assertion still passed, because the probe returns
+// before the plugin is reached, and only the on-state one met the real
+// reconciler against a stub EntityManager (feature 080, T040b).
+vi.mock('../../../../packages/modules/cms/src/backend/plugin.js', () => ({
   cmsModule: () => ({
     handle: {
       reconcile,
@@ -55,7 +60,7 @@ interface Composed {
 }
 
 async function composeCms(): Promise<Composed> {
-  const { registerModule } = await import('../../../src/modules/cms/backend.js');
+  const { registerModule } = await import('../../../../packages/modules/cms/src/backend/index.js');
   const container = createRootContainer();
   const assetReferenceRegistry = new AssetReferenceRegistry();
   // `languages` owns this one and is not composed here, so the root supplies
