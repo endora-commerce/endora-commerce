@@ -3,7 +3,8 @@ import { TOTP, Secret } from 'otpauth';
 /**
  * TOTP helpers (feature 042) using the already-present `otpauth` dependency.
  * Same parameters as the platform's existing TOTP primitive
- * (`auth/services/totp-service.ts`) for authenticator-app compatibility.
+ * for authenticator-app compatibility (the `auth` re-export shim it used to
+ * name was deleted once it had no importers).
  */
 const ISSUER = 'B2B Platform';
 const PERIOD = 30;

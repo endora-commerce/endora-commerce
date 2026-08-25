@@ -285,20 +285,25 @@ export interface LedgeredReach {
  * entry is debt with a due date, not a permission.
  *
  * **What is left after T051's sweep, because the shape of the remainder is the
- * point.** Twenty-eight of the 33 keys are `_lifecycle`'s and three are a
- * deployment's own files; both are already routed and neither retires by
- * editing an import — D-160.11 merges `_lifecycle` into the host package (it
- * *is* the platform's operator half wearing a module's directory layout, and it
- * reaches twelve distinct unpublished targets for that reason), and a
- * per-deployment file under `src/apps/` is never packaged (D-104). What is left
- * of the remainder — `TOTP_SHIM` — is a question for an owner rather than a
- * repair, and says so in its own reason. (`REGISTRY_CACHE` was the other, and
- * D-174 answered it: `admin_actions` registers an `InProcessCacheLayer` and the
+ * point.** Every remaining key is `_lifecycle`'s or a deployment's own files;
+ * both are already routed and neither retires by editing an import — D-160.11
+ * merges `_lifecycle` into the host package (it *is* the platform's operator
+ * half wearing a module's directory layout, and it reaches twelve distinct
+ * unpublished targets for that reason), and a per-deployment file under
+ * `src/apps/` is never packaged (D-104). **No ordinary module is blocked by
+ * this check any more**, which is new: the ledger carried two entries that were
+ * questions rather than repairs, and both are answered. `REGISTRY_CACHE` went
+ * with D-174 — `admin_actions` registers an `InProcessCacheLayer` and the
  * platform's own state-changed subscriber drops it, so the module names no
- * channel and no new symbol was published.) That is why the group headers below
- * are worth reading before adding an entry: a new one that is neither
- * `_lifecycle`'s nor a deliberate question is a module the F4 sweep cannot
- * convert.
+ * channel and no new symbol was published. The TOTP shim entry went by **deletion**:
+ * its premise turned out to be false (§8's one-hop rule is scoped to *port*
+ * methods, and the barrel applies it that way in both directions — five
+ * parameter and return types of published *free* functions sit off it
+ * deliberately), the two backup-code functions had zero call sites and zero
+ * tests, and the shim itself had zero importers. Nothing was published.
+ * That is why the group headers below are worth reading before adding an entry:
+ * a new one that is neither `_lifecycle`'s nor a deliberate question is a
+ * module the F4 sweep cannot convert.
  */
 /**
  * §1.4f — the host cannot export the ORM bootstrap, and this is the hardest
@@ -422,32 +427,6 @@ const DEPLOYMENT_FILE =
   'modules, and none of them is ever packaged (D-104). Ledgered rather than filtered so a ' +
   'module file the attribution loses cannot hide among them.';
 
-/**
- * **A correction to §1.3 row 38, found by writing this check — say so loudly.**
- *
- * The row records `kernel/crypto/totp` as **P** and its "symbols modules take"
- * as `enroll` and `verifyTotp`, and !883 published exactly those two. A module
- * takes **five**. `auth/services/totp-service.ts` is a re-export shim (feature
- * 075 Phase P, kept "for the length of Phase P" by its own header), so the
- * reach is an `export … from` rather than an `import` — which is why T042a's
- * per-symbol pass did not see three of them.
- *
- * Two of the three are publishable on the contract's own rules and the third is
- * a judgement: `EnrolmentResult` is `enroll`'s return type, and §8's "the errors
- * and parameter types stay published" makes a published function's return shape
- * published with it; `hashBackupCode` and `matchBackupCode` are pure functions
- * of the same **P** file, which `mfa` calls through this shim. Whether the
- * barrel gains the three or the shim is deleted is the owner's call and not this
- * merge request's — the entry stands so the question is asked rather than
- * answered by whoever touches the file next.
- */
-const TOTP_SHIM =
-  'corrects §1.3 row 38: the row names two symbols and a module takes five, because this ' +
-  'file is a re-export shim (feature 075 Phase P) and the reach is an `export … from` that ' +
-  'T042a\'s symbol pass did not read. `EnrolmentResult` is `enroll`\'s return type and is ' +
-  'publishable on §8\'s own rule; the two backup-code functions are pure functions of the ' +
-  'same P file. Retires when the shim is deleted or the barrel gains them — the owner\'s call.';
-
 export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach>> = {
   // === CONTAINERLESS_CLI (5) ===
   'backend/src/modules/_lifecycle/scripts/disable.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
@@ -490,8 +469,6 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/modules/_lifecycle/scripts/status.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
   'backend/src/modules/_lifecycle/scripts/uninstall.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
 
-  // === TOTP_SHIM (1) ===
-  'backend/src/modules/auth/services/totp-service.ts|packages/platform/src/kernel/crypto/totp.ts': { symbols: ['EnrolmentResult', 'hashBackupCode', 'matchBackupCode'], reason: TOTP_SHIM },
 
   // === WORKER_WRAPPERS (1) ===
   'backend/src/modules/_lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['pauseWorkersFor', 'resumeWorkersFor'], reason: WORKER_WRAPPERS },

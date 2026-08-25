@@ -30,7 +30,9 @@ service; this module owns the customer-facing identity surface.
 
 - **Password policy** — `password-hasher.ts` wraps argon2id; tune cost
   parameters there.
-- **Backup codes** — `totp-service.ts` generates one-time backup codes at
-  enrollment; add rotation/regeneration here.
+- **Backup codes** — `totp-enrolment-service.ts` generates one-time backup codes
+  at enrollment; add rotation/regeneration here. (This line named
+  `auth/services/totp-service.ts` until 2026-08-25, which was wrong before that
+  file was deleted: `customer_accounts` owns this path and always has.)
 - **Login throttling** — relies on Fastify `@fastify/rate-limit` at server
   level; per-account lockout would be added here.
