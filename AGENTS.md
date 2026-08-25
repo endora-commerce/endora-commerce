@@ -1238,7 +1238,22 @@ rules" — same rules, they simply moved here.
 ## Feature workflow (speckit)
 
 New features follow the speckit flow: `/speckit.specify` → `/speckit.plan` → `/speckit.tasks`
-→ `/speckit.implement`, producing `specs/NNN-slug/`. `/speckit.plan` regenerates the appendix
+→ `/speckit.implement`, producing `specs/NNN-slug/`.
+
+**A feature number is not unique, so cite the slug.** Ten numbers name two directories each
+(026, 043, 046, 047, 049, 063, 065, 067, 075, 086) — a payment gateway and a platform feature
+landed on the same number ten times over, and nothing refuses it. So *"feature 075"* addresses
+two things: it is cited **fourteen** times in this file, the F4 rulings and the check estate, and
+**never once with a slug**. Context resolves all fourteen today; nothing guarantees the next one.
+Write `specs/075-cross-module-decoupling-sweep/` where the reference has to survive a reader who
+was not in the conversation, and keep the bare number only for prose that names the slug nearby.
+
+**This is a rule about citing, not about numbering**, and deliberately so. Renumbering ten
+directories would break every reference that currently resolves by context, to buy a uniqueness
+nothing depends on. What *is* worth avoiding is a **new** collision on a number that active work
+is citing — a second `087` landing while D-172, D-178 and the R-1 spike are being written makes
+those citations ambiguous from their first day, which is a different and larger cost than the ten
+historical ones that have settled. `/speckit.plan` regenerates the appendix
 below through `.specify/scripts/bash/update-agent-context.sh`, which is pinned to write into
 this file only (see the repo-local override near the top of that script) — that is what keeps
 `CLAUDE.md`, `.cursor/rules/specify-rules.mdc` and this file from drifting apart again.
