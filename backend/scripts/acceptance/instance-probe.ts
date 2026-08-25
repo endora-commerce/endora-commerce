@@ -38,8 +38,9 @@ const ACTIVATION_SETTING = 'acceptance_probe.activation';
 const PERMISSION = 'acceptance_probe:manage';
 
 /**
- * A10's three literals: the container name the **package** registers, and the
- * greeting it answers before and after the deployment's decoration wraps it.
+ * A10's literals: the container name the **package** registers, the greeting it
+ * answers before and after a decoration would wrap it, and the id of the
+ * deployment's overlay module that reaches for it.
  *
  * They are spelled here and in two files that know nothing about each other —
  * the package's `./backend` export and
@@ -47,8 +48,15 @@ const PERMISSION = 'acceptance_probe:manage';
  * the shape a decoration has in production: the overlay names a registration,
  * never a file, and the two sides share a string and nothing else. The assertion
  * is worth something precisely because neither side can import the other.
+ *
+ * The overlay module's id joins them under D-176 Q3, because what the assertion
+ * now reads is a **refusal**, and a refusal that does not name who reached for
+ * what is a refusal an operator cannot act on. `DECORATED_GREETING` stays: it is
+ * what the phase would see if the declined capability were granted, which is one
+ * of the two ways composition succeeding is wrong.
  */
 const PACKAGE_REGISTRATION = 'acceptanceProbeGreeter';
+const OVERLAY_MODULE_ID = 'acceptance_overlay';
 const UNDECORATED_GREETING = 'acceptance probe';
 const DECORATED_GREETING = `overlay:${UNDECORATED_GREETING}`;
 
@@ -700,42 +708,58 @@ async function phaseUninstall(): Promise<AssertionResult[]> {
 // ---------------------------------------------------------------------------
 
 /**
- * Compose the platform as the `acceptance` **deployment** and ask what the
- * container answers for a name the installed package registered.
+ * Compose the platform as the `acceptance` **deployment** and ask what it says
+ * when one of its overlay modules wraps a name the installed package registered.
  *
- * A deployment overrides a core service by decorating the registration
- * (feature 072, D-28): a module of its own under
- * `backend/src/apps/<deployment>/modules/`, composed like any other, calling
- * `ctx.di.decorate('<name>', …)`. A core module doing that is refused
- * (`ForeignDecorationError`); an overlay module is exempt, and the exemption is
- * structural — `loadOverlayModuleEntries` sets `overlay: true` from the root the
- * module was discovered under, so it is never a claim a module makes about
- * itself (issue #203).
+ * **What this assertion claims moved with D-176 Q3, and the phase with it.** It
+ * used to ask whether the wrap *applies*, and answered `fail`: the composition
+ * root registers `[...MODULES, ...overlay, ...packages]`, so the deployment's
+ * module reached `ctx.di.decorate` before the package had registered anything
+ * and `hasRegistration` refused. That was an accident of array order, not a
+ * decision — and D-176's drain removes it, because a decoration is now applied
+ * after the last module has registered.
  *
- * The question is whether any of that depends on where the **wrapped** module's
- * code lives. It should not: a decoration names a registration, and a
- * registration name is the same string whether its owner was composed from
- * `backend/src/modules/`, from a deployment's overlay root, or out of
- * `node_modules`.
+ * The owner then ruled the capability itself: **a per-deployment overlay may not
+ * decorate a registration an installed package owns**, because nothing in a
+ * package's `exports` map publishes the container names it registers internally,
+ * so there is no declared surface for the wrap to be written against. So this
+ * phase asserts the **refusal, with its reason** — `fail` said "this is broken"
+ * where the tree's position is "this is not offered yet", and the drain would
+ * otherwise have granted the capability silently.
+ *
+ * The mechanism around it is unchanged and is what makes the refusal meaningful
+ * rather than vacuous: an overlay module is exempt from the ownership rule
+ * (`overlay: true`, set by `loadOverlayModuleEntries` from the root the module
+ * was discovered under — never a claim a module makes about itself, issue #203),
+ * and it still wraps anything **core** registers. `test/overlay/`'s T-A / T-A′ /
+ * T-A″ hold those three halves apart without a tarball.
  *
  * It runs with `DEPLOYMENT` set for this phase alone. Every other phase composes
- * bare core, so nine assertions measure exactly what they measured before this
- * one existed — and the deployment is a real one in this repository's tree, not
- * a fixture the harness writes, because the whole point is that the platform's
- * own overlay resolution finds it.
+ * bare core, so the nine assertions around it measure exactly what they measured
+ * before this one existed — and the deployment is a real one in this
+ * repository's tree, not a fixture the harness writes, because the whole point
+ * is that the platform's own overlay resolution finds it.
  *
- * Three outcomes and all three are the platform's answer, never the harness's:
- * the registration is missing (the package's own `ctx.di.register` did not reach
- * the container), it is present and undecorated (composition ran and the
- * deployment's wrap did not apply), or it is decorated. A composition that
- * *throws* is the third shape of "no" and is reported as `fail` with what it
- * said — `Inconclusive` is for a service that was not reachable, and a refusal
- * the platform issued deliberately is an answer.
+ * **Four outcomes, and every one of them is the platform's answer.** The
+ * composition refuses with the ruled refusal (`pass`); it refuses with something
+ * else (`fail` — a refusal for another reason is not this one); the registration
+ * is missing altogether (`fail` — the package's own `ctx.di.register` did not
+ * reach the container, so there was nothing to refuse); or composition
+ * **succeeds**, which splits in two and both are `fail`: the name resolves
+ * decorated, meaning the capability the owner declined was granted, or it
+ * resolves undecorated, meaning the wrap did not apply and **no exception
+ * announced it**.
+ *
+ * That last one is the verdict no error message can ever produce, and it is the
+ * reason the four are kept apart (!967 measured all four). It is the shape a
+ * silent regression takes: a drain that skipped an entry, an `overlay` marking
+ * that stopped being derived, a guard that returned instead of throwing. Keep
+ * it whatever else changes here.
  */
 async function phaseOverlayDecoration(): Promise<AssertionResult[]> {
-  const title = "a deployment's overlay decorates a registration the installed package owns";
+  const title = "a deployment's overlay is refused a registration the installed package owns";
   const refuses =
-    'an overlay pattern whose one customisation seam reaches only the modules this repository ships';
+    'a deployment wrapping a container name the package publishes through no export';
 
   // The deployment has to be **there** before anything it does can be measured.
   // Without this, a renamed or deleted `backend/src/apps/<deployment>/` produces
@@ -765,23 +789,41 @@ async function phaseOverlayDecoration(): Promise<AssertionResult[]> {
       classifyError(error);
     } catch (classified) {
       if (classified instanceof Inconclusive) throw classified;
+      const message = classified instanceof Error ? classified.message : String(classified);
+      // The ruled refusal, recognised by the **kernel's own** error name and by
+      // the three facts its message has to carry: the registration, the package
+      // that owns it and the overlay module that reached for it. Recognised by
+      // name rather than by `instanceof` because this process resolves the
+      // platform through the instance's own module graph — an identity check
+      // would be measuring which copy of the class got loaded, which is not
+      // what A10 asks.
+      const isTheRuledRefusal =
+        classified instanceof Error &&
+        classified.name === 'PackageDecorationNotOfferedError' &&
+        message.includes(PACKAGE_REGISTRATION) &&
+        message.includes(MODULE_ID) &&
+        message.includes(OVERLAY_MODULE_ID);
       return [
         {
           id: 'A10',
           title,
           refuses,
-          status: 'fail',
-          detail:
-            `composing DEPLOYMENT=${process.env['DEPLOYMENT'] ?? '(unset)'} threw rather than ` +
-            `applying the decoration: ${
-              classified instanceof Error ? classified.message : String(classified)
-            }`,
+          status: isTheRuledRefusal ? 'pass' : 'fail',
+          detail: isTheRuledRefusal
+            ? `the platform refused the wrap and said why: ${message}`
+            : `composing DEPLOYMENT=${process.env['DEPLOYMENT'] ?? '(unset)'} refused for ` +
+              `another reason than the ruled one — a refusal naming ` +
+              `"${PACKAGE_REGISTRATION}", "${MODULE_ID}" and "${OVERLAY_MODULE_ID}" was ` +
+              `expected, and this was: ${message}`,
         },
       ];
     }
     throw error;
   }
 
+  // Composition **succeeded**, which under D-176 Q3 is already the wrong answer.
+  // It still splits in two, and the split is the point — the second half is the
+  // one verdict no error message can produce.
   try {
     if (!composition.container.hasRegistration(PACKAGE_REGISTRATION)) {
       return [
@@ -792,8 +834,9 @@ async function phaseOverlayDecoration(): Promise<AssertionResult[]> {
           status: 'fail',
           detail:
             `nothing is registered under "${PACKAGE_REGISTRATION}". The package's ` +
-            '`registerModule` either did not run or does not register it, so there is no ' +
-            'packaged registration for a deployment to wrap',
+            '`registerModule` either did not run or does not register it, so there was ' +
+            'nothing for the platform to refuse and this phase measured an absent package ' +
+            'rather than an applied rule',
         },
       ];
     }
@@ -807,13 +850,17 @@ async function phaseOverlayDecoration(): Promise<AssertionResult[]> {
         id: 'A10',
         title,
         refuses,
-        status: decorated ? 'pass' : 'fail',
+        status: 'fail',
         detail: decorated
-          ? `${PACKAGE_REGISTRATION} resolves to "${greeting}" — the deployment's wrap ran and ` +
-            "delegated to the package's own implementation"
-          : `${PACKAGE_REGISTRATION} resolves to ${JSON.stringify(greeting)}; the deployment's ` +
-            `overlay was expected to make it "${DECORATED_GREETING}" by wrapping the package's ` +
-            `"${UNDECORATED_GREETING}"`,
+          ? `${PACKAGE_REGISTRATION} resolves to "${greeting}" — the deployment's wrap applied ` +
+            'over a registration an installed package owns, which is the capability D-176 Q3 ' +
+            'declines. The refusal is the assertion; granting it silently is what the ' +
+            'decoration drain must not do'
+          : `${PACKAGE_REGISTRATION} resolves to ${JSON.stringify(greeting)}, the package's own ` +
+            `"${UNDECORATED_GREETING}" — so the wrap did not apply and **nothing announced ` +
+            'it**. That is neither the ruled refusal nor the declined capability: composition ' +
+            'succeeded, the registration is present, and a deployment that wrote a decoration ' +
+            'has no way to learn it was dropped',
       },
     ];
   } finally {

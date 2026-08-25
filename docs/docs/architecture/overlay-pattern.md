@@ -127,6 +127,29 @@ from the root the module was discovered under,
 `backend/src/apps/<deployment>/modules/`, so core has no way to assert it and
 `overlay:check` fails on a hand-edited artefact.
 
+**The exemption stops at an installed extension package** (D-176). An overlay may
+wrap anything core or another of the deployment's own modules registers, and it
+may not wrap a registration a package installed from `node_modules` owns —
+`PackageDecorationNotOfferedError`, refused at composition, naming the overlay,
+the package and the registration. The reason is that there is nothing to write
+the wrap *against*: a package's `exports` map publishes `registerModule`, its
+entities, its migrations and `./ports`, and the container names it registers
+internally are published by none of them, so the name may change in a patch
+release. The `*.interface.ts` gate this page describes above does not transfer
+either — for a package the compiler would be holding the deployment to a
+`dist/*.d.ts` written by someone the deployment does not employ. The message says
+*not offered yet* rather than *forbidden*, and names the exit: a package
+declaring which of its registrations are decoratable, `./ports` being the natural
+home, where changing the shape costs a major version bump. Until then, ask the
+package's author for a port, an event, or use an interceptor around its routes.
+
+Decorations are **applied after every module has registered**, not at the call
+(D-176). Which array a module was composed from therefore has no bearing on what
+it can wrap, and a decoration of a name nothing registers means exactly that
+rather than "not yet". Order within the drain is call order, which is why one
+module decorating a name twice is unambiguous and two modules decorating it are
+not.
+
 Before feature 072 a service override shadowed
 `modules/<id>/services/<name>.ts` and replaced the core class. A `services/`
 file under an overlay is now an **unknown override target**, which is what it
@@ -141,6 +164,8 @@ The build fails — never resolves silently — on:
 - **Schema override** — an overlay under `entities/`/`migrations/` of a core module.
 - **Ambiguous decoration** — two modules decorating one registration with no declared order.
 - **Foreign decoration** — a core module decorating a registration it does not own.
+- **Package decoration** — an overlay decorating a registration an installed
+  extension package owns; not offered yet, and the refusal says so.
 
 ## Guards still apply
 

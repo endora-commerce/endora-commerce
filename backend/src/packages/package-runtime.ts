@@ -320,6 +320,16 @@ export async function packageModuleEntriesUnder(
       // No `overlay: true`. See this file's header — a package is a stranger,
       // and the decoration exemption is the deployment's alone until something
       // rules otherwise.
+      //
+      // `installedPackage: true` is the mirror image of that flag and is set
+      // from where this loader found the package, never from anything the
+      // package declares: it is what makes the kernel refuse a *deployment's*
+      // overlay wrapping a registration this package owns (D-176 Q3). Until the
+      // decoration drain landed, that case was refused by accident — the root
+      // composes overlays before packages, so the name was not in the container
+      // yet — and the drain would otherwise have granted a capability the owner
+      // declined.
+      installedPackage: true,
     });
   }
   return entries;
