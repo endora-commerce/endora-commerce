@@ -7,7 +7,7 @@ import {
   type MetaTriggerAction,
   type UpdateMetaCustomEventMapping,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { MetaCustomEventMapping } from '../entities/meta-custom-event-mapping.entity.js';
 
 export interface MetaAuditContext {

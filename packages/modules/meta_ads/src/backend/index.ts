@@ -1,11 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
-import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import { MetaConfigService } from './services/meta-config.service.js';
 import {
   MetaCustomEventMappingsService,
@@ -13,6 +13,7 @@ import {
 } from './services/custom-event-mappings.service.js';
 import { registerMetaAdsAdminRoutes } from './routes.admin.js';
 import { registerMetaAdsStorefrontRoutes } from './routes.storefront.js';
+import { MetaCustomEventMapping } from './entities/meta-custom-event-mapping.entity.js';
 
 /**
  * `meta_ads` — the module that kept calling the storefront after it was
@@ -105,3 +106,18 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  MetaCustomEventMapping,
+];

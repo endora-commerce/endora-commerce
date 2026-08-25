@@ -4,7 +4,7 @@ import {
   createMetaCustomEventMappingSchema,
   updateMetaCustomEventMappingSchema,
 } from '@endora-commerce/contracts';
-import { META_ADS_READ_PERMISSION, META_ADS_WRITE_PERMISSION } from './manifest.js';
+import { META_ADS_READ_PERMISSION, META_ADS_WRITE_PERMISSION } from '../manifest.js';
 import type {
   MetaAuditContext,
   MetaCustomEventMappingsService,
