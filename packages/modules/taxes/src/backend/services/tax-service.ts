@@ -7,10 +7,10 @@ import {
   type ResolvedTax,
   type TaxResolutionInput,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
-import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { Tax } from '../entities/tax.entity.js';
 
 /**
