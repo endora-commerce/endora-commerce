@@ -74,6 +74,7 @@ import { InvoiceDetail } from './modules/invoices/InvoiceDetail.js';
 import { InvoiceTemplatesPage } from './modules/invoices/templates/InvoiceTemplatesPage.js';
 import { KsefPage } from './modules/ksef/pages/KsefPage.js';
 import { ErgonodeConnectionPage } from './modules/pim_ergonode/ErgonodeConnectionPage.js';
+import { AkeneoConnectionPage } from './modules/pim_akeneo/AkeneoConnectionPage.js';
 import { ErgonodeAttributeMappingPage } from './modules/pim_ergonode/ErgonodeAttributeMappingPage.js';
 import { ErgonodeCategoryMappingPage } from './modules/pim_ergonode/ErgonodeCategoryMappingPage.js';
 import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
@@ -290,6 +291,7 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         />
         <Route path="/pim-ergonode/runs" element={<ErgonodeRunsPage />} />
         <Route path="/pim-ergonode/runs/:runId" element={<ErgonodeRunDetailPage />} />
+        <Route path="/pim-akeneo" element={<AkeneoConnectionPage />} />
         <Route path="/price-lists" element={<PriceListsPage />} />
         <Route path="/price-lists/display-modes" element={<DisplayModeOverridesPage />} />
         <Route path="/price-lists/:id" element={<PriceListDetailPage />} />

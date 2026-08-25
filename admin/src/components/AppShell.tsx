@@ -170,6 +170,13 @@ const NAV: NavSection[] = [
         requiredPermission: 'pim_ergonode:read',
         module: 'pim_ergonode',
       },
+      {
+        to: '/pim-akeneo',
+        labelKey: 'appShell.nav.pimAkeneo',
+        icon: Boxes,
+        requiredPermission: 'pim_akeneo:read',
+        module: 'pim_akeneo',
+      },
     ],
   },
   {
