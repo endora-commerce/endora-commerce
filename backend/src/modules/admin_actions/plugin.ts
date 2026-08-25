@@ -1,5 +1,4 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
-import type { Redis } from 'ioredis';
 import type {
   AdminI18nTranslatePort,
   ModuleAction,
@@ -72,7 +71,6 @@ export interface AdminActionsModuleDeps {
     | (() => AdminActionsManifestRegistryView | undefined);
   i18nService: AdminI18nTranslatePort;
   permissionService: PermissionReadPort;
-  redisSubscriber: Redis;
   requireAdmin: RequireAdminFactory;
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
   log?: { info(msg: string): void; warn(msg: string): void };
@@ -120,7 +118,6 @@ export function adminActionsModule(deps: AdminActionsModuleDeps): AdminActionsMo
     em: deps.emFactory,
     i18nService: deps.i18nService,
     permissionService: deps.permissionService,
-    ...(deps.redisSubscriber ? { redisSubscriber: deps.redisSubscriber } : {}),
     ...(deps.presence ? { presence: deps.presence } : {}),
     log,
   });

@@ -223,10 +223,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `NO_SCOPE_NEEDED` entries went with them (the ledger's stale direction
     // reported both before they were removed, which is that ratchet working).
     //
+    // 38 → 37, by D-174: `admin_actions` no longer subscribes to the module
+    // state-changed Redis channel, so its `on('message')` handler is gone —
+    // `message` falls 3 → 2 and its `NO_SCOPE_NEEDED` entry with it. The
+    // invalidation did not move to a second handler: the platform's existing
+    // subscriber drives the in-process cache registry, and that handler was
+    // already a site.
+    //
     // A downward move is the direction this band exists to refuse, so each
     // number is moved in the merge request that shrank the population and
     // nowhere else.
-    sites: 38,
+    sites: 37,
     sources: ['manifest-index', 'package-scripts'],
   },
   'backend/scripts/check-error-translations.ts': {

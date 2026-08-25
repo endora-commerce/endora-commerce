@@ -208,7 +208,6 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
       registry,
       i18nService: { translate: async (m, k) => `${m}/${k}` },
       permissionService: { listPermissions: async () => [] },
-      redisSubscriber: undefined as never,
       requireAdmin: () => async () => undefined,
       resolveAdminContext: () => ({ adminUserId: 'admin-1' }),
       presence: { isActivated: () => true, version: () => 0 },
