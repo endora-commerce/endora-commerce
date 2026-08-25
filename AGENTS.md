@@ -111,8 +111,28 @@ package.
 so editing one and re-running a test without
 `pnpm --filter @endora-commerce/platform run build` runs the previous build. `@endora-commerce/platform`
 is also the one package `tsc` does **not** read at source — it has no `paths` entry, deliberately;
-see the worktree note below. And `pnpm run dev`'s `tsx watch src/index.ts` does not watch those
-files either: it watches `backend/`, and the platform is not under it.
+see the worktree note below. And `pnpm run dev` does not watch those files either: since feature
+080's T047a it is one esbuild context over `backend/src` plus a restart driven by that build
+(`backend/scripts/dev.mjs`), and the platform is not under `backend/`. That last sentence used
+to name `tsx watch src/index.ts`; the loop changed and the consequence did not, but the loop
+also **stopped** picking up the five packages that have a `paths` entry, which `tsx` did read at
+source. So the rule is now uniform and worth stating once: **edit a package, build that package,
+restart the loop** — for `@endora-commerce/contracts` exactly as for the platform. Measured, that
+is 5.4 s of `tsc` and a 5.9 s boot, against the 24.9 s restart `tsx watch` took to do it
+automatically for `contracts` alone while running its *source* against a `dist` everything else
+in the repository reads.
+
+**And the application itself compiles** (feature 080, D-165). Production runs
+`node dist/index.js`, not `tsx src/index.ts`: the image builds
+`pnpm --filter backend run build` and `deploy/compose.prod.yml` migrates with
+`node dist/db/migrate.js up`. That build is `tsc` **plus** `copy-runtime-assets`, and the second
+half is not a convenience — `tsc` compiles `.ts` and copies nothing else, so a tree without it
+holds every module's code and none of its data, which is a *silent* defect and not a crash:
+`loadModuleBundles` reads an absent bundles directory as "this module ships no translatable
+strings". Measured on one machine, three runs each: boot to first request 11.9 s -> 5.3 s,
+resident 838–851 MB over five processes -> 480–486 MB in one. **Nothing in a source-tree check
+can see whether any of this is true**, which is why the `boot-gate` job exists and why it is the
+condition of the ruling rather than a follow-up — see its row in the inventory below.
 
 Two things about the build shape that look like detail and are not. Each package has **two**
 tsconfigs — `tsconfig.json` type-checks with `paths` active and cannot emit (`noEmit: true`),
@@ -972,6 +992,7 @@ of this table: it enumerates every `check-*` script and fails on one it does not
 | `pnpm run check:naming` | `quality:static` | Principle VI, above. |
 | `pnpm run check:language` | `quality:static` | Principle VIII, above. |
 | `pnpm run check:pdfmake-footprint` | `quality` | A pdfmake font bundle over the single-VPS disk budget (Constitution IV). |
+| `bash scripts/boot-gate.sh --with-negatives` | `boot-gate` | A **built image** that boots green while the platform inside it is not what the source says (feature 080, D-165 step F). Not a `check-*` script and it must not become one: `check-read-size.test.ts` spawns every one of those, and a docker build inside a unit run is not a test. It is the only gate in this pipeline whose subject is the *built* tree — `quality` type-checks the source tree, `test:backend` runs vitest against it, `test:backend:deployment` composes overlays from it — and both defects it exists for are properties of the built one, **reproduced** rather than predicted: 45 of 45 modules installing no translations while the boot reports `installed=0 skipped=21 failed=0`, and every overlay module vanishing with no error at all. It builds the image, migrates a throwaway database from a template, boots it with `DEPLOYMENT=example` and asks the running platform three questions — health 200; the boot's own reconcile line accounting for **every** module `/api/v1/storefront/module-presence` enumerates; and every overlay module the deployment declares among them. The translation assertion is **arithmetic and not `installed > 0`**, which the negative run is what proved: with the assets gone from `dist`, the module packages carry their bundles inside `node_modules` and still install, so `installed=6` is a cheerful non-zero over a platform whose other 39 modules serve raw keys. Expected overlay ids come off the deployment's own `modules/` directory and the module count off the platform's own enumeration, so neither is written down (D-100); a deployment declaring none is exit 2, as is a platform that enumerates no module. It also refuses an image whose `Cmd` is not `dist/index.js` — that image passes every other assertion while being the thing the ruling exists to stop. **`--with-negatives` runs the gate red in every pipeline**: two images are derived from the one under test — one with every `.json`/`.txt` removed from `dist` (exactly a build without `copy-runtime-assets`), one with the deployment's overlay directory removed — and each must produce its finding. The breakage lives in a derived image, never in a flag on the gate, so the negative runs take the same boot path and the same judgement as the positive one. The judgement is `scripts/lib/boot-gate-assert.sh`, which touches neither docker nor the network, and `test/unit/ci/boot-gate.test.ts` spawns each function over fixture text for one red proof per finding. Three boots plus two derived builds cost **74 s** measured; the image build dominates and is the one `build:backend` already runs. |
 | `pnpm changeset:status --since=…` | `release:changeset` | A merge request that changes a package under `packages/` and carries no changeset (D-107). Not a `check-*` script and deliberately not one: `changeset status` is the changesets CLI's own command for the question, so there is nothing of ours to keep correct and nothing for `check-inventory` to name — its `script` field must resolve to a file in this tree, and a vendored CLI is not one. That holds for the *question* and not for the *configuration* it is asked under, which is `check:release-intent`'s row above. The job also recognises a **release branch** — one that deletes changeset files and adds none, read off the diff with `--no-renames`, never off a branch name — and asks it the inverted question: a release that consumed changesets and moved no `version` is `changeset version`'s no-op arriving through the other door. **And it decides which package a changed file belongs to by *directory*, which is wrong for a package whose sources are not its own** — the second command in the same job, `check:release-intent -- --since`, is what closes that edge (D-162; see the row above). See *Release intent — changesets* below. |
 
 Two more run in the same job with no npm script of their own, through
