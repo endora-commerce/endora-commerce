@@ -503,12 +503,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources and every module package's. The test tree is in it because that is
     // where 176 of the 181 files holding a reach live, and leaving it out would
     // have made the check blind to both defects it exists for.
-    files: 3189,
+    files: 3222,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
-    // count. It falls as the sweep converts a reach to a bare specifier or to an
-    // `import type`, so it is re-recorded downwards on purpose.
-    sites: 328,
+    // count.
+    //
+    // **The prediction that stood here was that it falls, and it rises.** It read
+    // "it falls as the sweep converts a reach to a bare specifier or to an
+    // `import type`, so it is re-recorded downwards on purpose", which is true of
+    // an individual reach and false of the population: a module still under
+    // `backend/src/modules` contributes *no* reach at all, because there is no
+    // package source for anything to reach. Packaging one turns every test import
+    // of that module into a reach, and the conversions the sentence describes
+    // remove a few of them. So the number grows by a module's worth per move and
+    // is re-recorded **upwards**.
+    //
+    // 328 → 654, and every unit is accounted for. 328 was measured at bc820e86,
+    // the merge request that wrote this entry. `master` reads **426** today: +98
+    // arrived with T040b's third batch after the number was recorded, and the
+    // +50% ceiling absorbed it silently — which is the drift a band is supposed
+    // to tolerate and is worth naming, because it means this figure was not
+    // current before this re-record either. The remaining **+228** is batch
+    // four's seven packages, measured per package: `assets_library` 26, `carts`
+    // 34, `custom_fields` 24, `customers` 25, `email` 32, `invoices` 56,
+    // `settings` 31.
+    sites: 654,
     sources: ['manifest-index', 'entities-registry'],
   },
   'backend/scripts/i18n-hardcoded-strings.ts': {

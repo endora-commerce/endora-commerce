@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -16,6 +17,36 @@ import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-i
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+
+/**
+ * The file that *declares* a manifest, given the location the registry carries.
+ *
+ * `filePath` means "the module's own directory, one `dirname` away" for all
+ * three origins (`manifest-locations.ts`), which for a module in the application
+ * tree is the manifest source itself and for a **package** is its
+ * `package.json` — the file that claims the module id. So a text witness that
+ * read `filePath` directly worked for as long as no module shipping an install
+ * hook had become a package, and stopped the day `custom_fields` did (feature
+ * 080, T040b, batch four): a `package.json` says nothing about `installHook`,
+ * and the assertion failed while the derivation it is about was correct.
+ *
+ * The package's own `exports['.']` target is what it declares as the manifest
+ * module, so that is what is read — a derived answer rather than a
+ * `src/manifest.ts` written down here (D-100), and one that follows a package
+ * that names its layers differently.
+ */
+function manifestModuleOf(filePath: string): string {
+  if (!filePath.endsWith(`${sep}package.json`)) return filePath;
+  const manifest = JSON.parse(readFileSync(filePath, 'utf8')) as {
+    exports?: Record<string, { default?: string } | string>;
+  };
+  const root = manifest.exports?.['.'];
+  const target = typeof root === 'string' ? root : root?.default;
+  expect(target, `${filePath} declares no '.' export, so its manifest module cannot be found`)
+    .toBeDefined();
+  return join(dirname(filePath), target!);
+}
+
 
 /**
  * The generated composer (feature 072, T046–T049).
@@ -107,7 +138,7 @@ describe('F2 — a single generated manifest registry', () => {
     // is that the derivation carries them, not which module has one today.
     expect(hooked.length).toBeGreaterThan(0);
     for (const entry of hooked) {
-      const source = readFileSync(entry.filePath, 'utf8');
+      const source = readFileSync(manifestModuleOf(entry.filePath), 'utf8');
       if (entry.installHook) expect(source).toMatch(/\binstallHook\b/);
       if (entry.uninstallHook) expect(source).toMatch(/\buninstallHook\b/);
     }

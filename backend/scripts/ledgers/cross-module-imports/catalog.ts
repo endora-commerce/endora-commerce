@@ -17,42 +17,6 @@
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/catalog/commands/attribute-commands.ts:custom_fields/ports/index':
-    {
-      permanent: true,
-      reason:
-        'D-77 — the apply seam, and the one entry in this shard that is not debt. ' +
-        '`catalog/migrations/20260723T230401_catalog_attributes_on_custom_fields.ts:120-130` adds ' +
-        '`fk_product_attributes_custom_field_definition` (`on delete restrict`) plus a `unique` on ' +
-        '`product_attributes.custom_field_definition_id`, so a `product_attributes` insert must see ' +
-        'its `custom_field_definitions` parent inside ONE transaction — a second transaction cannot ' +
-        'satisfy a foreign key against a row it cannot see, and `attribute-commands.ts` flushes ' +
-        'between the two writes for exactly that reason. No port can carry the caller\'s ' +
-        '`EntityManager` without putting MikroORM into `@endora-commerce/contracts` (FR-034); a branded handle ' +
-        'publishes the coupling without removing it, a token needs a registry with a lifetime, and ' +
-        'an ambient unit of work is refused in writing (D-77 rationale 3) because the ugly ' +
-        'parameter is the deterrent that has kept this at one seam in 65 modules. 061 R4 refused ' +
-        'compensation and nested commands five months earlier, on correctness. `catalog`\'s ' +
-        'manifest declares `custom_fields`, as AGENTS.md § Migrations item 4 requires of a ' +
-        'cross-module foreign key. What crosses is now ONE type, in THIS file: the returns are ' +
-        '`CustomFieldDefinitionRecord` / `CustomFieldOptionRecord`, the failure is the published ' +
-        'code union and guard, and `catalog-admin.service.ts` and `plugin.ts` name the re-export ' +
-        'here. T053(b) took the last two things off it that were not the seam: the specifier now ' +
-        "names the owner's `ports/` directory, a file that compiles to `export {};` and can hand " +
-        'out nothing else, and the committed-state definition read it used to carry is ' +
-        '`CustomFieldDefinitionReadPort.getById` — a read, so by D-169 it may not take an ' +
-        '`EntityManager`, and the seam was answering it with the owner\'s two managed ORM ' +
-        'entities typed as records.',
-      retiredBy:
-        'F4 packages `custom_fields`, at which point that same directory is the package\'s ' +
-        '`./ports` subpath, D-171 stops counting the reach, and the consumer-side edit is this one ' +
-        'specifier. It is not retired by the relocation alone: `resolveModulePackage` returns ' +
-        '`null` for anything starting with `.`, so a relative specifier has no subpath for the ' +
-        'exemption to apply to, and the three edits (package the owner, publish the interface, ' +
-        'rewrite the specifier) are separable by design — this entry stands with the second done. ' +
-        'Dropping `fk_product_attributes_custom_field_definition` would retire it too, and would ' +
-        'cost the invariant the constraint buys.',
-    },
   'modules/catalog/services/catalog-admin.service.ts:sql:carts/cart_items':
     'Issue #187 seed — `assertProductDeletable` refuses a product delete that would ' +
     'orphan a cart line, and it asks with `knex(\'cart_items\').where({ product_id }).' +

@@ -1,5 +1,5 @@
-import type { AssetsLibraryCradle } from '../../src/modules/assets_library/backend.js';
-import type { CartShoppingListBridge, CartsCradle } from '../../src/modules/carts/backend.js';
+import type { AssetsLibraryCradle } from '../../../packages/modules/assets_library/src/backend/index.js';
+import type { CartShoppingListBridge, CartsCradle } from '../../../packages/modules/carts/src/backend/index.js';
 import type { ConfigurationTypeRegistry } from '../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js';
 import type { CredentialsService } from '../../../packages/modules/credentials/src/backend/services/credentials.service.js';
 import type { AdminNotificationService } from '../../../packages/modules/admin_notifications/src/backend/services/admin-notification-service.js';
@@ -114,16 +114,16 @@ import type {
 // generated list. The five hand-rolled `new ConsoleMailer()` fallbacks this
 // replaced were the reason a conversion of `composition.ts` alone would have
 // proved nothing: every mail-sending suite runs against this root.
-import type { EmailCradle } from '../../src/modules/email/backend.js';
+import type { EmailCradle } from '../../../packages/modules/email/src/backend/index.js';
 import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
 import type { ShoppingListService } from '../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js';
 import type { ReturnsBridge } from '../../../packages/modules/returns/src/backend/index.js';
-import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
+import type { InvoicesBridge, InvoicesCradle } from '../../../packages/modules/invoices/src/backend/index.js';
 import type { NewsletterBridge } from '../../../packages/modules/newsletter/src/backend/index.js';
-import type { CustomFieldsCradle } from '../../src/modules/custom_fields/backend.js';
-import type { CustomFieldDefinitionService } from '../../src/modules/custom_fields/services/custom-field-definition.service.js';
-import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
-import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
+import type { CustomFieldsCradle } from '../../../packages/modules/custom_fields/src/backend/index.js';
+import type { CustomFieldDefinitionService } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-definition.service.js';
+import type { CustomFieldValueService } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-value.service.js';
+import type { CustomFieldDefinitionsCache } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
 import type { ApiKeysCradle } from '../../../packages/modules/api_keys/src/backend/index.js';
 import type { CmsCradle } from '../../../packages/modules/cms/src/backend/index.js';
 import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
@@ -139,7 +139,7 @@ import type { TaxesCradle } from '../../../packages/modules/taxes/src/backend/in
 import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
-import type { SettingsCradle } from '../../src/modules/settings/backend.js';
+import type { SettingsCradle } from '../../../packages/modules/settings/src/backend/index.js';
 import type { MfaActorBridge } from '../../../packages/modules/mfa/src/backend/index.js';
 import type { OAuthProviderPort } from '../../../packages/modules/mfa/src/backend/services/oauth-provider-service.js';
 import { composeSalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
@@ -178,8 +178,8 @@ import type { CatalogAttributeReadService } from '../../src/modules/catalog/serv
 import type { PricingServiceContract } from '../../src/modules/price_lists/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
-import type { CartService } from '../../src/modules/carts/services/cart-service.js';
-import type { Mailer } from '../../src/modules/email/services/mailer.js';
+import type { CartService } from '../../../packages/modules/carts/src/backend/services/cart-service.js';
+import type { Mailer } from '../../../packages/modules/email/src/backend/services/mailer.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations, TEST_ORGANIZATION_TAX_ID } from './seed-organizations.js';
 import { seedUs2Commerce } from './seed-commerce.js';

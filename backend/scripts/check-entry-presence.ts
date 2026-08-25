@@ -226,7 +226,7 @@ export const TIMERS_WITHOUT_PRESENCE: Readonly<Record<string, string>> = {
  * while the module is off.
  */
 export const BOOT_HOOKS_WITHOUT_PRESENCE: Readonly<Record<string, string>> = {
-  'modules/invoices/backend.ts:onBoot#3:ctx.onBoot':
+  'packages/modules/invoices/src/backend/index.ts:onBoot#3:ctx.onBoot':
     'Feature 078, D-95.3. The hook pins the system-default sales channel to its pre-D-95 ' +
     'numbering pattern, once, and then reports colliding patterns. It is a one-time migration ' +
     "of this module's own configuration, and activation is reversible where a migration is " +

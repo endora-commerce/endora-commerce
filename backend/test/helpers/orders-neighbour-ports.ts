@@ -19,9 +19,9 @@ import { DeliveryMethodReadService } from '../../../packages/modules/delivery_me
 import { PaymentMethodReadService } from '../../../packages/modules/payment_methods/src/backend/services/payment-method-read-port.js';
 import { InventoryStockReadService } from '../../src/modules/inventory/services/inventory-read-port.js';
 import { InventoryReservationApplyService } from '../../src/modules/inventory/services/inventory-reservation-apply-port.js';
-import { CartPlacementApplyService } from '../../src/modules/carts/services/cart-placement-apply-port.js';
-import { CartReadService } from '../../src/modules/carts/services/cart-read-port.js';
-import { InvoicePlacementApplyService } from '../../src/modules/invoices/services/invoice-placement-apply-port.js';
+import { CartPlacementApplyService } from '../../../packages/modules/carts/src/backend/services/cart-placement-apply-port.js';
+import { CartReadService } from '../../../packages/modules/carts/src/backend/services/cart-read-port.js';
+import { InvoicePlacementApplyService } from '../../../packages/modules/invoices/src/backend/services/invoice-placement-apply-port.js';
 import type { OrderServiceNeighbourPorts } from '../../src/modules/orders/services/order-service.js';
 import type { BackendServerHandle } from './test-server.js';
 

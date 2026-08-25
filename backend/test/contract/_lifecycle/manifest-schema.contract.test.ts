@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { ModuleManifestSchema } from '@endora-commerce/contracts';
 import { manifest as lifecycleManifest } from '../../../src/modules/_lifecycle/manifest.js';
-import { manifest as settingsManifest } from '../../../src/modules/settings/manifest.js';
+import { manifest as settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 import { manifest as salesChannelsManifest } from '../../../../packages/modules/sales_channels/src/manifest.js';
 import { manifest as searchManifest } from '../../../../packages/modules/search/src/manifest.js';
 import { manifest as comparisonsManifest } from '../../../../packages/modules/comparisons/src/manifest.js';
 import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';
 import { manifest as inventoryManifest } from '../../../src/modules/inventory/manifest.js';
 import { manifest as priceListsManifest } from '../../../src/modules/price_lists/manifest.js';
-import { manifest as assetsLibraryManifest } from '../../../src/modules/assets_library/manifest.js';
+import { manifest as assetsLibraryManifest } from '../../../../packages/modules/assets_library/src/manifest.js';
 import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';
 
 /**

@@ -9,9 +9,9 @@ import {
   type ModuleContext,
 } from '../../../src/kernel/module-context.js';
 import { coverage } from '../../../src/modules/_i18n/cli/coverage.js';
-import { abandonmentSweep } from '../../../src/modules/carts/cli/abandonment-sweep.js';
+import { abandonmentSweep } from '../../../../packages/modules/carts/src/backend/cli/abandonment-sweep.js';
 import { reindex } from '../../../../packages/modules/search/src/backend/cli/reindex.js';
-import { cacheClear } from '../../../src/modules/settings/cli/cache-clear.js';
+import { cacheClear } from '../../../../packages/modules/settings/src/backend/cli/cache-clear.js';
 
 /**
  * How a converted command **reaches** what it needs (feature 080, T042b).

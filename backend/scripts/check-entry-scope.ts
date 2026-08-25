@@ -263,7 +263,7 @@ export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
     'flush, a "worker stopped" row — which would need the scope here, at the ' +
     'signal, since a disposer has no caller of its own either.',
 
-  "src/modules/custom_fields/services/custom-field-definitions-cache.ts:start:on('message')":
+  "packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.ts:start:on('message')":
     'A synchronous, EntityManager-free cache drop: `handleMessage` parses the ' +
     'payload and clears the cached definitions for one entity type. No ' +
     'EntityManager, no read — the next caller reloads, inside its own scope. ' +

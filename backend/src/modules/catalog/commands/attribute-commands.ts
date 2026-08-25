@@ -9,7 +9,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { Command } from '../../../commands/index.js';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { CustomFieldDefinitionApplyApi } from '../../custom_fields/ports/index.js';
+import type { CustomFieldDefinitionApplyApi } from '@endora-commerce/mod-custom-fields/ports';
 
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import {

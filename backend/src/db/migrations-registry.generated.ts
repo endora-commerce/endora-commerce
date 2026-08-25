@@ -54,7 +54,7 @@ import { Migration20260425T143139AnalyticsInit } from '@endora-commerce/mod-anal
 import { Migration20260724T173916ApiKeysDistributorBinding } from '@endora-commerce/mod-api-keys/migrations';
 
 // ── assets_library ──────────────────────────────────────────────────────────
-import { Migration20260505T102206AssetsLibraryInit } from '../modules/assets_library/migrations/20260505T102206_assets_library_init.js';
+import { Migration20260505T102206AssetsLibraryInit } from '@endora-commerce/mod-assets-library/migrations';
 
 // ── autopay ─────────────────────────────────────────────────────────────────
 import { Migration20260803T065409AutopayInit } from '@endora-commerce/mod-autopay/migrations';
@@ -65,9 +65,9 @@ import { Migration20260821T084925AutopayFailureStatusOnHold } from '@endora-comm
 import { Migration20260506T081055BlogInit } from '@endora-commerce/mod-blog/migrations';
 
 // ── carts ───────────────────────────────────────────────────────────────────
-import { Migration20260611T140352CartsConsolidation } from '../modules/carts/migrations/20260611T140352_carts_consolidation.js';
-import { Migration20260611T140413CartsCartItemPackaging } from '../modules/carts/migrations/20260611T140413_carts_cart_item_packaging.js';
-import { Migration20260818T081253CartsCartCompletedOrderFk } from '../modules/carts/migrations/20260818T081253_carts_cart_completed_order_fk.js';
+import { Migration20260611T140352CartsConsolidation } from '@endora-commerce/mod-carts/migrations';
+import { Migration20260611T140413CartsCartItemPackaging } from '@endora-commerce/mod-carts/migrations';
+import { Migration20260818T081253CartsCartCompletedOrderFk } from '@endora-commerce/mod-carts/migrations';
 
 // ── catalog ─────────────────────────────────────────────────────────────────
 import { Migration20260429T064146CatalogAttributeSetsInit } from '../modules/catalog/migrations/20260429T064146_catalog_attribute_sets_init.js';
@@ -123,7 +123,7 @@ import { Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk } fro
 import { Migration20260821T140323CreditLimitsReservationReservingOrganization } from '@endora-commerce/mod-credit-limits/migrations';
 
 // ── custom_fields ───────────────────────────────────────────────────────────
-import { Migration20260718T200338CustomFieldsInit } from '../modules/custom_fields/migrations/20260718T200338_custom_fields_init.js';
+import { Migration20260718T200338CustomFieldsInit } from '@endora-commerce/mod-custom-fields/migrations';
 
 // ── customer_accounts ───────────────────────────────────────────────────────
 import { Migration20260425T055041CustomerAccountsPasswordResetTokens } from '../modules/customer_accounts/migrations/20260425T055041_customer_accounts_password_reset_tokens.js';
@@ -137,7 +137,7 @@ import { Migration20260825T124759CustomerAccountsDropLegacyTwoFactorSecret } fro
 import { Migration20260825T141659CustomerAccountsOrganizationRequired } from '../modules/customer_accounts/migrations/20260825T141659_customer_accounts_organization_required.js';
 
 // ── customers ───────────────────────────────────────────────────────────────
-import { Migration20260611T140404CustomersCustomerAddressesInit } from '../modules/customers/migrations/20260611T140404_customers_customer_addresses_init.js';
+import { Migration20260611T140404CustomersCustomerAddressesInit } from '@endora-commerce/mod-customers/migrations';
 
 // ── delivery_methods ────────────────────────────────────────────────────────
 import { Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments } from '@endora-commerce/mod-delivery-methods/migrations';
@@ -147,7 +147,7 @@ import { Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter } from 
 import { Migration20260506T112634DictionariesDictionaryInit } from '@endora-commerce/mod-dictionaries/migrations';
 
 // ── email ───────────────────────────────────────────────────────────────────
-import { Migration20260817T070014EmailDeliveryRecord } from '../modules/email/migrations/20260817T070014_email_delivery_record.js';
+import { Migration20260817T070014EmailDeliveryRecord } from '@endora-commerce/mod-email/migrations';
 
 // ── google_analytics ────────────────────────────────────────────────────────
 import { Migration20260715T171116GoogleAnalyticsInit } from '@endora-commerce/mod-google-analytics/migrations';
@@ -159,9 +159,9 @@ import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from 
 import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from '../modules/inventory/migrations/20260818T081243_inventory_stock_allocation_order_item_fk.js';
 
 // ── invoices ────────────────────────────────────────────────────────────────
-import { Migration20260629T125121InvoicesModule } from '../modules/invoices/migrations/20260629T125121_invoices_module.js';
-import { Migration20260801T111000InvoicesGenericTemplateReseed } from '../modules/invoices/migrations/20260801T111000_invoices_generic_template_reseed.js';
-import { Migration20260817T201110InvoicesCorrectionIdempotencyKey } from '../modules/invoices/migrations/20260817T201110_invoices_correction_idempotency_key.js';
+import { Migration20260629T125121InvoicesModule } from '@endora-commerce/mod-invoices/migrations';
+import { Migration20260801T111000InvoicesGenericTemplateReseed } from '@endora-commerce/mod-invoices/migrations';
+import { Migration20260817T201110InvoicesCorrectionIdempotencyKey } from '@endora-commerce/mod-invoices/migrations';
 
 // ── ksef ────────────────────────────────────────────────────────────────────
 import { Migration20260722T224358KsefInit } from '@endora-commerce/mod-ksef/migrations';
