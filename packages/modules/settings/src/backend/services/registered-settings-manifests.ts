@@ -4,7 +4,7 @@ import type {
   SettingsManifestCollectionPort,
   SettingsManifestSource,
 } from '@endora-commerce/contracts';
-import { settingsManifest as settingsModuleManifest } from '../manifest.js';
+import { settingsManifest as settingsModuleManifest } from '../../manifest.js';
 
 /**
  * Every settings manifest the boot-time {@link ManifestReconciler} must walk,

@@ -3,7 +3,7 @@ import {
   defineModuleSettingsManifest,
   type ModuleCliCommand,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/module-context.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
  * Built-in settings manifest for the settings module itself — feature 004.
@@ -277,6 +277,6 @@ export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
   {
     name: 'cache-clear',
     summary: 'Flush selected (or all) Redis cache namespaces.',
-    run: async (context) => (await import('./cli/cache-clear.js')).cacheClear(context),
+    run: async (context) => (await import('./backend/cli/cache-clear.js')).cacheClear(context),
   },
 ];

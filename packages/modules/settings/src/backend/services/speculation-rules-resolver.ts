@@ -1,4 +1,4 @@
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 const ENABLED_CODE = 'storefront.speculation_rules.enabled';
 const EAGERNESS_CODE = 'storefront.speculation_rules.eagerness';

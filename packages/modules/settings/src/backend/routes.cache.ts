@@ -1,7 +1,16 @@
+// `config: { rateLimit }` is not on `FastifyContextConfig`: it is a
+// declaration-merging augmentation `@fastify/rate-limit` contributes. Inside
+// `backend/src` that augmentation arrived ambiently, through the host's own
+// dependency and its `types` graph — so nothing in this module ever named it. A
+// package compiles against its own manifest, where an unnamed dependency does
+// not exist, and the property simply is not there (TS2353). The import is
+// type-only, so it loads the declarations and emits nothing: registering the
+// plugin stays the host's job, exactly as before.
+import type {} from '@fastify/rate-limit';
 import type { FastifyInstance } from 'fastify';
 import { ClearCacheRequestSchema } from '@endora-commerce/contracts';
 import type { CacheAdminService } from './services/cache-admin.service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin cache-maintenance routes — lets an operator flush selected Redis cache

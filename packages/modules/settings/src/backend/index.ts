@@ -1,17 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
-import type { EventBus } from '../../events/bus.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { EventBus } from '@endora-commerce/platform/events';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type {
   SettingsAdminPort,
   SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SettingsCacheInvalidation } from '../../kernel/settings/settings-cache.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SettingsCacheInvalidation } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import {
   SettingsAdminService,
   type AdminAuditContext,
@@ -226,3 +226,22 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * This module owns **no persisted entity**, and says so with an empty array
+ * rather than by omission (D-168).
+ *
+ * The two are not the same thing to the platform. When the package is
+ * *installed*, `src/packages/package-runtime.ts` reads `exported['entities']`
+ * and answers a missing export with `[]` — so "this module has no table" and
+ * "somebody forgot the array" arrive at the host as the same silence, and the
+ * only symptom of the second is a query against a table nobody created. The
+ * declaration is what makes the first case a statement.
+ *
+ * The settings *store* is the kernel's (`src/kernel/settings/`), which is why
+ * this module reads and writes rows it does not own the classes for.
+ *
+ * A first entity added here goes in this array in the same merge request, and
+ * `test/unit/packages/module-package-entity-surface.test.ts` is what says so.
+ */
+export const entities: readonly never[] = [];

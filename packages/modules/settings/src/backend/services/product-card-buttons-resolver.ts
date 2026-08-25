@@ -1,4 +1,4 @@
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 const ADD_TO_CART_CODE = 'storefront.product_card.show_add_to_cart';
 const ADD_TO_SHOPPING_LIST_CODE = 'storefront.product_card.show_add_to_shopping_list';

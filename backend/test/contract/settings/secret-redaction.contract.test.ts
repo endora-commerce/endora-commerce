@@ -7,7 +7,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { SettingsAdminService } from '../../../src/modules/settings/services/settings-admin.service.js';
+import { SettingsAdminService } from '../../../../packages/modules/settings/src/backend/services/settings-admin.service.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';

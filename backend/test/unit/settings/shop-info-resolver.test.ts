@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ShopInfoResolver } from '../../../src/modules/settings/services/shop-info-resolver.js';
+import { ShopInfoResolver } from '../../../../packages/modules/settings/src/backend/services/shop-info-resolver.js';
 import type { SettingsService, SettingsReadResult } from '../../../src/kernel/settings/settings.service.js';
 
 /**

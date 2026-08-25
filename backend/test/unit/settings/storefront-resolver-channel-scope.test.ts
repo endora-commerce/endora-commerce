@@ -3,10 +3,10 @@ import type {
   SettingsReadResult,
   SettingsService,
 } from '../../../src/kernel/settings/settings.service.js';
-import { HomepageResolver } from '../../../src/modules/settings/services/homepage-resolver.js';
-import { ProductCardButtonsResolver } from '../../../src/modules/settings/services/product-card-buttons-resolver.js';
-import { ShopInfoResolver } from '../../../src/modules/settings/services/shop-info-resolver.js';
-import { SpeculationRulesResolver } from '../../../src/modules/settings/services/speculation-rules-resolver.js';
+import { HomepageResolver } from '../../../../packages/modules/settings/src/backend/services/homepage-resolver.js';
+import { ProductCardButtonsResolver } from '../../../../packages/modules/settings/src/backend/services/product-card-buttons-resolver.js';
+import { ShopInfoResolver } from '../../../../packages/modules/settings/src/backend/services/shop-info-resolver.js';
+import { SpeculationRulesResolver } from '../../../../packages/modules/settings/src/backend/services/speculation-rules-resolver.js';
 
 /**
  * Feature 075 / D-87 and feature 053 / FR-011 — the four storefront resolvers

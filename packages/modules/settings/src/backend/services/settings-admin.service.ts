@@ -6,15 +6,15 @@ import {
   type SettingWriteChannelProjection,
   type SettingWriteValidatorRegistryPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import type { EventBus } from '../../../events/bus.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
-import { SettingGroup } from '../../../kernel/settings/setting-group.entity.js';
-import { Setting } from '../../../kernel/settings/setting.entity.js';
-import { SettingValue } from '../../../kernel/settings/setting-value.entity.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { SettingsCacheInvalidation } from '../../../kernel/settings/settings-cache.js';
-import { SecretKeyMissing, SecretKeyInvalid, encryptSecretValue } from '../../../kernel/settings/secret-value-codec.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { EventBus } from '@endora-commerce/platform/events';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { SettingGroup } from '@endora-commerce/platform/kernel';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import type { SettingsCacheInvalidation } from '@endora-commerce/platform/kernel';
+import { SecretKeyMissing, SecretKeyInvalid, encryptSecretValue } from '@endora-commerce/platform/kernel';
 
 /**
  * SettingsAdminService — feature 004 / US2 (T034).

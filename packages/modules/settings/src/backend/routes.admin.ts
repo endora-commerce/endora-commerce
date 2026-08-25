@@ -8,11 +8,11 @@ import {
   SettingsListQuerySchema,
 } from '@endora-commerce/contracts';
 import type { SettingsAdminService, AdminAuditContext } from './services/settings-admin.service.js';
-import type { Setting } from '../../kernel/settings/setting.entity.js';
-import type { SettingGroup } from '../../kernel/settings/setting-group.entity.js';
-import type { SettingValue } from '../../kernel/settings/setting-value.entity.js';
-import { secretValueIsSet } from '../../kernel/settings/secret-value-codec.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { Setting } from '@endora-commerce/platform/kernel';
+import type { SettingGroup } from '@endora-commerce/platform/kernel';
+import type { SettingValue } from '@endora-commerce/platform/kernel';
+import { secretValueIsSet } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin HTTP surface — feature 004 / US2 (T035).

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { salesChannelsManifest } from '../../../../packages/modules/sales_channels/src/manifest.js';
-import { settingsManifest } from '../../../src/modules/settings/manifest.js';
+import { settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 

@@ -3,15 +3,15 @@ import type { CacheNamespaceDto } from '@endora-commerce/contracts';
 import {
   inProcessCaches,
   type InProcessCacheRegistry,
-} from '../../../kernel/cache/in-process-cache-registry.js';
+} from '@endora-commerce/platform/kernel';
 import {
   SETTINGS_CACHE_KEY_PREFIX,
   SETTINGS_CACHE_NAMESPACE,
-} from '../../../kernel/settings/settings-cache.js';
+} from '@endora-commerce/platform/kernel';
 import {
   SALES_CHANNELS_CACHE_KEY_PREFIX,
   SALES_CHANNELS_CACHE_NAMESPACE,
-} from '../../../kernel/sales-channels/sales-channels-cache.js';
+} from '@endora-commerce/platform/kernel';
 
 /**
  * Static registry of clearable cache namespaces. Each entry owns one or more

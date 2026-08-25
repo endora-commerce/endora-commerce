@@ -1,5 +1,5 @@
 import type { ShopInfo } from '@endora-commerce/contracts';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 /**
  * Maps the `shop.*` settings to the public {@link ShopInfo} surface consumed

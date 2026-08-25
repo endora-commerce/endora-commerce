@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { defineModuleSettingsManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { settingsManifest } from '../../../src/modules/settings/manifest.js';
+import { settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,

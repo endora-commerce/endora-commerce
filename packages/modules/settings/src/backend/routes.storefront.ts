@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import type { ShopInfoResolver } from './services/shop-info-resolver.js';
 
 /**

@@ -18,7 +18,7 @@
  * over that registration reaches it.
  */
 import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../../kernel/index.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { CACHE_NAMESPACES, type CacheAdminService } from '../services/cache-admin.service.js';
 
 /** The one registration this command reads — this module's own. */

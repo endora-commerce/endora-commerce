@@ -14,7 +14,7 @@ import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.
 import { SettingsCache } from '../../../src/kernel/settings/settings-cache.js';
 import { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { SettingsAdminService } from '../../../src/modules/settings/services/settings-admin.service.js';
+import { SettingsAdminService } from '../../../../packages/modules/settings/src/backend/services/settings-admin.service.js';
 
 /**
  * Issue #45 — the settings cache is dropped by the **write**, not by whoever

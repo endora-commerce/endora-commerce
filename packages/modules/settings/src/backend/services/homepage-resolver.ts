@@ -1,5 +1,5 @@
 import type { HomepageConfig } from '@endora-commerce/contracts';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 const HOMEPAGE_SETTING_CODE = 'homepage_cms_page_slug';
 
