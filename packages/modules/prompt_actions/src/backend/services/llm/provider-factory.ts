@@ -5,7 +5,7 @@ import {
   type PromptActionsProvider,
   type ResolveResult,
 } from '@endora-commerce/contracts';
-import { PROMPT_ACTIONS_SETTING_CODES } from '../../manifest.js';
+import { PROMPT_ACTIONS_SETTING_CODES } from '../../../manifest.js';
 import { AnthropicAdapter } from './anthropic-adapter.js';
 import { GoogleAdapter } from './google-adapter.js';
 import { OpenAiAdapter } from './openai-adapter.js';

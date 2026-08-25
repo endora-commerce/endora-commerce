@@ -6,12 +6,12 @@ import {
   SubmitPromptRequestSchema,
   type PromptActionRequestDto,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import { PROMPT_ACTIONS_USE_PERMISSION } from './manifest.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { PROMPT_ACTIONS_USE_PERMISSION } from '../manifest.js';
 import type { PromptActionRequest } from './entities/prompt-action-request.entity.js';
 import type { PromptRequestService, OperatorContext } from './services/prompt-request.service.js';
 import type { LlmProviderFactory } from './services/llm/provider-factory.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin HTTP surface — feature 043 (contracts/prompt-actions-api.md).

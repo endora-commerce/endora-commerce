@@ -1,10 +1,10 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import { effectiveState } from '@endora-commerce/platform/kernel';
 import { registerPromptActionsAdminRoutes } from './routes.admin.js';
 import { InterpreterService } from './services/interpreter.service.js';
 import { PlanExecutorService } from './services/plan-executor.service.js';
@@ -20,6 +20,7 @@ import {
   type SettingsReadPort,
 } from './services/llm/provider-factory.js';
 import type { FetchLike } from './services/llm/provider.js';
+import { PromptActionRequest } from './entities/prompt-action-request.entity.js';
 
 /**
  * `prompt_actions` — the module every other module contributes *into*
@@ -225,3 +226,18 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  PromptActionRequest,
+];

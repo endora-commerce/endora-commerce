@@ -10,7 +10,7 @@ import {
   type ToolVisibilityContext,
 } from '@endora-commerce/contracts';
 import type { PromptActionToolRegistry } from './tool-registry.js';
-import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { LlmProviderFactory, ResolvedAssistant } from './llm/provider-factory.js';
 import {
   LlmProviderError,

@@ -6,8 +6,8 @@ import {
   type ToolAuditContext,
   type ToolContext,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { PromptActionRequest } from '../entities/prompt-action-request.entity.js';
 import type { InterpreterService, StoredConversation } from './interpreter.service.js';
 import { PermissionRevoked, type PlanExecutorService } from './plan-executor.service.js';
