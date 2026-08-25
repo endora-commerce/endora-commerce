@@ -9,7 +9,7 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { shippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/registry-singleton.js';
+import type { DeliveryMethodsCradle } from '../../../../packages/modules/delivery_methods/src/backend/index.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { carrierNotContactedReason } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
@@ -113,6 +113,8 @@ async function seedOrder(em: EntityManager): Promise<Order> {
 describe('shipments — generating a shipment while the carrier module is off (#250)', () => {
   let h: BackendServerHandle;
   let baseline: readonly string[];
+  /** The one the platform composed — see the note in `beforeAll`. */
+  let shippingAdapterRegistry: DeliveryMethodsCradle['shippingAdapterRegistry'];
 
   const generate = async (orderId: string): Promise<ShipmentPayload> => {
     const res = await h.app.inject({
@@ -126,6 +128,21 @@ describe('shipments — generating a shipment while the carrier module is off (#
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    // **The registry comes from the container, not from an import** (D-160.6,
+    // T061). `delivery_methods` is a module package since T040b's second batch,
+    // so the platform resolves it at `dist` while a relative specifier into the
+    // package's `src` builds a *second* `ShippingAdapterRegistry` — module-scope
+    // state, one process, two copies. Registering the carrier into the wrong one
+    // is silent: the adapter is simply never found, the first `generate` returns
+    // `pending` without asking anybody, and the off-state assertion below reads
+    // `pending` where it should read `pending_manual` — a switched-off module
+    // looking present, which is the one thing this file exists to refuse.
+    //
+    // A duplicated **entity** fails as an ORM lookup miss; a duplicated
+    // module-scope **value** fails as an empty table, which is why this is
+    // resolved rather than imported.
+    shippingAdapterRegistry = (h.container.cradle as unknown as DeliveryMethodsCradle)
+      .shippingAdapterRegistry;
     shippingAdapterRegistry.register(carrierAdapter, CARRIER_MODULE);
     baseline = registryCache.enabledIds();
     // The carrier module is installed and switched on, exactly as a deployment
