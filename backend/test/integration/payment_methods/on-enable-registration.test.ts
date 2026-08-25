@@ -6,9 +6,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { paymentAdapterRegistry } from '../../../src/modules/payment_methods/services/registry-singleton.js';
-import { PaymentMethodReconciler } from '../../../src/modules/payment_methods/services/payment-method-reconciler.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { paymentAdapterRegistryOf } from '../../helpers/package-singletons.js';
+import { PaymentMethodReconciler } from '../../../../packages/modules/payment_methods/src/backend/services/payment-method-reconciler.js';
+import { PaymentMethod } from '../../helpers/package-entities.js';
 
 /**
  * On-enable adapter registration (feature 034, FR-001/FR-002 for external
@@ -32,6 +32,9 @@ const vendorAdapter: PaymentAdapter = {
 
 describe('payment adapter on-enable registration (singleton)', () => {
   let h: BackendServerHandle;
+  // The registry the platform composed, never the copy a source import
+  // would build (D-160.6 over a module-scope value — see the helper).
+  const paymentAdapterRegistry = () => paymentAdapterRegistryOf(h.container);
   const admin = { cookies: { b2b_session: 'stub-admin-session' } };
 
   beforeAll(async () => {
@@ -40,7 +43,7 @@ describe('payment adapter on-enable registration (singleton)', () => {
     // to be a module this deployment actually carries: since issue #96 the
     // registry skips an adapter whose owner is not effectively present, so a
     // made-up id would (correctly) make the adapter invisible.
-    paymentAdapterRegistry.register(vendorAdapter, 'payments');
+    paymentAdapterRegistry().register(vendorAdapter, 'payments');
     await new PaymentMethodReconciler(h.em).ensureMethodForAdapter(VENDOR_KEY, {
       code: VENDOR_KEY,
       type: 'gateway',
@@ -49,7 +52,7 @@ describe('payment adapter on-enable registration (singleton)', () => {
   });
 
   afterAll(async () => {
-    paymentAdapterRegistry.unregister(VENDOR_KEY);
+    paymentAdapterRegistry().unregister(VENDOR_KEY);
     await teardownBackendServer(h);
   });
 

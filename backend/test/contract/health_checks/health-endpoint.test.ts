@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { healthResponseSchema } from '../../../src/modules/health_checks/routes.js';
+import { healthResponseSchema } from '../../../../packages/modules/health_checks/src/backend/routes.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 
 /**

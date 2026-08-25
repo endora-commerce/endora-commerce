@@ -11,7 +11,7 @@ import {
   SEED_DELIVERY_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethod, type PaymentMethodRow } from '../../helpers/package-entities.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 
 /**
@@ -57,7 +57,7 @@ describe('the buyer order list resolves cancellability in a constant number of r
     await teardownBackendServer(h);
   });
 
-  async function bankTransferMethod(): Promise<PaymentMethod> {
+  async function bankTransferMethod(): Promise<PaymentMethodRow> {
     const em = h.em();
     const method = em.create(PaymentMethod, {
       code: `cb_${randomUUID().slice(0, 8)}`,
@@ -74,7 +74,7 @@ describe('the buyer order list resolves cancellability in a constant number of r
   }
 
   /** One order through the storefront route, left where placement leaves it. */
-  async function place(method: PaymentMethod): Promise<string> {
+  async function place(method: PaymentMethodRow): Promise<string> {
     const add = await h.app.inject({
       method: 'POST',
       url: '/api/v1/cart/items',
@@ -102,7 +102,7 @@ describe('the buyer order list resolves cancellability in a constant number of r
    * leaves it at the failure status **with** a transition entry — the only
    * shape whose cancellability the history read decides.
    */
-  async function placeAndDecline(method: PaymentMethod): Promise<void> {
+  async function placeAndDecline(method: PaymentMethodRow): Promise<void> {
     const orderId = await place(method);
     const payment = await h.em().findOneOrFail(Payment, { orderId });
     const declined = await h.app.inject({

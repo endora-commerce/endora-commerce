@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { PaymentAdapter, PaymentEligibilityContext } from '@endora-commerce/contracts';
-import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
-import { PaymentMethodEligibilityService } from '../../../src/modules/payment_methods/services/payment-method-eligibility.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
+import { PaymentMethodEligibilityService } from '../../../../packages/modules/payment_methods/src/backend/services/payment-method-eligibility.js';
+// The class from the package's **source**, not `helpers/package-entities.ts`:
+// this test hands it to no ORM — it calls `new PaymentMethod()` and reads the
+// instance straight back — so there is no registered class for a second copy
+// to disagree with, and `EntityClass<T>` is not constructable. The note at the
+// foot of that helper is the long form.
+import { PaymentMethod } from '../../../../packages/modules/payment_methods/src/backend/entities/payment-method.entity.js';
 import { SettingsChannelIdInvalid } from '../../../src/kernel/settings/settings.service.js';
 
 const adapter = (key: string, storefront: boolean): PaymentAdapter => ({

@@ -13,7 +13,7 @@ import { composeModules } from '../../../src/kernel/compose.js';
 import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
 import { AssetsLibraryService } from '../../../src/modules/assets_library/services/assets-library.service.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
+import { LanguageReferenceRegistry } from '../../../../packages/modules/languages/src/backend/services/language-reference-registry.js';
 
 /**
  * D-68 — an asset a **switched-off** `blog` still references cannot be deleted.

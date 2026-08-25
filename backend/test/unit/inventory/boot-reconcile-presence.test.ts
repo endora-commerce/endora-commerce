@@ -7,7 +7,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { CountryReferenceRegistry } from '../../../src/modules/dictionaries/services/country-reference-registry.js';
-import { AuditReferenceRegistry } from '../../../src/modules/audit_logs/services/audit-reference-registry.js';
+import { AuditReferenceRegistry } from '../../../../packages/modules/audit_logs/src/backend/services/audit-reference-registry.js';
 
 /**
  * Issue #146 / D-68 — `inventory`'s warehouse/channel reconcile decides presence

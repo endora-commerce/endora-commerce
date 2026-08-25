@@ -1,7 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { DeliveryMethod } from '../../src/modules/delivery_methods/entities/delivery-method.entity.js';
-import { PaymentMethod } from '../../src/modules/payment_methods/entities/payment-method.entity.js';
-import { Address } from '../../src/modules/addresses/entities/address.entity.js';
+import { Address, PaymentMethod } from './package-entities.js';
 import { Cart } from '../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../src/modules/carts/entities/cart-item.entity.js';
 import { StockLevel } from '../../src/modules/inventory/entities/stock-level.entity.js';

@@ -7,7 +7,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
-import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
+import { LanguageReferenceRegistry } from '../../../../packages/modules/languages/src/backend/services/language-reference-registry.js';
 
 /**
  * Issue #146 / D-68 — `blog`'s boot hook was **mixed**, and one probe at the top

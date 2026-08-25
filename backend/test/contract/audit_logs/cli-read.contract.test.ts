@@ -5,14 +5,17 @@ import { promisify } from 'node:util';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectModuleCommands, helpFor } from '../../../src/cli/module-commands.js';
-import { cliCommands } from '../../../src/modules/audit_logs/manifest.js';
-import { read } from '../../../src/modules/audit_logs/cli/read.js';
+import { cliCommands } from '../../../../packages/modules/audit_logs/src/manifest.js';
+import { read } from '../../../../packages/modules/audit_logs/src/backend/cli/read.js';
 import type { ModuleContext } from '../../../src/kernel/module-context.js';
 
 const exec = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const backendRoot = resolve(here, '../../..');
-const body = resolve(backendRoot, 'src/modules/audit_logs/cli/read.ts');
+const repoRoot = resolve(backendRoot, '..');
+// The **source** the package compiles, not the artefact it ships: this file
+// asserts about the header's own text, which `dist` does not carry.
+const body = resolve(repoRoot, 'packages/modules/audit_logs/src/backend/cli/read.ts');
 
 /**
  * `audit:read` — the surface D-102 ships, and the sentence it must not lose.

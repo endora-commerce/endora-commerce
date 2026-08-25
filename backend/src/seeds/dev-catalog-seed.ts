@@ -66,7 +66,7 @@ import { CustomerAccount } from '../modules/customer_accounts/entities/customer-
 import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
 import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js';
 import { DeliveryMethod } from '../modules/delivery_methods/entities/delivery-method.entity.js';
-import { PaymentMethod } from '../modules/payment_methods/entities/payment-method.entity.js';
+import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { Tax } from '../modules/taxes/entities/tax.entity.js';
 import { DefaultPriceListMigrator } from '../modules/price_lists/services/default-price-list-migration.js';
 import { CatalogProductReadService } from '../modules/catalog/services/catalog-product-read.service.js';
@@ -850,6 +850,23 @@ async function main(): Promise<void> {
   });
   await em.persistAndFlush(pickup);
 
+  // `payment_methods` is a package, and a module package publishes one
+  // `entities` array and no entity class by name (D-168). The class comes off
+  // that array — the one the ORM registered, since
+  // `entities-registry.generated.ts` imports the same export — resolved **by
+  // name**, never by index: a package that grows a second entity would
+  // otherwise silently re-point this insert at another table. The array's
+  // declared element type carries the constructor, so the payload below is
+  // still fully checked.
+  const PaymentMethod = paymentMethodsEntities.find((cls) => cls.name === 'PaymentMethod');
+  if (PaymentMethod === undefined) {
+    throw new Error(
+      `[dev-seed] @endora-commerce/mod-payment-methods/backend publishes no entity class named ` +
+        `'PaymentMethod' (it declares: ` +
+        `${paymentMethodsEntities.map((cls) => cls.name).join(', ') || '(empty)'}). The host ` +
+        `answers a missing array with zero entities and no error, so this has to be said here.`,
+    );
+  }
   const bankTransfer = em.create(PaymentMethod, {
     code: 'bank_transfer',
     name: { 'en-US': 'Bank transfer', 'pl-PL': 'Przelew bankowy' },

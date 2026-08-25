@@ -12,8 +12,8 @@ import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered
 import {
   RecentActivityActionConflict,
   RecentActivityCatalog,
-} from '../../../src/modules/audit_logs/services/recent-activity-catalog.js';
-import { buildRecentActivityResponseSchema } from '../../../src/modules/audit_logs/routes.admin.recent-activity.js';
+} from '../../../../packages/modules/audit_logs/src/backend/services/recent-activity-catalog.js';
+import { buildRecentActivityResponseSchema } from '../../../../packages/modules/audit_logs/src/backend/routes.admin.recent-activity.js';
 
 /**
  * The four host-owned action tables are derived — feature 080, T042j / D-163.1.
@@ -255,13 +255,17 @@ describe('the operator axis is derived too', () => {
  * because that file belongs to that app.
  */
 describe('the host-owned action tables stay retired', () => {
+  // Repository-relative, because `audit_logs` is a package now
+  // (`@endora-commerce/mod-audit-logs`) and these paths are read off disk rather
+  // than imported: the guard is about the *source text* a host file holds, so it
+  // has to name the file the package compiles, not the artefact it ships.
   const FILES = [
-    'src/modules/audit_logs/services/recent-activity-catalog.ts',
-    'src/modules/audit_logs/services/recent-activity-service.ts',
-    'src/modules/audit_logs/services/recent-activity-visibility.ts',
-    'src/modules/audit_logs/routes.admin.recent-activity.ts',
-    'src/modules/audit_logs/commands/recent-activity-visibility.commands.ts',
-    'src/modules/audit_logs/backend.ts',
+    'packages/modules/audit_logs/src/backend/services/recent-activity-catalog.ts',
+    'packages/modules/audit_logs/src/backend/services/recent-activity-service.ts',
+    'packages/modules/audit_logs/src/backend/services/recent-activity-visibility.ts',
+    'packages/modules/audit_logs/src/backend/routes.admin.recent-activity.ts',
+    'packages/modules/audit_logs/src/backend/commands/recent-activity-visibility.commands.ts',
+    'packages/modules/audit_logs/src/backend/index.ts',
   ];
   const DECLARED = new Set(CATALOG.actions());
 
@@ -271,7 +275,7 @@ describe('the host-owned action tables stay retired', () => {
 
   it.each(FILES)('%s names no module-declared action token', (relative) => {
     const source = readFileSync(
-      fileURLToPath(new URL(`../../../${relative}`, import.meta.url)),
+      fileURLToPath(new URL(`../../../../${relative}`, import.meta.url)),
       'utf8',
     );
     // Comments explain, by name, what was retired.
@@ -293,7 +297,7 @@ describe('the host-owned action tables stay retired', () => {
     expect(
       existsSync(
         fileURLToPath(
-          new URL('../../../src/modules/audit_logs/action-catalog.ts', import.meta.url),
+          new URL('../../../../packages/modules/audit_logs/src/backend/action-catalog.ts', import.meta.url),
         ),
       ),
     ).toBe(false);

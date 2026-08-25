@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EnumOrderStatusRegistry,
   OrderStatusRegistryError,
-} from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
+} from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
 
 describe('EnumOrderStatusRegistry', () => {
   const reg = new EnumOrderStatusRegistry();

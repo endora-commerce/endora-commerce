@@ -28,9 +28,9 @@ import {
   settingsManifestWithRecentActivity,
   type ModuleManifest,
 } from '@endora-commerce/contracts';
-import { RecentActivityCatalog } from '../../../src/modules/audit_logs/services/recent-activity-catalog.js';
-import { RecentActivityVisibility } from '../../../src/modules/audit_logs/services/recent-activity-visibility.js';
-import { buildRecentActivityResponseSchema } from '../../../src/modules/audit_logs/routes.admin.recent-activity.js';
+import { RecentActivityCatalog } from '../../../../packages/modules/audit_logs/src/backend/services/recent-activity-catalog.js';
+import { RecentActivityVisibility } from '../../../../packages/modules/audit_logs/src/backend/services/recent-activity-visibility.js';
+import { buildRecentActivityResponseSchema } from '../../../../packages/modules/audit_logs/src/backend/routes.admin.recent-activity.js';
 import {
   collectModuleCommands,
   helpFor,

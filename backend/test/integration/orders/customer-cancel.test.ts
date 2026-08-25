@@ -12,7 +12,7 @@ import {
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethod, type PaymentMethodRow } from '../../helpers/package-entities.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
@@ -70,7 +70,7 @@ describe('a buyer cancels their own order (085 Phase F)', () => {
    * A payment method of this file's own, so a `statusOnFailure` a case needs is
    * never a mutation of the seeded method other files place orders with.
    */
-  async function bankTransferMethod(statusOnFailure = 'on_hold'): Promise<PaymentMethod> {
+  async function bankTransferMethod(statusOnFailure = 'on_hold'): Promise<PaymentMethodRow> {
     const em = h.em();
     const method = em.create(PaymentMethod, {
       code: `cc_${randomUUID().slice(0, 8)}`,
@@ -87,7 +87,7 @@ describe('a buyer cancels their own order (085 Phase F)', () => {
   }
 
   /** Places a one-line order as a stub buyer, which is what allocates stock. */
-  async function place(method: PaymentMethod, as = BUYER): Promise<string> {
+  async function place(method: PaymentMethodRow, as = BUYER): Promise<string> {
     const add = await h.app.inject({
       method: 'POST',
       url: '/api/v1/cart/items',

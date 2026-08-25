@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { AnalyticsEvent } from '../../../src/modules/analytics/entities/analytics-event.entity.js';
+import { AnalyticsEvent } from '../../helpers/package-entities.js';
 
 /**
  * T237 — admin summary endpoint returns totals by type and a daily series

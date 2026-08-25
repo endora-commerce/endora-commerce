@@ -8,7 +8,7 @@ import {
 import {
   registerShippingEmailRenderer,
   resolveShippingEmailRenderer,
-} from '../../../src/modules/shipments/services/shipping-email-renderer.js';
+} from '../../../../packages/modules/shipments/src/backend/services/shipping-email-renderer.js';
 
 /**
  * T049 (US6) — the order-confirmation e-mail renders the delivery line through

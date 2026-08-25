@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Language } from '../../../src/modules/languages/entities/language.entity.js';
+import { Language } from '../../helpers/package-entities.js';
 
 /**
  * T238 — admin language CRUD. The "at most one default" invariant is

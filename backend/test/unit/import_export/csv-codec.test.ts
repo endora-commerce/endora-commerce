@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCsv, rowsToRecords, serializeCsv } from '../../../src/modules/import_export/services/csv-codec.js';
+import { parseCsv, rowsToRecords, serializeCsv } from '../../../../packages/modules/import_export/src/backend/services/csv-codec.js';
 
 /**
  * RFC 4180 round-trips that matter in practice: quoted fields with commas,

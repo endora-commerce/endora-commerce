@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import type { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { registerAuditLogAdminRoutes } from '../../../src/modules/audit_logs/routes.admin.js';
+import { registerAuditLogAdminRoutes } from '../../../../packages/modules/audit_logs/src/backend/routes.admin.js';
 
 /**
  * D-102 — what `audit_logs` can actually promise when `admin_users` is not

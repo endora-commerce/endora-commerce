@@ -1,15 +1,27 @@
 import type { EntityClass } from '@mikro-orm/core';
+import { entities as addressesEntities } from '@endora-commerce/mod-addresses/backend';
+import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/backend';
 import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
+import { entities as currenciesEntities } from '@endora-commerce/mod-currencies/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
+import { entities as languagesEntities } from '@endora-commerce/mod-languages/backend';
+import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as promotionsEntities } from '@endora-commerce/mod-promotions/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
+import { entities as shipmentsEntities } from '@endora-commerce/mod-shipments/backend';
+import type { Address as AddressRow } from '../../../packages/modules/addresses/src/backend/entities/address.entity.js';
+import type { AnalyticsEvent as AnalyticsEventRow } from '../../../packages/modules/analytics/src/backend/entities/analytics-event.entity.js';
 import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
 import type { CreditLimitReservation as CreditLimitReservationRow } from '../../../packages/modules/credit_limits/src/backend/entities/credit-limit-reservation.entity.js';
+import type { Currency as CurrencyRow } from '../../../packages/modules/currencies/src/backend/entities/currency.entity.js';
 import type { GaCustomEvent as GaCustomEventRow } from '../../../packages/modules/google_analytics/src/backend/entities/ga-custom-event.entity.js';
+import type { Language as LanguageRow } from '../../../packages/modules/languages/src/backend/entities/language.entity.js';
+import type { PaymentMethod as PaymentMethodRow } from '../../../packages/modules/payment_methods/src/backend/entities/payment-method.entity.js';
 import type { Promotion as PromotionRow } from '../../../packages/modules/promotions/src/backend/entities/promotion.entity.js';
 import type { QuoteRequest as QuoteRequestRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request.entity.js';
 import type { QuoteRequestItem as QuoteRequestItemRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-item.entity.js';
 import type { QuoteRequestRevision as QuoteRequestRevisionRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-revision.entity.js';
+import type { Shipment as ShipmentRow } from '../../../packages/modules/shipments/src/backend/entities/shipment.entity.js';
 
 /**
  * How a test names a **module package's** entity class (D-168).
@@ -86,3 +98,38 @@ export const CreditLimitReservation = classNamed<CreditLimitReservationRow>(
 );
 
 export const Promotion = classNamed<PromotionRow>(promotionsEntities, 'Promotion');
+
+export const Address = classNamed<AddressRow>(addressesEntities, 'Address');
+
+export const Currency = classNamed<CurrencyRow>(currenciesEntities, 'Currency');
+
+export const Language = classNamed<LanguageRow>(languagesEntities, 'Language');
+
+export const AnalyticsEvent = classNamed<AnalyticsEventRow>(analyticsEntities, 'AnalyticsEvent');
+
+export const Shipment = classNamed<ShipmentRow>(shipmentsEntities, 'Shipment');
+
+export const PaymentMethod = classNamed<PaymentMethodRow>(paymentMethodsEntities, 'PaymentMethod');
+
+/**
+ * The **row shape**, for a test that annotates a variable with it.
+ *
+ * `classNamed` returns MikroORM's `EntityClass<T>`, which is
+ * `Function & { prototype: T }` — a value, and deliberately not a type and not
+ * constructable. Five integration tests write `em.create(PaymentMethod, …)`
+ * *and* `async function place(method: PaymentMethod)`, so they need both halves,
+ * and the type half has to arrive under its own name because the value half
+ * already occupies the class's.
+ *
+ * It re-exports the same `import type` the constants above are built from, so
+ * the shape a test annotates with and the shape `classNamed` was asked for are
+ * one declaration. Nothing is constructed: `export type` erases.
+ *
+ * A test that only ever calls `new PaymentMethod()` — three unit tests over a
+ * stubbed `EntityManager`, which hand the class to no ORM — wants neither half
+ * and imports the class from the package's source directly. That is not a hole
+ * in this door: D-160.6's second-class-object hazard is about the class the ORM
+ * registered metadata for, and a test that registers nothing has no second copy
+ * to disagree with.
+ */
+export type { PaymentMethodRow };

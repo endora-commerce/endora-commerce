@@ -2,8 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PaymentReadPort } from '@endora-commerce/contracts';
-import { makeDeletePaymentMethodCommand } from '../../../src/modules/payment_methods/commands/payment-method.commands.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { makeDeletePaymentMethodCommand } from '../../../../packages/modules/payment_methods/src/backend/commands/payment-method.commands.js';
+// The class from the package's **source**: the `EntityManager` here is a stub
+// (`as unknown as EntityManager`), so nothing registers metadata and there is no
+// second class object to disagree with. `helpers/package-entities.ts` returns
+// `EntityClass<T>`, which `new` cannot call.
+import { PaymentMethod } from '../../../../packages/modules/payment_methods/src/backend/entities/payment-method.entity.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 
 /**

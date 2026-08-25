@@ -224,7 +224,7 @@ Retention policy (feature 027):
   scheduled job that prunes carts, customer accounts, or organizations
   for storage hygiene MUST either skip `cart_audit_entries` or archive
   it first. Reviewers: add this table to the exclusion list in
-  `backend/src/modules/audit_logs/retention-policy.ts` when that policy
+  `packages/modules/audit_logs/src/backend/retention-policy.ts` when that policy
   is introduced.
 - **The platform-wide `audit_log_entries` table follows the audit_logs
   module's retention policy** (controlled outside this feature). The

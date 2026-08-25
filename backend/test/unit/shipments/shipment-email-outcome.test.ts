@@ -18,7 +18,7 @@ import type {
 import {
   ShipmentEmailNotifier,
   type ShipmentEmailNotifierDeps,
-} from '../../../src/modules/shipments/services/shipment-email-notifier.js';
+} from '../../../../packages/modules/shipments/src/backend/services/shipment-email-notifier.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 
 const ORDER_ID = 'bbbbbbbb-0000-4000-8000-000000000001';

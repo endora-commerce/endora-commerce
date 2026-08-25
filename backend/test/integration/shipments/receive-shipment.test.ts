@@ -14,15 +14,15 @@ import {
 import {
   ReceiveShipmentHandler,
   type CarrierCallbackLogger,
-} from '../../../src/modules/shipments/services/receive-shipment-handler.js';
-import type { ShippingEventBus } from '../../../src/modules/shipments/services/events.js';
-import { ShipmentService } from '../../../src/modules/shipments/services/shipment-service.js';
+} from '../../../../packages/modules/shipments/src/backend/services/receive-shipment-handler.js';
+import type { ShippingEventBus } from '../../../../packages/modules/shipments/src/backend/services/events.js';
+import { ShipmentService } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
 import { builtInShippingAdapters } from '../../../src/modules/delivery_methods/adapters/built-in-adapters.js';
 import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { Shipment } from '../../../src/modules/shipments/entities/shipment.entity.js';
+import { Shipment } from '../../helpers/package-entities.js';
 
 interface Fixture {
   method: DeliveryMethod;

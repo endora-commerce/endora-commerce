@@ -9,8 +9,8 @@ import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/s
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { OrderService, type OrderEventBus } from '../../../src/modules/orders/services/order-service.js';
-import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
-import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
+import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
+import { EnumOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
 import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 /**
