@@ -548,6 +548,77 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.pimErgonode', href: null },
   ] },
+<<<<<<< HEAD
+=======
+  { test: /^\/pim-akeneo\/runs\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimAkeneo', href: '/pim-akeneo' },
+    { labelKey: 'appShell.nav.pimAkeneoRuns', href: '/pim-akeneo/runs' },
+    { labelKey: 'appShell.crumb.importRun', href: null },
+  ] },
+  { test: /^\/pim-akeneo\/runs\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimAkeneo', href: '/pim-akeneo' },
+    { labelKey: 'appShell.nav.pimAkeneoRuns', href: null },
+  ] },
+  { test: /^\/pim-akeneo\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimAkeneo', href: null },
+  ] },
+  { test: /^\/product-feeds\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: null },
+  ] },
+  { test: /^\/product-feeds\/new\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
+    { labelKey: 'appShell.crumb.new', href: null },
+  ] },
+  { test: /^\/product-feeds\/templates\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedTemplates', href: null },
+  ] },
+  { test: /^\/product-feeds\/templates\/new\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
+    { labelKey: 'appShell.crumb.new', href: null },
+  ] },
+  { test: /^\/product-feeds\/templates\/import\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
+    { labelKey: 'appShell.crumb.import', href: null },
+  ] },
+  { test: /^\/product-feeds\/templates\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
+    { labelKey: 'appShell.crumb.editor', href: null },
+  ] },
+  { test: /^\/product-feeds\/[^/]+\/runs\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
+    { labelKey: 'appShell.crumb.feedRun', href: null },
+  ] },
+  { test: /^\/product-feeds\/category-mapping\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedCategoryMapping', href: null },
+  ] },
+  { test: /^\/product-feeds\/taxonomy-revisions\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.feedCategoryMapping', href: '/product-feeds/category-mapping' },
+    { labelKey: 'appShell.nav.feedTaxonomyRevisions', href: null },
+  ] },
+  { test: /^\/product-feeds\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
+    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
+    { labelKey: 'appShell.crumb.editor', href: null },
+  ] },
+  { test: /^\/assets-library\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.assetsLibrary', href: null },
+  ] },
+>>>>>>> 656181b02 (Add Akeneo admin connection and run history screens.)
   { test: /^\/inventory\/?$/, build: () => [
     { labelKey: 'appShell.section.inventory', href: null },
   ] },

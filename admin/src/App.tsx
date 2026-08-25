@@ -75,6 +75,8 @@ import { InvoiceTemplatesPage } from './modules/invoices/templates/InvoiceTempla
 import { KsefPage } from './modules/ksef/pages/KsefPage.js';
 import { ErgonodeConnectionPage } from './modules/pim_ergonode/ErgonodeConnectionPage.js';
 import { AkeneoConnectionPage } from './modules/pim_akeneo/AkeneoConnectionPage.js';
+import { AkeneoRunsPage } from './modules/pim_akeneo/AkeneoRunsPage.js';
+import { AkeneoRunDetailPage } from './modules/pim_akeneo/AkeneoRunDetailPage.js';
 import { ErgonodeAttributeMappingPage } from './modules/pim_ergonode/ErgonodeAttributeMappingPage.js';
 import { ErgonodeCategoryMappingPage } from './modules/pim_ergonode/ErgonodeCategoryMappingPage.js';
 import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
@@ -292,6 +294,17 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/pim-ergonode/runs" element={<ErgonodeRunsPage />} />
         <Route path="/pim-ergonode/runs/:runId" element={<ErgonodeRunDetailPage />} />
         <Route path="/pim-akeneo" element={<AkeneoConnectionPage />} />
+<<<<<<< HEAD
+=======
+        <Route path="/pim-akeneo/runs" element={<AkeneoRunsPage />} />
+        <Route path="/pim-akeneo/runs/:runId" element={<AkeneoRunDetailPage />} />
+        <Route path="/taxes" element={<TaxesPage />} />
+        <Route path="/promotions" element={<PromotionsPage />} />
+        <Route path="/promotions/new" element={<PromotionEditPage />} />
+        <Route path="/promotion-rules" element={<PromotionRulesPage />} />
+        <Route path="/promotions/:id/stats" element={<PromotionStatsPage />} />
+        <Route path="/promotions/:id" element={<PromotionEditPage />} />
+>>>>>>> 656181b02 (Add Akeneo admin connection and run history screens.)
         <Route path="/price-lists" element={<PriceListsPage />} />
         <Route path="/price-lists/display-modes" element={<DisplayModeOverridesPage />} />
         <Route path="/price-lists/:id" element={<PriceListDetailPage />} />

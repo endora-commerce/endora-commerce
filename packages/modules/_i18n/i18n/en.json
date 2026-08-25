@@ -271,6 +271,7 @@
   "appShell.nav.paypal": "PayPal",
   "appShell.nav.payu": "PayU",
   "appShell.nav.pimAkeneo": "Akeneo PIM",
+  "appShell.nav.pimAkeneoRuns": "Delivery history",
   "appShell.nav.pimErgonode": "Ergonode PIM",
   "appShell.nav.pimErgonodeAttributeMappings": "Attribute mapping",
   "appShell.nav.pimErgonodeCategoryMappings": "Category mapping",
