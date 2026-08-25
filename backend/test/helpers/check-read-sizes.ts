@@ -423,12 +423,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // both directions, so the changesets are read, judged, and reported as
     // `changesets=` beside these numbers instead of inside them.
     //
-    // **17 → PLACEHOLDER_FILES (T040b batch one): the tree grew.** The
+    // **17 → 27 (T040b batch one): the tree grew.** The
     // population is `2 + members`, and ten module packages are ten new members.
     // This is the ordinary re-record — the remaining ~51 moves will move it
     // again, and the answer stays "re-record", never "widen".
-    files: PLACEHOLDER_FILES,
-    sites: PLACEHOLDER_SITES,
+    files: 27,
+    sites: 34,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-shared-table-wipes.ts': {
