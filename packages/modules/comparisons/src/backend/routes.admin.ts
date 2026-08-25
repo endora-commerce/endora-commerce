@@ -3,10 +3,10 @@ import {
   ERROR_CODES,
   comparisonAdminListQuerySchema,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { ComparisonNotFoundError } from './services/comparison-service.js';
 import type { ComparisonAdminService } from './services/comparison-admin.service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin HTTP surface — feature 007 / US5 / T064.

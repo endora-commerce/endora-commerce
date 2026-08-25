@@ -6,7 +6,7 @@ import type {
   CustomerAccountReadPort,
   CustomerAccountRecord,
 } from '@endora-commerce/contracts';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Comparison } from '../entities/comparison.entity.js';
 import {
   ComparisonNotFoundError,

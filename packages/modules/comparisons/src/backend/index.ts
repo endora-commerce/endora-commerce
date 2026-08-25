@@ -7,11 +7,11 @@ import type {
   ListingPricePort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { ComparisonService } from './services/comparison-service.js';
 import { ComparisonAdminService } from './services/comparison-admin.service.js';
 import { ComparableAttributeProjection } from './services/comparable-attribute-projection.js';
@@ -20,6 +20,8 @@ import { ComparisonPdfRenderer } from './services/comparison-pdf-renderer.js';
 import { registerComparisonsPublicRoutes } from './routes.public.js';
 import { registerComparisonsShareRoutes } from './routes.share.js';
 import { registerComparisonsAdminRoutes } from './routes.admin.js';
+import { ComparisonProduct } from './entities/comparison-product.entity.js';
+import { Comparison } from './entities/comparison.entity.js';
 
 /**
  * `comparisons` — the module that made a whole service to throw it away
@@ -159,3 +161,19 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  ComparisonProduct,
+  Comparison,
+];

@@ -1,10 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import { productAudienceOf } from '../../http/product-audience.js';
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { productAudienceOf } from '@endora-commerce/platform/http';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import type { ComparisonOwner, ComparisonService } from './services/comparison-service.js';
 import { readAnonymousToken } from './services/anonymous-token-cookie.js';
+import { customerActor } from './request-actor.js';
 
 /**
  * Public share-token endpoint — feature 007 / US2 / T040.
@@ -82,10 +83,11 @@ function notFound(): HttpError {
  * `compare_token` cookie); otherwise null.
  */
 function viewerIdentity(request: FastifyRequest): ComparisonOwner | null {
-  if (request.actor.kind === 'customer') {
+  const customer = customerActor(request);
+  if (customer !== null) {
     return {
       kind: 'customer',
-      customerAccountId: request.actor.customerAccountId,
+      customerAccountId: customer.customerAccountId,
     };
   }
   const token = readAnonymousToken(request);

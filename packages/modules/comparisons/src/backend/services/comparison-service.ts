@@ -16,10 +16,10 @@ import {
   type PriceOrganization,
   type ProductAudience,
 } from '@endora-commerce/contracts';
-import { withSystemScope } from '../../../tenancy/index.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { Comparison } from '../entities/comparison.entity.js';
 import { ComparisonProduct } from '../entities/comparison-product.entity.js';
 import type { ShareTokenGenerator } from './share-token-generator.js';
@@ -27,7 +27,7 @@ import type { ComparableAttributeProjection } from './comparable-attribute-proje
 import {
   COMPARE_SETTING_CODES,
   DEFAULT_COMPARE_MAX_PRODUCTS,
-} from '../manifest.js';
+} from '../../manifest.js';
 
 /**
  * ComparisonService — feature 007 / T023 + T024.

@@ -1,3 +1,12 @@
+// `reply.setCookie` and `reply.clearCookie` are not on `FastifyReply`: they are a
+// declaration-merging augmentation `@fastify/cookie` contributes. Inside
+// `backend/src` that augmentation arrived ambiently, through the host's own
+// dependency and its `types` graph — so nothing in this module ever named it. A
+// package compiles against its own manifest, where an unnamed dependency does not
+// exist, and the property simply is not there (TS2339). The import is type-only,
+// so it loads the declarations and emits nothing: registering the plugin stays the
+// host's job, exactly as before.
+import type {} from '@fastify/cookie';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 /**

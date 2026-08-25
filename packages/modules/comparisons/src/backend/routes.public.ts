@@ -5,9 +5,9 @@ import {
   comparisonAddProductInputSchema,
   comparisonSetDisplayModeInputSchema,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import { productAudienceOf } from '../../http/product-audience.js';
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { productAudienceOf } from '@endora-commerce/platform/http';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import {
   ComparisonFullError,
   ComparisonNotFoundError,
@@ -24,6 +24,7 @@ import {
 } from './services/anonymous-token-cookie.js';
 import type { ShareTokenGenerator } from './services/share-token-generator.js';
 import type { Comparison } from './entities/comparison.entity.js';
+import { customerActor } from './request-actor.js';
 
 /**
  * Public HTTP surface — feature 007 / US1 (T027).
@@ -240,10 +241,11 @@ export async function registerComparisonsPublicRoutes(
  * never mint a fresh cookie — only writes do.
  */
 function readOwner(request: FastifyRequest): ComparisonOwner | null {
-  if (request.actor.kind === 'customer') {
+  const customer = customerActor(request);
+  if (customer !== null) {
     return {
       kind: 'customer',
-      customerAccountId: request.actor.customerAccountId,
+      customerAccountId: customer.customerAccountId,
     };
   }
   const token = readAnonymousToken(request);
