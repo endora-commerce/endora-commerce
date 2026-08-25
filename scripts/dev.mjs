@@ -5,7 +5,7 @@
  *
  * Why a custom script: `pnpm --parallel run dev` does not always
  * forward SIGINT to its grandchildren on Linux/macOS. The chain
- * pnpm → pnpm-per-package → tsx/next/vite → node leaves stray
+ * pnpm → pnpm-per-package → esbuild/next/vite → node leaves stray
  * watchers + Next servers when the operator hits Ctrl+C, so the
  * next `pnpm dev` collides on EADDRINUSE.
  *
@@ -13,7 +13,7 @@
  *   - spawns each per-package `pnpm run dev` in its own *process group*
  *     (`detached: true` + `setsid` semantics on Linux);
  *   - relays SIGINT / SIGTERM to the whole process group of every
- *     child so tsx/next/vite's grandchildren die together;
+ *     child so esbuild/next/vite's grandchildren die together;
  *   - waits up to GRACE_MS for graceful shutdown, then escalates to
  *     SIGKILL on any survivors.
  *
@@ -34,7 +34,7 @@ const GRACE_MS = 5000;
  * vars) BEFORE the watcher binary starts. Required because Next.js reads
  * `process.env.PORT` to bind the dev server *before* it loads `.env*` —
  * so a `PORT=…` line in `storefront/.env` is otherwise ignored. Backend
- * (tsx --env-file-if-exists) and admin (vite loadEnv) already self-load,
+ * (`node --env-file-if-exists`) and admin (vite loadEnv) already self-load,
  * but pre-injecting is harmless there and keeps every service uniform.
  */
 function loadDotenv(filePath) {
@@ -62,7 +62,7 @@ function loadDotenv(filePath) {
  * Each service runs the dev binary directly (not via `pnpm run dev`)
  * so there's no wrapper layer between us and the watcher process. This
  * matters because pnpm's per-package wrapper exits early on SIGINT
- * while leaving its grandchildren (vite, next, tsx watch) reparented
+ * while leaving its grandchildren (vite, next, the backend's watch loop) reparented
  * to init — the wrapper's process group is empty by the time we'd
  * escalate to SIGKILL. By running the watcher binary directly under
  * `detached: true`, the watcher itself becomes the process-group
@@ -70,11 +70,16 @@ function loadDotenv(filePath) {
  */
 const services = [
   {
+    // Feature 080 (D-165 step G) — the backend's dev loop is one esbuild context
+    // plus `node --watch` over what it writes, and `backend/scripts/dev.mjs` is
+    // it. Spawning that orchestrator rather than `tsx watch` keeps this file's
+    // rule intact: it is still one binary, still `detached`, so it is still the
+    // process-group leader `process.kill(-pid, signal)` reaches.
     name: 'backend',
     color: '\x1b[36m',
     cwd: resolve(REPO_ROOT, 'backend'),
-    cmd: resolve(REPO_ROOT, 'backend/node_modules/.bin/tsx'),
-    args: ['watch', '--env-file-if-exists=.env', 'src/index.ts'],
+    cmd: process.execPath,
+    args: ['scripts/dev.mjs', 'src/index.ts'],
   },
   {
     name: 'storefront',
