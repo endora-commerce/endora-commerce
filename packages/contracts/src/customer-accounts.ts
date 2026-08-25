@@ -481,6 +481,44 @@ export interface CustomerPasswordVerificationPort {
 }
 
 /**
+ * Container name: `customerRollupScopePort`. Owner: `customer_accounts`.
+ *
+ * Feature 056 (T032) — whether a customer login widens from single-org to its
+ * organization's subtree, and the widened id set when it does. Derived from the
+ * authenticated actor and never from request inputs (Principle XI).
+ *
+ * **Its consumer is a composition root, which is why the shape is unusual.**
+ * The per-request tenant-context builder is where the answer is needed, and the
+ * question has two halves owned by two modules: the capability flag on the
+ * account, which is this module's column, and the tree traversal, which is
+ * `organizations`'. The traversal therefore arrives as `subtreeIds` rather than
+ * being resolved here — the root already holds that module's tree service, and
+ * resolving it from this side would be a cross-module reach into a container
+ * name no contract publishes.
+ *
+ * `undefined` means "stay single-org", for both of the reasons it can: the
+ * account has no organisation, or it does not hold the capability. A caller
+ * that receives it must not widen.
+ *
+ * The capability read runs under a system scope on the owner's side, because
+ * the tenant context is being *established* by the caller and does not exist
+ * yet.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its
+ * manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CustomerRollupScopePort {
+  resolveSubtreeIds(
+    customerAccountId: string,
+    organizationId: string | null,
+    subtreeIds: (organizationId: string) => Promise<string[]>,
+  ): Promise<string[] | undefined>;
+}
+
+/**
  * Container name: `customerRolePort`. Owner: `customer_accounts`.
  *
  * (It said `roleService` until issue #192. Nothing registers that name; the

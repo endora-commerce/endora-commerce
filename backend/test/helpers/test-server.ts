@@ -89,7 +89,9 @@ import type {
   AssetReadPort,
   CustomerAccountReadPort,
   CustomerPasswordVerificationPort,
+  CustomerRollupScopePort,
   OrderReadPort,
+  SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
@@ -104,7 +106,6 @@ import type {
 import type { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import type { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import type { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
-import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
 import type {
   VatValidator,
   VatValidationResult,
@@ -159,11 +160,8 @@ import type {
   TaxonomyFetchResult,
   TaxonomySourceFetcherPort,
 } from '../../src/modules/product_feeds/services/taxonomy-source-fetcher.interface.js';
-import {
-  FeedDeliveryError,
-  type FeedDeliveryAdapter,
-} from '../../src/modules/product_feeds/services/delivery/delivery-adapter.interface.js';
-import type { FeedDeliveryProtocol } from '@endora-commerce/contracts';
+import type { FeedDeliveryAdapter } from '../../src/modules/product_feeds/services/delivery/delivery-adapter.interface.js';
+import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type { PimErgonodeCradle } from '../../src/modules/pim_ergonode/backend.js';
 import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services/ergonode-client.port.js';
 import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/services/ergonode-media-fetcher.js';
@@ -180,7 +178,6 @@ import type { CatalogAttributeReadService } from '../../src/modules/catalog/serv
 import type { PricingServiceContract } from '../../src/modules/price_lists/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
-import { collectRegisteredSettingsManifests } from '../../src/modules/settings/services/registered-settings-manifests.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import type { Mailer } from '../../src/modules/email/services/mailer.js';
 import { seedUs1Catalog } from './seed-catalog.js';
@@ -958,6 +955,21 @@ export async function setupBackendServer(
   const assetReadPort = (): AssetReadPort =>
     (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
 
+  // Feature 080 (T040b) — the roll-up and settings-collection ports, again
+  // mirroring `composition.ts` name for name. Both roots imported the two
+  // derivations out of a module's own sources, which is the spelling that ends
+  // the day the owner becomes a package (D-160.6.1).
+  const customerRollupScopePort = (): CustomerRollupScopePort =>
+    (container.cradle as never as { customerRollupScopePort: CustomerRollupScopePort })
+      .customerRollupScopePort;
+
+  const settingsManifestCollectionPort = (): SettingsManifestCollectionPort =>
+    (
+      container.cradle as never as {
+        settingsManifestCollectionPort: SettingsManifestCollectionPort;
+      }
+    ).settingsManifestCollectionPort;
+
   // T143a — `inventory`'s availability port, mirroring `composition.ts`.
   const inventoryCradle = (): {
     inventoryAvailabilityPort: {
@@ -1429,16 +1441,15 @@ export async function setupBackendServer(
           // per request, and being its own it walked the subtree with
           // `organizations` switched off — the roll-up rule answering out of a
           // module the platform was refusing to serve.
-          const rollupSubtree = await resolveCustomerRollupSubtreeIds(
-            em,
+          const rollupSubtree = await customerRollupScopePort().resolveSubtreeIds(
+            actor.customerAccountId,
+            orgId,
             (id) =>
               (
                 container.cradle as never as {
                   organizationTreeService: { subtreeIds(id: string): Promise<string[]> };
                 }
               ).organizationTreeService.subtreeIds(id),
-            actor.customerAccountId,
-            orgId,
           );
           return resolveTenantContext({
             kind: 'customer',
@@ -2567,7 +2578,7 @@ export async function setupBackendServer(
   // bare-core `REGISTERED_MANIFESTS`, so an overlay module's activation Setting
   // was created by nothing, here or in production.
   await new ManifestReconciler(em()).apply(
-    collectRegisteredSettingsManifests(deploymentShippedEntries(resolvedRegistry)),
+    settingsManifestCollectionPort().collect(deploymentShippedEntries(resolvedRegistry)),
   );
 
   // The explicit boot phase (FR-021), run **once**, after every registration

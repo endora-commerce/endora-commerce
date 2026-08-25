@@ -191,10 +191,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // never required it to own the class.
   organizations: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
 
-  // `composition.ts` still reaches into `email` twice: for the `EmailCradle`
-  // type it resolves the mailer with, and for `absolutizePublicUrl`, a URL
-  // helper it applies on behalf of its consumers. Both disappear when those
-  // consumers resolve it themselves; neither belongs to `email`.
+  // `composition.ts` reaches into `email` once: for the `EmailCradle` type it
+  // resolves the mailer with. It disappears when the mailer's consumers resolve
+  // it themselves.
+  //
+  // There was a second reach, `absolutizePublicUrl`, and it was a **value**
+  // import — the shape that stops having a spelling once the owner is a package
+  // (D-160.6.1). Feature 080's T040b moved the function to the platform rather
+  // than converting the call: it had no consumer inside `email` at all, so it
+  // was a deployment-origin helper filed under the module that first needed it.
   email: ['src/composition.ts'],
   // `auth` (T078). `composition.ts` imports `promoteAdminActor` and the
   // `AuthCradle` type. The type import is the ordinary shape of a root
@@ -268,13 +273,22 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // the first goes when a deployment stops needing to say which module supplies
   // MFA.
   admin_users: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
-  // `settings` (wave 2, T118). Both roots compose the kernel reader through
-  // `composeSettingsKernel` and register the two deployment properties the
-  // admin surface needs — the `secret` encryption key and the effective-state
-  // reader. Like `sales_channels`, that is design rather than residue: a
-  // settings read backs behaviour in nearly every module and cannot be gated
-  // on the settings screens.
-  settings: ['src/composition.ts'],
+  // `settings` needs no entry and gets none, since feature 080's T040b — this
+  // module is now **absent** from the ledger, which is the strongest state a
+  // key can reach.
+  //
+  // The entry that stood here recorded a different reference from the one that
+  // actually held it, which is worth naming rather than quietly deleting. It
+  // read "both roots compose the kernel reader through `composeSettingsKernel`
+  // and register the two deployment properties the admin surface needs"; that
+  // is true and is not a reference into `src/modules/settings/` at all —
+  // `composeSettingsKernel` is `src/kernel/settings/compose.ts`, a sibling of
+  // the reader, and it has been for as long as this entry has. What the scan
+  // was seeing was `collectRegisteredSettingsManifests`, a **value** import of
+  // the module's own source, which T040b replaced with the published
+  // `settingsManifestCollectionPort`. So a reason that was individually true
+  // stood in for a reference it did not describe, and the drain is what
+  // surfaced it — the same failure mode as `orders` and `admin_roles` above.
   // `_lifecycle` (wave 2, T125). It was the longest entry here until D-37 A1
   // moved the presence machinery into `src/kernel/lifecycle/`: the entity left
   // the module and the two kernel files — which held the gating wrappers this

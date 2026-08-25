@@ -15,6 +15,7 @@ import type {
   CustomerPasswordStatePort,
   CustomerPasswordVerificationPort,
   CustomerRolePort,
+  CustomerRollupScopePort,
   CustomerTotpEnrolmentPort,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
@@ -47,6 +48,7 @@ import {
 import { CustomerAuthService } from './services/customer-auth-service.js';
 import { CustomerGroupReadService } from './services/customer-group-read-port.js';
 import { CustomerGroupService } from './services/customer-group-service.js';
+import { CustomerRollupScopeService } from './services/customer-rollup-scope.js';
 import { PasswordResetService } from './services/password-reset-service.js';
 import { RoleService } from './services/role-service.js';
 import { TotpEnrolmentService } from './services/totp-enrolment-service.js';
@@ -229,6 +231,25 @@ export function registerModule(ctx: ModuleContext): void {
    * needs it, which is why it is its own port rather than a field on
    * `customerAccountReadPort`'s record.
    */
+  /**
+   * Feature 080 (T040b) — the roll-up widening the per-request tenant-context
+   * builder asks about, published because both composition roots used to
+   * import the derivation out of this module's sources.
+   *
+   * The traversal arrives as an argument rather than being resolved here: the
+   * caller already holds `organizations`' tree service, and reading it from
+   * this side would be a cross-module resolution of a container name no
+   * contract publishes (`check:port-shape` signal 3).
+   */
+  ctx.di.providePort<CustomerRollupScopePort>(
+    'customerRollupScopePort',
+    ctx
+      .asFunction(
+        ({ emFactory }: CustomerAccountsCradle) => new CustomerRollupScopeService(emFactory),
+      )
+      .singleton(),
+  );
+
   ctx.di.providePort<CustomerPasswordStatePort>(
     'customerPasswordStatePort',
     ctx

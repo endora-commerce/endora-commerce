@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PublicApiBaseUrlNotConfiguredError,
+  absolutizePublicUrl,
   assertPublicApiBaseUrlConfigured,
   configuredPublicApiBaseUrl,
   resolvePublicApiBaseUrl,
@@ -127,5 +128,29 @@ describe('resolvePublicApiBaseUrl', () => {
     expect(() => resolvePublicApiBaseUrl(env({ NODE_ENV: 'production' }))).toThrow(
       PublicApiBaseUrlNotConfiguredError,
     );
+  });
+});
+
+/**
+ * Feature 080 (T040b) — the three cases that travelled with
+ * `absolutizePublicUrl` from `modules/email/absolutize-public-url.test.ts`,
+ * unchanged. The function's only caller was and is the composition root; the
+ * move takes a value import of a module's source out of it.
+ */
+describe('absolutizePublicUrl', () => {
+  it('leaves absolute URLs unchanged', () => {
+    expect(absolutizePublicUrl('https://cdn.example/x.png', 'http://localhost:3001')).toBe(
+      'https://cdn.example/x.png',
+    );
+  });
+
+  it('prefixes host-relative paths with the public base', () => {
+    expect(absolutizePublicUrl('/assets/file/abc', 'http://localhost:3001/')).toBe(
+      'http://localhost:3001/assets/file/abc',
+    );
+  });
+
+  it('returns relative path unchanged when no base is configured', () => {
+    expect(absolutizePublicUrl('/assets/file/abc', '')).toBe('/assets/file/abc');
   });
 });

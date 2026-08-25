@@ -3,7 +3,10 @@ import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { SettingsAdminPort } from '@endora-commerce/contracts';
+import type {
+  SettingsAdminPort,
+  SettingsManifestCollectionPort,
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
@@ -20,6 +23,7 @@ import { ShopInfoResolver } from './services/shop-info-resolver.js';
 import { HomepageResolver } from './services/homepage-resolver.js';
 import { ProductCardButtonsResolver } from './services/product-card-buttons-resolver.js';
 import { SpeculationRulesResolver } from './services/speculation-rules-resolver.js';
+import { SettingsManifestCollectionService } from './services/registered-settings-manifests.js';
 import { registerSettingsAdminRoutes } from './routes.admin.js';
 import { registerSettingsStorefrontRoutes } from './routes.storefront.js';
 import { registerSettingsCacheRoutes } from './routes.cache.js';
@@ -122,6 +126,23 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(() => new SpeculationRulesResolver(lazyPort<SettingsReadPort>(ctx, 'settingsReadPort')))
       .singleton(),
   });
+
+  /**
+   * Feature 080 (T040b) — how a module registry becomes the boot reconcile's
+   * list of settings manifests: this module's own manifest first, so its
+   * `general` group exists before anything falling back to it is inserted, and
+   * each module code exactly once.
+   *
+   * Published because both composition roots need it and both used to import
+   * this module's source for it. The registry stays the caller's argument —
+   * which modules a deployment ships is a composition-root input, which is why
+   * `resolvedModuleRegistry` is a platform-owned container name rather than a
+   * port.
+   */
+  ctx.di.providePort<SettingsManifestCollectionPort>(
+    'settingsManifestCollectionPort',
+    ctx.asFunction(() => new SettingsManifestCollectionService()).singleton(),
+  );
 
   // The type parameter is feature 075 Phase P's compile-time proof that this
   // service still satisfies `SettingsAdminPort` — the write surface six

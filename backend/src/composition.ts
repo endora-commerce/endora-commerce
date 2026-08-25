@@ -4,7 +4,6 @@ import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
-import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/services/customer-rollup-scope.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
 // Feature 080 (T052) — the contract types for the seven ports that replaced
@@ -18,7 +17,9 @@ import type {
   AssetReadPort,
   CustomerAccountReadPort,
   CustomerPasswordVerificationPort,
+  CustomerRollupScopePort,
   OrderReadPort,
+  SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
@@ -72,7 +73,10 @@ import {
 import { createRegistrationOwnership } from './kernel/module-context.js';
 import { platformLogger } from './kernel/logging.js';
 import { requiredModulesFrom } from './kernel/lifecycle/required-modules.js';
-import { assertPublicApiBaseUrlConfigured } from './kernel/public-api-base-url.js';
+import {
+  absolutizePublicUrl,
+  assertPublicApiBaseUrlConfigured,
+} from './kernel/public-api-base-url.js';
 import { promoteAdminActor } from './modules/auth/plugin.js';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
 import { publishStateChanged, registryCache } from './kernel/lifecycle/registry-cache.js';
@@ -86,10 +90,13 @@ import type { OrganizationTreeService } from './modules/organizations/services/o
 import type { OrganizationTaxProfilePort } from './modules/organizations/backend.js';
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
-// `backend.ts`; what stays here is the pure URL helper, which is a function,
-// not a service, and the cradle shape the senders below resolve through.
+// `backend.ts`; what stays here is the cradle shape the senders below resolve
+// through. The URL helper that also stayed was `absolutizePublicUrl`, and
+// feature 080's T040b moved it to the platform: it had no consumer inside
+// `email` at all, so it was a deployment-origin helper filed under the module
+// that first needed it — and a root value import of a module's source is a
+// spelling that ends the day that module becomes a package (D-160.6.1).
 import type { EmailCradle } from './modules/email/backend.js';
-import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
 import type { InvoicesBridge } from './modules/invoices/backend.js';
@@ -116,7 +123,6 @@ import type { NewsletterBridge } from '@endora-commerce/mod-newsletter/backend';
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
 // Feature 066 — Google Tag Manager.
-import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
@@ -423,6 +429,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   const orderReadPort = (): OrderReadPort =>
     (container.cradle as never as { orderReadPort: OrderReadPort }).orderReadPort;
+
+  // Feature 080 (T040b) — the two ports that replaced this root's value
+  // imports of a module's own sources. Same reason as the block above and the
+  // same lazy read: a packaged module publishes `./backend`, not a file path,
+  // so a root that names one stops compiling the day its owner moves — and a
+  // root that names the *source* of a module the platform composes from `dist`
+  // evaluates it twice, which fails silently rather than loudly (D-160.6.1).
+  const customerRollupScopePort = (): CustomerRollupScopePort =>
+    (container.cradle as never as { customerRollupScopePort: CustomerRollupScopePort })
+      .customerRollupScopePort;
+
+  const settingsManifestCollectionPort = (): SettingsManifestCollectionPort =>
+    (
+      container.cradle as never as {
+        settingsManifestCollectionPort: SettingsManifestCollectionPort;
+      }
+    ).settingsManifestCollectionPort;
 
   const assetReadPort = (): AssetReadPort =>
     (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
@@ -1140,11 +1163,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
         // Feature 056 (T032) — a roll-up-enabled customer widens to its org
         // subtree (server-derived). Absent the capability, stays single-org.
-        const rollupSubtree = await resolveCustomerRollupSubtreeIds(
-          em,
-          (id) => organizationTreeService().subtreeIds(id),
+        const rollupSubtree = await customerRollupScopePort().resolveSubtreeIds(
           actor.customerAccountId,
           orgId,
+          (id) => organizationTreeService().subtreeIds(id),
         );
         return resolveTenantContext({
           kind: 'customer',
@@ -2399,7 +2421,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // that also applies its migrations — so reconciling them here as well would
   // let a `SettingCodeConflict` in something an operator merely `pnpm add`ed
   // abort this boot.
-  const settingsManifests: ModuleSettingsManifest[] = collectRegisteredSettingsManifests(
+  const settingsManifests: ModuleSettingsManifest[] = settingsManifestCollectionPort().collect(
     deploymentShippedEntries(resolvedRegistry),
   );
   const reconcilerEm = em();

@@ -1,22 +1,10 @@
 import { settingsManifestWithRecentActivity } from '@endora-commerce/contracts';
 import type {
-  ModuleManifest,
-  ModuleRecentActivity,
   ModuleSettingsManifest,
+  SettingsManifestCollectionPort,
+  SettingsManifestSource,
 } from '@endora-commerce/contracts';
 import { settingsManifest as settingsModuleManifest } from '../manifest.js';
-
-/** The two properties of a registry entry this derivation reads. */
-export interface SettingsManifestSource {
-  readonly manifest: ModuleManifest;
-  /**
-   * The module's recent-activity eligibility (feature 080, T042j / D-163.1).
-   * It implies one Setting — the operator's choice of whether this module's
-   * entries reach the dashboard card — which is derived rather than declared,
-   * so a module that adds the eligibility export gets the control with it.
-   */
-  readonly recentActivity?: ModuleRecentActivity | undefined;
-}
 
 /**
  * Every settings manifest the boot-time {@link ManifestReconciler} must walk,
@@ -59,4 +47,20 @@ export function collectRegisteredSettingsManifests(
         manifest !== undefined && manifest.moduleCode !== settingsModuleManifest.moduleCode,
     );
   return [settingsModuleManifest, ...rest];
+}
+
+/**
+ * The published face of the derivation above — feature 080 (T040b).
+ *
+ * Both composition roots called the function by importing this file, which is
+ * a root value import of a module's source and stops having a spelling the day
+ * `settings` becomes a package (D-160.6.1). The rule is unchanged and stays
+ * here, where the settings module's own manifest is: the roots keep supplying
+ * the registry, because which modules a deployment ships is theirs to say, and
+ * resolve the assembly from the container they already composed.
+ */
+export class SettingsManifestCollectionService implements SettingsManifestCollectionPort {
+  collect(registry: ReadonlyArray<SettingsManifestSource>): ModuleSettingsManifest[] {
+    return collectRegisteredSettingsManifests(registry);
+  }
 }

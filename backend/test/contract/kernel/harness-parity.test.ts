@@ -738,16 +738,6 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
       'harness, which is the shape T143c exists to refuse. It drains with the same D-37 A2 ' +
       'relocation as the three entries above, and no sooner.',
   },
-  'settings:collectRegisteredSettingsManifests': {
-    owner: 'settings',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'Boot-time settings-manifest reconciliation, which must run before any module reads a ' +
-      'setting. The reconciler is already the kernel’s; this collector walks the registered ' +
-      'manifests and is the half still living in the module. It drains when it moves next to ' +
-      '`kernel/settings/manifest-reconciler.ts`, whose input it builds.',
-  },
   'auth:promoteAdminActor': {
     owner: 'auth',
     roots: ['production'],
@@ -757,32 +747,6 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
       'asserting it is one. Owner `auth`, which owns the actor shape. It drains when `auth` ' +
       'provides actor promotion as a port; the harness resolves `request.testActor` directly and ' +
       'has nothing to promote, which is why this entry is production-only.',
-  },
-  'email:absolutizePublicUrl': {
-    owner: 'email',
-    roots: ['production'],
-    ownerLocked: true,
-    reason:
-      'A pure function over `BACKEND_PUBLIC_URL` / `PUBLIC_API_BASE_URL` with **no consumer ' +
-      'inside `email`** — the root is its only caller. It is a deployment-origin helper filed ' +
-      'under the module that first needed it; it drains by moving to the platform, a relocation ' +
-      'that should be done for that reason and not for this count.',
-  },
-  'customer_accounts:resolveCustomerRollupSubtreeIds': {
-    owner: 'customer_accounts',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'Feature 056 roll-up widening, called from the per-request tenant-context builder ' +
-      '(`composition.ts:992`). The reason this entry used to carry — "a gated port here puts a ' +
-      'module’s effective state on the path of **every** request, including the ones that must ' +
-      'keep working while it is off" — was written before feature 074 and is void: ' +
-      '`customer_accounts` is `nonDeactivatable`, so that gate has no state in which it says ' +
-      'no and there is no request it could break. What is left is a **cost**, not a boundary: ' +
-      'one more container resolution per customer request, in the hottest builder in the tree. ' +
-      'That is a measurement somebody has to take, and the request scope already pays it for ' +
-      'other names. It drains with that measurement, under Principle I — a root that reads a ' +
-      'module’s roll-up query is a root that has to be edited when the roll-up changes.',
   },
   // `catalog:catalogPromptResolverTools`, `catalog:catalogPromptMutationTools`,
   // `inventory:inventoryPromptTools` and `orders:ordersPromptTools` were here.
@@ -803,24 +767,31 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
   // keyed by contributing module, stating a skip policy — so `catalog` pushes
   // from its own boot hook with a `nonBindingDependencies` entry, and neither
   // root names `catalog/prompt-tools.js`. Production 15 → 14, harness 10 → 9.
-  'product_feeds:FeedDeliveryError': {
-    owner: 'product_feeds',
-    roots: ['harness'],
-    // The one switchable owner on this ledger (D-72 point 1), and the one entry
-    // whose presence claim is therefore live — which is also why it is the one
-    // that is safe to make permanent: nothing is *built* here.
-    permanent: true,
-    reason:
-      'LEDGER-PERMANENT (D-72). Harness-only, and what is imported is the **contract of the ' +
-      'seam** rather than an implementation: this harness contributes delivery adapters that ' +
-      'refuse, and a `product_feeds` delivery adapter says "the transport is absent" by ' +
-      'throwing this error type. No instance of anything `product_feeds` owns is constructed ' +
-      'here, so the hazard the ceiling exists for — a root-built service that keeps answering ' +
-      'after its module is switched off — has no site. The only move that would remove the ' +
-      'name is relocating an error class into `@endora-commerce/contracts` for one test helper’s benefit, ' +
-      'which nothing else in the tree wants and which would put a module’s internal failure ' +
-      'vocabulary into the shared API package. Nothing is: do not drain this.',
-  },
+  //
+  // `settings:collectRegisteredSettingsManifests`,
+  // `customer_accounts:resolveCustomerRollupSubtreeIds`,
+  // `email:absolutizePublicUrl` and `product_feeds:FeedDeliveryError` were the
+  // last four whose owner is a packaging candidate (feature 080, T040b). Each
+  // exited by a different door, and which door was a property of the site:
+  //
+  //  - the settings collector and the roll-up derivation are **rules a module
+  //    owns**, so both are published ports — `settingsManifestCollectionPort`
+  //    and `customerRollupScopePort` — and both roots resolve them lazily out
+  //    of the container they already composed. The registry and the tree
+  //    traversal stay the caller's arguments, because which modules a
+  //    deployment ships and how an organisation's subtree is walked are not
+  //    `settings`' or `customer_accounts`' to decide;
+  //  - `absolutizePublicUrl` had **no consumer inside `email` at all** and is
+  //    now the platform's, beside `configuredPublicApiBaseUrl`, unpublished
+  //    because only the host calls it;
+  //  - `FeedDeliveryError` was `permanent` here and the entry was **wrong**,
+  //    not merely stale. Its argument was that nothing is *constructed* by the
+  //    harness, which is true and is not the whole hazard: `DeliveryService`
+  //    classifies on `instanceof FeedDeliveryError`, so a second evaluation of
+  //    `product_feeds`' sources would answer false and silently reclassify
+  //    every declared refusal as a retryable `internal_error`. The class now
+  //    lives in `@endora-commerce/contracts`, beside the closed reason set it
+  //    carries, which is resolved once.
 };
 
 /**
@@ -841,16 +812,28 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
  * became 10 for that reason and for no drain.
  */
 const ROOT_MODULE_IMPORT_CEILING: Readonly<Record<RootName, number>> = {
-  // 14 → 8 (feature 080, T052). Six declarations left in one merge request,
-  // and five of them were the same shape: `CustomerAccount`, `AdminUser`,
+  // 8 → 5 (feature 080, T040b): the `settings` collector, the
+  // `customer_accounts` roll-up derivation and `email`'s URL helper. What is
+  // left is `auth` and the two infrastructure modules — `_i18n` and
+  // `_lifecycle` — which are the last modules the packaging sweep converts, so
+  // this root now holds a value import of no packaging candidate at all.
+  //
+  // It was 14 → 8 in T052. Six declarations left in one merge request, and
+  // five of them were the same shape: `CustomerAccount`, `AdminUser`,
   // `AdminRole`, `Order` and `Asset`, each read with `em.findOne` in a root
   // bridge. The sixth was `auth:verifyPassword`, which drained with them
   // because what it compared against was two of those entities' password
   // columns.
-  production: 8,
-  // 10 → 5, the same six minus `auth:verifyPassword`, which this root never
-  // held: the harness contributes no password verifier, so disabling a second
-  // factor here has always required a current code.
+  production: 5,
+  // 5 → 3 (T040b): the same collector and roll-up derivation. The third
+  // declaration this root lost is `product_feeds:FeedDeliveryError`, which was
+  // `permanent` and therefore never counted here — so the raw count fell by
+  // three and this number by two.
+  //
+  // It was 10 → 5 in T052, the same six as production minus
+  // `auth:verifyPassword`, which this root never held: the harness contributes
+  // no password verifier, so disabling a second factor here has always
+  // required a current code.
   //
   // The comment this replaces recorded a raise, 9 → 10 (issue #158), and its
   // argument stands and is worth keeping in one line: the declaration added was
@@ -858,7 +841,7 @@ const ROOT_MODULE_IMPORT_CEILING: Readonly<Record<RootName, number>> = {
   // the way the deployment does instead of contributing `() => undefined`. The
   // number went up and the divergence went down, and where those two disagree
   // the divergence is the one that matters.
-  harness: 5,
+  harness: 3,
 };
 
 /**
@@ -884,9 +867,14 @@ const ROOT_MODULE_IMPORT_CRITERION = 10;
  * operator switches its module off and no test can see the difference.
  */
 const ROOT_CONSTRUCTED_MODULE_CLASSES: Readonly<Record<string, string>> = {
-  FeedDeliveryError:
-    'An error type, not a service: the harness throws it from a refusing delivery adapter to ' +
-    'say the transport is absent, which is the shape `product_feeds` declares for that seam.',
+  // Empty since feature 080's T040b. `FeedDeliveryError` was the one entry —
+  // 'an error type, not a service', which was true and was the wrong question:
+  // `DeliveryService` classifies a transport refusal with
+  // `instanceof FeedDeliveryError`, so what mattered was not whether the
+  // harness builds a *service* but whether the class it builds is the one the
+  // module compares against. Once `product_feeds` is a package it would not
+  // have been. The class moved to `@endora-commerce/contracts`, which is
+  // resolved once, so no root imports it out of a module any more.
 };
 
 /** Every value binding a root imports from `src/modules/**`, keyed `<owner>:<binding>`. */
@@ -1148,5 +1136,24 @@ describe('T143c — no root constructs a module-owned service', () => {
     for (const [name, reason] of Object.entries(ROOT_CONSTRUCTED_MODULE_CLASSES)) {
       expect(reason.length, `${name} has no recorded argument`).toBeGreaterThan(40);
     }
+  });
+
+  it('holds no allowance for a class no root imports out of a module', () => {
+    // The direction the assertion above cannot have, because it iterates its
+    // own declared entries: a list that only ever reads itself can say that
+    // every entry carries an argument and can never say that an entry still
+    // describes the tree. `FeedDeliveryError`'s allowance was exactly that —
+    // it would have gone on asserting a shape `product_feeds` no longer
+    // declares, in a file whose whole subject is claims about the two roots.
+    const imported = new Set<string>();
+    for (const [root, source] of ROOT_SOURCES) {
+      for (const key of moduleValueImports(source, `${root}.ts`).keys()) {
+        imported.add(key.slice(key.indexOf(':') + 1));
+      }
+    }
+    const stale = Object.keys(ROOT_CONSTRUCTED_MODULE_CLASSES)
+      .filter((name) => !imported.has(name))
+      .sort();
+    expect(stale).toEqual([]);
   });
 });
