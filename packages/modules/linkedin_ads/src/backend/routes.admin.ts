@@ -7,7 +7,7 @@ import {
 import {
   LINKEDIN_ADS_READ_PERMISSION,
   LINKEDIN_ADS_WRITE_PERMISSION,
-} from './manifest.js';
+} from '../manifest.js';
 import type {
   LinkedInAuditContext,
   LinkedInConversionMappingsService,

@@ -8,7 +8,7 @@ import {
   type LinkedInTriggerAction,
   type UpdateLinkedInConversionMapping,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { LinkedInConversionMapping } from '../entities/linkedin-conversion-mapping.entity.js';
 
 /** Audit context resolved from the request at the route layer. */

@@ -5,7 +5,7 @@ import {
   type LinkedInStorefrontConfig,
   type LinkedInStorefrontMapping,
 } from '@endora-commerce/contracts';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 /**
  * Loader for a channel's enabled conversion mappings in the storefront shape.
