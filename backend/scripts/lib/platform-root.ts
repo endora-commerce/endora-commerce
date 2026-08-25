@@ -83,6 +83,30 @@ export function platformSourceRootOf(members: readonly WorkspaceMember[]): strin
   return root;
 }
 
+/**
+ * The npm name the platform publishes under, or `null` when this workspace has
+ * no platform member (feature 080, T060).
+ *
+ * The name is what a packaged module *writes* — `@endora-commerce/platform/kernel`
+ * — so a check that judges a bare specifier needs it, and needs it derived: the
+ * scope was `@b2b/` until D-161 and a literal in a check is a rename away from a
+ * walk that silently sees nothing. It is read from the same manifest
+ * {@link platformSourceRootOf} and {@link platformSubpathsOf} read, so the three
+ * cannot come to disagree about which member is the platform.
+ */
+export function platformPackageNameOf(members: readonly WorkspaceMember[]): string | null {
+  const declared = members.filter(declaresPlatform);
+  if (declared.length === 0) return null;
+  if (declared.length > 1) {
+    throw new PlatformRootUnresolvableError(
+      `${declared.length} workspace members declare \`endora.type: "platform"\` ` +
+        `(${declared.map((member) => member.name).join(', ')}). A consumer's bare specifier ` +
+        'would be judged against whichever sorted first.',
+    );
+  }
+  return declared[0]!.name;
+}
+
 /** The same, reading the workspace at `repoRoot`. */
 export function platformSourceRootAt(
   repoRoot: string,

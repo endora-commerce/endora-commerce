@@ -245,6 +245,63 @@ export function resolveRelative(fromKey: string, specifier: string): string | nu
   return joined;
 }
 
+/**
+ * The host package as a consumer names it (feature 080, T060).
+ *
+ * A module that has become a workspace package stops writing
+ * `../../kernel/index.js` and writes `@endora-commerce/platform/kernel`. Both
+ * are the same reach at the same barrel, and until T060 only the first was in
+ * the check's population — so a module's platform reaches left the walk the day
+ * the module left the tree, 216 of them by the first batch.
+ *
+ * Neither field is written down anywhere. {@link HostPackage.name} is the name
+ * in the manifest of the member declaring `endora.type: "platform"`, and
+ * {@link HostPackage.subpathTargets} is that manifest's own `exports` map read
+ * back as file keys — so the D-161 scope rename, a sixth published directory
+ * and a renamed host all arrive here by being authored once.
+ */
+export interface HostPackage {
+  /** The npm name the host publishes under. */
+  readonly name: string;
+  /**
+   * Declared subpath (`kernel`) → the barrel's file key, in the caller's own
+   * namespace. A subpath that is not here is one the `exports` map refuses at
+   * resolution time; the caller reports it rather than resolving it.
+   */
+  readonly subpathTargets: ReadonlyMap<string, string>;
+}
+
+/** What a bare specifier into the host package names, or nothing. */
+export type HostReach =
+  | { readonly kind: 'published-subpath'; readonly subpath: string; readonly target: string }
+  | { readonly kind: 'undeclared-subpath'; readonly subpath: string };
+
+/**
+ * The host file a bare specifier names, or `null` when it does not name the
+ * host at all.
+ *
+ * The match is on a **segment boundary**, which is the same care
+ * `check-module-boundary`'s `resolveModulePackage` takes and for the same
+ * reason: `@endora-commerce/platform-extras` is a different package, and a bare
+ * `startsWith` reads it as this one.
+ *
+ * `null` for a relative specifier, for a third party's, and for every specifier
+ * at all when the workspace declares no platform — a fixture workspace
+ * legitimately has none, and "no host reach" is the only honest answer there.
+ */
+export function resolveHostSpecifier(
+  specifier: string,
+  host: HostPackage | null,
+): HostReach | null {
+  if (host === null || specifier.startsWith('.')) return null;
+  if (specifier !== host.name && !specifier.startsWith(`${host.name}/`)) return null;
+  const subpath = specifier.slice(host.name.length).replace(/^\//, '');
+  const target = host.subpathTargets.get(subpath);
+  return target === undefined
+    ? { kind: 'undeclared-subpath', subpath }
+    : { kind: 'published-subpath', subpath, target };
+}
+
 /** Every candidate file a relative specifier could name, most specific first. */
 export function resolutionCandidates(joined: string): readonly string[] {
   const candidates = [

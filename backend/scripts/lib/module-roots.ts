@@ -83,7 +83,7 @@ import {
 } from './workspace-packages.js';
 import { loadManifestActivations, ManifestIndexUnreadableError } from './switchable-modules.js';
 import { moduleIdOf } from './module-population.js';
-import { platformSourceRootOf } from './platform-root.js';
+import { platformPackageNameOf, platformSourceRootOf } from './platform-root.js';
 
 /** The file the composer generates and every module walk derives its floor from. */
 export const MANIFEST_INDEX_FILENAME = 'manifest-index.generated.ts';
@@ -147,6 +147,17 @@ export interface ModuleTreeLayout {
    * refuses on `null` itself.
    */
   readonly platformRoot: string | null;
+  /**
+   * The npm name that platform publishes under — `null` on the same workspaces
+   * {@link ModuleTreeLayout.platformRoot} is `null` on.
+   *
+   * It is the other half of the same answer (feature 080, T060): a module in the
+   * application tree reaches the platform by relative path and a module in a
+   * package reaches it by this name, so a check whose population is *module
+   * reaches into the platform* needs both spellings or it loses the second set
+   * as the sweep converts them.
+   */
+  readonly platformPackageName: string | null;
   /**
    * Every directory a check that reads the whole application source tree must
    * walk: the source root, the platform's, plus each package root — all three
@@ -423,6 +434,7 @@ export async function resolveModuleLayout(
     .filter((root) => root.origin === 'workspace-package')
     .map((root) => root.directory);
   const platformRoot = platformSourceRootOf(members);
+  const platformPackageName = platformPackageNameOf(members);
 
   const keyOf = (absolutePath: string): string => {
     const path = resolve(absolutePath);
@@ -469,6 +481,7 @@ export async function resolveModuleLayout(
     moduleRoots,
     overlayRoot,
     platformRoot,
+    platformPackageName,
     sourceRoots: platformRoot === null ? [srcRoot, ...packageRoots] : [srcRoot, platformRoot, ...packageRoots],
     moduleWalkRoots: [
       ...moduleRoots.filter((root) => root.origin === 'application').map((root) => root.directory),

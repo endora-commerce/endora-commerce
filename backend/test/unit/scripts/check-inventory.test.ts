@@ -317,6 +317,13 @@ function platformSurfaceInput(sources: Record<string, string>): PlatformSurfaceI
     surface: publishedSurface(
       new Map([['backend/src/http/index.ts', "export { HttpError } from './error-envelope.js';"]]),
     ),
+    // The host as a packaged module names it (feature 080, T060). The name and
+    // the subpath map are the manifest's in a real run; here they enter as the
+    // fixture's, above the resolution the proof is about.
+    host: {
+      name: '@endora-commerce/platform',
+      subpathTargets: new Map([['http', 'backend/src/http/index.ts']]),
+    },
   };
 }
 
@@ -3764,6 +3771,19 @@ const CHECKS: readonly CheckEntry[] = [
           'unattributed-source',
         ),
       ),
+      // T060 — the shape a packaged module writes. The fixture is a package's
+      // own source text naming the host by its bare specifier, which is the
+      // only spelling a module outside the application tree has: the population
+      // this proof stands over is the one the sweep moves, one module at a time.
+      'unpublished-subpath': top(() =>
+        platformSurfaceFindings(
+          {
+            'packages/modules/blog/src/backend.ts':
+              "import { SettingsCache } from '@endora-commerce/platform/kernel/settings/settings-cache.js';",
+          },
+          'unpublished-subpath',
+        ),
+      ),
       'stale-ledger-key': top(
         () =>
           checkPlatformSurface(platformSurfaceInput({}), {
@@ -5604,7 +5624,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // surface come back **short**, which is the direction that reports *more*
       // findings, so neither would ever be noticed as a defect — an author would
       // read the extra finding as real and widen the barrel to clear it.
-      'backend/scripts/check-platform-surface.ts': 8,
+      'backend/scripts/check-platform-surface.ts': 9,
       'backend/scripts/check-port-shape.ts': 8,
       // Eight findings, plus the two refusals that are decisions rather than
       // printing: the short walk (issue #215 over a workspace, where losing the

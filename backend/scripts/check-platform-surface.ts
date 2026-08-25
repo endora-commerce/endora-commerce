@@ -17,16 +17,51 @@
  *
  * ## The population, and what it misses
  *
- * Every **relative import specifier** written in a module's own sources — core
- * under the application's module roots, overlay under `src/apps` — that
- * resolves to a file outside the module tree. "Outside the module tree" is the
- * whole predicate: the host is everything that is not a module, so a reach into
- * `src/seeds` or `src/composition.ts` is judged by the same rule as one into
- * `src/kernel`, with no directory list to keep current. Every specifier shape
- * `scripts/lib/specifiers.ts` knows is read, `import type` and the one
- * type-position `import('…')` included (§0b: a `from '…'`-only scan does not see
- * it, and a module would move with an unrewritten specifier that `tsc` resolves
- * and `node` never sees).
+ * Every import specifier written in a module's own sources — core under the
+ * application's module roots, packaged under `packages/modules/<id>`, overlay
+ * under `src/apps` — that names the platform. Two spellings, and they are the
+ * same reach:
+ *
+ *   * a **relative** specifier that resolves to a file outside the module tree.
+ *     "Outside the module tree" is the whole predicate: the host is everything
+ *     that is not a module, so a reach into `src/seeds` or `src/composition.ts`
+ *     is judged by the same rule as one into `src/kernel`, with no directory
+ *     list to keep current.
+ *   * a **bare** specifier into the host package — `<host>/kernel` — which is
+ *     the only spelling a module outside the application tree has (feature 080,
+ *     T060). It resolves through the host's own `exports` map to the same
+ *     barrel, so `@endora-commerce/platform/http` and `../../http/index.js` are
+ *     one answer. Neither the package name nor the subpath list is written
+ *     here: both are read off the manifest of the member declaring
+ *     `endora.type: "platform"`, so the D-161 scope rename and a sixth
+ *     published directory arrive by being authored once.
+ *
+ * A declared subpath lands on a **barrel**, and reaching a barrel is reaching
+ * the published surface entire — so a bare reach is counted, attributed and
+ * cleared, and the symbol-level verdicts below are the relative spelling's. That
+ * is not a weaker rule for a packaged module: a name the barrel does not carry
+ * is a `tsc` error at the import, which is the same answer sooner. What the bare
+ * spelling *can* be wrong about is the **subpath**, and that is the finding it
+ * gets.
+ *
+ * Every specifier shape `scripts/lib/specifiers.ts` knows is read, `import type`
+ * and the one type-position `import('…')` included (§0b: a `from '…'`-only scan
+ * does not see it, and a module would move with an unrewritten specifier that
+ * `tsc` resolves and `node` never sees).
+ *
+ * **The second bullet is T060 and it is a repair, not a widening.** The
+ * population was relative specifiers alone, on the reasoning — written into
+ * this header — that "there is no host package yet, and when there is, its
+ * `exports` map refuses a deep path at resolution time and this check's
+ * population shrinks to nothing on its own". Both halves were wrong by the time
+ * the first module moved. The map refuses a *deep* path and licenses everything
+ * a widened map would license, which is precisely the reach D-160.8 exists to
+ * refuse; and a population that shrinks as the sweep proceeds is a check that
+ * reports green because it stopped looking. Measured: batch one took **104**
+ * reaches out of the walk and modules #1–#5 another 112, while the recorded
+ * read size absorbed one module's worth of the fall inside its own floor. That
+ * is why {@link hostDependentCoverage} exists beside the resolution — the
+ * repair without the floor is one edit away from happening again.
  *
  * **What that misses, stated rather than discovered later.** A specifier is not
  * the only way to reach something, and `check:module-boundary` learned it the
@@ -44,13 +79,11 @@
  *     module-owned tables only, so a module→**platform** table reach is
  *     currently nobody's — the honest statement of the hole, and the natural
  *     second signal here once the host package exists to make it mean something.
- *   * **A bare specifier into the host package.** There is no host package yet
- *     (D-160.5 keeps everything private through Wave 4). When there is, its
- *     `exports` map refuses a deep path at resolution time and this check's
- *     relative-specifier population shrinks to nothing on its own. Nothing here
- *     names a package scope, deliberately: the five `@b2b/*` packages are being
- *     renamed to `@endora-commerce/*` (D-161) and a hard-coded scope is a check
- *     that breaks on a rename.
+ *   * **A module package's own layout.** Where inside a package a subpath
+ *     leads is that package's `exports` map, and this check reads only the
+ *     *host's*. A module that reached another module by bare specifier is
+ *     `check:module-boundary`'s, which resolves module package names for
+ *     exactly that reason.
  *
  * ## The granularity: per symbol, of a named file
  *
@@ -95,7 +128,7 @@
  * unratcheted barrels. The value bought is prospective: a 38th name added to
  * either now has to move an expected set.
  *
- * ## Four findings
+ * ## Five findings
  *
  *   * `unpublished-symbol` — the rule itself.
  *   * `whole-file-reach` — `import * as`, a side-effect import, `export *`, a
@@ -109,6 +142,12 @@
  *   * `unattributed-source` — a file under a module walk root that no module
  *     owns. Same reason: a file walked and not judged is worse than one not
  *     walked, because the `read:` line counts it.
+ *   * `unpublished-subpath` — a bare specifier into the host package naming a
+ *     subpath its `exports` map does not declare, the host's root among them
+ *     (D-160.7 publishes no root export). Today `node` and `tsc` refuse it too,
+ *     which is not a reason to leave it unjudged: what makes it a *finding* is
+ *     that widening the map is the obvious repair, and the whole of D-160.8 is
+ *     that widening the map is the thing an author must not do quietly.
  *
  * ## One key space, and it is the repository's
  *
@@ -124,10 +163,24 @@
  * `packages/modules/<id>/src`: 90 reaches resolved to nothing, and the whole
  * point of that fixture is that a check keeps working while the layout moves.
  *
- * Plus one **refusal**: a barrel this parse cannot read in full (an `export *`,
- * a namespace re-export, an `export { … }` with no `from`) is exit 2, never a
- * narrower published set. A short surface turns correct reaches into findings,
- * and the obvious "repair" for one of those is to widen the barrel.
+ * Plus the **refusals**, each over an input whose silent absence would narrow
+ * the answer rather than fail it:
+ *
+ *   * a barrel this parse cannot read in full (an `export *`, a namespace
+ *     re-export, an `export { … }` with no `from`) is exit 2, never a narrower
+ *     published set. A short surface turns correct reaches into findings, and
+ *     the obvious "repair" for one of those is to widen the barrel;
+ *   * a workspace with no platform member, or a platform member publishing
+ *     under no name — every bare reach would then be judged by nothing;
+ *   * a module package whose `package.json` will not parse, which is what says
+ *     whether it reaches the host at all;
+ *   * and {@link hostDependentCoverage}'s shortfall: a module package that
+ *     declares the host and contributed no host reach to this walk. That is
+ *     issue #215's predicate over the population T060 restored, and it is the
+ *     one derivation that would have caught T060's own defect — `manifest-index`
+ *     counts modules that produced a *file*, which a packaged module does
+ *     plentifully, and `platform-barrels` counts barrels, which a module move
+ *     does not touch.
  *
  * Usage: `tsx scripts/check-platform-surface.ts [--list]`
  * Exit 0 = every module reach into the platform is published or ledgered;
@@ -146,11 +199,13 @@ import {
   publishedSurface,
   PUBLISHED_SUBPATHS,
   resolutionCandidates,
+  resolveHostSpecifier,
   resolveRelative,
   type BarrelUnreadable,
+  type HostPackage,
   type PlatformSurface,
 } from './lib/platform-surface.js';
-import { reportReadSize } from './lib/read-size.js';
+import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
 import { namedSpecifiers } from './lib/specifiers.js';
 
 /** The symbol token recorded for a reach that names no symbol at all. */
@@ -166,7 +221,8 @@ export type PlatformSurfaceFindingKind =
   | 'unpublished-symbol'
   | 'whole-file-reach'
   | 'unresolvable-reach'
-  | 'unattributed-source';
+  | 'unattributed-source'
+  | 'unpublished-subpath';
 
 export interface PlatformSurfaceFinding {
   readonly kind: PlatformSurfaceFindingKind;
@@ -515,6 +571,61 @@ export interface PlatformSurfaceInput {
    * ledger's platform half is spelled at the platform, which is where it is.
    */
   readonly canonicalTargetOf?: (key: string) => string;
+  /**
+   * The host package, so a **bare** specifier into it is judged like a relative
+   * one (feature 080, T060).
+   *
+   * `null` — the default — is "this workspace declares no platform", which is
+   * true of every fixture workspace and of nothing else. It is not a way to
+   * switch the population off: a run whose workspace *has* a platform passes it,
+   * and `main` exits 2 when it cannot find one.
+   */
+  readonly host?: HostPackage | null;
+}
+
+/** One module package's answer to "does your manifest declare the host?". */
+export interface ModulePackageDeclaration {
+  readonly moduleId: string;
+  /** True when its `dependencies` or `peerDependencies` name the host package. */
+  readonly dependsOnHost: boolean;
+}
+
+/**
+ * The floor that follows the sweep: every module package whose manifest
+ * declares the host must have contributed a host reach to this walk.
+ *
+ * This is issue #215's predicate over the population T060 restored, and it is
+ * the one derivation that would have caught the defect. The other two cannot:
+ * `manifest-index` counts modules that produced a **file**, and a packaged
+ * module produces plenty; `platform-barrels` counts barrels, which the move
+ * does not touch. What fell was the *reaches*, and the number that recorded
+ * them was a snapshot in `test/helpers/check-read-sizes.ts` whose −10% floor
+ * absorbed one module's worth of the fall without a word.
+ *
+ * The declaration is a second author's, which is what makes it worth
+ * reconciling against: `manifests:generate` renders a module package's
+ * `peerDependencies` from the bare specifiers its sources import, and
+ * `manifests:check` fails on drift. So "the manifest says this package reaches
+ * the host" and "the walk read a reach from this package" are two derivations
+ * of one fact, and a walk that stopped reading bare specifiers makes them
+ * disagree in the same run.
+ *
+ * `null` rather than `expected: 0` for a tree with no module package that
+ * declares the host — every tree in this repository until !910, and every
+ * fixture workspace. An expectation of zero is itself a refusal in this
+ * grammar, and rightly: a floor that expects nothing is switched off.
+ */
+export function hostDependentCoverage(
+  packages: readonly ModulePackageDeclaration[],
+  hostReachModules: ReadonlySet<string>,
+): ReadCoverage | null {
+  const declaring = packages.filter((pkg) => pkg.dependsOnHost);
+  if (declaring.length === 0) return null;
+  return {
+    source: 'host-dependents',
+    expected: declaring.length,
+    covered: declaring.filter((pkg) => hostReachModules.has(pkg.moduleId)).length,
+  };
 }
 
 /** `<module file>|<platform file>` — the ledger key and the identity of a reach. */
@@ -540,6 +651,15 @@ export interface PlatformSurfaceScan {
   /** Every (specifier, symbol) reach into the platform the walk judged. */
   readonly reaches: number;
   readonly findings: readonly PlatformSurfaceFinding[];
+  /**
+   * Modules that named the host package by its **bare** specifier at least once
+   * — published subpath or not.
+   *
+   * The numerator of {@link hostDependentCoverage}. A reach at a subpath the
+   * host does not publish counts here: the question is whether the walk *read*
+   * the package's host specifiers, and a finding is the loudest possible yes.
+   */
+  readonly hostReachModules: ReadonlySet<string>;
 }
 
 /**
@@ -553,7 +673,9 @@ export interface PlatformSurfaceScan {
 export function scanPlatformSurface(input: PlatformSurfaceInput): PlatformSurfaceScan {
   const attribute = input.moduleIdOf ?? moduleIdOf;
   const canonical = input.canonicalTargetOf ?? ((key: string): string => key);
+  const host = input.host ?? null;
   const findings: PlatformSurfaceFinding[] = [];
+  const hostReachModules = new Set<string>();
   let reaches = 0;
 
   for (const [file, text] of [...input.sources].sort(([a], [b]) => a.localeCompare(b))) {
@@ -575,8 +697,28 @@ export function scanPlatformSurface(input: PlatformSurfaceInput): PlatformSurfac
     }
 
     for (const specifier of namedSpecifiers(text, file)) {
-      if (!specifier.text.startsWith('.')) continue;
-      const resolved = resolveTarget(file, specifier.text, input.files);
+      // A bare specifier into the host package is the same reach a module in
+      // the application tree writes relatively (feature 080, T060). Asked
+      // first, because a specifier that names the host is never a relative one
+      // and the two answers must not both be consulted.
+      const hostReach = resolveHostSpecifier(specifier.text, host);
+      if (hostReach !== null) hostReachModules.add(moduleId);
+      if (hostReach?.kind === 'undeclared-subpath') {
+        findings.push({
+          kind: 'unpublished-subpath',
+          file,
+          line: specifier.line,
+          moduleId,
+          target: specifier.text,
+          symbol: NO_SYMBOL,
+          specifier: specifier.text,
+        });
+        continue;
+      }
+      // Someone else's package: `zod`, `@mikro-orm/core`, another module's.
+      if (hostReach === null && !specifier.text.startsWith('.')) continue;
+      const resolved =
+        hostReach === null ? resolveTarget(file, specifier.text, input.files) : hostReach.target;
       const target = resolved === null ? null : canonical(resolved);
       if (target === null) {
         findings.push({
@@ -637,7 +779,7 @@ export function scanPlatformSurface(input: PlatformSurfaceInput): PlatformSurfac
         : a.target.localeCompare(b.target)
       : a.file.localeCompare(b.file),
   );
-  return { reaches, findings };
+  return { reaches, findings, hostReachModules };
 }
 
 export interface CheckResult {
@@ -652,6 +794,8 @@ export interface CheckResult {
   readonly staleSymbols: readonly string[];
   /** Barrels the parse could not read in full — a caller exits 2 on any. */
   readonly unreadable: readonly BarrelUnreadable[];
+  /** Modules that named the host package's own specifier — see the scan. */
+  readonly hostReachModules: ReadonlySet<string>;
 }
 
 export function checkPlatformSurface(
@@ -690,6 +834,7 @@ export function checkPlatformSurface(
     staleKeys: staleKeys.sort(),
     staleSymbols: staleSymbols.sort(),
     unreadable: input.surface.unreadable,
+    hostReachModules: scan.hostReachModules,
   };
 }
 
@@ -752,6 +897,11 @@ function remedyOf(finding: PlatformSurfaceFinding): string {
       return `\`${finding.specifier}\` resolves to no file the walk found`;
     case 'unattributed-source':
       return 'the walk opened this file and no module owns it';
+    case 'unpublished-subpath':
+      return (
+        `\`${finding.specifier}\` names no subpath the host publishes — its \`exports\` map ` +
+        'refuses the path at resolution time'
+      );
   }
 }
 
@@ -823,6 +973,29 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  // The host as a packaged module names it (feature 080, T060): the npm name off
+  // its own manifest, and one entry per published subpath pointing at the barrel
+  // this run just read. Both derived — a scope written here would break on D-161
+  // and a subpath list would break on the sixth published directory.
+  const hostName = layout.platformPackageName;
+  if (hostName === null) {
+    console.error(
+      `${prefix} the workspace member holding the platform publishes under no name — a ` +
+        'packaged module reaches the platform by that name, so every one of those reaches ' +
+        'would leave the population unjudged',
+    );
+    process.exit(2);
+  }
+  const host: HostPackage = {
+    name: hostName,
+    subpathTargets: new Map(
+      PUBLISHED_SUBPATHS.map((subpath) => [
+        subpath,
+        repoKeyOf(join(platformRoot, barrelKeyOf(subpath))),
+      ]),
+    ),
+  };
+
   // The population is the module tree, and the rest of `src/` is a small
   // fraction of it: a walk that read only the remainder would find no reach at
   // all and print the same green as a clean tree (issue #215). Derived from the
@@ -843,7 +1016,39 @@ async function main(): Promise<void> {
     surface,
     moduleIdOf: attribute,
     canonicalTargetOf,
+    host,
   });
+
+  // The floor that follows the sweep. Every module package's manifest is
+  // rendered from the bare specifiers its sources import (`manifests:generate`),
+  // so a package that declares the host and contributed no host reach means this
+  // walk stopped reading them — which is exactly what happened, unseen, for two
+  // batches. A manifest that will not parse is exit 2 and never a package
+  // credited with declaring nothing (issue #113).
+  const declarations: ModulePackageDeclaration[] = [];
+  for (const root of layout.moduleRoots) {
+    if (root.origin !== 'workspace-package' || root.moduleId === null) continue;
+    const manifestPath = join(root.directory, 'package.json');
+    let manifest: Record<string, unknown>;
+    try {
+      manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
+    } catch (error: unknown) {
+      console.error(
+        `${prefix} ${manifestPath} could not be read (${String(error)}) — it is what says ` +
+          'whether this package reaches the host, and a package credited with declaring ' +
+          'nothing lowers the floor it belongs to',
+      );
+      process.exit(2);
+    }
+    const names = ['dependencies', 'peerDependencies'].flatMap((field) => {
+      const block = manifest[field];
+      return typeof block === 'object' && block !== null && !Array.isArray(block)
+        ? Object.keys(block as Record<string, unknown>)
+        : [];
+    });
+    declarations.push({ moduleId: root.moduleId, dependsOnHost: names.includes(hostName) });
+  }
+  const hostDependents = hostDependentCoverage(declarations, result.hostReachModules);
 
   if (listMode) {
     for (const finding of result.findings) {
@@ -876,6 +1081,7 @@ async function main(): Promise<void> {
         expected: PUBLISHED_SUBPATHS.length,
         covered: surface.barrelsWithExports,
       },
+      ...(hostDependents === null ? [] : [hostDependents]),
     ],
   });
   console.log(

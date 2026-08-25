@@ -349,35 +349,47 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     prefix: '[platform-surface]',
     run: { kind: 'tsx', path: 'scripts/check-platform-surface.ts', args: [] },
     files: 1435,
-    // Re-recorded downward — 1642 → 1588 at module #4, and 1588 → 1414 by the
-    // first **batch** of ten (feature 080, T040b). **Every unit of the fall is a
-    // reach that stopped existing**, which is the only reason a downward
-    // re-record is legitimate here: a module in a package writes
-    // `@endora-commerce/platform/kernel`, a bare specifier this check's
-    // relative-specifier population does not contain, so its platform reaches
-    // leave the walk as the module leaves the tree. That is a blind spot this
-    // check's own header declares, and the batch is what makes it worth saying
-    // out loud: 104 reaches into the host's published surface are now judged by
-    // nothing, and the number grows with every module that moves.
+    // **Re-recorded upward, and this is the move that ends the re-recording**
+    // (feature 080, T060).
     //
-    // The −174 has two parts, and only one of them is this batch's.
+    // The number fell twice for the same reason and neither fall was a defect
+    // in the tree: 1642 → 1588 at module #4, then 1588 → 1414 by the first batch
+    // of ten. A module in a package writes `@endora-commerce/platform/kernel`,
+    // and this check's population was **relative** specifiers only — so its
+    // platform reaches left the walk as the module left the tree, and 216 of
+    // them (the ten of batch one's 104, plus the 112 of modules #1–#5) were
+    // judged by nothing while the check printed a clean line over the
+    // remainder. Worse than the loss was its shape: module #5's fall landed
+    // inside the −10% floor, so nothing re-recorded it and `master` read 1518
+    // against a recorded 1588 for two batches. A monotone decline and a band
+    // that absorbs one module of it is a ratchet that stops ratcheting exactly
+    // while the layout is moving.
     //
-    // **−104 for the ten**, counted with this check's own specifier reader over
-    // `master`'s copies of their files rather than inferred from two runs — a
-    // named binding is one reach, a whole-file or namespace import is one:
-    // `audit_logs` 22, `payment_methods` 17, `shipments` 15, `seo` 14,
-    // `languages` 10, `addresses` 7, `currencies` 7, `import_export` 6,
-    // `analytics` 5, `health_checks` 1.
+    // T060 puts the bare specifier in the population: `<host>/<subpath>`
+    // resolves to the same barrel the relative specifier resolves to, so a
+    // module's platform reaches are **the same number in both layouts**. 1415 →
+    // 1631 on the run that landed it, +216 counted independently with the
+    // check's own specifier reader (`quote_requests` 36, `blog` 24,
+    // `promotions` 24, `audit_logs` 22, `payment_methods` 17, `credit_limits`
+    // 15, `shipments` 15, `seo` 14, `google_analytics` 13, `languages` 10,
+    // `addresses` 7, `currencies` 7, `import_export` 6, `analytics` 5,
+    // `health_checks` 1), and no finding and no ledger key moved with it.
     //
-    // **−70 that predates the batch.** 1588 was recorded at module #4; module #5
-    // (`promotions`) moved next and its fall stayed inside the −10% floor, so
-    // nothing re-recorded it and `master` already read 1518. The slack absorbed
-    // one module's worth of a monotone decline — which is exactly what the
-    // `check-release-intent` entry below warns about in the other direction, and
-    // is the reason this number is now the tree rather than the tree plus
-    // whatever the band could still hide.
-    sites: 1414,
-    sources: ['manifest-index', 'platform-barrels'],
+    // So the next batch of module moves must leave this number **where it is**,
+    // which is what makes it a record worth holding: it is no longer a function
+    // of where the modules live. And the number is no longer what guards the
+    // population either — `host-dependents` below is, per package and derived on
+    // every run, so a walk that stopped reading those specifiers is exit 2
+    // rather than a band nobody re-recorded.
+    sites: 1631,
+    // The third source is T060's floor: every module package whose manifest
+    // declares the host package must have contributed a host reach to this walk.
+    // The manifest is rendered from the bare specifiers the package's sources
+    // import (`manifests:generate`), so the two derivations are independent and
+    // a walk that stopped reading those specifiers makes them disagree in the
+    // same run. It appears only while a module package declares the host, which
+    // is every tree since !910 — `expected: 0` is itself a refusal.
+    sources: ['manifest-index', 'platform-barrels', 'host-dependents'],
   },
   'backend/scripts/check-port-shape.ts': {
     prefix: '[port-shape]',

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   checkPlatformSurface,
+  hostDependentCoverage,
   keyOf,
   platformSurfaceRefusal,
   scanPlatformSurface,
@@ -14,13 +15,16 @@ import {
   type PlatformSurfaceFinding,
   type PlatformSurfaceInput,
 } from '../../../scripts/check-platform-surface.js';
+import { readSizeRefusal } from '../../../scripts/lib/read-size.js';
 import {
   barrelKeyOf,
   parseBarrel,
   publishedSurface,
   PUBLISHED_SUBPATHS,
   resolutionCandidates,
+  resolveHostSpecifier,
   resolveRelative,
+  type HostPackage,
 } from '../../../scripts/lib/platform-surface.js';
 
 /**
@@ -68,6 +72,22 @@ const FIXTURE_FILES = [
   'backend/src/modules/orders/services/order-service.ts',
 ];
 
+/**
+ * The host package as a packaged module names it (feature 080, T060).
+ *
+ * The name is the manifest's, never a scope written into the analysis, and the
+ * subpath map is the `exports` map read back as file keys — which is what makes
+ * `@endora-commerce/platform/kernel` and `../../kernel/index.js` the same reach
+ * at the same barrel.
+ */
+const HOST: HostPackage = {
+  name: '@endora-commerce/platform',
+  subpathTargets: new Map([
+    ['kernel', 'backend/src/kernel/index.ts'],
+    ['http', 'backend/src/http/index.ts'],
+  ]),
+};
+
 function input(
   sources: Record<string, string>,
   overrides: Partial<PlatformSurfaceInput> = {},
@@ -82,6 +102,7 @@ function input(
         ['backend/src/http/index.ts', HTTP_BARREL],
       ]),
     ),
+    host: HOST,
     ...overrides,
   };
 }
@@ -215,12 +236,13 @@ describe('check:platform-surface findings', () => {
     expect(result.findings).toEqual([]);
   });
 
-  it('leaves a bare specifier alone — there is no host package to name yet', () => {
+  it('leaves a bare specifier into someone else\'s package alone', () => {
     const result = checkPlatformSurface(
       input({ 'backend/src/modules/blog/backend.ts': "import { z } from 'zod';" }),
       {},
     );
     expect(result.findings).toEqual([]);
+    expect(scanPlatformSurface(input({ 'backend/src/modules/blog/backend.ts': "import { z } from 'zod';" })).reaches).toBe(0);
   });
 
   it('reads a type-only import and a type-position dynamic import as reaches', () => {
@@ -248,6 +270,109 @@ describe('check:platform-surface findings', () => {
     );
     expect(scan.reaches).toBe(2);
     expect(scan.findings).toHaveLength(1);
+  });
+});
+
+/**
+ * Feature 080, T060 — the walk keeps its population as a module becomes a
+ * package.
+ *
+ * A module in `backend/src/modules` reaches the platform by relative specifier;
+ * the same module in `packages/modules/<id>` reaches it by the host package's
+ * bare one. Until this block the second was `continue`d one line into the scan,
+ * so the reach left the walk as the module left the tree — 216 of them by the
+ * first batch, judged by nothing, while the check printed a clean line over the
+ * remainder.
+ */
+describe('a bare specifier into the host package', () => {
+  const packaged = 'packages/modules/blog/src/backend.ts';
+
+  it('resolves a published subpath to the barrel it names', () => {
+    expect(resolveHostSpecifier('@endora-commerce/platform/kernel', HOST)).toEqual({
+      kind: 'published-subpath',
+      subpath: 'kernel',
+      target: 'backend/src/kernel/index.ts',
+    });
+  });
+
+  it('answers for nobody else — a relative specifier, another package, a name that merely starts the same', () => {
+    // The segment boundary is the whole of the third: `@endora-commerce/platform-extras`
+    // is a different package, and a bare `startsWith` reads it as this one.
+    expect(resolveHostSpecifier('../../kernel/index.js', HOST)).toBeNull();
+    expect(resolveHostSpecifier('zod', HOST)).toBeNull();
+    expect(resolveHostSpecifier('@endora-commerce/platform-extras/kernel', HOST)).toBeNull();
+    expect(resolveHostSpecifier('@endora-commerce/platform/kernel', null)).toBeNull();
+  });
+
+  it('judges a packaged module\'s reach the walk used to skip', () => {
+    const scan = scanPlatformSurface(
+      input({ [packaged]: "import { HttpError } from '@endora-commerce/platform/http';" }),
+    );
+    expect(scan.reaches).toBe(1);
+    expect(scan.findings).toEqual([]);
+    expect([...scan.hostReachModules]).toEqual(['blog']);
+  });
+
+  it('counts the same reach either way, so the population does not fall when a module moves', () => {
+    // The property the recorded read size rests on: a module's platform reaches
+    // are the same number in both layouts, so the number stops being a function
+    // of where the module lives.
+    const relative = scanPlatformSurface(
+      input({
+        'backend/src/modules/blog/backend.ts':
+          "import { HttpError } from '../../http/error-envelope.js';\n" +
+          "import * as http from '../../http/index.js';",
+      }),
+    );
+    const bare = scanPlatformSurface(
+      input({
+        [packaged]:
+          "import { HttpError } from '@endora-commerce/platform/http';\n" +
+          "import * as http from '@endora-commerce/platform/http';",
+      }),
+    );
+    expect(bare.reaches).toBe(relative.reaches);
+    expect(bare.findings).toEqual([]);
+  });
+
+  it('reports a subpath the host does not publish', () => {
+    const deep = {
+      [packaged]:
+        "import { SettingsCache } from '@endora-commerce/platform/kernel/settings/settings-cache.js';",
+    };
+    const result = checkPlatformSurface(input(deep), {});
+    expect(kinds(result.violations)).toEqual(['unpublished-subpath']);
+    expect(result.violations[0]).toMatchObject({
+      moduleId: 'blog',
+      target: '@endora-commerce/platform/kernel/settings/settings-cache.js',
+      specifier: '@endora-commerce/platform/kernel/settings/settings-cache.js',
+    });
+    // Still a host reach for the coverage derivation: the package named the
+    // host and the walk read it. A subpath the `exports` map refuses is a
+    // finding about the reach, not a reason to forget it was there.
+    expect([...scanPlatformSurface(input(deep)).hostReachModules]).toEqual(['blog']);
+  });
+
+  it('reports the host package\'s root, which D-160.7 leaves unpublished', () => {
+    const result = checkPlatformSurface(
+      input({ [packaged]: "import { HttpError } from '@endora-commerce/platform';" }),
+      {},
+    );
+    expect(kinds(result.violations)).toEqual(['unpublished-subpath']);
+  });
+
+  it('reads nothing as a host reach when the workspace declares no platform', () => {
+    // A fixture workspace legitimately has none, and the answer must be "no
+    // host reach" rather than "every bare specifier is one".
+    const scan = scanPlatformSurface(
+      input(
+        { [packaged]: "import { HttpError } from '@endora-commerce/platform/http';" },
+        { host: null },
+      ),
+    );
+    expect(scan.reaches).toBe(0);
+    expect(scan.findings).toEqual([]);
+    expect([...scan.hostReachModules]).toEqual([]);
   });
 });
 
@@ -325,6 +450,40 @@ describe('the ledger this repository ships', () => {
   });
 });
 
+describe('the host-dependent floor (feature 080, T060)', () => {
+  const declaring = [
+    { moduleId: 'blog', dependsOnHost: true },
+    { moduleId: 'seo', dependsOnHost: true },
+    { moduleId: 'health_checks', dependsOnHost: false },
+  ];
+
+  it('expects a host reach from every package whose manifest declares the host', () => {
+    expect(hostDependentCoverage(declaring, new Set(['blog', 'seo']))).toEqual({
+      source: 'host-dependents',
+      expected: 2,
+      covered: 2,
+    });
+  });
+
+  it('comes back short when a declaring package contributed no reach', () => {
+    // What `reportReadSize` turns into exit 2 — and the whole point of the
+    // derivation: the manifest is generated from the bare specifiers the
+    // sources write, so a package that declares the host and reaches it nowhere
+    // means the walk stopped reading those specifiers.
+    const coverage = hostDependentCoverage(declaring, new Set(['blog']));
+    expect(coverage).toEqual({ source: 'host-dependents', expected: 2, covered: 1 });
+    expect(readSizeRefusal({ prefix: '[platform-surface]', files: 10, coverage: [coverage!] }))
+      .toMatchObject({ kind: 'short-walk' });
+  });
+
+  it('declines to report a floor no package supports, rather than expecting nothing', () => {
+    // `expected: 0` is itself a refusal in this grammar, and a tree with no
+    // module package is a legal tree — every one of them until !910.
+    expect(hostDependentCoverage([{ moduleId: 'blog', dependsOnHost: false }], new Set())).toBeNull();
+    expect(hostDependentCoverage([], new Set())).toBeNull();
+  });
+});
+
 describe('the vacuous-pass guards', () => {
   it('every published subpath has a barrel with exports on this tree', () => {
     for (const subpath of PUBLISHED_SUBPATHS) {
@@ -371,7 +530,7 @@ describe('the vacuous-pass guards', () => {
     ).toBeNull();
   });
 
-  it('exits 0 on this tree, with a read line naming both derivations', () => {
+  it('exits 0 on this tree, with a read line naming all three derivations', () => {
     const run = spawnSync(
       join(BACKEND_ROOT, 'node_modules', '.bin', 'tsx'),
       [join(BACKEND_ROOT, 'scripts', 'check-platform-surface.ts')],
@@ -379,8 +538,13 @@ describe('the vacuous-pass guards', () => {
     );
     expect(run.stderr).toBe('');
     expect(run.status).toBe(0);
+    // The third is T060's: every module package whose manifest declares the
+    // host as a dependency must have contributed a host reach to this walk. It
+    // is the derivation that goes red when the next batch of modules moves and
+    // their bare specifiers stop being read — the failure that stood here for
+    // two batches with nothing but a recorded number between it and a green.
     expect(run.stdout).toMatch(
-      /\[platform-surface\] read: files=\d+ sites=\d+ sources=manifest-index:\d+\/\d+,platform-barrels:5\/5/,
+      /\[platform-surface\] read: files=\d+ sites=\d+ sources=manifest-index:(\d+)\/\1,platform-barrels:5\/5,host-dependents:(\d+)\/\2/,
     );
   });
 });
