@@ -1,6 +1,6 @@
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import type { Command } from '../../../commands/command.js';
-import { HttpError } from '../../../http/error-envelope.js';
+import type { Command } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
 import { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import type { EmailDefaultsRegistry } from '../services/email-defaults-registry.js';
 

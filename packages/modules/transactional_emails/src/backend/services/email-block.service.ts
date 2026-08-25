@@ -17,9 +17,9 @@ import {
 import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
 import { EMAIL_SAFE_COMPONENT_NAMES } from '@endora-commerce/email-components/schema/component-types';
 import { walkUnknownComponents } from '@endora-commerce/email-components/tree/walk-embeds';
-import { HttpError } from '../../../http/error-envelope.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { EmailBlock } from '../entities/email-block.entity.js';
 import { EmailBlockSalesChannel } from '../entities/email-block-sales-channel.entity.js';
 

@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@endora-commerce/contracts';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { CommandBus } from '../../commands/index.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type {
   EmailDeliveryRecorder,
   EmailMailerPort,

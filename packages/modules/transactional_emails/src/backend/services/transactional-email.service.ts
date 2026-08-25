@@ -25,13 +25,13 @@ import { walkUnknownComponents } from '@endora-commerce/email-components/tree/wa
 import { renderEmailHtml } from '@endora-commerce/email-components/render/render-email-html';
 import { renderEmailText } from '@endora-commerce/email-components/render/render-email-text';
 import { renderDirectives } from '@endora-commerce/email-components/directives/directive-engine';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type {
   EmailDeliveryRecorder,
   EmailDeliveryReason,
   EmailMailerPort,
 } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import { TransactionalEmailContent } from '../entities/transactional-email-content.entity.js';
 import type { ContentResolver} from './content-resolver.js';

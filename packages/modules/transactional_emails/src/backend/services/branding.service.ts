@@ -8,11 +8,11 @@
 
 import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { SettingNotRegistered, SettingOutOfScopeForChannel } from '../../../kernel/settings/settings.service.js';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import { SettingNotRegistered, SettingOutOfScopeForChannel } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { SettingsAdminAuditContext, SettingsAdminPort } from '@endora-commerce/contracts';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import { TRANSACTIONAL_EMAILS_SETTING_CODES } from '../manifest.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { TRANSACTIONAL_EMAILS_SETTING_CODES } from '../../manifest.js';
 
 export interface ResolvedBranding {
   salesChannelId: string | null;
