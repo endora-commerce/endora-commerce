@@ -222,10 +222,15 @@ docker run --rm --network "$NET" $(app_env "$TEMPLATE_DB") "$IMAGE" \
 CASE_INDEX=0
 LAST_MODULE_COUNT=0
 
-# probe <base-container> <path> — prints "<status>\n<body>" using the image's own node.
+# probe <path> — prints "<status>\n<body>".
+#
+# Spoken from a throwaway container on this run's network, using the node inside
+# the image **under test's own base**, which is always `$IMAGE` and never the
+# broken derivative: a negative case breaks the application, not the tooling, and
+# a probe that could not run would report `000` for the wrong reason.
 probe() {
   docker run --rm --network "$NET" "$IMAGE" node -e "
-    fetch('http://$APP:3001$2')
+    fetch('http://$APP:3001$1')
       .then(async (r) => { console.log(r.status); console.log(await r.text()); })
       .catch(() => { console.log('000'); console.log(''); });
   " 2>/dev/null
@@ -253,15 +258,18 @@ run_case() {
   docker logs "$APP" > "$WORK/$label.log" 2>&1
 
   if [ "$up" != yes ]; then
-    printf 'did-not-boot: the container never logged "backend listening". Its last lines:\n%s\n' \
-      "$(tail -25 "$WORK/$label.log")"
+    # One line on stdout, because the caller counts findings by line; the log
+    # itself goes to stderr, where it is read rather than counted.
+    printf 'did-not-boot: the "%s" container never logged "backend listening" — its last lines are on stderr above.\n' "$label"
+    echo "[boot-gate] last 25 lines of the \"$label\" container:" >&2
+    tail -25 "$WORK/$label.log" | sed 's/^/  /' >&2
     docker rm -f "$APP" >/dev/null 2>&1
     return 0
   fi
 
-  probe "$APP" "$HEALTH_PATH" > "$WORK/$label.health" 2>/dev/null
+  probe "$HEALTH_PATH" > "$WORK/$label.health" 2>/dev/null
   status=$(head -1 "$WORK/$label.health")
-  probe "$APP" "$PRESENCE_PATH" > "$WORK/$label.presence.raw" 2>/dev/null
+  probe "$PRESENCE_PATH" > "$WORK/$label.presence.raw" 2>/dev/null
   tail -n +2 "$WORK/$label.presence.raw" > "$WORK/$label.presence"
   body=$(boot_gate_module_ids "$WORK/$label.presence" | grep -c '[^[:space:]]')
   LAST_MODULE_COUNT=$body
