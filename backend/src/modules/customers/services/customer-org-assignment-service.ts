@@ -4,16 +4,26 @@ import {
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type OrganizationDetailsPort,
+  type PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type { ModerationActor } from './customer-moderation-service.js';
 
 /**
- * CustomerOrgAssignmentService — assign / unassign a Customer to an
- * Organization (feature 040, US5 / FR-026). Both actions are authority-checked
- * and audited; unassigning the last usable org admin is refused (depletion
- * guard, mirroring moderation).
+ * CustomerOrgAssignmentService — assign a Customer to an Organization, or
+ * detach one from the company it belongs to (feature 040, US5 / FR-026). Both
+ * actions are authority-checked and audited; detaching the last usable org
+ * admin is refused (depletion guard, mirroring moderation).
+ *
+ * **D-178 redefined the second action.** `unassign` wrote
+ * `organization_id = NULL` and produced an account with no tenant: it could not
+ * place an order, submit an RFQ or read an address, it shared one filter bucket
+ * with every other tenant-less account, and nothing ever gave it an
+ * organisation back. The operator's intent — *this person no longer belongs to
+ * that company* — is served exactly by moving them to their own single-member
+ * personal organisation, which is what the operation does now, and what the
+ * platform would have given them had they registered on their own.
  *
  * **Feature 075, Phase C — neither row is this module's.** The membership
  * column belongs to `customer_accounts` and the organisation it points at
@@ -27,6 +37,8 @@ export class CustomerOrgAssignmentService {
     private readonly accountWrites: CustomerAccountLifecycleWritePort,
     private readonly organizations: OrganizationDetailsPort,
     private readonly authority: CustomerAuthorityService,
+    /** D-178 — where a detached member goes. */
+    private readonly personalOrganizations: PersonalOrganizationPort,
   ) {}
 
   async assign(
@@ -38,7 +50,7 @@ export class CustomerOrgAssignmentService {
 
     // Actor must be able to manage the customer in its CURRENT state and in
     // the TARGET organization.
-    await this.assertAuthorized(actor, customer.organizationId ?? null);
+    await this.assertAuthorized(actor, customer.organizationId);
     await this.assertAuthorized(actor, organizationId);
 
     const org = await this.organizations.findById(organizationId);
@@ -51,14 +63,25 @@ export class CustomerOrgAssignmentService {
     });
   }
 
+  /**
+   * Detach the customer from the company they belong to, moving them to their
+   * own personal organisation (D-178).
+   *
+   * The destination is resolved before the depletion guard runs, so the refusal
+   * an operator sees is still the depletion one and not a provisioning failure
+   * underneath it. It is idempotent: a customer already in their own personal
+   * organisation is returned unchanged, and no audit row is written for a move
+   * that did not happen.
+   */
   async unassign(
     customerAccountId: string,
     actor: ModerationActor,
   ): Promise<CustomerAccountRecord> {
     const customer = await this.loadActive(customerAccountId);
-    await this.assertAuthorized(actor, customer.organizationId ?? null);
+    await this.assertAuthorized(actor, customer.organizationId);
 
-    if (!customer.organizationId) return customer; // already standalone
+    const personal = await this.personalOrganizations.provisionPersonalOrganization(customer.id);
+    if (customer.organizationId === personal.id) return customer; // already their own
 
     // Refuse to strand the org without an admin.
     if (customer.role === 'organization_admin') {
@@ -76,7 +99,7 @@ export class CustomerOrgAssignmentService {
       }
     }
 
-    return this.accountWrites.setOrganization(customer.id, null, {
+    return this.accountWrites.detachToPersonalOrganization(customer.id, personal.id, {
       actorAdminUserId: actor.adminUserId,
     });
   }
@@ -88,7 +111,7 @@ export class CustomerOrgAssignmentService {
     actor: ModerationActor,
   ): Promise<CustomerAccountRecord> {
     const customer = await this.loadActive(customerAccountId);
-    await this.assertAuthorized(actor, customer.organizationId ?? null);
+    await this.assertAuthorized(actor, customer.organizationId);
 
     return this.accountWrites.setCustomerGroup(customer.id, customerGroupId, {
       actorAdminUserId: actor.adminUserId,
@@ -105,7 +128,7 @@ export class CustomerOrgAssignmentService {
 
   private async assertAuthorized(
     actor: ModerationActor,
-    organizationId: string | null,
+    organizationId: string,
   ): Promise<void> {
     const allowed = await this.authority.canManageCustomer({
       isPlatformAdmin: actor.isPlatformAdmin,

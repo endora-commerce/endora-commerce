@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
@@ -6,6 +7,7 @@ import { SessionService } from '../../../src/modules/auth/services/session-servi
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CustomerAuthorityService } from '../../../src/modules/customers/services/customer-authority-service.js';
 import { CustomerDeletionService } from '../../../src/modules/customers/services/customer-deletion-service.js';
@@ -51,6 +53,8 @@ describe('CustomerDeletionService', () => {
       {
         ensureForCustomerAccount: async (id) =>
           toOrganizationRecord(await personalOrgs.ensureForCustomerAccountId(id)),
+        provisionPersonalOrganization: async (id) =>
+          toOrganizationRecord(await personalOrgs.provisionPersonalOrganizationFor(id)),
         anonymizeIfOrphaned: async (id) => {
           const org = await personalOrgs.anonymizeIfOrphaned(id);
           return org ? toOrganizationRecord(org) : null;
@@ -71,11 +75,40 @@ describe('CustomerDeletionService', () => {
   });
 
   async function makeCustomer(): Promise<CustomerAccount> {
+    // D-178 — `customer_accounts.organization_id` is NOT NULL.
+    const org = await seedAdHocOrganization(em, 'Deletion Org');
     const c = em.create(CustomerAccount, {
+      organizationId: org.id,
       email: `del-${Date.now()}-${Math.floor(performance.now())}@example.test`,
       passwordHash: await hashPassword('a-very-strong-pass'),
       firstName: 'Del',
       lastName: 'Target',
+    });
+    await em.persistAndFlush(c);
+    return c;
+  }
+
+  /**
+   * The B2C shape: an account standing in its own single-member personal
+   * organisation, written the way `createStandalone` writes it since D-178 —
+   * organisation first, account second, one transaction.
+   */
+  async function makePersonalCustomer(): Promise<CustomerAccount> {
+    const id = randomUUID();
+    const email = `personal-${Date.now()}-${Math.floor(performance.now())}@example.test`;
+    const org = await personalOrgs.provisionFor(em, {
+      customerAccountId: id,
+      email,
+      firstName: 'Solo',
+      lastName: 'Buyer',
+    });
+    const c = em.create(CustomerAccount, {
+      id,
+      organizationId: org.id,
+      email,
+      passwordHash: await hashPassword('a-very-strong-pass'),
+      firstName: 'Solo',
+      lastName: 'Buyer',
     });
     await em.persistAndFlush(c);
     return c;
@@ -132,9 +165,13 @@ describe('CustomerDeletionService', () => {
   });
 
   it('cascades anonymization to the customer’s orphaned personal org (feature 051 T025)', async () => {
-    const c = await makeCustomer();
-    const org = await personalOrgs.ensureForCustomerAccountId(c.id);
-    await em.refresh(c);
+    // D-178 — the account is created *inside* its personal organisation, the
+    // shape `createStandalone` writes, rather than created org-less and linked
+    // afterwards. `makeCustomer` stands its account in a company organisation,
+    // which is the wrong fixture for a cascade that only fires on a personal
+    // one, so this case builds the personal pair explicitly.
+    const c = await makePersonalCustomer();
+    const org = await em.findOneOrFail(Organization, { id: c.organizationId });
     expect(org.isPersonal).toBe(true);
 
     await svc.softDelete(c.id, actor);

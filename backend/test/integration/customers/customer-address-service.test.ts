@@ -6,6 +6,7 @@ import { CustomerAddress } from '../../../src/modules/customers/entities/custome
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AddressReadService } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
 import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
+import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 
 /**
  * Feature 040, US2 — personal address book: one-default-per-(customer, kind)
@@ -33,7 +34,12 @@ describe('CustomerAddressService', () => {
       new AddressReadService(() => em),
       new CustomerAccountReadService(() => em),
     );
+    // D-178 — every account is scoped by an Organization, so the fixture writes
+    // one. It is a company organisation rather than a personal one because
+    // nothing here is about the B2C shape.
+    const org = await seedAdHocOrganization(em, 'Address Book Org');
     const c = em.create(CustomerAccount, {
+      organizationId: org.id,
       email: `addr-${Date.now()}-${Math.floor(performance.now())}@example.test`,
       passwordHash: 'x'.repeat(32),
       firstName: 'Addr',
@@ -91,6 +97,7 @@ describe('CustomerAddressService', () => {
 
   it('refuses to mutate an address the customer does not own', async () => {
     const other = em.create(CustomerAccount, {
+      organizationId: (await seedAdHocOrganization(em, 'Other Org')).id,
       email: `other-${Date.now()}@example.test`,
       passwordHash: 'x'.repeat(32),
       firstName: 'Other',

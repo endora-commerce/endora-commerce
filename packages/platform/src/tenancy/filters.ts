@@ -26,6 +26,14 @@ export function orgFilterCond(): Record<string, unknown> {
     case 'system':
       return {};
     case 'single-org':
+      // The `?? null` is belt-and-braces and **matches nothing** since D-178.
+      // A `single-org` context with a null organisation was producible by
+      // exactly one thing — a signed-in customer whose `customer_accounts` row
+      // had `organization_id IS NULL` — and that column is `NOT NULL` now.
+      // Until it was, this line put every such customer into one shared tenant
+      // bucket: two of them resolved the same predicate and saw each other's
+      // `@OrgScoped` rows. The type keeps the coalesce (`TenantContext`'s field
+      // is optional); the platform no longer has a caller for it.
       return { organizationId: ctx.organizationId ?? null };
     case 'allowed-set':
       return { organizationId: { $in: [...(ctx.allowedOrganizationIds ?? [])] } };

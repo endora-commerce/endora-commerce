@@ -4,6 +4,17 @@ import { Migration } from '@mikro-orm/migrations';
  * Relaxes `customer_accounts.organization_id` from NOT NULL to nullable
  * (feature 026 US2 — Customer accounts may exist without an Organization).
  *
+ * **This migration's design is dead, and everything below it describes a
+ * platform that no longer exists.** Feature 051 replaced it — an individual is
+ * backed by a single-member personal Organization — and D-178 re-tightened the
+ * column in
+ * `20260825T141659_customer_accounts_organization_required`. The paragraphs
+ * below are kept because they say what this statement did on the day it ran;
+ * read them as history and not as current behaviour. In particular the `down()`
+ * here is not a working re-tightening recipe: it sets `organization_id` to the
+ * account's own id against a live `customer_accounts_organization_fk`, so it
+ * fails rather than corrupting. Do not copy it.
+ *
  * Existing rows are unaffected (they keep their organization_id). The
  * column's foreign-key constraint stays in place — when the column IS
  * populated, it still references organizations(id) ON DELETE RESTRICT.

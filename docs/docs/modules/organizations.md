@@ -262,9 +262,11 @@ so it is a migration of `name_search`, not an edit.
   B-Tree index, and remaps every `suspended` row to `blocked`.
 - `048_admin_notifications_init.ts` — adds the `admin_notifications`
   table + the per-admin `admin_notification_reads` bridge.
-- `049_customer_accounts_organization_optional.ts` — relaxes
+- `049_customer_accounts_organization_optional.ts` — relaxed
   `customer_accounts.organization_id` to nullable so guest-style
-  Customer accounts are representable (FR-010 / FR-012).
+  Customer accounts were representable (FR-010 / FR-012). **That design is
+  dead**: feature 051 replaced it and D-178 re-tightened the column — see
+  `customer_accounts`' `20260825T141659_customer_accounts_organization_required`.
 - `089_personal_organizations.ts` — adds `organizations.is_personal`
   and backfills a personal organization for every pre-existing no-org
   customer account (see "Personal organizations" below).
@@ -274,12 +276,15 @@ so it is a migration of `name_search`, not an edit.
 The Organization is the platform's single tenant concept. A B2C /
 individual customer is **not** a null-org special case: every standalone
 customer registration provisions a single-member **personal
-organization** (`is_personal = true`), created automatically by
-`PersonalOrganizationService.ensureFor(account)` and linked to the
-account. This means:
+organization** (`is_personal = true`). Since D-178 the organization and the
+account are written **in one transaction**, by the module that owns the account
+row, on both paths that create one — self-registration and federated sign-in.
+This means:
 
-- **Transacting works unchanged.** `organization_id` is always non-null,
-  so ordering, RFQs, credit, invoices and addresses need no null-org path.
+- **Transacting works unchanged.** `organization_id` is `NOT NULL` since D-178,
+  so ordering, RFQs, credit, invoices and addresses need no null-org path — and
+  the column, not a guard, is what refuses one: MikroORM applies its tenant
+  filter to `SELECT` / `UPDATE` / `DELETE` and not to `INSERT`.
 - **Isolation is structural.** The feature-050 tenant guard isolates each
   personal org as its own tenant — two B2C customers can never see each
   other's data, with zero null-org special-casing.
@@ -294,7 +299,14 @@ account. This means:
 - **Per-channel gate.** Standalone (B2C) registration is controlled per
   sales channel by the `customers.allow_registration_without_organization`
   setting; a B2B-only channel refuses the registration and provisions
-  nothing.
+  nothing. The setting's name is a leftover from feature 026 US2 — what it
+  gates is registration outside a *company* organization, not registration
+  without one.
+- **Detaching a member from a company moves them here.** The admin
+  `DELETE /api/v1/admin/customers/:id/organization` used to write
+  `organization_id = NULL`; since D-178 it provisions (or re-finds) the
+  customer's own personal organization and moves them into it, keeping the
+  `customer_account.organization_unassigned` audit verb.
 
 Company (B2B) organizations are unaffected — the single-member invariant
 (`assertMembershipAllowed`) only rejects adding a second member to a

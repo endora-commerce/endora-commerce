@@ -49,6 +49,7 @@ import {
   toOrganizationRecord,
 } from './services/organization-details-port.js';
 import { PersonalOrganizationService } from './services/personal-organization-service.js';
+import type { PersonalOrganizationProvisionApi } from './ports/personal-organization-provision.js';
 import { OrganizationRestrictionService } from './services/organization-restriction-service.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import { OrganizationInheritanceService } from './services/organization-inheritance-service.js';
@@ -509,9 +510,54 @@ export function registerModule(ctx: ModuleContext): void {
           return {
             ensureForCustomerAccount: async (customerAccountId) =>
               toOrganizationRecord(await service.ensureForCustomerAccountId(customerAccountId)),
+            provisionPersonalOrganization: async (customerAccountId) =>
+              toOrganizationRecord(
+                await service.provisionPersonalOrganizationFor(customerAccountId),
+              ),
             anonymizeIfOrphaned: async (customerAccountId) => {
               const org = await service.anonymizeIfOrphaned(customerAccountId);
               return org ? toOrganizationRecord(org) : null;
+            },
+          };
+        },
+      )
+      .singleton(),
+  );
+
+  /**
+   * D-178 — the co-transactional half of the same provisioning, for the module
+   * that owns the account row.
+   *
+   * A second registration rather than a method on `personalOrganizationPort`
+   * because its signature carries the caller's `EntityManager`, which
+   * `@endora-commerce/contracts` may not name (FR-034). It is declared in this
+   * module's own `ports/` directory, in the shape `credit_limits` and
+   * `promotions` already publish for the same reason, and what holds it
+   * co-transactional is `customer_accounts_organization_fk` — see that file.
+   *
+   * It reads and writes nothing on `customer_accounts`, so unlike the port above
+   * it needs neither of that module's two ports.
+   */
+  ctx.di.providePort<PersonalOrganizationProvisionApi>(
+    'personalOrganizationProvisionApi',
+    ctx
+      .asFunction(
+        ({ emFactory, auditLogService }: OrganizationsCradle): PersonalOrganizationProvisionApi => {
+          const service = new PersonalOrganizationService(
+            emFactory,
+            {
+              read: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+              write: lazyPort<CustomerAccountMemberWritePort>(
+                ctx,
+                'customerAccountMemberWritePort',
+              ),
+            },
+            auditLogService,
+          );
+          return {
+            provisionFor: async (em, input) => {
+              const org = await service.provisionFor(em, input);
+              return { id: org.id };
             },
           };
         },

@@ -494,11 +494,13 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
       if (!deps.cartConversionService) {
         throw new HttpError(503, ERROR_CODES.NOT_FOUND, 'quote_requests_unavailable');
       }
+      // D-178 — an invariant, not a business state; see
+      // `routes.organization.ts`'s twin.
       if (!actor.customer.organizationId) {
         throw new HttpError(
-          422,
-          ERROR_CODES.VALIDATION_FAILED,
-          'organization_required_for_quote_request',
+          500,
+          ERROR_CODES.INTERNAL,
+          'Invariant violated: a customer account has no Organization (Principle XI).',
         );
       }
       const cart = await cartService.getOrCreateForCustomer(actor.customer);

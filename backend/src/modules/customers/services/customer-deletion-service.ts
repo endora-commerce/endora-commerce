@@ -43,7 +43,7 @@ export class CustomerDeletionService {
     actor: ModerationActor,
   ): Promise<CustomerAccountRecord> {
     const customer = await this.load(customerAccountId);
-    await this.assertAuthorized(actor, customer.organizationId ?? null);
+    await this.assertAuthorized(actor, customer.organizationId);
     if (customer.deletedAt) {
       throw new HttpError(409, ERROR_CODES.CUSTOMER_ALREADY_DELETED, 'Customer is already deleted.');
     }
@@ -76,7 +76,7 @@ export class CustomerDeletionService {
     actor: ModerationActor,
   ): Promise<CustomerAccountRecord> {
     const customer = await this.load(customerAccountId);
-    await this.assertAuthorized(actor, customer.organizationId ?? null);
+    await this.assertAuthorized(actor, customer.organizationId);
     return this.accountWrites.restore(customer.id, { actorAdminUserId: actor.adminUserId });
   }
 
@@ -110,7 +110,7 @@ export class CustomerDeletionService {
 
   private async assertAuthorized(
     actor: ModerationActor,
-    organizationId: string | null,
+    organizationId: string,
   ): Promise<void> {
     const allowed = await this.authority.canManageCustomer({
       isPlatformAdmin: actor.isPlatformAdmin,

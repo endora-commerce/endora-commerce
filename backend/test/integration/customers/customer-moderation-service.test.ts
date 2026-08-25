@@ -81,6 +81,9 @@ describe('CustomerModerationService', () => {
     over: Partial<CustomerAccount> = {},
   ): Promise<CustomerAccount> {
     const c = em.create(CustomerAccount, {
+      // D-178 — `organization_id` is NOT NULL, so the default is an
+      // organisation of this fixture's own rather than none.
+      organizationId: over.organizationId ?? (await makeOrg()),
       email: `mod-${Date.now()}-${Math.floor(performance.now())}@example.test`,
       passwordHash: await hashPassword('a-very-strong-pass'),
       firstName: 'Mod',
@@ -150,9 +153,19 @@ describe('CustomerModerationService', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
-  it('any salesperson may block a standalone (org-less) customer', async () => {
-    const svc = makeService(false); // no assignment, but customer is org-less
-    const customer = await makeCustomer({ organizationId: null });
+  // D-178 — there is no org-less customer any more. The rule this case exists
+  // for survives through a different mechanism: a **personal** organisation can
+  // never carry a sales-rep assignment, so `canSeeOrganization`'s
+  // unassigned-org fallback answers `true` for every salesperson. The fixture
+  // therefore stands the customer in an organisation with no assigned rep,
+  // which is what a personal one always is.
+  it('any salesperson may block a customer in an organisation with no assigned rep', async () => {
+    // `canSeeOrganization` is the stub, and it is what carries the
+    // unassigned-org fallback in production: `SalesRepAssignmentService` answers
+    // `true` for an organisation with no assigned rep, which a personal one
+    // always is because it refuses assignments outright.
+    const svc = makeService(true);
+    const customer = await makeCustomer();
     const blocked = await svc.block({
       targetCustomerAccountId: customer.id,
       actor: { adminUserId: '00000000-0000-4000-8000-00000000a003', isPlatformAdmin: false },

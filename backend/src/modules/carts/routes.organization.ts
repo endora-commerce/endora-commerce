@@ -175,8 +175,17 @@ export async function registerCartsOrganizationRoutes(
     if (!actor.customer) {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Sign-in required.');
     }
+    // D-178 — an invariant, not a business state: every customer account has an
+    // Organization (`customer_accounts.organization_id` is `NOT NULL`), so
+    // reaching this is a broken platform and not a buyer who needs to attach
+    // one. Kept rather than deleted — the actor's field is optional at this
+    // seam and the call below takes a `string`.
     if (!actor.customer.organizationId) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'organization_required');
+      throw new HttpError(
+        500,
+        ERROR_CODES.INTERNAL,
+        'Invariant violated: a customer account has no Organization (Principle XI).',
+      );
     }
     const cart = await cartService.getOrCreateForCustomer(actor.customer);
     await cartApprovalService.submitForApproval(cart, {

@@ -37,16 +37,30 @@ export class CustomerAccount {
   id: string = randomUUID();
 
   /**
-   * Feature 026 US2 — relaxed to nullable so the platform can serve no-org /
-   * guest-style Customer accounts that fall back to platform defaults for
-   * prices, credit limit, allowed payment / delivery methods, and warehouse
-   * visibility. Order placement and RFQ submission still require a
-   * non-null organizationId — the order / RFQ route handlers refuse a
-   * 422 when the caller has no Organization.
+   * The tenant that scopes this account, and the platform's single unit of
+   * tenancy (Principle XI).
+   *
+   * **Not nullable, since D-178.** Feature 026 US2 relaxed it so the platform
+   * could serve "no-org / guest-style" accounts falling back to platform
+   * defaults for prices, credit limit, allowed payment and delivery methods and
+   * warehouse visibility. Feature 051 replaced that design: an individual (B2C)
+   * customer is backed by a single-member **personal** organisation, so the
+   * guard always has a concrete tenant and there is no "no-organization"
+   * scoping path. The column stayed nullable for another year and three write
+   * paths went on producing NULLs — self-registration's two-flush window,
+   * federated sign-in (which provisioned no organisation at all), and an admin
+   * "un-assign" button. All three are closed, and the column is `NOT NULL`,
+   * which is the only refusal available: MikroORM applies its tenant filter to
+   * `SELECT` / `UPDATE` / `DELETE` and not to `INSERT`, so nothing in the guard
+   * can stop a tenant-less row being written.
+   *
+   * The account and its organisation are created in **one transaction** — see
+   * `CustomerAccountLifecycleWriteService.createStandalone` and the
+   * federated-sign-in `autoCreate` in this module's `backend.ts`.
    */
-  @Property({ type: 'uuid', nullable: true })
+  @Property({ type: 'uuid' })
   @Index()
-  organizationId?: string | null;
+  organizationId!: string;
 
   @Property({ type: 'string', length: 320 })
   @Unique()

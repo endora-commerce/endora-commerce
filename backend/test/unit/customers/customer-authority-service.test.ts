@@ -38,18 +38,29 @@ describe('CustomerAuthorityService.canManageCustomer', () => {
     expect(stub.calls).toHaveLength(0);
   });
 
-  it('any salesperson may act on a standalone (org-less) customer', async () => {
-    const stub = makeStub(false);
+  /**
+   * D-178 removed the third rule this case used to assert — *"any salesperson
+   * may act on a standalone (org-less) customer"* — because there is no such
+   * customer: `customer_accounts.organization_id` is `NOT NULL`. What the rule
+   * bought is unchanged, and it is now reached through the assignment table:
+   * a **personal** organisation can never carry a sales-rep assignment, so
+   * `canSeeOrganization` answers `true` for every salesperson through its
+   * unassigned-org fallback. That fallback lives in
+   * `SalesRepAssignmentService`, which this file stubs, so what is asserted
+   * here is only that the decision is delegated rather than short-circuited.
+   */
+  it('a customer in a personal organization is decided by the assignment lookup, not short-circuited', async () => {
+    const stub = makeStub(true);
     const svc = new CustomerAuthorityService(stub);
 
     await expect(
       svc.canManageCustomer({
         isPlatformAdmin: false,
         adminUserId: 'rep-1',
-        customerOrganizationId: null,
+        customerOrganizationId: 'personal-org-1',
       }),
     ).resolves.toBe(true);
-    expect(stub.calls).toHaveLength(0);
+    expect(stub.calls).toEqual([['rep-1', 'personal-org-1']]);
   });
 
   it('org-bound customer: authorized when the rep is assigned to the org', async () => {

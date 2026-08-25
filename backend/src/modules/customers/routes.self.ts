@@ -150,7 +150,10 @@ export async function registerCustomersSelfRoutes(
     { preHandler: requireCustomer },
     async (request) => {
       const actor = resolveCustomerActor(request);
-      // Org-less customers cannot have RFQs (submission requires an Org).
+      // Unreachable since D-178: every signed-in customer carries an
+      // Organization (`customer_accounts.organization_id` is `NOT NULL`), so
+      // this is a type guard over an optional actor field and not a supported
+      // "org-less customer" mode.
       if (actor.organizationId === null) {
         return { data: [] };
       }
@@ -172,6 +175,7 @@ export async function registerCustomersSelfRoutes(
     async (request) => {
       const actor = resolveCustomerActor(request);
       const personal = await customerAddressService.listPersonal(actor.customerAccountId);
+      // As above — unreachable since D-178, kept as a type guard.
       const organization =
         actor.organizationId === null
           ? []

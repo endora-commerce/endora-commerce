@@ -104,7 +104,7 @@ export class CustomerModerationService {
     const allowed = await this.authority.canManageCustomer({
       isPlatformAdmin: actor.isPlatformAdmin,
       adminUserId: actor.adminUserId,
-      customerOrganizationId: customer.organizationId ?? null,
+      customerOrganizationId: customer.organizationId,
     });
     if (!allowed) {
       throw new HttpError(
