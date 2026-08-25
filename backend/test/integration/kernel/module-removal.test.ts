@@ -165,9 +165,35 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // specifier into a package is not a reference into `backend/src/modules/`.
   custom_fields: ['src/seeds/attribute-fixtures.ts'],
   inventory: ['src/seeds/dev-catalog-seed.ts'],
-  // `payment_methods` needs no entry either, since T040b's first batch: it is
-  // a package, and the comment above says why a specifier into one is not a
-  // reference into `backend/src/modules/`.
+  // ── Criterion 7's cost, and it is a cost of a decision rather than a defect ─
+  //
+  // The three entries below came back on 2026-08-25 with !997, and the comment
+  // above them — which said `payment_methods` needs no entry because the seed
+  // names a **bare** specifier — stopped being true in the same merge request.
+  // It is corrected here rather than deleted, because the reason it gave was
+  // right for the shape it described.
+  //
+  // A module package publishes `entities` as an array and **no named entity
+  // class** (D-168), so a host program that must *construct* one picks it out
+  // by name — and needs a row type to do it precisely, because `find` over a
+  // heterogeneous array returns a union `em.create` collapses to the first
+  // member. That row type is a caller-supplied `import type` of the entity's
+  // declaration **inside the built artefact**, and `dist` is not a preference:
+  // `backend/tsconfig.build.json` sets `rootDir`, and a `.ts` outside it is
+  // TS6059 **even for a type-only import**, because such an import still joins
+  // the program. A `.d.ts` is exempt. A bare specifier is unavailable because
+  // no `exports` subpath declares a deep entity path, and declaring one would
+  // publish the class D-168 exists to keep unpublished.
+  //
+  // So these are references, and they are ledgered rather than argued away:
+  // deleting one of these packages breaks the **build**. What they are not is
+  // runtime coupling — the imports erase, and `grep -c 'packages/modules'
+  // dist/seeds/dev-catalog-seed.js` is **0**, measured. They retire when the
+  // developer bootstrap stops needing to construct entities at all, which is
+  // the same condition the `src/seeds/` block above already names.
+  delivery_methods: ['src/seeds/dev-catalog-seed.ts'],
+  payment_methods: ['src/seeds/dev-catalog-seed.ts'],
+  taxes: ['src/seeds/dev-catalog-seed.ts'],
   // `orders` needs no entry and gets none, since feature 080's T052. Its single
   // reference was `import { Order } from './modules/orders/entities/order.entity.js'`,
   // read by one `em.findOne` inside a bridge the root contributes; D-168 gives a
