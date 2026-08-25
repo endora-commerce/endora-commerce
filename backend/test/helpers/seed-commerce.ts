@@ -1,5 +1,4 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { DeliveryMethod } from '../../src/modules/delivery_methods/entities/delivery-method.entity.js';
 import { Address, PaymentMethod } from './package-entities.js';
 import { Cart } from '../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../src/modules/carts/entities/cart-item.entity.js';
@@ -15,6 +14,7 @@ import {
 } from './test-actors.js';
 import { SEED_PRODUCT_101_ID } from './seed-catalog.js';
 import { STUB_CUSTOMER_PASSWORD } from './seed-organizations.js';
+import { DeliveryMethod } from './package-entities.js';
 
 /**
  * Deterministic fixture IDs referenced by the US2 contract tests.

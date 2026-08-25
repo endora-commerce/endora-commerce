@@ -22,10 +22,10 @@ import {
 } from '../../helpers/seed-credit-limit.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
+import { DeliveryMethod } from '../../helpers/package-entities.js';
 
 /**
  * Feature 062 / T022 — FR-021 / SC-009 capability envelope, verified by

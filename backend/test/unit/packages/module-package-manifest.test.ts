@@ -105,9 +105,14 @@ function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, s
         bullmq: '^5.76.1',
         fastify: '^5.8.5',
         ioredis: '^5.10.1',
+        nodemailer: '^7.0.13',
         zod: '^4.2.0',
       },
-      devDependencies: { '@types/node': '^22.9.0', typescript: '^5.9.3' },
+      devDependencies: {
+        '@types/node': '^22.9.0',
+        '@types/nodemailer': '^7.0.4',
+        typescript: '^5.9.3',
+      },
     }),
     [`${ROOT}/backend/src/index.generated.ts`]:
       "import { manifest as m1 } from '@endora-commerce/mod-widgets';\n" +
@@ -279,6 +284,46 @@ describe('module package manifests are generated (feature 080, T041)', () => {
         '@types/node': '^22.9.0',
         typescript: '^5.9.3',
       });
+    });
+
+    /**
+     * A library whose types are a separate `@types/*` package (feature 080,
+     * T040b).
+     *
+     * The peer list is derived from the bare specifiers the sources import, and
+     * `@types/nodemailer` is imported by nobody — the compiler finds it through
+     * `node_modules/@types`, which in `backend/` is the application's own
+     * declaration. A package compiles against its **own** manifest, so without
+     * this the module's build is TS7016 (`implicitly has an 'any' type`) on a
+     * line the author never wrote, and only for the module that happened to
+     * import a JS-only library. `newsletter` was the first; `pwa` and
+     * `product_feeds` are the same shape.
+     *
+     * Derived, never listed: the companion is `@types/<name>` under the same
+     * mangling npm uses, and it is added only when the application itself
+     * declares it.
+     */
+    it('names the companion @types package the application declares', () => {
+      const manifest = manifestOf(
+        widgets({
+          ...BACKEND_ONLY,
+          'src/backend/mail.ts':
+            "import { createTransport } from 'nodemailer';\nexport const t = createTransport;\n",
+        }),
+      );
+      expect(manifest['devDependencies']).toMatchObject({
+        nodemailer: '^7.0.13',
+        '@types/nodemailer': '^7.0.4',
+      });
+      // It is a build-time declaration, not something a consumer resolves.
+      expect(manifest['peerDependencies']).not.toHaveProperty('@types/nodemailer');
+    });
+
+    it('names no companion @types package the application does not declare', () => {
+      const manifest = manifestOf(widgets(BACKEND_ONLY));
+      expect(Object.keys(manifest['devDependencies'] as object)).not.toContain(
+        '@types/nodemailer',
+      );
     });
 
     it('refuses a third-party specifier the application declares nowhere', () => {

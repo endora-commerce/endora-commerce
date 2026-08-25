@@ -5,8 +5,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { MfaSocialIdentity } from '../../../src/modules/mfa/entities/mfa-social-identity.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { MfaSocialIdentity } from '../../helpers/package-entities.js';
 
 /**
  * Feature 042 / US4 — storefront federated sign-in (Google), OIDC client faked.

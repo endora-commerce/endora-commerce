@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { MfaEnrolment } from '../../../src/modules/mfa/entities/mfa-enrolment.entity.js';
+import { MfaEnrolment } from '../../helpers/package-entities.js';
 
 /**
  * Issue #223 — an `MFA_*` refusal reaches the person as a sentence, not as the

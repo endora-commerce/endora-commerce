@@ -344,6 +344,17 @@ export function packageNameOf(specifier: string): string | null {
   return isBuiltin(name) ? null : name;
 }
 
+/**
+ * npm's name for a package's DefinitelyTyped companion: `nodemailer` →
+ * `@types/nodemailer`, `@scope/name` → `@types/scope__name`.
+ */
+function typesPackageFor(name: string): string {
+  if (name.startsWith('@types/')) return name;
+  return name.startsWith('@')
+    ? `@types/${name.slice(1).replace('/', '__')}`
+    : `@types/${name}`;
+}
+
 /** `^6.6.13` → `6`; a range with no readable major is refused by the caller. */
 function majorOf(range: string): string | null {
   const match = /^[^\d]*(\d+)\./.exec(range) ?? /^[^\d]*(\d+)$/.exec(range);
@@ -759,6 +770,24 @@ export function renderManifest(input: RenderInput): string {
     }
     peers.set(name, `^${major}`);
     devs.set(name, declared);
+    // A library whose types are a separate `@types/*` package. Nothing imports
+    // that package, so the specifier walk above cannot see it — the compiler
+    // finds it through `node_modules/@types`, which inside `backend/` is the
+    // application's own declaration and inside a package is the package's. So a
+    // module importing a JS-only library builds in `backend/src` and fails as a
+    // package with TS7016 on a line its author never wrote: `newsletter` and
+    // `nodemailer` was the first, `pwa` and `web-push` the second.
+    //
+    // Derived, never listed: the companion name is npm's mangling of the
+    // library's, and it is added only when the application itself declares it —
+    // a library that ships its own types has no `@types` entry to find, and one
+    // whose types the application does not declare is a gap in
+    // `backend/package.json` rather than something to invent here. It goes in
+    // `devDependencies` only: a type-only package is a build input, not
+    // something a consumer resolves.
+    const types = typesPackageFor(name);
+    const typesDeclared = input.versions.get(types);
+    if (typesDeclared !== undefined) devs.set(types, typesDeclared);
   }
   // The toolchain the generated `scripts` themselves need: `tsc` for `build`
   // and `typecheck`, and the ambient Node types every backend module compiles

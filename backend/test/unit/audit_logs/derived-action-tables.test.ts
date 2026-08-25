@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -149,33 +150,36 @@ describe('prompt_action.execute is no longer drift (D-163)', () => {
 
   it("ships that verb key in prompt_actions' own en and pl bundles", () => {
     for (const language of ['en', 'pl'] as const) {
-      const bundle = JSON.parse(
-        readFileSync(
-          fileURLToPath(
-            new URL(
-              `../../../src/modules/prompt_actions/i18n/${language}.json`,
-              import.meta.url,
-            ),
-          ),
-          'utf8',
-        ),
-      ) as Record<string, string>;
+      const bundle = bundleOf('prompt_actions', language);
       expect(bundle['activity.verb.prompt_action.execute'], language).toBeTruthy();
     }
   });
 });
 
+/**
+ * A registered module's translation bundle, wherever that module lives
+ * (feature 080, T040b).
+ *
+ * Both reads below spelled `src/modules/<id>/i18n/<lang>.json`, which stops
+ * being a path the moment the module becomes a package — `ENOENT`, which is the
+ * loud half; the quiet half is that a reader answering `{}` would have reported
+ * every verb key as missing. `dirname(entry.filePath)` is what the `_i18n` boot
+ * reconciler joins `bundlesDir` to, so this reads where production reads.
+ */
+function bundleOf(moduleId: string, language: string): Record<string, string> {
+  const entry = REGISTERED_MANIFESTS.find((candidate) => candidate.manifest.id === moduleId);
+  if (entry === undefined) {
+    throw new Error(`[derived-action-tables] '${moduleId}' is not a registered module`);
+  }
+  const path = join(dirname(entry.filePath), 'i18n', `${language}.json`);
+  return JSON.parse(readFileSync(path, 'utf8')) as Record<string, string>;
+}
+
 describe('every declaring module ships its verb keys in both languages', () => {
   it.each(['en', 'pl'] as const)('%s', (language) => {
     const missing: string[] = [];
     for (const entry of DECLARING) {
-      const bundlePath = fileURLToPath(
-        new URL(
-          `../../../src/modules/${entry.manifest.id}/i18n/${language}.json`,
-          import.meta.url,
-        ),
-      );
-      const bundle = JSON.parse(readFileSync(bundlePath, 'utf8')) as Record<string, string>;
+      const bundle = bundleOf(entry.manifest.id, language);
       for (const declaration of entry.recentActivity!.entries) {
         if (!bundle[declaration.labelKey]) {
           missing.push(`${entry.manifest.id}: ${declaration.labelKey}`);

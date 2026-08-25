@@ -1,0 +1,61 @@
+{
+  "name": "@endora-commerce/mod-prompt-actions",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "Natural-language prompt mode for the admin command palette: interpret an operator instruction with an LLM, preview the plan, execute it through existing module services after explicit confirmation.",
+  "endora": {
+    "type": "module",
+    "id": "prompt_actions"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/manifest.d.ts",
+      "default": "./dist/manifest.js"
+    },
+    "./backend": {
+      "types": "./dist/backend/index.d.ts",
+      "default": "./dist/backend/index.js"
+    },
+    "./migrations": {
+      "types": "./dist/migrations/index.d.ts",
+      "default": "./dist/migrations/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "i18n"
+  ],
+  "engines": {
+    "node": ">=22.17.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "peerDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6",
+    "@mikro-orm/migrations": "^6",
+    "@mikro-orm/postgresql": "^6",
+    "fastify": "^5",
+    "vitest": "^2",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6.6.13",
+    "@mikro-orm/migrations": "^6.6.13",
+    "@mikro-orm/postgresql": "^6.6.13",
+    "@types/node": "^22.9.0",
+    "fastify": "^5.8.5",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.4",
+    "zod": "^4.2.0"
+  }
+}

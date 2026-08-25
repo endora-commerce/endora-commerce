@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Asset } from '../../../src/modules/assets_library/entities/asset.entity.js';
-import { CmsPage } from '../../../src/modules/cms/entities/cms-page.entity.js';
+import { CmsPage } from '../../helpers/package-entities.js';
 
 /**
  * T093 — CMS body scan reference descriptor.

@@ -65,7 +65,7 @@ import { Organization } from '../modules/organizations/entities/organization.ent
 import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
 import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js';
-import { DeliveryMethod } from '../modules/delivery_methods/entities/delivery-method.entity.js';
+import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { Tax } from '../modules/taxes/entities/tax.entity.js';
 import { DefaultPriceListMigrator } from '../modules/price_lists/services/default-price-list-migration.js';
@@ -191,6 +191,46 @@ function productPlaceholderSvg(leafSlug: string, bgHex: string, index: number): 
     `<text x="92" y="94" font-size="6" fill="#c7ccd1" text-anchor="end" font-family="monospace">${String(index + 1).padStart(2, '0')}</text>` +
     `</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * One entity class off a package's published `entities` array, by name.
+ *
+ * A module package publishes the array and **no class by name**, type-only
+ * exports included (D-168, and `test/unit/packages/module-package-entity-surface.test.ts`
+ * is what refuses one). A host program may not reach into the package's own
+ * files either: `backend/tsconfig.build.json` sets `rootDir`, so a relative
+ * specifier into `packages/` is TS6059 even for an `import type`, and this file
+ * is in that build — `deploy/README.md` documents running it as
+ * `node dist/seeds/dev-catalog-seed.js`.
+ *
+ * So the value comes off the array, resolved **by name and never by index**: a
+ * package that grew a second entity would otherwise silently re-point an insert
+ * at another table. Nothing is cast, and the payloads below stay checked — the
+ * array's own declared element type carries the constructors, so `C` infers to
+ * them and `em.create` reads the entity type through `EntityClass<T>`. For a
+ * package that publishes more than one entity that is a union, which is
+ * narrower than `unknown` and is all the type the class's *name* can buy at
+ * this distance.
+ *
+ * The host answers a missing `entities` export with `[]` and no error, so a
+ * lookup that finds nothing has to say so here.
+ */
+function entityNamed<C>(published: readonly C[], name: string, specifier: string): C {
+  const found = published.find(
+    (candidate) => typeof candidate === 'function' && candidate.name === name,
+  );
+  if (found === undefined) {
+    const declared = published
+      .map((candidate) => (typeof candidate === 'function' ? candidate.name : String(candidate)))
+      .join(', ');
+    throw new Error(
+      `[dev-seed] ${specifier} publishes no entity class named '${name}' ` +
+        `(it declares: ${declared || '(empty)'}). The host answers a missing array with zero ` +
+        `entities and no error, so this has to be said here.`,
+    );
+  }
+  return found;
 }
 
 async function main(): Promise<void> {
@@ -324,6 +364,22 @@ async function main(): Promise<void> {
     );
   }
   await em.persistAndFlush(leaves);
+
+  // Five entity classes come from packages, and a module package publishes one
+  // `entities` array and no class by name (D-168). `entityNamed` takes each off
+  // the array the ORM itself registered — `entities-registry.generated.ts`
+  // imports the same export — and the row type comes from the same subpath,
+  // because the payload below has to be checked against something.
+  const DeliveryMethod = entityNamed(
+    deliveryMethodsEntities,
+    'DeliveryMethod',
+    '@endora-commerce/mod-delivery-methods/backend',
+  );
+  const PaymentMethod = entityNamed(
+    paymentMethodsEntities,
+    'PaymentMethod',
+    '@endora-commerce/mod-payment-methods/backend',
+  );
 
   // --- Megamenu (feature 015) -----------------------------------------
   // A predefined navigation that mirrors the seeded category tree so the
@@ -850,23 +906,6 @@ async function main(): Promise<void> {
   });
   await em.persistAndFlush(pickup);
 
-  // `payment_methods` is a package, and a module package publishes one
-  // `entities` array and no entity class by name (D-168). The class comes off
-  // that array — the one the ORM registered, since
-  // `entities-registry.generated.ts` imports the same export — resolved **by
-  // name**, never by index: a package that grows a second entity would
-  // otherwise silently re-point this insert at another table. The array's
-  // declared element type carries the constructor, so the payload below is
-  // still fully checked.
-  const PaymentMethod = paymentMethodsEntities.find((cls) => cls.name === 'PaymentMethod');
-  if (PaymentMethod === undefined) {
-    throw new Error(
-      `[dev-seed] @endora-commerce/mod-payment-methods/backend publishes no entity class named ` +
-        `'PaymentMethod' (it declares: ` +
-        `${paymentMethodsEntities.map((cls) => cls.name).join(', ') || '(empty)'}). The host ` +
-        `answers a missing array with zero entities and no error, so this has to be said here.`,
-    );
-  }
   const bankTransfer = em.create(PaymentMethod, {
     code: 'bank_transfer',
     name: { 'en-US': 'Bank transfer', 'pl-PL': 'Przelew bankowy' },

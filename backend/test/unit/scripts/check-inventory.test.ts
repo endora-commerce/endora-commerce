@@ -993,6 +993,34 @@ const PORT_CATCH_TREE = new Map([
 ]);
 
 /**
+ * The identical edge with the **owner packaged** (feature 080, T040b).
+ *
+ * The only difference from {@link PORT_CATCH_TREE} is where the owner's
+ * `registerModule` lives: a module package publishes it on its `./backend`
+ * subpath, which in this repository is `src/backend/index.ts`. This check found
+ * a module's provided ports by `file.endsWith('backend.ts')`, so a packaged
+ * owner registered nothing as far as the analysis was concerned and every
+ * `catch` around one of its gates read clean — fail-open, and the same defect
+ * !920 found in `check-port-dependencies` under the same filename assumption.
+ * `webhooks` is where it surfaced: its `LEDGER-PERMANENT` self-edge went
+ * *stale* the moment the module became a package, which is the loud half; the
+ * silent half is every unledgered site behind a packaged gate.
+ *
+ * The marker is `declaresRegisterModule`, the composer's own, so the two cannot
+ * disagree about which file composes a module.
+ */
+const PORT_CATCH_PACKAGED_OWNER_TREE = new Map([
+  [
+    'packages/modules/promotions/src/backend/index.ts',
+    "export function registerModule(ctx) { ctx.di.providePort('promotionService', x); }",
+  ],
+  [
+    'modules/carts/services/cart-admin-service.ts',
+    'try { await this.deps.promotionService.applyToCart({}); } catch { return 0; }',
+  ],
+]);
+
+/**
  * `promotions` with and without the lock, for D-63's derived `OWNER LOCKED`.
  *
  * The pair is the proof: locked, the site over `PORT_CATCH_TREE` retires; with
@@ -3384,6 +3412,10 @@ const CHECKS: readonly CheckEntry[] = [
     residueGuard: 'derived-population',
     red: {
       'port-own-name': top(() => checkPortCatches({ sources: PORT_CATCH_TREE }, {}).violations.length),
+      'packaged-owner-registration': top(
+        () =>
+          checkPortCatches({ sources: PORT_CATCH_PACKAGED_OWNER_TREE }, {}).violations.length,
+      ),
       'local-alias': top(
         () => checkPortCatches({ sources: PORT_CATCH_ALIAS_TREE }, {}).violations.length,
       ),
@@ -5602,7 +5634,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // collisions the scoping rules now refuse, and — pointing the other way —
       // the call-bound local that must go on being a finding, because "the
       // analysis cannot follow this" is not "this is not a port".
-      'backend/scripts/check-port-catches.ts': 12,
+      'backend/scripts/check-port-catches.ts': 13,
       // Plus T034's one: a name an installed package owns is an undeclared
       // edge, not the consumer's wiring bug the short map reported.
       'backend/scripts/check-port-dependencies.ts': 20,

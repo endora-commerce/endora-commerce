@@ -6,8 +6,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { DeliveryMethod } from '../../helpers/package-entities.js';
 
 /**
  * T036 — shipment lifecycle routes: generate (shipment_created), list, and the

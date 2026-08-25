@@ -6,11 +6,11 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ScriptedLlm, seedPromptActionsSettings } from '../../helpers/prompt-actions.js';
-import { PromptActionRequest } from '../../../src/modules/prompt_actions/entities/prompt-action-request.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { BulkOperation } from '../../../src/modules/catalog/entities/bulk-operation.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { PromptActionRequest } from '../../helpers/package-entities.js';
 
 /**
  * T041 + T042 — US2 bulk flow (quickstart §3 step 4): preview with match

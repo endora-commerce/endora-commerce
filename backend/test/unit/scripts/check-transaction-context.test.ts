@@ -10,6 +10,7 @@ import {
   CONNECTION_LEVEL_SQL_IN_TRANSACTIONS,
   type TransactionEscape,
 } from '../../../scripts/check-transaction-context.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * Companion test for `check-transaction-context.ts` (issue #200).
@@ -124,13 +125,34 @@ describe('check-transaction-context leaves alone what carries its context', () =
   });
 });
 
+/**
+ * The population the check itself walks, not a listing of `backend/src`
+ * (feature 080, T040b).
+ *
+ * `readTree(BACKEND_ROOT + 'src')` is issue #215 one layer in and this file
+ * carried both halves of it: the module a batch of moves takes out of `src/`
+ * leaves the walk, so the assertion below runs over a shrinking tree, and the
+ * floor that would say so shrinks with it — `transactional(` fell from 21 files
+ * to 19 in one batch. `layout.sourceRoots` is the derivation every check uses,
+ * so a module in a package is read exactly as one in the application tree is.
+ */
+const layout = await requireModuleLayout('[check-transaction-context.test]');
+
+function readWalkedTree(): Map<string, string> {
+  const sources = new Map<string, string>();
+  for (const root of layout.sourceRoots) {
+    for (const [key, text] of readTree(root)) sources.set(`${root}/${key}`, text);
+  }
+  return sources;
+}
+
 describe('check-transaction-context over the tree', () => {
-  const sources = readTree(join(BACKEND_ROOT, 'src'));
+  const sources = readWalkedTree();
 
   it('reads the tree it claims to read', () => {
     // The count is the vacuous-pass guard in test form: zero findings over zero
     // sources is indistinguishable from a clean tree.
-    expect(sources.size, 'no sources found under src/ — a vacuous pass').toBeGreaterThan(1000);
+    expect(sources.size, 'no sources found — a vacuous pass').toBeGreaterThan(1000);
     const opensTransactions = [...sources].filter(([, text]) => text.includes('transactional('));
     expect(opensTransactions.length, 'no file opens a transaction').toBeGreaterThan(20);
   });

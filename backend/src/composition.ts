@@ -91,12 +91,12 @@ import type { OrganizationTaxProfilePort } from './modules/organizations/backend
 import type { EmailCradle } from './modules/email/backend.js';
 import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
-import type { ReturnsBridge } from './modules/returns/backend.js';
+import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
 import type { InvoicesBridge } from './modules/invoices/backend.js';
 import type { KsefCradle } from './modules/ksef/backend.js';
 import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
-import type { MfaActorBridge } from './modules/mfa/backend.js';
+import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
 import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
 import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
 import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
@@ -104,14 +104,14 @@ import type { TaxesCradle } from './modules/taxes/backend.js';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
 import { composeSalesChannelsKernel } from './kernel/sales-channels/compose.js';
-import type { SalesChannelsCradle } from './modules/sales_channels/backend.js';
+import type { SalesChannelsCradle } from '@endora-commerce/mod-sales-channels/backend';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
 import type { ComparisonsCradle } from './modules/comparisons/backend.js';
 // Feature 046 — Progressive Web App.
-import type { PwaBridge } from './modules/pwa/backend.js';
+import type { PwaBridge } from '@endora-commerce/mod-pwa/backend';
 // Feature 047 — Transactional Emails.
 // Feature 048 — Newsletter.
-import type { NewsletterBridge } from './modules/newsletter/backend.js';
+import type { NewsletterBridge } from '@endora-commerce/mod-newsletter/backend';
 // Feature 049 — Google Analytics.
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
@@ -138,7 +138,7 @@ import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 import { ERROR_TRANSLATION_KEYS } from './modules/_i18n/services/error-translation.js';
 import type { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@endora-commerce/contracts';
-import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
+import type { ShoppingListService } from '@endora-commerce/mod-shopping-lists/backend';
 
 /**
  * Production composition root.
