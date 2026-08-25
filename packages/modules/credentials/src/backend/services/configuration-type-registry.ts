@@ -3,7 +3,7 @@ import type {
   ConfigurationTypeRegistryPort,
 } from '@endora-commerce/contracts';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 
 /**
  * ConfigurationTypeRegistry (feature 058) — in-memory map of configuration-type

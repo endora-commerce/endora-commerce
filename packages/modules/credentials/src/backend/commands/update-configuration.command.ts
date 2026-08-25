@@ -1,7 +1,7 @@
 import { ERROR_CODES, type UpdateConfiguration } from '@endora-commerce/contracts';
-import type { AuditState, Command } from '../../../commands/command.js';
-import { HttpError } from '../../../http/error-envelope.js';
-import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
+import type { AuditState, Command } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
+import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { CredentialConfiguration } from '../entities/credential-configuration.entity.js';
 import type { ConfigurationTypeRegistry } from '../services/configuration-type-registry.js';
 import {

@@ -1,4 +1,4 @@
-import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
+import { effectiveState } from '@endora-commerce/platform/kernel';
 import { ConfigurationTypeRegistry } from './configuration-type-registry.js';
 
 /**

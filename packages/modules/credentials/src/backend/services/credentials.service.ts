@@ -8,8 +8,8 @@ import {
   type ResolveResult,
   type UpdateConfiguration,
 } from '@endora-commerce/contracts';
-import type { CommandBus } from '../../../commands/index.js';
-import { HttpError } from '../../../http/error-envelope.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
 import { CredentialConfiguration } from '../entities/credential-configuration.entity.js';
 import type { ConfigurationTypeRegistry } from './configuration-type-registry.js';
 import { maskSecrets } from './field-validator.js';

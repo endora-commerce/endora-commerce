@@ -1,6 +1,6 @@
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import type { AuditState, Command } from '../../../commands/command.js';
-import { HttpError } from '../../../http/error-envelope.js';
+import type { AuditState, Command } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
 import { CredentialConfiguration } from '../entities/credential-configuration.entity.js';
 import type { ConfigurationTypeRegistry } from '../services/configuration-type-registry.js';
 import { redactSecretsForAudit } from '../services/field-validator.js';

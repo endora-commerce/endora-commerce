@@ -1,6 +1,6 @@
 import { ERROR_CODES, type CreateConfiguration } from '@endora-commerce/contracts';
-import type { Command } from '../../../commands/command.js';
-import { HttpError } from '../../../http/error-envelope.js';
+import type { Command } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
 import { CredentialConfiguration } from '../entities/credential-configuration.entity.js';
 import type { ConfigurationTypeRegistry } from '../services/configuration-type-registry.js';
 import { ConfigurationTypeUnknown } from '../services/configuration-type-registry.js';

@@ -5,10 +5,10 @@ import {
   ERROR_CODES,
   UpdateConfigurationSchema,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import { CREDENTIALS_READ_PERMISSION, CREDENTIALS_WRITE_PERMISSION } from './manifest.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { CREDENTIALS_READ_PERMISSION, CREDENTIALS_WRITE_PERMISSION } from '../manifest.js';
 import type { CredentialsService } from './services/credentials.service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin HTTP surface for the credentials module — feature 058

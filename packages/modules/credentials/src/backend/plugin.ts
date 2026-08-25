@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CommandBus } from '../../commands/index.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { ConfigurationTypeRegistry } from './services/configuration-type-registry.js';
 import {
   CredentialsService,
@@ -10,7 +10,7 @@ import {
 import {
   registerCredentialsAdminRoutes,
 } from './routes.admin.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Composition root for the credentials module — feature 058.
