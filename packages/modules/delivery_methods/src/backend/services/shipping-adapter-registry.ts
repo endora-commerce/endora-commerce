@@ -1,5 +1,5 @@
 import type { ShippingAdapter, ShippingAdapterRegistryPort } from '@endora-commerce/contracts';
-import { ModuleDisabledError } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 
 /**
  * ShippingAdapterRegistry (feature 035) — in-memory map of adapter key →

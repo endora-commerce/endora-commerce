@@ -1,5 +1,5 @@
 import { ERROR_CODES, type ShipmentUsagePort } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { ShipmentUsageCounter } from '../commands/delivery-method.commands.js';
 
 /** What the counter needs, so a test supplies both halves without a container. */

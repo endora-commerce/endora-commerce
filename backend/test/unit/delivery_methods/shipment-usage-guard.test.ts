@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ShipmentUsagePort } from '@endora-commerce/contracts';
 import { HttpError } from '../../../src/http/error-envelope.js';
-import { makeShipmentUsageCounter } from '../../../src/modules/delivery_methods/services/shipment-usage-guard.js';
+import { makeShipmentUsageCounter } from '../../../../packages/modules/delivery_methods/src/backend/services/shipment-usage-guard.js';
 import {
   makeDeleteDeliveryMethodCommand,
   type ShipmentUsageCounter,
-} from '../../../src/modules/delivery_methods/commands/delivery-method.commands.js';
-import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
+} from '../../../../packages/modules/delivery_methods/src/backend/commands/delivery-method.commands.js';
+import { DeliveryMethod } from '../../../../packages/modules/delivery_methods/src/backend/entities/delivery-method.entity.js';
 
 /**
  * The delete guard of FR-003, after feature 075 drained the `delivery_methods`

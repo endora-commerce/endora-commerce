@@ -1,12 +1,12 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DeliveryMethodReadPort, ShipmentUsagePort } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
-import type { CommandBus } from '../../commands/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { builtInShippingAdapters } from './adapters/built-in-adapters.js';
 import {
   registerDeliveryMethodsAdminRoutes,
@@ -17,6 +17,7 @@ import { shippingAdapterRegistry } from './services/registry-singleton.js';
 import { DeliveryMethodReadService } from './services/delivery-method-read-port.js';
 import { ShippingMethodEligibilityService } from './services/shipping-method-eligibility.js';
 import { makeShipmentUsageCounter } from './services/shipment-usage-guard.js';
+import { DeliveryMethod } from './entities/delivery-method.entity.js';
 
 /**
  * `delivery_methods` — the payment twin's mirror image (feature 072, wave 1,
@@ -164,3 +165,18 @@ export function registerModule(ctx: ModuleContext): void {
     }
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  DeliveryMethod,
+];

@@ -1,22 +1,22 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, deliveryMethodUpsertSchema } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import type { CommandBus } from '../../commands/index.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import {
   makeDeleteDeliveryMethodCommand,
   makeUpsertDeliveryMethodCommand,
   type ShipmentUsageCounter,
 } from './commands/delivery-method.commands.js';
 import { DeliveryMethod } from './entities/delivery-method.entity.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { ShippingAdapterRegistry } from './services/shipping-adapter-registry.js';
 import type { ShippingMethodEligibilityService } from './services/shipping-method-eligibility.js';
 import {
   OrderStatusRegistryError,
   type OrderStatusRegistry,
 } from './services/order-status-registry.port.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Delivery-method catalog routes (feature 035 — adapter framework).
