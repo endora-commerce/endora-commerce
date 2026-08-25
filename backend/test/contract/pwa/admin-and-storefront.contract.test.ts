@@ -13,7 +13,7 @@ import {
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 import { seedShippedOrder, RFQ_SHIPPED_ORDER_ID } from '../../helpers/seed-commerce.js';
-import { makePushDeliveryProcessor } from '../../../src/modules/pwa/workers/push-delivery-worker.js';
+import { makePushDeliveryProcessor } from '../../../../packages/modules/pwa/src/backend/workers/push-delivery-worker.js';
 
 /**
  * Settings writes invalidate the cache via a fire-and-forget EventBus handler

@@ -33,7 +33,7 @@ import {
   type AdminAuditContext,
   type SettingsWritePort,
 } from './routes.admin.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 const BoolSchema = z.boolean();
 

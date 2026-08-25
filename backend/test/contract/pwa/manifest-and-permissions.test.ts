@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { manifest, pwaSettingsManifest } from '../../../src/modules/pwa/manifest.js';
+import { manifest, pwaSettingsManifest } from '../../../../packages/modules/pwa/src/manifest.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
 import { PWA_PERMISSIONS, PWA_SETTING_CODES } from '@endora-commerce/contracts';

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import type { PushMessageService } from '../../../src/modules/pwa/services/push-message-service.js';
+import type { PushMessageService } from '../../../../packages/modules/pwa/src/backend/services/push-message-service.js';
 import {
   createPushEventHandlers,
   type PushEventLogger,
   type PushEventTarget,
-} from '../../../src/modules/pwa/services/push-event-subscriber.js';
+} from '../../../../packages/modules/pwa/src/backend/services/push-event-subscriber.js';
 
 /**
  * The FR-024 auto-triggers absorb their own failures on purpose: a push is

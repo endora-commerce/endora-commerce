@@ -6,10 +6,14 @@ import type {
   CustomerGroupReadPort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { pwaModule, type PwaModuleOptions, type PwaModuleResult } from './plugin.js';
+import { PushMessageDelivery } from './entities/push-message-delivery.entity.js';
+import { PushMessage } from './entities/push-message.entity.js';
+import { PushSubscription } from './entities/push-subscription.entity.js';
+import { PwaIconRendition } from './entities/pwa-icon-rendition.entity.js';
 
 /**
  * `pwa` — twenty options, and nine of them are one idea (feature 072, wave 2,
@@ -169,3 +173,21 @@ export function registerModule(ctx: ModuleContext): void {
     await ctx.cradle<PwaCradle>().pwa.plugin(app);
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  PushMessageDelivery,
+  PushMessage,
+  PushSubscription,
+  PwaIconRendition,
+];

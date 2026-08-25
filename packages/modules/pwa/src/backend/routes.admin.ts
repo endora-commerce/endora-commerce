@@ -1,3 +1,11 @@
+// `request.isMultipart()` and `request.file()` are not on `FastifyRequest`:
+// they are a declaration-merging augmentation `@fastify/multipart` contributes.
+// Inside `backend/src` that augmentation arrived ambiently through the host's
+// own dependency; a package compiles against its own manifest, where an unnamed
+// dependency does not exist, and both reads are TS2339. Type-only, so it
+// declares the shapes and emits nothing — registering the plugin stays the
+// host's job, exactly as before.
+import type {} from '@fastify/multipart';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import webpush from 'web-push';
@@ -13,12 +21,12 @@ import type {
   CustomerGroupReadPort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { PwaConfigResolver } from './services/pwa-config-resolver.js';
 import { PwaIconInvalid, type PwaIconService } from './services/pwa-icon-service.js';
 import type { PushSubscriptionService } from './services/push-subscription-service.js';
 import type { PushMessageService } from './services/push-message-service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface AdminAuditContext {
   actorAdminUserId: string | null;

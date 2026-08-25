@@ -1,7 +1,7 @@
 import {
   ModuleDisabledError,
   type WorkerLogger,
-} from '../../../kernel/lifecycle/plugin-helpers.js';
+} from '@endora-commerce/platform/kernel';
 import type { PushMessageService } from './push-message-service.js';
 
 /**
