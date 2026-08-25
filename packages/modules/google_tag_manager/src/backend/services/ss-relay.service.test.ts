@@ -3,7 +3,7 @@ import type { Queue } from 'bullmq';
 import { GOOGLE_TAG_MANAGER_SETTING_CODES, type GtmCollectRequest } from '@endora-commerce/contracts';
 import { makeEnqueuer, makeProcessor } from './ss-relay.service.js';
 import type { GtmRelayJobData } from './ss-relay-queue.js';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { SgtmClient } from './sgtm-client.js';
 
 const C = GOOGLE_TAG_MANAGER_SETTING_CODES;

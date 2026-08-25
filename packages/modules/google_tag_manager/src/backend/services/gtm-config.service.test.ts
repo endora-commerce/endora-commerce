@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GOOGLE_TAG_MANAGER_SETTING_CODES } from '@endora-commerce/contracts';
 import { GtmConfigService } from './gtm-config.service.js';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 /**
  * Fake SettingsReadPort — resolves from a per-code map; unknown codes throw

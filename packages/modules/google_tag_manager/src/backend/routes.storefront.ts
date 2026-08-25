@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { gtmCollectRequestSchema } from '@endora-commerce/contracts';
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import type { GtmConfigService } from './services/gtm-config.service.js';
 import type { GtmCollectEnqueuer } from './services/ss-relay-queue.js';
 

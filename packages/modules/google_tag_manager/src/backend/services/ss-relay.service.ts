@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Processor, Queue } from 'bullmq';
 import { GOOGLE_TAG_MANAGER_SETTING_CODES, type GtmCollectRequest } from '@endora-commerce/contracts';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { GtmIngestContext, GtmRelayJobData } from './ss-relay-queue.js';
 import type { SgtmClient, SgtmEvent } from './sgtm-client.js';
 

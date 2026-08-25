@@ -1,8 +1,8 @@
 import type { Redis } from 'ioredis';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
-import { StorefrontRevalidator } from '../../http/storefront-revalidator.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import { GtmConfigService } from './services/gtm-config.service.js';
 import { createGtmRelayQueue, createGtmRelayWorker } from './services/ss-relay-queue.js';
 import { makeEnqueuer, makeProcessor } from './services/ss-relay.service.js';
@@ -115,3 +115,16 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module owns no persisted entity class, so the array is empty, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities: readonly never[] = [];

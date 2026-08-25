@@ -1,5 +1,5 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
-import { enterSystemScope } from '../../../kernel/scope.js';
+import { enterSystemScope } from '@endora-commerce/platform/kernel';
 import type { Redis } from 'ioredis';
 import type { GtmCollectRequest, GtmPageContext } from '@endora-commerce/contracts';
 

@@ -5,7 +5,7 @@ import {
   gtmContainerIdSchema,
   type GtmStorefrontConfig,
 } from '@endora-commerce/contracts';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 /**
  * Resolves the per-sales-channel Google Tag Manager configuration exposed to
