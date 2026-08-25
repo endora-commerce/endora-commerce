@@ -112,6 +112,10 @@ import { checkPortShape } from '../../../scripts/check-port-shape.js';
 import { checkSubscribeSeam, checkWorkerSeam } from '../../../scripts/check-subscribe-seam.js';
 import { checkTransactionContext } from '../../../scripts/check-transaction-context.js';
 import {
+  checkSingletonIdentity,
+  type SingletonIdentityFindingKind,
+} from '../../../scripts/check-singleton-identity.js';
+import {
   checkNulBytes,
   findNulBytes,
   GIT_BINARY_WINDOW,
@@ -2126,6 +2130,60 @@ const exactlyFoldPaths = (files: readonly FoldSource[], expected: readonly strin
     : 0;
 
 // --- the inventory ----------------------------------------------------------
+
+/**
+ * `check-singleton-identity` over source text and a package list — every input a
+ * real run has, and none of its answers (feature 080, T061).
+ *
+ * The package's composition is written out rather than derived from a value,
+ * because the verdict rests on it: `paymentAdapterRegistry` is a finding only
+ * because `registerModule` hands *that object* to the container, and
+ * `PaymentMethod` only because the package's `entities` array publishes it. The
+ * consumer's second import is what makes the process hold both copies, and it
+ * is a real specifier the analysis has to resolve.
+ */
+function singletonIdentityFindings(
+  consumer: string,
+  kind: SingletonIdentityFindingKind,
+  allowed: Readonly<Record<string, string>> = {},
+): number {
+  return checkSingletonIdentity(
+    {
+      sources: new Map([
+        [
+          'packages/modules/payment_methods/src/backend/index.ts',
+          "import { paymentAdapterRegistry } from './services/registry-singleton.js';\n" +
+            "import { PaymentMethod } from './entities/payment-method.entity.js';\n" +
+            'export const entities = [PaymentMethod];\n' +
+            'export function registerModule(ctx) {\n' +
+            '  ctx.di.register({ paymentAdapterRegistry: ctx.asFunction(() => paymentAdapterRegistry) });\n' +
+            '}\n',
+        ],
+        [
+          'packages/modules/payment_methods/src/backend/services/registry-singleton.ts',
+          'export const paymentAdapterRegistry = new PaymentAdapterRegistry();\n',
+        ],
+        [
+          'packages/modules/payment_methods/src/backend/entities/payment-method.entity.ts',
+          '@Entity()\nexport class PaymentMethod {}\n',
+        ],
+        ['backend/test/integration/place-order.test.ts', consumer],
+      ]),
+      packages: [
+        {
+          moduleId: 'payment_methods',
+          npmName: '@endora-commerce/mod-payment-methods',
+          root: 'packages/modules/payment_methods',
+        },
+      ],
+    },
+    allowed,
+  ).findings.filter((finding) => finding.kind === kind).length;
+}
+
+/** The line that puts the package's published artefact in the same process. */
+const LOADS_THE_ARTEFACT =
+  "import * as pm from '@endora-commerce/mod-payment-methods/backend';\n";
 
 const CHECKS: readonly CheckEntry[] = [
   {
@@ -4344,6 +4402,75 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // Two findings in the header, so two proofs, plus the ledger's own
+    // staleness — and two controls that are the *rule* rather than politeness:
+    // the conjunction is what keeps this check off the 328 correct reaches into
+    // a package's source, so a proof that only showed it going red would not
+    // show it is the right check. See the header's "what it cannot see", which
+    // records a third signal that was written, measured at 100% false
+    // positives, and removed.
+    script: 'backend/scripts/check-singleton-identity.ts',
+    npmScript: 'check:singleton-identity',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-singleton-identity.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    residueGuard: 'derived-population',
+    red: {
+      'composed-singleton-reach-container': top(() =>
+        singletonIdentityFindings(
+          `${LOADS_THE_ARTEFACT}import { paymentAdapterRegistry } from '../../../packages/modules/payment_methods/src/backend/services/registry-singleton.js';`,
+          'composed-singleton-reach',
+        ),
+      ),
+      'composed-singleton-reach-entities': top(() =>
+        singletonIdentityFindings(
+          `${LOADS_THE_ARTEFACT}import { PaymentMethod } from '../../../packages/modules/payment_methods/src/backend/entities/payment-method.entity.js';`,
+          'composed-singleton-reach',
+        ),
+      ),
+      'whole-file-reach': top(() =>
+        singletonIdentityFindings(
+          `${LOADS_THE_ARTEFACT}const m = await import('../../../packages/modules/payment_methods/src/backend/index.js');`,
+          'whole-file-reach',
+        ),
+      ),
+      'stale-allowance': top(() =>
+        singletonIdentityFindings(`${LOADS_THE_ARTEFACT}const a = 1;`, 'stale-allowance', {
+          'backend/test/integration/place-order.test.ts:packages/modules/payment_methods/src/backend/index.ts':
+            'retired',
+        }),
+      ),
+      // Conjunct 1 absent: one copy in the process is no copies too many, which
+      // is what makes five entity reaches in this repository's unit tests
+      // correct by derivation rather than by a ledger entry (D-168).
+      'one-copy-is-not-a-finding': top(() => {
+        const withBoth = singletonIdentityFindings(
+          `${LOADS_THE_ARTEFACT}import { paymentAdapterRegistry } from '../../../packages/modules/payment_methods/src/backend/services/registry-singleton.js';`,
+          'composed-singleton-reach',
+        );
+        const withOne = singletonIdentityFindings(
+          "import { paymentAdapterRegistry } from '../../../packages/modules/payment_methods/src/backend/services/registry-singleton.js';",
+          'composed-singleton-reach',
+        );
+        return withBoth === 1 && withOne === 0 ? 1 : 0;
+      }),
+      // Conjunct 2 absent: `import type` erases, so it evaluates nothing. This
+      // is the repair !982 took and the one the message tells an author to make.
+      'type-only-reach-is-not-a-finding': top(() => {
+        const value = singletonIdentityFindings(
+          `${LOADS_THE_ARTEFACT}import { paymentAdapterRegistry } from '../../../packages/modules/payment_methods/src/backend/services/registry-singleton.js';`,
+          'composed-singleton-reach',
+        );
+        const typeOnly = singletonIdentityFindings(
+          `${LOADS_THE_ARTEFACT}import type { paymentAdapterRegistry } from '../../../packages/modules/payment_methods/src/backend/services/registry-singleton.js';`,
+          'composed-singleton-reach',
+        );
+        return value === 1 && typeOnly === 0 ? 1 : 0;
+      }),
+    },
+  },
+  {
     // The four constructs the header says it can see. The second is the shape
     // issue #128 found hiding from the sibling check; the fourth arrived with
     // D-68 and brings three proofs of its own, because a boot hook fails this
@@ -5675,6 +5802,14 @@ describe('every red proof enters at the top of the analysis', () => {
       // Three spellings of a whole-table wipe, plus the baseline's second
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,
+      // Two findings — the composed singleton reached two ways it is derived
+      // (the container and the ORM's entities array) and the reach that names
+      // no binding — plus the ledger's stale direction, plus one control per
+      // conjunct. The controls are counted shapes rather than companion-test
+      // detail because the conjunction *is* the rule: this check clears 328
+      // reaches into a package's source and refuses the 329th, and a proof set
+      // that only showed the refusal would not show it is the right check.
+      'backend/scripts/check-singleton-identity.ts': 6,
       // Three spellings of a bare subscription, plus the two queue-consumer
       // shapes: a factory call whose value goes nowhere, and a `new Worker` the
       // module keeps to itself.

@@ -188,6 +188,25 @@ quality:
     # is a question about its callers. `CONNECTION_LEVEL_SQL_IN_TRANSACTIONS` is an
     # empty two-way ratchet.
     - pnpm --filter backend run check:transaction-context
+    # Feature 080, T061 — a module package's process singletons exist once. The
+    # platform composes a package through its published artefact ('dist', via the
+    # bare specifier); a filesystem path into the same package's source evaluates
+    # it a second time. T040c measured that for the platform's five directories —
+    # 59 runtime values, none shared, and `instanceof HttpError` false across the
+    # boundary — and D-160.6 wrote the rule down about entity classes, where the
+    # failure is a loud lookup miss. A duplicated module-scope **value** fails
+    # silently instead: the second copy is simply empty. It happened in two
+    # consecutive packaging batches — `paymentAdapterRegistry` in batch one, and
+    # in batch two a second, empty `ShippingAdapterRegistry` that made a
+    # switched-off carrier module read as *present*, because the adapter was never
+    # found and the shipment path took its "no carrier configured" branch. Neither
+    # was visible to `tsc`, to any other check, or to `test:unit:fast`. The rule is
+    # a conjunction of two derived facts — both copies in one process, and the
+    # platform composed the reached object — so the correct reaches (a unit test
+    # over a stub EntityManager) are cleared by derivation rather than ledgered.
+    # `WHOLE_FILE_REACHES_ALLOWED` is the two-way ledger for the reaches that name
+    # no binding.
+    - pnpm --filter backend run check:singleton-identity
     # Issue #126 / #146 — an entry point nothing can catch a throw from decides
     # presence before it works. Routes, workers and subscribers each have a seam;
     # a timer a module starts in its own plugin body had none, and `price_lists`

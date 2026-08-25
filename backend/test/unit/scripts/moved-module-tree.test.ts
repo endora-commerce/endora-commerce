@@ -97,6 +97,14 @@ const CHECKS: readonly MovedTreeCheck[] = [
   { script: 'check-platform-surface.ts', args: [], prefix: '[platform-surface]' },
   { script: 'check-subscribe-seam.ts', args: [], prefix: '[subscribe-seam]' },
   { script: 'check-transaction-context.ts', args: [], prefix: '[transaction-context]' },
+  // Feature 080, T061. Its population is *two* — the module walk it shares with
+  // every check above, and a consumer walk over the whole application member —
+  // so a moved module tree leaves it plenty of files and the floor is what
+  // refuses. Over the split tree it must pass rather than merely survive: the
+  // packages it derives its subject from are exactly the ones the split fixture
+  // relocates, so a check that only knew `backend/src/modules` would report a
+  // clean tree with no subject at all.
+  { script: 'check-singleton-identity.ts', args: [], prefix: '[singleton-identity]' },
 ];
 
 let moved: MovedModuleTreeFixture;

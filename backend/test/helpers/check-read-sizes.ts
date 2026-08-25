@@ -487,6 +487,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     sites: null,
     sources: ['manifest-index'],
   },
+  'backend/scripts/check-singleton-identity.ts': {
+    prefix: '[singleton-identity]',
+    run: { kind: 'tsx', path: 'scripts/check-singleton-identity.ts', args: [] },
+    // The consumer population, not the module one: every file under the
+    // application member (`src`, `test` and `scripts` alike), the platform's
+    // sources and every module package's. The test tree is in it because that is
+    // where 176 of the 181 files holding a reach live, and leaving it out would
+    // have made the check blind to both defects it exists for.
+    files: 3189,
+    // Reaches into a module package's source examined, cleared ones included —
+    // it does not move with the findings, which is what #244 asks of a site
+    // count. It falls as the sweep converts a reach to a bare specifier or to an
+    // `import type`, so it is re-recorded downwards on purpose.
+    sites: 328,
+    sources: ['manifest-index', 'entities-registry'],
+  },
   'backend/scripts/i18n-hardcoded-strings.ts': {
     prefix: '[i18n:hardcoded]',
     run: { kind: 'tsx', path: 'scripts/i18n-hardcoded-strings.ts', args: [] },
