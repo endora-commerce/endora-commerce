@@ -824,6 +824,53 @@ export function settingsManifestWithRecentActivity(
   };
 }
 
+/**
+ * The two properties of a module-registry entry the boot settings reconcile
+ * reads — see {@link SettingsManifestCollectionPort}.
+ */
+export interface SettingsManifestSource {
+  readonly manifest: ModuleManifest;
+  /**
+   * The module's recent-activity eligibility (feature 080, T042j / D-163.1).
+   * It implies one Setting — the operator's choice of whether this module's
+   * entries reach the dashboard card — which is derived rather than declared,
+   * so a module that adds the eligibility export gets the control with it.
+   */
+  readonly recentActivity?: ModuleRecentActivity | undefined;
+}
+
+/**
+ * Container name: `settingsManifestCollectionPort`. Owner: `settings`.
+ *
+ * The boot-time reconcile's input list, assembled from the module registry the
+ * caller hands in.
+ *
+ * **Two owners, one list, and that is why this is a port.** Which modules a
+ * deployment ships is a composition-root input — core plus this deployment's
+ * overlay modules, never an installed package — so the registry arrives as an
+ * argument. How that registry becomes a reconcile list is `settings`' own rule:
+ * the settings module's manifest goes first, because every other manifest's
+ * entries fall back to its `general` group and the group has to exist before
+ * they are inserted, and each module code appears exactly once. A root that
+ * imported the derivation would be a root that has to be edited when the rule
+ * changes, and there are two of them.
+ *
+ * Nothing is gated on the module axis here on purpose: a module that is
+ * switched off keeps its settings rows and keeps its group on `/settings`,
+ * because a deactivation is not an uninstall (Constitution XVII) and the
+ * operator has to be able to switch it back on.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError`. It is resolved once, at boot, where a throw ends the
+ * process rather than answering a request, which is the ruled-correct
+ * behaviour for a composition that cannot be what the code says it is. Whether
+ * `settings` has an off state at all is its manifest's `activation` to say, not
+ * this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface SettingsManifestCollectionPort {
+  collect(registry: ReadonlyArray<SettingsManifestSource>): ModuleSettingsManifest[];
+}
+
 /** Aggregate of what a module's `manifest.ts` may export at runtime. */
 export interface ModuleManifestExports<EM = unknown, Redis = unknown, Ctx = unknown> {
   manifest: ModuleManifest;

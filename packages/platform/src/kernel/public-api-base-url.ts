@@ -101,3 +101,38 @@ export function resolvePublicApiBaseUrl(env: NodeJS.ProcessEnv = process.env): s
   assertPublicApiBaseUrlConfigured(env);
   return `http://localhost:${env['PORT'] ?? '3001'}`;
 }
+
+/**
+ * Make an asset / API path absolute for a consumer that is not a browser on
+ * this host — an e-mail client, a push payload, a partner's feed reader.
+ * Relative `/assets/file/...` URLs only work in a browser on the API host.
+ *
+ * It arrived here from `modules/email/` (feature 080, T040b), where it was
+ * filed under the module that first needed it and had **no consumer inside
+ * that module at all**: the composition root was its only caller, for the PWA
+ * asset bridge and the transactional-email asset URL. A deployment-origin
+ * helper the host calls is the host's, and while it lived in a module the root
+ * had a value import that stops having a spelling the day the module becomes a
+ * package (D-160.6.1).
+ *
+ * Deliberately **not** on the `./kernel` barrel: no module reaches it, and a
+ * published symbol with one host-internal consumer is public API nobody asked
+ * for.
+ *
+ * **The default base is the two spellings this function has always read, in the
+ * order it has always read them** — not {@link configuredPublicApiBaseUrl}.
+ * Unifying them is right and is a separate change: the two disagree on
+ * precedence when both variables are set to different origins, which would move
+ * a URL rather than move a file.
+ */
+export function absolutizePublicUrl(
+  url: string | null | undefined,
+  publicBase = process.env['BACKEND_PUBLIC_URL'] ?? process.env['PUBLIC_API_BASE_URL'] ?? '',
+): string {
+  if (!url) return '';
+  if (/^(https?:|data:|mailto:)/i.test(url)) return url;
+  const base = publicBase.replace(/\/+$/, '');
+  if (!base) return url;
+  if (url.startsWith('/')) return `${base}${url}`;
+  return `${base}/${url}`;
+}
