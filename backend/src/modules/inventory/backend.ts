@@ -21,6 +21,13 @@ import type {
 } from '@endora-commerce/contracts';
 import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@endora-commerce/contracts';
 import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
+/**
+ * This module's own `EntityManager`-taking interface (feature 080, T048;
+ * D-169), which cannot live beside the four above: `@endora-commerce/contracts`
+ * may name no MikroORM type, because `admin` and `storefront` both compile it
+ * (FR-034).
+ */
+import type { InventoryReservationApplyPort } from './ports/index.js';
 import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
@@ -32,6 +39,7 @@ import type { AdjustedPayload } from './services/availability-worker.js';
 import type { SettingsValueChangedPayload } from './services/threshold-settings-mirror.js';
 import { StockLevelService } from './services/stock-level-service.js';
 import { InventoryStockReadService } from './services/inventory-read-port.js';
+import { InventoryReservationApplyService } from './services/inventory-reservation-apply-port.js';
 import { InventoryStockImportService } from './services/stock-import.service.js';
 import { InventoryProductThresholdWriteService } from './services/product-threshold-write.service.js';
 import { WarehouseChannelService } from './services/warehouse-channel-service.js';
@@ -227,6 +235,38 @@ export function registerModule(ctx: ModuleContext): void {
         planAllocations: resolveAllocations,
       }))
       .singleton(),
+  );
+
+  /**
+   * Feature 080, T048 / D-169 — the stock reservation, published.
+   *
+   * `orders` reached this module's `StockLevel` and `StockAllocation` classes
+   * for it, statically for the reservation and through an `await import()` for
+   * the release, and wrote both tables itself: the `FOR UPDATE` read, the
+   * `reserved` increment, the allocation insert and the release loop. D-168
+   * leaves a packaged `inventory` no entity class for a stranger to name, so
+   * the reach had to go before this module moves; the transaction it runs in
+   * did not change, and `stock_allocations_order_item_fk` is untouched.
+   *
+   * A third `inventory` name rather than a widening of either port above, and
+   * the three differ in exactly which transaction they run in:
+   * `inventoryStockReadPort` reads on this module's own `EntityManager`,
+   * `inventoryFulfilmentPlanningPort` opens none at all — it is pure over its
+   * arguments — and this one takes placement's, because the
+   * `PESSIMISTIC_WRITE` has to be held until the order commits and the
+   * allocation rows cannot exist before their order items do.
+   *
+   * The gate `providePort` wraps this in is real but never reached from
+   * placement, for the same reason `inventoryFulfilmentPlanningPort`'s is not:
+   * `orders` declares this name `degrades-without` and asks
+   * `effectiveState.isPresent('inventory')` before the reservation block and
+   * before the cancellation release, so with this module off nothing is
+   * reserved and nothing is released — rather than a 503 in the middle of a
+   * placement.
+   */
+  ctx.di.providePort<InventoryReservationApplyPort>(
+    'inventoryReservationApplyPort',
+    ctx.asFunction(() => new InventoryReservationApplyService()).singleton(),
   );
 
   /**

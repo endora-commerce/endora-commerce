@@ -9,11 +9,12 @@ import type { EmailMailerPort } from '@endora-commerce/contracts';
 import {
   OrderService,
   type OrderEventBus,
-  // The four em-carrying interfaces their owners write (D-94.5, D-169),
+  // The five em-carrying interfaces their owners write (D-94.5, D-169),
   // re-exported by `order-service.ts` — which is where each seam is stated and
   // where the permanent ledger entries sit.
   type CartPlacementApplyPort,
   type CreditLimitPort,
+  type InventoryReservationApplyPort,
   type InvoicePlacementApplyPort,
   type PromotionUsageFinalizer,
 } from './services/order-service.js';
@@ -181,14 +182,16 @@ export interface OrdersModuleOptions {
    */
   orderTransitionPort: OrderTransitionPort;
   /**
-   * The two `inventory` ports the stock reservation runs on, as one accessor
-   * (D-94.4, issue #188). `null` ⇒ `inventory` is not effectively present, and
-   * placement skips the reservation whole — `orders` declares the edge
-   * `degrades-without` with exactly that sentence.
+   * The three `inventory` ports the stock reservation runs on, as one accessor
+   * (D-94.4, issue #188; feature 080, T048). `null` ⇒ `inventory` is not
+   * effectively present, and placement skips the reservation whole and the
+   * cancellation releases nothing — `orders` declares the edges
+   * `degrades-without` with exactly those sentences.
    */
   inventory: () => {
     readonly stockRead: InventoryStockReadPort;
     readonly planning: InventoryFulfilmentPlanningPort;
+    readonly reservationApply: InventoryReservationApplyPort;
   } | null;
   assetRead: AssetReadPort;
   /**

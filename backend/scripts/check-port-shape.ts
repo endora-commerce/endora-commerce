@@ -300,7 +300,7 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
     'is `promotions`\' own interface, kept out of `@endora-commerce/contracts` because ' +
     '`finalizeUsage` takes the placement transaction, and held there by ' +
     '`promotion_usages_order_fk`. Retired by F4 package entry points.',
-  // Feature 080's T048, and the same shape three more times: an owner's own
+  // Feature 080's T048, and the same shape four more times: an owner's own
   // `EntityManager`-taking interface, kept out of `@endora-commerce/contracts`
   // because FR-034 keeps a MikroORM type out of a package `admin` and
   // `storefront` both compile, and held co-transactional by a foreign key
@@ -310,7 +310,7 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
   // spelled in the shape D-169 mandates, and each is a `permanent: true` entry
   // in its consumer's cross-module-imports shard.
   //
-  // All three retire the way the two above do: F4 package entry points. When
+  // All four retire the way the two above do: F4 package entry points. When
   // the owner is a package the interface is on its `./ports` subpath, and this
   // check's own population — `packages/contracts/src` — is what has to widen
   // for the entry to go, which is the joint follow-up `orders`' two entries
@@ -329,6 +329,17 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
     '`@endora-commerce/contracts` because `createProformaForOrder` takes the placement ' +
     'transaction, and held there by `invoices_order_fk` (`on delete restrict`). It ' +
     'replaces the `Invoice` entity import. Retired by F4 package entry points.',
+  'orders:inventoryReservationApplyPort':
+    'T048 / D-169 — the reservation seam, and the largest of the family: ' +
+    "`InventoryReservationApplyPort` is `inventory`'s own interface, kept out of " +
+    '`@endora-commerce/contracts` because all four methods take the caller`s transaction ' +
+    '(FR-034). `stock_allocations_order_item_fk` (`on delete restrict`) is what holds it ' +
+    'there, and the `PESSIMISTIC_WRITE` on `stock_levels` is the other half: the lock has ' +
+    'to be held by the transaction that writes the order, or two placements allocate the ' +
+    'same unit. It replaces the `StockLevel` and `StockAllocation` entity imports `orders` ' +
+    'held — statically for the reservation and through an `await import()` for the release ' +
+    "— and is a `permanent: true` entry in `orders`' cross-module-imports shard. Retired by " +
+    'F4 package entry points.',
   'payments:orderPaymentStatusApplyPort':
     'T048 / D-169 — the same shape walked the other way: `OrderPaymentStatusApplyPort` is ' +
     "`orders`' own interface, kept out of `@endora-commerce/contracts` because " +

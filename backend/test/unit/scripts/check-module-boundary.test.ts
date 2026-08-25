@@ -1487,13 +1487,23 @@ describe('the ledger shards on disk', () => {
     // 68 keys standing when it landed cover exactly one reach. An entry
     // spelling `sites: 1` says what omitting it says, so the two spellings
     // would drift apart on their own.
+    //
+    // **The floor is the ledger, not the counted subset**, and that correction
+    // was forced by feature 080's T048: converting `orders`' two `inventory`
+    // entity reaches into one port interface retired the last two keys in the
+    // tree that carried a count, so a `counted.length > 0` floor started
+    // failing on a tree in which every remaining reach is single-site — which
+    // is the end state this ledger is draining towards, not a defect. What that
+    // floor was protecting against is a run that read no shard at all, and that
+    // is what is asserted here instead. The field's own two-way rule keeps its
+    // red proofs above, over fixtures, where a tree with no multi-site entry
+    // cannot make them vacuous.
     const shards = await loadLedgerShards(ledgerDirectory());
-    const counted = shards.flatMap((loaded) =>
-      Object.entries(loaded.entries)
-        .filter(([, entry]) => typeof entry !== 'string' && entry.sites !== undefined)
-        .map(([key, entry]) => [key, recordedSites(entry)] as const),
-    );
-    expect(counted.length).toBeGreaterThan(0);
+    const allEntries = shards.flatMap((loaded) => Object.entries(loaded.entries));
+    expect(allEntries.length, 'no ledger entry read — a vacuous pass').toBeGreaterThan(0);
+    const counted = allEntries
+      .filter(([, entry]) => typeof entry !== 'string' && entry.sites !== undefined)
+      .map(([key, entry]) => [key, recordedSites(entry)] as const);
     for (const [key, sites] of counted) expect(sites, key).toBeGreaterThan(1);
   });
 
