@@ -253,7 +253,7 @@ import {
   type ManifestActivationInput,
 } from './lib/switchable-modules.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
-import { requireModuleLayout } from './lib/module-roots.js';
+import { declaresRegisterModule, requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
 
@@ -479,7 +479,7 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'the probe goes — its third assertion, that no `cart_merge_on_login_failed` line ' +
     'is logged, is what tells a decided adoption from a caught one, because the ' +
     'first two assertions pass with no probe at all. Nothing is: do not drain this.',
-  'modules/webhooks/services/webhook-delivery-worker.ts:recordDelivery':
+  'packages/modules/webhooks/src/backend/services/webhook-delivery-worker.ts:recordDelivery':
     'LEDGER-PERMANENT, and not because nobody has looked (D-60). This is a ' +
     '**self-edge**: `webhooks` resolves its own gated port per call, deliberately, ' +
     'so a job draining mid-flight still meets the gate. The only reachable presence ' +
@@ -660,7 +660,24 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
 
   const portOwners = new Map<string, string>();
   for (const [file, sf] of parsed) {
-    if (!file.endsWith('backend.ts')) continue;
+    // A module's composition entry point, by the **marker** rather than by a
+    // filename (feature 080, T040b).
+    //
+    // This read `file.endsWith('backend.ts')`, which a module package's entry
+    // point is not: it lives wherever the `exports` map's `./backend` subpath
+    // points, and for every package in this repository that is
+    // `src/backend/index.ts`. So a packaged owner provided no port as far as
+    // this analysis was concerned, and every `catch` around one of its gates
+    // read clean — fail-open, and the same defect !920 found in
+    // `check-port-dependencies` under the same assumption. `webhooks` is where
+    // it surfaced when its module became a package: the `LEDGER-PERMANENT`
+    // self-edge below went *stale*, which is the loud half of a blindness whose
+    // other half is silent.
+    //
+    // `declaresRegisterModule` is `generate-composer.ts`'s own marker, so the
+    // composer and this check cannot disagree about which file composes a
+    // module.
+    if (!declaresRegisterModule(sf.getFullText())) continue;
     const owner = moduleOf(`/src/${file}`);
     if (owner === null) continue;
     for (const name of providedPortNames(sf.getFullText(), file)) portOwners.set(name, owner);

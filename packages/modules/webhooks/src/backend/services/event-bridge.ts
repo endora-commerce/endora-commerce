@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { Queue } from 'bullmq';
-import type { EventBase } from '../../../events/bus.js';
+import type { EventBase } from '@endora-commerce/platform/events';
 import type { WebhookJobData } from './webhook-queue.js';
 
 /**

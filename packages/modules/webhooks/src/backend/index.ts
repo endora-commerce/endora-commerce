@@ -1,9 +1,9 @@
 import type { FastifyRequest } from 'fastify';
 import type { Queue, Worker } from 'bullmq';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import { lazyPort, type ModuleContext } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { registerWebhooksAdminRoutes } from './routes.js';
 import { bridgeEventHandler } from './services/event-bridge.js';
 import { WebhookService } from './services/webhook-service.js';
@@ -13,6 +13,8 @@ import {
   type WebhookJobData,
 } from './services/webhook-queue.js';
 import { createDeliveryProcessor } from './services/webhook-delivery-worker.js';
+import { WebhookDelivery } from './entities/webhook-delivery.entity.js';
+import { Webhook } from './entities/webhook.entity.js';
 
 /**
  * `webhooks` — the module whose subscriptions are rows, not registrations
@@ -161,3 +163,19 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  WebhookDelivery,
+  Webhook,
+];

@@ -3,7 +3,7 @@ import { createWebhookRequestSchema, updateWebhookRequestSchema } from '@endora-
 import type { WebhookService } from './services/webhook-service.js';
 import type { Webhook } from './entities/webhook.entity.js';
 import type { WebhookDelivery } from './entities/webhook-delivery.entity.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface WebhooksAdminDeps {
   webhookService: WebhookService;

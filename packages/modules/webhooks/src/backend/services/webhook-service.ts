@@ -1,10 +1,10 @@
 import { randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { Webhook } from '../entities/webhook.entity.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { WebhookDelivery } from '../entities/webhook-delivery.entity.js';
 import { subscriptionReceivesOrganization } from './event-bridge.js';
 

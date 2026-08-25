@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { EventBus } from '../../../src/events/bus.js';
-import { bridgeEventHandler } from '../../../src/modules/webhooks/services/event-bridge.js';
-import { BRIDGED_EVENT_TYPES } from '../../../src/modules/webhooks/backend.js';
-import { WebhookService } from '../../../src/modules/webhooks/services/webhook-service.js';
-import type { WebhookJobData } from '../../../src/modules/webhooks/services/webhook-queue.js';
+import { bridgeEventHandler } from '../../../../packages/modules/webhooks/src/backend/services/event-bridge.js';
+import { BRIDGED_EVENT_TYPES } from '../../../../packages/modules/webhooks/src/backend/index.js';
+import { WebhookService } from '../../../../packages/modules/webhooks/src/backend/services/webhook-service.js';
+import type { WebhookJobData } from '../../../../packages/modules/webhooks/src/backend/services/webhook-queue.js';
 
 /**
  * Feature 062 / T026 — org-scoped event-bridge fan-out (contracts/order-webhooks.md §2).
