@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { MfaSocialIdentity } from '../entities/mfa-social-identity.entity.js';
 import type { OAuthIdentity } from './oauth-provider-service.js';
 

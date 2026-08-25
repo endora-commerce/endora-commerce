@@ -1,11 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { MfaSubjectRef } from '@endora-commerce/contracts';
 import { MfaEnrolment } from '../entities/mfa-enrolment.entity.js';
 import { MfaRecoveryCode } from '../entities/mfa-recovery-code.entity.js';
 import type { SecretCipher } from './secret-cipher.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import {
   generateRecoveryCodes,
   hashRecoveryCode,

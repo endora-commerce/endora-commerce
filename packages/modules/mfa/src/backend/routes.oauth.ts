@@ -1,8 +1,17 @@
+// `reply.setCookie` is not on `FastifyReply`: it is a declaration-merging
+// augmentation `@fastify/cookie` contributes. Inside `backend/src` that
+// augmentation arrived ambiently, through the host's own dependency and its
+// `types` graph — so nothing in this module ever named it. A package compiles
+// against its own manifest, where an unnamed dependency does not exist, and the
+// property simply is not there (TS2339). The import is type-only, so it loads
+// the declarations and emits nothing: registering the plugin stays the host's
+// job, exactly as before.
+import type {} from '@fastify/cookie';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { randomBytes } from 'crypto';
 import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
 import type { AuthSessionPort, FederatedSignInOptionsResponse } from '@endora-commerce/contracts';
-import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import type { ChallengeStore } from './services/challenge-store.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
 import type { SocialIdentityService } from './services/social-identity-service.js';

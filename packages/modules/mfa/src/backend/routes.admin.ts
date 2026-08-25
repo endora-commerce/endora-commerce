@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { mfaResetBulkRequestSchema, mfaOrgPolicyRequestSchema } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin MFA management endpoints (feature 042). 2FA reset is a Platform-Admin

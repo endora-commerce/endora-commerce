@@ -8,12 +8,12 @@ import type {
   MfaEnrolmentCountPort,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { CommandBus } from '../../commands/index.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SettingsReader } from './services/mfa-policy-resolver.js';
 import {
   OpenIdOAuthProvider,
@@ -23,6 +23,10 @@ import {
 import { MfaEnrolmentCountService } from './services/mfa-enrolment-count.service.js';
 import type { SocialIdentityDeps } from './services/social-identity-service.js';
 import { mfaModule, type MfaModuleHandle } from './plugin.js';
+import { MfaEnrolment } from './entities/mfa-enrolment.entity.js';
+import { MfaOrganizationPolicy } from './entities/mfa-organization-policy.entity.js';
+import { MfaRecoveryCode } from './entities/mfa-recovery-code.entity.js';
+import { MfaSocialIdentity } from './entities/mfa-social-identity.entity.js';
 
 /**
  * `mfa` — the widest option surface in the wave, and why it is four names
@@ -317,3 +321,21 @@ export function registerModule(ctx: ModuleContext): void {
     await plugin(app);
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  MfaEnrolment,
+  MfaOrganizationPolicy,
+  MfaRecoveryCode,
+  MfaSocialIdentity,
+];

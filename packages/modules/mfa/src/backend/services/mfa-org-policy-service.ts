@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { MfaOrganizationPolicy } from '../entities/mfa-organization-policy.entity.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 /**
  * Per-organization 2FA enforcement (feature 042, US3, FR-014). Owned by the

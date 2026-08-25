@@ -6,9 +6,9 @@ import {
   mfaSocialUnlinkParamsSchema,
 } from '@endora-commerce/contracts';
 import type { MfaSubjectRef } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import { currentSalesChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
 import type { SocialLinkService } from './services/social-link-service.js';

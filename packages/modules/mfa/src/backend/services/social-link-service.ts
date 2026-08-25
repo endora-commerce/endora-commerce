@@ -6,8 +6,8 @@ import type {
   MfaSocialProvider,
   MfaSubjectRef,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import type { Command, CommandBus } from '../../../commands/index.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { MfaSocialIdentity } from '../entities/mfa-social-identity.entity.js';
 
 /**

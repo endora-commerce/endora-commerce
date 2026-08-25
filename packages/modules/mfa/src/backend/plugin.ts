@@ -2,8 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { AuthSessionPort, CustomerPasswordStatePort, MfaLoginPort } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { CommandBus } from '../../commands/index.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { ChallengeStore } from './services/challenge-store.js';
 import {
   MfaPolicyResolver,
@@ -24,7 +24,7 @@ import { registerMfaSelfServiceRoutes } from './routes.self-service.js';
 import { registerMfaAdminRoutes } from './routes.admin.js';
 import { registerMfaOrgRoutes } from './routes.org.js';
 import { registerMfaOAuthRoutes } from './routes.oauth.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * The attach function this module hands its composition root.
