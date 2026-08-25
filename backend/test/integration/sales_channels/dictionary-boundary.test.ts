@@ -6,8 +6,8 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Currency, Language } from '../../helpers/package-entities.js';
-import { SalesChannelAttributionRegistry } from '../../../src/modules/sales_channels/services/sales-channel-attribution-registry.js';
-import { SalesChannelsService } from '../../../src/modules/sales_channels/services/sales-channels.service.js';
+import { SalesChannelAttributionRegistry } from '../../../../packages/modules/sales_channels/src/backend/services/sales-channel-attribution-registry.js';
+import { SalesChannelsService } from '../../../../packages/modules/sales_channels/src/backend/services/sales-channels.service.js';
 
 describe('Sales channels dictionary boundary', () => {
   let db: TestDb;

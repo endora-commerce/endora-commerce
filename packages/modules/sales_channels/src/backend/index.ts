@@ -4,17 +4,17 @@ import type {
   DictionaryValidator,
   SalesChannelAttributionRegistryPort,
 } from '@endora-commerce/contracts';
-import type { CommandBus } from '../../commands/command-bus.js';
-import type { EventBus } from '../../events/bus.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { EventBus } from '@endora-commerce/platform/events';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type {
   SalesChannelsCache,
   SalesChannelsCacheInvalidation,
-} from '../../kernel/sales-channels/sales-channels-cache.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
+} from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { SalesChannelAttributionRegistry } from './services/sales-channel-attribution-registry.js';
 import { SalesChannelsService } from './services/sales-channels.service.js';
 import type { AdminAuditContext } from './services/sales-channels.service.js';
@@ -135,3 +135,19 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * This module owns **no persisted entity**, and says so with an empty array
+ * rather than by omission (D-168).
+ *
+ * The two are not the same thing to the platform. When the package is
+ * *installed*, `src/packages/package-runtime.ts` reads `exported['entities']`
+ * and answers a missing export with `[]` — so "this module has no table" and
+ * "somebody forgot the array" arrive at the host as the same silence, and the
+ * only symptom of the second is a query against a table nobody created. The
+ * declaration is what makes the first case a statement.
+ *
+ * A first entity added here goes in this array in the same merge request, and
+ * `test/unit/packages/module-package-entity-surface.test.ts` is what says so.
+ */
+export const entities: readonly never[] = [];

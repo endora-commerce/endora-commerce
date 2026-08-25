@@ -8,14 +8,14 @@ import {
   type ChannelMemberEntityType,
 } from '@endora-commerce/contracts';
 import { z } from 'zod';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type {
   AdminAuditContext,
   SalesChannelsService,
 } from './services/sales-channels.service.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
-import type { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import type { SalesChannel } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin HTTP surface — feature 005 / US2 (T034).

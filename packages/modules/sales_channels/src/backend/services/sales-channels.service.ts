@@ -10,12 +10,12 @@ import {
   type SalesChannelCreateBody,
   type SalesChannelUpdateBody,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
-import type { CommandBus } from '../../../commands/command-bus.js';
-import type { EventBus } from '../../../events/bus.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { SalesChannelsCacheInvalidation } from '../../../kernel/sales-channels/sales-channels-cache.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { EventBus } from '@endora-commerce/platform/events';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import type { SalesChannelsCacheInvalidation } from '@endora-commerce/platform/kernel';
 import {
   makeSetSystemDefaultChannelCommand,
   type SetSystemDefaultChannelResult,

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ModuleManifestSchema } from '@endora-commerce/contracts';
 import { manifest as lifecycleManifest } from '../../../src/modules/_lifecycle/manifest.js';
 import { manifest as settingsManifest } from '../../../src/modules/settings/manifest.js';
-import { manifest as salesChannelsManifest } from '../../../src/modules/sales_channels/manifest.js';
+import { manifest as salesChannelsManifest } from '../../../../packages/modules/sales_channels/src/manifest.js';
 import { manifest as searchManifest } from '../../../src/modules/search/manifest.js';
 import { manifest as comparisonsManifest } from '../../../src/modules/comparisons/manifest.js';
 import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';
