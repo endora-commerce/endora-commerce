@@ -4,8 +4,13 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext, RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
-import type { OrganizationDetailsPort, OrganizationInheritancePort } from '@endora-commerce/contracts';
+import type {
+  CreditLimitReadPort,
+  OrganizationDetailsPort,
+  OrganizationInheritancePort,
+} from '@endora-commerce/contracts';
 import { CreditLimitService, type CreditLimitEventBus } from './services/credit-limit-service.js';
+import { CreditLimitReadService } from './services/credit-limit-read.js';
 import { CreditTopupProvider } from './services/credit-topup.js';
 import { registerCreditLimitsRoutes } from './routes.js';
 import { CreditLimit } from './entities/credit-limit.entity.js';
@@ -85,6 +90,37 @@ export function registerModule(ctx: ModuleContext): void {
                 ctx.cradle<CreditLimitsCradle>().organizationInheritancePort.creditOwner(orgId),
             },
           ),
+      )
+      .singleton(),
+  );
+
+  /**
+   * The membership read `organizations` needs to resolve an inherited limit
+   * (feature 077, D-87).
+   *
+   * `OrganizationInheritanceService.creditOwner` walks an ancestor chain and
+   * has to know which of those organisations hold a row here. It selected from
+   * this module's table to find out — a statement naming no import specifier,
+   * so the boundary compiled and nothing gated it, and the answer stayed the
+   * same after an operator switched credit limits off.
+   *
+   * A **read** port and deliberately not a method on `creditLimitService`: that
+   * service is the gated write seam whose `getForOrganization` asks
+   * `organizations` the very question this answers, so widening it would put
+   * both directions on one name. Separate names keep the two hops legible —
+   * this module asks who the owner is, `organizations` asks who holds a row —
+   * and neither recurses.
+   *
+   * `filters: { org: false }` is load-bearing rather than defensive: the holder
+   * is by definition an ancestor outside the caller's tenant scope, which is
+   * the whole point of the inheritance, so the org filter would answer the
+   * empty set for every descendant.
+   */
+  ctx.di.providePort<CreditLimitReadPort>(
+    'creditLimitReadPort',
+    ctx
+      .asFunction(
+        ({ emFactory }: CreditLimitsCradle) => new CreditLimitReadService(emFactory),
       )
       .singleton(),
   );

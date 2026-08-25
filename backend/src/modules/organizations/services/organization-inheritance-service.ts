@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { CreditLimitReadPort } from '@endora-commerce/contracts';
 import type { OrganizationTreeService } from './organization-tree-service.js';
 
 /**
@@ -25,6 +26,18 @@ export class OrganizationInheritanceService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly treeService: OrganizationTreeService,
+    /**
+     * `creditLimitReadPort`, owned by `credit_limits` — which links of an
+     * ancestor chain hold a limit at all (feature 077, D-87).
+     *
+     * **Required**, and third rather than last, because the optional shape is
+     * the one that fails open: a composition that omitted it would answer
+     * "nobody in this chain has a limit" for every organisation, which is a
+     * plausible reading and the wrong one. The read it replaces was raw SQL
+     * against that module's table, so an absent or switched-off owner made no
+     * difference to the answer at all.
+     */
+    private readonly creditLimits: CreditLimitReadPort,
     /**
      * Resolves the Settings global default `organizations.hierarchy.credit_inheritance_mode`.
      * Defaults to `shared_pool` (factory default, R6) when not injected.
@@ -53,23 +66,20 @@ export class OrganizationInheritanceService {
    */
   async creditOwner(orgId: string): Promise<CreditOwner> {
     const chain = [orgId, ...(await this.treeService.ancestorIds(orgId))]; // nearest-first
-    const em = this.emFactory();
 
-    // Which orgs in the chain hold a credit limit? Raw SQL bypasses the @OrgScoped
-    // filter — the owner may be an ancestor outside the caller's tenant scope.
-    const placeholders = chain.map(() => '?').join(', ');
-    const clRows = (await em.getConnection().execute(
-      `select "organization_id" from "credit_limits" where "organization_id" in (${placeholders})`,
-      chain,
-    )) as Array<{ organization_id: string }>;
-    const hasLimit = new Set(clRows.map((r) => r.organization_id));
+    // Which orgs in the chain hold a credit limit? Asked of the module that
+    // owns the table, not selected out of it (feature 077, D-87). No `catch`:
+    // a switched-off `credit_limits` must refuse here rather than report an
+    // empty chain, which downstream reads as "no limit applies".
+    const hasLimit = new Set(await this.creditLimits.organizationsWithLimit(chain));
     const ownerOrgId = chain.find((id) => hasLimit.has(id)) ?? null;
 
     if (!ownerOrgId) {
       return { ownerOrgId: null, mode: await this.resolveGlobalCreditMode() };
     }
 
-    const modeRows = (await em.getConnection().execute(
+    // This module's own table, so it stays a statement here.
+    const modeRows = (await this.emFactory().getConnection().execute(
       `select "credit_inheritance_mode" from "organizations" where "id" = ?`,
       [ownerOrgId],
     )) as Array<{ credit_inheritance_mode: CreditInheritanceMode | null }>;

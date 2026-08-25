@@ -13,6 +13,7 @@ import { CreditLimitService } from '../../../../packages/modules/credit_limits/s
 import { CreditLimitReservation } from '../../helpers/package-entities.js';
 import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
 import { OrganizationInheritanceService } from '../../../src/modules/organizations/services/organization-inheritance-service.js';
+import { CreditLimitReadService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-read.js';
 
 /**
  * Feature 075 — `independent_default` sums this module's own record of who drew
@@ -100,7 +101,12 @@ describe('credit-limit reservations record the organization that drew them', () 
   beforeAll(async () => {
     h = await setupBackendServer();
     tree = new OrganizationTreeService(h.em);
-    const inheritance = new OrganizationInheritanceService(h.em, tree, async () => 'shared_pool');
+    const inheritance = new OrganizationInheritanceService(
+      h.em,
+      tree,
+      new CreditLimitReadService(h.em),
+      async () => 'shared_pool',
+    );
     svc = new CreditLimitService(h.em, new EventBus(), undefined, inheritance);
   });
 

@@ -18,6 +18,7 @@ import {
 } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
 import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
 import { OrganizationInheritanceService } from '../../../src/modules/organizations/services/organization-inheritance-service.js';
+import { CreditLimitReadService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-read.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
@@ -75,7 +76,7 @@ describe('price-list inheritance up the org tree (US3)', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     tree = new OrganizationTreeService(h.em);
-    const inheritance = new OrganizationInheritanceService(h.em, tree);
+    const inheritance = new OrganizationInheritanceService(h.em, tree, new CreditLimitReadService(h.em));
     pricing = new PricingService(
       h.em,
       undefined,
