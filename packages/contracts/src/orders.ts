@@ -90,6 +90,15 @@ export const orderSchema = z.object({
   paymentStatus: paymentStatusSchema,
   deliveryAddress: addressSnapshotSchema,
   billingAddress: addressSnapshotSchema,
+  deliveryPoint: z
+    .object({
+      provider: z.string(),
+      pointId: z.string(),
+      label: z.string().nullable().optional(),
+      address: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   deliveryMethod: z.object({
     id: uuidSchema,
     code: z.string(),
@@ -168,6 +177,18 @@ export const placeOrderRequestSchema = z.object({
    * otherwise the snapshot defaults to the Organization's tax-id.
    */
   billingTaxId: z.string().max(32).optional(),
+  /**
+   * Optional pickup-point metadata selected at checkout. Provider-agnostic,
+   * so any carrier adapter can read one normalized snapshot from the order.
+   */
+  deliveryPoint: z
+    .object({
+      provider: z.string().min(1),
+      pointId: z.string().min(1),
+      label: z.string().max(255).optional(),
+      address: z.string().max(500).optional(),
+    })
+    .optional(),
 });
 export type PlaceOrderRequest = z.infer<typeof placeOrderRequestSchema>;
 
@@ -729,6 +750,13 @@ export interface OrderDeliveryMethodSnapshot {
   cost: number;
 }
 
+export interface OrderDeliveryPointSnapshot {
+  provider: string;
+  pointId: string;
+  label?: string | null;
+  address?: string | null;
+}
+
 export interface OrderPaymentMethodSnapshot {
   code: string;
   name: string;
@@ -764,6 +792,7 @@ export interface OrderRecord {
   paymentStatus: OrderPaymentStatus;
   deliveryAddress: OrderAddressSnapshot;
   billingAddress: OrderAddressSnapshot;
+  deliveryPointSnapshot?: OrderDeliveryPointSnapshot | null;
   deliveryMethodId: string;
   deliveryMethodSnapshot: OrderDeliveryMethodSnapshot;
   paymentMethodId: string;

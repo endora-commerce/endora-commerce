@@ -122,15 +122,20 @@ export class ShipmentService {
         });
         await tx.persistAndFlush(shipment);
 
-        // Invoke the adapter's shipment_created hook. The returned next-action
-        // is informational; the Shipment stays pending until receive_shipment.
+        // Invoke the adapter's shipment_created hook. Status stays pending until
+        // receive_shipment; a synchronous `generated` result still deposits the
+        // tracking number on the row so admin can see it before terminal ingress.
         if (adapter) {
-          await adapter.onShipmentCreated({
+          const started = await adapter.onShipmentCreated({
             orderId,
             shipmentId: shipment.id,
             deliveryMethodId: order.deliveryMethodId,
             attemptNo: shipment.attemptNo,
           });
+          if (started.kind === 'generated' && started.trackingNumber) {
+            shipment.externalReference = started.trackingNumber;
+            await tx.persistAndFlush(shipment);
+          }
         } else if (absentCarrierModule) {
           // Co-transactional with the row it describes (Principle XIII): the
           // shipment and the record of why it is unfinished commit together or

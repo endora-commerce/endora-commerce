@@ -35,9 +35,15 @@ describe('ShippingMethods section', () => {
   });
 
   it('communicates the empty state instead of an actionable empty list', () => {
-    const html = renderToString(<ShippingMethods methods={[]} />);
+    const html = renderToString(<ShippingMethods methods={[]} locale="en-US" />);
     expect(html).toContain('No delivery method is available');
     expect(html).not.toContain('name="deliveryMethodId"');
+  });
+
+  it('localizes the shipping section for pl-PL', () => {
+    const html = renderToString(<ShippingMethods methods={[]} locale="pl-PL" />);
+    expect(html).toContain('Metoda dostawy');
+    expect(html).toContain('Brak metody dostawy');
   });
 });
 

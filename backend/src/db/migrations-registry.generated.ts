@@ -140,6 +140,10 @@ import { Migration20260611T140404CustomersCustomerAddressesInit } from '../modul
 import { Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments } from '@endora-commerce/mod-delivery-methods/migrations';
 import { Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter } from '@endora-commerce/mod-delivery-methods/migrations';
 
+// ── dhl_parcel ──────────────────────────────────────────────────────────────
+import { Migration20260824T083000DhlParcelInit } from '@endora-commerce/mod-dhl-parcel/migrations';
+import { Migration20260824T083100DhlParcelSeedDeliveryMethods } from '@endora-commerce/mod-dhl-parcel/migrations';
+
 // ── dictionaries ────────────────────────────────────────────────────────────
 import { Migration20260506T112634DictionariesDictionaryInit } from '@endora-commerce/mod-dictionaries/migrations';
 
@@ -194,6 +198,7 @@ import { Migration20260718T200339OrdersOrderCustomFieldValues } from '../modules
 import { Migration20260724T193611OrdersOrderPlacementIntents } from '../modules/orders/migrations/20260724T193611_orders_order_placement_intents.js';
 import { Migration20260820T100201OrdersNewToPaidTransition } from '../modules/orders/migrations/20260820T100201_orders_new_to_paid_transition.js';
 import { Migration20260821T131145OrdersPurchaseConversionMarker } from '../modules/orders/migrations/20260821T131145_orders_purchase_conversion_marker.js';
+import { Migration20260824T080000OrdersDeliveryPointSnapshot } from '../modules/orders/migrations/20260824T080000_orders_delivery_point_snapshot.js';
 
 // ── organizations ───────────────────────────────────────────────────────────
 import { Migration20260424T205317OrganizationsInit } from '../modules/organizations/migrations/20260424T205317_organizations_init.js';
@@ -416,6 +421,10 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('delivery_methods', Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments),
   migration('delivery_methods', Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter),
 
+  // ── dhl_parcel ──────────────────────────────────────────────────────────────
+  migration('dhl_parcel', Migration20260824T083000DhlParcelInit),
+  migration('dhl_parcel', Migration20260824T083100DhlParcelSeedDeliveryMethods),
+
   // ── dictionaries ────────────────────────────────────────────────────────────
   migration('dictionaries', Migration20260506T112634DictionariesDictionaryInit),
 
@@ -470,6 +479,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('orders', Migration20260724T193611OrdersOrderPlacementIntents),
   migration('orders', Migration20260820T100201OrdersNewToPaidTransition),
   migration('orders', Migration20260821T131145OrdersPurchaseConversionMarker),
+  migration('orders', Migration20260824T080000OrdersDeliveryPointSnapshot),
 
   // ── organizations ───────────────────────────────────────────────────────────
   migration('organizations', Migration20260424T205317OrganizationsInit),

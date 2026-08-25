@@ -30,6 +30,7 @@ export class Order {
     | 'customerNote'
     | 'promotionCode'
     | 'discountTotal'
+    | 'deliveryPointSnapshot'
     | 'purchaseConversionOwed'
     | 'purchaseConversionReportedAt';
 
@@ -118,6 +119,18 @@ export class Order {
     companyName?: string | null;
     taxId?: string | null;
   };
+
+  /**
+   * Optional pickup-point choice captured at checkout. Provider-agnostic on
+   * purpose: future carrier adapters can reuse one snapshot shape.
+   */
+  @Property({ type: 'json', nullable: true })
+  deliveryPointSnapshot?: {
+    provider: string;
+    pointId: string;
+    label?: string | null;
+    address?: string | null;
+  } | null;
 
   @Property({ type: 'uuid' })
   deliveryMethodId!: string;
