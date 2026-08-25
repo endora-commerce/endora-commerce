@@ -503,7 +503,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources and every module package's. The test tree is in it because that is
     // where 176 of the 181 files holding a reach live, and leaving it out would
     // have made the check blind to both defects it exists for.
-    files: 3222,
+    files: 3227,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -518,16 +518,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // remove a few of them. So the number grows by a module's worth per move and
     // is re-recorded **upwards**.
     //
-    // 328 → 654, and every unit is accounted for. 328 was measured at bc820e86,
+    // 328 → 637, and every unit is accounted for. 328 was measured at bc820e86,
     // the merge request that wrote this entry. `master` reads **426** today: +98
     // arrived with T040b's third batch after the number was recorded, and the
     // +50% ceiling absorbed it silently — which is the drift a band is supposed
     // to tolerate and is worth naming, because it means this figure was not
     // current before this re-record either. The remaining **+228** is batch
-    // four's seven packages, measured per package: `assets_library` 26, `carts`
-    // 34, `custom_fields` 24, `customers` 25, `email` 32, `invoices` 56,
-    // `settings` 31.
-    sites: 654,
+    // four's seven packages: +228 as the moves landed, measured per package —
+    // `assets_library` 26, `carts` 34, `custom_fields` 24, `customers` 25,
+    // `email` 32, `invoices` 56, `settings` 31 — **less 17** that the batch's
+    // own repairs then removed, which is the direction the old sentence was
+    // right about: fifteen `invoices` service specifiers re-pointed from the
+    // package's `src` to its `dist`, and two error classes that stopped being
+    // imported at all.
+    sites: 637,
     sources: ['manifest-index', 'entities-registry'],
   },
   'backend/scripts/i18n-hardcoded-strings.ts': {

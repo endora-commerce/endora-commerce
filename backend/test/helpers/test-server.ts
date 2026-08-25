@@ -118,7 +118,16 @@ import type { EmailCradle } from '../../../packages/modules/email/src/backend/in
 import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
 import type { ShoppingListService } from '../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js';
 import type { ReturnsBridge } from '../../../packages/modules/returns/src/backend/index.js';
-import type { InvoicesBridge, InvoicesCradle } from '../../../packages/modules/invoices/src/backend/index.js';
+// `dist`, not `src`, and it is the type that matches the object (feature 080,
+// T040b, batch four). The container holds the **composed** cradle, which the
+// platform built out of `@endora-commerce/mod-invoices/backend` — i.e. out of
+// `dist` — so typing it from the package's source was already describing a
+// different class. It is usually harmless, because most of these shapes are
+// structural; it stops being harmless where one has a private field, which makes
+// it nominal: `InvoiceNumberGenerator` does, and handing `h.invoices.numberGenerator`
+// to a `dist`-imported `CorrectiveInvoiceProvider` is TS2345 until this import
+// names the same build the runtime does.
+import type { InvoicesBridge, InvoicesCradle } from '../../../packages/modules/invoices/dist/backend/index.js';
 import type { NewsletterBridge } from '../../../packages/modules/newsletter/src/backend/index.js';
 import type { CustomFieldsCradle } from '../../../packages/modules/custom_fields/src/backend/index.js';
 import type { CustomFieldDefinitionService } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-definition.service.js';
