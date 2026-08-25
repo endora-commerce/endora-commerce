@@ -300,6 +300,43 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
     'is `promotions`\' own interface, kept out of `@endora-commerce/contracts` because ' +
     '`finalizeUsage` takes the placement transaction, and held there by ' +
     '`promotion_usages_order_fk`. Retired by F4 package entry points.',
+  // Feature 080's T048, and the same shape three more times: an owner's own
+  // `EntityManager`-taking interface, kept out of `@endora-commerce/contracts`
+  // because FR-034 keeps a MikroORM type out of a package `admin` and
+  // `storefront` both compile, and held co-transactional by a foreign key
+  // rather than by a convention. Each replaces a reach into that owner's
+  // **entity class**, which D-168 leaves a packaged module no supported
+  // spelling for — so the entries are not new debt, they are the same seam
+  // spelled in the shape D-169 mandates, and each is a `permanent: true` entry
+  // in its consumer's cross-module-imports shard.
+  //
+  // All three retire the way the two above do: F4 package entry points. When
+  // the owner is a package the interface is on its `./ports` subpath, and this
+  // check's own population — `packages/contracts/src` — is what has to widen
+  // for the entry to go, which is the joint follow-up `orders`' two entries
+  // above already name.
+  'orders:cartPlacementApplyPort':
+    'T048 / D-169 — `CartPlacementApplyPort` is declared by `carts` in its own `ports/` ' +
+    "directory and stays out of `@endora-commerce/contracts` because both methods take the " +
+    "caller's `EntityManager` (FR-034). `carts_completed_order_fk` is what holds it " +
+    'co-transactional: the completion cannot be written before the order exists, and a ' +
+    'second transaction would commit it for a placement that then failed. It replaces the ' +
+    "`Cart` and `CartItem` entity imports `orders` held, and is a `permanent: true` entry " +
+    "in `orders`' cross-module-imports shard. Retired by F4 package entry points.",
+  'orders:invoicePlacementApplyPort':
+    'T048 / D-169 — the twin of the entry above and the same shape: ' +
+    "`InvoicePlacementApplyPort` is `invoices`' own interface, kept out of " +
+    '`@endora-commerce/contracts` because `createProformaForOrder` takes the placement ' +
+    'transaction, and held there by `invoices_order_fk` (`on delete restrict`). It ' +
+    'replaces the `Invoice` entity import. Retired by F4 package entry points.',
+  'payments:orderPaymentStatusApplyPort':
+    'T048 / D-169 — the same shape walked the other way: `OrderPaymentStatusApplyPort` is ' +
+    "`orders`' own interface, kept out of `@endora-commerce/contracts` because " +
+    '`applyPaymentStatus` takes the settlement transaction, and held there by ' +
+    '`payments_order_fk` (`on delete restrict`) — the payment row and the order`s ' +
+    '`payment_status` land together or not at all. It replaces the `Order` entity import ' +
+    "`payments` held, and is a `permanent: true` entry in `payments`' " +
+    'cross-module-imports shard. Retired by F4 package entry points.',
   // `catalog`'s remaining edge, and the one the #196 sweep recorded as *two
   // answers under one key*. Four sites resolved this name because both
   // composition roots handed the owner's `CustomFieldDefinitionService` to two

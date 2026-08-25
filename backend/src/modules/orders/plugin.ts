@@ -9,10 +9,12 @@ import type { EmailMailerPort } from '@endora-commerce/contracts';
 import {
   OrderService,
   type OrderEventBus,
-  // The two em-carrying interfaces their owners write (D-94.5), re-exported by
-  // `order-service.ts` — which is where the seam is stated and where the two
-  // permanent ledger entries sit.
+  // The four em-carrying interfaces their owners write (D-94.5, D-169),
+  // re-exported by `order-service.ts` — which is where each seam is stated and
+  // where the permanent ledger entries sit.
+  type CartPlacementApplyPort,
   type CreditLimitPort,
+  type InvoicePlacementApplyPort,
   type PromotionUsageFinalizer,
 } from './services/order-service.js';
 import { OrderStatusGraphService } from './services/order-status-graph-service.js';
@@ -34,6 +36,7 @@ import type {
   AddressServicePort,
   AssetReadPort,
   CustomFieldValuePort,
+  CartReadPort,
   CartWritePort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
@@ -142,6 +145,23 @@ export interface OrdersModuleOptions {
    */
   cartWritePort: CartWritePort;
   /**
+   * `carts`' basket-half-of-placement seam (feature 080, T048).
+   *
+   * A third `carts` name beside `cartWritePort` and `cartRead`, and the three
+   * differ on the transaction they run in — which is the only axis that
+   * matters here. `cartWritePort` opens its own; `cartRead` reads on the
+   * owner's own `EntityManager`; this one takes **placement's**, because
+   * `carts_completed_order_fk` holds the completion and the order together.
+   * `carts` is non-deactivatable, so it is a value and not an accessor.
+   */
+  cartPlacementApply: CartPlacementApplyPort;
+  /**
+   * `carts`' standalone read — the total preview, which opens no transaction.
+   * Handing it an `EntityManager` would re-open a write seam to serve a read
+   * (D-169), which is why it is a different port from the one above.
+   */
+  cartRead: CartReadPort;
+  /**
    * The read models the route surface, the external intake and the admin
    * create path resolve from the modules that own the rows (feature 075).
    */
@@ -177,6 +197,12 @@ export interface OrdersModuleOptions {
    */
   invoiceRead: () => InvoiceReadPort | null;
   invoicePdf: () => InvoicePdfPort | null;
+  /**
+   * The proforma placement opens (feature 080, T048). An accessor for the same
+   * reason the two above are: the module is switchable, this one is not, and
+   * with invoicing off placement opens no document and changes nothing else.
+   */
+  invoicePlacementApply: () => InvoicePlacementApplyPort | null;
   /**
    * The two method modules' registries and the delivery-eligibility service.
    * `orders` reads them for placement dispatch and for the `statusOn*`
@@ -430,6 +456,9 @@ export function commerceModule(options: OrdersModuleOptions) {
           paymentMethodRead: options.paymentMethodRead,
           deliveryMethodRead: options.deliveryMethodRead,
           inventory: options.inventory,
+          cartPlacementApply: options.cartPlacementApply,
+          cartRead: options.cartRead,
+          invoicePlacementApply: options.invoicePlacementApply,
         },
         ...(options.mailer ? { mailer: options.mailer } : {}),
         ...(options.confirmationRenderers

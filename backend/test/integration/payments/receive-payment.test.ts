@@ -15,6 +15,7 @@ import {
   ReceivePaymentHandler,
   type SettlementLogger,
 } from '../../../src/modules/payments/services/receive-payment-handler.js';
+import type { OrderPaymentStatusApplyPort } from '../../../src/modules/orders/ports/index.js';
 import { PaymentService } from '../../../src/modules/payments/services/payment-service.js';
 import { PaymentMethod, type PaymentMethodRow } from '../../helpers/package-entities.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
@@ -84,14 +85,24 @@ describe('ReceivePaymentHandler', () => {
   /**
    * The two cross-module seams the handler uses, resolved off the composed
    * container rather than stubbed (feature 075 C-W3; feature 085 Phase D). Both
+   * Feature 080's T048 makes it three: `orders.payment_status` used to be
+   * written from inside this handler on the `Order` entity, and is now
+   * `orderPaymentStatusApplyPort.applyPaymentStatus(tx, …)` — the same
+   * transaction, the same constraint, resolved off the same container. All
    * are gated ports, so resolving them here is what the four gateways do
    * through `receivePaymentPort`, and a test that stubbed them would stop
    * exercising the seam it is here to keep honest — the lifecycle one above
    * all, since the whole point of Phase D is that the graph now answers.
    */
-  const handlerPorts = (): [PaymentMethodReadPort, OrderTransitionPort, SettlementLogger] => [
+  const handlerPorts = (): [
+    PaymentMethodReadPort,
+    OrderTransitionPort,
+    OrderPaymentStatusApplyPort,
+    SettlementLogger,
+  ] => [
     h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
     h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+    h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
     quiet,
   ];
 

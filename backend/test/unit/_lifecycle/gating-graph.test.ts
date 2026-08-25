@@ -31,7 +31,7 @@ const onlyPresent =
     ids.includes(id);
 
 describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests', () => {
-  it('reads the twenty-three real edges the manifests deliberately keep out of `dependencies`', () => {
+  it('reads the twenty-six real edges the manifests deliberately keep out of `dependencies`', () => {
     // Two arrived with issue #90, when `check-port-dependencies` learned to
     // follow a module-local cradle alias and two edges that had always been
     // resolved through one became visible: the lifecycle admin surfaces
@@ -69,6 +69,15 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
     // time — that last edge was reaching `quote_requests` through `carts`'
     // closure, which the same ruling removed.
     //
+    // Two more arrive with feature 080's T048, and they are the same family a
+    // step further on: `orders` reaches `carts` through `cartPlacementApplyPort`
+    // (the basket read and the completion, on the placement `EntityManager`,
+    // which is what `carts_completed_order_fk` obliges) and through
+    // `cartReadPort` (the storefront total preview, which opens no transaction
+    // and therefore takes no `EntityManager`). Both were one `Cart` /`CartItem`
+    // entity import until that row; the cycle they are acknowledged for is the
+    // one `cartWritePort` above already names.
+    //
     // Note what does **not** change with them: an acknowledged edge is in the
     // refusal graph exactly as a declared one is, so `promotions`,
     // `credit_limits` and `quote_requests` stay precisely as (un)deactivatable
@@ -96,6 +105,8 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'carts:promotionService',
       'catalog:organizationDetailsPort',
       'catalog:pricingService',
+      'orders:cartPlacementApplyPort',
+      'orders:cartReadPort',
       'orders:cartWritePort',
       'orders:creditLimitService',
       'orders:promotionService',

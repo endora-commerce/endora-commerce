@@ -14,8 +14,10 @@ import type { ModuleContext } from '../../kernel/index.js';
 import { lazyPort } from '../../kernel/index.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { FastifyRequest } from 'fastify';
+import type { InvoicePlacementApplyPort } from './ports/index.js';
 import { invoicesModule, type InvoicesModuleOptions, type InvoicesModuleHandle } from './plugin.js';
 import { CorrectiveInvoiceProvider } from './services/corrective-invoice.js';
+import { InvoicePlacementApplyService } from './services/invoice-placement-apply-port.js';
 import { InvoiceReadService, createInvoicePdfPort } from './services/invoice-read-port.js';
 import type { InvoiceNumberGenerator } from './services/invoice-number-generator.js';
 import { NumberingConfigurationService } from './services/numbering-configuration.js';
@@ -183,6 +185,31 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<InvoicePdfPort>(
     'invoicePdfPort',
     ctx.asFunction(() => createInvoicePdfPort()).singleton(),
+  );
+
+  /**
+   * The proforma order placement opens, on the **caller's** `EntityManager`
+   * (feature 080, T048; D-169).
+   *
+   * `orders` imported this module's `Invoice` class for it until T048 — a
+   * co-transactional seam D-78 point 2 ruled permanent, held by
+   * `invoices_order_fk` (`on delete restrict`): the row cannot exist before its
+   * order does, and the order does not commit until placement returns. The
+   * constraint and the transaction are unchanged; what moved is the statement,
+   * to the module that owns the table. `InvoicePlacementApplyPort` is declared
+   * in this module's `ports/` directory rather than in
+   * `@endora-commerce/contracts`, because it takes a MikroORM `EntityManager`
+   * and FR-034 keeps that package free of them.
+   *
+   * It is a **gated** registration like every other name here, which is the
+   * half `orders` writing the row itself could never have: an operator who has
+   * switched invoicing off now gets no proforma, instead of one written into a
+   * switched-off module's table. `orders` declares the edge `degrades-without`
+   * and asks presence before the call.
+   */
+  ctx.di.providePort<InvoicePlacementApplyPort>(
+    'invoicePlacementApplyPort',
+    ctx.asFunction(() => new InvoicePlacementApplyService()).singleton(),
   );
 
   ctx.di.providePort(

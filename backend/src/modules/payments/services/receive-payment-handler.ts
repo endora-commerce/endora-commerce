@@ -10,8 +10,10 @@ import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Payment } from '../entities/payment.entity.js';
 /**
- * `Order` is the one cross-module import feature 075 keeps here **permanently**
- * (D-78 point 2).
+ * The one cross-module type this handler names, and the seam feature 075 kept
+ * here **permanently** (D-78 point 2) — now expressed as the owner's own
+ * published interface rather than as its entity class (feature 080, T048;
+ * D-169).
  *
  * `payments.order_id` carries a declared foreign key into `orders.id`
  * (`payments_order_fk`, `on delete restrict`), so this is a genuinely
@@ -21,6 +23,17 @@ import { Payment } from '../entities/payment.entity.js';
  * and is *declared* — `orders` is in this module's manifest `dependencies` (the
  * FK already required it), the ledger entry names the constraint, and this
  * comment says which transaction the write runs in.
+ *
+ * **What T048 changed is who writes the statement, and nothing else.** It used
+ * to be `tx.findOne(Order, …)` here, followed by an assignment onto the managed
+ * entity — this module holding another module's aggregate open on a transaction
+ * it controls, free to move any column of it. It is now
+ * `orderPaymentStatusApplyPort.applyPaymentStatus(tx, …)`: the same transaction,
+ * the same constraint, the same one column, written by the module that owns the
+ * table and answered with a published record. D-168 leaves a packaged `orders`
+ * no entity class for a stranger to name, which is why the conversion had to
+ * happen before `orders` moves; the foreign key needs the **table** and never
+ * the class (D-169), so `payments_order_fk` is untouched.
  *
  * **The lifecycle half of that seam is gone since feature 085 Phase D**, and
  * the ruling is unaffected by its going. `order.status` was written here too,
@@ -42,7 +55,15 @@ import { Payment } from '../entities/payment.entity.js';
  * identical read is a port in `shipments`' twin handler), and the transition
  * runs **after** the commit, for the reason the port's own contract gives.
  */
-import { Order } from '../../orders/entities/order.entity.js';
+import type { OrderPaymentStatusApplyPort } from '../../orders/ports/index.js';
+/**
+ * Re-exported so `backend.ts` names its own module for the same type. One seam,
+ * one ledger entry: a second import specifier in the composition file would be
+ * a second crossing of a boundary that has exactly one reason to be crossed,
+ * and the reason is stated above. `orders` does the same for the two
+ * `EntityManager`-taking interfaces it reads.
+ */
+export type { OrderPaymentStatusApplyPort };
 
 export interface PaymentEvents extends Record<string, EventBase> {
   'payment.received.v1': EventBase & {
@@ -153,6 +174,19 @@ export class ReceivePaymentHandler {
      * payment-driven status change twice.
      */
     private readonly orderTransition: OrderTransitionPort,
+    /**
+     * The money axis of the order this payment settles (feature 080, T048).
+     *
+     * **Called inside this handler's transaction**, unlike `orderTransition`
+     * above, and the asymmetry is the whole reason there are two ports rather
+     * than one: `payments_order_fk` (`on delete restrict`) holds the payment row
+     * and `orders.payment_status` together, so that write may not commit
+     * separately from this one — while a *lifecycle* transition obtains its own
+     * `EntityManager` and may not run inside it. The interface takes the
+     * caller's `EntityManager` as a required parameter for exactly that reason
+     * (D-169), and the header above states the constraint in full.
+     */
+    private readonly orderPaymentStatus: OrderPaymentStatusApplyPort,
     /** Where a refused transition is recorded; see {@link SettlementLogger}. */
     private readonly log: SettlementLogger,
     private readonly events?: PaymentEventBus,
@@ -192,9 +226,14 @@ export class ReceivePaymentHandler {
         };
       }
 
-      const order = await tx.findOne(Order, { id: payment.orderId });
       const method = await this.paymentMethodRead.findById(payment.paymentMethodId);
       let transition: { to: string; setting: TransitionTrigger } | null = null;
+      // The order this settlement moves, written through its owner's
+      // `EntityManager`-taking port on THIS transaction (see the header). It
+      // answers `null` for an order that is not there — the same state the
+      // `if (order)` guards this replaces described — and a published record
+      // otherwise, so the lifecycle status below is read rather than reachable.
+      let applied: Awaited<ReturnType<OrderPaymentStatusApplyPort['applyPaymentStatus']>> = null;
 
       if (input.outcome === 'success') {
         payment.status = 'paid';
@@ -203,7 +242,10 @@ export class ReceivePaymentHandler {
           payment.externalReference = input.externalReference ?? null;
         }
         if (input.providerDetails) payment.providerDetails = input.providerDetails;
-        if (order) order.paymentStatus = 'paid';
+        applied = await this.orderPaymentStatus.applyPaymentStatus(tx, {
+          orderId: payment.orderId,
+          paymentStatus: 'paid',
+        });
         if (method?.statusOnSuccess) {
           transition = { to: method.statusOnSuccess, setting: 'status_on_success' };
         }
@@ -211,14 +253,15 @@ export class ReceivePaymentHandler {
         payment.status = 'failed';
         payment.failureReason = input.failureReason ?? null;
         if (input.providerDetails) payment.providerDetails = input.providerDetails;
-        if (order) {
-          // Feature 085 (FR-001) — the decline is recorded on the money axis
-          // too. The lifecycle status alone could not say it: the method's
-          // `status_on_failure` is operator-configurable, so two orders sitting
-          // at the same status may have arrived there for opposite reasons, and
-          // the buyer's retry and the operator's list both need to know which.
-          order.paymentStatus = 'failed';
-        }
+        // Feature 085 (FR-001) — the decline is recorded on the money axis
+        // too. The lifecycle status alone could not say it: the method's
+        // `status_on_failure` is operator-configurable, so two orders sitting
+        // at the same status may have arrived there for opposite reasons, and
+        // the buyer's retry and the operator's list both need to know which.
+        applied = await this.orderPaymentStatus.applyPaymentStatus(tx, {
+          orderId: payment.orderId,
+          paymentStatus: 'failed',
+        });
         if (method?.statusOnFailure) {
           transition = { to: method.statusOnFailure, setting: 'status_on_failure' };
         }
@@ -227,7 +270,7 @@ export class ReceivePaymentHandler {
       await tx.flush();
       return {
         payment,
-        orderStatus: order?.status ?? null,
+        orderStatus: applied?.status ?? null,
         idempotent: false,
         emit: true,
         adapter: method?.adapter ?? payment.paymentMethodId,
@@ -386,11 +429,19 @@ export class ReceivePaymentHandler {
         ...(input.externalRefundId ? { refundReference: input.externalRefundId } : {}),
       };
 
-      const order = await tx.findOne(Order, { id: payment.orderId });
       // Only a full refund flips the order's payment status; a partial refund is
-      // tracked on the payment while the order stays 'paid'.
-      const holdsTheOrder = Boolean(order) && input.fullyRefunded;
-      if (order && input.fullyRefunded) order.paymentStatus = 'refunded';
+      // tracked on the payment while the order stays 'paid'. The port is
+      // therefore asked only on a full refund — which is also the only branch
+      // that ever needed the order: `Boolean(order) && input.fullyRefunded` was
+      // false for every partial one whether the order existed or not, so the
+      // read this replaces was doing no work on that path.
+      const refunded = input.fullyRefunded
+        ? await this.orderPaymentStatus.applyPaymentStatus(tx, {
+            orderId: payment.orderId,
+            paymentStatus: 'refunded',
+          })
+        : null;
+      const holdsTheOrder = refunded !== null;
 
       await tx.flush();
       return { payment, changed, holdsTheOrder };

@@ -18,6 +18,9 @@ import { AddressReadService } from '../../../packages/modules/addresses/src/back
 import { DeliveryMethodReadService } from '../../../packages/modules/delivery_methods/src/backend/services/delivery-method-read-port.js';
 import { PaymentMethodReadService } from '../../../packages/modules/payment_methods/src/backend/services/payment-method-read-port.js';
 import { InventoryStockReadService } from '../../src/modules/inventory/services/inventory-read-port.js';
+import { CartPlacementApplyService } from '../../src/modules/carts/services/cart-placement-apply-port.js';
+import { CartReadService } from '../../src/modules/carts/services/cart-read-port.js';
+import { InvoicePlacementApplyService } from '../../src/modules/invoices/services/invoice-placement-apply-port.js';
 import type { OrderServiceNeighbourPorts } from '../../src/modules/orders/services/order-service.js';
 import type { BackendServerHandle } from './test-server.js';
 
@@ -79,6 +82,18 @@ export function orderServiceNeighbours(
     addressRead,
     deliveryMethodRead: () => deliveryMethodRead,
     paymentMethodRead: () => paymentMethodRead,
+    // Feature 080, T048 — the three seams placement used to spell with another
+    // module's entity class. The real implementations, like every other port
+    // here: they are the classes the container registers, so a hand-built
+    // service takes the same statements the composed one does. What the
+    // container adds is the effective-state gate, and a rig that wants the
+    // 503 flips module state against the shared harness.
+    cartPlacementApply: new CartPlacementApplyService(),
+    cartRead: new CartReadService(emFactory),
+    // An accessor, because `invoices` is switchable. A rig that wants the
+    // degrade returns `null` from it — the same shape `inventory` has below,
+    // and the same reason.
+    invoicePlacementApply: () => new InvoicePlacementApplyService(),
     // D-94.4 — the two `inventory` ports the reservation runs on, live. A rig
     // that wants the module *off* returns `null` from this accessor (or flips
     // module state against the shared harness), which is what makes the
