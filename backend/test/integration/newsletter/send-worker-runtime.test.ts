@@ -2,17 +2,15 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Redis } from 'ioredis';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
-import { NewsletterTokenHelper } from '../../../src/modules/newsletter/services/token.helper.js';
-import { NewsletterOptInService } from '../../../src/modules/newsletter/services/opt-in.service.js';
-import { NewsletterAudienceResolver } from '../../../src/modules/newsletter/services/audience-resolver.js';
-import { NewsletterContentService } from '../../../src/modules/newsletter/services/content.service.js';
-import { NewsletterCampaignDispatchService } from '../../../src/modules/newsletter/services/campaign-dispatch.service.js';
-import { InMemoryNewsletterProvider } from '../../../src/modules/newsletter/services/provider/console-provider.js';
-import { createSendQueue, createSendWorker } from '../../../src/modules/newsletter/services/queues/newsletter-queues.js';
+import { NewsletterTokenHelper } from '../../../../packages/modules/newsletter/src/backend/services/token.helper.js';
+import { NewsletterOptInService } from '../../../../packages/modules/newsletter/src/backend/services/opt-in.service.js';
+import { NewsletterAudienceResolver } from '../../../../packages/modules/newsletter/src/backend/services/audience-resolver.js';
+import { NewsletterContentService } from '../../../../packages/modules/newsletter/src/backend/services/content.service.js';
+import { NewsletterCampaignDispatchService } from '../../../../packages/modules/newsletter/src/backend/services/campaign-dispatch.service.js';
+import { InMemoryNewsletterProvider } from '../../../../packages/modules/newsletter/src/backend/services/provider/console-provider.js';
+import { createSendQueue, createSendWorker } from '../../../../packages/modules/newsletter/src/backend/services/queues/newsletter-queues.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
-import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
-import { NewsletterCampaign } from '../../../src/modules/newsletter/entities/newsletter-campaign.entity.js';
-import { NewsletterSendRecord } from '../../../src/modules/newsletter/entities/newsletter-send-record.entity.js';
+import { NewsletterCampaign, NewsletterSendRecord, NewsletterSubscriber } from '../../helpers/package-entities.js';
 
 /**
  * Real Redis/BullMQ runtime proof (feature 048, Principle X): a `newsletter.send`

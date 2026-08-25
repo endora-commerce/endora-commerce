@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { NewsletterEmailBlockService } from '../../../src/modules/newsletter/services/email-block.service.js';
-import { NewsletterEmailBlock } from '../../../src/modules/newsletter/entities/newsletter-email-block.entity.js';
+import { NewsletterEmailBlockService } from '../../../../packages/modules/newsletter/src/backend/services/email-block.service.js';
+import { NewsletterEmailBlock } from '../../helpers/package-entities.js';
 
 function tree(text: string): Record<string, unknown> {
   return { root: { props: {} }, content: [{ type: 'EmailText', props: { id: 't', text } }], zones: {} };
