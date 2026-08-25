@@ -1,14 +1,16 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import type { CustomFieldDefinitionReadPort, CustomFieldValuePort } from '@endora-commerce/contracts';
-import type { CommandBus } from '../../commands/index.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { CustomFieldDefinitionsCache } from './services/custom-field-definitions-cache.js';
 import { CustomFieldDefinitionService } from './services/custom-field-definition.service.js';
 import { CustomFieldValueService } from './services/custom-field-value.service.js';
 import { CustomFieldDefinitionReadService } from './services/custom-field-read-port.js';
 import { registerCustomFieldsAdminRoutes } from './routes.admin.js';
+import { CustomFieldDefinition } from './entities/custom-field-definition.entity.js';
+import { CustomFieldOption } from './entities/custom-field-option.entity.js';
 
 /**
  * `custom_fields` — the module that cannot be switched off (feature 072, wave 1,
@@ -166,3 +168,19 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  CustomFieldDefinition,
+  CustomFieldOption,
+];

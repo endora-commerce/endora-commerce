@@ -7,7 +7,7 @@ import type {
   SupportedEntityType,
   UpdateCustomFieldDefinitionRequest,
 } from '@endora-commerce/contracts';
-import type { CommandBus } from '../../../commands/index.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { CustomFieldDefinition } from '../entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../entities/custom-field-option.entity.js';
 import { isSupportedEntityType } from './custom-field-registry.js';
@@ -45,7 +45,7 @@ import type { DefinitionSource } from './custom-field-value.service.js';
 // decision on and which this file — exporting the service class and an error
 // class beside it — cannot have. Imported here so `implements` still proves the
 // class satisfies what the one host module names.
-import type { CustomFieldDefinitionApplyApi } from '../ports/index.js';
+import type { CustomFieldDefinitionApplyApi } from '../../ports/index.js';
 
 // Feature 061 — the error class moved next to the shared apply functions;
 // re-exported here so existing imports keep working.

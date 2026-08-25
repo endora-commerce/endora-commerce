@@ -1,12 +1,14 @@
+import { CustomFieldDefinition, CustomFieldOption } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { ERROR_CODES } from '@endora-commerce/contracts';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CustomFieldDefinition } from '../../../src/modules/custom_fields/entities/custom-field-definition.entity.js';
-import { CustomFieldOption } from '../../../src/modules/custom_fields/entities/custom-field-option.entity.js';
+
 
 /**
  * Feature 061 T006 — generic `managedBy` refusal on the Custom Fields admin

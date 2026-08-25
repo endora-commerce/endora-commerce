@@ -8,7 +8,7 @@ import {
   type CustomFieldEntityTypeInfo,
   type SupportedEntityType,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { CachedDefinition } from './services/custom-field-definitions-cache.js';
 import {
   CustomFieldDefinitionError,
@@ -19,7 +19,7 @@ import {
   SUPPORTED_ENTITIES,
   type SupportedEntityMeta,
 } from './services/custom-field-registry.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface CustomFieldsAdminDeps {
   definitionService: CustomFieldDefinitionService;

@@ -6,7 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CustomFieldValidationError } from '../../../src/modules/custom_fields/services/custom-field-value.service.js';
+import { CustomFieldValidationError } from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-value.service.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 
 /**

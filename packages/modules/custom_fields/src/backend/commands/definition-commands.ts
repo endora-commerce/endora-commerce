@@ -3,7 +3,7 @@ import type {
   CustomFieldOptionDto,
   UpdateCustomFieldDefinitionRequest,
 } from '@endora-commerce/contracts';
-import type { Command } from '../../../commands/index.js';
+import type { Command } from '@endora-commerce/platform/commands';
 import { CustomFieldDefinition } from '../entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../entities/custom-field-option.entity.js';
 import {

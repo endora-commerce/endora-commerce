@@ -12,7 +12,7 @@ import {
   updateAttributeCommand,
   type AttributeCommandDeps,
 } from '../../../src/modules/catalog/commands/attribute-commands.js';
-import type { CustomFieldDefinitionApplyApi } from '../../../src/modules/custom_fields/ports/index.js';
+import type { CustomFieldDefinitionApplyApi } from '../../../../packages/modules/custom_fields/src/ports/index.js';
 
 /**
  * Feature 080, T053(b) — the definition **read** leaves the apply seam.

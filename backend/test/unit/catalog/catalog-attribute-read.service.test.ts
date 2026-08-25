@@ -8,7 +8,7 @@ import {
 import type { ProductAttribute } from '../../../src/modules/catalog/entities/product-attribute.entity.js';
 import type {
   CachedDefinition,
-} from '../../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
+} from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
 
 /**
  * T014 (feature 061) — unit tests for the composed attribute read model
