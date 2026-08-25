@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
-import { Tax } from '../../../src/modules/taxes/entities/tax.entity.js';
+import { Tax } from '../../helpers/package-entities.js';
 
 /**
  * placeOrder resolves VAT from the tax rules (per product tax class / country /

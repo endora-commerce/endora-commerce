@@ -20,6 +20,12 @@ import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment
 import { entities as promotionsEntities } from '@endora-commerce/mod-promotions/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
 import { entities as shipmentsEntities } from '@endora-commerce/mod-shipments/backend';
+import { entities as comparisonsEntities } from '@endora-commerce/mod-comparisons/backend';
+import { entities as credentialsEntities } from '@endora-commerce/mod-credentials/backend';
+import { entities as dictionariesEntities } from '@endora-commerce/mod-dictionaries/backend';
+import { entities as ksefEntities } from '@endora-commerce/mod-ksef/backend';
+import { entities as searchEntities } from '@endora-commerce/mod-search/backend';
+import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import type { Address as AddressRow } from '../../../packages/modules/addresses/src/backend/entities/address.entity.js';
 import type { AnalyticsEvent as AnalyticsEventRow } from '../../../packages/modules/analytics/src/backend/entities/analytics-event.entity.js';
 import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
@@ -62,6 +68,16 @@ import type { TransactionalEmail as TransactionalEmailRow } from '../../../packa
 import type { TransactionalEmailContent as TransactionalEmailContentRow } from '../../../packages/modules/transactional_emails/src/backend/entities/transactional-email-content.entity.js';
 import type { Webhook as WebhookRow } from '../../../packages/modules/webhooks/src/backend/entities/webhook.entity.js';
 import type { WebhookDelivery as WebhookDeliveryRow } from '../../../packages/modules/webhooks/src/backend/entities/webhook-delivery.entity.js';
+import type { Comparison as ComparisonRow } from '../../../packages/modules/comparisons/src/backend/entities/comparison.entity.js';
+import type { ComparisonProduct as ComparisonProductRow } from '../../../packages/modules/comparisons/src/backend/entities/comparison-product.entity.js';
+import type { CredentialConfiguration as CredentialConfigurationRow } from '../../../packages/modules/credentials/src/backend/entities/credential-configuration.entity.js';
+import type { Country as CountryRow } from '../../../packages/modules/dictionaries/src/backend/entities/country.entity.js';
+import type { DictionaryTranslation as DictionaryTranslationRow } from '../../../packages/modules/dictionaries/src/backend/entities/dictionary-translation.entity.js';
+import type { LanguageCountry as LanguageCountryRow } from '../../../packages/modules/dictionaries/src/backend/entities/language-country.entity.js';
+import type { KsefCredential as KsefCredentialRow } from '../../../packages/modules/ksef/src/backend/entities/ksef-credential.entity.js';
+import type { KsefSubmission as KsefSubmissionRow } from '../../../packages/modules/ksef/src/backend/entities/ksef-submission.entity.js';
+import type { SearchPhraseRecord as SearchPhraseRecordRow } from '../../../packages/modules/search/src/backend/entities/search-phrase-record.entity.js';
+import type { Tax as TaxRow } from '../../../packages/modules/taxes/src/backend/entities/tax.entity.js';
 
 /**
  * How a test names a **module package's** entity class (D-168).
@@ -214,6 +230,27 @@ export const TransactionalEmailContent = classNamed<TransactionalEmailContentRow
 export const Webhook = classNamed<WebhookRow>(webhooksEntities, 'Webhook');
 export const WebhookDelivery = classNamed<WebhookDeliveryRow>(webhooksEntities, 'WebhookDelivery');
 
+/**
+ * Batch three (feature 080, T040b). Ten classes across six packages, each one a
+ * class an integration or contract test hands to a live `EntityManager`.
+ *
+ * Same rule as batch two, and it excluded exactly one site: `KsefCredential` is
+ * here because `integration/ksef/helpers.ts` persists one, while
+ * `unit/ksef/ksef-auth.test.ts` calls `new KsefCredential()` against a stubbed
+ * `EntityManager` and keeps its relative import into the package source — a
+ * different object on purpose, and one no ORM ever sees.
+ */
+export const Comparison = classNamed<ComparisonRow>(comparisonsEntities, 'Comparison');
+export const ComparisonProduct = classNamed<ComparisonProductRow>(comparisonsEntities, 'ComparisonProduct');
+export const CredentialConfiguration = classNamed<CredentialConfigurationRow>(credentialsEntities, 'CredentialConfiguration');
+export const Country = classNamed<CountryRow>(dictionariesEntities, 'Country');
+export const DictionaryTranslation = classNamed<DictionaryTranslationRow>(dictionariesEntities, 'DictionaryTranslation');
+export const LanguageCountry = classNamed<LanguageCountryRow>(dictionariesEntities, 'LanguageCountry');
+export const KsefCredential = classNamed<KsefCredentialRow>(ksefEntities, 'KsefCredential');
+export const KsefSubmission = classNamed<KsefSubmissionRow>(ksefEntities, 'KsefSubmission');
+export const SearchPhraseRecord = classNamed<SearchPhraseRecordRow>(searchEntities, 'SearchPhraseRecord');
+export const Tax = classNamed<TaxRow>(taxesEntities, 'Tax');
+
 export type {
   AdminNotificationRow,
   ApiKeyRow,
@@ -244,4 +281,14 @@ export type {
   TransactionalEmailContentRow,
   WebhookRow,
   WebhookDeliveryRow,
+  ComparisonRow,
+  ComparisonProductRow,
+  CredentialConfigurationRow,
+  CountryRow,
+  DictionaryTranslationRow,
+  LanguageCountryRow,
+  KsefCredentialRow,
+  KsefSubmissionRow,
+  SearchPhraseRecordRow,
+  TaxRow,
 };

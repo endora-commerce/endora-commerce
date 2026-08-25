@@ -7,7 +7,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { CONTRIBUTION_POLICY_STATED } from '../../../scripts/check-port-dependencies.js';
 import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { ConfigurationTypeRegistry } from '../../../src/modules/credentials/services/configuration-type-registry.js';
+import { ConfigurationTypeRegistry } from '../../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js';
 import { EnumOrderStatusRegistry as PaymentOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
 import { EnumOrderStatusRegistry as ShippingOrderStatusRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/order-status-registry.port.js';
 import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';

@@ -5,10 +5,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
-import { DictionaryTranslation } from '../../../src/modules/dictionaries/entities/dictionary-translation.entity.js';
-import { DictionaryReadService } from '../../../src/modules/dictionaries/services/dictionary-read-service.js';
+import { DictionaryReadService } from '../../../../packages/modules/dictionaries/src/backend/services/dictionary-read-service.js';
 import { dictionaryReadPortsFor } from '../../helpers/dictionary-services.js';
+import { Country, DictionaryTranslation } from '../../helpers/package-entities.js';
 
 /**
  * Issue #142 — the cold registry build is a constant number of round trips.

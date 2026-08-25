@@ -56,9 +56,9 @@ import { Migration20260724T173916ApiKeysDistributorBinding } from '@endora-comme
 import { Migration20260505T102206AssetsLibraryInit } from '../modules/assets_library/migrations/20260505T102206_assets_library_init.js';
 
 // ── autopay ─────────────────────────────────────────────────────────────────
-import { Migration20260803T065409AutopayInit } from '../modules/autopay/migrations/20260803T065409_autopay_init.js';
-import { Migration20260816T053835AutopaySeedPaymentMethods } from '../modules/autopay/migrations/20260816T053835_autopay_seed_payment_methods.js';
-import { Migration20260821T084925AutopayFailureStatusOnHold } from '../modules/autopay/migrations/20260821T084925_autopay_failure_status_on_hold.js';
+import { Migration20260803T065409AutopayInit } from '@endora-commerce/mod-autopay/migrations';
+import { Migration20260816T053835AutopaySeedPaymentMethods } from '@endora-commerce/mod-autopay/migrations';
+import { Migration20260821T084925AutopayFailureStatusOnHold } from '@endora-commerce/mod-autopay/migrations';
 
 // ── blog ────────────────────────────────────────────────────────────────────
 import { Migration20260506T081055BlogInit } from '@endora-commerce/mod-blog/migrations';
@@ -96,7 +96,7 @@ import { Migration20260425T162418CmsPagesInit } from '@endora-commerce/mod-cms/m
 import { Migration20260505T130214CmsInit } from '@endora-commerce/mod-cms/migrations';
 
 // ── comparisons ─────────────────────────────────────────────────────────────
-import { Migration20260501T185834ComparisonsInit } from '../modules/comparisons/migrations/20260501T185834_comparisons_init.js';
+import { Migration20260501T185834ComparisonsInit } from '@endora-commerce/mod-comparisons/migrations';
 
 // ── core ────────────────────────────────────────────────────────────────────
 import { Migration20260424T165847CoreFoundationInit } from './migrations/20260424T165847_core_foundation_init.js';
@@ -113,7 +113,7 @@ import { Migration20260721T011510CoreSettingsCredentialRefValueType } from './mi
 import { Migration20260816T203339CoreRetireCoreActivationSettings } from './migrations/20260816T203339_core_retire_core_activation_settings.js';
 
 // ── credentials ─────────────────────────────────────────────────────────────
-import { Migration20260721T011509CredentialsInit } from '../modules/credentials/migrations/20260721T011509_credentials_init.js';
+import { Migration20260721T011509CredentialsInit } from '@endora-commerce/mod-credentials/migrations';
 
 // ── credit_limits ───────────────────────────────────────────────────────────
 import { Migration20260425T063333CreditLimitsInit } from '@endora-commerce/mod-credit-limits/migrations';
@@ -141,7 +141,7 @@ import { Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipmen
 import { Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter } from '@endora-commerce/mod-delivery-methods/migrations';
 
 // ── dictionaries ────────────────────────────────────────────────────────────
-import { Migration20260506T112634DictionariesDictionaryInit } from '../modules/dictionaries/migrations/20260506T112634_dictionaries_dictionary_init.js';
+import { Migration20260506T112634DictionariesDictionaryInit } from '@endora-commerce/mod-dictionaries/migrations';
 
 // ── email ───────────────────────────────────────────────────────────────────
 import { Migration20260817T070014EmailDeliveryRecord } from '../modules/email/migrations/20260817T070014_email_delivery_record.js';
@@ -161,7 +161,7 @@ import { Migration20260801T111000InvoicesGenericTemplateReseed } from '../module
 import { Migration20260817T201110InvoicesCorrectionIdempotencyKey } from '../modules/invoices/migrations/20260817T201110_invoices_correction_idempotency_key.js';
 
 // ── ksef ────────────────────────────────────────────────────────────────────
-import { Migration20260722T224358KsefInit } from '../modules/ksef/migrations/20260722T224358_ksef_init.js';
+import { Migration20260722T224358KsefInit } from '@endora-commerce/mod-ksef/migrations';
 
 // ── languages ───────────────────────────────────────────────────────────────
 import { Migration20260425T161557LanguagesCurrenciesInit } from '@endora-commerce/mod-languages/migrations';
@@ -173,7 +173,7 @@ import { Migration20260727T233211LinkedinAdsInit } from '@endora-commerce/mod-li
 import { Migration20260505T193836MegamenuInit } from '../modules/megamenu/migrations/20260505T193836_megamenu_init.js';
 
 // ── meta_ads ────────────────────────────────────────────────────────────────
-import { Migration20260728T002715MetaAdsInit } from '../modules/meta_ads/migrations/20260728T002715_meta_ads_init.js';
+import { Migration20260728T002715MetaAdsInit } from '@endora-commerce/mod-meta-ads/migrations';
 
 // ── mfa ─────────────────────────────────────────────────────────────────────
 import { Migration20260611T140409MfaInit } from '@endora-commerce/mod-mfa/migrations';
@@ -210,14 +210,14 @@ import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/
 import { Migration20260821T084920PaymentMethodsFailureStatusOnHold } from '@endora-commerce/mod-payment-methods/migrations';
 
 // ── paypal ──────────────────────────────────────────────────────────────────
-import { Migration20260821T110651PaypalInit } from '../modules/paypal/migrations/20260821T110651_paypal_init.js';
-import { Migration20260821T110652PaypalSeedPaymentMethods } from '../modules/paypal/migrations/20260821T110652_paypal_seed_payment_methods.js';
-import { Migration20260821T164749PaypalFailureStatusOnHold } from '../modules/paypal/migrations/20260821T164749_paypal_failure_status_on_hold.js';
+import { Migration20260821T110651PaypalInit } from '@endora-commerce/mod-paypal/migrations';
+import { Migration20260821T110652PaypalSeedPaymentMethods } from '@endora-commerce/mod-paypal/migrations';
+import { Migration20260821T164749PaypalFailureStatusOnHold } from '@endora-commerce/mod-paypal/migrations';
 
 // ── payu ────────────────────────────────────────────────────────────────────
-import { Migration20260801T100943PayuInit } from '../modules/payu/migrations/20260801T100943_payu_init.js';
-import { Migration20260816T053830PayuSeedPaymentMethods } from '../modules/payu/migrations/20260816T053830_payu_seed_payment_methods.js';
-import { Migration20260821T084923PayuFailureStatusOnHold } from '../modules/payu/migrations/20260821T084923_payu_failure_status_on_hold.js';
+import { Migration20260801T100943PayuInit } from '@endora-commerce/mod-payu/migrations';
+import { Migration20260816T053830PayuSeedPaymentMethods } from '@endora-commerce/mod-payu/migrations';
+import { Migration20260821T084923PayuFailureStatusOnHold } from '@endora-commerce/mod-payu/migrations';
 
 // ── pim_ergonode ────────────────────────────────────────────────────────────
 import { Migration20260804T190439PimErgonodeInit } from '../modules/pim_ergonode/migrations/20260804T190439_pim_ergonode_init.js';
@@ -250,7 +250,7 @@ import { Migration20260611T140410PromptActionsInit } from '@endora-commerce/mod-
 import { Migration20260625T144228PwaInit } from '@endora-commerce/mod-pwa/migrations';
 
 // ── quick_order ─────────────────────────────────────────────────────────────
-import { Migration20260611T140359QuickOrderDefaultPreferences } from '../modules/quick_order/migrations/20260611T140359_quick_order_default_preferences.js';
+import { Migration20260611T140359QuickOrderDefaultPreferences } from '@endora-commerce/mod-quick-order/migrations';
 
 // ── quote_requests ──────────────────────────────────────────────────────────
 import { Migration20260424T190112QuoteRequestsInit } from '@endora-commerce/mod-quote-requests/migrations';
@@ -265,7 +265,7 @@ import { Migration20260625T144227ReturnsInit } from '@endora-commerce/mod-return
 import { Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome } from '@endora-commerce/mod-returns/migrations';
 
 // ── search ──────────────────────────────────────────────────────────────────
-import { Migration20260501T123145SearchPhraseRecordsInit } from '../modules/search/migrations/20260501T123145_search_phrase_records_init.js';
+import { Migration20260501T123145SearchPhraseRecordsInit } from '@endora-commerce/mod-search/migrations';
 
 // ── seo ─────────────────────────────────────────────────────────────────────
 import { Migration20260425T154404SeoInit } from '@endora-commerce/mod-seo/migrations';
@@ -279,18 +279,18 @@ import { Migration20260426T135443ShoppingListsInit } from '@endora-commerce/mod-
 import { Migration20260611T140418ShoppingListsDefault } from '@endora-commerce/mod-shopping-lists/migrations';
 
 // ── stripe ──────────────────────────────────────────────────────────────────
-import { Migration20260708T101135StripeInit } from '../modules/stripe/migrations/20260708T101135_stripe_init.js';
-import { Migration20260715T103358StripePaymentRefundedAmount } from '../modules/stripe/migrations/20260715T103358_stripe_payment_refunded_amount.js';
-import { Migration20260816T053826StripeSeedPaymentMethods } from '../modules/stripe/migrations/20260816T053826_stripe_seed_payment_methods.js';
-import { Migration20260821T084922StripeFailureStatusOnHold } from '../modules/stripe/migrations/20260821T084922_stripe_failure_status_on_hold.js';
+import { Migration20260708T101135StripeInit } from '@endora-commerce/mod-stripe/migrations';
+import { Migration20260715T103358StripePaymentRefundedAmount } from '@endora-commerce/mod-stripe/migrations';
+import { Migration20260816T053826StripeSeedPaymentMethods } from '@endora-commerce/mod-stripe/migrations';
+import { Migration20260821T084922StripeFailureStatusOnHold } from '@endora-commerce/mod-stripe/migrations';
 
 // ── taxes ───────────────────────────────────────────────────────────────────
-import { Migration20260426T081516TaxesPromotionsInit } from '../modules/taxes/migrations/20260426T081516_taxes_promotions_init.js';
+import { Migration20260426T081516TaxesPromotionsInit } from '@endora-commerce/mod-taxes/migrations';
 
 // ── tpay ────────────────────────────────────────────────────────────────────
-import { Migration20260729T132507TpayInit } from '../modules/tpay/migrations/20260729T132507_tpay_init.js';
-import { Migration20260816T053834TpaySeedPaymentMethods } from '../modules/tpay/migrations/20260816T053834_tpay_seed_payment_methods.js';
-import { Migration20260821T084924TpayFailureStatusOnHold } from '../modules/tpay/migrations/20260821T084924_tpay_failure_status_on_hold.js';
+import { Migration20260729T132507TpayInit } from '@endora-commerce/mod-tpay/migrations';
+import { Migration20260816T053834TpaySeedPaymentMethods } from '@endora-commerce/mod-tpay/migrations';
+import { Migration20260821T084924TpayFailureStatusOnHold } from '@endora-commerce/mod-tpay/migrations';
 
 // ── transactional_emails ────────────────────────────────────────────────────
 import { Migration20260629T113442TransactionalEmailsInit } from '@endora-commerce/mod-transactional-emails/migrations';

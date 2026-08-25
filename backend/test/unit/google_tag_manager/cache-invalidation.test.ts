@@ -9,7 +9,7 @@ import {
 import { EventBus } from '../../../src/events/bus.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
-import { registerModule } from '../../../src/modules/google_tag_manager/backend.js';
+import { registerModule } from '../../../../packages/modules/google_tag_manager/src/backend/index.js';
 
 /**
  * FR-009 — a configuration change must reach the storefront without waiting for

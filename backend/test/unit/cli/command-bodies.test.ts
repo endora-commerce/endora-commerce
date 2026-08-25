@@ -10,7 +10,7 @@ import {
 } from '../../../src/kernel/module-context.js';
 import { coverage } from '../../../src/modules/_i18n/cli/coverage.js';
 import { abandonmentSweep } from '../../../src/modules/carts/cli/abandonment-sweep.js';
-import { reindex } from '../../../src/modules/search/cli/reindex.js';
+import { reindex } from '../../../../packages/modules/search/src/backend/cli/reindex.js';
 import { cacheClear } from '../../../src/modules/settings/cli/cache-clear.js';
 
 /**

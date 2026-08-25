@@ -1,0 +1,63 @@
+{
+  "name": "@endora-commerce/mod-quick-order",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "Bulk Cart / Quote Request import (CSV + Excel, with variants), quick product search, reorder, default ordering preferences, and one-click buy.",
+  "endora": {
+    "type": "module",
+    "id": "quick_order"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/manifest.d.ts",
+      "default": "./dist/manifest.js"
+    },
+    "./backend": {
+      "types": "./dist/backend/index.d.ts",
+      "default": "./dist/backend/index.js"
+    },
+    "./migrations": {
+      "types": "./dist/migrations/index.d.ts",
+      "default": "./dist/migrations/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "i18n"
+  ],
+  "engines": {
+    "node": ">=22.17.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "peerDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6",
+    "@mikro-orm/migrations": "^6",
+    "@mikro-orm/postgresql": "^6",
+    "exceljs": "^4",
+    "fastify": "^5",
+    "vitest": "^2",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6.6.13",
+    "@mikro-orm/migrations": "^6.6.13",
+    "@mikro-orm/postgresql": "^6.6.13",
+    "@types/node": "^22.9.0",
+    "exceljs": "^4.4.0",
+    "fastify": "^5.8.5",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.4",
+    "zod": "^4.2.0"
+  }
+}

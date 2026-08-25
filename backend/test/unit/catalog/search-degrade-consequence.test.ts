@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -8,6 +8,7 @@ import {
   registeredNames,
   resolvedNames,
 } from '../../../scripts/check-port-dependencies.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 import {
   buildDeactivationLedger,
   deactivationConsequencesFor,
@@ -58,11 +59,26 @@ import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered
  * one.
  */
 
+const layout = await requireModuleLayout('[search-degrade-consequence]');
+
+/**
+ * A module's `registerModule` source, in **either** layout.
+ *
+ * The path used to be spelled `src/modules/<id>/backend.ts`, which stops being
+ * where a module lives the moment it becomes a package (feature 080, T040b) —
+ * and the failure is `ENOENT`, so it is loud rather than silent. The layout is
+ * resolved instead, and the two places a workspace member can keep the file are
+ * tried in turn, exactly as `check-port-dependencies` itself does.
+ */
 const MODULE_SOURCE = (moduleId: string): { file: string; source: string } => {
-  const file = fileURLToPath(
-    new URL(`../../../src/modules/${moduleId}/backend.ts`, import.meta.url),
+  const dir = layout.moduleDirectoryOf(moduleId);
+  if (dir === null) throw new Error(`[search-degrade-consequence] no such module: ${moduleId}`);
+  for (const candidate of [join(dir, 'backend.ts'), join(dir, 'src', 'backend', 'index.ts')]) {
+    if (existsSync(candidate)) return { file: candidate, source: readFileSync(candidate, 'utf8') };
+  }
+  throw new Error(
+    `[search-degrade-consequence] ${moduleId} has no backend entry point under ${dir}`,
   );
-  return { file, source: readFileSync(file, 'utf8') };
 };
 
 const MANIFESTS = REGISTERED_MANIFESTS.map((entry) => entry.manifest);

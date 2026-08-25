@@ -9,9 +9,9 @@ import {
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { enterPlatformScope } from '../../../src/kernel/scope.js';
 import { systemTenantContext } from '../../../src/tenancy/resolve-tenant-context.js';
-import { registerGoogleTagManagerStorefrontRoutes } from '../../../src/modules/google_tag_manager/routes.storefront.js';
-import type { GtmConfigService } from '../../../src/modules/google_tag_manager/services/gtm-config.service.js';
-import type { GtmIngestContext } from '../../../src/modules/google_tag_manager/services/ss-relay-queue.js';
+import { registerGoogleTagManagerStorefrontRoutes } from '../../../../packages/modules/google_tag_manager/src/backend/routes.storefront.js';
+import type { GtmConfigService } from '../../../../packages/modules/google_tag_manager/src/backend/services/gtm-config.service.js';
+import type { GtmIngestContext } from '../../../../packages/modules/google_tag_manager/src/backend/services/ss-relay-queue.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 

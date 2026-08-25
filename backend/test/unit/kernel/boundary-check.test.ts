@@ -21,6 +21,10 @@ import {
   PENDING_RELOCATION,
   PLATFORM_ROOTS,
 } from '../../../scripts/check-kernel-boundary.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+
+/** Every root the check itself walks — resolved, never spelled (T040a). */
+const MODULE_LAYOUT = await requireModuleLayout('[kernel-boundary-check]');
 
 /**
  * The kernel boundary rule (feature 072, T021) is satisfied by construction now
@@ -158,10 +162,17 @@ describe('analyzeSource', () => {
  * unread — and an unread file and a clean one produce the same green line.
  */
 describe('rule A — the scan scope', () => {
-  const srcRoot = join(BACKEND_ROOT, 'src');
+  // Every root the check itself walks, not `backend/src` alone. Measured on the
+  // batch-three tree: **zero** relation decorators are left under `backend/src`
+  // — every ORM relation in this repository now sits in a module package — so a
+  // population rooted at the application tree makes this file's recall
+  // assertion vacuous, which is issue #215 inside the test that exists to
+  // refuse it.
+  const relationSources = (): string[] =>
+    MODULE_LAYOUT.sourceRoots.flatMap((root) => collectSources(root));
 
   it('collects sources that are not named *.entity.ts', () => {
-    const files = collectSources(srcRoot);
+    const files = relationSources();
     expect(files.length).toBeGreaterThan(500);
     expect(files.some((f) => f.endsWith('/backend.ts'))).toBe(true);
     expect(files.every((f) => !f.endsWith('.test.ts'))).toBe(true);
@@ -186,11 +197,11 @@ describe('rule A — the scan scope', () => {
 
   it('every relation in the tree sits in a file the pre-filter keeps', () => {
     // The filter is the scan scope now, so its recall is the rule's reach.
-    const kept = collectSources(srcRoot).filter((f) =>
+    const kept = relationSources().filter((f) =>
       RELATION_DECORATOR_HINT.test(readFileSync(f, 'utf8')),
     );
     expect(kept.length).toBeGreaterThan(0);
-    const missed = collectSources(srcRoot).filter(
+    const missed = relationSources().filter(
       (f) => !kept.includes(f) && /@(?:ManyToOne|OneToMany|OneToOne|ManyToMany)/.test(readFileSync(f, 'utf8')),
     );
     expect(missed).toEqual([]);

@@ -7,8 +7,8 @@ import {
 } from '../../helpers/test-server.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
-import { CredentialConfiguration } from '../../../src/modules/credentials/entities/credential-configuration.entity.js';
-import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
+import { SEARCH_SETTING_CODES } from '../../../../packages/modules/search/src/manifest.js';
+import { CredentialConfiguration } from '../../helpers/package-entities.js';
 
 /**
  * T022 — Contract test for `POST /api/v1/admin/search/llm/toggle`.

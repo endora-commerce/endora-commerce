@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { Tax } from '../../../src/modules/taxes/entities/tax.entity.js';
+import { Tax } from '../../helpers/package-entities.js';
 
 /**
  * Quote Request prices are net; the read serialization must surface the VAT

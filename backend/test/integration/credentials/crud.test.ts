@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { CredentialConfiguration } from '../../../src/modules/credentials/entities/credential-configuration.entity.js';
+import { CredentialConfiguration } from '../../helpers/package-entities.js';
 
 /**
  * Feature 058 US1 (T020) — CRUD end-to-end over the real admin routes + DB.

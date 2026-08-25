@@ -8,7 +8,7 @@ import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helper
 import {
   createSuggestionPricingEnricher,
   type SuggestionPriceResolverPort,
-} from '../../../src/modules/search/services/suggestion-pricing-enricher.js';
+} from '../../../../packages/modules/search/src/backend/services/suggestion-pricing-enricher.js';
 
 /**
  * The typeahead's pricing tolerance stops at the presence answer (issue #84).

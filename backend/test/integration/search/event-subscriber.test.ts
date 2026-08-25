@@ -5,8 +5,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { EventBus } from '../../../src/events/bus.js';
-import { SearchIndexer, indexUidFor } from '../../../src/modules/search/services/search-indexer.js';
-import { SearchEventSubscriber } from '../../../src/modules/search/services/search-event-subscriber.js';
+import { SearchIndexer, indexUidFor } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
+import { SearchEventSubscriber } from '../../../../packages/modules/search/src/backend/services/search-event-subscriber.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';

@@ -3,7 +3,7 @@ import type { ConfigurationTypeDescriptor } from '@endora-commerce/contracts';
 import {
   ConfigurationTypeRegistry,
   ConfigurationTypeUnknown,
-} from '../../../src/modules/credentials/services/configuration-type-registry.js';
+} from '../../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js';
 
 /**
  * Feature 058 US3 (T047) — the configuration-type registry as the single

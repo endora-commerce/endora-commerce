@@ -15,6 +15,7 @@ import {
   type EntrySite,
 } from '../../../scripts/check-entry-scope.js';
 import { findUngatedEntries } from '../../../scripts/check-entry-presence.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * The entry-scope check (feature 072, T037; rewritten per-site for issue #237).
@@ -30,6 +31,8 @@ import { findUngatedEntries } from '../../../scripts/check-entry-presence.js';
  */
 
 const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+/** Where each module's sources really are — resolved, never spelled (T040a). */
+const MODULE_LAYOUT = await requireModuleLayout('[entry-scope-check]');
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
 /**
@@ -480,15 +483,28 @@ describe('one recognizer, two checks', () => {
   // grepping for `setInterval(`, the other by reading the callback. They now
   // share `findRepeatingTimerSites`, and this is what fails if a second
   // implementation grows back.
-  const SEARCH_PLUGIN = 'src/modules/search/plugin.ts';
-  const source = readFileSync(join(BACKEND_ROOT, SEARCH_PLUGIN), 'utf8');
+  // The subject's *path* is resolved, never spelled: `search` became a package
+  // in feature 080's T040b, and `src/modules/search/plugin.ts` stopped existing
+  // in the same commit. What the two checks share is the recognizer, not the
+  // location, so the location is asked for.
+  const SEARCH_PLUGIN = ((): string => {
+    const dir = MODULE_LAYOUT.moduleDirectoryOf('search');
+    if (dir === null) throw new Error('[entry-scope-check] no such module: search');
+    for (const candidate of [join(dir, 'plugin.ts'), join(dir, 'src', 'backend', 'plugin.ts')]) {
+      if (existsSync(candidate)) return candidate;
+    }
+    throw new Error(`[entry-scope-check] search has no plugin.ts under ${dir}`);
+  })();
+  const source = readFileSync(SEARCH_PLUGIN, 'utf8');
 
   it('sees the reindex loop from both sides', () => {
-    expect(kinds(`/repo/backend/${SEARCH_PLUGIN}`, source)).toContain('interval');
+    expect(kinds(SEARCH_PLUGIN, source)).toContain('interval');
     // Blank the presence decision out, so what the timer check reports is the
     // site rather than its compliance.
     const blanked = source.replaceAll("effectiveState.isPresent('search')", 'true');
-    const seen = findUngatedEntries({ sources: new Map([['modules/search/plugin.ts', blanked]]) });
+    const seen = findUngatedEntries({
+      sources: new Map([[MODULE_LAYOUT.keyOf(SEARCH_PLUGIN), blanked]]),
+    });
     expect(seen.map((f) => f.construct)).toContain('setTimeout');
   });
 });

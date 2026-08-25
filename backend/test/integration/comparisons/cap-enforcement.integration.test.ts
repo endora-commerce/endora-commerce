@@ -10,9 +10,9 @@ import {
   SEED_PRODUCT_102_ID,
   SEED_PRODUCT_103_ID,
 } from '../../helpers/seed-catalog.js';
-import { ComparisonProduct } from '../../../src/modules/comparisons/entities/comparison-product.entity.js';
-import { COMPARE_SETTING_CODES } from '../../../src/modules/comparisons/manifest.js';
+import { COMPARE_SETTING_CODES } from '../../../../packages/modules/comparisons/src/manifest.js';
 import { freshCompareCookie } from '../../helpers/comparison-fixtures.js';
+import { ComparisonProduct } from '../../helpers/package-entities.js';
 
 /**
  * T019 — Integration test: `compare.max_products` cap enforcement

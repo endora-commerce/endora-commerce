@@ -7,18 +7,18 @@ import type {
   PaymentReadPort,
   PaymentReferencePort,
 } from '@endora-commerce/contracts';
-import { AutopayTransactionService } from '../../../src/modules/autopay/services/autopay-transaction-service.js';
-import type { AutopayClient } from '../../../src/modules/autopay/services/autopay-client.js';
-import { StripeIntentService } from '../../../src/modules/stripe/services/stripe-intent-service.js';
-import type { StripeClient } from '../../../src/modules/stripe/services/stripe-client.js';
-import { PayuPaymentAdapter } from '../../../src/modules/payu/services/payu-payment-adapter.js';
-import type { PayuClient } from '../../../src/modules/payu/services/payu-client.js';
-import type { PayuOrderService } from '../../../src/modules/payu/services/payu-order-service.js';
-import type { PayuEligibility } from '../../../src/modules/payu/services/payu-eligibility.js';
-import { TpayPaymentAdapter } from '../../../src/modules/tpay/services/tpay-payment-adapter.js';
-import type { TpayClient } from '../../../src/modules/tpay/services/tpay-client.js';
-import type { TpayTransactionService } from '../../../src/modules/tpay/services/tpay-transaction-service.js';
-import type { TpayEligibility } from '../../../src/modules/tpay/services/tpay-eligibility.js';
+import { AutopayTransactionService } from '../../../../packages/modules/autopay/src/backend/services/autopay-transaction-service.js';
+import type { AutopayClient } from '../../../../packages/modules/autopay/src/backend/services/autopay-client.js';
+import { StripeIntentService } from '../../../../packages/modules/stripe/src/backend/services/stripe-intent-service.js';
+import type { StripeClient } from '../../../../packages/modules/stripe/src/backend/services/stripe-client.js';
+import { PayuPaymentAdapter } from '../../../../packages/modules/payu/src/backend/services/payu-payment-adapter.js';
+import type { PayuClient } from '../../../../packages/modules/payu/src/backend/services/payu-client.js';
+import type { PayuOrderService } from '../../../../packages/modules/payu/src/backend/services/payu-order-service.js';
+import type { PayuEligibility } from '../../../../packages/modules/payu/src/backend/services/payu-eligibility.js';
+import { TpayPaymentAdapter } from '../../../../packages/modules/tpay/src/backend/services/tpay-payment-adapter.js';
+import type { TpayClient } from '../../../../packages/modules/tpay/src/backend/services/tpay-client.js';
+import type { TpayTransactionService } from '../../../../packages/modules/tpay/src/backend/services/tpay-transaction-service.js';
+import type { TpayEligibility } from '../../../../packages/modules/tpay/src/backend/services/tpay-eligibility.js';
 
 /**
  * Issue #287 — where each gateway hands the buyer back once the order exists.

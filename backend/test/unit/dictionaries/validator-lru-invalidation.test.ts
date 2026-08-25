@@ -2,8 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
-import { CountryService } from '../../../src/modules/dictionaries/services/country-service.js';
-import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { CountryService } from '../../../../packages/modules/dictionaries/src/backend/services/country-service.js';
+import type { DictionaryValidator } from '../../../../packages/modules/dictionaries/src/backend/services/dictionary-validator.js';
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 
 describe('DictionaryValidator LRU invalidation', () => {

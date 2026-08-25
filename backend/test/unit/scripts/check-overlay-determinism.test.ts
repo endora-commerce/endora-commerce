@@ -254,8 +254,18 @@ describe('containmentSites', () => {
     // present, so this cannot pass by the classification collapsing to one.
     const entities = renderEntitiesRegistry().content;
     const sites = containmentSites(REGISTRY_PATH, entities, ROOTS);
+    //
+    // The **totals** carry the floor and the two verdicts carry only presence,
+    // because the `core` share is a *draining* population by construction:
+    // T040b moves modules out of the application tree one batch at a time, so
+    // it fell 129 -> 99 across batches two and three and its terminal value is
+    // zero. A floor on it would go red on correct work, and raising it back
+    // each time is exactly the number-editing the read-size rule forbids. What
+    // the assertion has to keep is that neither verdict is *absent* — that is
+    // what stops the classification collapsing to one — and that is what these
+    // two now say.
     expect(sites.length).toBeGreaterThan(100);
-    expect(sites.filter((site) => site.verdict === 'core').length).toBeGreaterThan(100);
+    expect(sites.filter((site) => site.verdict === 'core').length).toBeGreaterThan(0);
     expect(sites.filter((site) => site.verdict === 'workspace-package').length).toBeGreaterThan(0);
     expect(sites.filter((site) => site.verdict === 'foreign')).toEqual([]);
     expect(
