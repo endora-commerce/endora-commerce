@@ -931,6 +931,14 @@ acceptance:package-schema:
         - backend/src/composition.ts
         - backend/src/overlay/**/*
         - backend/src/modules/_lifecycle/**/*
+        # The deployments themselves, not only the machinery that loads them.
+        # `src/overlay/**` is the loader; `src/apps/**` is what it loads, and a
+        # criterion that asserts a deployment's behaviour has to run when that
+        # deployment changes. Found by feature 080's T053(c) (!967), which added
+        # an assertion over a deployment and would not have run on a merge
+        # request that edited only it — the job would have stayed green by not
+        # being asked.
+        - backend/src/apps/**/*
         # The criterion itself.
         - backend/acceptance/**/*
         - backend/scripts/acceptance/**/*
