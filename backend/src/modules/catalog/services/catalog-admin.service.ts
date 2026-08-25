@@ -61,11 +61,11 @@ import {
 } from './product-type-validations.js';
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
-import type { CustomFieldDefinitionWithOptions } from '@endora-commerce/contracts';
 import type { Command, CommandBus } from '../../../commands/index.js';
 // D-77 — the apply seam is named once in this module, by `attribute-commands.ts`
 // (see the re-export there for why it is a re-export and not a local
-// declaration). This file extends it into the slice the catalog write path uses.
+// declaration). This file takes it as it is: since T053(b) the write path
+// widens it with nothing.
 import type { CustomFieldDefinitionApplyApi } from '../commands/attribute-commands.js';
 
 import type {
@@ -88,15 +88,17 @@ import {
 // re-exports keep the long-standing import site (routes, tests) stable.
 export { dbToApiAttributeType, resolveAttributeApiType } from './attribute-type-mapping.js';
 
-/**
- * The slice of the custom_fields definition service the catalog write path
- * needs: the transactional apply seam + the committed-state read used for
- * audit capture and option guards. `CustomFieldDefinitionService` satisfies
- * this structurally (Principle I — documented exported service surface only).
+/*
+ * `CatalogCustomFieldsPort` used to stand here — this module's own widening of
+ * `custom_fields`' apply seam with one extra method, `getById`. T053(b)
+ * removed it in both directions: the widening was a **read**, which now names
+ * `CustomFieldDefinitionReadPort.getById` through the read model, and what the
+ * write path takes from the owner is exactly the apply seam and nothing
+ * around it. A consumer widening another module's published shape is the form
+ * D-97.3 refuses at the optional member; a required one is quieter and no
+ * better founded — the owner declares its port, and `lazyPort<T>` is an
+ * unchecked cast, so a method the consumer adds is a method nothing verifies.
  */
-export interface CatalogCustomFieldsPort extends CustomFieldDefinitionApplyApi {
-  getById(id: string): Promise<CustomFieldDefinitionWithOptions | null>;
-}
 
 /**
  * Optional metadata used to attach audit entries to admin mutations.
@@ -158,10 +160,11 @@ export class CatalogAdminService {
      */
     private readonly attributeRead?: CatalogAttributeReadService,
     /**
-     * Feature 061 — custom_fields apply seam + committed-state definition read.
-     * Required for attribute/option mutations.
+     * Feature 061 — the custom_fields transactional apply seam. Required for
+     * attribute/option mutations. The committed-state definition read it used
+     * to carry alongside them is `attributeRead`'s since T053(b).
      */
-    private readonly customFields?: CatalogCustomFieldsPort,
+    private readonly customFields?: CustomFieldDefinitionApplyApi,
     /**
      * Issue #185 — `inventory`'s per-warehouse threshold copy, presence-decided
      * by the wiring. Optional for the same reason every collaborator above it
@@ -181,7 +184,7 @@ export class CatalogAdminService {
     return this.attributeRead;
   }
 
-  #requireCustomFields(): CatalogCustomFieldsPort {
+  #requireCustomFields(): CustomFieldDefinitionApplyApi {
     if (!this.customFields) {
       throw new Error(
         'CatalogAdminService: the custom_fields definition port is not wired — attribute writes are unavailable.',
@@ -191,10 +194,14 @@ export class CatalogAdminService {
   }
 
   #attributeCommandDeps(): AttributeCommandDeps {
-    const customFields = this.#requireCustomFields();
+    const read = this.#requireAttributeRead();
     return {
-      apply: customFields,
-      readDefinition: (id) => customFields.getById(id),
+      apply: this.#requireCustomFields(),
+      // T053(b) — the definition read comes off the published read port, not
+      // off the apply seam. Two collaborators rather than one because they are
+      // two questions: a co-transactional write that must take the caller's
+      // `EntityManager`, and a committed-state read that must not.
+      readDefinition: (id) => read.getDefinitionById(id),
     };
   }
 

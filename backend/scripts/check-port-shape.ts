@@ -310,16 +310,20 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
   // is the apply seam alone.
   'catalog:customFieldDefinitionService':
     'The apply seam, and only that, since issue #209 re-pointed this module\'s two ' +
-    'definition *reads* to the published `customFieldDefinitionReadPort`. ' +
-    '`CatalogCustomFieldsPort` extends `CustomFieldDefinitionApplyApi`, whose every ' +
-    "method takes the caller's `EntityManager` — FR-034 keeps a MikroORM type out of " +
+    'definition *reads* to the published `customFieldDefinitionReadPort` and feature ' +
+    "080's T053(b) re-pointed the third — one definition by id, which the seam had been " +
+    'answering with the owner\'s two managed ORM entities typed as records. What this ' +
+    'name answers now is `CustomFieldDefinitionApplyApi`, whose every `apply*` method ' +
+    "takes the caller's `EntityManager` — FR-034 keeps a MikroORM type out of " +
     '`@endora-commerce/contracts`, and `fk_product_attributes_custom_field_definition` is `on delete ' +
     'restrict` with a `unique` on the same column, so the attribute row and its ' +
     'definition must be written in one transaction and a second one cannot satisfy the ' +
-    'key. D-77 ruled the seam permanent for that reason. Retired by F4 package entry ' +
-    'points, or by dropping the constraint — the same two conditions the D-77 note on ' +
-    "`CustomFieldDefinitionApplyApi` names, and the same shape as `orders`' two entries " +
-    'above.',
+    'key. D-77 ruled the seam permanent for that reason. The interface has its own ' +
+    'declaration file since T053(b) — `custom_fields/ports/index.ts`, which compiles to ' +
+    '`export {};` — so the relocation to the package is a directory move rather than an ' +
+    'extraction. Retired by F4 package entry points, or by dropping the constraint — the ' +
+    'same two conditions the D-77 note on `CustomFieldDefinitionApplyApi` names, and the ' +
+    "same shape as `orders`' two entries above.",
 };
 
 export interface PortShapeInput {

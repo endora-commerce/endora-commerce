@@ -105,13 +105,15 @@ export function registerModule(ctx: ModuleContext): void {
   /**
    * The module's own CRUD surface — its admin routes resolve it, and `catalog`
    * reaches it for one thing only: the transactional apply seam
-   * (`CustomFieldDefinitionApplyApi`), whose every method takes the caller's
-   * `EntityManager` so that a product attribute and its definition are written
-   * under one transaction. D-77 ruled that seam permanent and FR-034 keeps a
-   * MikroORM type out of `@endora-commerce/contracts`, so it is the one name this module
-   * publishes no contract for; it is ledgered as such in
+   * (`CustomFieldDefinitionApplyApi`, declared in this module's `ports/`
+   * directory), whose every `apply*` method takes the caller's `EntityManager`
+   * so that a product attribute and its definition are written under one
+   * transaction. D-77 ruled that seam permanent and FR-034 keeps a MikroORM
+   * type out of `@endora-commerce/contracts`, so it is the one name this module publishes
+   * no contract for; it is ledgered as such in
    * `RESOLUTIONS_OF_UNPUBLISHED_NAMES`. Every definition **read** goes through
-   * `customFieldDefinitionReadPort` below (issue #209).
+   * `customFieldDefinitionReadPort` below — the per-entity lists since issue
+   * #209, and the single definition by id since feature 080's T053(b).
    */
   ctx.di.providePort(
     'customFieldDefinitionService',

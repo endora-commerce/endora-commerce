@@ -62,6 +62,10 @@ function readPortRecording(name: string, calls: string[]): CustomFieldDefinition
       calls.push(`${name}:fresh`);
       return [];
     },
+    getById: async () => {
+      calls.push(`${name}:byId`);
+      return null;
+    },
   };
 }
 

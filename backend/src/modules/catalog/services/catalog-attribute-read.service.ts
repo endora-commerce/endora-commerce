@@ -94,6 +94,26 @@ export class CatalogAttributeReadService {
     }
   }
 
+  /**
+   * One custom-field definition by id — the committed-state read the attribute
+   * Commands capture their audit "before" snapshot and their change guards from
+   * (feature 080, T053(b)).
+   *
+   * It sits here rather than on `CatalogAdminService` because this service is
+   * already this module's one holder of the definition read port, and because
+   * it is a **read**: until T053(b) the Commands took it off `custom_fields`'
+   * apply seam, which is a write seam re-opened to serve a read (D-169) and
+   * which answered with the owner's two managed ORM entities typed as records.
+   *
+   * No stale-window recovery here, deliberately. `listAll`'s recovery exists
+   * because the *composition* of two sources can disagree; one definition read
+   * by id composes nothing, and a fresh read would publish a cache invalidation
+   * to every process from inside an attribute write.
+   */
+  async getDefinitionById(id: string): Promise<CustomFieldDefinitionWithOptions | null> {
+    return this.definitions.getById(id);
+  }
+
   /** By extension id, definition id, or key (the admin routes' `:idOrKey` affordance). */
   async getByIdOrKey(idOrKey: string): Promise<CatalogAttributeView | null> {
     const all = await this.listAll();

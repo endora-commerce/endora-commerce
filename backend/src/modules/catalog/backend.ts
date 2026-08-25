@@ -40,6 +40,9 @@ import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
 import { catalogModule, type CatalogModuleOptions } from './plugin.js';
+// D-77 — the apply seam's type comes from this module's single naming of it in
+// `commands/attribute-commands.ts`, never a second reach of its own.
+import type { CustomFieldDefinitionApplyApi } from './commands/attribute-commands.js';
 import { CatalogAdminService } from './services/catalog-admin.service.js';
 import { CatalogBulkImportService } from './services/catalog-bulk-import.service.js';
 import { CategoryAdminService } from './services/category-admin.service.js';
@@ -141,13 +144,18 @@ export interface CatalogCradle {
    * of this module's resolutions named `customFieldDefinitionService` — the two
    * answers under one key that the `catalog:customFieldDefinitionService` ledger
    * entry recorded. The read half names the published port now; this half
-   * cannot, because `CatalogCustomFieldsPort` extends
-   * `CustomFieldDefinitionApplyApi`, whose every method takes the caller's
-   * `EntityManager` (FR-034 keeps a MikroORM type out of `@endora-commerce/contracts`) and
-   * `fk_product_attributes_custom_field_definition` is what holds it
-   * co-transactional (D-77).
+   * cannot, because every `apply*` method of `CustomFieldDefinitionApplyApi`
+   * takes the caller's `EntityManager` (FR-034 keeps a MikroORM type out of
+   * `@endora-commerce/contracts`) and `fk_product_attributes_custom_field_definition` is
+   * what holds it co-transactional (D-77).
+   *
+   * T053(b) finished the split the ledger entry describes: the last read this
+   * name answered — one definition by id — is
+   * `customFieldDefinitionReadPort.getById` now, so what is left here is the
+   * six co-transactional writes and the post-commit invalidation that is a step
+   * of their own protocol.
    */
-  readonly customFieldDefinitionService: NonNullable<CatalogModuleOptions['customFieldsPort']>;
+  readonly customFieldDefinitionService: CustomFieldDefinitionApplyApi;
   readonly pricingService: NonNullable<CatalogModuleOptions['pricingService']>;
   readonly languageService: NonNullable<CatalogModuleOptions['languageService']>;
   /**
@@ -342,10 +350,10 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'customFieldDefinitionReadPort',
             ),
-            // The apply seam (D-77): every method takes the caller's
+            // The apply seam (D-77): every `apply*` method takes the caller's
             // `EntityManager`, so it stays off `@endora-commerce/contracts` and keeps
             // naming the owner's own registration.
-            customFieldsPort: lazyPort<CatalogCradle['customFieldDefinitionService']>(
+            customFieldsPort: lazyPort<CustomFieldDefinitionApplyApi>(
               ctx,
               'customFieldDefinitionService',
             ),
@@ -599,17 +607,19 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
             commandBus,
             lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
-            // The apply seam, not the definition source — `CatalogAdminService`
-            // takes `CatalogCustomFieldsPort`. Both roots once passed the same
-            // service for this and for the definition source, which is why one
-            // name answered both questions; the read half names
+            // The apply seam, not the definition source. Both roots once passed
+            // the same service for this and for the definition source, which is
+            // why one name answered both questions; the read half names
             // `customFieldDefinitionReadPort` now and this half stays here,
-            // unpublished by D-77 because every method takes the caller's
-            // `EntityManager`.
-            lazyPort<CatalogCradle['customFieldDefinitionService']>(
-              ctx,
-              'customFieldDefinitionService',
-            ),
+            // unpublished by D-77 because every `apply*` method takes the
+            // caller's `EntityManager`.
+            //
+            // The type argument names the **owner's** interface rather than an
+            // indexed access into this module's own cradle: `lazyPort<T>` is an
+            // unchecked cast either way, and a cradle lookup reaches the owner's
+            // declaration by a route nothing states (!951's consumer-side
+            // finding, in the same shape).
+            lazyPort<CustomFieldDefinitionApplyApi>(ctx, 'customFieldDefinitionService'),
             copyWarehouseThresholds,
           ),
       )
