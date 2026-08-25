@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { LockMode } from '@mikro-orm/core';
 import {
   ERROR_CODES,
   type CartSnapshot,
@@ -60,32 +59,6 @@ import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entit
  */
 import { Payment } from '../../payments/entities/payment.entity.js';
 /**
- * The stock reservation, and the two `inventory` classes it writes on the
- * placement `EntityManager` (D-94.1 / D-94.4).
- *
- * `stock_allocations_order_item_fk` (`stock_allocations.order_item_id` ->
- * `order_items.id`, `on delete restrict`) means an allocation row cannot exist
- * before its order item does, and the order items are not committed until
- * placement returns. The `PESSIMISTIC_WRITE` on `stock_levels` is the other
- * half of the same fact: it has to be held by the transaction that writes the
- * order, or two placements allocate the same unit
- * (`test/contract/orders/place-stock-race.test.ts`), and a `reserved`
- * increment committed separately would survive a placement that then rolled
- * back. So this is D-78 point 2 — a co-transactional write the database holds
- * together — and the two ledger entries are `permanent: true` naming the
- * constraint.
- *
- * They were `await import(…)` inside the method body until D-94.4: a dynamic
- * import is invisible to a reviewer scanning this block, which is exactly the
- * property a permanent boundary exception must not have. Everything else the
- * reservation used to reach into this module for — the channel → warehouse
- * binding, the default-warehouse fallback and both strategy resolvers — is
- * gone, published as `inventoryStockReadPort.listChannelWarehouses` and
- * `inventoryFulfilmentPlanningPort`.
- */
-import { StockLevel } from '../../inventory/entities/stock-level.entity.js';
-import { StockAllocation } from '../../inventory/entities/stock-allocation.entity.js';
-/**
  * The two em-carrying interfaces their owners write (D-94.5).
  *
  * Both name a MikroORM `EntityManager`, so neither can live in
@@ -107,31 +80,41 @@ import { StockAllocation } from '../../inventory/entities/stock-allocation.entit
  * back — which would close a cycle.
  */
 /**
- * The two neighbours whose row placement opens through an
+ * The three neighbours whose rows placement opens through an
  * `EntityManager`-taking port rather than through their entity class (feature
  * 080, T048; D-169).
  *
- * Both interfaces are declared by their **owner**, in that owner's `ports/`
+ * Every interface is declared by its **owner**, in that owner's `ports/`
  * directory, for the reason the `credit_limits` / `promotions` block above
  * gives: `lazyPort<T>` is an unchecked cast, so a `T` this module wrote would
  * verify that this module is self-consistent and never that the provider still
- * satisfies it. Neither can live in `@endora-commerce/contracts` — both name a
+ * satisfies it. None can live in `@endora-commerce/contracts` — each names a
  * MikroORM `EntityManager`, and FR-034 keeps that package free of them because
  * `admin` and `storefront` both compile it.
  *
- * Both are relative specifiers and both are still counted by
+ * All three are relative specifiers and all three are still counted by
  * `check:module-boundary`: D-171 exempts a **subpath**, and only a package has
  * one. The conversion and the retirement are two merge requests, and this is
  * the first.
  *
- * The two differ on one axis and it decides how each is reached below. `carts`
+ * They differ on one axis and it decides how each is reached below. `carts`
  * is non-deactivatable, so its port is an ordinary field and its absence is not
- * a state; `invoices` is switchable, so its accessor answers `null` when an
- * operator has switched it off and placement opens no proforma — the
- * `degrades-without` entry in this module's manifest is what that promises, and
- * writing the row anyway is what this module did before.
+ * a state; `invoices` and `inventory` are switchable, so each accessor answers
+ * `null` when an operator has switched that module off — placement opens no
+ * proforma, and reserves no stock. The `degrades-without` entries in this
+ * module's manifest are what that promises, and writing the rows anyway is what
+ * this module did before.
+ *
+ * **`inventory`'s was the last of the family and the worst-spelled**: `orders`
+ * held `StockLevel` and `StockAllocation` statically for the reservation *and*
+ * through an `await import()` inside `releaseAllocations` for the release,
+ * while the comment above the static pair asserted that D-94.4 had removed the
+ * dynamic one. It had not. Both are gone; what crosses now is
+ * `PlacementStockSnapshot`, published records rather than the managed rows this
+ * module could have moved any column of.
  */
 import type { CartPlacementApplyPort } from '../../carts/ports/index.js';
+import type { InventoryReservationApplyPort } from '../../inventory/ports/index.js';
 import type { InvoicePlacementApplyPort } from '../../invoices/ports/index.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
 import type { PromotionUsageFinalizer } from '@endora-commerce/mod-promotions/ports';
@@ -144,6 +127,7 @@ import type { PromotionUsageFinalizer } from '@endora-commerce/mod-promotions/po
 export type {
   CartPlacementApplyPort,
   CreditLimitPort,
+  InventoryReservationApplyPort,
   InvoicePlacementApplyPort,
   PromotionUsageFinalizer,
 };
@@ -235,8 +219,9 @@ export interface CustomerContext {
  *   2. Organization must be active → else 423 ORGANIZATION_SUSPENDED.
  *   3. Addresses must belong to the org → else 403 ADDRESS_NOT_OWNED.
  *   4. Delivery + payment methods must be active.
- *   5. For each item with a StockLevel row, reserve via SELECT … FOR UPDATE —
- *      if (on_hand - reserved) < quantity, raise 409 STOCK_UNAVAILABLE.
+ *   5. Reserve each line through `inventoryReservationApplyPort`, which takes
+ *      this transaction's SELECT … FOR UPDATE lock — if (on_hand - reserved) <
+ *      quantity, raise 409 STOCK_UNAVAILABLE.
  *   6. Persist Order + OrderItems + Payment row.
  *   7. Generate a proforma Invoice row (status='pending'). For US2 we
  *      synthesize a tiny %PDF bytes blob inline so GET /orders/:id/invoice
@@ -261,18 +246,23 @@ export interface OrderServiceNeighbourPorts {
   /** `null` ⇒ `delivery_methods` is not effectively present. */
   readonly deliveryMethodRead: () => DeliveryMethodReadPort | null;
   /**
-   * The two `inventory` ports placement reserves through — `null` when that
-   * module is not effectively present (D-94.4, issue #188).
+   * The three `inventory` ports placement reserves through — `null` when that
+   * module is not effectively present (D-94.4, issue #188; feature 080, T048).
    *
-   * One accessor for both, because there is one presence question and one
+   * One accessor for all three, because there is one presence question and one
    * answer to it: with `inventory` off the reservation block is skipped whole,
    * and an order is placed without reserving stock — which is exactly what
-   * this module's `degrades-without` entry for it declares. Two accessors
-   * would have let half the block run.
+   * this module's `degrades-without` entries for it declare. Separate accessors
+   * would have let part of the block run.
+   *
+   * `reservationApply` is the one that takes this transaction's own
+   * `EntityManager`; the other two do not, and the difference is which
+   * transaction each runs in rather than a shape anybody chose.
    */
   readonly inventory: () => {
     readonly stockRead: InventoryStockReadPort;
     readonly planning: InventoryFulfilmentPlanningPort;
+    readonly reservationApply: InventoryReservationApplyPort;
   } | null;
   /**
    * The basket half of placement, on this transaction's own `EntityManager`
@@ -1384,35 +1374,27 @@ export class OrderService {
             continue;
           }
 
-          // Snapshot per-candidate availability under a write lock. We
-          // load each (product, variant, warehouse) row individually so
-          // the lock is fine-grained — and on `tx`, so it is held until the
-          // order commits.
-          const candidates: Array<{
-            warehouseId: string;
-            warehouseCode: string;
-            isDefault: boolean;
-            available: number;
-            stockRow: StockLevel | null;
-          }> = [];
-          for (const row of candidateWarehouses) {
-            const stock = await tx.findOne(
-              StockLevel,
-              {
-                productId: item.productId,
-                variantId: item.variantId ?? null,
-                warehouseId: row.warehouseId,
-              },
-              { lockMode: LockMode.PESSIMISTIC_WRITE },
-            );
-            candidates.push({
-              warehouseId: row.warehouseId,
-              warehouseCode: row.warehouseCode,
-              isDefault: row.isDefault,
-              available: stock ? stock.onHand - stock.reserved : 0,
-              stockRow: stock,
-            });
-          }
+          // Snapshot per-candidate availability under a write lock, taken by
+          // the module that owns `stock_levels` and on **this** transaction's
+          // `EntityManager`, so it is held until the order commits (feature
+          // 080, T048; D-169). What comes back is a record per warehouse — no
+          // managed row crosses the seam, which is what stops this module
+          // moving a column of somebody else's aggregate on a transaction it
+          // happens to hold (D-77's first narrowing).
+          const snapshot = await inventory.reservationApply.lockAvailabilityForPlacement(tx, {
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+            warehouseIds: candidateWarehouses.map((row) => row.warehouseId),
+          });
+          const availableByWarehouseId = new Map(
+            snapshot.map((row) => [row.warehouseId, row.available]),
+          );
+          const candidates = candidateWarehouses.map((row) => ({
+            warehouseId: row.warehouseId,
+            warehouseCode: row.warehouseCode,
+            isDefault: row.isDefault,
+            available: availableByWarehouseId.get(row.warehouseId) ?? 0,
+          }));
 
           // Precedence: Product → Organization → Sales Channel → platform default.
           const { strategy, warehouseOrder } = inventory.planning.resolveEffectiveStrategy(
@@ -1448,35 +1430,25 @@ export class OrderService {
             );
           }
 
-          // Apply the plan: increment reserved per warehouse. If a row
-          // didn't exist, create it inline so the reserved counter has
-          // somewhere to live (still no on-hand).
-          const allocationsForLine: Array<{
-            warehouseId: string;
-            quantity: number;
-            isBackorder: boolean;
-          }> = [];
-          for (const allocation of outcome.allocations) {
-            const candidate = candidates.find((c) => c.warehouseId === allocation.warehouseId);
-            if (!candidate) continue;
-            if (candidate.stockRow) {
-              candidate.stockRow.reserved += allocation.quantity;
-            } else {
-              const fresh = tx.create(StockLevel, {
-                productId: item.productId,
-                ...(item.variantId ? { variantId: item.variantId } : {}),
-                warehouseId: candidate.warehouseId,
-                onHand: 0,
-                reserved: allocation.quantity,
-              });
-              tx.persist(fresh);
-            }
-            allocationsForLine.push({
+          // Apply the plan, on the same transaction that took the lock: the
+          // `reserved` increment, and a fresh row where the line had none in a
+          // warehouse it is being allocated to. Both statements are written by
+          // the module that owns `stock_levels` (feature 080, T048) — this one
+          // used to reach for `StockLevel` and do them itself.
+          const allocationsForLine = outcome.allocations
+            .filter((allocation) =>
+              candidates.some((c) => c.warehouseId === allocation.warehouseId),
+            )
+            .map((allocation) => ({
               warehouseId: allocation.warehouseId,
               quantity: allocation.quantity,
               isBackorder: allocation.isBackorder,
-            });
-          }
+            }));
+          await inventory.reservationApply.reserveForPlacement(tx, {
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+            allocations: allocationsForLine,
+          });
           allocationPlan.push(allocationsForLine);
         }
       }
@@ -1688,19 +1660,34 @@ export class OrderService {
       // row cannot exist before its order item does. See the import.
       // `allocationPlan` is empty when `inventory` is not effectively present,
       // so this loop reads `undefined` at every index and writes nothing.
+      const allocationRows: Array<{
+        orderItemId: string;
+        warehouseId: string;
+        quantity: number;
+        isBackorder: boolean;
+      }> = [];
       for (let i = 0; i < orderItems.length; i++) {
         const plan = allocationPlan[i];
         if (!plan) continue;
         const oi = orderItems[i]!;
         for (const allocation of plan) {
-          const row = tx.create(StockAllocation, {
+          allocationRows.push({
             orderItemId: oi.id,
             warehouseId: allocation.warehouseId,
             quantity: allocation.quantity,
             isBackorder: allocation.isBackorder,
           });
-          tx.persist(row);
         }
+      }
+      // The same `inventory` the reservation ran against, not a second call to
+      // the accessor: presence is decided **once** per placement, at the top of
+      // the block above, so a flip landing between the reservation and this
+      // write cannot leave half a reservation behind. `allocationRows` is empty
+      // whenever that answer was `null`, because the plan it is built from is.
+      if (inventory !== null && allocationRows.length > 0) {
+        await inventory.reservationApply.recordAllocationsForOrderItems(tx, {
+          allocations: allocationRows,
+        });
       }
       await tx.flush();
 
@@ -1956,12 +1943,30 @@ export class OrderService {
    * stamp `released_at`. Idempotent — re-running this on a cancelled
    * order is a no-op because already-released rows are filtered out
    * by the `released_at IS NULL` predicate.
+   *
+   * **Both tables are written by their owner** since feature 080's T048: this
+   * method read `order_items`, which it owns, and then reached `inventory`'s
+   * `StockAllocation` and `StockLevel` classes through an `await import()`
+   * inside the transaction body. That pair was the last dynamic reach in this
+   * module and it had outlived the comment claiming D-94.4 had removed it.
+   *
+   * **Presence is decided first, and outside the transaction.** `inventory` is
+   * switchable and this module is not, so the edge is `degrades-without` and a
+   * gated port call inside a cancellation would be a 503 in the middle of one.
+   * With the module off nothing is released — the allocation rows and the
+   * counters stay exactly as they were, which is what makes switching a module
+   * off non-destructive, and a release run once an operator switches it back on
+   * releases them. Writing them anyway is the shape issue #188 names.
    */
   async releaseAllocations(orderId: string): Promise<{ released: number }> {
-    // command-coverage-ignore: internal stock-reservation release — a lifecycle
-    // side effect of the audited `order.status_transition` (cancel) command, not
-    // a standalone admin write. Runs in its own transaction; the parent
-    // transition owns the audit trail (mirrors credit_limits reserve/release).
+    // No coverage marker here since T048: this method writes nothing any more.
+    // It reads its own `order_items` and hands them to the port, and the two
+    // `inventory` tables are written on the other side of the seam, where the
+    // marker and its reason now live. The audit trail is unchanged and belongs
+    // to the audited `order.status_transition` (cancel) Command this is a
+    // lifecycle side effect of.
+    const inventory = this.neighbours.inventory();
+    if (inventory === null) return { released: 0 };
     const em = this.emFactory();
     return em.transactional(async (tx) => {
       // `tx.execute`, not `tx.getKnex()`: the knex instance is connection-level
@@ -1979,36 +1984,18 @@ export class OrderService {
       );
       if (itemRows.length === 0) return { released: 0 };
 
-      const { StockAllocation } = await import(
-        '../../inventory/entities/stock-allocation.entity.js'
-      );
-      const { StockLevel } = await import(
-        '../../inventory/entities/stock-level.entity.js'
-      );
-
-      const allocations = await tx.find(StockAllocation, {
-        orderItemId: { $in: itemRows.map((r) => r.id) },
-        releasedAt: null,
+      // On `tx`, so the counter decrement and the `released_at` stamp are one
+      // operation with each other and with whatever else this transaction is
+      // doing. The lines are passed in because `stock_allocations` records the
+      // warehouse and the order item and not the product: resolving it on the
+      // other side would mean `inventory` reading `order_items`.
+      return inventory.reservationApply.releaseForOrderItems(tx, {
+        items: itemRows.map((r) => ({
+          orderItemId: r.id,
+          productId: r.product_id,
+          variantId: r.variant_id ?? null,
+        })),
       });
-      if (allocations.length === 0) return { released: 0 };
-
-      const itemById = new Map(itemRows.map((r) => [r.id, r]));
-      const now = new Date();
-      for (const a of allocations) {
-        const item = itemById.get(a.orderItemId);
-        if (!item) continue;
-        const stock = await tx.findOne(StockLevel, {
-          productId: item.product_id,
-          variantId: item.variant_id ?? null,
-          warehouseId: a.warehouseId,
-        });
-        if (stock) {
-          stock.reserved = Math.max(0, stock.reserved - a.quantity);
-        }
-        a.releasedAt = now;
-      }
-      await tx.flush();
-      return { released: allocations.length };
     });
   }
 

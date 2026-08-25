@@ -253,6 +253,24 @@ export const manifest = defineModuleManifest({
         'with the reservation block skipped there is no plan to compute.',
     },
     {
+      moduleId: 'inventory',
+      name: 'inventoryReservationApplyPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'orders are placed without reserving stock, and a cancelled order releases none until the module is switched back on',
+      reason:
+        'The reservation itself — the `FOR UPDATE` lock on `stock_levels`, the `reserved` ' +
+        'increment, the `stock_allocations` rows and the release a cancellation performs — ' +
+        'on the placement `EntityManager`, because `stock_allocations_order_item_fk` (`on ' +
+        'delete restrict`) means an allocation row cannot exist before its order item does ' +
+        'and the lock must be held by the transaction that writes the order (feature 080, ' +
+        'T048; D-169). It joins the two entries above under one presence question rather ' +
+        'than adding a second. Same ground as those two: `inventory` declares this module ' +
+        'for the constraint, so `dependencies` would close a cycle, and an acknowledged ' +
+        'edge would keep the bind and make `inventory.enabled` unusable. Until T048 this ' +
+        'module wrote that module`s two tables through its entity classes.',
+    },
+    {
       moduleId: 'prompt_actions',
       name: 'promptActionToolRegistry',
       kind: 'contributes-to',

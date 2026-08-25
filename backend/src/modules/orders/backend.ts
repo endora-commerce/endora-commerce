@@ -47,7 +47,7 @@ import { ERROR_CODES } from '@endora-commerce/contracts';
  * never that the provider still satisfies anything.
  */
 /**
- * The two neighbours' `EntityManager`-taking interfaces (feature 080, T048),
+ * The three neighbours' `EntityManager`-taking interfaces (feature 080, T048),
  * re-exported by `order-service.ts` so this module names each owner once. Same
  * rule as the two above and for the same reason: the type argument to
  * `lazyPort` must name the **owner's** published contract, never this module's
@@ -55,6 +55,7 @@ import { ERROR_CODES } from '@endora-commerce/contracts';
  */
 import type {
   CartPlacementApplyPort,
+  InventoryReservationApplyPort,
   InvoicePlacementApplyPort,
 } from './services/order-service.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
@@ -314,6 +315,7 @@ export function registerModule(ctx: ModuleContext): void {
   const inventoryPorts = (): {
     readonly stockRead: InventoryStockReadPort;
     readonly planning: InventoryFulfilmentPlanningPort;
+    readonly reservationApply: InventoryReservationApplyPort;
   } | null =>
     effectiveState.isPresent('inventory')
       ? {
@@ -321,6 +323,14 @@ export function registerModule(ctx: ModuleContext): void {
           planning: lazyPort<InventoryFulfilmentPlanningPort>(
             ctx,
             'inventoryFulfilmentPlanningPort',
+          ),
+          // Feature 080, T048 — the reservation itself, on the placement
+          // `EntityManager`. A third name under the same presence question,
+          // because there is one answer to it: with `inventory` off the whole
+          // block is skipped, and two accessors would have let half of it run.
+          reservationApply: lazyPort<InventoryReservationApplyPort>(
+            ctx,
+            'inventoryReservationApplyPort',
           ),
         }
       : null;
