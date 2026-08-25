@@ -154,7 +154,6 @@
     "nodemailer": "^7.0.9",
     "openapi-types": "^12.1.3",
     "openid-client": "^6.8.4",
-    "otpauth": "^9.5.0",
     "pdfmake": "^0.3.7",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
