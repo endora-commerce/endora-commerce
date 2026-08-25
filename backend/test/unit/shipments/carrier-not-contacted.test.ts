@@ -86,6 +86,7 @@ function orderReadPort(): OrderReadPort {
     listAll: async () => [],
     listItems: async () => [],
     findIdsByBusinessIdLike: async () => [],
+    salesChannelIdsForCustomer: async () => [],
   } as unknown as OrderReadPort;
 }
 

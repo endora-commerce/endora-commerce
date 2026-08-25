@@ -837,6 +837,29 @@ export interface OrderReadPort {
    * silently dropped matches beyond the 500th.
    */
   findIdsByBusinessIdLike(fragment: string, limit: number): Promise<string[]>;
+  /**
+   * The distinct sales channels one customer has ordered on, most recently
+   * ordered-on first. A customer with no orders answers `[]`.
+   *
+   * Published for feature 080's T048 (D-169), for the `customers` detail
+   * header. It is a **read**, so it is a method here and not an
+   * `EntityManager`-taking apply port: handing a read a transaction handle
+   * re-opens a write seam to serve it.
+   *
+   * It is deliberately not {@link OrderListPort.list} with a
+   * `placedByCustomerAccountId`. That read is paginated, so the channels it
+   * yields are the channels on one page, and a detail header that silently
+   * narrowed with the page size would be a different fact under the same
+   * label. `customers` used to answer it with `em.find(Order, {
+   * placedByCustomerAccountId }, { fields: ['salesChannelId'] })` inside its
+   * own module, which was unpaginated and correct and read this module's table
+   * whether this module was there or not.
+   *
+   * The ids come back **already distinct**: the deduplication is the owner's,
+   * because it is what makes the ordering meaningful — the answer is one entry
+   * per channel keyed on that customer's latest order there.
+   */
+  salesChannelIdsForCustomer(customerAccountId: string): Promise<string[]>;
 }
 
 /** The admin order list's filter set. Page and page size are required. */

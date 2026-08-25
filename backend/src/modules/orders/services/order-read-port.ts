@@ -46,6 +46,26 @@ export class OrderReadService implements OrderReadPort {
     return orders.map((order) => order.id);
   }
 
+  async salesChannelIdsForCustomer(customerAccountId: string): Promise<string[]> {
+    const orders = await this.emFactory().find(
+      Order,
+      { placedByCustomerAccountId: customerAccountId },
+      { fields: ['salesChannelId'], orderBy: { placedAt: 'desc' } },
+    );
+    // Distinct, newest first: the first row a channel appears in is that
+    // customer's latest order on it, so first-appearance order *is* the
+    // ordering the contract promises. `customers` used to take the raw rows
+    // and dedupe them itself, which left the order undefined.
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    for (const order of orders) {
+      if (seen.has(order.salesChannelId)) continue;
+      seen.add(order.salesChannelId);
+      ids.push(order.salesChannelId);
+    }
+    return ids;
+  }
+
   async listItems(orderId: string): Promise<OrderItemRecord[]> {
     const items = await this.emFactory().find(
       OrderItem,

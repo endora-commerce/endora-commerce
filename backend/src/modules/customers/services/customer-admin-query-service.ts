@@ -5,10 +5,9 @@ import type {
   CustomerAccountReadPort,
   CustomerAccountRecord,
   CustomerGroupReadPort,
+  OrderReadPort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { Order } from '../../orders/entities/order.entity.js';
 import type { CustomerDefaultsService } from './customer-defaults-service.js';
 
 /**
@@ -22,6 +21,16 @@ import type { CustomerDefaultsService } from './customer-defaults-service.js';
  * were all `em.find` calls on other modules' entities. The scope decision stays
  * here, because it is this module's: the port takes the organisations the actor
  * may see and does not decide who the actor is.
+ *
+ * **Feature 080, T048 (D-169) — and so is the fourth.** The detail header's
+ * sales-channel list was the last `orders` entity this module named:
+ * `em.find(Order, { placedByCustomerAccountId }, { fields: ['salesChannelId'] })`.
+ * It is a plain read, so it took a read-port method
+ * (`OrderReadPort.salesChannelIdsForCustomer`) and not an
+ * `EntityManager`-taking apply port — handing a read a transaction handle
+ * re-opens a write seam to serve it. With that gone this service holds no
+ * `EntityManager` at all: it owns no table, and every question it answers is
+ * somebody's published read.
  */
 export interface AdminCustomerListScope {
   isPlatformAdmin: boolean;
@@ -47,11 +56,11 @@ export interface CustomerAdminQueryPorts {
   accountSearch: CustomerAccountAdminSearchPort;
   organizations: OrganizationDetailsPort;
   customerGroups: CustomerGroupReadPort;
+  orders: OrderReadPort;
 }
 
 export class CustomerAdminQueryService {
   constructor(
-    private readonly emFactory: () => EntityManager,
     private readonly defaults: CustomerDefaultsService,
     private readonly ports: CustomerAdminQueryPorts,
   ) {}
@@ -86,13 +95,9 @@ export class CustomerAdminQueryService {
     const { orgNames, groupNames } = await this.resolveNames([customer]);
     const base = this.toListItem(customer, orgNames, groupNames);
 
-    const salesChannelIds = (
-      await this.emFactory().find(
-        Order,
-        { placedByCustomerAccountId: customer.id },
-        { fields: ['salesChannelId'] },
-      )
-    ).map((o) => o.salesChannelId);
+    // Already distinct, newest-ordered-on first — the owner does both, because
+    // the deduplication is what makes the ordering mean anything.
+    const salesChannelIds = await this.ports.orders.salesChannelIdsForCustomer(customer.id);
 
     const defaults = await this.defaults.getForCustomer(customer.id);
 
@@ -116,7 +121,7 @@ export class CustomerAdminQueryService {
         : null,
       emailVerifiedAt: customer.emailVerifiedAt ? customer.emailVerifiedAt.toISOString() : null,
       twoFactorEnabled: customer.twoFactorEnabled,
-      salesChannelIds: [...new Set(salesChannelIds)],
+      salesChannelIds,
       defaults,
       customFieldValues: customer.customFieldValues ?? {},
     };
