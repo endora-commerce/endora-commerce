@@ -10,6 +10,8 @@ import {
   staleAllowances,
   violationsOf,
   NO_SCOPE_NEEDED,
+  type EntryConstruct,
+  type EntryKind,
   type EntrySite,
 } from '../../../scripts/check-entry-scope.js';
 import { findUngatedEntries } from '../../../scripts/check-entry-presence.js';
@@ -382,26 +384,46 @@ describe('the real tree', () => {
 });
 
 describe('the ledger ratchet', () => {
-  const site = (file: string, scoped: boolean, scheduler = '<file>'): EntrySite => ({
-    file,
-    kind: 'cli',
-    construct: 'cli',
-    scheduler,
-    line: 1,
-    scoped,
-  });
-  const LEDGERED = 'src/modules/settings/scripts/modules-install.ts';
+  const site = (
+    file: string,
+    scoped: boolean,
+    scheduler = '<file>',
+    kind: EntryKind = 'cli',
+    construct: EntryConstruct = 'cli',
+  ): EntrySite => ({ file, kind, construct, scheduler, line: 1, scoped });
+
+  // **Derived from the ledger, never written down.** These two cases used to
+  // name `settings`' `modules-install.ts` shim, and they went red the day that
+  // shim was legitimately deleted (feature 080, T053(d)) — the entry retired,
+  // and two tests that were about the *ratchet* failed because they were about
+  // one entry. A test keyed on a real ledger row is a hostage to that row.
+  //
+  // Taking the first entry and re-deriving its three parts keeps them exercising
+  // the key derivation, which is what they are for. An empty ledger fails them
+  // loudly rather than passing vacuously, which is the right direction: this
+  // ratchet has never been empty and its emptying would be a finding.
+  const LEDGER_KEY = Object.keys(NO_SCOPE_NEEDED)[0];
+  if (LEDGER_KEY === undefined) throw new Error('NO_SCOPE_NEEDED is empty — the ratchet has nothing to ratchet');
+  const [LEDGERED, LEDGERED_SCHEDULER, LEDGERED_CONSTRUCT] = LEDGER_KEY.split(':') as [
+    string,
+    string,
+    string,
+  ];
+  // The cast is safe by construction rather than by assertion: every key in the
+  // ledger is produced by `keyOf`, so its third segment is a construct spelling.
+  const ledgeredSite = (scoped: boolean): EntrySite =>
+    site(LEDGERED, scoped, LEDGERED_SCHEDULER, 'interval', LEDGERED_CONSTRUCT as EntryConstruct);
 
   it('reports an unscoped site that is not ledgered', () => {
     expect(violationsOf([site('src/modules/search/scripts/reindex.ts', false)])).toHaveLength(1);
   });
 
   it('does not report a ledgered one', () => {
-    expect(violationsOf([site(LEDGERED, false)])).toEqual([]);
+    expect(violationsOf([ledgeredSite(false)])).toEqual([]);
   });
 
   it('reports a ledger entry whose site has since been scoped', () => {
-    expect(staleAllowances([site(LEDGERED, true)])).toContain(`${LEDGERED}:<file>:cli`);
+    expect(staleAllowances([ledgeredSite(true)])).toContain(LEDGER_KEY);
   });
 
   it('keys a ledger entry by file, scheduler and construct — never by line', () => {

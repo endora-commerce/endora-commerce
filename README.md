@@ -224,7 +224,7 @@ pnpm --filter backend run module:disable <id> [--cascade]  # toggle off (cascade
 pnpm --filter backend run module:status [<id>] [--json] [--filter=<state>]
 ```
 
-The legacy `modules:install` / `modules:uninstall` aliases (plural form) still work but print a deprecation notice and forward to the new singular commands; they are scheduled for removal in the next minor release. The admin app can render a read-only "Modules" panel from `GET /api/v1/admin/modules` (permission `platform.modules.read`).
+The legacy `modules:install` / `modules:uninstall` aliases (plural form) **are gone** — they were shims that printed a deprecation notice and `spawn`ed the singular commands, and they were removed when `settings` was prepared for packaging (feature 080, T053). Use `module:install` / `module:uninstall`. The admin app can render a read-only "Modules" panel from `GET /api/v1/admin/modules` (permission `platform.modules.read`).
 
 ## Admin UI languages
 

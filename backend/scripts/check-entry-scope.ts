@@ -229,12 +229,6 @@ export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
     'would be dead weight and the entry would emit an escape-hatch audit record ' +
     'every few seconds for the life of every lease.',
 
-  'src/modules/settings/scripts/modules-install.ts:<file>:cli':
-    'Deprecation shim: spawns `module:install` and forwards argv. The scope is ' +
-    'established by the script it spawns.',
-
-  'src/modules/settings/scripts/modules-uninstall.ts:<file>:cli':
-    'Deprecation shim: spawns `module:uninstall` and forwards argv.',
 
   'src/index.ts:<file>:program':
     'The HTTP server root. It composes and listens; it opens no EntityManager ' +
