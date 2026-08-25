@@ -172,21 +172,6 @@ export const manifest = defineModuleManifest({
         'the audit rows stayed here. Same mutual pair, same trade.',
     },
     {
-      moduleId: 'credit_limits',
-      port: 'creditLimitReadPort',
-      reason:
-        'Feature 077, D-87. `creditOwner` walks an ancestor chain and has to know which of ' +
-        "those organisations hold a credit limit. It selected from that module's table — a " +
-        'statement naming no import specifier, so the boundary compiled and returned rows ' +
-        'whatever state the owner was in. It asks `creditLimitReadPort` now, for ids rather ' +
-        "than that module's rows. Acknowledged rather than declared because `credit_limits` " +
-        'declares this module (D-94.1 puts a foreign key behind it), so the second direction ' +
-        'closes the cycle. **Off, the call refuses** — an empty set would read as "nobody ' +
-        'here holds a limit", which on a credit check is the difference between refusing an ' +
-        "order and quoting unlimited credit. No operator sees it: the only caller is that " +
-        "module's own service, stopped by its own gate first.",
-    },
-    {
       moduleId: 'price_lists',
       port: 'priceListReadPort',
       reason:
@@ -197,6 +182,34 @@ export const manifest = defineModuleManifest({
         'closes the cycle and makes the tenancy root uninstallable first, which Rule 3 ' +
         'forbids — the same trade the four FK edges above record. It goes when the panel ' +
         'moves to the module that owns the table.',
+    },
+  ],
+  /**
+   * D-44 — real to the container, binding on no operator.
+   *
+   * D-179.1 moves the `credit_limits` edge here. It described its own refusal
+   * in prose before the spelling for it existed, and the spelling is what makes
+   * the owner's control work.
+   */
+  nonBindingDependencies: [
+    {
+      moduleId: 'credit_limits',
+      name: 'creditLimitReadPort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'the ancestor-chain lookup for who holds a credit limit refuses — no screen reaches ' +
+        "it, because its only caller is that module's own service",
+      reason:
+        'Feature 077, D-87. `creditOwner` walks an ancestor chain and has to know which of ' +
+        "those organisations hold a credit limit. It selected from that module's table — a " +
+        'statement naming no import specifier, so the boundary compiled and returned rows ' +
+        'whatever state the owner was in. It asks `creditLimitReadPort` now, through a ' +
+        '`lazyPort` call on a `di.providePort` name, with no fallback and no `catch`: an ' +
+        'empty set would read as "nobody here holds a limit", which on a credit check is the ' +
+        'difference between refusing an order and quoting unlimited credit. D-179.1 spells ' +
+        'that `refuses-without`. It was `acknowledgedDependencies`, which described the same ' +
+        'behaviour and carried a bind as well, and the bind is what made the owner\'s ' +
+        'activation control answer 409 forever.',
     },
   ],
   // Feature 072/073 (Constitution XVII). The Organization is the single unit of

@@ -101,6 +101,11 @@ export const manifest = defineModuleManifest({
   // the constraints make false is the *install ordering* a `dependencies`
   // entry claims, and `acknowledgedDependencies` withdraws exactly that.
   //
+  // D-179.1 corrects the sentence above: the port edges into `credit_limits`
+  // and `promotions` are real, and they no longer bind. They fail closed and
+  // say so in `nonBindingDependencies`, which is the third spelling !1023 added
+  // for exactly the case the acknowledgement had no word for.
+  //
   // `price_lists` and `taxes` arrive because this module resolves
   // `pricingService` and `taxService` and has never declared either: both were
   // satisfied through `carts`' transitive closure, which is legal and brittle
@@ -132,11 +137,16 @@ export const manifest = defineModuleManifest({
    * flip-time refusals and by `check-port-dependencies`; read by neither the
    * install order nor the migration order.
    *
-   * All four pairs below are mutual by construction, which is the standard the
+   * Every pair below is mutual by construction, which is the standard the
    * check's own header sets: this module reads the neighbour during placement,
-   * and the neighbour records a row against the order. Since D-94.1 three of
-   * those rows are held by a foreign key, so the ordering claim runs the other
-   * way and is withdrawn here rather than left standing and false.
+   * and the neighbour records a row against the order — `carts_completed_order_fk`
+   * holds that row, so the ordering claim runs the other way and is withdrawn
+   * here rather than left standing and false.
+   *
+   * The list was four owners until D-179.1. `credit_limits`, `promotions` and
+   * `quote_requests` moved to `nonBindingDependencies` below: mutuality is why
+   * none of them could be `dependencies`, but it is no argument for the *bind*,
+   * and a bind from this module is one no operator can ever lift.
    */
   acknowledgedDependencies: [
     {
@@ -177,52 +187,90 @@ export const manifest = defineModuleManifest({
         'bind: a preview that cannot read the basket must refuse rather than quote a total ' +
         'for lines it has not seen.',
     },
+  ],
+  // D-44 — real to the container, binding on no operator.
+  //
+  // D-179.1 moves four edges here from `acknowledgedDependencies`, over three
+  // owners. Each was a fallback-less read of a gated port, which until !1023 had
+  // only the two binding spellings — and a bind from this module is permanent,
+  // because it declares itself non-deactivatable. `credit_limits.enabled`,
+  // `promotions.enabled` and `quote_requests.enabled` were controls an operator
+  // could flip with nothing happening. Nothing about the behaviour changes: the
+  // gate refused before and refuses now, and what the entries add is the
+  // sentence the operator's confirmation dialog renders.
+  nonBindingDependencies: [
     {
       moduleId: 'credit_limits',
-      port: 'creditLimitService',
+      name: 'creditLimitService',
+      kind: 'refuses-without',
+      whenAbsent:
+        'an order cannot be placed against a credit limit, and no order can be cancelled or ' +
+        'marked paid, because the reservation those two release cannot be reached',
       reason:
         'Placement reserves against the organization`s limit inside its own transaction, so ' +
-        'the `PESSIMISTIC_WRITE` on the credit row is held until the order commits. ' +
-        '`credit_limit_reservations_order_fk` obliges `credit_limits` to declare this module, ' +
-        'so a `dependencies` entry here would close `orders -> credit_limits -> orders`. The ' +
-        'bind is kept: this module is non-deactivatable, so `credit_limits` stays exactly as ' +
-        '(un)deactivatable under it as it was before the constraint.',
+        'the `PESSIMISTIC_WRITE` on the credit row is held until the order commits; ' +
+        'cancellation and the transition to paid release that reservation, and both call the ' +
+        'port unconditionally rather than only for an order that took one — which is why the ' +
+        'sentence beside this entry names all three. Every call is a `lazyPort` forward on a ' +
+        '`di.providePort` name, with no fallback and no `catch`, so the 503 reaches the ' +
+        'caller. `credit_limit_reservations_order_fk` obliges `credit_limits` to declare this ' +
+        'module, which is why `dependencies` was never available; the acknowledgement that ' +
+        'stood here withdrew the ordering claim and kept the bind.',
     },
     {
       moduleId: 'promotions',
-      port: 'promotionService',
+      name: 'promotionService',
+      kind: 'refuses-without',
+      whenAbsent:
+        'no order can be placed or previewed at all — the discount total is recomputed ' +
+        'through the promotion engine on every checkout, not only on a discounted basket',
       reason:
         'The coupon discount is recomputed at placement through ' +
         '`PromotionApplyPort.applyToCart`, so the figure stamped on the order is the engine`s ' +
-        'and not the basket`s copy of it. `promotion_usages_order_fk` obliges `promotions` to ' +
-        'declare this module, so a `dependencies` entry here would close `orders -> ' +
-        'promotions -> orders`. Acknowledging drops the ordering claim the constraint ' +
-        'contradicts and keeps the bind.',
+        'and not the basket`s copy of it. The call sits in the money math both `placeOrder` ' +
+        'and `previewTotal` share and is made for every basket, so an absent owner refuses ' +
+        'the whole placement and the whole preview — the sentence says so rather than naming ' +
+        'coupons, which would understate it. A `lazyPort` forward on a `di.providePort` name ' +
+        'with no fallback. `promotion_usages_order_fk` obliges `promotions` to declare this ' +
+        'module, so `dependencies` was never available and the acknowledgement that stood ' +
+        'here dropped the ordering claim while keeping the bind.',
     },
     {
       moduleId: 'promotions',
-      port: 'promotionUsageFinalizer',
+      name: 'promotionUsageFinalizer',
+      kind: 'refuses-without',
+      whenAbsent:
+        'a basket carrying a discount cannot become an order — the redemption row is written ' +
+        'inside the placement transaction, so the order rolls back with it',
       reason:
         'The redemption row itself, written on the placement `EntityManager` so a cap hit at ' +
         'the last moment rolls the order back with it — the write ' +
-        '`promotion_usages_order_fk` holds. It shares the cycle of `promotionService` above ' +
-        'and is acknowledged for the same reason; it is a separate name because D-94.5 split ' +
-        'the em-carrying half off the read half so its owner writes the interface.',
+        '`promotion_usages_order_fk` holds. A separate name from `promotionService` because ' +
+        'D-94.5 split the em-carrying half off the read half so its owner writes the ' +
+        'interface, and it takes the same conversion for the same reason. Its refusal is ' +
+        'unreachable while `promotionService` refuses first, and the sentence is written ' +
+        'anyway: `deactivationConsequencesFor` keeps one row per dependent, so which of the ' +
+        'two the operator reads is scan order, and an entry with no sentence classifies ' +
+        'exactly as no entry at all.',
     },
     {
       moduleId: 'quote_requests',
-      port: 'rfqService',
+      name: 'rfqService',
+      kind: 'refuses-without',
+      whenAbsent:
+        'an order cannot be turned back into a quote — the reorder-as-quote action on the ' +
+        'order screen refuses, and every other order surface keeps serving',
       reason:
-        'An order placed from an accepted quote marks that quote converted, and the admin ' +
-        'order screen shows which quote it came from. This module has never declared the ' +
-        'edge — it was satisfied through `carts`` closure, which D-94.3 removes — and it is ' +
-        'acknowledged rather than declared because the edge **is** mutual: ' +
-        '`quote_requests.converted_order_id` is the mirror of `carts.completed_order_id`, so ' +
-        'a `dependencies` entry here would pre-empt the constraint that column will want.',
+        'An order placed from an accepted quote marks that quote converted, and the ' +
+        'reorder-as-quote action builds a new request from the order`s lines. Both go through ' +
+        '`RfqCustomerPort`, a `lazyPort` forward on a `di.providePort` name with no fallback, ' +
+        'so an absent owner refuses that one action and leaves the rest of this module ' +
+        'serving — which is what `refuses-without` says. It was acknowledged on the ground ' +
+        'that the edge is mutual (`quote_requests.converted_order_id` mirrors ' +
+        '`carts.completed_order_id`); the mutuality is still why it is not `dependencies`, ' +
+        'and the bind is what D-179.1 gives up. `carts` holds its own constraint into that ' +
+        'module`s table, and that bind is not this module`s to withdraw.',
     },
-  ],
-  // D-44 — real to the container, binding on no operator.
-  nonBindingDependencies: [
     {
       moduleId: 'inventory',
       name: 'inventoryStockReadPort',
