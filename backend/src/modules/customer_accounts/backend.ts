@@ -16,7 +16,6 @@ import type {
   CustomerPasswordVerificationPort,
   CustomerRolePort,
   CustomerRollupScopePort,
-  CustomerTotpEnrolmentPort,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
@@ -51,7 +50,6 @@ import { CustomerGroupService } from './services/customer-group-service.js';
 import { CustomerRollupScopeService } from './services/customer-rollup-scope.js';
 import { PasswordResetService } from './services/password-reset-service.js';
 import { RoleService } from './services/role-service.js';
-import { TotpEnrolmentService } from './services/totp-enrolment-service.js';
 
 /**
  * `customer_accounts` — one customer auth service, where there were two
@@ -133,7 +131,6 @@ export interface CustomerAccountsCradle {
   readonly customerAuthService: CustomerAuthService;
   readonly passwordResetService: PasswordResetService;
   readonly customerRoleService: RoleService;
-  readonly totpEnrolmentService: TotpEnrolmentService;
   readonly customerGroupService: CustomerGroupService;
 }
 
@@ -146,11 +143,11 @@ export function registerModule(ctx: ModuleContext): void {
   // ---------------------------------------------------------------------------
   // Feature 075, Phase P — the published surface.
   //
-  // The four ports below this block already existed; what they lacked was a
+  // The three ports below this block already existed; what they lacked was a
   // contract a consumer could name without naming a file in this directory.
-  // Two of them (`passwordResetService`, `totpEnrolmentService`) already return
-  // plain shapes, so they gain nothing but a type parameter, which is now the
-  // compile-time proof that they still satisfy what was published.
+  // One of them (`passwordResetService`) already returns a plain shape, so it
+  // gains nothing but a type parameter, which is now the compile-time proof
+  // that it still satisfies what was published.
   //
   // The other two return the `CustomerAccount` **entity**, and an entity
   // crossing a boundary is the problem this feature exists to remove — so they
@@ -333,16 +330,6 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
           new RoleService(emFactory, auditLogService),
-      )
-      .singleton(),
-  );
-
-  ctx.di.providePort<CustomerTotpEnrolmentPort>(
-    'totpEnrolmentService',
-    ctx
-      .asFunction(
-        ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
-          new TotpEnrolmentService(emFactory, auditLogService),
       )
       .singleton(),
   );

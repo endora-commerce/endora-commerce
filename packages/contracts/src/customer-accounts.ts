@@ -85,10 +85,9 @@ export type CustomerAccountBlockSource = 'staff' | 'org_owner';
  * A customer account as it crosses a module boundary — a plain shape, never
  * the ORM entity (FR-011).
  *
- * `passwordHash` and `twoFactorSecret` are deliberately absent. Both are read
- * by exactly one module — the owner — and neither has any business travelling:
- * a record that carries them turns every consumer into a place a credential
- * can leak from.
+ * `passwordHash` is deliberately absent. It is read by exactly one module —
+ * the owner — and has no business travelling: a record that carries it turns
+ * every consumer into a place a credential can leak from.
  */
 export interface CustomerAccountRecord {
   id: string;
@@ -544,32 +543,6 @@ export interface CustomerRolePort {
     newRole: CustomerAccountRole,
   ): Promise<CustomerAccountRecord>;
   removeMember(organizationId: string, targetCustomerAccountId: string): Promise<void>;
-}
-
-/** The one-time enrolment payload. The backup codes are shown once and hashed. */
-export interface CustomerTotpEnrolmentResult {
-  secret: string;
-  otpauthUri: string;
-  backupCodes: string[];
-}
-
-/**
- * Container name: `totpEnrolmentService`. Owner: `customer_accounts`.
- *
- * The customer's own second factor, which is a different thing from the `mfa`
- * module's login orchestration: this port writes the enrolment onto the
- * account row, `mfa` decides whether a login must present one.
- *
- * **Owner off:** the seam fails closed — resolving this port throws
- * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
- * half-executes. Whether `customer_accounts` has an off state at all is its manifest's
- * `activation` to say, not this line's: a module declaring
- * `nonDeactivatable` never enters one.
- */
-export interface CustomerTotpEnrolmentPort {
-  enable(customerAccountId: string): Promise<CustomerTotpEnrolmentResult>;
-  confirm(customerAccountId: string, code: string): Promise<void>;
-  disable(customerAccountId: string, codeOrBackup: string): Promise<void>;
 }
 
 // --- the lifecycle surface `customers` runs ----------------------------------

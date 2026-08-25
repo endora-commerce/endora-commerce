@@ -337,7 +337,6 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     // account has no password on record any more. Leaving the stamp would say
     // the opposite of what the scrub just did.
     account.passwordSetAt = null;
-    account.twoFactorSecret = null;
     account.twoFactorConfirmedAt = null;
     account.anonymizedAt = new Date();
     await em.flush();

@@ -24,7 +24,6 @@ gated by `customers:manage`.
 | `POST /api/v1/auth/password-reset/confirm` | anon | Redeem the emailed reset token |
 | `GET /api/v1/me` | customer | Current customer + their organization, plus `impersonation: { impersonatorAdminUserId }` when an admin is acting as the buyer (T194) |
 | `POST /api/v1/me/password` | customer | Change password (rejects wrong `currentPassword`) |
-| `POST /api/v1/me/two-factor/{enable,confirm,disable}` | customer | TOTP enrolment lifecycle |
 | `GET /api/v1/organizations/mine/members` | org admin | List members |
 | `DELETE /api/v1/organizations/mine/members/:id` | org admin | Remove member (last-admin guard) |
 | `PATCH /api/v1/organizations/mine/members/:id/role` | org admin | Promote / demote (last-admin guard) |

@@ -109,7 +109,6 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'organizations:customerRolePort',
       'organizations:passwordResetService',
       'organizations:priceListReadPort',
-      'organizations:totpEnrolmentService',
       'quote_requests:cartWritePort',
       'quote_requests:orderReadPort',
     ]);

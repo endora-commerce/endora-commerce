@@ -33,9 +33,9 @@ import type { RoleService } from './role-service.js';
  * what the read port is, rather than the table.
  *
  * The mapping below is the point of the exercise and not ceremony:
- * `passwordHash` and `twoFactorSecret` do not survive it. Both are read by
- * exactly one module, and a record that carried them would turn every consumer
- * into a place a credential can leak from.
+ * `passwordHash` does not survive it. It is read by exactly one module, and a
+ * record that carried it would turn every consumer into a place a credential
+ * can leak from.
  */
 
 export function toCustomerAccountRecord(account: CustomerAccount): CustomerAccountRecord {
