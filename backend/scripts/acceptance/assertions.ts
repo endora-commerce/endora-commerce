@@ -30,11 +30,20 @@ import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
  * What it asks is the overlay pattern's, not the packaging programme's: a
  * per-deployment overlay overrides a core service by decorating the
  * **registration** (feature 072, D-28), and a registration name says nothing
- * about where its owner's code lives. So an owner that has become a package
- * ought to be transparent to a decoration. Nothing measured that, and the
- * decoration exemption an overlay module holds (`overlay: true`, set from the
- * root it was discovered under — issue #203) is exactly the kind of thing that
- * can turn out to depend on where the *wrapped* module lives.
+ * about where its owner's code lives. Nothing measured what happens when the
+ * owner is an installed package, and the decoration exemption an overlay module
+ * holds (`overlay: true`, set from the root it was discovered under — issue
+ * #203) is exactly the kind of thing that can turn out to depend on where the
+ * *wrapped* module lives.
+ *
+ * **It did, and D-176 then ruled the question rather than the accident.** The
+ * wrap was refused because the composition root registers overlays before
+ * packages, so the name was not in the container yet; the decoration drain
+ * removed that ordering dependency, and the owner ruled the capability itself —
+ * an overlay may not decorate a registration an installed package owns, because
+ * a package's `exports` map publishes no container name. So A10 asserts the
+ * **refusal with its reason**: a `fail` entry says "this is broken" where the
+ * tree's position is "this is not offered yet".
  */
 export const ASSERTION_IDS = [
   'A1',
@@ -338,9 +347,8 @@ export const ASSERTION_CATALOGUE: Readonly<
     refuses: 'an A8 that has never been seen to refuse anything',
   },
   A10: {
-    title: "a deployment's overlay decorates a registration the installed package owns",
-    refuses:
-      'an overlay pattern whose one customisation seam reaches only the modules this repository ships',
+    title: "a deployment's overlay is refused a registration the installed package owns",
+    refuses: 'a deployment wrapping a container name the package publishes through no export',
   },
 };
 
@@ -427,8 +435,8 @@ export function exitCodeFor(results: readonly AssertionResult[]): 0 | 1 | 2 {
  * either direction fails. It was written while the criterion was red by
  * construction — a package genuinely could not ship schema until Wave 3, and a
  * job that simply failed on the red would have blocked every merge request
- * touching a migration registry — and it is unchanged now that all nine pass
- * (T046). Only the direction that bites has moved: a newly-red assertion fails
+ * touching a migration registry — and it is unchanged now that all ten pass
+ * (T046, then T059). Only the direction that bites has moved: a newly-red assertion fails
  * the job, and a newly-green one still would, its remedy being to record the
  * green in the merge request that earned it.
  *

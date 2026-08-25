@@ -13,7 +13,9 @@ import {
   DuplicateRegistrationError,
   EagerResolutionError,
   ForeignDecorationError,
+  PackageDecorationNotOfferedError,
   createDecorationLedger,
+  createDecorationQueue,
   createModuleContext,
   createModuleRegistrationSink,
   createRegistrationOwnership,
@@ -29,6 +31,7 @@ import {
 export {
   AmbiguousDecorationError,
   ForeignDecorationError,
+  PackageDecorationNotOfferedError,
   type DecorationLedger,
   type DecorationRecord,
 } from './module-context.js';
@@ -69,14 +72,21 @@ export {
 export class ModuleCompositionError extends Error {
   constructor(
     readonly moduleId: string,
-    readonly phase: 'register' | 'boot',
+    readonly phase: 'register' | 'decorate' | 'boot',
     readonly cause: unknown,
   ) {
     const detail = cause instanceof Error ? cause.message : String(cause);
     super(
       phase === 'register'
         ? `[kernel] module '${moduleId}' failed while registering: ${detail}`
-        : `[kernel] module '${moduleId}' failed in its boot hook: ${detail}`,
+        : phase === 'decorate'
+          ? // D-176 — a decoration is applied at the drain, after the last
+            // module has registered, so a failure in one is no longer inside
+            // the decorating module's `registerModule`. The phase says so
+            // rather than borrowing 'register', which would attribute the
+            // failure to a call that had already returned.
+            `[kernel] module '${moduleId}' failed while its decoration was applied: ${detail}`
+          : `[kernel] module '${moduleId}' failed in its boot hook: ${detail}`,
     );
     this.name = 'ModuleCompositionError';
   }
@@ -110,7 +120,8 @@ function alreadyNamesTheModule(error: unknown): boolean {
     error instanceof DuplicateRegistrationError ||
     error instanceof EagerResolutionError ||
     error instanceof AmbiguousDecorationError ||
-    error instanceof ForeignDecorationError
+    error instanceof ForeignDecorationError ||
+    error instanceof PackageDecorationNotOfferedError
   );
 }
 
@@ -131,6 +142,23 @@ export interface ModuleEntry {
    * `ctx.di.decorate`, which is why it is a location and not a declaration.
    */
   readonly overlay?: boolean;
+  /**
+   * This entry came from an **installed extension package**, not from this
+   * repository's tree (D-176 Q3).
+   *
+   * Set by the host's package loader from where it found the package, never by
+   * the package — the same rule `overlay` follows, and for the mirror-image
+   * purpose: `overlay` grants the decoration exemption, this **withholds** one.
+   * A deployment's overlay may wrap anything core registers and not a
+   * registration a package owns, because nothing in a package's `exports` map
+   * publishes the container names it registers internally. See
+   * {@link PackageDecorationNotOfferedError}.
+   *
+   * It is a separate field rather than `overlay` widened to an origin enum
+   * (D-156.4): one flag that both grants and refuses is one flag away from
+   * granting a stranger the audit path.
+   */
+  readonly installedPackage?: boolean;
 }
 
 export interface ComposeModulesOptions {
@@ -300,6 +328,15 @@ export function composeModules(
   const decorations =
     options.decorations ?? createDecorationLedger(options.decorationOrder ?? {});
   const bootHooks: Array<{ moduleId: string; hook: ModuleBootHook }> = [];
+  // D-176 — every `ctx.di.decorate` of this pass lands here and is applied
+  // below, once the last module has registered.
+  const decorationQueue = createDecorationQueue();
+  // D-176 Q3 — which of these entries a stranger shipped. Derived from the
+  // entries the root handed over, so a package cannot answer for itself, and
+  // read only by the decoration guard.
+  const installedPackageModuleIds = new Set(
+    entries.filter((entry) => entry.installedPackage === true).map((entry) => entry.id),
+  );
 
   // Read by every context this call creates, so the phase guard covers the
   // whole pass rather than one module at a time: module A resolving something
@@ -316,6 +353,8 @@ export function composeModules(
         log: options.log,
         ownership,
         decorations,
+        decorationQueue,
+        installedPackageModuleIds,
         isRegistering: () => registering,
         ...(entry.overlay === undefined ? {} : { overlay: entry.overlay }),
         ...(options.interceptorRegistry
@@ -338,6 +377,36 @@ export function composeModules(
     }
   } finally {
     registering = false;
+  }
+
+  // ---- The decoration drain (D-176) ---------------------------------------
+  //
+  // One registration pass, then one drain. Every `ctx.di.decorate` of the pass
+  // above was queued rather than applied, so what a decoration can reach no
+  // longer depends on where its module sat in the array — which is what makes
+  // D-45's sentence true of this seam as well: registration order is
+  // meaningless, and `decorate` was the one operation that read and rewrote the
+  // container without resolving anything, so the `registering` guard never saw
+  // the dependency it created.
+  //
+  // In the queue's own order, deliberately. `AmbiguousDecorationError` exempts
+  // a module that decorates one name twice because it wrote both wraps in the
+  // order it wrote them, and a queue keeps that for free.
+  //
+  // Nothing is sorted and nothing is grouped: the drain removes the
+  // *dependency* on order, not the order. Two different modules decorating one
+  // name is still refused unless the composition declares which wraps which.
+  for (const pending of decorationQueue.pending) {
+    try {
+      pending.apply();
+    } catch (err) {
+      // The kernel's own decoration refusals name the module already; anything
+      // else — a wrap that threw while building — is attributed to the module
+      // that wrote it, which is the fact the queued entry carries for exactly
+      // this reason.
+      if (alreadyNamesTheModule(err)) throw err;
+      throw new ModuleCompositionError(pending.moduleId, 'decorate', err);
+    }
   }
 
   // The report is emitted, not merely available: a deployment running a client
@@ -385,6 +454,12 @@ export function composeModules(
         log: options.log,
         ownership,
         decorations,
+        // No queue, and that is the honest shape: the drain has already run, so
+        // a decoration written from a command's context applies at the call —
+        // which is what it did before D-176 and what it must keep doing, since
+        // queueing it would be a wrap nobody ever applies. The guards are
+        // unchanged either way, `installedPackageModuleIds` included.
+        installedPackageModuleIds,
         // The one difference from the registration pass: every module has
         // registered, so resolving is exactly what this context is for.
         isRegistering: () => false,

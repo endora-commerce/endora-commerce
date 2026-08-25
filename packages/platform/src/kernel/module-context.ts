@@ -315,6 +315,120 @@ export class ForeignDecorationError extends Error {
 }
 
 /**
+ * The registration being wrapped belongs to an **installed extension package**
+ * (D-176 Q3, ruled by the owner on 2026-08-25).
+ *
+ * A per-deployment overlay may decorate anything core or another of the
+ * deployment's own modules registers — that seam is unchanged and is the whole
+ * of feature 072's answer to file shadowing. It may **not** decorate a
+ * registration an installed package owns, and until the drain landed it could
+ * not: `composition.ts` composes overlays before packages, so the name was not
+ * in the container yet and `hasRegistration` refused for a reason that had
+ * nothing to do with the wrap. The drain removes that accident, so the refusal
+ * has to be stated here or the same change would silently grant the capability
+ * the owner declined.
+ *
+ * **Why it is refused today.** The mechanism that would make it safe does not
+ * exist. A package's `exports` map publishes `registerModule`, its entities, its
+ * migrations and `./ports`; a container name it registers internally is
+ * published by none of them, so a deployment wrapping one is writing against a
+ * name the package never offered and can rename in a patch release.
+ * `check:port-shape` signal 3 already refuses a *module* resolving an
+ * unpublished container name — this is the same violation one level out. And
+ * feature 057's `tsc` contract gate does not transfer: there is no
+ * `*.interface.ts` here, so the compiler would hold the wrap to a `dist/*.d.ts`
+ * that moves under `pnpm update`, authored by someone the deployment does not
+ * employ.
+ *
+ * **Why it does not say "never".** D-106.2 has already committed the platform to
+ * third-party modules being first-class in schema; refusing decoration outright
+ * would make them second-class in behaviour with forking as the only recourse.
+ * The exit the owner named is a package **declaring** which of its registrations
+ * are decoratable — `./ports` is the natural home for it, where changing the
+ * shape costs a major bump — so the message says *not offered yet* rather than
+ * *forbidden*, and names it.
+ *
+ * **It also answers for a decorator that is not an overlay**, and that rules
+ * nothing D-176 left open. A core module or a second package wrapping a
+ * package's registration was refused before this error existed
+ * ({@link ForeignDecorationError}) and is refused after it; what moves is the
+ * reason the author is given, because `ForeignDecorationError`'s remedy is
+ * *"write it as an overlay module"* — advice that, for a package owner, leads
+ * straight back to this refusal.
+ */
+export class PackageDecorationNotOfferedError extends Error {
+  constructor(
+    readonly registrationName: string,
+    readonly moduleId: string,
+    /** The installed package's module id. */
+    readonly owner: string,
+  ) {
+    super(
+      `[kernel] module '${moduleId}' cannot decorate '${registrationName}': '${owner}' is an ` +
+        `installed extension package, and wrapping a registration a package owns is not ` +
+        `offered yet. A deployment's overlay module may still wrap anything core or its own ` +
+        `overlay modules register — that seam is unchanged. What is missing for a package is ` +
+        `the declaration: its exports map publishes registerModule, its entities, its ` +
+        `migrations and './ports', and a container name it registers internally is published ` +
+        `by none of them — so this wrap would be written against a name '${owner}' never ` +
+        `offered and may rename in a patch release. The way this opens is for the package to ` +
+        `declare which of its registrations are decoratable, './ports' being the natural home ` +
+        `for it, where changing the shape costs a major version bump: ask its author for that ` +
+        `declaration. Until then, ask for the seam that already exists — a port, an event, or ` +
+        `an interceptor (ctx.interceptors) around the route.`,
+    );
+    this.name = 'PackageDecorationNotOfferedError';
+  }
+}
+
+/**
+ * One decoration, queued while the modules register and applied at the drain
+ * (D-176).
+ *
+ * `apply` is a closure over the deciding module's context — its id, its overlay
+ * marking, the container it registered into — so the guards run at the drain
+ * with everything they had at the call site. The `moduleId` beside it is what
+ * the composer attributes a failure to: the refusal no longer happens inside
+ * the decorating module's `registerModule`, so the entry has to carry it or the
+ * message loses the one fact an operator needs.
+ */
+export interface PendingDecoration {
+  readonly moduleId: string;
+  readonly name: string;
+  apply(): void;
+}
+
+/**
+ * The composition's decoration queue — a **queue**, and the shape is the point.
+ *
+ * `ctx.di.decorate` enqueues and {@link composeModules} drains after the last
+ * module has registered, which is what makes registration order stop deciding
+ * whether a decoration is possible at all (D-45's sentence: registration
+ * resolves nothing, so its order is meaningless — true of every other seam, and
+ * `decorate` was the one that read and rewrote the container without resolving,
+ * so the `registering` guard never saw it).
+ *
+ * Call order is preserved because a queue preserves it. That is not incidental:
+ * {@link AmbiguousDecorationError} exempts a module decorating one name twice
+ * *because it wrote both wraps in the order it wrote them*, and a `Map` keyed by
+ * name would have to reconstruct that order rather than keep it.
+ */
+export interface DecorationQueue {
+  enqueue(pending: PendingDecoration): void;
+  readonly pending: readonly PendingDecoration[];
+}
+
+export function createDecorationQueue(): DecorationQueue {
+  const pending: PendingDecoration[] = [];
+  return {
+    pending,
+    enqueue(entry) {
+      pending.push(entry);
+    },
+  };
+}
+
+/**
  * The composition-wide record of decorations, shared by every module context of
  * one composition.
  *
@@ -629,12 +743,36 @@ export interface ModuleContextOptions {
    * module, so core cannot assert it.
    */
   readonly overlay?: boolean;
+  /**
+   * Where `ctx.di.decorate` puts its wraps until the registration pass is over
+   * (D-176). Passed by {@link composeModules}, which owns the drain.
+   *
+   * Absent for a hand-built context and for the post-registration context
+   * `contextFor` returns, and in both cases a decoration applies **at the
+   * call**, which is what it has always done: neither has a drain behind it, so
+   * queueing there would be a wrap nobody ever applies.
+   */
+  readonly decorationQueue?: DecorationQueue;
+  /**
+   * The module ids this composition took from **installed extension packages**
+   * (D-176 Q3).
+   *
+   * It answers one question — is the *owner* of the name being decorated a
+   * stranger's package — and it is passed by the composer from the entries it
+   * was handed, so a package cannot put itself in or out of it. It is
+   * deliberately not the `overlay` flag re-typed to an origin (D-156.4): that
+   * flag *grants*, this set *refuses*, and merging the two is how a grant
+   * mechanism acquires a member nobody meant to add.
+   */
+  readonly installedPackageModuleIds?: ReadonlySet<string>;
 }
 
 export function createModuleContext(options: ModuleContextOptions): ModuleContext {
   const { module, container, eventBus, sink, log, interceptorRegistry, ownership } = options;
   const isRegistering = options.isRegistering ?? ((): boolean => false);
   const isDeploymentOverlay = options.overlay === true;
+  const decorationQueue = options.decorationQueue;
+  const installedPackageModuleIds = options.installedPackageModuleIds ?? new Set<string>();
   /**
    * Every name **this context** registered (issue #203).
    *
@@ -729,80 +867,103 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
       },
 
       /**
-       * The message below said *"register order is topological"*. **It is not**
-       * — `composeModules` registers in the order the root's array holds and
-       * there has never been a pass, deliberately (D-45: registration resolves
-       * nothing, so its order is meaningless). The remedy therefore told the
-       * reader to rely on a property the composer has never had.
+       * **Enqueued here, applied at the drain** (D-176).
        *
-       * Measured by feature 080's T053(c) (!967), where a deployment's overlay
-       * could not decorate an installed package for exactly this reason:
-       * `composition.ts` passes overlays before packages, so the name is not
-       * there yet. That is a real ordering dependency at registration time,
-       * which is the one case D-45's sentence does not cover — `decorate` reads
-       * and rewrites the container without resolving anything, so the
-       * `registering` guard never sees it.
+       * This used to write the container while the registration pass was still
+       * running, and that made array order decide whether a decoration was
+       * possible at all: `composition.ts` passes overlays before packages, so a
+       * deployment's overlay wrapping an installed package's registration was
+       * refused because the name was not there *yet* — measured as T053(c)
+       * (!967). D-45 says registration order is meaningless because registration
+       * resolves nothing, which is true of every other seam and was not true of
+       * this one: `decorate` read and rewrote the container **without**
+       * resolving, so the `registering` guard never saw it.
        *
-       * The message is corrected here rather than the order: **whether an
-       * overlay may reach a package at all is unruled**, and
        * `AmbiguousDecorationError` in this same file already states the
-       * principle that settles the shape — *"it cannot be left to the order the
-       * modules happen to compose in"*. Applying that to this guard means
-       * draining decorations after the last module has registered, not
-       * reordering an array literal.
+       * principle — *"it cannot be left to the order the modules happen to
+       * compose in"* — and the drain applies it here. One registration pass,
+       * then one drain: no sort, no dependency graph, and `hasRegistration`
+       * keeps its real job, which after the drain is the only thing it can
+       * mean — a decoration of a name nothing in the composition ever
+       * registers.
+       *
+       * A context with no queue (hand-built, or the post-registration one
+       * `contextFor` returns) applies at the call, exactly as before: there is
+       * no drain behind either, so queueing would be a wrap nobody applies.
        */
       decorate<T>(name: string, wrap: (inner: T, cradle: KernelCradle) => T): void {
-        if (!container.hasRegistration(name)) {
-          throw new Error(
-            `[kernel] module '${module.id}' cannot decorate '${name}': nothing is registered ` +
-              `under that name. Decoration wraps an existing registration, and modules register ` +
-              `in the order a composition root passes them — there is no topological pass — so ` +
-              `the owning module must be composed before this one.`,
-          );
+        const apply = (): void => {
+          if (!container.hasRegistration(name)) {
+            throw new Error(
+              `[kernel] module '${module.id}' cannot decorate '${name}': nothing is registered ` +
+                `under that name, by any module in this composition. Decoration wraps an ` +
+                `existing registration and is applied after every module has registered, so ` +
+                `this is not a question of order — check the spelling of the name, and that ` +
+                `the module that owns it is composed at all.`,
+            );
+          }
+          // Whose registration is this? Asked before anything is written, for
+          // the same reason the ambiguity check is: a refused decoration must
+          // leave the container as it was rather than half-wrapped.
+          //
+          // An owner of `undefined` means nobody claimed the name — a
+          // composition root registered it (`commandBus`, `auditLogService`,
+          // `redis`) — and for a module that is refused like any other foreign
+          // registration. Reading "unowned" as "fair game" would leave the
+          // highest-value targets in the platform the only undefended ones.
+          //
+          // `isDeploymentOverlay` is exempt from **both** halves, not just the
+          // core-owned one, and the condition says so by being name-unscoped: a
+          // deployment's overlay module may wrap `commandBus` too. That is the
+          // ruled behaviour (D-156.4) — a deployment owns its instance and is
+          // not the stranger this guard defends against — and it is why the flag
+          // is never the mechanism by which an installed *package* would be
+          // granted decoration. See `ForeignDecorationError`'s doc block; it is
+          // written out there rather than here because the older prose said
+          // otherwise and the next reader's instinct is to "fix" this line.
+          const owner = ownerOf(name);
+          if (owner !== module.id) {
+            // D-176 Q3, and it is asked **before** the overlay exemption
+            // because that exemption is exactly what it narrows: an installed
+            // package's registration is the one thing a deployment may not
+            // wrap. For every other decorator the answer was already "no" and
+            // stays "no" — only the reason improves, since
+            // `ForeignDecorationError` would send its reader to write an
+            // overlay module, which lands back here.
+            if (owner !== undefined && installedPackageModuleIds.has(owner)) {
+              throw new PackageDecorationNotOfferedError(name, module.id, owner);
+            }
+            if (!isDeploymentOverlay) {
+              throw new ForeignDecorationError(name, module.id, owner);
+            }
+          }
+          decorations.record(name, module.id, owner);
+          const inner = container.getRegistration(name) as Resolver<T>;
+          // Re-registering the previous resolver under a private name keeps the
+          // inner instance resolving through the SAME container or scope, so its
+          // lifetime is preserved and a chain of decorations composes cleanly.
+          // The name comes from the composition-wide ledger: a per-context
+          // counter would hand two modules' first decorations the same private
+          // name, and the second would overwrite the first's inner registration
+          // with the first's own wrapper — a chain that resolves into itself.
+          const innerName = decorations.innerNameFor(name);
+          container.register({ [innerName]: inner });
+          container.register({
+            [name]: asFunction((cradle: KernelCradle) =>
+              wrap(cradle[innerName] as T, cradle),
+              // Preserve the inner registration's lifetime, so decorating does
+              // not silently turn a singleton into a per-resolution instance.
+              // An `asValue` resolver carries none; awilix treats that as
+              // transient at resolution, so the wrapper must too.
+            ).setLifetime(inner.lifetime ?? Lifetime.TRANSIENT),
+          });
+        };
+
+        if (decorationQueue === undefined) {
+          apply();
+          return;
         }
-        // Whose registration is this? Asked before anything is written, for
-        // the same reason the ambiguity check is: a refused decoration must
-        // leave the container as it was rather than half-wrapped.
-        //
-        // An owner of `undefined` means nobody claimed the name — a
-        // composition root registered it (`commandBus`, `auditLogService`,
-        // `redis`) — and for a module that is refused like any other foreign
-        // registration. Reading "unowned" as "fair game" would leave the
-        // highest-value targets in the platform the only undefended ones.
-        //
-        // `isDeploymentOverlay` is exempt from **both** halves, not just the
-        // core-owned one, and the condition says so by being name-unscoped: a
-        // deployment's overlay module may wrap `commandBus` too. That is the
-        // ruled behaviour (D-156.4) — a deployment owns its instance and is not
-        // the stranger this guard defends against — and it is why the flag is
-        // never the mechanism by which an installed *package* would be granted
-        // decoration. See `ForeignDecorationError`'s doc block; it is written
-        // out there rather than here because the older prose said otherwise and
-        // the next reader's instinct is to "fix" this line.
-        const owner = ownerOf(name);
-        if (owner !== module.id && !isDeploymentOverlay) {
-          throw new ForeignDecorationError(name, module.id, owner);
-        }
-        decorations.record(name, module.id, owner);
-        const inner = container.getRegistration(name) as Resolver<T>;
-        // Re-registering the previous resolver under a private name keeps the
-        // inner instance resolving through the SAME container or scope, so its
-        // lifetime is preserved and a chain of decorations composes cleanly.
-        // The name comes from the composition-wide ledger: a per-context
-        // counter would hand two modules' first decorations the same private
-        // name, and the second would overwrite the first's inner registration
-        // with the first's own wrapper — a chain that resolves into itself.
-        const innerName = decorations.innerNameFor(name);
-        container.register({ [innerName]: inner });
-        container.register({
-          [name]: asFunction((cradle: KernelCradle) =>
-            wrap(cradle[innerName] as T, cradle),
-            // Preserve the inner registration's lifetime, so decorating does
-            // not silently turn a singleton into a per-resolution instance.
-            // An `asValue` resolver carries none; awilix treats that as
-            // transient at resolution, so the wrapper must too.
-          ).setLifetime(inner.lifetime ?? Lifetime.TRANSIENT),
-        });
+        decorationQueue.enqueue({ moduleId: module.id, name, apply });
       },
     },
 

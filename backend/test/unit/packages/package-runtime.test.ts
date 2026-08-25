@@ -119,6 +119,24 @@ describe('an installed package composes as an ordinary module entry', () => {
     expect(entries[0]?.overlay).toBeUndefined();
   });
 
+  it('marks the entry as an installed package, from where it was found', async () => {
+    // The mirror image of the flag above (D-176 Q3): `overlay` grants the
+    // decoration exemption, `installedPackage` withholds one — it is what makes
+    // the kernel refuse a *deployment's* overlay wrapping a registration this
+    // package owns. Until the decoration drain landed that case was refused by
+    // accident, because the composition root registers overlays before
+    // packages; the drain removes the accident, so the marking is what carries
+    // the ruling.
+    //
+    // Like `overlay`, it is set from where the loader found the package. The
+    // fixture's `endora` block says nothing about it and cannot.
+    writeFixture({ instance: 'marked', name: '@vendor/mod-crm2', id: 'crm2' });
+
+    const entries = await packageModuleEntriesUnder([nodeModules('marked')]);
+
+    expect(entries[0]?.installedPackage).toBe(true);
+  });
+
   it('reports the resolved package.json as the manifest entry’s filePath', async () => {
     // `dirname(filePath)` is how the i18n reconciler and the orchestrator find
     // a module's assets. For a core module the anchor is `manifest.ts`; for a

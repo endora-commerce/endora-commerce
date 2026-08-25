@@ -28,9 +28,13 @@
  *
  * ## Today
  *
- * All nine pass (feature 080, T046): the criterion is met. It was red on
- * purpose for the length of Wave 3, and `acceptance/expected-state.json` carries
- * the history of each move plus what every pass now means. A8 and A9 passed
+ * All ten pass. The nine schema assertions moved with T046: the criterion is
+ * met, and it was red on purpose for the length of Wave 3. A10, the tenth and
+ * this repository's own, moved with T059 — not by the capability it asked about
+ * being built, but by D-176 ruling it: it asserts the **refusal** a deployment
+ * gets when its overlay reaches for a registration an installed package owns,
+ * with the reason and the exit. `acceptance/expected-state.json` carries the
+ * history of each move plus what every pass now means. A8 and A9 passed
  * throughout, which is the point of them — they are the two assertions that
  * measure the *harness* rather than the platform, and if they could not pass
  * while everything else was red they would never be trusted now.
@@ -620,7 +624,7 @@ async function main(): Promise<void> {
     // Ratchet mode (CI). What is enforced is drift against the committed
     // expectation, in both directions — never the colour itself. That was
     // written when the criterion was red on purpose, and it is what keeps
-    // working now that all nine pass: a regression is drift too.
+    // working now that all ten pass: a regression is drift too.
     const expectation = JSON.parse(readFileSync(EXPECTATION_FILE, 'utf8')) as {
       assertions: AcceptanceExpectation;
     };

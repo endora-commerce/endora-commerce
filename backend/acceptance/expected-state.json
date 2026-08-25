@@ -23,7 +23,7 @@
     "T033a/T036 moved no status and rewrote A7's reason, which its own change falsified.",
     "D-157.6(b) narrows the first-boot reconciler's insert population to core plus overlay, so no",
     "boot will ever converge a package and A7's row has exactly one author, `install`.",
-    "T053(c) added A10 — a tenth, and the only one recorded `fail`. It is not a schema assertion:",
+    "T053(c) added A10 — a tenth, and the only one it recorded `fail`. It is not a schema assertion:",
     "it asks whether the overlay pattern's one customisation seam reaches an owner that has become",
     "a package, which needed no new harness because this one already packs, installs and composes",
     "one. It is red on a single cause, named in its entry, and the entry is the deliverable: the",
@@ -32,7 +32,13 @@
     "what both needed was for the probe to run the sequence an operator runs. `install` is a",
     "package's only author — of its `module_registrations` row since D-157.6(b), and of its",
     "settings rows through step 2 of the same operation — and no phase installed. Both reasons are",
-    "rewritten below to say what the pass now means."
+    "rewritten below to say what the pass now means.",
+    "T059 moved A10 to `pass`, and it is the one entry whose *question* moved rather than whose",
+    "answer did. D-176's decoration drain removed the ordering accident A10 had measured, and the",
+    "owner then ruled the capability: a per-deployment overlay may not decorate a registration an",
+    "installed package owns. So the assertion asserts the refusal with its reason — a `fail` said",
+    "\"this is broken\" where the tree's position is \"this is not offered yet\". All ten assertions",
+    "now pass, which makes this file a pure regression guard in both directions."
   ],
   "assertions": {
     "A1": {
@@ -72,8 +78,8 @@
       "reason": "Passes today, and must, for the same reason: A8 refuses the same package consumed by link from inside this repository. If A9 ever fails, A8 has stopped being able to say no and every other assertion is worth less."
     },
     "A10": {
-      "status": "fail",
-      "reason": "**Red, and measured rather than assumed — which is the whole of T053(c).** A per-deployment overlay cannot decorate a registration an installed package owns, and the layer is exactly one: the **order of the arrays in the composition root**. `composeApp` calls `composeModules([...MODULES, ...overlayModuleEntries, ...packageModuleEntries], …)`, and registration runs in array order with no topological pass — so a deployment's overlay module registers *before* the package whose name it wraps, `container.hasRegistration('acceptanceProbeGreeter')` is false, and `ctx.di.decorate` refuses with \"nothing is registered under that name. Decoration wraps an existing registration; register order is topological, so the owning module must come first.\" The refusal is `ModuleCompositionError`-wrapped and takes the whole composition down, so a deployment that tries this does not degrade — it does not boot. Nothing else is wrong: the overlay module was discovered, was composed, and reached `decorate` at all, which is what says `loadOverlayModuleEntries` marked it `overlay: true`. Measured with the two arrays swapped and nothing else changed, A10 answers `pass` — `acceptanceProbeGreeter` resolves to `\"overlay:acceptance probe\"`, the deployment's wrap delegating into the package's own implementation — so the `overlay: true` exemption over a **package** owner works today and is reached by nobody. The swap is not committed: which array composes last is a ruling about the overlay pattern (the comment above that call already claims \"overlay last, so a deployment's decoration wins\" as structural, and for a package owner it is not), and a task row that adds an assertion is not where that gets decided. Record the move here in the merge request that earns it."
+      "status": "pass",
+      "reason": "**Green, and it is the refusal that is green — the question moved, not the answer** (T059, D-176). T053(c) recorded this red on a measured cause: `composeApp` calls `composeModules([...MODULES, ...overlayModuleEntries, ...packageModuleEntries], …)`, registration ran in array order with no topological pass, so a deployment's overlay module reached `ctx.di.decorate` before the package whose name it wraps had registered, `container.hasRegistration('acceptanceProbeGreeter')` was false, and the refusal took the whole composition down. That was an accident of an array literal rather than a decision, and the measurement that isolated it was the swap: with the two arrays swapped and nothing else changed, A10 answered `pass`, the overlay's wrap delegating into the package's own implementation. D-176 removed the accident rather than the array — `ctx.di.decorate` enqueues and `composeModules` drains the queue after the last module has registered, so registration order decides nothing and `hasRegistration` keeps its one honest meaning, a name nothing in the composition ever registers. The owner then ruled the capability the drain would otherwise have granted in silence: **a per-deployment overlay may not decorate a registration an installed package owns**, because a package's `exports` map publishes `registerModule`, its entities, its migrations and `./ports`, and a container name it registers internally is published by none of them — so the wrap would be written against a name the package never offered and may rename in a patch release, with feature 057's `tsc` contract gate unable to transfer (there is no `*.interface.ts`, so the compiler would hold the deployment to a `dist/*.d.ts` that moves under `pnpm update`). This phase therefore asserts the refusal **with its reason**: the platform answers `PackageDecorationNotOfferedError` naming `acceptance_overlay`, `acceptance_probe` and `acceptanceProbeGreeter`, saying *not offered yet* rather than *forbidden*, and naming the exit — a package declaring which of its registrations are decoratable, `./ports` being the natural home, where a shape change costs a major bump. The phase keeps all four verdicts (!967): the ruled refusal is the only `pass`, while a refusal for another reason, an absent registration, a wrap that applied, and a composition that succeeded with the registration present and **nothing wrapping it and no exception announcing it** are each a distinct `fail` — that last one being the verdict no error message can ever produce, and the shape a silently dropped decoration would take. What this phase does not measure is held without a tarball by `test/overlay/overlay-decoration-seam.test.ts` (T-A: an overlay wraps core; T-A′: the same module without the derived marking is refused; T-A″: the same module over a package owner is refused with this error) and by `test/unit/kernel/decoration-drain.test.ts`."
     }
   }
 }

@@ -670,36 +670,37 @@ describe('the expectation ledger records a criterion that is red today', () => {
     // regression now rather than the record of a gap, and this is the assertion
     // that says so — a `fail` reappearing here is a status nobody earned.
     //
-    // **A10 is the one exception, and it is one because it was measured**
-    // (T053(c)). It is not a schema assertion and it never went green: it asks
-    // whether a per-deployment overlay can decorate a registration an installed
-    // package owns, and today it cannot — the composition root registers
-    // `[...MODULES, ...overlay, ...packages]`, so the deployment's wrap runs
-    // before the name it wraps exists. Its entry names the cause and the
-    // measurement that isolates it. It is excluded here by id rather than by
-    // widening the rule to "a `fail` is fine if it has a reason", because the
-    // rule above is what makes an unexplained red loud, and there is exactly one
-    // explained one.
-    for (const id of ASSERTION_IDS.filter((candidate) => candidate !== 'A10')) {
+    // **A10 stopped being the exception with T059**, and the way it stopped is
+    // worth reading: nothing about the platform's answer changed colour by
+    // being fixed. D-176's drain removed the ordering accident A10 had
+    // measured, and the owner ruled the capability itself — a per-deployment
+    // overlay may not decorate a registration an installed package owns. So the
+    // assertion asserts the **refusal with its reason** and passes. The
+    // exclusion by id is gone with it, deliberately: the rule above is what
+    // makes an unexplained red loud, and there is no explained one left.
+    for (const id of ASSERTION_IDS) {
       expect(ledger.assertions[id]?.status, `${id} must be recorded as passing today`).toBe('pass');
       expect(ledger.assertions[id]?.reason).not.toMatch(/^Follows A5/);
     }
   });
 
-  it('records A10 red on a cause, not on a shrug', () => {
-    // The entry is the deliverable of T053(c): the open question becomes a
-    // measured one. A red with no cause in it is the state this replaces, so the
-    // reason has to name the layer — and it has to name the measurement that
-    // isolated it, because "we could not get it to work" and "we changed one
-    // line and it worked" are different findings and only the second one tells
-    // an owner what they are ruling on.
+  it('records A10 green on the refusal it asserts, not on the capability', () => {
+    // The entry is the deliverable T053(c) started and T059 finished: the open
+    // question became a measured one, and then a ruled one. A `pass` here that
+    // read as "an overlay can decorate a package" would be the opposite of what
+    // the tree does, so the reason has to carry three things — the drain that
+    // made array order stop deciding, the ruling that refuses the capability,
+    // and the exit, because a refusal recorded as permanent sends the next
+    // author to fork.
     const entry = ledger.assertions['A10'];
-    expect(entry?.status).toBe('fail');
-    expect(entry?.reason).toMatch(/composeModules/);
-    expect(entry?.reason).toMatch(/order/i);
-    // The green half of the measurement: the exemption itself works over a
-    // package owner. Without this sentence the entry reads as "packages cannot
-    // be decorated", which is not what was measured.
+    expect(entry?.status).toBe('pass');
+    expect(entry?.reason).toMatch(/drain/i);
+    expect(entry?.reason).toMatch(/PackageDecorationNotOfferedError/);
+    expect(entry?.reason).toMatch(/not offered yet/);
+    expect(entry?.reason).toMatch(/\.\/ports/);
+    // The measurement that isolated the original cause stays in the record: it
+    // is what tells a reader the refusal is a decision rather than a mechanism
+    // nobody could get to work.
     expect(entry?.reason).toMatch(/swapped/);
   });
 

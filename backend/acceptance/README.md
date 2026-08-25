@@ -35,7 +35,7 @@ leaves: `pnpm pack` → `pnpm add ./x.tgz` into `os.tmpdir()` → boot this plat
 | `expected-state.json` | The two-way ratchet: what the criterion answers on this tree today, per assertion, with a reason for every entry. |
 | `../scripts/acceptance/package-schema.ts` | The runner: build, pack, install, A8/A9, database, seven probe phases, report. |
 | `../scripts/acceptance/instance-probe.ts` | One platform process per phase — `schema`, `boot`, `install`, `overlay-decoration`, `gate-off`, `gate-on`, `uninstall`. It boots the real composition root and answers A1 … A7 and A10. |
-| `../../src/apps/acceptance/` | The deployment the `overlay-decoration` phase composes: one overlay module whose whole content is a decoration over a registration the fixture **package** owns. |
+| `../../src/apps/acceptance/` | The deployment the `overlay-decoration` phase composes: one overlay module whose whole content is a decoration over a registration the fixture **package** owns — the reach that makes the refusal measurable. |
 | `../scripts/acceptance/assertions.ts` | Every judgement, pure. Unit-tested in `test/unit/scripts/package-schema-acceptance.test.ts`. |
 
 ## Reading the result
@@ -44,18 +44,19 @@ Three exit codes, and the third is the point: **0** the criterion is met, **1** 
 could not be measured (no PostgreSQL, no `pnpm`, a database name the guard refuses, a phase that
 threw). "The services were missing" is not spellable as either colour.
 
-Today the run prints nine `PASS` and one `FAIL` — A1 … A9 green, A10 red — so the **schema**
-criterion is met and the tenth assertion is not. What CI enforces is unchanged and is still drift
-against `expected-state.json` in **both** directions — the ratchet was never "is it red", it was
-"does it answer what this repository says it answers". Both remedies are the same one: record the
-move in the merge request that earned it. Never edit that file to make a pipeline pass.
+Today the run prints ten `PASS` — the **schema** criterion is met, and so is the tenth assertion,
+which since T059 asserts a **refusal** rather than a capability (see *The tenth assertion*). What
+CI enforces is unchanged and is still drift against `expected-state.json` in **both** directions —
+the ratchet was never "is it red", it was "does it answer what this repository says it answers".
+Both remedies are the same one: record the move in the merge request that earned it. Never edit
+that file to make a pipeline pass.
 
-Two consequences of A10's red worth stating plainly, because both look like defects and are not.
-A plain `pnpm --filter backend run acceptance:package-schema` now exits **1** and prints "the
-criterion is NOT met" — its headline sentence is about D-110's schema question and A10 is not that
-question, so read the per-assertion lines rather than the summary. And the CI job
-(`:ci`, `--against-expectation`) exits **0**, because a recorded red that reproduces is exactly
-what the ratchet is for: it is what makes A10 a standing measurement rather than a note.
+A plain `pnpm --filter backend run acceptance:package-schema` therefore exits **0** and so does
+the CI job (`:ci`, `--against-expectation`). Between T053(c) and T059 the two disagreed — the
+plain run exited **1** on A10's recorded red while the ratchet exited **0**, because a recorded
+red that reproduces is exactly what the ratchet is for — and if a future assertion is added red,
+that is the shape to expect again: read the per-assertion lines rather than the summary, whose
+headline sentence is about D-110's schema question alone.
 
 **A5 was the first to move**, in the merge request that landed T031: an installed package now
 reaches `resolvedManifestEntries()` and both composition roots, so its identity, its grantable
@@ -129,8 +130,8 @@ the platform, and an anti-trap assertion nobody has ever seen refuse anything is
 
 ## The tenth assertion
 
-**A10 asks whether a per-deployment overlay can decorate a registration owned by an installed
-package**, and it is the only entry recorded `fail`.
+**A10 asks what a per-deployment overlay gets when it decorates a registration owned by an
+installed package**, and since T059 the answer it asserts is a **refusal, with its reason**.
 
 It is here rather than in a test of its own for one reason: the thing it needs is an installed
 package — packed, installed outside the working tree, composed — and this harness is the only
@@ -143,33 +144,54 @@ under `backend/src/apps/<deployment>/modules/`, calling `ctx.di.decorate('<name>
 module wrapping someone else's registration is refused; an overlay module is exempt, and the
 exemption is structural (`overlay: true`, set from the root the module was discovered under —
 issue #203). A registration name says nothing about where its owner's code lives, so a package
-ought to be exactly as decoratable as a module in `backend/src/modules/`. Nobody had measured it.
+looked as though it ought to be exactly as decoratable as a module in `backend/src/modules/`.
+Nobody had measured it.
 
-**It is not, and the layer is exactly one: the order of the arrays in the composition root.**
-`composeApp` calls `composeModules([...MODULES, ...overlayModuleEntries, ...packageModuleEntries], …)`
-and registration runs in array order — `composeModules` has no topological pass, deliberately,
-because registration resolves nothing. So a deployment's overlay module registers *before* the
-package whose name it wraps, and `ctx.di.decorate` refuses:
+**T053(c) measured it, and found an accident rather than a decision: the order of the arrays in
+the composition root.** `composeApp` calls
+`composeModules([...MODULES, ...overlayModuleEntries, ...packageModuleEntries], …)` and
+registration ran in array order — `composeModules` has no topological pass, deliberately, because
+registration resolves nothing. So a deployment's overlay module registered *before* the package
+whose name it wraps, `ctx.di.decorate` found nothing under the name, and the refusal took the
+whole composition down: the deployment did not degrade, it did not boot. The overlay module was
+discovered, was composed and reached `decorate` at all, which is what said the `overlay: true`
+marking was applied — and with the two arrays swapped and nothing else changed, A10 answered
+`pass`. One line, both directions: an ordering dependency and nothing else.
 
-> `[kernel] module 'acceptance_overlay' cannot decorate 'acceptanceProbeGreeter': nothing is
-> registered under that name. Decoration wraps an existing registration; register order is
-> topological, so the owning module must come first.`
+**D-176 removed the accident, and then ruled the question.** `ctx.di.decorate` now enqueues and
+`composeModules` drains the queue after the last module has registered — one pass, then one drain,
+no sort and no dependency graph — so array order decides nothing and `hasRegistration` keeps its
+one honest meaning, a name nothing in the composition ever registers. That alone would have
+*granted* the capability, silently, so the owner ruled it in the same change:
 
-`composeModules` wraps that as `ModuleCompositionError`, so the deployment does not degrade — it
-does not boot.
+> A per-deployment overlay may not decorate a registration owned by an installed package. It may
+> decorate a core or overlay registration exactly as before.
 
-**Nothing else is wrong, and that was measured rather than assumed.** The overlay module was
-discovered, was composed and reached `decorate` at all, which is what says the `overlay: true`
-marking was applied. With the two arrays swapped and nothing else changed, A10 answers `pass`:
-`acceptanceProbeGreeter` resolves to `"overlay:acceptance probe"`, the deployment's wrap
-delegating into the package's own implementation. So the decoration exemption over a **package**
-owner works today and is reached by nobody.
+The reason is that the mechanism which would make it safe does not exist. A package's `exports`
+map publishes `registerModule`, its entities, its migrations and `./ports`; a container name it
+registers internally is published by none of them, so the wrap would be written against a name the
+package never offered and may rename in a patch release. `check:port-shape` signal 3 already
+refuses a *module* resolving an unpublished container name — this is the same violation one level
+out. And feature 057's `tsc` contract gate does not transfer: there is no `*.interface.ts` here,
+so the compiler would hold the deployment to a `dist/*.d.ts` that moves under `pnpm update`,
+authored by someone the deployment does not employ. The platform therefore answers:
 
-The swap is not committed. The comment above that call already claims *"overlay last, so a
-deployment's decoration wins"* as structural, and for a package owner it is not — which array
-composes last is a ruling about the overlay pattern (a package would then register before the
-deployment that may wrap it, and `DuplicateRegistrationError`'s owner/claimant attribution moves
-with it), and a task row that adds an assertion is not where that gets decided.
+> `[kernel] module 'acceptance_overlay' cannot decorate 'acceptanceProbeGreeter':
+> 'acceptance_probe' is an installed extension package, and wrapping a registration a package owns
+> is not offered yet. …`
+
+*Not offered yet*, and the message names the exit: a package declaring which of its registrations
+are decoratable, `./ports` being the natural home, where a shape change costs a major bump.
+Refusing outright would make third-party modules second-class in behaviour with forking as the
+only recourse, which D-106.2 has already declined for schema.
+
+**The phase keeps four verdicts, and the fourth is the one to protect.** The ruled refusal is the
+only `pass`. A refusal for another reason, a registration that is absent altogether, and a wrap
+that *applied* are each a `fail` — and so is the fourth: composition succeeds, the registration is
+present, nothing wraps it, and no exception announces it. That is the only case no error message
+can ever produce, and it is what a silently dropped decoration would look like — a drain that
+skipped an entry, an `overlay` marking that stopped being derived, a guard that returned instead
+of throwing. It is orthogonal to whatever the ruling says and outlives it.
 
 ## Two things the fixture cannot do, and says so
 
