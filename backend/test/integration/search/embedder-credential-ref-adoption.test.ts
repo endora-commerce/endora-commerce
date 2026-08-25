@@ -5,7 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { resolveEmbedderConfig } from '../../../src/modules/search/services/embedder-config-resolver.js';
+import { resolveEmbedderConfig } from '../../../../packages/modules/search/src/backend/services/embedder-config-resolver.js';
 
 /**
  * Feature 058 US1 adoption (T060) — the search LLM embedder config comes SOLELY

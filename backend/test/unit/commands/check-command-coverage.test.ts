@@ -7,6 +7,10 @@ import {
   collectScannedFiles,
   isMigratedModulePath,
 } from '../../../scripts/check-command-coverage.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+
+/** Where each module's sources really are — resolved, never spelled (T040a). */
+const MODULE_LAYOUT = await requireModuleLayout('[check-command-coverage]');
 
 /** Fixture path under a service dir so the migrated-scope check applies. */
 const PATH = 'src/modules/catalog/services/thing.service.ts';
@@ -268,8 +272,21 @@ describe('command coverage check (feature 054, FR-009 / FR-010) — method-level
  * arguments rather than omissions — see the header of the check.
  */
 describe('the scan reaches every file a module owns (issue #122)', () => {
-  const modulesRoot = fileURLToPath(new URL('../../../src/modules', import.meta.url));
-  const files = collectScannedFiles(modulesRoot).map((f) => f.replace(modulesRoot, ''));
+  // The walk's roots are **resolved**, not spelled (T040a): a module that has
+  // become a package is under `packages/modules/<id>/`, and a test that named
+  // `src/modules` would go on opening the modules the sweep has not reached yet
+  // and quietly stop covering the ones it has. Every path is normalised back to
+  // `/<moduleId>/<rest>` so the examples below say which *shape* the walk opens
+  // and nothing about where that module currently lives.
+  const files = MODULE_LAYOUT.moduleWalkRoots.flatMap((root) =>
+    collectScannedFiles(root).map((absolute) => {
+      const id = MODULE_LAYOUT.moduleIdOfPath(absolute);
+      const directory = id === null ? null : MODULE_LAYOUT.moduleDirectoryOf(id);
+      if (id === null || directory === null) return absolute.replace(root, '');
+      const inside = absolute.slice(directory.length).replace(/^\/src\/backend/, '');
+      return `/${id}${inside}`;
+    }),
+  );
   const has = (suffix: string): boolean => files.some((f) => f.endsWith(suffix));
 
   it('opens nested service directories, not just services/<file>.ts', () => {

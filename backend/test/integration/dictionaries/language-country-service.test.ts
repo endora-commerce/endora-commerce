@@ -1,10 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { LanguageCountryService } from '../../../src/modules/dictionaries/services/language-country-service.js';
+import { LanguageCountryService } from '../../../../packages/modules/dictionaries/src/backend/services/language-country-service.js';
 
 import { dictionaryReadPortsFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
-import { LanguageCountry } from '../../../src/modules/dictionaries/entities/language-country.entity.js';
+import { LanguageCountry } from '../../helpers/package-entities.js';
 
 /**
  * T020 — LanguageCountryService primary-flag invariant

@@ -462,8 +462,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **27 → 41 (T040b batch two)**: the same ordinary re-record, fourteen more
     // members. `sites` moved 34 → 48 and stayed inside its band, so it is left
     // where it is rather than tracked per batch.
-    files: 41,
-    sites: 34,
+    //
+    // **41 → 55 and 34 → 62 (T040b batch three)**: fourteen more members again,
+    // and this time `sites` left its band rather than drifting inside it — the
+    // finer population is the *patterns and members* the ignore list is matched
+    // over, so it grows faster than `files` does. Both are re-recorded from the
+    // run rather than the ceiling being raised: the previous batch's decision to
+    // let `sites` ride is what put it 22 % outside on the next one, so it is
+    // tracked per batch from here.
+    files: 55,
+    sites: 62,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-shared-table-wipes.ts': {

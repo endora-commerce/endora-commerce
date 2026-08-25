@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 import type { ConfigurationTypeDescriptor } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CommandActor, CommandBus } from '../../../src/commands/index.js';
-import { makeDeleteConfigurationCommand } from '../../../src/modules/credentials/commands/delete-configuration.command.js';
-import { makeUpdateConfigurationCommand } from '../../../src/modules/credentials/commands/update-configuration.command.js';
-import { ConfigurationTypeRegistry } from '../../../src/modules/credentials/services/configuration-type-registry.js';
-import { CredentialsService } from '../../../src/modules/credentials/services/credentials.service.js';
-import { encryptSecretValue } from '../../../src/modules/credentials/services/secret-value-codec.js';
-import { SECRET_MASK } from '../../../src/modules/credentials/services/field-validator.js';
+import { makeDeleteConfigurationCommand } from '../../../../packages/modules/credentials/src/backend/commands/delete-configuration.command.js';
+import { makeUpdateConfigurationCommand } from '../../../../packages/modules/credentials/src/backend/commands/update-configuration.command.js';
+import { ConfigurationTypeRegistry } from '../../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js';
+import { CredentialsService } from '../../../../packages/modules/credentials/src/backend/services/credentials.service.js';
+import { encryptSecretValue } from '../../../../packages/modules/credentials/src/backend/services/secret-value-codec.js';
+import { SECRET_MASK } from '../../../../packages/modules/credentials/src/backend/services/field-validator.js';
 
 /**
  * Issue #129 — which side of the `configurationTypeRegistry` split each caller

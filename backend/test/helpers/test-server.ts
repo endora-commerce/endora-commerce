@@ -1,7 +1,7 @@
 import type { AssetsLibraryCradle } from '../../src/modules/assets_library/backend.js';
 import type { CartShoppingListBridge, CartsCradle } from '../../src/modules/carts/backend.js';
-import type { ConfigurationTypeRegistry } from '../../src/modules/credentials/services/configuration-type-registry.js';
-import type { CredentialsService } from '../../src/modules/credentials/services/credentials.service.js';
+import type { ConfigurationTypeRegistry } from '../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js';
+import type { CredentialsService } from '../../../packages/modules/credentials/src/backend/services/credentials.service.js';
 import type { AdminNotificationService } from '../../../packages/modules/admin_notifications/src/backend/services/admin-notification-service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
@@ -132,9 +132,9 @@ import type { StorefrontDeps } from '../../src/modules/megamenu/services/storefr
 // hand-wired here would keep passing against wiring nobody changed. It composes
 // the same generated list production does; only the host values differ.
 import type { BlogCradle } from '../../../packages/modules/blog/src/backend/index.js';
-import type { DictionariesCradle } from '../../src/modules/dictionaries/backend.js';
+import type { DictionariesCradle } from '../../../packages/modules/dictionaries/src/backend/index.js';
 import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
-import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
+import type { TaxesCradle } from '../../../packages/modules/taxes/src/backend/index.js';
 import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
@@ -144,13 +144,13 @@ import type { OAuthProviderPort } from '../../../packages/modules/mfa/src/backen
 import { composeSalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
 import type { SalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
 import type { SalesChannelsCradle } from '../../../packages/modules/sales_channels/src/backend/index.js';
-import type { SearchCradle } from '../../src/modules/search/backend.js';
+import type { SearchCradle } from '../../../packages/modules/search/src/backend/index.js';
 import type { PromptActionsCradle } from '../../../packages/modules/prompt_actions/src/backend/index.js';
 import type { PromptActionToolRegistry } from '../../../packages/modules/prompt_actions/src/backend/services/tool-registry.js';
 import type { PromptRequestService } from '../../../packages/modules/prompt_actions/src/backend/services/prompt-request.service.js';
 import type { LlmProviderFactory } from '../../../packages/modules/prompt_actions/src/backend/services/llm/provider-factory.js';
 import type { FetchLike } from '../../../packages/modules/prompt_actions/src/backend/services/llm/provider.js';
-import type { KsefCradle } from '../../src/modules/ksef/backend.js';
+import type { KsefCradle } from '../../../packages/modules/ksef/src/backend/index.js';
 import type {
   ProductFeedsBridge,
   ProductFeedsCradle,
@@ -169,11 +169,11 @@ import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services
 import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/services/ergonode-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
-import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
+import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from '../../src/kernel/i18n/request-language.js';
-import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js';
+import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
 import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { z } from 'zod';
 import type { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';

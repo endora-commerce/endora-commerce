@@ -40,12 +40,6 @@ import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js'
 import { AssetFolder } from '../modules/assets_library/entities/asset-folder.entity.js';
 import { Asset } from '../modules/assets_library/entities/asset.entity.js';
 import { Session } from '../modules/auth/entities/session.entity.js';
-import { AutopayBlikAlias } from '../modules/autopay/entities/autopay-blik-alias.entity.js';
-import { AutopayNotificationEvent } from '../modules/autopay/entities/autopay-notification-event.entity.js';
-import { AutopayPaymentMethodOrgDisable } from '../modules/autopay/entities/autopay-payment-method-org-disable.entity.js';
-import { AutopayPaymentMethodRule } from '../modules/autopay/entities/autopay-payment-method-rule.entity.js';
-import { AutopaySavedCard } from '../modules/autopay/entities/autopay-saved-card.entity.js';
-import { AutopayTransaction } from '../modules/autopay/entities/autopay-transaction.entity.js';
 import { CartAuditEntry } from '../modules/carts/entities/cart-audit-entry.entity.js';
 import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
@@ -67,18 +61,12 @@ import { ProductPackagingUnit } from '../modules/catalog/entities/product-packag
 import { ProductValueOverride } from '../modules/catalog/entities/product-value-override.entity.js';
 import { ProductVariant } from '../modules/catalog/entities/product-variant.entity.js';
 import { Product } from '../modules/catalog/entities/product.entity.js';
-import { ComparisonProduct } from '../modules/comparisons/entities/comparison-product.entity.js';
-import { Comparison } from '../modules/comparisons/entities/comparison.entity.js';
-import { CredentialConfiguration } from '../modules/credentials/entities/credential-configuration.entity.js';
 import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../modules/custom_fields/entities/custom-field-option.entity.js';
 import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
 import { CustomerGroup } from '../modules/customer_accounts/entities/customer-group.entity.js';
 import { PasswordResetToken } from '../modules/customer_accounts/entities/password-reset-token.entity.js';
 import { CustomerAddress } from '../modules/customers/entities/customer-address.entity.js';
-import { Country } from '../modules/dictionaries/entities/country.entity.js';
-import { DictionaryTranslation } from '../modules/dictionaries/entities/dictionary-translation.entity.js';
-import { LanguageCountry } from '../modules/dictionaries/entities/language-country.entity.js';
 import { EmailDelivery } from '../modules/email/entities/email-delivery.entity.js';
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
 import { InventoryThreshold } from '../modules/inventory/entities/inventory-threshold.entity.js';
@@ -91,12 +79,9 @@ import { InvoiceLine } from '../modules/invoices/entities/invoice-line.entity.js
 import { InvoiceNumberCounter } from '../modules/invoices/entities/invoice-number-counter.entity.js';
 import { InvoiceTemplate } from '../modules/invoices/entities/invoice-template.entity.js';
 import { Invoice } from '../modules/invoices/entities/invoice.entity.js';
-import { KsefCredential } from '../modules/ksef/entities/ksef-credential.entity.js';
-import { KsefSubmission } from '../modules/ksef/entities/ksef-submission.entity.js';
 import { MegamenuBinding } from '../modules/megamenu/entities/megamenu-binding.entity.js';
 import { MegamenuItem } from '../modules/megamenu/entities/megamenu-item.entity.js';
 import { Megamenu } from '../modules/megamenu/entities/megamenu.entity.js';
-import { MetaCustomEventMapping } from '../modules/meta_ads/entities/meta-custom-event-mapping.entity.js';
 import { OrderAppliedPromotion } from '../modules/orders/entities/order-applied-promotion.entity.js';
 import { OrderComment } from '../modules/orders/entities/order-comment.entity.js';
 import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
@@ -114,16 +99,6 @@ import { OrganizationTaxIdValidation } from '../modules/organizations/entities/o
 import { OrganizationWarehouseLink } from '../modules/organizations/entities/organization-warehouse-link.entity.js';
 import { Organization } from '../modules/organizations/entities/organization.entity.js';
 import { Payment } from '../modules/payments/entities/payment.entity.js';
-import { PaypalPaymentMethodOrgDisable } from '../modules/paypal/entities/paypal-payment-method-org-disable.entity.js';
-import { PaypalPaymentMethodRule } from '../modules/paypal/entities/paypal-payment-method-rule.entity.js';
-import { PaypalTransaction } from '../modules/paypal/entities/paypal-transaction.entity.js';
-import { PaypalWebhookEvent } from '../modules/paypal/entities/paypal-webhook-event.entity.js';
-import { PayuBlikAlias } from '../modules/payu/entities/payu-blik-alias.entity.js';
-import { PayuNotificationEvent } from '../modules/payu/entities/payu-notification-event.entity.js';
-import { PayuOrder } from '../modules/payu/entities/payu-order.entity.js';
-import { PayuPaymentMethodOrgDisable } from '../modules/payu/entities/payu-payment-method-org-disable.entity.js';
-import { PayuPaymentMethodRule } from '../modules/payu/entities/payu-payment-method-rule.entity.js';
-import { PayuSavedCard } from '../modules/payu/entities/payu-saved-card.entity.js';
 import { ErgonodeAttributeMapping } from '../modules/pim_ergonode/entities/ergonode-attribute-mapping.entity.js';
 import { ErgonodeCategoryMapping } from '../modules/pim_ergonode/entities/ergonode-category-mapping.entity.js';
 import { ErgonodeConnection } from '../modules/pim_ergonode/entities/ergonode-connection.entity.js';
@@ -150,45 +125,43 @@ import { FeedTaxonomy } from '../modules/product_feeds/entities/feed-taxonomy.en
 import { FeedTemplateField } from '../modules/product_feeds/entities/feed-template-field.entity.js';
 import { FeedTemplate } from '../modules/product_feeds/entities/feed-template.entity.js';
 import { ProductFeed } from '../modules/product_feeds/entities/product-feed.entity.js';
-import { QuickOrderDefaultPreference } from '../modules/quick_order/entities/quick-order-default-preference.entity.js';
-import { SearchPhraseRecord } from '../modules/search/entities/search-phrase-record.entity.js';
-import { StripeCustomer } from '../modules/stripe/entities/stripe-customer.entity.js';
-import { StripePaymentIntent } from '../modules/stripe/entities/stripe-payment-intent.entity.js';
-import { StripePaymentMethodOrgDisable } from '../modules/stripe/entities/stripe-payment-method-org-disable.entity.js';
-import { StripePaymentMethodRule } from '../modules/stripe/entities/stripe-payment-method-rule.entity.js';
-import { StripeSavedCard } from '../modules/stripe/entities/stripe-saved-card.entity.js';
-import { StripeWebhookEvent } from '../modules/stripe/entities/stripe-webhook-event.entity.js';
-import { Tax } from '../modules/taxes/entities/tax.entity.js';
-import { TpayBlikAlias } from '../modules/tpay/entities/tpay-blik-alias.entity.js';
-import { TpayNotificationEvent } from '../modules/tpay/entities/tpay-notification-event.entity.js';
-import { TpayPaymentMethodOrgDisable } from '../modules/tpay/entities/tpay-payment-method-org-disable.entity.js';
-import { TpayPaymentMethodRule } from '../modules/tpay/entities/tpay-payment-method-rule.entity.js';
-import { TpaySavedCard } from '../modules/tpay/entities/tpay-saved-card.entity.js';
-import { TpayTransaction } from '../modules/tpay/entities/tpay-transaction.entity.js';
 import { entities as addressesEntities } from '@endora-commerce/mod-addresses/backend';
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
 import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/backend';
 import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
+import { entities as autopayEntities } from '@endora-commerce/mod-autopay/backend';
 import { entities as blogEntities } from '@endora-commerce/mod-blog/backend';
 import { entities as cmsEntities } from '@endora-commerce/mod-cms/backend';
+import { entities as comparisonsEntities } from '@endora-commerce/mod-comparisons/backend';
+import { entities as dictionariesEntities } from '@endora-commerce/mod-dictionaries/backend';
 import { entities as promotionsEntities } from '@endora-commerce/mod-promotions/backend';
+import { entities as credentialsEntities } from '@endora-commerce/mod-credentials/backend';
 import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
 import { entities as currenciesEntities } from '@endora-commerce/mod-currencies/backend';
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
 import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
+import { entities as ksefEntities } from '@endora-commerce/mod-ksef/backend';
 import { entities as languagesEntities } from '@endora-commerce/mod-languages/backend';
 import { entities as linkedinAdsEntities } from '@endora-commerce/mod-linkedin-ads/backend';
+import { entities as metaAdsEntities } from '@endora-commerce/mod-meta-ads/backend';
 import { entities as mfaEntities } from '@endora-commerce/mod-mfa/backend';
 import { entities as newsletterEntities } from '@endora-commerce/mod-newsletter/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
+import { entities as paypalEntities } from '@endora-commerce/mod-paypal/backend';
+import { entities as payuEntities } from '@endora-commerce/mod-payu/backend';
 import { entities as promptActionsEntities } from '@endora-commerce/mod-prompt-actions/backend';
 import { entities as pwaEntities } from '@endora-commerce/mod-pwa/backend';
+import { entities as quickOrderEntities } from '@endora-commerce/mod-quick-order/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
 import { entities as returnsEntities } from '@endora-commerce/mod-returns/backend';
+import { entities as searchEntities } from '@endora-commerce/mod-search/backend';
 import { entities as seoEntities } from '@endora-commerce/mod-seo/backend';
 import { entities as shipmentsEntities } from '@endora-commerce/mod-shipments/backend';
 import { entities as shoppingListsEntities } from '@endora-commerce/mod-shopping-lists/backend';
+import { entities as stripeEntities } from '@endora-commerce/mod-stripe/backend';
+import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
+import { entities as tpayEntities } from '@endora-commerce/mod-tpay/backend';
 import { entities as webhooksEntities } from '@endora-commerce/mod-webhooks/backend';
 
 export const ALL_ENTITIES = [
@@ -205,12 +178,6 @@ export const ALL_ENTITIES = [
   AssetFolder,
   Asset,
   Session,
-  AutopayBlikAlias,
-  AutopayNotificationEvent,
-  AutopayPaymentMethodOrgDisable,
-  AutopayPaymentMethodRule,
-  AutopaySavedCard,
-  AutopayTransaction,
   CartAuditEntry,
   CartItem,
   Cart,
@@ -232,18 +199,12 @@ export const ALL_ENTITIES = [
   ProductValueOverride,
   ProductVariant,
   Product,
-  ComparisonProduct,
-  Comparison,
-  CredentialConfiguration,
   CustomFieldDefinition,
   CustomFieldOption,
   CustomerAccount,
   CustomerGroup,
   PasswordResetToken,
   CustomerAddress,
-  Country,
-  DictionaryTranslation,
-  LanguageCountry,
   EmailDelivery,
   AvailabilityNotification,
   InventoryThreshold,
@@ -256,12 +217,9 @@ export const ALL_ENTITIES = [
   InvoiceNumberCounter,
   InvoiceTemplate,
   Invoice,
-  KsefCredential,
-  KsefSubmission,
   MegamenuBinding,
   MegamenuItem,
   Megamenu,
-  MetaCustomEventMapping,
   OrderAppliedPromotion,
   OrderComment,
   OrderItem,
@@ -279,16 +237,6 @@ export const ALL_ENTITIES = [
   OrganizationWarehouseLink,
   Organization,
   Payment,
-  PaypalPaymentMethodOrgDisable,
-  PaypalPaymentMethodRule,
-  PaypalTransaction,
-  PaypalWebhookEvent,
-  PayuBlikAlias,
-  PayuNotificationEvent,
-  PayuOrder,
-  PayuPaymentMethodOrgDisable,
-  PayuPaymentMethodRule,
-  PayuSavedCard,
   ErgonodeAttributeMapping,
   ErgonodeCategoryMapping,
   ErgonodeConnection,
@@ -315,44 +263,42 @@ export const ALL_ENTITIES = [
   FeedTemplateField,
   FeedTemplate,
   ProductFeed,
-  QuickOrderDefaultPreference,
-  SearchPhraseRecord,
-  StripeCustomer,
-  StripePaymentIntent,
-  StripePaymentMethodOrgDisable,
-  StripePaymentMethodRule,
-  StripeSavedCard,
-  StripeWebhookEvent,
-  Tax,
-  TpayBlikAlias,
-  TpayNotificationEvent,
-  TpayPaymentMethodOrgDisable,
-  TpayPaymentMethodRule,
-  TpaySavedCard,
-  TpayTransaction,
   ...(addressesEntities as readonly EntityClassLike[]),
   ...(adminNotificationsEntities as readonly EntityClassLike[]),
   ...(analyticsEntities as readonly EntityClassLike[]),
   ...(apiKeysEntities as readonly EntityClassLike[]),
+  ...(autopayEntities as readonly EntityClassLike[]),
   ...(blogEntities as readonly EntityClassLike[]),
   ...(cmsEntities as readonly EntityClassLike[]),
+  ...(comparisonsEntities as readonly EntityClassLike[]),
+  ...(dictionariesEntities as readonly EntityClassLike[]),
   ...(promotionsEntities as readonly EntityClassLike[]),
+  ...(credentialsEntities as readonly EntityClassLike[]),
   ...(creditLimitsEntities as readonly EntityClassLike[]),
   ...(currenciesEntities as readonly EntityClassLike[]),
   ...(deliveryMethodsEntities as readonly EntityClassLike[]),
   ...(transactionalEmailsEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
+  ...(ksefEntities as readonly EntityClassLike[]),
   ...(languagesEntities as readonly EntityClassLike[]),
   ...(linkedinAdsEntities as readonly EntityClassLike[]),
+  ...(metaAdsEntities as readonly EntityClassLike[]),
   ...(mfaEntities as readonly EntityClassLike[]),
   ...(newsletterEntities as readonly EntityClassLike[]),
   ...(paymentMethodsEntities as readonly EntityClassLike[]),
+  ...(paypalEntities as readonly EntityClassLike[]),
+  ...(payuEntities as readonly EntityClassLike[]),
   ...(promptActionsEntities as readonly EntityClassLike[]),
   ...(pwaEntities as readonly EntityClassLike[]),
+  ...(quickOrderEntities as readonly EntityClassLike[]),
   ...(quoteRequestsEntities as readonly EntityClassLike[]),
   ...(returnsEntities as readonly EntityClassLike[]),
+  ...(searchEntities as readonly EntityClassLike[]),
   ...(seoEntities as readonly EntityClassLike[]),
   ...(shipmentsEntities as readonly EntityClassLike[]),
   ...(shoppingListsEntities as readonly EntityClassLike[]),
+  ...(stripeEntities as readonly EntityClassLike[]),
+  ...(taxesEntities as readonly EntityClassLike[]),
+  ...(tpayEntities as readonly EntityClassLike[]),
   ...(webhooksEntities as readonly EntityClassLike[]),
 ] as const;

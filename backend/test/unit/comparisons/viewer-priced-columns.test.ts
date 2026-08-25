@@ -16,12 +16,12 @@ import {
 } from '@endora-commerce/contracts';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
-import { ComparableAttributeProjection } from '../../../src/modules/comparisons/services/comparable-attribute-projection.js';
+import { ComparableAttributeProjection } from '../../../../packages/modules/comparisons/src/backend/services/comparable-attribute-projection.js';
 import {
   ComparisonService,
   type ComparisonViewer,
-} from '../../../src/modules/comparisons/services/comparison-service.js';
-import { ShareTokenGenerator } from '../../../src/modules/comparisons/services/share-token-generator.js';
+} from '../../../../packages/modules/comparisons/src/backend/services/comparison-service.js';
+import { ShareTokenGenerator } from '../../../../packages/modules/comparisons/src/backend/services/share-token-generator.js';
 
 /**
  * Issue #259 — `addProduct` narrows to the channel it was handed, through the

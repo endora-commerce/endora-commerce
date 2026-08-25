@@ -5,7 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CredentialConfiguration } from '../../../src/modules/credentials/entities/credential-configuration.entity.js';
+import { CredentialConfiguration } from '../../helpers/package-entities.js';
 
 /**
  * Feature 058 US2 (T036) — CredentialsService.resolve(code) [real DB].

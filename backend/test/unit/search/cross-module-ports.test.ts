@@ -8,11 +8,11 @@ import type {
   OrganizationRecord,
   ProductSummary,
 } from '@endora-commerce/contracts';
-import { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
+import { SearchIndexer } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
 import {
   createSuggestionPricingEnricher,
   type SuggestionPriceResolverPort,
-} from '../../../src/modules/search/services/suggestion-pricing-enricher.js';
+} from '../../../../packages/modules/search/src/backend/services/suggestion-pricing-enricher.js';
 
 /**
  * Feature 075, Phase C — `search` asks `catalog` and `organizations` for their

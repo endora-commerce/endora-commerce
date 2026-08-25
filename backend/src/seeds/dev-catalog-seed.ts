@@ -67,7 +67,7 @@ import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js'
 import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js';
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
-import { Tax } from '../modules/taxes/entities/tax.entity.js';
+import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { DefaultPriceListMigrator } from '../modules/price_lists/services/default-price-list-migration.js';
 import { CatalogProductReadService } from '../modules/catalog/services/catalog-product-read.service.js';
 import { hashPassword } from '../kernel/crypto/password-hasher.js';
@@ -365,7 +365,7 @@ async function main(): Promise<void> {
   }
   await em.persistAndFlush(leaves);
 
-  // Five entity classes come from packages, and a module package publishes one
+  // Six entity classes come from packages, and a module package publishes one
   // `entities` array and no class by name (D-168). `entityNamed` takes each off
   // the array the ORM itself registered — `entities-registry.generated.ts`
   // imports the same export — and the row type comes from the same subpath,
@@ -380,6 +380,7 @@ async function main(): Promise<void> {
     'PaymentMethod',
     '@endora-commerce/mod-payment-methods/backend',
   );
+  const Tax = entityNamed(taxesEntities, 'Tax', '@endora-commerce/mod-taxes/backend');
 
   // --- Megamenu (feature 015) -----------------------------------------
   // A predefined navigation that mirrors the seeded category tree so the

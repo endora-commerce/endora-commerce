@@ -255,7 +255,7 @@ function listTsFilesRecursive(path: string): string[] {
  * packaged migration. `dist` is skipped: a built package holds the same files
  * compiled, and reading both would count every entity twice.
  */
-function listTsFilesUnderDirectoriesNamed(root: string, name: string): string[] {
+export function listTsFilesUnderDirectoriesNamed(root: string, name: string): string[] {
   const found: string[] = [];
   const visit = (dir: string): void => {
     if (!existsSync(dir) || !statSync(dir).isDirectory()) return;

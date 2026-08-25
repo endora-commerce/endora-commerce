@@ -1,9 +1,10 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { basename, join, relative } from 'node:path';
 import {
   coreModuleRoot,
   deriveFkGraph,
   KERNEL_OWNER,
+  listTsFilesUnderDirectoriesNamed,
   resolveModuleDirectories,
   type ModuleRoot,
 } from './fk-graph.js';
@@ -68,33 +69,34 @@ export function collectMigrationTables(
   sourceRoot: string,
   moduleRoots: readonly ModuleRoot[] = [coreModuleRoot(sourceRoot)],
 ): MigrationTables[] {
-  const groups: { dir: string; groupId: string; prefix: string }[] = [
-    { dir: join(sourceRoot, 'db', 'migrations'), groupId: 'core', prefix: 'src/db/migrations' },
-  ];
-  for (const [id, scanned] of resolveModuleDirectories(moduleRoots)) {
-    groups.push({
-      dir: join(scanned.directory, 'migrations'),
-      groupId: id,
-      prefix: `src/${relative(sourceRoot, join(scanned.directory, 'migrations'))
-        .split('\\')
-        .join('/')}`,
-    });
-  }
+  const files: { path: string; groupId: string }[] = listMigrationFiles(
+    join(sourceRoot, 'db', 'migrations'),
+  ).map((name) => ({ path: join(sourceRoot, 'db', 'migrations', name), groupId: 'core' }));
 
-  const collected: MigrationTables[] = [];
-  for (const group of groups) {
-    for (const filename of listMigrationFiles(group.dir)) {
-      const source = readFileSync(join(group.dir, filename), 'utf8');
-      const tables = new Set<string>();
-      for (const match of source.matchAll(TABLE_STATEMENT_RE)) tables.add(match[1]!);
-      collected.push({
-        className: classNameFromFile(filename),
-        groupId: group.groupId,
-        relativePath: `${group.prefix}/${filename}`,
-        tables,
-      });
+  for (const [id, scanned] of resolveModuleDirectories(moduleRoots)) {
+    // Found by **directory name**, at any depth — the same predicate
+    // `deriveFkGraph` applies (D-141). An application module keeps its
+    // migrations at `<module>/migrations/` and a package at `<pkg>/src/
+    // migrations/`; joining the literal `migrations` finds the first and
+    // silently none of the second, which took this walk from 158 files to 92
+    // over feature 080's first three batches while the ownership rule below
+    // went unasked for every packaged module.
+    for (const path of listTsFilesUnderDirectoriesNamed(scanned.directory, 'migrations')) {
+      if (MIGRATION_FILE_RE.test(basename(path))) files.push({ path, groupId: id });
     }
   }
+
+  const collected: MigrationTables[] = files.map(({ path, groupId }) => {
+    const source = readFileSync(path, 'utf8');
+    const tables = new Set<string>();
+    for (const match of source.matchAll(TABLE_STATEMENT_RE)) tables.add(match[1]!);
+    return {
+      className: classNameFromFile(basename(path)),
+      groupId,
+      relativePath: relative(join(sourceRoot, '..'), path).split('\\').join('/'),
+      tables,
+    };
+  });
   return collected.sort((left, right) => (left.className < right.className ? -1 : 1));
 }
 

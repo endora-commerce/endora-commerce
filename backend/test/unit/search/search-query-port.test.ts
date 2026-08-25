@@ -4,8 +4,8 @@ import {
   type SearchListResult,
   type SearchQueryContext,
 } from '@endora-commerce/contracts';
-import { createSearchQueryPort } from '../../../src/modules/search/services/search-query-port.js';
-import { SearchBackendUnavailable } from '../../../src/modules/search/services/search-query.service.js';
+import { createSearchQueryPort } from '../../../../packages/modules/search/src/backend/services/search-query-port.js';
+import { SearchBackendUnavailable } from '../../../../packages/modules/search/src/backend/services/search-query.service.js';
 
 /**
  * `searchQueryPort` answers "the index was unreachable" in its return type

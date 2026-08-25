@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
-import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
+import { Country } from '../../helpers/package-entities.js';
 
 /**
  * Feature 060 / US1 (T010) — a pre-interceptor veto is a normal business

@@ -4,11 +4,11 @@ import type { Migration } from '@mikro-orm/migrations';
 import { setupMigratorTestDb, type TestDb } from '../../helpers/test-db.js';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
 import { Migration20260821T084920PaymentMethodsFailureStatusOnHold } from '../../../../packages/modules/payment_methods/src/migrations/20260821T084920_payment_methods_failure_status_on_hold.js';
-import { Migration20260821T084922StripeFailureStatusOnHold } from '../../../src/modules/stripe/migrations/20260821T084922_stripe_failure_status_on_hold.js';
-import { Migration20260821T084923PayuFailureStatusOnHold } from '../../../src/modules/payu/migrations/20260821T084923_payu_failure_status_on_hold.js';
-import { Migration20260821T084924TpayFailureStatusOnHold } from '../../../src/modules/tpay/migrations/20260821T084924_tpay_failure_status_on_hold.js';
-import { Migration20260821T084925AutopayFailureStatusOnHold } from '../../../src/modules/autopay/migrations/20260821T084925_autopay_failure_status_on_hold.js';
-import { Migration20260821T164749PaypalFailureStatusOnHold } from '../../../src/modules/paypal/migrations/20260821T164749_paypal_failure_status_on_hold.js';
+import { Migration20260821T084922StripeFailureStatusOnHold } from '../../../../packages/modules/stripe/src/migrations/20260821T084922_stripe_failure_status_on_hold.js';
+import { Migration20260821T084923PayuFailureStatusOnHold } from '../../../../packages/modules/payu/src/migrations/20260821T084923_payu_failure_status_on_hold.js';
+import { Migration20260821T084924TpayFailureStatusOnHold } from '../../../../packages/modules/tpay/src/migrations/20260821T084924_tpay_failure_status_on_hold.js';
+import { Migration20260821T084925AutopayFailureStatusOnHold } from '../../../../packages/modules/autopay/src/migrations/20260821T084925_autopay_failure_status_on_hold.js';
+import { Migration20260821T164749PaypalFailureStatusOnHold } from '../../../../packages/modules/paypal/src/migrations/20260821T164749_paypal_failure_status_on_hold.js';
 
 /**
  * Feature 085 (FR-005 / SC-003) — no payment method a freshly installed

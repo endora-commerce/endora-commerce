@@ -5,8 +5,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SearchPhraseRecord } from '../../../src/modules/search/entities/search-phrase-record.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SearchPhraseRecord } from '../../helpers/package-entities.js';
 
 /**
  * T031 — Contract test for `POST /api/v1/search/record` (US3, feature 006).

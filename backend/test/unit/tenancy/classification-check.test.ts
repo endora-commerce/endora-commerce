@@ -1,11 +1,14 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import {
   analyzeSource,
   walk,
   ENTITY_DECORATOR_HINT,
 } from '../../../scripts/check-entity-tenant-classification.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+
+/** Every root the check itself walks — resolved, never spelled (T040a). */
+const MODULE_LAYOUT = await requireModuleLayout('[classification-check]');
 
 /**
  * Feature 050 (FR-012 / SC-001) — the CI classification check must flag entities
@@ -69,17 +72,23 @@ describe('check-entity-tenant-classification / analyzeSource', () => {
  * whole issue is about, so the list and the pre-filter are asserted directly.
  */
 describe('the scan scope', () => {
-  const srcRoot = fileURLToPath(new URL('../../../src', import.meta.url));
+  // The population is **every** root the check walks, not `backend/src` alone:
+  // since feature 080's T040b a module's entities live in its own package, so a
+  // test rooted at the application tree measures a shrinking share of the very
+  // thing the floor exists to protect — 92 entity files of 225 when this was
+  // measured, which is a floor going red for the wrong reason and, one batch
+  // later, a floor passing over a third of the tree.
+  const walkAll = (): string[] => MODULE_LAYOUT.sourceRoots.flatMap((root) => walk(root));
 
   it('walks the whole tree, not one filename convention', () => {
-    const files = walk(srcRoot);
+    const files = walkAll();
     expect(files.length).toBeGreaterThan(500);
     expect(files.some((f) => !f.endsWith('.entity.ts'))).toBe(true);
     expect(files.every((f) => !f.endsWith('.test.ts'))).toBe(true);
   });
 
   it('keeps every file that declares an entity, and finds hundreds of them', () => {
-    const entityFiles = walk(srcRoot).filter((f) =>
+    const entityFiles = walkAll().filter((f) =>
       ENTITY_DECORATOR_HINT.test(readFileSync(f, 'utf8')),
     );
     expect(entityFiles.length).toBeGreaterThan(100);

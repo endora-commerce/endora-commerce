@@ -17,10 +17,10 @@ import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.e
 import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
 import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
 import { CARTS_SETTING_CODES } from '../../../src/modules/carts/manifest.js';
-import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
-import { QUICK_ORDER_SETTING_CODES } from '../../../src/modules/quick_order/manifest.js';
+import { SEARCH_SETTING_CODES } from '../../../../packages/modules/search/src/manifest.js';
+import { QUICK_ORDER_SETTING_CODES } from '../../../../packages/modules/quick_order/src/manifest.js';
 import type { CartsCradle } from '../../../src/modules/carts/backend.js';
-import type { SearchCradle } from '../../../src/modules/search/backend.js';
+import type { SearchCradle } from '../../../../packages/modules/search/src/backend/index.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**

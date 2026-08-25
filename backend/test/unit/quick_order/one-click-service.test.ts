@@ -5,8 +5,8 @@ import type {
   PlacedOrderRecord,
   QuickOrderResolvedDefaults,
 } from '@endora-commerce/contracts';
-import { OneClickService } from '../../../src/modules/quick_order/services/one-click-service.js';
-import type { DefaultPreferenceService } from '../../../src/modules/quick_order/services/default-preference-service.js';
+import { OneClickService } from '../../../../packages/modules/quick_order/src/backend/services/one-click-service.js';
+import type { DefaultPreferenceService } from '../../../../packages/modules/quick_order/src/backend/services/default-preference-service.js';
 
 /**
  * Moved here from `src/modules/quick_order/services/` by feature 075's cut: a

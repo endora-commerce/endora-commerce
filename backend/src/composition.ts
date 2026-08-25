@@ -93,20 +93,20 @@ import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
 import type { InvoicesBridge } from './modules/invoices/backend.js';
-import type { KsefCradle } from './modules/ksef/backend.js';
+import type { KsefCradle } from '@endora-commerce/mod-ksef/backend';
 import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
 import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
 import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
 import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
-import type { TaxesCradle } from './modules/taxes/backend.js';
+import type { TaxesCradle } from '@endora-commerce/mod-taxes/backend';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
 import { composeSalesChannelsKernel } from './kernel/sales-channels/compose.js';
 import type { SalesChannelsCradle } from '@endora-commerce/mod-sales-channels/backend';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
-import type { ComparisonsCradle } from './modules/comparisons/backend.js';
+import type { ComparisonsCradle } from '@endora-commerce/mod-comparisons/backend';
 // Feature 046 — Progressive Web App.
 import type { PwaBridge } from '@endora-commerce/mod-pwa/backend';
 // Feature 047 — Transactional Emails.

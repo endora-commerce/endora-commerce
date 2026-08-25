@@ -14,7 +14,7 @@ import {
   freshCompareToken,
   freshShareToken,
 } from '../../helpers/comparison-fixtures.js';
-import { Comparison } from '../../../src/modules/comparisons/entities/comparison.entity.js';
+import { Comparison } from '../../helpers/package-entities.js';
 
 /**
  * T052 — Contract test for `GET /api/v1/comparisons/me/pdf`

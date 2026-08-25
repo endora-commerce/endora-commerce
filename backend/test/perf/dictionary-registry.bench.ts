@@ -6,8 +6,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../helpers/test-server.js';
-import { DictionaryCache } from '../../src/modules/dictionaries/services/dictionary-cache.js';
-import { DictionaryReadService } from '../../src/modules/dictionaries/services/dictionary-read-service.js';
+import { DictionaryCache } from '../../../packages/modules/dictionaries/src/backend/services/dictionary-cache.js';
+import { DictionaryReadService } from '../../../packages/modules/dictionaries/src/backend/services/dictionary-read-service.js';
 import { dictionaryReadPortsFor } from '../helpers/dictionary-services.js';
 
 /**
