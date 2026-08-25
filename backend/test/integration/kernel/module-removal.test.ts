@@ -139,9 +139,20 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   delivery_methods: ['src/seeds/dev-catalog-seed.ts'],
   inventory: ['src/seeds/dev-catalog-seed.ts'],
   payment_methods: ['src/seeds/dev-catalog-seed.ts'],
-  // `orders` (wave 4, T141). `composition.ts` types the sales-rep admin scope
-  // it still supplies, which drains when `auth`'s actor resolution unifies.
-  orders: ['src/composition.ts'],
+  // `orders` needs no entry and gets none, since feature 080's T052. Its single
+  // reference was `import { Order } from './modules/orders/entities/order.entity.js'`,
+  // read by one `em.findOne` inside a bridge the root contributes; D-168 gives a
+  // packaged module one `entities` export and no named class, so the root
+  // resolves `orderReadPort` off the container instead. A container name is not
+  // an import, which is exactly why the retirement is real: deleting the
+  // directory now breaks no file outside it.
+  //
+  // The entry that stood here said the reference was the sales-rep admin scope
+  // and would drain "when `auth`'s actor resolution unifies". That was never
+  // what held it, and the prediction is retired with the entry rather than
+  // carried forward — see `admin_roles` below, which lost the same reference in
+  // the same commit and had the same wrong reason recorded.
+  //
   // `organizations` (wave 4, T138). `composition.ts` for the deployment inputs
   // and the login hook. There used to be another entry: the kernel
   // type-imported the `Organization` entity to declare `OrganizationReadPort`,
@@ -164,11 +175,19 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // promotion as a port. It was never the customer guard's — that one is
   // `auth`'s `requireCustomer` port since issue #43 and promotes nothing.
   auth: ['src/composition.ts'],
-  // `admin_roles` (wave 1). `composition.ts` imports its service types to
-  // annotate what it resolves out of the container — the ordinary shape of a
-  // root reading a module's registrations. It leaves when nothing hand-wired
-  // needs the annotation.
-  admin_roles: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
+  // `admin_roles` (wave 1). The dev seed writes roles like it writes everything
+  // else, and that is all that is left.
+  //
+  // `composition.ts` was here until feature 080's T052 and the recorded reason
+  // was wrong: it read "imports its service types to annotate what it resolves
+  // out of the container", and the reference was in fact
+  // `import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js'`,
+  // a value import backing two `em.findOne` calls in a bridge. T052 replaced
+  // both with `adminRolePort`, so the annotation the entry predicted would
+  // retire it was never the thing holding it. Recorded here rather than quietly
+  // deleted, because a reason nobody can check is how a ledger stops being
+  // evidence.
+  admin_roles: ['src/seeds/dev-catalog-seed.ts'],
   // `prompt_actions` (wave 1) — the inverted case, and the reason this ledger is
   // worth keeping. Its `composition.ts` reference was never a leftover of the
   // conversion: three *other* modules contributed into the registry it owns, and

@@ -47,12 +47,32 @@ export interface RequestLanguageDeps {
   /**
    * The admin's stored `preferredLanguage`, or `null`.
    *
-   * Supplied by the composition root rather than resolved as a port,
-   * deliberately (D-137). This runs inside error serialisation, so a gated port
-   * would throw `ModuleDisabledError` while another error is being serialised,
-   * and the guard that mistake needs is a `catch` around a port —
-   * `check:port-catches` refuses one, and is right to. A root reading its own
-   * entity has no gate and no such failure mode.
+   * Supplied by the composition root rather than resolved here (D-137): the
+   * policy is the kernel's, the one rung that reads a module's data is not.
+   *
+   * **What the root supplies it out of is a gated port, and this doc block used
+   * to say it must not be.** The paragraph read: "a gated port would throw
+   * `ModuleDisabledError` while another error is being serialised, and the
+   * guard that mistake needs is a `catch` around a port — `check:port-catches`
+   * refuses one, and is right to. A root reading its own entity has no gate and
+   * no such failure mode." Feature 080's T052 then converted the closure from
+   * `em().findOne(AdminUser, …)` to `adminUserReadPort.findById(…)`, because
+   * D-168 leaves a packaged module no named entity class for a root to read —
+   * so the entity-reading alternative the paragraph rested on no longer exists.
+   *
+   * The prediction was exactly right about the consequence. With `admin_users`
+   * platform-absent, every error answered to a signed-in admin lost its
+   * `ErrorEnvelope` outright: the throw lands in `preSerialization` of a reply
+   * Fastify is already treating as an error, so it cannot be routed back
+   * through `setErrorHandler` and Fastify's own fallback serialiser answers
+   * instead. The remedy is not the `catch` the paragraph refused — the guard
+   * lives in `registerErrorEnvelope`, around the whole decoration, where it is
+   * a renderer declining to let a decoration replace the thing it decorates
+   * rather than a caller hiding a capability's absence.
+   *
+   * So the standing rule for this dependency is the weaker, true one: it may
+   * throw, and a caller that cannot afford the throw must say so at its own
+   * seam. {@link createRequestLanguageResolver} does not catch it.
    */
   adminPreferredLanguage: (adminUserId: string) => Promise<string | null>;
 }
@@ -138,9 +158,18 @@ function readWeight(parameters: string[]): number | null {
 /**
  * The ladder in this file's header, as a function of the request.
  *
- * It never throws: every rung that cannot answer falls to the next, and the
- * last always answers. The buyer arm performs no database read at all — the
- * channel is already resolved and cached on the request scope.
+ * Every rung that cannot *answer* falls to the next, and the last always
+ * answers. The buyer arm performs no database read at all — the channel is
+ * already resolved and cached on the request scope.
+ *
+ * The admin arm is the exception and this used to claim otherwise ("it never
+ * throws"): it calls {@link RequestLanguageDeps.adminPreferredLanguage}, which
+ * a root supplies out of a gated port, so it throws while the owner of that
+ * port is absent. Not caught here, deliberately — a `catch` around a port at
+ * the one site that reads it is the shape `check:port-catches` refuses. The
+ * caller that cannot afford the throw guards at its own seam, and there is one:
+ * `registerErrorEnvelope`, whose decoration falls back to the untranslated
+ * envelope.
  */
 export function createRequestLanguageResolver(
   deps: RequestLanguageDeps,

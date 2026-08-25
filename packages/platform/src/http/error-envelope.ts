@@ -136,88 +136,46 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
     if (!options.translateErrorMessage || !isErrorEnvelope(payload)) return payload;
     const target = options.errorTranslationTargets?.[payload.error.code];
     if (!target) return payload;
-    // VALIDATION_FAILED is overloaded: besides generic Zod failures it is the
-    // code several services reuse while putting a specific, machine-readable
-    // token in the message (e.g. `sku_in_use`, `attribute_not_found`,
-    // `language_not_in_channel`). Unlike other registered codes — whose
-    // message is human prose safe to localize wholesale — replacing this one
-    // with the generic localized string would destroy the token that API
-    // consumers (and contract tests) depend on. Leave its message verbatim.
-    if (payload.error.code === ERROR_CODES.VALIDATION_FAILED) return payload;
-    // The same phenomenon one code lower, written down somewhere else (issue
-    // #65). A code such as `FORBIDDEN` is shared by every permission failure in
-    // the tree, so its sentence has to be generic — "You do not have permission
-    // to perform this action." A refusal that is *not* about permission carries
-    // a machine-readable token in `details.code` to say so, and the four
-    // transact gates (`orders`, its external intake, `carts`, `quote_requests`)
-    // all publish `organization_cannot_transact` there. Replacing their written
-    // message with the family sentence told a buyer whose Organization was
-    // blocked for a business reason that they lack permission: wrong, and
-    // unactionable — they contact support about access rather than about the
-    // block.
-    //
-    // So the token keys the sentence: `errors.<CODE>.<token>` when the bundle
-    // has one, `errors.<CODE>` when the error carries no token. A token with no
-    // sentence yet resolves to nothing, and both roots' translators answer a
-    // missing key with the original message — which is the right fallback here,
-    // because untranslated prose that is true beats a translated sentence that
-    // is false. Re-routing the family to another module's bundle keeps working:
-    // the module is still chosen by the injected map, and only the key inside it
-    // changes. (That routing is not the per-deployment override this comment
-    // once called it — see `errorTranslationTargets` above, issue #106.)
-    //
-    // The same reasoning one step further along (issue #161). `MODULE_DISABLED`
-    // is one code for every gated port in the platform, so its sentence is
-    // generic for the same reason `FORBIDDEN`'s is — but the specific part is
-    // not a token choosing a different sentence, it is a *value* the one
-    // sentence is missing. An operator refused a refund because a payment
-    // gateway is switched off read "Module Disabled." and was not told which
-    // module to switch back on, while `ModuleDisabledError` had carried the id
-    // on the error object all along.
-    //
-    // So the error's structured metadata fills the sentence: `details`' scalar
-    // members become the interpolation parameters. It is the same `details` the
-    // token above is read from — already on the wire, already surviving this
-    // replacement — so a thrower that wants its refusal named says so once, in
-    // the place a client can branch on too.
-    const params = messageParams(payload.error.details);
-    const token = refusalToken(payload.error.details);
-    const language = (await options.resolvePreferredLanguage?.(request)) ?? LANGUAGE_FALLBACK;
-    const translated = await options.translateErrorMessage({
-      moduleId: target.moduleId,
-      key: token === null ? target.key : `${target.key}.${token}`,
-      language,
-      originalMessage: payload.error.message,
-      ...(params ? { params } : {}),
-      request,
-    });
-    // A sentence with a placeholder nothing filled is worse than the prose the
-    // thrower wrote: `The "{module}" module is off` tells the operator less than
-    // the original message and looks broken doing it. Same ruling as the missing
-    // token key above — untranslated prose that is true beats a rendered
-    // sentence that is not.
-    if (hasUnfilledPlaceholder(translated)) return payload;
-    // Say which language was chosen, and that the body varies with the header
-    // that chose it (D-139 § 8.2). The sales-channel resolver already echoes
-    // `X-Sales-Channel` on every response for exactly this reason, and the
-    // precedent is the right one: a resolution nobody can see is a resolution
-    // nobody audits. Had this header existed, issue #234 — every buyer
-    // answered in English — would have been visible in a browser's network tab
-    // from the first day.
-    //
-    // `Vary` is set only here, on a response whose body genuinely varies:
-    // `catalog`, `search` and `cms` vary content on the same header and carry
-    // no `Vary` either, which is a pre-existing cache-key gap this feature does
-    // not widen and does not fix (T024).
-    reply.header('Content-Language', language);
-    varyBy(reply, 'Accept-Language');
-    return {
-      ...payload,
-      error: {
-        ...payload.error,
-        message: translated,
-      },
-    };
+    try {
+      return await localizeErrorEnvelope(options, target, payload, request, reply);
+    } catch (error) {
+      // **Localising an error may never replace the error.**
+      //
+      // Every other way out of the decoration below already returns `payload`
+      // unchanged — no target, a `VALIDATION_FAILED` carrying a machine token,
+      // a sentence with a placeholder nothing filled — on the ruling that
+      // untranslated prose which is true beats a rendered sentence that is
+      // not. A throw was the one path that did neither, and it is the worst of
+      // them: this hook runs during the serialisation of a reply Fastify is
+      // already treating as an error, so Fastify cannot route the throw back
+      // through `setErrorHandler`. It falls back to its own serialiser, and
+      // the response stops being an `ErrorEnvelope` at all —
+      // `{ statusCode, code, error, message }`, where `error` is the status
+      // phrase and `error.code` is `undefined`.
+      // `@endora-commerce/api-client` sees `'error' in body`, builds an
+      // `ApiError` out of it and reports `undefined: undefined`.
+      //
+      // Both injected callbacks can throw and one of them measurably did:
+      // feature 080's T052 turned the root's `adminPreferredLanguage` closure
+      // into a read of the gated `adminUserReadPort`, so while `admin_users`
+      // was platform-absent every error answered to a signed-in admin lost its
+      // envelope — the `MODULE_DISABLED` refusal included, which is the one
+      // whose job is to name the module an operator has to restore (issue
+      // #161). `RequestLanguageDeps.adminPreferredLanguage` had said in
+      // writing that a gated port here would do exactly that.
+      //
+      // So the guarantee is stated once, at the renderer, rather than at each
+      // callback a root injects: an absent owner, a bundle store that cannot be
+      // reached, and whatever the next callback turns out to be all degrade to
+      // the untranslated envelope. This is deliberately **not** a
+      // `catch` that hides a capability's absence from a caller — the caller
+      // still gets the refusal, in full, in `LANGUAGE_FALLBACK`.
+      request.log.warn(
+        { err: error, code: payload.error.code, moduleId: target.moduleId },
+        'error-envelope localisation failed; answering with the untranslated envelope',
+      );
+      return payload;
+    }
   });
 
   app.setErrorHandler((error, request: FastifyRequest, reply: FastifyReply) => {
@@ -310,6 +268,108 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
     };
     reply.status(404).send(envelope);
   });
+}
+
+/**
+ * The decoration itself: the written message replaced by the registered
+ * sentence for its code, in the language this response is being answered in.
+ *
+ * Split out of the hook so the guard above wraps the whole of it and nothing
+ * else — a `try` opened around the early returns too would be a blanket catch
+ * over a payload that never entered the decoration.
+ */
+async function localizeErrorEnvelope(
+  options: ErrorEnvelopeOptions,
+  target: { moduleId: string; key: string },
+  payload: ErrorEnvelope,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<ErrorEnvelope> {
+  // Narrowing only: the hook already refused a composition that injects no
+  // translator, and this is the same `options` object.
+  if (!options.translateErrorMessage) return payload;
+  // VALIDATION_FAILED is overloaded: besides generic Zod failures it is the
+  // code several services reuse while putting a specific, machine-readable
+  // token in the message (e.g. `sku_in_use`, `attribute_not_found`,
+  // `language_not_in_channel`). Unlike other registered codes — whose
+  // message is human prose safe to localize wholesale — replacing this one
+  // with the generic localized string would destroy the token that API
+  // consumers (and contract tests) depend on. Leave its message verbatim.
+  if (payload.error.code === ERROR_CODES.VALIDATION_FAILED) return payload;
+  // The same phenomenon one code lower, written down somewhere else (issue
+  // #65). A code such as `FORBIDDEN` is shared by every permission failure in
+  // the tree, so its sentence has to be generic — "You do not have permission
+  // to perform this action." A refusal that is *not* about permission carries
+  // a machine-readable token in `details.code` to say so, and the four
+  // transact gates (`orders`, its external intake, `carts`, `quote_requests`)
+  // all publish `organization_cannot_transact` there. Replacing their written
+  // message with the family sentence told a buyer whose Organization was
+  // blocked for a business reason that they lack permission: wrong, and
+  // unactionable — they contact support about access rather than about the
+  // block.
+  //
+  // So the token keys the sentence: `errors.<CODE>.<token>` when the bundle
+  // has one, `errors.<CODE>` when the error carries no token. A token with no
+  // sentence yet resolves to nothing, and both roots' translators answer a
+  // missing key with the original message — which is the right fallback here,
+  // because untranslated prose that is true beats a translated sentence that
+  // is false. Re-routing the family to another module's bundle keeps working:
+  // the module is still chosen by the injected map, and only the key inside it
+  // changes. (That routing is not the per-deployment override this comment
+  // once called it — see `errorTranslationTargets` above, issue #106.)
+  //
+  // The same reasoning one step further along (issue #161). `MODULE_DISABLED`
+  // is one code for every gated port in the platform, so its sentence is
+  // generic for the same reason `FORBIDDEN`'s is — but the specific part is
+  // not a token choosing a different sentence, it is a *value* the one
+  // sentence is missing. An operator refused a refund because a payment
+  // gateway is switched off read "Module Disabled." and was not told which
+  // module to switch back on, while `ModuleDisabledError` had carried the id
+  // on the error object all along.
+  //
+  // So the error's structured metadata fills the sentence: `details`' scalar
+  // members become the interpolation parameters. It is the same `details` the
+  // token above is read from — already on the wire, already surviving this
+  // replacement — so a thrower that wants its refusal named says so once, in
+  // the place a client can branch on too.
+  const params = messageParams(payload.error.details);
+  const token = refusalToken(payload.error.details);
+  const language = (await options.resolvePreferredLanguage?.(request)) ?? LANGUAGE_FALLBACK;
+  const translated = await options.translateErrorMessage({
+    moduleId: target.moduleId,
+    key: token === null ? target.key : `${target.key}.${token}`,
+    language,
+    originalMessage: payload.error.message,
+    ...(params ? { params } : {}),
+    request,
+  });
+  // A sentence with a placeholder nothing filled is worse than the prose the
+  // thrower wrote: `The "{module}" module is off` tells the operator less than
+  // the original message and looks broken doing it. Same ruling as the missing
+  // token key above — untranslated prose that is true beats a rendered
+  // sentence that is not.
+  if (hasUnfilledPlaceholder(translated)) return payload;
+  // Say which language was chosen, and that the body varies with the header
+  // that chose it (D-139 § 8.2). The sales-channel resolver already echoes
+  // `X-Sales-Channel` on every response for exactly this reason, and the
+  // precedent is the right one: a resolution nobody can see is a resolution
+  // nobody audits. Had this header existed, issue #234 — every buyer
+  // answered in English — would have been visible in a browser's network tab
+  // from the first day.
+  //
+  // `Vary` is set only here, on a response whose body genuinely varies:
+  // `catalog`, `search` and `cms` vary content on the same header and carry
+  // no `Vary` either, which is a pre-existing cache-key gap this feature does
+  // not widen and does not fix (T024).
+  reply.header('Content-Language', language);
+  varyBy(reply, 'Accept-Language');
+  return {
+    ...payload,
+    error: {
+      ...payload.error,
+      message: translated,
+    },
+  };
 }
 
 /**
