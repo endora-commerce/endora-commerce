@@ -191,6 +191,12 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // dist/seeds/dev-catalog-seed.js` is **0**, measured. They retire when the
   // developer bootstrap stops needing to construct entities at all, which is
   // the same condition the `src/seeds/` block above already names.
+  // `credit_limits` joined on 2026-08-25 with !1021, and for a reason worth
+  // keeping: seeding the `credit_limit` payment method alone would have added
+  // an option no seeded buyer could ever see, because checkout filters the
+  // method on a granted limit against the cart total. The seed therefore
+  // grants one too, which is what puts this module here.
+  credit_limits: ['src/seeds/dev-catalog-seed.ts'],
   delivery_methods: ['src/seeds/dev-catalog-seed.ts'],
   payment_methods: ['src/seeds/dev-catalog-seed.ts'],
   taxes: ['src/seeds/dev-catalog-seed.ts'],
