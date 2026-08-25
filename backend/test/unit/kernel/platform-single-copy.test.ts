@@ -9,11 +9,11 @@
  * `rootDir: ../../backend/src`, so the package was
  * `backend/src/{kernel,http,tenancy,commands,events}` compiled a second time.
  * The application ran the originals; anything resolving the bare specifier ran
- * the copy. **59 identity-bearing exports across the five subpaths, none of them
+ * the copy. **57 identity-bearing exports across the five subpaths, none of them
  * shared.** Its stated retiring condition was a symbol becoming shared, and this
  * merge request is that: the five directories moved into the package, the
  * application reaches them through re-export shims forwarding to the same build
- * output the `exports` map serves, and the same 59 values are now the same 59
+ * output the `exports` map serves, and the same 57 values are now the same 57
  * objects.
  *
  * It is inverted rather than deleted because the property is not self-evident
@@ -160,14 +160,21 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     }
   });
 
-  it('shares 59 values, which is every one the duplication used to hold apart', () => {
+  // 59 until 2026-08-25. `enroll` and `verifyTotp` left the kernel barrel with
+  // `kernel/crypto/totp` itself, which had no caller once the superseded
+  // customer 2FA path was deleted — so this is a published set that shrank by
+  // withdrawal, not a sharing that regressed. The number is re-recorded rather
+  // than the assertion relaxed: it is the whole point of this file that the
+  // count is exact, and a `toBeGreaterThan` here would make the next real
+  // duplication invisible.
+  it('shares 57 values, which is every one the duplication used to hold apart', () => {
     // Not a target and not a floor somebody chose: it is the number the
     // superseded `host-package-copy.test.ts` measured as *distinct*, over this
     // same population, and it is here so that the inversion is visible as one
     // rather than as a new test that happens to pass. It moves when a barrel
     // does — update it with the barrel, never to make a run green.
     const total = comparisons.reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(59);
+    expect(total).toBe(57);
   });
 });
 

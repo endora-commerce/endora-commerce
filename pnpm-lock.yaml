@@ -375,6 +375,9 @@ importers:
       openid-client:
         specifier: ^6.8.4
         version: 6.8.4
+      otpauth:
+        specifier: ^9.5.0
+        version: 9.5.0
       pdfmake:
         specifier: ^0.3.7
         version: 0.3.7
