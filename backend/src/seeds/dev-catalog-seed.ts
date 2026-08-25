@@ -68,6 +68,7 @@ import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js'
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
+import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
 import { entityNamed } from '../packages/package-entity-lookup.js';
 // The row shapes for the three classes above. A module package publishes its
 // entities as one array and no class by name (D-168), so the *value* comes off
@@ -79,6 +80,7 @@ import { entityNamed } from '../packages/package-entity-lookup.js';
 import type { DeliveryMethod as DeliveryMethodRow } from '../../../packages/modules/delivery_methods/dist/backend/entities/delivery-method.entity.js';
 import type { PaymentMethod as PaymentMethodRow } from '../../../packages/modules/payment_methods/dist/backend/entities/payment-method.entity.js';
 import type { Tax as TaxRow } from '../../../packages/modules/taxes/dist/backend/entities/tax.entity.js';
+import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/dist/backend/entities/credit-limit.entity.js';
 import { DefaultPriceListMigrator } from '../modules/price_lists/services/default-price-list-migration.js';
 import { CatalogProductReadService } from '../modules/catalog/services/catalog-product-read.service.js';
 import { hashPassword } from '../kernel/crypto/password-hasher.js';
@@ -353,6 +355,11 @@ async function main(): Promise<void> {
     '@endora-commerce/mod-payment-methods/backend',
   );
   const Tax = entityNamed<TaxRow>(taxesEntities, 'Tax', '@endora-commerce/mod-taxes/backend');
+  const CreditLimit = entityNamed<CreditLimitRow>(
+    creditLimitsEntities,
+    'CreditLimit',
+    '@endora-commerce/mod-credit-limits/backend',
+  );
 
   // --- Megamenu (feature 015) -----------------------------------------
   // A predefined navigation that mirrors the seeded category tree so the
@@ -892,6 +899,38 @@ async function main(): Promise<void> {
   });
   await em.persistAndFlush(bankTransfer);
 
+  // The platform's headline B2B payment path, seeded so a fresh dev environment
+  // shows it (feature 080, D5). `credit_limit` has been a first-class
+  // `paymentMethodKindSchema` member and a registered adapter all along, and
+  // checkout already offers it — but only when an operator has created the row,
+  // which no seed did, so the capability read as missing.
+  //
+  // `statusOnSuccess: 'paid'` is what a settled deferred payment means; the
+  // reservation itself is opened inside the placement transaction and the order
+  // waits in `new` until the proforma is settled.
+  const creditLimitMethod = em.create(PaymentMethod, {
+    code: 'credit_limit',
+    name: { 'en-US': 'Credit limit', 'pl-PL': 'Limit kupiecki' },
+    kind: 'credit_limit',
+    adapter: 'credit_limit',
+    statusOnPending: 'new',
+    statusOnSuccess: 'paid',
+    statusOnFailure: 'on_hold',
+  });
+  await em.persistAndFlush(creditLimitMethod);
+
+  // And a granted limit for the demo organization, because the seeded method
+  // alone shows nothing: checkout hides a `credit_limit` method from a buyer
+  // whose organization holds no grant, and again when the cart exceeds what is
+  // available. Without this row the seed would add an option no seeded buyer can
+  // ever see, which is the same "capability reads as missing" it exists to fix.
+  const demoCreditLimit = em.create(CreditLimit, {
+    organizationId: demoOrg.id,
+    grantedAmount: '50000.00',
+    currency: 'PLN',
+  });
+  await em.persistAndFlush(demoCreditLimit);
+
   // --- Default price list — engine schema (feature 011) ----------------
   // Migration 031 seeds the Default row at db:migrate time and creates
   // a bracket per currency from each product's attributeValues.defaultPrice.
@@ -998,7 +1037,7 @@ async function main(): Promise<void> {
   console.log(`Price Lists    : default_pln (${PRODUCT_COUNT} items, default)`);
   console.log(`Taxes          : pl_vat_23 (23% on PL, default)`);
   console.log(`Delivery       : in_person_pickup (free)`);
-  console.log(`Payment        : bank_transfer (proforma flow)`);
+  console.log(`Payment        : bank_transfer (proforma flow), credit_limit (50 000.00 PLN granted)`);
   console.log('');
   console.log('Sign in credentials (CHANGE before any non-local use):');
   console.log(`  Platform Administrator : ${DEMO_ADMIN_EMAIL} / ${DEMO_ADMIN_PASSWORD}`);
