@@ -30,7 +30,8 @@ The Docker stack binds the three apps to `127.0.0.1` only, so they are reachable
 | `../.gitlab-ci.yml` | quality → test → build → deploy pipeline |
 | `../backend/Dockerfile` `../storefront/Dockerfile` `../admin/Dockerfile` | per-app images |
 
-Apps run via `tsx` (backend) / Next standalone (storefront) / nginx (admin).
+Apps run built output: `node dist/index.js` (backend, feature 080 D-165) / Next standalone
+(storefront) / nginx (admin).
 The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
 
 ---
@@ -96,7 +97,7 @@ The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
    cd /opt/b2b
    export IMAGE_TAG=<deployed-sha>   # or: latest
    docker compose --env-file .env -f compose.prod.yml run --rm backend \
-     pnpm exec tsx src/modules/admin_users/scripts/create-admin.ts
+     node dist/cli.js admin_users create
    ```
 
    There is **no data-seeding step**. A deployment starts empty on purpose; the catalogue is
@@ -131,7 +132,7 @@ cd /opt/b2b
 export IMAGE_TAG=<deployed-sha>
 docker compose --env-file .env -f compose.prod.yml run --rm \
   -e ALLOW_DEV_SEED_IN_PRODUCTION=true backend \
-  pnpm exec tsx src/seeds/dev-catalog-seed.ts
+  node dist/seeds/dev-catalog-seed.js
 ```
 
 Without that `-e`, the script refuses to run under `NODE_ENV=production` and says so.
@@ -151,7 +152,7 @@ docker compose -f compose.prod.yml exec -T postgres \
 
 # manual migration / cache clear
 docker compose --env-file .env -f compose.prod.yml run --rm backend \
-  pnpm exec tsx src/db/migrate.ts up
+  node dist/db/migrate.js up
 ```
 
 ### Notes & caveats
@@ -163,10 +164,15 @@ docker compose --env-file .env -f compose.prod.yml run --rm backend \
   `docker compose down -v` wipes the volume.
 - **Build path is validated locally**: all three images have been built and
   smoke-tested (`docker build -f <app>/Dockerfile .` from the repo root) — backend
-  boots its full module graph via `tsx` (fails only on an absent DB), admin serves
-  the SPA, storefront's standalone server starts and listens. `docker compose
+  boots its full module graph from `dist/` (fails only on an absent DB), admin
+  serves the SPA, storefront's standalone server starts and listens. `docker compose
   -f deploy/compose.prod.yml config` also validates. The CI runner uses BuildKit
-  (`docker:dind`); a local legacy builder works too.
+  (`docker:dind`); a local legacy builder works too. Since feature 080 (D-165) the
+  backend image is not smoke-tested by hand: `scripts/boot-gate.sh` builds it,
+  migrates a throwaway database, boots it and asserts that translations installed
+  for every module the platform composes and that the deployment's overlay modules
+  are still there — the two things that were reproduced silently broken on the
+  half-built compiled path.
 - **Client IP**: the backend trusts `X-Forwarded-For` only from the hop named by
   `TRUSTED_PROXY_HOPS` (or `TRUSTED_PROXY_ADDRESSES`). `.env.prod.example` ships
   `TRUSTED_PROXY_HOPS=1`, which is right for this stack — one host nginx in front

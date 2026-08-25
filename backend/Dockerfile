@@ -4,9 +4,23 @@
 # Build from the REPO ROOT so the pnpm workspace is visible:
 #   docker build -f backend/Dockerfile -t backend .
 #
-# The backend itself runs through `tsx` rather than a pre-compiled dist/. This mirrors
-# how every backend script (dev, migrate, seed, admin:create) already executes and avoids
-# an AOT bundling step the repository has never exercised.
+# **The backend runs built output** (feature 080, D-165). It used to run through `tsx`, on
+# the ground that this "mirrors how every backend script already executes and avoids an AOT
+# bundling step the repository has never exercised". Both halves were true and neither
+# survived measurement: `backend/package.json` has declared `"start": "node dist/index.js"`
+# since it was written, four source files carry a `RUNNING_FROM_DIST` branch, and
+# `static-registry.ts` explains in prose why production uses static imports — the tree was
+# written for a compiled application and then never compiled. Measured on one machine,
+# three runs each: boot to first request 11.9 s -> 5.3 s, resident 838–851 MB across five
+# processes -> 480–486 MB in one. On a single-VPS deployment — the constraint that produced
+# `check:pdfmake-footprint` — that is not decoration.
+#
+# What makes it safe to say so is `scripts/boot-gate.sh`, which builds this image, migrates
+# a throwaway database, boots it and asserts the platform is what the source says. Two
+# defects were *reproduced* on the half-built compiled path, not predicted: 45 of 45 modules
+# installing no translations while the boot reported `installed=0 failed=0`, and every
+# overlay module vanishing with no error. Both are invisible to a type-check and to every
+# static check in the tree, because in all of those the tree is the source tree.
 #
 # Its workspace packages are the opposite case since feature 080 (T042): each `@endora-commerce/*`
 # package resolves through its own `exports` map at `./dist`, so they are compiled below,
@@ -64,15 +78,32 @@ COPY packages/ packages/
 COPY backend/ backend/
 
 # `backend^...` is the backend's workspace-dependency closure without the backend itself:
-# the packages it imports, built in topological order. The backend has a `build` script of
-# its own and it is deliberately not run — `tsx` is the runtime here.
+# the packages it imports, built in topological order. It has to come first: the backend's
+# own build clears `paths` and resolves every `@endora-commerce/*` specifier through
+# `node_modules` at each package's `./dist`, exactly as an installed consumer does.
 RUN pnpm --filter "backend^..." run build
+
+# The application itself. `build` is `overlay:manifest` + `composer:generate` + `tsc -p
+# tsconfig.build.json` + `copy-runtime-assets`, and the last of those is not a convenience:
+# `tsc` compiles `.ts` and copies nothing else, so without it the built tree holds every
+# module's code and none of its data — which is D-165.3's first silence, and it is silent
+# because an absent bundles directory reads as "this module ships no translatable strings".
+# That step audits its own output against the registered manifests and fails the build.
+#
+# The heap is capped explicitly for the same reason `quality` caps it: Node sizes its
+# default old-space from what it believes is available, and inside a memory-limited build
+# container that is the limit rather than the host. Inline rather than `ENV`, so the cap
+# belongs to the compile and does not follow the application into production.
+RUN NODE_OPTIONS=--max-old-space-size=2048 pnpm --filter backend run build
 
 ENV NODE_ENV=production
 ENV PORT=3001
 WORKDIR /app/backend
 EXPOSE 3001
 
-# Default process: HTTP API + co-located workers. Compose overrides `command`
-# for the one-shot migrate/seed jobs.
-CMD ["pnpm", "exec", "tsx", "src/index.ts"]
+# Default process: HTTP API + co-located workers, from the built tree (D-165). Compose
+# overrides `command` for the one-shot migrate job, which names `dist/db/migrate.js` for
+# the same reason. `scripts/boot-gate.sh` refuses an image whose command is anything else:
+# one that still ran the interpreter would pass every other assertion that gate makes while
+# being precisely the thing this ruling exists to stop.
+CMD ["node", "dist/index.js"]
