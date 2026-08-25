@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import type {
   CartQueryPort,
@@ -17,14 +17,14 @@ import type {
   QuoteRequestReadPort,
   RfqCustomerPort,
 } from '@endora-commerce/contracts';
-import type { CartPlacementApplyPort } from './ports/index.js';
-import { HttpError } from '../../http/error-envelope.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
+import type { CartPlacementApplyPort } from '../ports/index.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { OrganizationReadPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { abandonmentSettingsReaders } from './services/cart-abandonment-settings.js';
 import { CartQueryService } from './services/cart-query-service.js';
 import { CartPlacementApplyService } from './services/cart-placement-apply-port.js';
@@ -43,6 +43,9 @@ import { CartAbandonmentWorker } from './services/cart-abandonment-worker.js';
 import { registerCartRoutes, type CartsDeps } from './routes.js';
 import { registerCartsAdminRoutes } from './routes.admin.js';
 import { registerCartsOrganizationRoutes } from './routes.organization.js';
+import { CartAuditEntry } from './entities/cart-audit-entry.entity.js';
+import { CartItem } from './entities/cart-item.entity.js';
+import { Cart } from './entities/cart.entity.js';
 
 /**
  * `carts` — the module that owned 4593 lines and registered none of them
@@ -387,3 +390,20 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  CartAuditEntry,
+  CartItem,
+  Cart,
+];

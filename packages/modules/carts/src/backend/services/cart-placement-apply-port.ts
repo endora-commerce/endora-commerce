@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CartCustomerContext, CartWithItems } from '@endora-commerce/contracts';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
-import type { CartPlacementApplyPort } from '../ports/index.js';
+import type { CartPlacementApplyPort } from '../../ports/index.js';
 import { toCartItemRecord, toCartRecord } from './cart-read-port.js';
 
 /**

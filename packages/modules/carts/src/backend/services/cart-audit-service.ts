@@ -4,7 +4,7 @@ import type {
   CartAuditAction,
   CartAuditActorType,
 } from '../entities/cart-audit-entry.entity.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 /**
  * Single writer for cart audit landings (feature 027 §R10). Every call

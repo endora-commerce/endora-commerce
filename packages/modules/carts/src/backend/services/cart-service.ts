@@ -7,7 +7,7 @@ import {
   type CartMergeOutcome,
   type ProductAudience,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import type {
@@ -17,9 +17,9 @@ import type {
   LinePricePort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
-import { outOfRequestChannel } from '../../../kernel/sales-channels/request-channel-assortment.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import { outOfRequestChannel } from '@endora-commerce/platform/kernel';
 import type { CartApprovalService } from './cart-approval-service.js';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartRecomputeCache } from './cart-recompute-cache.js';

@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import type { CartAuditService } from './cart-audit-service.js';
-import { withSystemScope } from '../../../tenancy/escape-hatch.js';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 
 /**
  * CartAbandonmentWorker — feature 027 US5.

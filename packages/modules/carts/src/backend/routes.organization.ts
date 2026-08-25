@@ -14,7 +14,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CartService } from './services/cart-service.js';
 import type { CartApprovalService } from './services/cart-approval-service.js';
 import type { CartOrganizationVisibilityService } from './services/cart-organization-visibility-service.js';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 /**
  * Storefront routes scoped to an Organization Admin (feature 027 US4).

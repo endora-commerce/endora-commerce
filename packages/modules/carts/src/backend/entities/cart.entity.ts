@@ -1,5 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
-import { CustomerScoped } from '../../../tenancy/org-scoped.decorator.js';
+import { CustomerScoped } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 
 /**

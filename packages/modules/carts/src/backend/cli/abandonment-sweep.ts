@@ -59,7 +59,7 @@
  * which they could not before.
  */
 import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../../kernel/index.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type { CartAbandonmentWorker } from '../services/cart-abandonment-worker.js';
 
 /** The one registration this command reads — this module's own. */

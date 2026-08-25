@@ -4,7 +4,7 @@ import type {
   LinePricePort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { CartRecomputeCache, CachedCartRecompute } from './cart-recompute-cache.js';
 import type { CartItem } from '../entities/cart-item.entity.js';
 

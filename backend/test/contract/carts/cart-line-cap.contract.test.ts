@@ -1,11 +1,14 @@
+import { CartItem } from '../../helpers/package-entities.js';
 import { randomUUID } from 'crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
+
 
 /**
  * T029 (feature 027 US1) — 200-line cap on `addItem`.

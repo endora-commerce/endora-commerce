@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import type {
@@ -9,9 +9,9 @@ import type {
   RfqCustomerContext,
   RfqCustomerPort,
 } from '@endora-commerce/contracts';
-import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
-import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
-import { productIdsInRequestChannel } from '../../../kernel/sales-channels/request-channel-assortment.js';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import { productIdsInRequestChannel } from '@endora-commerce/platform/kernel';
 import type { CartService, CustomerContext as CartCustomerContext } from './cart-service.js';
 
 /**

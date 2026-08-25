@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { SettingNotRegistered, SettingOutOfScopeForChannel } from '../../../kernel/settings/settings.service.js';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import { SettingNotRegistered, SettingOutOfScopeForChannel } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import {
   CARTS_SETTING_CODES,
   DEFAULT_ABANDONMENT_INACTIVITY_MINUTES,
   DEFAULT_ABANDONMENT_NOTIFICATION_RECIPIENT,
-} from '../manifest.js';
+} from '../../manifest.js';
 
 /**
  * The two `carts.abandonment.*` reads, in one place (issue #54).

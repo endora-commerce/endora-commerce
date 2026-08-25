@@ -3,7 +3,7 @@ import {
   defineModuleSettingsManifest,
   type ModuleCliCommand,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/module-context.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
  * Carts module — feature 027 consolidation pass.
@@ -185,6 +185,6 @@ export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
     name: 'abandonment-sweep',
     summary: 'Run one pass of the cart abandonment sweep against the live database.',
     run: async (context) =>
-      (await import('./cli/abandonment-sweep.js')).abandonmentSweep(context),
+      (await import('./backend/cli/abandonment-sweep.js')).abandonmentSweep(context),
   },
 ];

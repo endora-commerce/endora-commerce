@@ -10,12 +10,12 @@ import type {
   CustomerAccountReadPort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { orgConstraintFor } from '../../../tenancy/derived-scope.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { orgConstraintFor } from '@endora-commerce/platform/tenancy';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { CartAuditEntry } from '../entities/cart-audit-entry.entity.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartSnapshot, PromotionApplication } from '@endora-commerce/contracts';
 

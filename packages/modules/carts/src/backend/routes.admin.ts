@@ -7,8 +7,8 @@ import {
 } from '@endora-commerce/contracts';
 import type { CartAdminService } from './services/cart-admin-service.js';
 import type { CartApprovalService } from './services/cart-approval-service.js';
-import { HttpError } from '../../http/error-envelope.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin Carts routes (feature 027 US6).
