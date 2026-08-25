@@ -4,7 +4,7 @@
 // in T086 verify the SPI end-to-end without depending on a production
 // extension shipping yet.
 
-import type { PageBuilderRegistry } from '../../../src/modules/cms/services/page-builder-registry.js';
+import type { PageBuilderRegistry } from '../../../../packages/modules/cms/src/backend/services/page-builder-registry.js';
 
 export const TEST_EXTENSION_MODULE_CODE = 'test-ext';
 export const TEST_EXTENSION_COMPONENT_NAME = 'TestCallout';

@@ -18,14 +18,13 @@ import {
 import type { ShippingEventBus } from '../../../../packages/modules/shipments/src/backend/services/events.js';
 import { ShipmentService } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
-import { builtInShippingAdapters } from '../../../src/modules/delivery_methods/adapters/built-in-adapters.js';
-import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
+import { ShippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/shipping-adapter-registry.js';
+import { builtInShippingAdapters } from '../../../../packages/modules/delivery_methods/src/backend/adapters/built-in-adapters.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { Shipment } from '../../helpers/package-entities.js';
+import { DeliveryMethod, Shipment, type DeliveryMethodRow } from '../../helpers/package-entities.js';
 
 interface Fixture {
-  method: DeliveryMethod;
+  method: DeliveryMethodRow;
   order: Order;
 }
 

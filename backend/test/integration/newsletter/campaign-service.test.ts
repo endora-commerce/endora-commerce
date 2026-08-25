@@ -1,16 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { NewsletterTokenHelper } from '../../../src/modules/newsletter/services/token.helper.js';
-import { NewsletterOptInService } from '../../../src/modules/newsletter/services/opt-in.service.js';
-import { NewsletterAudienceResolver } from '../../../src/modules/newsletter/services/audience-resolver.js';
-import { NewsletterContentService } from '../../../src/modules/newsletter/services/content.service.js';
-import { NewsletterCampaignDispatchService } from '../../../src/modules/newsletter/services/campaign-dispatch.service.js';
-import { NewsletterCampaignService } from '../../../src/modules/newsletter/services/campaign.service.js';
-import { InMemoryNewsletterProvider } from '../../../src/modules/newsletter/services/provider/console-provider.js';
+import { NewsletterTokenHelper } from '../../../../packages/modules/newsletter/src/backend/services/token.helper.js';
+import { NewsletterOptInService } from '../../../../packages/modules/newsletter/src/backend/services/opt-in.service.js';
+import { NewsletterAudienceResolver } from '../../../../packages/modules/newsletter/src/backend/services/audience-resolver.js';
+import { NewsletterContentService } from '../../../../packages/modules/newsletter/src/backend/services/content.service.js';
+import { NewsletterCampaignDispatchService } from '../../../../packages/modules/newsletter/src/backend/services/campaign-dispatch.service.js';
+import { NewsletterCampaignService } from '../../../../packages/modules/newsletter/src/backend/services/campaign.service.js';
+import { InMemoryNewsletterProvider } from '../../../../packages/modules/newsletter/src/backend/services/provider/console-provider.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
-import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
-import { NewsletterTag } from '../../../src/modules/newsletter/entities/newsletter-tag.entity.js';
-import { NewsletterSubscriberTag } from '../../../src/modules/newsletter/entities/newsletter-subscriber-tag.entity.js';
+import { NewsletterSubscriber, NewsletterSubscriberTag, NewsletterTag } from '../../helpers/package-entities.js';
 
 function textTree(text: string): Record<string, unknown> {
   return { root: { props: {} }, content: [{ type: 'EmailText', props: { id: 't', text } }], zones: {} };

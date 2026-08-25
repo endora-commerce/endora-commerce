@@ -3,7 +3,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import type { CommandActor } from '../../../src/commands/command.js';
 import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { makeSetSystemDefaultChannelCommand } from '../../../src/modules/sales_channels/commands/set-default.command.js';
+import { makeSetSystemDefaultChannelCommand } from '../../../../packages/modules/sales_channels/src/backend/commands/set-default.command.js';
 
 /**
  * D-51 — moving the `system_default` flag, against real Postgres.

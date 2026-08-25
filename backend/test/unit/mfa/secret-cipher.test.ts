@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import {
   SecretCipher,
   safeEqual,
-} from '../../../src/modules/mfa/services/secret-cipher.js';
+} from '../../../../packages/modules/mfa/src/backend/services/secret-cipher.js';
 
 const KEY = randomBytes(32).toString('base64');
 

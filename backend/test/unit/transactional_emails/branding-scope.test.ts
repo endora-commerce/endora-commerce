@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { z } from 'zod';
-import { BrandingService } from '../../../src/modules/transactional_emails/services/branding.service.js';
+import { BrandingService } from '../../../../packages/modules/transactional_emails/src/backend/services/branding.service.js';
 import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,

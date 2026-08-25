@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { PWA_SETTING_CODES } from '@endora-commerce/contracts';
-import { PwaConfigResolver } from '../../../src/modules/pwa/services/pwa-config-resolver.js';
+import { PwaConfigResolver } from '../../../../packages/modules/pwa/src/backend/services/pwa-config-resolver.js';
 
 /** Fake SettingsReadPort backed by a plain map; missing codes throw (like the real service). */
 function fakeSettings(values: Record<string, unknown>) {

@@ -6,7 +6,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
  * The token in the public URL is the ONLY authorization on the module's
  * internet-facing route, so the model follows `api_keys` exactly: 32 random
  * bytes rendered base64url, shown to the operator **once**, and persisted only
- * as its sha256 hex (`backend/src/modules/api_keys/entities/api-key.entity.ts`
+ * as its sha256 hex (`packages/modules/api_keys/src/backend/entities/api-key.entity.ts`
  * — "We store only its sha256 hash").
  *
  * **No grace window on rotation** is deliberate (research §R8): a second still

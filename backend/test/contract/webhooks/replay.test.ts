@@ -5,8 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Webhook } from '../../../src/modules/webhooks/entities/webhook.entity.js';
-import { WebhookDelivery } from '../../../src/modules/webhooks/entities/webhook-delivery.entity.js';
+import { Webhook, WebhookDelivery } from '../../helpers/package-entities.js';
 
 /**
  * T232 — failed-deliveries replay surface.

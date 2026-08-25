@@ -325,7 +325,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population the `foreign` verdict answers over (feature 080, T030a):
     // 133 + 67 + 225 + 159 in the four generated files, one in each override
     // manifest. Recorded 2026-08-21.
-    sites: 586,
+    //
+    // **586 → 527 (T040b batch two), and it is a *downward* re-record, which is
+    // only legitimate when every unit of the fall is an import that stopped
+    // existing.** It is. The entities registry names one class per entity for a
+    // module in the application tree and one `entities` **array** per package
+    // (D-168), so a package with `n` entities removes `n - 1` import lines:
+    // batch two's fourteen own 53 entities across the thirteen that own any, for
+    // exactly −40, measured against the merge base per artefact (the other three
+    // artefacts moved by 0). The remaining 19 were already gone — batch one's own
+    // collapse, which landed inside the −10% floor and re-recorded nothing, which
+    // is the slack-absorption the `check-release-intent` entry below warns about
+    // in the other direction.
+    sites: 527,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -446,7 +458,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population is `2 + members`, and ten module packages are ten new members.
     // This is the ordinary re-record — the remaining ~51 moves will move it
     // again, and the answer stays "re-record", never "widen".
-    files: 27,
+    //
+    // **27 → 41 (T040b batch two)**: the same ordinary re-record, fourteen more
+    // members. `sites` moved 34 → 48 and stayed inside its band, so it is left
+    // where it is rather than tracked per batch.
+    files: 41,
     sites: 34,
     sources: ['workspace-globs'],
   },

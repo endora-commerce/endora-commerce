@@ -84,7 +84,9 @@ const SANCTIONED_AUDIENCE_SOURCES: ReadonlyMap<string, string> = new Map([
       'under, which is the organisation the allow-list has to name',
   ],
   [
-    'src/modules/shopping_lists/services/shopping-list-service.ts',
+    // Repository-relative for the same reason as the entry above: `shopping_lists`
+    // is a module package since T040b's second batch.
+    'packages/modules/shopping_lists/src/backend/services/shopping-list-service.ts',
     'the saved-list add, scoped by the `CustomerContext` that owns the list',
   ],
 ]);

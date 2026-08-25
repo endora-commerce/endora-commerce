@@ -318,7 +318,7 @@ half that proves the boundary moved, not just widened.
 
 **Why.** The MFA module is active by default, but every capability inside it ships **off**:
 `mfa.admin.totp_enabled` and `mfa.admin.totp_enforced` both default to `false`
-(`backend/src/modules/mfa/manifest.ts:37-51`). A deployment that changes nothing has
+(`packages/modules/mfa/src/manifest.ts:37-51`). A deployment that changes nothing has
 password-only admin access on a public domain.
 
 **Do (operator + engineer).** Set `MFA_SECRET_ENCRYPTION_KEY` (B1), then allow admin 2FA,

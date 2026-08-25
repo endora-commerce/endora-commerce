@@ -13,10 +13,10 @@ import { manifest as catalogManifest } from '../../../src/modules/catalog/manife
 import { manifest as importExportManifest } from '../../../../packages/modules/import_export/src/manifest.js';
 import { manifest as inventoryManifest } from '../../../src/modules/inventory/manifest.js';
 import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';
-import { manifest as cmsManifest } from '../../../src/modules/cms/manifest.js';
+import { manifest as cmsManifest } from '../../../../packages/modules/cms/src/manifest.js';
 import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';
 import { manifest as megamenuManifest } from '../../../src/modules/megamenu/manifest.js';
-import { manifest as salesChannelsManifest } from '../../../src/modules/sales_channels/manifest.js';
+import { manifest as salesChannelsManifest } from '../../../../packages/modules/sales_channels/src/manifest.js';
 import { manifest as settingsManifest } from '../../../src/modules/settings/manifest.js';
 
 /**

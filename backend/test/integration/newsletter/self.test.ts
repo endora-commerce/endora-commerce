@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import type { z } from 'zod';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { NewsletterTokenHelper } from '../../../src/modules/newsletter/services/token.helper.js';
-import { NewsletterOptInService } from '../../../src/modules/newsletter/services/opt-in.service.js';
-import { NewsletterSubscriberService } from '../../../src/modules/newsletter/services/subscriber.service.js';
-import { NewsletterSelfService } from '../../../src/modules/newsletter/services/self.service.js';
+import { NewsletterTokenHelper } from '../../../../packages/modules/newsletter/src/backend/services/token.helper.js';
+import { NewsletterOptInService } from '../../../../packages/modules/newsletter/src/backend/services/opt-in.service.js';
+import { NewsletterSubscriberService } from '../../../../packages/modules/newsletter/src/backend/services/subscriber.service.js';
+import { NewsletterSelfService } from '../../../../packages/modules/newsletter/src/backend/services/self.service.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
-import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
+import { NewsletterSubscriber } from '../../helpers/package-entities.js';
 
 class FakeSettings {
   async get<T>(code: string, _ch: string, schema: z.ZodType<T>): Promise<T> {

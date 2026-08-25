@@ -1,0 +1,182 @@
+import type { FastifyRequest } from 'fastify';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { DeliveryMethodReadPort, ShipmentUsagePort } from '@endora-commerce/contracts';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import { builtInShippingAdapters } from './adapters/built-in-adapters.js';
+import {
+  registerDeliveryMethodsAdminRoutes,
+  registerDeliveryMethodsPublicRoutes,
+} from './routes.js';
+import { EnumOrderStatusRegistry } from './services/order-status-registry.port.js';
+import { shippingAdapterRegistry } from './services/registry-singleton.js';
+import { DeliveryMethodReadService } from './services/delivery-method-read-port.js';
+import { ShippingMethodEligibilityService } from './services/shipping-method-eligibility.js';
+import { makeShipmentUsageCounter } from './services/shipment-usage-guard.js';
+import { DeliveryMethod } from './entities/delivery-method.entity.js';
+
+/**
+ * `delivery_methods` — the payment twin's mirror image (feature 072, wave 1,
+ * T095).
+ *
+ * Converted alongside `payment_methods` rather than after it. The two are
+ * mounted from the same forty lines of `orders/plugin.ts` and share the same
+ * registry, eligibility and order-status shape, so converting one and not the
+ * other would leave `commerceModule` half-rewired — an intermediate state that
+ * costs more to hold than the pair costs to do together.
+ *
+ * One asymmetry survives the pairing, and it is not cosmetic: this module's
+ * built-in adapters live in **its own** `adapters/built-in-adapters.ts`, while
+ * the payment built-ins live in `payments`. So this module seeds its own and
+ * `payment_methods` does not — a root contributes those. Seeding is done in the
+ * factory and is idempotent because a provider module's plugin may already have
+ * registered into the same instance.
+ *
+ * The registry stays the process singleton for the reason spelled out in
+ * `payment_methods/backend.ts`: replacing it while the provider modules still
+ * import it directly would create a second registry, which is the defect this
+ * wave keeps removing rather than adding.
+ */
+
+export interface DeliveryMethodsCradle {
+  readonly emFactory: () => EntityManager;
+  readonly requireAdmin: RequireAdminFactory;
+  readonly commandBus: CommandBus;
+  readonly salesChannelMembershipPort: SalesChannelMembershipPort | undefined;
+  /** The two halves the allow-list is composed from — see the payment twin (T138). */
+  readonly customerOrganizationIdResolver: (req: FastifyRequest) => string | null;
+  readonly organizationRestrictionPort: {
+    allowedIdsFor(
+      organizationId: string,
+      kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
+    ): Promise<string[] | null>;
+  };
+  readonly shippingAdapterRegistry: typeof shippingAdapterRegistry;
+  readonly shippingMethodEligibility: ShippingMethodEligibilityService;
+  readonly shippingOrderStatusRegistry: EnumOrderStatusRegistry;
+}
+
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.register({
+    shippingAdapterRegistry: ctx.asFunction(() => shippingAdapterRegistry).singleton(),
+
+    shippingMethodEligibility: ctx
+      .asFunction(
+        (cradle: DeliveryMethodsCradle) =>
+          new ShippingMethodEligibilityService(cradle.shippingAdapterRegistry),
+      )
+      .singleton(),
+
+    shippingOrderStatusRegistry: ctx.asFunction(() => new EnumOrderStatusRegistry()).singleton(),
+
+  });
+
+  /**
+   * Feature 075, Phase P — the row-level read model.
+   *
+   * A **port**, unlike the registry registrations above. The distinction is
+   * the deactivation-consequence one: `shippingAdapterRegistry` is a
+   * contribution seam whose absent-owner policy lives inside it and whose
+   * edges classify as `contributes`, so a gate over the registration would
+   * withdraw the table rather than one contributor's entry. A read of this
+   * module's own table is nothing of the kind — with `delivery_methods` off, a
+   * caller asking which methods exist should be told the module is off.
+   */
+  ctx.di.providePort<DeliveryMethodReadPort>(
+    'deliveryMethodReadPort',
+    ctx
+      .asFunction(
+        ({ emFactory }: DeliveryMethodsCradle) => new DeliveryMethodReadService(emFactory),
+      )
+      .singleton(),
+  );
+
+  ctx.routes(async (app) => {
+    const {
+      emFactory,
+      requireAdmin,
+      shippingAdapterRegistry: registry,
+      shippingMethodEligibility,
+      shippingOrderStatusRegistry,
+    } = ctx.cradle<DeliveryMethodsCradle>();
+    const membership = ctx.cradle<DeliveryMethodsCradle>().salesChannelMembershipPort;
+
+    /** Composed from the two halves, without a `catch` — see the payment twin. */
+    const resolveAllowList = async (req: FastifyRequest): Promise<string[] | null> => {
+      const cradle = ctx.cradle<DeliveryMethodsCradle>();
+      const organizationId = cradle.customerOrganizationIdResolver(req);
+      if (organizationId === null) return null;
+      return cradle.organizationRestrictionPort.allowedIdsFor(organizationId, 'deliveryMethodIds');
+    };
+
+    await registerDeliveryMethodsPublicRoutes(app, {
+      emFactory,
+      registry,
+      eligibility: shippingMethodEligibility,
+      resolveOrganizationDeliveryMethodAllowList: resolveAllowList,
+    });
+
+    await registerDeliveryMethodsAdminRoutes(app, {
+      emFactory,
+      requireAdmin,
+      commandBus: ctx.cradle<DeliveryMethodsCradle>().commandBus,
+      registry,
+      orderStatusRegistry: shippingOrderStatusRegistry,
+      /**
+       * Feature 075 — the FR-003 delete guard, asked of the module that owns
+       * the rows instead of counting its table in raw SQL.
+       *
+       * The port is resolved **per call**, inside the counter, and only after
+       * `effectiveState` has answered: `lazyPort`'s proxy may not be captured
+       * into a singleton, and a gate resolved before the first request is one
+       * of the three fail-open shapes the deactivation-consequence ledger
+       * refuses. The edge is `nonBindingDependencies` rather than a
+       * dependency — see the manifest for why the cycle forbids the ordinary
+       * declaration, and `shipment-usage-guard.ts` for what absence means.
+       */
+      countShipmentsForMethod: makeShipmentUsageCounter({
+        isShipmentsPresent: () => effectiveState.isPresent('shipments'),
+        shipmentUsage: () => lazyPort<ShipmentUsagePort>(ctx, 'shipmentUsagePort'),
+      }),
+      ...(membership === undefined ? {} : { salesChannelMembership: membership }),
+    });
+  });
+
+  /**
+   * The two shipping kinds this module implements, pushed into the registry it
+   * holds — from a boot hook rather than from the registry's own factory
+   * (issue #96).
+   *
+   * Seeding inside the factory tied "which adapters exist" to whoever resolved
+   * the name first, and left the entries unowned: nothing recorded that these
+   * two came from this module, so the enumeration had nothing to filter on when
+   * an operator switched a contributor off. A boot hook runs once per
+   * composition, regardless of effective state, which is exactly the D-39
+   * contract — the push is ungated, the *enumeration* answers presence.
+   */
+  ctx.onBoot(() => {
+    const registry = ctx.cradle<DeliveryMethodsCradle>().shippingAdapterRegistry;
+    for (const adapter of builtInShippingAdapters()) {
+      registry.register(adapter, 'delivery_methods');
+    }
+  });
+}
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  DeliveryMethod,
+];

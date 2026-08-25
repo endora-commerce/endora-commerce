@@ -6,8 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
-import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
-import { Shipment } from '../../helpers/package-entities.js';
+import { DeliveryMethod, Shipment, type DeliveryMethodRow } from '../../helpers/package-entities.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 
 /**
@@ -46,7 +45,7 @@ describe('delivery-method delete guard — the count comes from `shipments`', ()
     await teardownBackendServer(h);
   });
 
-  async function seedMethod(): Promise<DeliveryMethod> {
+  async function seedMethod(): Promise<DeliveryMethodRow> {
     const em = h.em();
     const method = em.create(DeliveryMethod, {
       code: `guard_${randomUUID().slice(0, 8)}`,
@@ -67,7 +66,7 @@ describe('delivery-method delete guard — the count comes from `shipments`', ()
   }
 
   /** `shipments.order_id` is a real foreign key, so the row needs a real order. */
-  async function seedShipment(method: DeliveryMethod): Promise<void> {
+  async function seedShipment(method: DeliveryMethodRow): Promise<void> {
     const em = h.em();
     const order = em.create(Order, {
       organizationId: randomUUID(),

@@ -4,7 +4,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import {
   ensureNewsletterConsentBlock,
   NEWSLETTER_CONSENT_BLOCK_CODE,
-} from '../../../src/modules/newsletter/services/consent-block-seeder.js';
+} from '../../../../packages/modules/newsletter/src/backend/services/consent-block-seeder.js';
 
 /**
  * Feature 075 / D-87 — `newsletter` stops writing `cms`' tables and asks `cms`

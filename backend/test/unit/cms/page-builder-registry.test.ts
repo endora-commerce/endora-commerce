@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PageBuilderRegistry } from '../../../src/modules/cms/services/page-builder-registry.js';
+import { PageBuilderRegistry } from '../../../../packages/modules/cms/src/backend/services/page-builder-registry.js';
 
 describe('PageBuilderRegistry', () => {
   it('registers a component and exposes it via describe()', async () => {

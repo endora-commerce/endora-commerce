@@ -23,7 +23,7 @@ import type {
   ShippingAdapter,
 } from '@endora-commerce/contracts';
 import type { AuditPort, RecordAuditInput } from '../../../src/kernel/ports/audit.js';
-import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
+import { ShippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/shipping-adapter-registry.js';
 import {
   ShipmentService,
   carrierNotContactedReason,

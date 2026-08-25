@@ -1,10 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { NewsletterTrackingService } from '../../../src/modules/newsletter/services/tracking.service.js';
-import { NewsletterStatsService } from '../../../src/modules/newsletter/services/stats.service.js';
-import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
-import { NewsletterCampaign } from '../../../src/modules/newsletter/entities/newsletter-campaign.entity.js';
-import { NewsletterSendRecord } from '../../../src/modules/newsletter/entities/newsletter-send-record.entity.js';
+import { NewsletterTrackingService } from '../../../../packages/modules/newsletter/src/backend/services/tracking.service.js';
+import { NewsletterStatsService } from '../../../../packages/modules/newsletter/src/backend/services/stats.service.js';
+import { NewsletterCampaign, NewsletterSendRecord, NewsletterSubscriber } from '../../helpers/package-entities.js';
 
 describe('newsletter stats + tracking (US6)', () => {
   let db: TestDb;

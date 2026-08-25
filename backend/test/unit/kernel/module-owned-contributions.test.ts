@@ -27,6 +27,15 @@ import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
  *    the root's instance is not gated by anything, so it kept answering with
  *    its module switched off.
  *
+ * **Where a module keeps its `registerModule` is resolved, never spelled**
+ * (feature 080, T040b). The three assertions over `CONTRIBUTIONS` and
+ * `CLUSTER_SIX` read `src/modules/<owner>/backend.ts` literally, so the first
+ * of those owners to become a package took them out with `ENOENT` — loud, but
+ * it is the same derived-fact-written-down shape as `moduleFiles()` below, and
+ * the loudness is an accident of `readFileSync`: a reader that answered `''`
+ * would have passed. They go through `backendSourceOf`, which throws on a
+ * module it cannot place.
+ *
  * Source-level assertions, for the reason `harness-parity.test.ts` gives: the
  * property is a property of the *wiring*, and booting both roots to compare
  * them would cost two compositions per run. The behaviour each contribution
@@ -132,7 +141,7 @@ const CLUSTER_SIX: ReadonlyArray<{
 
 describe('T143a — module-owned descriptors are contributed by their module', () => {
   it.each(CONTRIBUTIONS)('$owner makes the $call contribution itself', ({ call, owner }) => {
-    expect(flat(read(`src/modules/${owner}/backend.ts`))).toContain(flat(call));
+    expect(flat(backendSourceOf(owner))).toContain(flat(call));
   });
 
   it.each(CONTRIBUTIONS)('no composition root makes the $call contribution', ({ call }) => {
@@ -148,14 +157,14 @@ describe('T143a — module-owned descriptors are contributed by their module', (
     // pushes from `ctx.onBoot`, which runs after every module has registered
     // and before any request is served.
     for (const owner of new Set(CONTRIBUTIONS.map((entry) => entry.owner))) {
-      expect(read(`src/modules/${owner}/backend.ts`)).toContain('ctx.onBoot(');
+      expect(backendSourceOf(owner)).toContain('ctx.onBoot(');
     }
   });
 });
 
 describe('T143a cluster 6 — module-owned machinery is built by its module', () => {
   it.each(CLUSTER_SIX)('$owner builds $what itself', ({ owner, inBackend }) => {
-    expect(flat(read(`src/modules/${owner}/backend.ts`))).toContain(flat(inBackend));
+    expect(flat(backendSourceOf(owner))).toContain(flat(inBackend));
   });
 
   it.each(CLUSTER_SIX)('no composition root builds $what', ({ what, notInRoot }) => {

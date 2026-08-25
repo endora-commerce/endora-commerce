@@ -9,7 +9,7 @@ import type {
   RfqCustomerPort,
 } from '@endora-commerce/contracts';
 import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
-import { ShoppingListService } from '../../../src/modules/shopping_lists/services/shopping-list-service.js';
+import { ShoppingListService } from '../../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js';
 
 /**
  * Feature 075, Phase C — `shopping_lists` asks `catalog` for its rows and

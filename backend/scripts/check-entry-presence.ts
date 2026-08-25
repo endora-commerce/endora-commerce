@@ -663,8 +663,10 @@ async function main(): Promise<void> {
         'operator delete an asset a switched-off module still references, which surfaces as\n' +
         'data loss at reactivation.\n\n' +
         'SPLIT IT FIRST: two `ctx.onBoot` calls — the contribution one unprobed, the work one\n' +
-        'probed — then this check judges the work half on its own. See\n' +
-        '`backend/src/modules/blog/backend.ts` and `backend/src/modules/cms/backend.ts`.\n',
+        'probed — then this check judges the work half on its own. Both worked examples are\n' +
+        'module packages now, so the file to read is each one\'s `./backend` entry point:\n' +
+        '`packages/modules/blog/src/backend/index.ts` and\n' +
+        '`packages/modules/cms/src/backend/index.ts`.\n',
     );
     for (const entry of mixed) {
       console.error(

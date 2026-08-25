@@ -6,7 +6,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../src/events/bus.js';
 import type { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
 import type { SalesChannelsCacheInvalidation } from '../../src/kernel/sales-channels/sales-channels-cache.js';
-import { SalesChannelsService } from '../../src/modules/sales_channels/services/sales-channels.service.js';
+import { SalesChannelsService } from '../../../packages/modules/sales_channels/src/backend/services/sales-channels.service.js';
 import type { BackendServerHandle } from './test-server.js';
 
 /**

@@ -12,10 +12,7 @@ import { OrganizationSalesRepAssignment } from '../../../src/modules/organizatio
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
-import { Shipment } from '../../helpers/package-entities.js';
-import { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
-import { ReturnCaseComment } from '../../../src/modules/returns/entities/return-case-comment.entity.js';
-import { ReturnShipment } from '../../../src/modules/returns/entities/return-shipment.entity.js';
+import { ReturnCase, ReturnCaseComment, ReturnShipment, Shipment } from '../../helpers/package-entities.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 
 /**

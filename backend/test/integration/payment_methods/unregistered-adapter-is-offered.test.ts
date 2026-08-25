@@ -5,8 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { PaymentMethod } from '../../helpers/package-entities.js';
-import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
+import { DeliveryMethod, PaymentMethod } from '../../helpers/package-entities.js';
 
 /**
  * Feature 034 FR-003 — a payment method whose adapter is not registered must

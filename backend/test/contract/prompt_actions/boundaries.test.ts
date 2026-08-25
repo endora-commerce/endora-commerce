@@ -7,13 +7,13 @@ import {
 } from '../../helpers/test-server.js';
 import { ScriptedLlm, seedPromptActionsSettings } from '../../helpers/prompt-actions.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
-import { PromptActionRequest } from '../../../src/modules/prompt_actions/entities/prompt-action-request.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from '../../../src/modules/inventory/entities/warehouse.entity.js';
 import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 import { AdminRole } from '../../../src/modules/admin_roles/entities/admin-role.entity.js';
+import { PromptActionRequest } from '../../helpers/package-entities.js';
 
 /**
  * T049 — US3 boundary contract tests (quickstart §3 steps 5–7): ambiguity →

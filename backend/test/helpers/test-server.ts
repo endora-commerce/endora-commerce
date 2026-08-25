@@ -2,7 +2,7 @@ import type { AssetsLibraryCradle } from '../../src/modules/assets_library/backe
 import type { CartShoppingListBridge, CartsCradle } from '../../src/modules/carts/backend.js';
 import type { ConfigurationTypeRegistry } from '../../src/modules/credentials/services/configuration-type-registry.js';
 import type { CredentialsService } from '../../src/modules/credentials/services/credentials.service.js';
-import type { AdminNotificationService } from '../../src/modules/admin_notifications/services/admin-notification-service.js';
+import type { AdminNotificationService } from '../../../packages/modules/admin_notifications/src/backend/services/admin-notification-service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { Redis } from 'ioredis';
@@ -115,16 +115,16 @@ import type {
 // proved nothing: every mail-sending suite runs against this root.
 import type { EmailCradle } from '../../src/modules/email/backend.js';
 import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
-import type { ShoppingListService } from '../../src/modules/shopping_lists/services/shopping-list-service.js';
-import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
+import type { ShoppingListService } from '../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js';
+import type { ReturnsBridge } from '../../../packages/modules/returns/src/backend/index.js';
 import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
-import type { NewsletterBridge } from '../../src/modules/newsletter/backend.js';
+import type { NewsletterBridge } from '../../../packages/modules/newsletter/src/backend/index.js';
 import type { CustomFieldsCradle } from '../../src/modules/custom_fields/backend.js';
 import type { CustomFieldDefinitionService } from '../../src/modules/custom_fields/services/custom-field-definition.service.js';
 import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
 import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
-import type { ApiKeysCradle } from '../../src/modules/api_keys/backend.js';
-import type { CmsCradle } from '../../src/modules/cms/backend.js';
+import type { ApiKeysCradle } from '../../../packages/modules/api_keys/src/backend/index.js';
+import type { CmsCradle } from '../../../packages/modules/cms/src/backend/index.js';
 import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
 import type { TargetValidatorDeps } from '../../src/modules/megamenu/services/target-validator.js';
 import type { StorefrontDeps } from '../../src/modules/megamenu/services/storefront-resolver.js';
@@ -139,17 +139,17 @@ import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsCradle } from '../../src/modules/settings/backend.js';
-import type { MfaActorBridge } from '../../src/modules/mfa/backend.js';
-import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
+import type { MfaActorBridge } from '../../../packages/modules/mfa/src/backend/index.js';
+import type { OAuthProviderPort } from '../../../packages/modules/mfa/src/backend/services/oauth-provider-service.js';
 import { composeSalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
 import type { SalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
-import type { SalesChannelsCradle } from '../../src/modules/sales_channels/backend.js';
+import type { SalesChannelsCradle } from '../../../packages/modules/sales_channels/src/backend/index.js';
 import type { SearchCradle } from '../../src/modules/search/backend.js';
-import type { PromptActionsCradle } from '../../src/modules/prompt_actions/backend.js';
-import type { PromptActionToolRegistry } from '../../src/modules/prompt_actions/services/tool-registry.js';
-import type { PromptRequestService } from '../../src/modules/prompt_actions/services/prompt-request.service.js';
-import type { LlmProviderFactory } from '../../src/modules/prompt_actions/services/llm/provider-factory.js';
-import type { FetchLike } from '../../src/modules/prompt_actions/services/llm/provider.js';
+import type { PromptActionsCradle } from '../../../packages/modules/prompt_actions/src/backend/index.js';
+import type { PromptActionToolRegistry } from '../../../packages/modules/prompt_actions/src/backend/services/tool-registry.js';
+import type { PromptRequestService } from '../../../packages/modules/prompt_actions/src/backend/services/prompt-request.service.js';
+import type { LlmProviderFactory } from '../../../packages/modules/prompt_actions/src/backend/services/llm/provider-factory.js';
+import type { FetchLike } from '../../../packages/modules/prompt_actions/src/backend/services/llm/provider.js';
 import type { KsefCradle } from '../../src/modules/ksef/backend.js';
 import type {
   ProductFeedsBridge,
@@ -170,7 +170,7 @@ import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/se
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
 import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
-import type { PwaBridge, PwaCradle } from '../../src/modules/pwa/backend.js';
+import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from '../../src/kernel/i18n/request-language.js';
 import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js';
@@ -1092,7 +1092,7 @@ export async function setupBackendServer(
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
   let shoppingListServiceRef:
-    | import('../../src/modules/shopping_lists/services/shopping-list-service.js').ShoppingListService
+    | import('../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js').ShoppingListService
     | null = null;
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
   let orderServiceForOneClick:

@@ -1,11 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { CmsBlockSeedService } from '../../../src/modules/cms/services/cms-block-seed-port.js';
+import { CmsBlockSeedService } from '../../../../packages/modules/cms/src/backend/services/cms-block-seed-port.js';
 import {
   ensureNewsletterConsentBlock,
   NEWSLETTER_CONSENT_BLOCK_CODE,
-} from '../../../src/modules/newsletter/services/consent-block-seeder.js';
+} from '../../../../packages/modules/newsletter/src/backend/services/consent-block-seeder.js';
 
 /**
  * Feature 075 / D-87 — the seeder used to bind its block to every channel with

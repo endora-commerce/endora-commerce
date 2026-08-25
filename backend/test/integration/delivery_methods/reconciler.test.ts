@@ -4,8 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { DeliveryMethodReconciler } from '../../../src/modules/delivery_methods/services/delivery-method-reconciler.js';
-import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
+import { DeliveryMethodReconciler } from '../../../../packages/modules/delivery_methods/src/backend/services/delivery-method-reconciler.js';
+import { DeliveryMethod } from '../../helpers/package-entities.js';
 
 /**
  * T013/T016 (US1) — the reconciler auto-creates a configurable delivery_methods

@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { NewsletterTagService } from '../../../src/modules/newsletter/services/tag.service.js';
-import { NewsletterCustomFieldService } from '../../../src/modules/newsletter/services/custom-field.service.js';
-import { NewsletterSubscriberAdminService } from '../../../src/modules/newsletter/services/subscriber-admin.service.js';
-import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
-import { NewsletterSubscriberTag } from '../../../src/modules/newsletter/entities/newsletter-subscriber-tag.entity.js';
-import { NewsletterSuppression } from '../../../src/modules/newsletter/entities/newsletter-suppression.entity.js';
+import { NewsletterTagService } from '../../../../packages/modules/newsletter/src/backend/services/tag.service.js';
+import { NewsletterCustomFieldService } from '../../../../packages/modules/newsletter/src/backend/services/custom-field.service.js';
+import { NewsletterSubscriberAdminService } from '../../../../packages/modules/newsletter/src/backend/services/subscriber-admin.service.js';
+import { NewsletterSubscriber, NewsletterSubscriberTag, NewsletterSuppression } from '../../helpers/package-entities.js';
 
 describe('newsletter subscriber admin (US3)', () => {
   let db: TestDb;

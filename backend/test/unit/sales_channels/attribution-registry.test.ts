@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SalesChannelAttributionDescriptor } from '@endora-commerce/contracts';
-import { SalesChannelAttributionRegistry } from '../../../src/modules/sales_channels/services/sales-channel-attribution-registry.js';
+import { SalesChannelAttributionRegistry } from '../../../../packages/modules/sales_channels/src/backend/services/sales-channel-attribution-registry.js';
 
 /**
  * The attribution registry's own rules (feature 075, D-87 drain).

@@ -6,11 +6,11 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ScriptedLlm, seedPromptActionsSettings } from '../../helpers/prompt-actions.js';
-import { PromptActionRequest } from '../../../src/modules/prompt_actions/entities/prompt-action-request.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from '../../../src/modules/inventory/entities/warehouse.entity.js';
+import { PromptActionRequest } from '../../helpers/package-entities.js';
 
 /**
  * T025 — US1 flagship integration test (quickstart §3 steps 2–3): the full

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { PromptActionToolRegistry } from '../../../src/modules/prompt_actions/services/tool-registry.js';
+import { PromptActionToolRegistry } from '../../../../packages/modules/prompt_actions/src/backend/services/tool-registry.js';
 import { ordersPromptTools } from '../../../src/modules/orders/prompt-tools.js';
 import type { OrderTransitionService } from '../../../src/modules/orders/services/order-transition-service.js';
 

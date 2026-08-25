@@ -5,10 +5,10 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Webhook } from '../../../src/modules/webhooks/entities/webhook.entity.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import type { WebhookService } from '../../../src/modules/webhooks/services/webhook-service.js';
+import type { WebhookService } from '../../../../packages/modules/webhooks/src/backend/services/webhook-service.js';
+import { Webhook } from '../../helpers/package-entities.js';
 
 /**
  * Feature 072 wave 1 (T098) — gate the bridge, not the subscriptions.

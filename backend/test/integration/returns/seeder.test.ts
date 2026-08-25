@@ -4,10 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ReturnsSeeder } from '../../../src/modules/returns/services/returns-seeder.js';
-import { ReturnStatus } from '../../../src/modules/returns/entities/return-status.entity.js';
-import { ReturnStatusTransition } from '../../../src/modules/returns/entities/return-status-transition.entity.js';
-import { ReturnReason } from '../../../src/modules/returns/entities/return-reason.entity.js';
+import { ReturnsSeeder } from '../../../../packages/modules/returns/src/backend/services/returns-seeder.js';
+import { ReturnReason, ReturnStatus, ReturnStatusTransition } from '../../helpers/package-entities.js';
 
 /**
  * Feature 046 (T017) — idempotent default seeder.

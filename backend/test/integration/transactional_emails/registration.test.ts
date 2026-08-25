@@ -5,13 +5,12 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { TransactionalEmail } from '../../../src/modules/transactional_emails/entities/transactional-email.entity.js';
-import { TransactionalEmailContent } from '../../../src/modules/transactional_emails/entities/transactional-email-content.entity.js';
 import {
   TransactionalEmailReconciler,
   TransactionalEmailCodeCollision,
-} from '../../../src/modules/transactional_emails/services/manifest-reconciler.js';
-import { EmailDefaultsRegistry } from '../../../src/modules/transactional_emails/services/email-defaults-registry.js';
+} from '../../../../packages/modules/transactional_emails/src/backend/services/manifest-reconciler.js';
+import { EmailDefaultsRegistry } from '../../../../packages/modules/transactional_emails/src/backend/services/email-defaults-registry.js';
+import { TransactionalEmail, TransactionalEmailContent } from '../../helpers/package-entities.js';
 
 const CODE = 'test_registered_email';
 

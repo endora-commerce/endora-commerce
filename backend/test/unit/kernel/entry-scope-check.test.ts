@@ -376,7 +376,13 @@ describe('the real tree', () => {
   it('gives every worker in the queue-consumer roots its own site', () => {
     // Three `new Worker(...)` in one file: under the file-level population these
     // were one answer, and the second and third were vouched for by the first.
-    const sites = sitesIn('src/modules/newsletter/services/queues/newsletter-queues.ts');
+    // The path follows the module (feature 080, T040b): `newsletter` is a
+    // package, and `absoluteOf` already resolves a `packages/` path against the
+    // repository rather than against `backend/` — the same two bases a real run
+    // gets from `layout.displayOf`.
+    const sites = sitesIn(
+      'packages/modules/newsletter/src/backend/services/queues/newsletter-queues.ts',
+    );
     expect(sites).toHaveLength(3);
     expect(sites.every((s) => s.kind === 'worker' && s.scoped)).toBe(true);
     expect(new Set(sites.map(keyOf)).size).toBe(3);

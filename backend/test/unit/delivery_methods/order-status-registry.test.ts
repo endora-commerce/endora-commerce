@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EnumOrderStatusRegistry,
   OrderStatusRegistryError,
-} from '../../../src/modules/delivery_methods/services/order-status-registry.port.js';
+} from '../../../../packages/modules/delivery_methods/src/backend/services/order-status-registry.port.js';
 
 /**
  * T012 (Foundational) — the enum-backed OrderStatusRegistry used by the

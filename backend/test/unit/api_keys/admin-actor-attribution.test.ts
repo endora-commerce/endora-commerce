@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   registerApiKeysAdminRoutes,
   type ApiKeysAdminDeps,
-} from '../../../src/modules/api_keys/routes.js';
-import type { ApiKey } from '../../../src/modules/api_keys/entities/api-key.entity.js';
-import type { ApiKeyService } from '../../../src/modules/api_keys/services/api-key-service.js';
+} from '../../../../packages/modules/api_keys/src/backend/routes.js';
+import type { ApiKey } from '../../../../packages/modules/api_keys/src/backend/entities/api-key.entity.js';
+import type { ApiKeyService } from '../../../../packages/modules/api_keys/src/backend/services/api-key-service.js';
 
 /**
  * Feature 080, T051 — who created an API key is read from the **production**

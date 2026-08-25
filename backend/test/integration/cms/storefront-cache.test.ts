@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { CmsCache } from '../../../src/modules/cms/services/cms-cache.js';
+import { CmsCache } from '../../../../packages/modules/cms/src/backend/services/cms-cache.js';
 
 /**
  * T096 — Storefront cache integration. Verifies:

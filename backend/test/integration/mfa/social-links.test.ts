@@ -4,11 +4,11 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { MfaSocialIdentity } from '../../../src/modules/mfa/entities/mfa-social-identity.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
+import { MfaSocialIdentity, type MfaSocialIdentityRow } from '../../helpers/package-entities.js';
 
 /**
  * Issue #194 — a customer can see the identities linked to their account and
@@ -60,7 +60,7 @@ describe('MFA social identity links — list + unlink (issue #194)', () => {
     });
   }
 
-  function linkRows(): Promise<MfaSocialIdentity[]> {
+  function linkRows(): Promise<MfaSocialIdentityRow[]> {
     return h.em().find(MfaSocialIdentity, { subjectId: customerId });
   }
 

@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { SEEDED_HOOKS } from '../../../src/modules/cms/services/seed-hooks.js';
+import { SEEDED_HOOKS } from '../../../../packages/modules/cms/src/backend/services/seed-hooks.js';
 
 describe('admin CMS Hooks contract (T067)', () => {
   let h: BackendServerHandle;

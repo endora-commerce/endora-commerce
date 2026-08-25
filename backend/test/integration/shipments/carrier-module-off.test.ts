@@ -9,11 +9,11 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { shippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/registry-singleton.js';
+import { shippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/registry-singleton.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { carrierNotContactedReason } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
+import { DeliveryMethod } from '../../helpers/package-entities.js';
 
 /**
  * Issue #250 — the off-state test Principle XVII item 6 requires for the

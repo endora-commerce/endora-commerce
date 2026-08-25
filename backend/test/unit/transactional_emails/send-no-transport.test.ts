@@ -12,11 +12,11 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { TransactionalEmailService } from '../../../src/modules/transactional_emails/services/transactional-email.service.js';
-import { ContentResolver } from '../../../src/modules/transactional_emails/services/content-resolver.js';
-import { BrandingService } from '../../../src/modules/transactional_emails/services/branding.service.js';
-import { EmbedResolver } from '../../../src/modules/transactional_emails/services/embed-resolver.js';
-import { EmailDefaultsRegistry } from '../../../src/modules/transactional_emails/services/email-defaults-registry.js';
+import { TransactionalEmailService } from '../../../../packages/modules/transactional_emails/src/backend/services/transactional-email.service.js';
+import { ContentResolver } from '../../../../packages/modules/transactional_emails/src/backend/services/content-resolver.js';
+import { BrandingService } from '../../../../packages/modules/transactional_emails/src/backend/services/branding.service.js';
+import { EmbedResolver } from '../../../../packages/modules/transactional_emails/src/backend/services/embed-resolver.js';
+import { EmailDefaultsRegistry } from '../../../../packages/modules/transactional_emails/src/backend/services/email-defaults-registry.js';
 import {
   SettingNotRegistered,
   type SettingsService,

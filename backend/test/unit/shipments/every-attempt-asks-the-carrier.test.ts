@@ -25,7 +25,7 @@ import type {
   ShippingAdapter,
 } from '@endora-commerce/contracts';
 import type { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
+import { ShippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/shipping-adapter-registry.js';
 import { ShipmentService } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
 import type { ShippingEventBus } from '../../../../packages/modules/shipments/src/backend/services/events.js';
 import type { Shipment } from '../../../../packages/modules/shipments/src/backend/entities/shipment.entity.js';
