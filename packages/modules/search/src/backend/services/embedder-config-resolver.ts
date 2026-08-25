@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ResolveResult } from '@endora-commerce/contracts';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
-import { SEARCH_SETTING_CODES } from '../manifest.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import { SEARCH_SETTING_CODES } from '../../manifest.js';
 
 /** Narrow port over CredentialsService.resolve (feature 058, Principle I). */
 export interface CredentialResolvePort {

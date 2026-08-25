@@ -3,7 +3,7 @@ import {
   defineModuleSettingsManifest,
   type ModuleCliCommand,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/module-context.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
  * Built-in settings manifest for the search module — feature 006.
@@ -155,6 +155,6 @@ export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
   {
     name: 'reindex',
     summary: "Rebuild every sales channel's Meilisearch index from PostgreSQL.",
-    run: async (context) => (await import('./cli/reindex.js')).reindex(context),
+    run: async (context) => (await import('./backend/cli/reindex.js')).reindex(context),
   },
 ];

@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SearchPhraseRecord } from '../entities/search-phrase-record.entity.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import {
   SEARCH_SETTING_CODES,
   DEFAULT_POPUP_MINIMUM_QUERY_LENGTH,
-} from '../manifest.js';
+} from '../../manifest.js';
 
 /**
  * SearchPhraseRecorder — feature 006 / US3 / T035.

@@ -6,9 +6,9 @@ import {
   PrimaryKey,
   Property,
 } from '@mikro-orm/core';
-import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
+import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * SearchPhraseRecord — feature 006 / US3 / data-model.md §1.1.

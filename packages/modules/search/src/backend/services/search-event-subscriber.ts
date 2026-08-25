@@ -1,10 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EventBase } from '../../../events/bus.js';
+import type { EventBase } from '@endora-commerce/platform/events';
 import type { SearchIndexer } from './search-indexer.js';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { z } from 'zod';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import { SEARCH_SETTING_CODES } from '../manifest.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { SEARCH_SETTING_CODES } from '../../manifest.js';
 import {
   resolveEmbedderConfig,
   type CredentialResolvePort,

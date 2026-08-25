@@ -10,7 +10,7 @@ import type {
   SettingsAdminAuditContext,
   SettingsAdminPort,
 } from '@endora-commerce/contracts';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { SearchIndexer } from './services/search-indexer.js';
 import { SearchEventSubscriber } from './services/search-event-subscriber.js';
 import { SearchQueryService } from './services/search-query.service.js';
@@ -29,12 +29,12 @@ import {
   type SuggestionPricingEnricher,
 } from './routes.public.js';
 import { registerSearchAdminRoutes } from './routes.admin.js';
-import { SettingNotRegistered, SettingOutOfScopeForChannel } from '../../kernel/settings/settings.service.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
-import { enterSystemScope } from '../../kernel/scope.js';
-import { DEFAULT_REINDEX_INTERVAL_MINUTES, SEARCH_SETTING_CODES } from './manifest.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { SettingNotRegistered, SettingOutOfScopeForChannel } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import { enterSystemScope } from '@endora-commerce/platform/kernel';
+import { DEFAULT_REINDEX_INTERVAL_MINUTES, SEARCH_SETTING_CODES } from '../manifest.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Conditions this module has already reported (D-43's warn-once). Module scope

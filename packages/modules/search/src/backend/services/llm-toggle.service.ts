@@ -3,11 +3,11 @@ import {
   type SettingsAdminAuditContext,
   type SettingsAdminPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import { SEARCH_SETTING_CODES } from '../manifest.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { SEARCH_SETTING_CODES } from '../../manifest.js';
 import {
   resolveEmbedderConfig,
   type CredentialResolvePort,

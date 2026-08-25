@@ -7,7 +7,7 @@ import type {
   ProductSummary,
   SearchSuggestItem,
 } from '@endora-commerce/contracts';
-import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { SuggestionPricingEnricher } from '../routes.public.js';
 
 /**

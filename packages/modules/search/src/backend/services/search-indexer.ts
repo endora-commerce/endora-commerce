@@ -11,8 +11,8 @@ import {
   type OverrideRow,
   type ResolverContext,
 } from '@endora-commerce/contracts';
-import type { SalesChannelMembershipPort } from '../../../kernel/ports/sales-channel.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * SearchIndexer (T067 — initial offline path).

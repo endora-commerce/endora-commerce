@@ -12,12 +12,12 @@ import {
   type SearchSuggestItem,
   type SearchSuggestResponse,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import { markPersonalisedPricing, productAudienceOf } from '../../http/product-audience.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { markPersonalisedPricing, productAudienceOf } from '@endora-commerce/platform/http';
 import {
   currentSalesChannel,
   getResolvedChannel,
-} from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+} from '@endora-commerce/platform/kernel';
 import type { ResolvedSearchChannel } from './services/search-query.service.js';
 import {
   QueryTooShort,
@@ -51,6 +51,26 @@ const acceptLanguageHeaderSchema = z.string().optional();
  * root (where the price-lists `PricingService` lives). When absent, the popup
  * degrades to the legacy `ProductSummary.price` projection.
  */
+/**
+ * The signed-in customer's organization, or `null`.
+ *
+ * `request.actor` is not on `FastifyRequest`: it is a declaration-merging
+ * augmentation the `auth` module contributes (`modules/auth/plugin.ts`). Inside
+ * `backend/src` it arrived ambiently through the host's own `types` graph, so
+ * nothing in this module ever named it; a package compiles against its own
+ * manifest and `auth` publishes nothing a package can name, so the property is
+ * simply not there (TS2339). Read structurally and narrowed rather than
+ * asserted — an absent actor answers `null`, which is the guest price, exactly
+ * as before.
+ */
+function customerOrganizationId(request: FastifyRequest): string | null {
+  const { actor } = request as FastifyRequest & {
+    actor?: { kind?: string; organizationId?: string | null };
+  };
+  if (actor?.kind !== 'customer') return null;
+  return actor.organizationId ?? null;
+}
+
 export type SuggestionPricingEnricher = (
   items: ProductSummary[],
   ctx: {
@@ -153,9 +173,7 @@ export async function registerSearchPublicRoutes(
       // and a guest sees the public one. Enrichment failures degrade to the
       // raw projection — the popup must never 500 over a pricing hiccup.
       if (enrichSuggestionPricing) {
-        const actor = request.actor;
-        const organizationId =
-          actor.kind === 'customer' ? actor.organizationId : null;
+        const organizationId = customerOrganizationId(request);
         try {
           const enriched = await enrichSuggestionPricing(result.data, {
             resolvedChannel: ctx.resolvedChannel,

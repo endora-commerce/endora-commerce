@@ -14,8 +14,8 @@ import {
   type ProductListSort,
   type ProductSummary,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { encodeCursor, decodeCursor } from '../../../http/cursor.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { encodeCursor, decodeCursor } from '@endora-commerce/platform/http';
 import {
   indexUidFor,
   type IndexedDocument,

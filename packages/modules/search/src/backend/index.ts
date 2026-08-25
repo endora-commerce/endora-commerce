@@ -6,15 +6,16 @@ import type {
   OrganizationDetailsPort,
   SearchQueryPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { createSearchQueryPort } from './services/search-query-port.js';
 import { createSuggestionPricingEnricher } from './services/suggestion-pricing-enricher.js';
 import type { SuggestionPriceResolverPort } from './services/suggestion-pricing-enricher.js';
 import { searchModule, type SearchModuleOptions, type SearchModuleResult } from './plugin.js';
 import type { SettingChangedPayload } from './services/search-event-subscriber.js';
+import { SearchPhraseRecord } from './entities/search-phrase-record.entity.js';
 
 /**
  * `search` — six optional options that were never actually optional (feature
@@ -249,3 +250,18 @@ export function registerModule(ctx: ModuleContext): void {
     await ctx.cradle<SearchCradle>().search.plugin(app);
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  SearchPhraseRecord,
+];
