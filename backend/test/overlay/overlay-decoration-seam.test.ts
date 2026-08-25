@@ -31,6 +31,13 @@ import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
  * while skipping the derivation, and "from the root the module was discovered
  * under, never from anything the module says about itself" is half of what
  * makes the exemption safe.
+ *
+ * The **owner** side of that derivation is asserted next door, in
+ * `packaged-owner-decoration.test.ts` (D-177's Case A). Nothing here can carry
+ * it: the stand-in below is hand-built with `id: 'price_lists'`, so the real
+ * generated entry may change underneath it, and T-A″ sets `installedPackage`
+ * by hand, so it asserts the guard and never the derivation that decides which
+ * owners reach it.
  */
 
 const log = (): { info: () => void; warn: () => void; error: () => void } => ({
