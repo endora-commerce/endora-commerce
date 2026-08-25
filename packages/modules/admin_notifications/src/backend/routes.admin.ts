@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 /**
  * Resolve the acting admin's id. Production decorates `request.actor` via the
@@ -21,7 +21,7 @@ function resolveAdminUserId(request: FastifyRequest): string {
 }
 import type { AdminNotificationService } from './services/admin-notification-service.js';
 import { NotificationNotFoundError } from './services/admin-notification-service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 const listQuerySchema = z.object({
   unread: z.coerce.boolean().default(false),
