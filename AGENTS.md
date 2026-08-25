@@ -143,6 +143,16 @@ output beside that sibling's source** — 432 untracked files in `packages/contr
 sets **`noEmitOnError: true`**, because `dist/` is git-ignored: a compile that failed would
 otherwise ship its artefacts and leave nothing for anybody to notice.
 
+**Deleting a file? Grep `backend/test/**` for it before you finish, and do not trust
+`test:unit:fast` to tell you.** That command is the one everybody runs locally and it skips the
+contract and integration trees entirely — where a test that *spawns* a deleted script, or imports a
+deleted module's path, fails with `ERR_MODULE_NOT_FOUND` rather than with anything a type-check or a
+`check-*` script can see. Measured three times on 2026-08-24: a contract test red across **29
+merges**, an integration test red across **50** while reporting a live product defect nobody read,
+and a suite deleted with the two scripts it existed to exercise. All three were invisible to the
+fast suite by construction, and CI's own red did not stop a single merge because
+`only_allow_merge_if_pipeline_succeeds` is off.
+
 **Which backend test command to use.** `test:unit:fast` (config: `backend/vitest.unit.config.ts`)
 is the one to run while you iterate and the one CI runs on every backend MR as `test:backend:unit`,
 with no service containers. **The suite's size is not written down here**, and that is the second
