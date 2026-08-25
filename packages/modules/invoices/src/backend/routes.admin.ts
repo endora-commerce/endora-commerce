@@ -7,7 +7,7 @@ import {
   type OrderReadPort,
 } from '@endora-commerce/contracts';
 import { Invoice } from './entities/invoice.entity.js';
-import { isOrgInScope } from '../../tenancy/derived-scope.js';
+import { isOrgInScope } from '@endora-commerce/platform/tenancy';
 import { z } from 'zod';
 import type { InvoiceService } from './services/invoice-service.js';
 import type { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
@@ -15,7 +15,7 @@ import type { InvoiceTemplateService } from './services/invoice-template-service
 import { INVOICE_PAGE_BUILDER_DESCRIPTOR } from './pdf-components/descriptor.js';
 import { sampleInvoiceDetail } from './pdf-components/sample.js';
 import { pickLanguageTree } from './pdf-components/tree-mapper.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { InvoiceEmailDispatchResult } from './services/invoice-email-dispatch.js';
 
 /** Minimal email-dispatch seam — implemented by the US5 dispatcher. */

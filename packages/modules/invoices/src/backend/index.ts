@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { EventBus } from '../../events/bus.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { EventBus } from '@endora-commerce/platform/events';
 import type {
   CorrectiveInvoicePort,
   EmailDefaultsRegistryPort,
@@ -10,11 +10,11 @@ import type {
   SettingWriteValidatorRegistryPort,
   SettingsAdminPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { FastifyRequest } from 'fastify';
-import type { InvoicePlacementApplyPort } from './ports/index.js';
+import type { InvoicePlacementApplyPort } from '../ports/index.js';
 import { invoicesModule, type InvoicesModuleOptions, type InvoicesModuleHandle } from './plugin.js';
 import { CorrectiveInvoiceProvider } from './services/corrective-invoice.js';
 import { InvoicePlacementApplyService } from './services/invoice-placement-apply-port.js';
@@ -23,6 +23,10 @@ import type { InvoiceNumberGenerator } from './services/invoice-number-generator
 import { NumberingConfigurationService } from './services/numbering-configuration.js';
 import { createNumberingPatternValidator } from './services/numbering-write-validator.js';
 import { INVOICE_ISSUED_DEFAULT } from './email-templates/invoice-issued.default.js';
+import { InvoiceLine } from './entities/invoice-line.entity.js';
+import { InvoiceNumberCounter } from './entities/invoice-number-counter.entity.js';
+import { InvoiceTemplate } from './entities/invoice-template.entity.js';
+import { Invoice } from './entities/invoice.entity.js';
 
 /**
  * `invoices` — a document module with a late-bound verifier (feature 072,
@@ -333,3 +337,21 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  InvoiceLine,
+  InvoiceNumberCounter,
+  InvoiceTemplate,
+  Invoice,
+];

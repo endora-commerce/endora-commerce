@@ -1,23 +1,29 @@
+import { Invoice, InvoiceLine } from '../../helpers/package-entities.js';
 import { randomUUID } from 'crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CorrectiveInvoiceProvider } from '../../../src/modules/invoices/services/corrective-invoice.js';
+
+import { CorrectiveInvoiceProvider } from '../../../../packages/modules/invoices/src/backend/services/corrective-invoice.js';
+
 import {
   InvoiceNumberGenerator,
   createSettingsPatternResolver,
-} from '../../../src/modules/invoices/services/invoice-number-generator.js';
-import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
-import { InvoiceLine } from '../../../src/modules/invoices/entities/invoice-line.entity.js';
+} from '../../../../packages/modules/invoices/src/backend/services/invoice-number-generator.js';
+
 import type {
   CorrectiveInvoiceInput,
   CorrectiveInvoiceIssued,
 } from '../../../../packages/modules/returns/src/backend/ports/corrective-invoice.port.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
+
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+
 
 // Feature 078, D-95: `{channel}` is rendered from the `sales_channels`
 

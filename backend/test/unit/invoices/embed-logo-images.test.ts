@@ -3,10 +3,10 @@ import {
   embedInvoiceLogoImages,
   extractAssetIdFromUrl,
   toImageDataUri,
-} from '../../../src/modules/invoices/pdf-components/embed-logo-images.js';
-import { logoSection } from '../../../src/modules/invoices/pdf-components/sections.js';
-import { InvoicePdfRenderer } from '../../../src/modules/invoices/services/invoice-pdf-renderer.js';
-import { sampleInvoiceDetail } from '../../../src/modules/invoices/pdf-components/sample.js';
+} from '../../../../packages/modules/invoices/src/backend/pdf-components/embed-logo-images.js';
+import { logoSection } from '../../../../packages/modules/invoices/src/backend/pdf-components/sections.js';
+import { InvoicePdfRenderer } from '../../../../packages/modules/invoices/src/backend/services/invoice-pdf-renderer.js';
+import { sampleInvoiceDetail } from '../../../../packages/modules/invoices/src/backend/pdf-components/sample.js';
 
 /** Minimal 1×1 PNG. */
 const PNG_1X1 = Buffer.from(

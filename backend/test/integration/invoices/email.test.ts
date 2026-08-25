@@ -1,4 +1,6 @@
+import { Invoice } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import type {
   TransactionalEmailSendInput,
   TransactionalEmailSender,
@@ -9,22 +11,31 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 // Feature 075, Phase C — `invoices` reads orders over `orders`' published port,
 // so a hand-built service in a test takes the same implementation the container
 // registers under `orderReadPort`.
 import { OrderReadService } from '../../../src/modules/orders/services/order-read-port.js';
-import { InvoiceEmailDispatcher } from '../../../src/modules/invoices/services/invoice-email-dispatch.js';
-import { InvoiceService } from '../../../src/modules/invoices/services/invoice-service.js';
-import { InvoicePdfRenderer } from '../../../src/modules/invoices/services/invoice-pdf-renderer.js';
+
+import { InvoiceEmailDispatcher } from '../../../../packages/modules/invoices/src/backend/services/invoice-email-dispatch.js';
+
+import { InvoiceService } from '../../../../packages/modules/invoices/src/backend/services/invoice-service.js';
+
+import { InvoicePdfRenderer } from '../../../../packages/modules/invoices/src/backend/services/invoice-pdf-renderer.js';
+
 import {
   InvoiceNumberGenerator,
   createSettingsPatternResolver,
-} from '../../../src/modules/invoices/services/invoice-number-generator.js';
-import { SellerSettingsResolver } from '../../../src/modules/invoices/services/seller-settings.js';
-import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
+} from '../../../../packages/modules/invoices/src/backend/services/invoice-number-generator.js';
+
+import { SellerSettingsResolver } from '../../../../packages/modules/invoices/src/backend/services/seller-settings.js';
+
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
+
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+
 
 // Feature 078, D-95: `{channel}` is rendered from the `sales_channels`
 

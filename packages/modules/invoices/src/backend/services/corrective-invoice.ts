@@ -1,12 +1,12 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { InvoiceAuditRecorder, InvoiceDomainEventEmitter } from './invoice-service.js';
-import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { refuseDuplicateInvoiceNumber } from './duplicate-number-refusal.js';
 // Feature 075, Phase C — `returns` states this shape and `invoices` satisfies
 // it. Naming it from `@endora-commerce/contracts` keeps that direction while removing the

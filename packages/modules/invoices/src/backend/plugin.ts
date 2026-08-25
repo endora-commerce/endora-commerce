@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { OrderReadPort, OrderRecord, TransactionalEmailSender } from '@endora-commerce/contracts';
 import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
 import type { LoadAssetImage } from './pdf-components/embed-logo-images.js';
 import { InvoiceNumberGenerator, createSettingsPatternResolver } from './services/invoice-number-generator.js';
@@ -12,7 +12,7 @@ import { InvoiceTemplateService } from './services/invoice-template-service.js';
 import { createAutoIssueReactor } from './services/auto-issue-reactor.js';
 import { registerInvoicesAdminRoutes } from './routes.admin.js';
 import { registerInvoicesCustomerRoutes } from './routes.customer.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * The attach function this module hands its composition root.

@@ -4,11 +4,11 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CorrectiveInvoiceProvider } from '../../../src/modules/invoices/services/corrective-invoice.js';
+import { CorrectiveInvoiceProvider } from '../../../../packages/modules/invoices/src/backend/services/corrective-invoice.js';
 import {
   InvoiceNumberGenerator,
   createSettingsPatternResolver,
-} from '../../../src/modules/invoices/services/invoice-number-generator.js';
+} from '../../../../packages/modules/invoices/src/backend/services/invoice-number-generator.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';

@@ -4,11 +4,11 @@ import type {
   NumberingSeries,
   SettingsAdminPort,
 } from '@endora-commerce/contracts';
-import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import { Setting } from '../../../kernel/settings/setting.entity.js';
-import { SettingValue } from '../../../kernel/settings/setting-value.entity.js';
-import { INVOICES_SETTING_CODES } from '../manifest.js';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
+import { INVOICES_SETTING_CODES } from '../../manifest.js';
 import { findNumberPatternCollisions } from './invoice-number-collisions.js';
 import {
   PRE_CHANNEL_DEFAULT_PATTERNS,

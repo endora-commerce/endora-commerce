@@ -1,7 +1,7 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
 import type { InvoiceBuyer, SellerCompanyData } from '@endora-commerce/contracts';
-import { TransitivelyScoped } from '../../../tenancy/org-scoped.decorator.js';
+import { TransitivelyScoped } from '@endora-commerce/platform/tenancy';
 
 /**
  * Invoice — a document issued against an order (feature 047). Immutable once

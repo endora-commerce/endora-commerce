@@ -3,7 +3,7 @@ import {
   GENERIC_INVOICE_TEMPLATE_CODE,
   GENERIC_INVOICE_TEMPLATE_CONTENT,
   GENERIC_INVOICE_TEMPLATE_LANGUAGES,
-} from '../seeds/generic-invoice-template.js';
+} from '../backend/seeds/generic-invoice-template.js';
 
 /**
  * Reseed the system `generic` invoice template with the current Puck tree

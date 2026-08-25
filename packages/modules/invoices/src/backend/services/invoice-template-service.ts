@@ -1,10 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { InvoiceTemplate } from '../entities/invoice-template.entity.js';
 import { pickLanguageTree } from '../pdf-components/tree-mapper.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import {
   GENERIC_INVOICE_TEMPLATE_CODE,
   GENERIC_INVOICE_TEMPLATE_CONTENT,

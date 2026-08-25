@@ -4,8 +4,8 @@ import {
   type SettingWriteValidationInput,
   type SettingWriteValidator,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { INVOICES_SETTING_CODES } from '../manifest.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { INVOICES_SETTING_CODES } from '../../manifest.js';
 import {
   findNumberPatternCollisions,
   patternSequenceDefect,

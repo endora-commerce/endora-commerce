@@ -409,7 +409,7 @@ describe('checkEntryPresence — the two-way ratchet', () => {
     // would leave a deployment that had `invoices` off during the upgrade with
     // invoice numbers of a different shape.
     expect(Object.keys(BOOT_HOOKS_WITHOUT_PRESENCE)).toEqual([
-      'modules/invoices/backend.ts:onBoot#3:ctx.onBoot',
+      'packages/modules/invoices/src/backend/index.ts:onBoot#3:ctx.onBoot',
     ]);
     for (const reason of Object.values(BOOT_HOOKS_WITHOUT_PRESENCE)) {
       expect(reason.length).toBeGreaterThan(80);

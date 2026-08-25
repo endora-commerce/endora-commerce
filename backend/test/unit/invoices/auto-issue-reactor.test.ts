@@ -3,11 +3,11 @@ import type { z } from 'zod';
 import {
   createAutoIssueReactor,
   type AutoIssueReactorDeps,
-} from '../../../src/modules/invoices/services/auto-issue-reactor.js';
-import type { InvoiceEmailDispatchResult } from '../../../src/modules/invoices/services/invoice-email-dispatch.js';
+} from '../../../../packages/modules/invoices/src/backend/services/auto-issue-reactor.js';
+import type { InvoiceEmailDispatchResult } from '../../../../packages/modules/invoices/src/backend/services/invoice-email-dispatch.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { SettingNotRegistered } from '../../../src/kernel/settings/settings.service.js';
-import { INVOICES_SETTING_CODES } from '../../../src/modules/invoices/manifest.js';
+import { INVOICES_SETTING_CODES } from '../../../../packages/modules/invoices/src/manifest.js';
 
 /**
  * Issue #115 — the auto-issue reactor discarded the dispatch answer.

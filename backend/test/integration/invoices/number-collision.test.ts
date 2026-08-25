@@ -1,23 +1,30 @@
+import { Invoice, InvoiceLine, InvoiceNumberCounter } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { HttpError } from '../../../src/http/error-envelope.js';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
+
 import type { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
-import { InvoiceLine } from '../../../src/modules/invoices/entities/invoice-line.entity.js';
-import { InvoiceNumberCounter } from '../../../src/modules/invoices/entities/invoice-number-counter.entity.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+
 import {
   ensureSalesChannel,
   systemDefaultSalesChannel,
 } from '../../helpers/sales-channel-fixtures.js';
-import { CorrectiveInvoiceProvider } from '../../../src/modules/invoices/services/corrective-invoice.js';
+
+import { CorrectiveInvoiceProvider } from '../../../../packages/modules/invoices/src/backend/services/corrective-invoice.js';
+
 import { seedInvoiceableOrder, setSellerSettings } from './helpers.js';
+
 
 /**
  * Feature 078, D-95.2 — `409 INVOICE_NUMBER_ALREADY_ISSUED` at issuance.

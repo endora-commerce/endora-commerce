@@ -1,9 +1,9 @@
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import { withSystemScope } from '../../../tenancy/escape-hatch.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { Invoice } from '../entities/invoice.entity.js';
 import { channelName } from './numbering-configuration.js';
 

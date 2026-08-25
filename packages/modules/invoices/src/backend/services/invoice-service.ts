@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import {
   ERROR_CODES,
   type InvoiceDetail,
@@ -10,8 +10,8 @@ import {
 } from '@endora-commerce/contracts';
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
-import { isOrgInScope } from '../../../tenancy/derived-scope.js';
-import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { refuseDuplicateInvoiceNumber } from './duplicate-number-refusal.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { SellerSettingsResolver } from './seller-settings.js';

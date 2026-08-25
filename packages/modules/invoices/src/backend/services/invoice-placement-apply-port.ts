@@ -3,7 +3,7 @@ import { Invoice } from '../entities/invoice.entity.js';
 import type {
   InvoicePlacementApplyPort,
   ProformaInvoiceOpened,
-} from '../ports/index.js';
+} from '../../ports/index.js';
 
 /**
  * `invoicePlacementApplyPort` — the proforma an order is placed with, written

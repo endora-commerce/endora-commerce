@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { sellerCompanyDataSchema, type SellerCompanyData } from '@endora-commerce/contracts';
-import { INVOICES_SETTING_CODES } from '../manifest.js';
+import { INVOICES_SETTING_CODES } from '../../manifest.js';
 
 /**
  * The slice of `SettingsService` this module reads through.

@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { ERROR_CODES, type OrderReadPort, type OrderRecord } from '@endora-commerce/contracts';
 import { Invoice } from './entities/invoice.entity.js';
 import type { InvoiceService } from './services/invoice-service.js';

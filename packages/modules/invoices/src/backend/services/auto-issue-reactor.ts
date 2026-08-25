@@ -1,16 +1,16 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import { Invoice } from '../entities/invoice.entity.js';
-import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
-} from '../../../kernel/settings/settings.service.js';
+} from '@endora-commerce/platform/kernel';
 import type { InvoiceDetail } from '@endora-commerce/contracts';
 import type { InvoiceService } from './invoice-service.js';
 import type { InvoiceEmailDispatcher, InvoiceEmailLog } from './invoice-email-dispatch.js';
 import type { SettingsReader } from './seller-settings.js';
-import { INVOICES_SETTING_CODES } from '../manifest.js';
+import { INVOICES_SETTING_CODES } from '../../manifest.js';
 
 export interface AutoIssueReactorDeps {
   emFactory: () => EntityManager;
