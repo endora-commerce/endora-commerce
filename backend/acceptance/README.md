@@ -8,6 +8,8 @@ resolution path.**
 That sentence is D-110 (`specs/080-f4-real-scope/README.md` §6); the normative form, with the
 nine assertions, is `specs/080-f4-real-scope/contracts/package-schema-acceptance.md`.
 
+**A10 is a tenth and is not in that contract** (T053(c)) — see *The tenth assertion* below.
+
 ```bash
 # locally, against a disposable database (the name must contain "test")
 ACCEPTANCE_DATABASE_URL=postgresql://b2b:b2b@localhost:5432/b2b_acceptance_test \
@@ -31,8 +33,9 @@ leaves: `pnpm pack` → `pnpm add ./x.tgz` into `os.tmpdir()` → boot this plat
 | --- | --- |
 | `fixture-package/` | `@endora-commerce/mod-acceptance-probe` — a synthetic third-party module: one entity, one migration, one permission, an activation block, one palette action, flat `en`/`pl` bundles. **Not a `pnpm-workspace.yaml` member**, so pnpm cannot link it. Publishes `dist` + `i18n` with comments stripped, so a source-text probe for `@Entity(` finds nothing. |
 | `expected-state.json` | The two-way ratchet: what the criterion answers on this tree today, per assertion, with a reason for every entry. |
-| `../scripts/acceptance/package-schema.ts` | The runner: build, pack, install, A8/A9, database, six probe phases, report. |
-| `../scripts/acceptance/instance-probe.ts` | One platform process per phase — `schema`, `boot`, `install`, `gate-off`, `gate-on`, `uninstall`. It boots the real composition root and answers A1 … A7. |
+| `../scripts/acceptance/package-schema.ts` | The runner: build, pack, install, A8/A9, database, seven probe phases, report. |
+| `../scripts/acceptance/instance-probe.ts` | One platform process per phase — `schema`, `boot`, `install`, `overlay-decoration`, `gate-off`, `gate-on`, `uninstall`. It boots the real composition root and answers A1 … A7 and A10. |
+| `../../src/apps/acceptance/` | The deployment the `overlay-decoration` phase composes: one overlay module whose whole content is a decoration over a registration the fixture **package** owns. |
 | `../scripts/acceptance/assertions.ts` | Every judgement, pure. Unit-tested in `test/unit/scripts/package-schema-acceptance.test.ts`. |
 
 ## Reading the result
@@ -41,13 +44,18 @@ Three exit codes, and the third is the point: **0** the criterion is met, **1** 
 could not be measured (no PostgreSQL, no `pnpm`, a database name the guard refuses, a phase that
 threw). "The services were missing" is not spellable as either colour.
 
-Today the run prints nine `PASS` and no `FAIL`, and the criterion is **met**. What CI enforces is
-unchanged and is still drift against `expected-state.json` in **both** directions — the ratchet was
-never "is it red", it was "does it answer what this repository says it answers". The direction that
-matters has simply flipped: while the criterion was red, the case to catch was an assertion going
-green without going through the composition; now that every entry is `pass`, the file is the guard
-against a regression, and any newly-red assertion fails the job. Both remedies are the same one:
-record the move in the merge request that earned it. Never edit that file to make a pipeline pass.
+Today the run prints nine `PASS` and one `FAIL` — A1 … A9 green, A10 red — so the **schema**
+criterion is met and the tenth assertion is not. What CI enforces is unchanged and is still drift
+against `expected-state.json` in **both** directions — the ratchet was never "is it red", it was
+"does it answer what this repository says it answers". Both remedies are the same one: record the
+move in the merge request that earned it. Never edit that file to make a pipeline pass.
+
+Two consequences of A10's red worth stating plainly, because both look like defects and are not.
+A plain `pnpm --filter backend run acceptance:package-schema` now exits **1** and prints "the
+criterion is NOT met" — its headline sentence is about D-110's schema question and A10 is not that
+question, so read the per-assertion lines rather than the summary. And the CI job
+(`:ci`, `--against-expectation`) exits **0**, because a recorded red that reproduces is exactly
+what the ratchet is for: it is what makes A10 a standing measurement rather than a note.
 
 **A5 was the first to move**, in the merge request that landed T031: an installed package now
 reaches `resolvedManifestEntries()` and both composition roots, so its identity, its grantable
@@ -118,6 +126,50 @@ A8 says the installed package's resolution path stays inside the instance; A9 ru
 predicate over the same package consumed by link from inside this repository and passes only when
 A8 comes back **false**. Both pass today, and they have to: they measure the harness rather than
 the platform, and an anti-trap assertion nobody has ever seen refuse anything is decoration.
+
+## The tenth assertion
+
+**A10 asks whether a per-deployment overlay can decorate a registration owned by an installed
+package**, and it is the only entry recorded `fail`.
+
+It is here rather than in a test of its own for one reason: the thing it needs is an installed
+package — packed, installed outside the working tree, composed — and this harness is the only
+place that exists. Building a second one to ask a single question would be a second answer to
+"what is an installed package". Asking it here costs one phase and one deployment.
+
+The mechanism it exercises is the overlay pattern's, not the packaging programme's. A deployment
+overrides a service by decorating the **registration** (feature 072, D-28) — a module of its own
+under `backend/src/apps/<deployment>/modules/`, calling `ctx.di.decorate('<name>', …)`. A core
+module wrapping someone else's registration is refused; an overlay module is exempt, and the
+exemption is structural (`overlay: true`, set from the root the module was discovered under —
+issue #203). A registration name says nothing about where its owner's code lives, so a package
+ought to be exactly as decoratable as a module in `backend/src/modules/`. Nobody had measured it.
+
+**It is not, and the layer is exactly one: the order of the arrays in the composition root.**
+`composeApp` calls `composeModules([...MODULES, ...overlayModuleEntries, ...packageModuleEntries], …)`
+and registration runs in array order — `composeModules` has no topological pass, deliberately,
+because registration resolves nothing. So a deployment's overlay module registers *before* the
+package whose name it wraps, and `ctx.di.decorate` refuses:
+
+> `[kernel] module 'acceptance_overlay' cannot decorate 'acceptanceProbeGreeter': nothing is
+> registered under that name. Decoration wraps an existing registration; register order is
+> topological, so the owning module must come first.`
+
+`composeModules` wraps that as `ModuleCompositionError`, so the deployment does not degrade — it
+does not boot.
+
+**Nothing else is wrong, and that was measured rather than assumed.** The overlay module was
+discovered, was composed and reached `decorate` at all, which is what says the `overlay: true`
+marking was applied. With the two arrays swapped and nothing else changed, A10 answers `pass`:
+`acceptanceProbeGreeter` resolves to `"overlay:acceptance probe"`, the deployment's wrap
+delegating into the package's own implementation. So the decoration exemption over a **package**
+owner works today and is reached by nobody.
+
+The swap is not committed. The comment above that call already claims *"overlay last, so a
+deployment's decoration wins"* as structural, and for a package owner it is not — which array
+composes last is a ruling about the overlay pattern (a package would then register before the
+deployment that may wrap it, and `DuplicateRegistrationError`'s owner/claimant attribution moves
+with it), and a task row that adds an assertion is not where that gets decided.
 
 ## Two things the fixture cannot do, and says so
 

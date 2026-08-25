@@ -40,12 +40,39 @@ import { ACCEPTANCE_PROBE_PERMISSION } from '../manifest.js';
  */
 export const entities = [AcceptanceProbeRow] as const;
 
+/**
+ * A service of this package's own, under a container name of its own.
+ *
+ * It exists so there is something for a **deployment** to wrap (assertion A10).
+ * A per-deployment overlay overrides a service by decorating the registration
+ * rather than by shadowing a file (feature 072, D-28), and a registration name
+ * carries no information about where its owner's code lives — so a package
+ * ought to be exactly as decoratable as a module in the host's own tree. The
+ * class is deliberately trivial and deliberately not exported from the package:
+ * the overlay names `'acceptanceProbeGreeter'` and declares the shape it wraps
+ * structurally, which is what a real deployment has to do across a package
+ * boundary.
+ */
+class AcceptanceProbeGreeter {
+  greeting(): string {
+    return 'acceptance probe';
+  }
+}
+
 /** The slice of `requireAdmin`'s cradle contract this module resolves. */
 interface ProbeCradle {
   readonly requireAdmin: RequireAdminFactory;
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // A registration of this module's own, claimed like any other module's: a
+  // second writer of this name gets `DuplicateRegistrationError`. It is not a
+  // port — nothing cross-module resolves it — which is the point: it is an
+  // ordinary internal registration, and those are what a deployment decorates.
+  ctx.di.register({
+    acceptanceProbeGreeter: ctx.asClass(AcceptanceProbeGreeter).singleton(),
+  });
+
   // Through `ctx.routes`, so the lifecycle gate is applied at the registration
   // seam and the route answers 503 MODULE_DISABLED when an operator switches
   // the module off (assertion A6). Never gated per handler.

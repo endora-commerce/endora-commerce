@@ -1,7 +1,7 @@
 /**
  * The platform half of the package-schema acceptance criterion — the process
  * that boots this repository's backend against a package installed somewhere
- * else, and answers A1 … A7.
+ * else, and answers A1 … A7 and A10.
  *
  * It is spawned by `package-schema.ts`, once per phase, and prints exactly one
  * machine-readable line (`ACCEPTANCE_JSON {...}`) on stdout. One process per
@@ -36,6 +36,21 @@ const MIGRATION_CLASS = 'Migration20260821T120000AcceptanceProbeInit';
 const ROUTE = '/api/v1/admin/acceptance-probe/ping';
 const ACTIVATION_SETTING = 'acceptance_probe.activation';
 const PERMISSION = 'acceptance_probe:manage';
+
+/**
+ * A10's three literals: the container name the **package** registers, and the
+ * greeting it answers before and after the deployment's decoration wraps it.
+ *
+ * They are spelled here and in two files that know nothing about each other —
+ * the package's `./backend` export and
+ * `backend/src/apps/acceptance/modules/acceptance_overlay/backend.ts` — which is
+ * the shape a decoration has in production: the overlay names a registration,
+ * never a file, and the two sides share a string and nothing else. The assertion
+ * is worth something precisely because neither side can import the other.
+ */
+const PACKAGE_REGISTRATION = 'acceptanceProbeGreeter';
+const UNDECORATED_GREETING = 'acceptance probe';
+const DECORATED_GREETING = `overlay:${UNDECORATED_GREETING}`;
 
 /** Thrown for "the harness could not run", never for "the platform answered wrong". */
 class Inconclusive extends Error {}
@@ -681,6 +696,132 @@ async function phaseUninstall(): Promise<AssertionResult[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Phase `overlay-decoration` — A10
+// ---------------------------------------------------------------------------
+
+/**
+ * Compose the platform as the `acceptance` **deployment** and ask what the
+ * container answers for a name the installed package registered.
+ *
+ * A deployment overrides a core service by decorating the registration
+ * (feature 072, D-28): a module of its own under
+ * `backend/src/apps/<deployment>/modules/`, composed like any other, calling
+ * `ctx.di.decorate('<name>', …)`. A core module doing that is refused
+ * (`ForeignDecorationError`); an overlay module is exempt, and the exemption is
+ * structural — `loadOverlayModuleEntries` sets `overlay: true` from the root the
+ * module was discovered under, so it is never a claim a module makes about
+ * itself (issue #203).
+ *
+ * The question is whether any of that depends on where the **wrapped** module's
+ * code lives. It should not: a decoration names a registration, and a
+ * registration name is the same string whether its owner was composed from
+ * `backend/src/modules/`, from a deployment's overlay root, or out of
+ * `node_modules`.
+ *
+ * It runs with `DEPLOYMENT` set for this phase alone. Every other phase composes
+ * bare core, so nine assertions measure exactly what they measured before this
+ * one existed — and the deployment is a real one in this repository's tree, not
+ * a fixture the harness writes, because the whole point is that the platform's
+ * own overlay resolution finds it.
+ *
+ * Three outcomes and all three are the platform's answer, never the harness's:
+ * the registration is missing (the package's own `ctx.di.register` did not reach
+ * the container), it is present and undecorated (composition ran and the
+ * deployment's wrap did not apply), or it is decorated. A composition that
+ * *throws* is the third shape of "no" and is reported as `fail` with what it
+ * said — `Inconclusive` is for a service that was not reachable, and a refusal
+ * the platform issued deliberately is an answer.
+ */
+async function phaseOverlayDecoration(): Promise<AssertionResult[]> {
+  const title = "a deployment's overlay decorates a registration the installed package owns";
+  const refuses =
+    'an overlay pattern whose one customisation seam reaches only the modules this repository ships';
+
+  // The deployment has to be **there** before anything it does can be measured.
+  // Without this, a renamed or deleted `backend/src/apps/<deployment>/` produces
+  // no overlay module, no decoration, and an undecorated resolve — reported in
+  // the same words as the finding this assertion exists to report. That is the
+  // one way A10 could go red for a reason that is not about the platform, so it
+  // is the harness's own failure and leaves as `Inconclusive`.
+  const { activeOverlayModulesRoot } = await import('../../src/overlay/overlay-roots.js');
+  const overlayRoot = activeOverlayModulesRoot();
+  if (overlayRoot === null) {
+    throw new Inconclusive(
+      `DEPLOYMENT=${process.env['DEPLOYMENT'] ?? '(unset)'} resolves to no overlay modules root, ` +
+        'so this phase would measure an absent deployment rather than an absent decoration',
+    );
+  }
+
+  const { composeApp } = await import('../../src/composition.js');
+
+  let composition: Awaited<ReturnType<typeof composeApp>>;
+  try {
+    composition = await composeApp();
+  } catch (error) {
+    // A connection failure is the harness's problem and leaves through
+    // `classifyError`; anything else is the platform refusing to compose this
+    // deployment, which is exactly what A10 asks about.
+    try {
+      classifyError(error);
+    } catch (classified) {
+      if (classified instanceof Inconclusive) throw classified;
+      return [
+        {
+          id: 'A10',
+          title,
+          refuses,
+          status: 'fail',
+          detail:
+            `composing DEPLOYMENT=${process.env['DEPLOYMENT'] ?? '(unset)'} threw rather than ` +
+            `applying the decoration: ${
+              classified instanceof Error ? classified.message : String(classified)
+            }`,
+        },
+      ];
+    }
+    throw error;
+  }
+
+  try {
+    if (!composition.container.hasRegistration(PACKAGE_REGISTRATION)) {
+      return [
+        {
+          id: 'A10',
+          title,
+          refuses,
+          status: 'fail',
+          detail:
+            `nothing is registered under "${PACKAGE_REGISTRATION}". The package's ` +
+            '`registerModule` either did not run or does not register it, so there is no ' +
+            'packaged registration for a deployment to wrap',
+        },
+      ];
+    }
+    const resolved = (composition.container.cradle as unknown as Record<string, unknown>)[
+      PACKAGE_REGISTRATION
+    ] as { greeting?: () => string } | undefined;
+    const greeting = typeof resolved?.greeting === 'function' ? resolved.greeting() : undefined;
+    const decorated = greeting === DECORATED_GREETING;
+    return [
+      {
+        id: 'A10',
+        title,
+        refuses,
+        status: decorated ? 'pass' : 'fail',
+        detail: decorated
+          ? `${PACKAGE_REGISTRATION} resolves to "${greeting}" — the deployment's wrap ran and ` +
+            "delegated to the package's own implementation"
+          : `${PACKAGE_REGISTRATION} resolves to ${JSON.stringify(greeting)}; the deployment's ` +
+            `overlay was expected to make it "${DECORATED_GREETING}" by wrapping the package's ` +
+            `"${UNDECORATED_GREETING}"`,
+      },
+    ];
+  } finally {
+    await composition.dispose();
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
   const phase = process.argv[2];
@@ -701,6 +842,9 @@ async function main(): Promise<void> {
         break;
       case 'gate-on':
         results = await phaseGate(true);
+        break;
+      case 'overlay-decoration':
+        results = await phaseOverlayDecoration();
         break;
       case 'uninstall':
         results = await phaseUninstall();

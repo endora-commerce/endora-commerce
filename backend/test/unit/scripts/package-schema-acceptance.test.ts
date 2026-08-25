@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -246,6 +246,81 @@ describe('the runner refuses to drop a database that is not disposable', () => {
   it('refuses a DSN it cannot parse and one that names no database', () => {
     expect('error' in resolveDatabaseTarget('not a dsn')).toBe(true);
     expect('error' in resolveDatabaseTarget('postgresql://b2b:b2b@localhost:5432/')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A10 — the three sides of one string
+// ---------------------------------------------------------------------------
+
+/**
+ * A10 is a decoration, and a decoration names a **registration**, so its three
+ * participants share one string and nothing else: the package registers
+ * `acceptanceProbeGreeter`, the deployment's overlay wraps that name, and the
+ * probe reads it back. None of the three can import either of the others — the
+ * package is installed outside the repository, the overlay may not name a file
+ * in another module's directory, and the probe runs in a third process.
+ *
+ * That is the shape a real deployment has, and it is also the shape in which a
+ * rename goes silently wrong: change the name on one side and the assertion goes
+ * red saying the decoration did not apply, which is true and is not the reason.
+ * These read the source text — there is no value the three could share.
+ */
+describe('A10 names one registration on all three sides', () => {
+  const probeSource = readFileSync(
+    join(BACKEND_ROOT, 'scripts', 'acceptance', 'instance-probe.ts'),
+    'utf8',
+  );
+  const runnerSource = readFileSync(
+    join(BACKEND_ROOT, 'scripts', 'acceptance', 'package-schema.ts'),
+    'utf8',
+  );
+  const registration = /const PACKAGE_REGISTRATION = '([A-Za-z]+)';/.exec(probeSource)?.[1];
+  const deployment = /const OVERLAY_DEPLOYMENT = '([a-z_]+)';/.exec(runnerSource)?.[1];
+
+  it('reads both literals rather than comparing two undefineds', () => {
+    expect(registration, 'the probe must name the registration it reads').toBeTypeOf('string');
+    expect(deployment, 'the runner must name the deployment it composes').toBeTypeOf('string');
+  });
+
+  it('composes a deployment this repository actually ships', () => {
+    // The runner sets `DEPLOYMENT` for one phase. A value naming no directory
+    // under `backend/src/apps/` composes bare core, applies no decoration, and
+    // fails A10 in the same words as a platform that cannot decorate a package.
+    // The probe refuses that case at runtime (`Inconclusive`); this is the same
+    // guard where it costs no database.
+    expect(existsSync(join(BACKEND_ROOT, 'src', 'apps', deployment!, 'modules'))).toBe(true);
+  });
+
+  it('has the package register the name and the overlay decorate it', () => {
+    const fixtureBackend = readFileSync(
+      join(FIXTURE_DIR, 'src', 'backend', 'index.ts'),
+      'utf8',
+    );
+    expect(fixtureBackend).toContain(`${registration}:`);
+
+    const overlayBackend = readFileSync(
+      join(BACKEND_ROOT, 'src', 'apps', deployment!, 'modules', 'acceptance_overlay', 'backend.ts'),
+      'utf8',
+    );
+    expect(overlayBackend).toContain(`ctx.di.decorate<DecoratedGreeter>('${registration}'`);
+    // The decoration delegates. A wrap that returned its own value would satisfy
+    // the probe's string comparison while proving the opposite of D-28 — that
+    // the deployment replaced the package rather than wrapping it.
+    expect(overlayBackend).toContain('inner.greeting()');
+  });
+
+  it('leaves the overlay module free of anything but the decoration', () => {
+    // A10 answers one question, so its overlay answers one. A route, a worker or
+    // a registration of its own here would make a red ambiguous between the
+    // decoration and whatever else the module did.
+    const overlayBackend = readFileSync(
+      join(BACKEND_ROOT, 'src', 'apps', deployment!, 'modules', 'acceptance_overlay', 'backend.ts'),
+      'utf8',
+    );
+    for (const seam of ['ctx.routes', 'ctx.worker', 'ctx.subscribe', 'ctx.di.register']) {
+      expect(overlayBackend, `the A10 overlay must not use ${seam}`).not.toContain(seam);
+    }
   });
 });
 
@@ -594,10 +669,38 @@ describe('the expectation ledger records a criterion that is red today', () => {
     // something that is already fixed. The file is the guard against a
     // regression now rather than the record of a gap, and this is the assertion
     // that says so — a `fail` reappearing here is a status nobody earned.
-    for (const id of ASSERTION_IDS) {
+    //
+    // **A10 is the one exception, and it is one because it was measured**
+    // (T053(c)). It is not a schema assertion and it never went green: it asks
+    // whether a per-deployment overlay can decorate a registration an installed
+    // package owns, and today it cannot — the composition root registers
+    // `[...MODULES, ...overlay, ...packages]`, so the deployment's wrap runs
+    // before the name it wraps exists. Its entry names the cause and the
+    // measurement that isolates it. It is excluded here by id rather than by
+    // widening the rule to "a `fail` is fine if it has a reason", because the
+    // rule above is what makes an unexplained red loud, and there is exactly one
+    // explained one.
+    for (const id of ASSERTION_IDS.filter((candidate) => candidate !== 'A10')) {
       expect(ledger.assertions[id]?.status, `${id} must be recorded as passing today`).toBe('pass');
       expect(ledger.assertions[id]?.reason).not.toMatch(/^Follows A5/);
     }
+  });
+
+  it('records A10 red on a cause, not on a shrug', () => {
+    // The entry is the deliverable of T053(c): the open question becomes a
+    // measured one. A red with no cause in it is the state this replaces, so the
+    // reason has to name the layer — and it has to name the measurement that
+    // isolated it, because "we could not get it to work" and "we changed one
+    // line and it worked" are different findings and only the second one tells
+    // an owner what they are ruling on.
+    const entry = ledger.assertions['A10'];
+    expect(entry?.status).toBe('fail');
+    expect(entry?.reason).toMatch(/composeModules/);
+    expect(entry?.reason).toMatch(/order/i);
+    // The green half of the measurement: the exemption itself works over a
+    // package owner. Without this sentence the entry reads as "packages cannot
+    // be decorated", which is not what was measured.
+    expect(entry?.reason).toMatch(/swapped/);
   });
 
   it('gives every entry a reason, whichever way it answers', () => {
@@ -746,6 +849,18 @@ describe('the runner spawns exactly the phases the probe implements', () => {
     // package's dependency is installed; `install` is the package's only author
     // (D-157.6(b)); the gates need the row `install` writes; the hard uninstall
     // needs the registration it wrote.
-    expect(spawned).toEqual(['schema', 'boot', 'install', 'gate-off', 'gate-on', 'uninstall']);
+    // `overlay-decoration` (A10) sits between the install and the gates: it needs
+    // the package fully present, and it must not run after the activation flips
+    // have moved its Setting or after the hard uninstall has taken its
+    // registration away.
+    expect(spawned).toEqual([
+      'schema',
+      'boot',
+      'install',
+      'overlay-decoration',
+      'gate-off',
+      'gate-on',
+      'uninstall',
+    ]);
   });
 });

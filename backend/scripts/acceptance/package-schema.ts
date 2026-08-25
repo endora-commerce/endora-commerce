@@ -407,6 +407,28 @@ async function resetDatabase(dsn: string, adminUrl: string, databaseName: string
   void dsn;
 }
 
+/**
+ * The deployment this repository ships for the acceptance criterion's own use,
+ * and the one phase that composes as it.
+ *
+ * `backend/src/apps/acceptance/` holds a single overlay module whose whole
+ * content is a decoration over a registration the fixture **package** owns. Its
+ * `DEPLOYMENT` is added to one phase's environment rather than to `probeEnv`,
+ * because every other phase's answer is about bare core plus a package: composing
+ * an overlay module into them would put a second module's registrations,
+ * settings rows and lifecycle presence inside assertions that were measured
+ * without them.
+ */
+const OVERLAY_DEPLOYMENT = 'acceptance';
+const OVERLAY_DECORATION_PHASE = 'overlay-decoration';
+
+/** `probeEnv`, plus `DEPLOYMENT` for the one phase that is about a deployment. */
+function deploymentEnvFor(phase: string, base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return phase === OVERLAY_DECORATION_PHASE
+    ? { ...base, DEPLOYMENT: OVERLAY_DEPLOYMENT }
+    : base;
+}
+
 /** Step 6 — one platform process per phase. */
 function runPhase(
   phase: string,
@@ -559,15 +581,24 @@ async function main(): Promise<void> {
     // since D-157.6(b), and of its settings rows through step 2 of the same
     // operation — and the probe reached it through no phase at all, which is
     // what left A6 and A7 red with the platform half of each already working.
+    //
+    // `overlay-decoration` (A10) sits between the install and the gates, where
+    // the package is fully present: installed by the phase above it, and not yet
+    // touched by the activation flips below it. It is the one phase that
+    // composes as a **deployment**, and the `DEPLOYMENT` variable is added for
+    // it alone (see `deploymentEnvFor`) — every other phase composes bare core,
+    // so the nine assertions around it measure what they measured before A10
+    // existed.
     for (const phase of [
       'schema',
       'boot',
       'install',
+      'overlay-decoration',
       'gate-off',
       'gate-on',
       'uninstall',
     ] as const) {
-      const outcome = runPhase(phase, probeEnv);
+      const outcome = runPhase(phase, deploymentEnvFor(phase, probeEnv));
       if ('inconclusive' in outcome) inconclusive.push(outcome.inconclusive);
       else results.push(...outcome.results);
     }
