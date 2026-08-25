@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { Redis } from 'ioredis';
 import type {
   AdminActionView,
   AdminI18nTranslatePort,
@@ -8,7 +7,7 @@ import type {
   PermissionReadPort,
   SupportedAdminLanguage,
 } from '@endora-commerce/contracts';
-import { STATE_CHANGED_CHANNEL } from '../../../kernel/lifecycle/registry-cache.js';
+import { inProcessCaches } from '../../../kernel/index.js';
 
 /**
  * Admin Actions Service — feature 020.
@@ -19,23 +18,31 @@ import { STATE_CHANGED_CHANNEL } from '../../../kernel/lifecycle/registry-cache.
  * `(weight asc, locale-aware label asc)`, and caches the result in an
  * in-process `Map` keyed by `(language, permissionFingerprint)`.
  *
- * **Two things drop that cache, and only one of them is load-bearing**
- * (issue #225):
+ * **Two things drop that cache, and neither subsumes the other** (issue #225,
+ * D-174):
  *
  *  - the presence **version** the snapshot was built under, compared on every
  *    read. This is what keeps the snapshot from outliving the presence it was
- *    built from. The `b2b:module:state-changed` message announces a change
- *    whose effect on `registryCache` is still a PostgreSQL round-trip away, so
- *    a snapshot rebuilt on the message alone is rebuilt from the *pre-change*
- *    activation map and then kept until the next message — which is the defect
- *    this comparison closes. Being a pull, it depends on no subscriber and on
- *    no registration order.
- *  - the pub/sub message itself, which still clears the cache eagerly. It is
- *    no longer what makes the result correct; it covers the inputs presence
- *    does not move — an install that rewrites this module's `module_actions`
- *    rows or another module's translation bundles without changing anybody's
- *    presence — and it drops a stale snapshot a few milliseconds earlier in the
- *    common case.
+ *    built from: a state-change notification announces a change whose effect on
+ *    the platform's presence cache is still a PostgreSQL round-trip away, so a
+ *    snapshot rebuilt on the notification alone is rebuilt from the
+ *    *pre-change* activation map and then kept until the next one — which is
+ *    the defect this comparison closes. Being a pull, it depends on no
+ *    subscriber and on no registration order.
+ *  - the platform's **module-state notification**, which drops every snapshot
+ *    eagerly. It covers the inputs the version cannot see, and cannot see
+ *    structurally: the version is a content hash of the two presence axes, so
+ *    an install that rewrites this module's `module_actions` rows or another
+ *    module's translation bundles leaves it exactly where it was. It also drops
+ *    a stale snapshot a few milliseconds earlier in the common case.
+ *
+ * That second half is **cross-process by construction** — an operator flips a
+ * module in one process and every API and worker process has to hear it — and
+ * this module names none of its machinery. It registers its cache as an
+ * `InProcessCacheLayer` that follows module state; the platform's own
+ * subscriber, in this process, drops it on receipt. Naming the Redis channel
+ * here (as this file used to) made a transport detail this module's business,
+ * for a payload it never read.
  */
 
 interface ModuleActionRow {
@@ -63,7 +70,6 @@ export interface AdminActionsServiceDeps {
    */
   i18nService: AdminI18nTranslatePort;
   permissionService: PermissionReadPort;
-  redisSubscriber?: Redis;
   log?: { info(msg: string): void; warn(msg: string): void };
   /**
    * Feature 073 / issue #225 — the **operator** presence axis and the
@@ -112,6 +118,16 @@ export interface ListVisibleResult {
   registryVersion: number;
 }
 
+/**
+ * Namespace this module's palette snapshot is registered under.
+ *
+ * Deliberately **not** in `CACHE_NAMESPACES` (the `settings` module's operator
+ * "clear cache" surface): this layer owns no Redis keys, and the palette is
+ * rebuilt from PostgreSQL on the next read anyway. The registration exists for
+ * the module-state notification alone.
+ */
+export const ADMIN_ACTIONS_CACHE_NAMESPACE = 'admin_actions';
+
 export class AdminActionsService {
   private readonly em: () => EntityManager;
   private readonly i18nService: AdminI18nTranslatePort;
@@ -122,6 +138,7 @@ export class AdminActionsService {
   private cachedPresenceVersion: number;
   /** Counts service work so tests can assert cache hits / misses. */
   public stats = { dbHits: 0, cacheHits: 0, invalidations: 0 };
+  private readonly unregisterCacheLayer: () => void;
 
   constructor(deps: AdminActionsServiceDeps) {
     this.em = deps.em;
@@ -133,18 +150,37 @@ export class AdminActionsService {
     };
     this.cachedPresenceVersion = this.presence.version();
 
-    if (deps.redisSubscriber) {
-      void deps.redisSubscriber.subscribe(STATE_CHANGED_CHANNEL);
-      deps.redisSubscriber.on('message', (channel) => {
-        if (channel !== STATE_CHANGED_CHANNEL) return;
-        this.invalidate();
-      });
-    }
+    // D-174 — this process's palette snapshot, announced to the platform so its
+    // module-state subscriber can drop it. Unconditional: the registry is
+    // process-local and a drop costs a `Map.clear()`, so there is nothing for a
+    // composition to get wrong by omission. A second composition in the same
+    // process (the harness builds one per test file) replaces the entry.
+    this.unregisterCacheLayer = inProcessCaches.register(
+      ADMIN_ACTIONS_CACHE_NAMESPACE,
+      {
+        invalidateAll: async (): Promise<number> => {
+          this.invalidate();
+          // No shared layer: this cache is a `Map`, so no Redis key was deleted
+          // and the operator-facing count this return value feeds is zero.
+          return 0;
+        },
+      },
+      { invalidateOnModuleStateChange: true },
+    );
   }
 
   /**
-   * Drop every cached snapshot. Called by the pub/sub handler and by the
-   * presence-version comparison in {@link listVisibleForOperator}.
+   * Withdraw this service's cache layer from the process registry. Production
+   * holds it until process exit; a test that builds a service per case releases
+   * it so the registry names a live cache rather than a discarded one.
+   */
+  dispose(): void {
+    this.unregisterCacheLayer();
+  }
+
+  /**
+   * Drop every cached snapshot. Called by the registered cache layer above and
+   * by the presence-version comparison in {@link listVisibleForOperator}.
    */
   invalidate(): void {
     this.cache.clear();

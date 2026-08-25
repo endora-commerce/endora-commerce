@@ -51,7 +51,6 @@ import {
 export interface AdminActionsCradle {
   readonly emFactory: () => EntityManager;
   readonly orm: import('@mikro-orm/postgresql').MikroORM;
-  readonly redisSubscriber: import('ioredis').Redis;
   readonly requireAdmin: RequireAdminFactory;
   readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string };
   readonly adminI18nService: AdminI18nTranslatePort;
@@ -70,11 +69,10 @@ export interface AdminActionsCradle {
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     adminActions: ctx
-      .asFunction(({ orm, emFactory, redisSubscriber }: AdminActionsCradle) =>
+      .asFunction(({ orm, emFactory }: AdminActionsCradle) =>
         adminActionsModule({
           orm,
           emFactory,
-          redisSubscriber,
           // Feature 075, Phase C — `admin_roles`' published permission read,
           // resolved per call so a switched-off `admin_roles` answers 503 at
           // the call rather than through a gate frozen at composition time.

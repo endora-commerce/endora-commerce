@@ -3,6 +3,7 @@ import type { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { RegistryState } from '@endora-commerce/contracts';
 import { ModuleRegistration } from './module-registration.entity.js';
+import { inProcessCaches } from '../cache/in-process-cache-registry.js';
 import { enterSystemScope } from '../scope.js';
 import {
   resolveActivation,
@@ -295,6 +296,17 @@ export class ModuleRegistryCache {
     this.subscriber = opts.redisSubscriber;
     this.subscriber.on('message', (channel) => {
       if (channel !== STATE_CHANGED_CHANNEL) return;
+      // D-174 — this process's caches that are derived from module state, first
+      // and synchronously. The channel is the only cross-process announcement
+      // of an install rewriting a module's palette rows or another module's
+      // translation bundles, and `presenceVersion()` is blind to both: it
+      // hashes the two presence axes and nothing else. A module may not name
+      // this channel — a transport detail, carrying a payload it does not read
+      // — so it registers a layer and the kernel's own subscriber drops it.
+      // Before the refresh below, deliberately: the drop's whole value over the
+      // version pull is that it lands on receipt rather than a PostgreSQL
+      // round-trip later. Errors are contained inside the registry.
+      void inProcessCaches.invalidateForModuleStateChange();
       // Issue #235 — the same reason the degraded timer below states, for the
       // same call: this refresh reads `module_registrations` and `settings` from
       // a Redis pub/sub callback, delivered off a socket the composition opened,

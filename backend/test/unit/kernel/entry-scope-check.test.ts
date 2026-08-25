@@ -449,12 +449,16 @@ describe('the ledger ratchet', () => {
     }
   });
 
-  it('says what would falsify each of the three sites that only drop a cache or a connection', () => {
+  it('says what would falsify each of the sites that only drop a cache or a connection', () => {
     // The reason these are safe is structural — a synchronous, EntityManager-free
     // handler — and it stops being true the day one of them reloads instead of
     // dropping. That has to be written down as a falsifier, not as "harmless".
+    //
+    // There were three. `admin_actions` had the identical entry until D-174:
+    // its cache now follows module state through `InProcessCacheRegistry`, and
+    // the handler that dropped it is the platform's own — already a site, and
+    // ledgered where it lives.
     const falsifiable = [
-      "src/modules/admin_actions/services/admin-actions-service.ts:<module scope>:on('message')",
       "src/modules/custom_fields/services/custom-field-definitions-cache.ts:start:on('message')",
       'packages/platform/src/kernel/container.ts:installShutdownDisposal:process.once',
     ];

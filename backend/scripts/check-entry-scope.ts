@@ -263,20 +263,16 @@ export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
     'flush, a "worker stopped" row — which would need the scope here, at the ' +
     'signal, since a disposer has no caller of its own either.',
 
-  "src/modules/admin_actions/services/admin-actions-service.ts:<module scope>:on('message')":
-    'A synchronous, EntityManager-free cache drop: the handler compares the ' +
-    'channel and calls `invalidate()`, which clears a `Map` and bumps a counter. ' +
-    'Nothing is read, so nothing needs a scope; the refill happens lazily on the ' +
-    'next caller\'s stack, which is a request or another entry point and already ' +
-    'has one. Falsified the moment this handler *reloads* instead of dropping — ' +
-    'that is issue #235 exactly, and the repair then is `enterSystemScope` here.',
-
   "src/modules/custom_fields/services/custom-field-definitions-cache.ts:start:on('message')":
-    'The same shape and the same falsifier as the `admin_actions` handler above: ' +
-    '`handleMessage` parses the payload and clears the cached definitions for one ' +
-    'entity type. No EntityManager, no read — the next caller reloads, inside its ' +
-    'own scope. Retire this entry the day the handler warms the cache instead of ' +
-    'emptying it.',
+    'A synchronous, EntityManager-free cache drop: `handleMessage` parses the ' +
+    'payload and clears the cached definitions for one entity type. No ' +
+    'EntityManager, no read — the next caller reloads, inside its own scope. ' +
+    'Retire this entry the day the handler warms the cache instead of emptying ' +
+    'it, which is issue #235 exactly and would need `enterSystemScope` here. ' +
+    '(`admin_actions` had the identical entry until D-174 removed its handler: ' +
+    'the module registers an `InProcessCacheLayer` and the platform\'s own ' +
+    'state-changed subscriber drops it, so the module owns no `on(\'message\')` ' +
+    'site at all.)',
 
   'src/db/migrate.ts:<file>:program':
     "The migration runner. MikroORM's migrator executes each migration through " +
