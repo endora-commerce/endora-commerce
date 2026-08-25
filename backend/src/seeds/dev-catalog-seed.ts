@@ -68,6 +68,17 @@ import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js'
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
+import { entityNamed } from '../packages/package-entity-lookup.js';
+// The row shapes for the three classes above. A module package publishes its
+// entities as one array and no class by name (D-168), so the *value* comes off
+// the array and the *type* comes from the entity's declaration inside the
+// package's built artefact — the emitted `.d.ts`, because this file is in a
+// build whose `rootDir` is `src/` and a `.ts` outside it is TS6059 even for an
+// `import type`. Nothing is constructed: `import type` erases, so there is no
+// second copy of anything (D-160.6.1). See `src/packages/package-entity-lookup.ts`.
+import type { DeliveryMethod as DeliveryMethodRow } from '../../../packages/modules/delivery_methods/dist/backend/entities/delivery-method.entity.js';
+import type { PaymentMethod as PaymentMethodRow } from '../../../packages/modules/payment_methods/dist/backend/entities/payment-method.entity.js';
+import type { Tax as TaxRow } from '../../../packages/modules/taxes/dist/backend/entities/tax.entity.js';
 import { DefaultPriceListMigrator } from '../modules/price_lists/services/default-price-list-migration.js';
 import { CatalogProductReadService } from '../modules/catalog/services/catalog-product-read.service.js';
 import { hashPassword } from '../kernel/crypto/password-hasher.js';
@@ -191,46 +202,6 @@ function productPlaceholderSvg(leafSlug: string, bgHex: string, index: number): 
     `<text x="92" y="94" font-size="6" fill="#c7ccd1" text-anchor="end" font-family="monospace">${String(index + 1).padStart(2, '0')}</text>` +
     `</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
-
-/**
- * One entity class off a package's published `entities` array, by name.
- *
- * A module package publishes the array and **no class by name**, type-only
- * exports included (D-168, and `test/unit/packages/module-package-entity-surface.test.ts`
- * is what refuses one). A host program may not reach into the package's own
- * files either: `backend/tsconfig.build.json` sets `rootDir`, so a relative
- * specifier into `packages/` is TS6059 even for an `import type`, and this file
- * is in that build — `deploy/README.md` documents running it as
- * `node dist/seeds/dev-catalog-seed.js`.
- *
- * So the value comes off the array, resolved **by name and never by index**: a
- * package that grew a second entity would otherwise silently re-point an insert
- * at another table. Nothing is cast, and the payloads below stay checked — the
- * array's own declared element type carries the constructors, so `C` infers to
- * them and `em.create` reads the entity type through `EntityClass<T>`. For a
- * package that publishes more than one entity that is a union, which is
- * narrower than `unknown` and is all the type the class's *name* can buy at
- * this distance.
- *
- * The host answers a missing `entities` export with `[]` and no error, so a
- * lookup that finds nothing has to say so here.
- */
-function entityNamed<C>(published: readonly C[], name: string, specifier: string): C {
-  const found = published.find(
-    (candidate) => typeof candidate === 'function' && candidate.name === name,
-  );
-  if (found === undefined) {
-    const declared = published
-      .map((candidate) => (typeof candidate === 'function' ? candidate.name : String(candidate)))
-      .join(', ');
-    throw new Error(
-      `[dev-seed] ${specifier} publishes no entity class named '${name}' ` +
-        `(it declares: ${declared || '(empty)'}). The host answers a missing array with zero ` +
-        `entities and no error, so this has to be said here.`,
-    );
-  }
-  return found;
 }
 
 async function main(): Promise<void> {
@@ -365,22 +336,23 @@ async function main(): Promise<void> {
   }
   await em.persistAndFlush(leaves);
 
-  // Six entity classes come from packages, and a module package publishes one
+  // Three entity classes come from packages, and a module package publishes one
   // `entities` array and no class by name (D-168). `entityNamed` takes each off
   // the array the ORM itself registered — `entities-registry.generated.ts`
-  // imports the same export — and the row type comes from the same subpath,
-  // because the payload below has to be checked against something.
-  const DeliveryMethod = entityNamed(
+  // imports the same export — under the row type imported above, so the payloads
+  // below are checked against the entity actually being created rather than
+  // against whichever constituent of the array's union TypeScript picks.
+  const DeliveryMethod = entityNamed<DeliveryMethodRow>(
     deliveryMethodsEntities,
     'DeliveryMethod',
     '@endora-commerce/mod-delivery-methods/backend',
   );
-  const PaymentMethod = entityNamed(
+  const PaymentMethod = entityNamed<PaymentMethodRow>(
     paymentMethodsEntities,
     'PaymentMethod',
     '@endora-commerce/mod-payment-methods/backend',
   );
-  const Tax = entityNamed(taxesEntities, 'Tax', '@endora-commerce/mod-taxes/backend');
+  const Tax = entityNamed<TaxRow>(taxesEntities, 'Tax', '@endora-commerce/mod-taxes/backend');
 
   // --- Megamenu (feature 015) -----------------------------------------
   // A predefined navigation that mirrors the seeded category tree so the

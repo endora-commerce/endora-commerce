@@ -1,4 +1,4 @@
-import type { EntityClass } from '@mikro-orm/core';
+import { entityNamed as classNamed } from '../../src/packages/package-entity-lookup.js';
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
 import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
 import { entities as cmsEntities } from '@endora-commerce/mod-cms/backend';
@@ -114,24 +114,16 @@ import type { Tax as TaxRow } from '../../../packages/modules/taxes/src/backend/
  * for any ordering, so re-ordering the array in the package would silently
  * re-point every test in this repository at a different table.
  */
-function classNamed<T>(list: readonly unknown[], name: string): EntityClass<T> {
-  const found = list.find(
-    (entry): entry is EntityClass<T> =>
-      typeof entry === 'function' && (entry as { name?: string }).name === name,
-  );
-  if (found === undefined) {
-    const present = list
-      .map((entry) => (typeof entry === 'function' ? (entry as { name?: string }).name : '?'))
-      .join(', ');
-    throw new Error(
-      `[package-entities] no entity class named '${name}' in the package's published ` +
-        `'entities' array (it declares: ${present || '(empty)'}). Either the class was ` +
-        `renamed, or it was left out of the array — which the host answers by mapping it to ` +
-        `no table, silently. See D-168.`,
-    );
-  }
-  return found;
-}
+/**
+ * The lookup itself is the **host's**, not this file's (T040b, criterion 7).
+ *
+ * `src/packages/package-entity-lookup.ts` exists because a host program in the
+ * compiled build needs exactly this, and two implementations of one lookup are
+ * two answers waiting to disagree about what a missing name does. Only the
+ * *type* half differs by tree, and deliberately: this one names the package's
+ * **source**, which is legal here because the test program has no `rootDir`; the
+ * host build sets one, so its call sites name the emitted declaration instead.
+ */
 
 export const QuoteRequest = classNamed<QuoteRequestRow>(quoteRequestsEntities, 'QuoteRequest');
 export const QuoteRequestItem = classNamed<QuoteRequestItemRow>(
