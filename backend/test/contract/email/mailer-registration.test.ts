@@ -4,10 +4,10 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { EmailCradle } from '../../../src/modules/email/backend.js';
-import { ConsoleMailer } from '../../../src/modules/email/services/mailer.js';
-import { RecordingMailer } from '../../../src/modules/email/services/recording-mailer.js';
-import { SmtpMailer } from '../../../src/modules/email/services/smtp-mailer.js';
+import type { EmailCradle } from '../../../../packages/modules/email/src/backend/index.js';
+import { ConsoleMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
+import { RecordingMailer } from '../../../../packages/modules/email/src/backend/services/recording-mailer.js';
+import { SmtpMailer } from '../../../../packages/modules/email/src/backend/services/smtp-mailer.js';
 
 /**
  * Contract — `email` composes through `registerModule` (feature 072, T079).

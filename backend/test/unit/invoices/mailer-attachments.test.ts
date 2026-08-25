@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 
 describe('mailer attachments (US5)', () => {
   it('InMemoryMailer captures attachments passed through MailerSendInput', async () => {

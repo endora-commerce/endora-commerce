@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { rethrowIfModuleDisabled } from '../../../kernel/lifecycle/plugin-helpers.js';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { EmailDeliveryRecordInput, EmailDeliveryRecorder } from '@endora-commerce/contracts';
 import { EmailDelivery } from '../entities/email-delivery.entity.js';
 

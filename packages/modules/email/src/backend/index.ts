@@ -1,12 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EmailDeliveryRecorder, EmailMailerPort } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 import { resolveSmtpUrlFromEnv } from './resolve-smtp-url.js';
 import { ConsoleMailer } from './services/mailer.js';
 import { PersistentEmailDeliveryRecorder } from './services/email-delivery-recorder.js';
 import { RecordingMailer } from './services/recording-mailer.js';
 import { SmtpMailer } from './services/smtp-mailer.js';
+import { EmailDelivery } from './entities/email-delivery.entity.js';
 
 /**
  * The Email module's backend entry point — converted to feature 072's
@@ -89,3 +90,18 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  EmailDelivery,
+];

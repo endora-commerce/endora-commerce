@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
 
 /**

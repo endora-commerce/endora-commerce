@@ -11,7 +11,7 @@ import { OrderComment } from '../../../src/modules/orders/entities/order-comment
 import { OrderCommentService } from '../../../src/modules/orders/services/order-comment-service.js';
 import { ordersNeighbourPorts } from '../../helpers/orders-neighbour-ports.js';
 import { OrderStatusGraphService } from '../../../src/modules/orders/services/order-status-graph-service.js';
-import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 
 /**

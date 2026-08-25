@@ -4,12 +4,12 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
-import { RecordingMailer } from '../../../src/modules/email/services/recording-mailer.js';
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
+import { RecordingMailer } from '../../../../packages/modules/email/src/backend/services/recording-mailer.js';
 import type {
   EmailDeliveryRecorder,
   EmailDeliveryRecordInput,
-} from '../../../src/modules/email/services/email-delivery-recorder.js';
+} from '../../../../packages/modules/email/src/backend/services/email-delivery-recorder.js';
 import { TransactionalEmailService } from '../../../../packages/modules/transactional_emails/src/backend/services/transactional-email.service.js';
 import { ContentResolver } from '../../../../packages/modules/transactional_emails/src/backend/services/content-resolver.js';
 import { BrandingService } from '../../../../packages/modules/transactional_emails/src/backend/services/branding.service.js';

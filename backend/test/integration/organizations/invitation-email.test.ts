@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { InvitationService } from '../../../src/modules/organizations/services/invitation-service.js';
-import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';

@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 
 /**
  * 003 — Registration dispatches verification email through the configured Mailer (FR-001).
