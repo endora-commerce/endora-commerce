@@ -1052,6 +1052,82 @@ perf:backend:
       allow_failure: true
 
 # ---------------------------------------------------------------------------
+# The boot gate — the built image is booted, and asserted to be the platform the
+# source describes (feature 080, D-165 step F).
+#
+# **This job is the condition of D-165, not a follow-up to it.** That ruling moves
+# production off `tsx src/index.ts` and onto `node dist/index.js`, and two defects
+# were *reproduced* on the half-built compiled path — not predicted:
+#
+#   * 45 of 45 modules installing no translations while the boot reported
+#     `installed=0 skipped=21 failed=0`. Green.
+#   * every overlay module vanishing, with no error and no warning.
+#
+# Nothing else in this pipeline can see either. `quality` type-checks the source
+# tree; `test:backend` runs vitest against the source tree; `test:backend:deployment`
+# composes overlays from the source tree. In every one of them the tree is the
+# source tree, and both defects are properties of the *built* one. So the gate
+# builds the image, migrates a throwaway database, boots it and asks the running
+# platform three questions — see `scripts/boot-gate.sh`, which carries the whole
+# reasoning.
+#
+# **It also runs itself red, in every pipeline.** `--with-negatives` derives two
+# images from the one under test — one with every `.json`/`.txt` removed from the
+# built tree (exactly a build without `copy-runtime-assets`), one with the
+# deployment's overlay directory removed — boots each, and requires the matching
+# finding. A boot gate that has never been red is a boot gate nobody has tested,
+# and the first of those two is why the assertion is arithmetic rather than
+# `installed > 0`: with the assets gone, the six modules that are packages carry
+# their bundles inside `node_modules` and still install, so `installed=6` is a
+# cheerful non-zero over a platform whose other 39 modules serve raw keys.
+#
+# **What it costs, stated so the scoping can be argued.** Three boots at ~25 s
+# each plus the image build, which on this runner is the same build `build:backend`
+# already does on the default branch. The rules below are `acceptance:package-schema`'s
+# shape: always on the default branch, and on a merge request that touches anything
+# the built image is made of. A merge request that changes only `admin/` or
+# `storefront/` does not pay it.
+#
+# **dind, and no published port.** The application container runs inside the dind
+# daemon, so a `-p` publish lands on the daemon's host and not on this job's — the
+# gate therefore speaks HTTP from a throwaway container on its own docker network,
+# using the image's own node. That is also why this job needs nothing installed:
+# `docker:27` plus `bash`, and the gate's judgement is `scripts/lib/boot-gate-assert.sh`.
+boot-gate:
+  stage: test
+  image: docker:27
+  services:
+    - docker:27-dind
+  variables:
+    # Same plain-2375 arrangement as `.build-base` below; both sides must agree.
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ''
+  before_script:
+    # `docker:27` is alpine and ships `ash`. The gate is bash, like every other
+    # shell script in this repository.
+    - apk add --no-cache bash
+  script:
+    - bash scripts/boot-gate.sh --with-negatives
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        # What the image is built from.
+        - backend/**/*
+        - packages/**/*
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - tsconfig.base.json
+        - backend/Dockerfile
+        - .dockerignore
+        - scripts/collect-workspace-manifests.sh
+        # The gate itself, and the compose file whose commands it mirrors.
+        - scripts/boot-gate.sh
+        - scripts/lib/boot-gate-assert.sh
+        - deploy/compose.prod.yml
+        - .gitlab-ci.yml
+
+# ---------------------------------------------------------------------------
 # Build — Docker images → GitLab Container Registry
 # ---------------------------------------------------------------------------
 .build-base:
