@@ -1,12 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { CartWritePort, CatalogProductReadPort, RfqCustomerPort } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { SalesChannelMembershipPort } from '../../kernel/ports/sales-channel.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { shoppingListsModule, type ShoppingListsModuleOptions } from './plugin.js';
 import { ShoppingListService } from './services/shopping-list-service.js';
+import { ShoppingListItem } from './entities/shopping-list-item.entity.js';
+import { ShoppingList } from './entities/shopping-list.entity.js';
 
 /**
  * `shopping_lists` — six optional options that decided which routes exist
@@ -136,3 +138,30 @@ export function registerModule(ctx: ModuleContext): void {
     await ctx.cradle<ShoppingListsCradle>().shoppingLists(app);
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [
+  ShoppingListItem,
+  ShoppingList,
+];
+
+/**
+ * The service type the `shoppingListServiceSink` contribution carries.
+ *
+ * The root receives the instance this module builds and hands it to `carts`'
+ * conversion bridge, so it has to name the shape. A relative specifier into a
+ * package's internal file is TS6059 under `backend/tsconfig.build.json`'s
+ * `rootDir`, `import type` included, so the name has to be on the published
+ * subpath.
+ */
+export type { ShoppingListService } from './services/shopping-list-service.js';
