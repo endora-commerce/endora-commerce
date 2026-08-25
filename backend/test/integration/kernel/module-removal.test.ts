@@ -80,6 +80,28 @@ const SUBJECT = 'health_checks';
  * working.
  */
 const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
+  // ── T040b's batches drain this ledger, and a moved module's entry is stale ─
+  //
+  // Ten entries were deleted together on 2026-08-25, after batches two and
+  // three: `delivery_methods`, `mfa`, `taxes`, `comparisons`, `pwa`, `returns`,
+  // `ksef`, `newsletter`, `sales_channels`, `shopping_lists`. Each is a package
+  // now, so a root naming it writes a bare specifier, and a bare specifier into
+  // a package is not a reference into `backend/src/modules/` — the same reason
+  // the `payment_methods` note below gives.
+  //
+  // **They were deleted late, and the reason is worth more than the entries.**
+  // This ledger is two-way, so a moved module reds this file the moment its
+  // last reference goes — but it lives in `test/integration/`, which
+  // `test:unit:fast` does not run, and a packaging batch's targeted run covers
+  // the paths it *touched*. This file is not one of them: it is derived *about*
+  // the modules a batch moves, never edited by moving them. So the batch that
+  // frees an entry is structurally the batch that cannot see it go stale.
+  // Three batches, three reds on `master`, each found by the next piece of work
+  // rather than by the one that caused it.
+  //
+  // If you are moving a module: this file is part of the move. Re-derive the
+  // ledger against `backend/src` and delete what no longer has a reference,
+  // in the same merge request.
   // ── What feature 071's F2 drained ─────────────────────────────────────────
   //
   // This ledger had 61 entries, and 55 of them named `entities-registry.ts`,
@@ -142,7 +164,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // draining — the entry is deleted rather than re-pointed, because a bare
   // specifier into a package is not a reference into `backend/src/modules/`.
   custom_fields: ['src/seeds/attribute-fixtures.ts'],
-  delivery_methods: ['src/seeds/dev-catalog-seed.ts'],
   inventory: ['src/seeds/dev-catalog-seed.ts'],
   // `payment_methods` needs no entry either, since T040b's first batch: it is
   // a package, and the comment above says why a specifier into one is not a
@@ -227,24 +248,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `kernel → http → mod-i18n → kernel` in F4's package graph. A root naming a
   // module is ordinary; a peer doing it is the defect.
   _i18n: ['src/composition.ts'],
-  // `mfa` (wave 1, T096). `composition.ts` imports the bridge type to annotate
-  // the one thing it still contributes: the actor shape, which is a root's to
-  // know. Type-only since T143c — the provider class and the `MFA_OAUTH_*`
-  // reader were value imports, because a root decided on this module's behalf
-  // whether it had social sign-in; the module reads its own environment now.
-  // The cradle import went with D-96: contributing somebody's login port is not
-  // a root's job, and while it was, the two roots could disagree about what an
-  // absent `mfa` means — and did.
-  mfa: ['src/composition.ts'],
-  // `taxes` (wave 2, T119). `composition.ts` imports the cradle type to
-  // annotate the `taxService` port it resolves and threads into `orders` and
-  // `carts` for line pricing. That reference goes when those two convert.
-  taxes: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
-  // `comparisons` (wave 2, T111). `composition.ts` imports the cradle type to
-  // annotate the `comparisonService` port it resolves and binds the login
-  // flow's anonymous-comparison adoption to. That reference goes when
-  // `organizations` converts and reads the port itself.
-  comparisons: ['src/composition.ts'],
   // `megamenu` (wave 2, T107). `composition.ts` imports the cradle type plus
   // the two dependency-bundle types, because the bundles themselves stay in the
   // root — they are existence checks and URL lookups against `catalog`, `cms`
@@ -253,48 +256,18 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // design rather than a leftover, so unlike most entries here they do not go
   // when some other module converts.
   megamenu: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
-  // `pwa` (wave 2, T116). `composition.ts` imports the bridge type to annotate
-  // the nine cross-module resolvers it contributes as one. Those are a root's
-  // by design — reaching `assets_library` and `sales_channels` is not this
-  // module's business — so unlike most entries here they do not go when another
-  // module converts.
-  pwa: ['src/composition.ts'],
   // `invoices` (wave 2, T113). `composition.ts` imports the bridge type to
   // annotate what it contributes. The cradle import went with T143c: it existed
   // to reach `invoiceNumberGenerator` for a `CorrectiveInvoiceProvider` the root
   // built, and that adapter is `correctiveInvoicePort` now — which is also what
   // ended the two roots numbering corrections out of two different counters.
   invoices: ['src/composition.ts'],
-  // `returns` (wave 2, T109). `composition.ts` imports the bridge type to
-  // annotate the four settlement adapters it contributes. Those are a root's by
-  // design — each is an adapter over a module `returns` must not read directly
-  // — so unlike most entries here they do not go when another module converts.
-  returns: ['src/composition.ts'],
-  // `ksef` (wave 2, T104). `composition.ts` imports the cradle type to annotate
-  // the seller NIP resolver it contributes and the verification block it
-  // contributes into `invoices`. The second is a root's by design: `ksef` reads
-  // `invoiceService`, so `invoices` resolving a `ksef` port would close a
-  // dependency cycle.
-  ksef: ['src/composition.ts'],
-  // `newsletter` (wave 2, T114). `composition.ts` imports the bridge type to
-  // annotate the pinned token secret and base URLs, and contributes the email
-  // branding. Both are a root's by design: the branding source announces itself
-  // through a callback a root holds, so a port would point the dependency the
-  // wrong way.
-  newsletter: ['src/composition.ts'],
   // `admin_users` (wave 2, T121). Both roots contribute the late-bound MFA
   // getter and the `auditActorResolver` adapter that `audit_logs` owns the name
   // for. The second is a root's by design — see `audit_logs/backend.ts` — and
   // the first goes when a deployment stops needing to say which module supplies
   // MFA.
   admin_users: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
-  // `sales_channels` (wave 2, T110). Both roots compose the kernel half —
-  // cache, resolver, membership, middleware — through
-  // `composeSalesChannelsKernel`, and build `salesChannelCodeIdPort` over the
-  // module's CRUD service. That is not residue of a half-finished conversion:
-  // channel resolution backs every channel-scoped read (Principle XII) and is
-  // kernel infrastructure by design since T019.
-  sales_channels: ['src/composition.ts'],
   // `settings` (wave 2, T118). Both roots compose the kernel reader through
   // `composeSettingsKernel` and register the two deployment properties the
   // admin surface needs — the `secret` encryption key and the effective-state
@@ -343,17 +316,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // structurally, so no file outside this directory names it. What remains is
   // the dev seed, which value-constructs `DefaultPriceListMigrator`.
   price_lists: ['src/seeds/dev-catalog-seed.ts'],
-  // `inventory` left this ledger with D-44 — its last root reference was the
-  // prompt-tool contribution, and the module pushes that from its own boot hook
-  // now — and came back above under `src/seeds/`, holding four entity imports
-  // the dev seed has always made and this scan could not previously see. The
-  // two adapters and the admin audit shape it reaches outside itself through
-  // are still registered by name rather than imported from here.
-  // `shopping_lists` (wave 3, T133). Both roots contribute the four
-  // cross-module names it must not reach for directly — the RFQ service, the
-  // org restriction, the lazy order service, and the sink that hands its own
-  // service to `carts`. Each goes when its owner converts.
-  shopping_lists: ['src/composition.ts'],
   // `product_feeds` (wave 3, T137). Both roots contribute the four adapters it
   // reaches outside itself through — storage, availability, category expansion
   // and stable public image URLs — plus the worker-role gate, and the harness

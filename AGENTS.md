@@ -153,6 +153,17 @@ and a suite deleted with the two scripts it existed to exercise. All three were 
 fast suite by construction, and CI's own red did not stop a single merge because
 `only_allow_merge_if_pipeline_succeeds` is off.
 
+**The same blind spot has a second shape, and it has now produced three reds on `master` in a
+row: a ledger derived *about* the files you changed is not a file you changed.**
+`test/integration/kernel/module-removal.test.ts` holds a two-way residue ledger, so packaging a
+module reds it the moment that module's last reference under `backend/src` goes. A packaging batch
+runs its targeted tests over the paths it *touched* — and this file is never one of them, because
+moving a module does not edit it. **The batch that frees an entry is structurally the batch that
+cannot see it go stale.** Ten entries drained on 2026-08-25 across batches two and three, each red
+found by the next piece of work rather than by the one that caused it. So: after a change that moves
+or deletes anything, ask what is **derived** from its location, not only what **names** it — and
+re-derive that in the same merge request.
+
 **Which backend test command to use.** `test:unit:fast` (config: `backend/vitest.unit.config.ts`)
 is the one to run while you iterate and the one CI runs on every backend MR as `test:backend:unit`,
 with no service containers. **The suite's size is not written down here**, and that is the second
