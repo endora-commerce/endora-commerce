@@ -158,6 +158,7 @@ import {
   noCarrierShippingLineRenderer,
   noGatewayPaymentLineRenderer,
 } from '../email-templates/adapter-line-baselines.js';
+import { mayHoldCreditLimitReservation } from '../domain/credit-limit-reservation.js';
 
 
 export interface OrderEvents extends Record<string, EventBase> {
@@ -2025,7 +2026,14 @@ export class OrderService {
       });
     }
     await em.flush();
-    if (to === 'paid' && this.creditLimit) {
+    // D-179.3 — release the credit this order actually drew, and ask
+    // `credit_limits` about nothing else. The predicate reads
+    // `paymentMethodSnapshot.kind`, stamped at placement from the same value
+    // that decides whether `reserve` runs, so an order that is not on credit
+    // has no reservation and the gated port is not resolved for it. Without
+    // it, an operator who switched `credit_limits` off could mark no order
+    // paid at all.
+    if (to === 'paid' && this.creditLimit && mayHoldCreditLimitReservation(order)) {
       await this.creditLimit.releaseByOrder({
         orderId: order.id,
         reason: 'invoice_paid',

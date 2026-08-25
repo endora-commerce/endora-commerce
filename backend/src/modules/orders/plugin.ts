@@ -61,6 +61,7 @@ import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerOrderRoutes } from './routes.js';
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import type { OrderConfirmationRenderers } from './email-templates/order-confirmation.js';
+import { mayHoldCreditLimitReservation } from './domain/credit-limit-reservation.js';
 // Feature 035 — shipping-method adapter framework + shipment lifecycle.
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
@@ -484,7 +485,13 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderStatusGraphService,
       async ({ order, to }) => {
         if (to === 'cancelled') {
-          if (options.creditLimit) {
+          // D-179.3 — only an order placed against a credit limit holds a
+          // reservation, and `paymentMethodSnapshot.kind` is this module's own
+          // record of that. Asking the gated port about every cancellation is
+          // what made an operator who switched `credit_limits` off unable to
+          // cancel any order at all; an order that did draw credit still
+          // refuses, which is the half that must not be caught.
+          if (options.creditLimit && mayHoldCreditLimitReservation(order)) {
             await options.creditLimit.releaseByOrder({ orderId: order.id, reason: 'order_cancelled' });
           }
           await orderService.releaseAllocations(order.id);

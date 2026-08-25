@@ -204,18 +204,20 @@ export const manifest = defineModuleManifest({
       name: 'creditLimitService',
       kind: 'refuses-without',
       whenAbsent:
-        'an order cannot be placed against a credit limit, and no order can be cancelled or ' +
-        'marked paid, because the reservation those two release cannot be reached',
+        'no order can be placed against a credit limit, and an order that drew one can be ' +
+        'neither cancelled nor marked paid, because its reservation cannot be released; ' +
+        'every other order is unaffected',
       reason:
         'Placement reserves against the organization`s limit inside its own transaction, so ' +
         'the `PESSIMISTIC_WRITE` on the credit row is held until the order commits; ' +
-        'cancellation and the transition to paid release that reservation, and both call the ' +
-        'port unconditionally rather than only for an order that took one — which is why the ' +
-        'sentence beside this entry names all three. Every call is a `lazyPort` forward on a ' +
-        '`di.providePort` name, with no fallback and no `catch`, so the 503 reaches the ' +
-        'caller. `credit_limit_reservations_order_fk` obliges `credit_limits` to declare this ' +
-        'module, which is why `dependencies` was never available; the acknowledgement that ' +
-        'stood here withdrew the ordering claim and kept the bind.',
+        'cancellation and the transition to paid release that reservation. D-179.3: both ' +
+        'release paths asked the port for every order, so an absent owner refused both ' +
+        'transitions platform-wide — a refusal about orders that never drew credit. They now ' +
+        'test `paymentMethodSnapshot.kind` first, this module`s own record of whether there ' +
+        'is anything to release, so the port is resolved only for an order that took one; ' +
+        'not a `catch`, and those orders still refuse. Each call is a `lazyPort` forward ' +
+        'with no fallback. `credit_limit_reservations_order_fk` obliges `credit_limits` to ' +
+        'declare this module, so `dependencies` was never available.',
     },
     {
       moduleId: 'promotions',
