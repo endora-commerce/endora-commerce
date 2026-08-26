@@ -86,7 +86,7 @@ import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 // two event subscriptions. T143a — the sales-rep assignment scope too: what is
 // left here is the actor half of the orders/RFQ visibility question, which only
 // a composition can answer.
-import type { OrganizationTreeService } from '../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
+import type { OrganizationTreeService } from '@endora-commerce/mod-organizations/backend';
 import type { OrganizationTaxProfilePort } from '@endora-commerce/mod-organizations/backend';
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
@@ -104,8 +104,8 @@ import type { KsefCradle } from '@endora-commerce/mod-ksef/backend';
 import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
 import type { AdminUsersCradle } from '@endora-commerce/mod-admin-users/backend';
 import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
-import type { TargetValidatorDeps } from '../../packages/modules/megamenu/src/backend/services/target-validator.js';
-import type { StorefrontDeps } from '../../packages/modules/megamenu/src/backend/services/storefront-resolver.js';
+import type { TargetValidatorDeps } from '@endora-commerce/mod-megamenu/backend';
+import type { StorefrontDeps } from '@endora-commerce/mod-megamenu/backend';
 import type { CustomerAccountsCradle } from '@endora-commerce/mod-customer-accounts/backend';
 import type { TaxesCradle } from '@endora-commerce/mod-taxes/backend';
 import { composeSettingsKernel } from './kernel/settings/compose.js';

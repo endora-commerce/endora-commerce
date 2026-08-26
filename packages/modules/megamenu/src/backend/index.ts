@@ -218,3 +218,14 @@ export const entities = [
   MegamenuItem,
   Megamenu,
 ];
+
+/**
+ * Published for the composition root, which contributes these shapes and must
+ * name their types. It reached the source files by relative path until
+ * 2026-08-26, which is `TS6059` under `backend/tsconfig.build.json`'s
+ * `rootDir` — even for an `import type`, because a type-only import still
+ * joins the program. Nothing in `backend/src` may name a package's source, so
+ * the type has to arrive through the published subpath.
+ */
+export type { TargetValidatorDeps } from './services/target-validator.js';
+export type { StorefrontDeps } from './services/storefront-resolver.js';
