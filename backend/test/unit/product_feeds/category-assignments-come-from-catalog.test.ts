@@ -5,7 +5,7 @@ import {
   FeedGenerationService,
   type FeedGenerationDeps,
   type FeedItemHydrationScope,
-} from '../../../src/modules/product_feeds/services/feed-generation.service.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/feed-generation.service.js';
 
 /**
  * Feature 075, the `product_feeds` shard — a feed line's category path is asked

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { resolveFeedItem } from '../../../src/modules/product_feeds/services/item-field-resolver.js';
+import { resolveFeedItem } from '../../../../packages/modules/product_feeds/src/backend/services/item-field-resolver.js';
 import type {
   FeedItemSource,
   FeedResolutionContext,
   ResolvableTemplateField,
-} from '../../../src/modules/product_feeds/services/item-field-resolver.interface.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/item-field-resolver.interface.js';
 
 /**
  * Feature 067 / T023 — per-field resolution (FR-003, FR-037, FR-040–FR-045).

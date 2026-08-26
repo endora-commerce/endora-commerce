@@ -101,7 +101,7 @@ import type { EmailCradle } from '@endora-commerce/mod-email/backend';
 import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
 import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
 import type { KsefCradle } from '@endora-commerce/mod-ksef/backend';
-import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
+import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
 import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';

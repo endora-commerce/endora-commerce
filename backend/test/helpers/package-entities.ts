@@ -32,6 +32,7 @@ import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fi
 import { entities as customersEntities } from '@endora-commerce/mod-customers/backend';
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
+import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import type { Address as AddressRow } from '../../../packages/modules/addresses/src/backend/entities/address.entity.js';
 import type { AnalyticsEvent as AnalyticsEventRow } from '../../../packages/modules/analytics/src/backend/entities/analytics-event.entity.js';
 import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
@@ -97,6 +98,18 @@ import type { Invoice as InvoiceRow } from '../../../packages/modules/invoices/s
 import type { InvoiceLine as InvoiceLineRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
 import type { InvoiceNumberCounter as InvoiceNumberCounterRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-number-counter.entity.js';
 import type { InvoiceTemplate as InvoiceTemplateRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-template.entity.js';
+import type { FeedArtefact as FeedArtefactRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-artefact.entity.js';
+import type { FeedDelivery as FeedDeliveryRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-delivery.entity.js';
+import type { FeedDeliveryAttempt as FeedDeliveryAttemptRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-delivery-attempt.entity.js';
+import type { FeedRun as FeedRunRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-run.entity.js';
+import type { FeedRunIssue as FeedRunIssueRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-run-issue.entity.js';
+import type { FeedTaxonomy as FeedTaxonomyRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy.entity.js';
+import type { FeedTaxonomyCheck as FeedTaxonomyCheckRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy-check.entity.js';
+import type { FeedTaxonomyMapping as FeedTaxonomyMappingRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy-mapping.entity.js';
+import type { FeedTaxonomyNode as FeedTaxonomyNodeRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy-node.entity.js';
+import type { FeedTemplate as FeedTemplateRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-template.entity.js';
+import type { FeedTemplateField as FeedTemplateFieldRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-template-field.entity.js';
+import type { ProductFeed as ProductFeedRow } from '../../../packages/modules/product_feeds/src/backend/entities/product-feed.entity.js';
 
 /**
  * How a test names a **module package's** entity class (D-168).
@@ -344,3 +357,47 @@ export const InvoiceTemplate = classNamed<InvoiceTemplateRow>(invoicesEntities, 
  * `export type` erases, so nothing is constructed and no second copy exists.
  */
 export type { CartRow, CartItemRow, InvoiceRow, EmailDeliveryRow, AssetRow };
+
+/**
+ * Criterion 8 (feature 080, T040b). Twelve classes from one package, and the
+ * reason every one of them is here rather than imported from the source is the
+ * same reason the module needed a mechanism at all: this module's tests are
+ * overwhelmingly integration and contract tests, which hand these classes to a
+ * live `EntityManager`. The ORM registered them off the array below, so a
+ * relative import into the package's source is a second class of the same name
+ * — and for a `@TransitivelyScoped` tree that is not a quiet lookup miss but
+ * `UnresolvableTenantParentError` at ORM init, taking down every file in the
+ * fork (batch four's finding).
+ *
+ * The unit tests keep their relative import into the package source, and that
+ * is legal and deliberate: each constructs its own object over a stubbed
+ * `EntityManager` and registers nothing, so there is no second copy to
+ * disagree with (D-168).
+ */
+export const FeedArtefact = classNamed<FeedArtefactRow>(productFeedsEntities, 'FeedArtefact');
+export const FeedDelivery = classNamed<FeedDeliveryRow>(productFeedsEntities, 'FeedDelivery');
+export const FeedDeliveryAttempt = classNamed<FeedDeliveryAttemptRow>(productFeedsEntities, 'FeedDeliveryAttempt');
+export const FeedRun = classNamed<FeedRunRow>(productFeedsEntities, 'FeedRun');
+export const FeedRunIssue = classNamed<FeedRunIssueRow>(productFeedsEntities, 'FeedRunIssue');
+export const FeedTaxonomy = classNamed<FeedTaxonomyRow>(productFeedsEntities, 'FeedTaxonomy');
+export const FeedTaxonomyCheck = classNamed<FeedTaxonomyCheckRow>(productFeedsEntities, 'FeedTaxonomyCheck');
+export const FeedTaxonomyMapping = classNamed<FeedTaxonomyMappingRow>(productFeedsEntities, 'FeedTaxonomyMapping');
+export const FeedTaxonomyNode = classNamed<FeedTaxonomyNodeRow>(productFeedsEntities, 'FeedTaxonomyNode');
+export const FeedTemplate = classNamed<FeedTemplateRow>(productFeedsEntities, 'FeedTemplate');
+export const FeedTemplateField = classNamed<FeedTemplateFieldRow>(productFeedsEntities, 'FeedTemplateField');
+export const ProductFeed = classNamed<ProductFeedRow>(productFeedsEntities, 'ProductFeed');
+
+/**
+ * The **row shapes** this module's tests annotate with, on the same terms as
+ * `PaymentMethodRow` above: `classNamed` returns a value, so a test that writes
+ * `Promise<FeedRun>` needs the type under its own name. `export type` erases,
+ * so nothing is constructed and no second copy exists.
+ */
+export type {
+  FeedRunRow,
+  ProductFeedRow,
+  FeedTaxonomyRow,
+  FeedTemplateRow,
+  FeedArtefactRow,
+  FeedDeliveryAttemptRow,
+};

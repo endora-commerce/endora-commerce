@@ -233,13 +233,13 @@ import { Migration20260817T055457PriceListsSingleSystemPriceList } from '../modu
 import { Migration20260821T135907PriceListsUnitPriceAmountIndex } from '../modules/price_lists/migrations/20260821T135907_price_lists_unit_price_amount_index.js';
 
 // ── product_feeds ───────────────────────────────────────────────────────────
-import { Migration20260802T073547ProductFeedsInit } from '../modules/product_feeds/migrations/20260802T073547_product_feeds_init.js';
-import { Migration20260802T073627ProductFeedsRuns } from '../modules/product_feeds/migrations/20260802T073627_product_feeds_runs.js';
-import { Migration20260802T110630ProductFeedsTaxonomies } from '../modules/product_feeds/migrations/20260802T110630_product_feeds_taxonomies.js';
-import { Migration20260803T060153ProductFeedsTaxonomyRefresh } from '../modules/product_feeds/migrations/20260803T060153_product_feeds_taxonomy_refresh.js';
-import { Migration20260804T152741ProductFeedsWidenIssueSku } from '../modules/product_feeds/migrations/20260804T152741_product_feeds_widen_issue_sku.js';
-import { Migration20260806T105956ProductFeedsFeedTokenSecret } from '../modules/product_feeds/migrations/20260806T105956_product_feeds_feed_token_secret.js';
-import { Migration20260806T125806ProductFeedsDelivery } from '../modules/product_feeds/migrations/20260806T125806_product_feeds_delivery.js';
+import { Migration20260802T073547ProductFeedsInit } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260802T073627ProductFeedsRuns } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260802T110630ProductFeedsTaxonomies } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260803T060153ProductFeedsTaxonomyRefresh } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260804T152741ProductFeedsWidenIssueSku } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260806T105956ProductFeedsFeedTokenSecret } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260806T125806ProductFeedsDelivery } from '@endora-commerce/mod-product-feeds/migrations';
 
 // ── promotions ──────────────────────────────────────────────────────────────
 import { Migration20260505T074605PromotionsCriteria } from '@endora-commerce/mod-promotions/migrations';

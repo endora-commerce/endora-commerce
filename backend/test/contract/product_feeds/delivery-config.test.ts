@@ -11,8 +11,7 @@ import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { FeedDelivery } from '../../../src/modules/product_feeds/entities/feed-delivery.entity.js';
-import { CredentialConfiguration } from '../../helpers/package-entities.js';
+import { CredentialConfiguration, FeedDelivery } from '../../helpers/package-entities.js';
 
 /**
  * Feature 070 — the delivery configuration contract (FR-100, FR-101, FR-107,

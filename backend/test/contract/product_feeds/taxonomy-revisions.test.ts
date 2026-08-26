@@ -16,11 +16,10 @@ import {
 } from '../../helpers/taxonomy-fixtures.js';
 import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { FeedTaxonomy } from '../../../src/modules/product_feeds/entities/feed-taxonomy.entity.js';
-import { FeedTaxonomyCheck } from '../../../src/modules/product_feeds/entities/feed-taxonomy-check.entity.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
+import { FeedTaxonomy, FeedTaxonomyCheck } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 Phase 11 / T127 — the five revision routes (FR-096, FR-099).

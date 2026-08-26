@@ -1,0 +1,35 @@
+{
+  // Type-check configuration, and the two-config split every package under
+  // `packages/` uses (feature 080, T042 / R11). `tsconfig.base.json`'s `paths`
+  // block is active here, so `@endora-commerce/contracts` resolves at its
+  // *source* and this package type-checks against the branch it is on (issue
+  // #255). `noEmit` is set for that reason: with `paths` active an emit would
+  // land beside another package's source. The emitting configuration is
+  // `tsconfig.build.json`.
+  //
+  // `@endora-commerce/platform` is deliberately **not** in that `paths` block
+  // and is resolved here through its own `exports` map, at its built `.d.ts`.
+  // That is the same resolution the running application gets, which is what
+  // keeps one copy of `HttpError`, `SalesChannel` and `effectiveState` in the
+  // process — see `backend/test/unit/kernel/platform-single-copy.test.ts`. This
+  // package is refused a `paths` entry for its own sources on the same grounds,
+  // one step sharper: `paths` is honoured by `tsx` and not by `node`, so an
+  // entry would make a `tsx` process load this package's twelve entity files as
+  // *source* — which is precisely the load D-164 measured dying, because tsx
+  // applies one tsconfig per process and lowers a file outside it with standard
+  // decorator semantics while MikroORM's are legacy.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*"],
+  // A co-located test would be compiled into `dist` and would import `vitest`,
+  // a devDependency — an unresolvable specifier in every consumer's install.
+  // This module has none; the patterns stay so that adding one back is a test
+  // that does not run rather than a package that does not install. Under
+  // Ruling A of `specs/084-small-f4-package-layout/` a package may own its unit
+  // tests, and T045 defers that split.
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+}

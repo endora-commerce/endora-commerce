@@ -1182,7 +1182,7 @@ describe('check-diacritic-folds — the tree it guards', () => {
    * lose the behaviour outright. Hence the positive assertion, by name.
    */
   const slugGenerators = [
-    'backend/src/modules/product_feeds/services/feed-template-io.service.ts',
+    'packages/modules/product_feeds/src/backend/services/feed-template-io.service.ts',
     'backend/src/modules/pim_ergonode/services/import/category-phase.ts',
     'backend/src/modules/catalog/services/catalog-admin.service.ts',
     'admin/src/modules/newsletter/pages/TagsPage.tsx',

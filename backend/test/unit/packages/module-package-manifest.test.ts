@@ -597,6 +597,83 @@ describe('module package manifests are generated (feature 080, T041)', () => {
     });
   });
 
+  describe('the build script comes from what is on disk beside the sources', () => {
+    // Criterion 8. `tsc` copies nothing but `.ts` (measured over a `src/`
+    // holding `a.ts`, `data/t.txt`, `data/t.json` and `data/t.md`: it emits
+    // `dist/a.js` and nothing else), so a package whose module opens a file at
+    // runtime needs a second build step. **Whether it has one is derived**, and
+    // that is the whole point: an asset rule an author has to remember is a
+    // rule an author forgets, and this one fails silently — every reader
+    // downstream is handed a directory and asked what is in it, for which "the
+    // build dropped it" and "this module ships none" are the same input.
+
+    it('adds the asset copier when src/ holds a runtime asset', () => {
+      const manifest = manifestOf(
+        widgets({
+          ...BACKEND_ONLY,
+          'src/backend/data/taxonomies/en.txt': 'a > b\n',
+        }),
+      );
+      expect((manifest['scripts'] as Record<string, string>)['build']).toBe(
+        'tsc -p tsconfig.build.json && node ../../../scripts/copy-package-assets.mjs ' +
+          '--src src --out dist',
+      );
+    });
+
+    it('leaves the bare compile alone when it holds none', () => {
+      const manifest = manifestOf(widgets(BACKEND_ONLY));
+      expect((manifest['scripts'] as Record<string, string>)['build']).toBe(
+        'tsc -p tsconfig.build.json',
+      );
+    });
+
+    it('does not count a file kind nothing opens at runtime', () => {
+      // `PROVENANCE.md` sits beside `product_feeds`' taxonomy files and is
+      // documentation; a package holding only that ships no asset.
+      const manifest = manifestOf(
+        widgets({ ...BACKEND_ONLY, 'src/backend/data/PROVENANCE.md': '# where these came from' }),
+      );
+      expect((manifest['scripts'] as Record<string, string>)['build']).toBe(
+        'tsc -p tsconfig.build.json',
+      );
+    });
+
+    it('refuses an extension nobody has ruled on, rather than dropping it', () => {
+      const tree = (): Record<string, string> =>
+        widgets({ ...BACKEND_ONLY, 'src/backend/templates/invoice.hbs': '{{x}}' });
+      expect(() => manifestOf(tree())).toThrow(ModulePackageManifestError);
+      expect(() => manifestOf(tree())).toThrow(/invoice\.hbs/);
+    });
+
+    it('names the emit layout the package declares, never a written-down dist', () => {
+      const files = widgets({ ...BACKEND_ONLY, 'src/backend/data/en.txt': 'x\n' });
+      files[`${ROOT}/packages/modules/widgets/tsconfig.build.json`] = JSON.stringify({
+        compilerOptions: { rootDir: 'lib', outDir: 'build' },
+      });
+      // The layer inventory still walks `src/`, which is where the layout
+      // contract puts the sources; `--src`/`--out` are the *emit* declaration,
+      // and a package that emits elsewhere gets its own answer.
+      expect((manifestOf(files)['scripts'] as Record<string, string>)['build']).toContain(
+        '--src lib --out build',
+      );
+    });
+
+    it('counts the package’s own depth, so the copier path resolves from where it is', () => {
+      // `packages/*` is a workspace glob too, and a member one directory
+      // shallower needs one `..` fewer. A depth written down would give it a
+      // build script pointing at nothing.
+      const files = checkoutWith(packageFiles('gadgets', { ...BACKEND_ONLY }, {}));
+      const shallow: Record<string, string> = {};
+      for (const [path, text] of Object.entries(files)) {
+        shallow[path.replace('/packages/modules/gadgets/', '/packages/gadgets/')] = text;
+      }
+      shallow[`${ROOT}/packages/gadgets/src/backend/data/en.txt`] = 'x\n';
+      expect(
+        (manifestOf(shallow, 'gadgets')['scripts'] as Record<string, string>)['build'],
+      ).toContain('node ../../scripts/copy-package-assets.mjs');
+    });
+  });
+
   describe('the sub-derivations, each on its own', () => {
     it('reads a layer inventory off the directory', () => {
       const fs = fixtureFs(widgets(BACKEND_ONLY));

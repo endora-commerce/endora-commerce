@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { requireModuleLayout, type ModuleTreeLayout } from '../../../scripts/lib/module-roots.js';
 import {
   BARE_SUBSCRIPTIONS_TO_DRAIN,
   WORKERS_OUTSIDE_THE_SEAM,
@@ -312,9 +312,28 @@ describe('findWorkerFactories / findWorkerSites — the queue-consumer spellings
 });
 
 describe('the tree itself', () => {
+  // The population is the **derived** module roots, not `backend/src` alone,
+  // and this is the second half of a floor that shrinks with the population it
+  // protects (batch three's finding). `backend/src` was the whole module tree
+  // when this file was written; every module that becomes a workspace package
+  // takes its workers and its subscriptions out of that walk, so a fixed floor
+  // over the remainder counts down towards its own threshold and then fails for
+  // a move rather than for a defect — which is what happened when
+  // `product_feeds`' four workers left, at 6 sites against a floor of 10. The
+  // check itself has read both roots since T040a; this reads what the check
+  // reads, so the two cannot come to disagree about what the tree is.
+  let layout: ModuleTreeLayout;
+  let sources: Map<string, string>;
+
+  beforeAll(async () => {
+    layout = await requireModuleLayout('[subscribe-seam-test]');
+    sources = new Map<string, string>();
+    for (const root of layout.sourceRoots) {
+      for (const [key, text] of readTree(root)) sources.set(key, text);
+    }
+  });
+
   it('has no queue consumer outside the seam, and an empty ledger', () => {
-    const srcRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', 'src');
-    const sources = readTree(srcRoot);
     const result = checkWorkerSeam({ sources }, WORKERS_OUTSIDE_THE_SEAM);
     // The vacuous-pass guard the check itself exits 2 on: this tree has queue
     // consumers, so reading none means the analysis stopped working.
@@ -325,8 +344,6 @@ describe('the tree itself', () => {
   });
 
   it('has no bare subscription left, and an empty ledger', () => {
-    const srcRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', 'src');
-    const sources = readTree(srcRoot);
     expect(sources.size, 'no sources found — a vacuous pass').toBeGreaterThan(100);
     const result = checkSubscribeSeam({ sources }, BARE_SUBSCRIPTIONS_TO_DRAIN);
     expect(result.violations.map((v) => `${v.file}:${v.event}`)).toEqual([]);

@@ -7,8 +7,8 @@ import {
 } from '../../helpers/test-server.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { ProductFeed } from '../../../src/modules/product_feeds/entities/product-feed.entity.js';
 import { setChannelStorefrontUrl, seedFeedPrices } from '../../helpers/seed-product-feeds.js';
+import { ProductFeed } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T063 — narrowing a feed to a subset (FR-024, FR-025, FR-028,

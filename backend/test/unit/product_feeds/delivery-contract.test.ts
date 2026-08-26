@@ -7,8 +7,8 @@ import {
   describeTarget,
   normalisePath,
   remotePath,
-} from '../../../src/modules/product_feeds/services/delivery/delivery-adapter.interface.js';
-import { artefactFilename } from '../../../src/modules/product_feeds/services/artefact-filename.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-adapter.interface.js';
+import { artefactFilename } from '../../../../packages/modules/product_feeds/src/backend/services/artefact-filename.js';
 
 /**
  * Feature 070 — the boundary shapes.

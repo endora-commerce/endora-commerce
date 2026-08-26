@@ -4,7 +4,7 @@ import {
   resolveProviderCategory,
   type TaxonomyCategoryNode,
   type TaxonomyMappingRow,
-} from '../../../src/modules/product_feeds/services/taxonomy-mapping-resolver.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-mapping-resolver.js';
 
 /**
  * Feature 067 / T049 — provider-category resolution (FR-080, FR-084, FR-085).
