@@ -47,7 +47,7 @@ import { ERROR_CODES } from '@endora-commerce/contracts';
  * never that the provider still satisfies anything.
  */
 /**
- * The three neighbours' `EntityManager`-taking interfaces (feature 080, T048),
+ * The four neighbours' `EntityManager`-taking interfaces (feature 080, T048),
  * re-exported by `order-service.ts` so this module names each owner once. Same
  * rule as the two above and for the same reason: the type argument to
  * `lazyPort` must name the **owner's** published contract, never this module's
@@ -57,6 +57,7 @@ import type {
   CartPlacementApplyPort,
   InventoryReservationApplyPort,
   InvoicePlacementApplyPort,
+  PaymentPlacementApplyPort,
 } from './services/order-service.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
 import type { PromotionUsageFinalizer } from '@endora-commerce/mod-promotions/ports';
@@ -424,6 +425,20 @@ export function registerModule(ctx: ModuleContext): void {
               effectiveState.isPresent('invoices')
                 ? lazyPort<InvoicePlacementApplyPort>(ctx, 'invoicePlacementApplyPort')
                 : null,
+            // The payment row placement opens (feature 080, T048; D-179). **No
+            // presence question**, unlike every other switchable owner on this
+            // list — and the difference is a fallback rather than a lock. An
+            // order without a record of what is owed is not an order, so there
+            // is nothing to degrade to and the gate on `payments`' own
+            // registration refuses the placement: the `refuses-without` entry in
+            // this module's manifest, whose sentence says how much wider the
+            // real consequence is. Resolved lazily like every other port,
+            // because this factory body runs once and a gate may not be frozen
+            // inside a singleton.
+            paymentPlacementApply: lazyPort<PaymentPlacementApplyPort>(
+              ctx,
+              'paymentPlacementApplyPort',
+            ),
             // Feature 075, Phase C (issue #195) — `addressServicePort`, the
             // record-mapping adapter, rather than the `addressService` class
             // registration beside it. The class hands back `addresses`' entity

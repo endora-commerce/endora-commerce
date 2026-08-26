@@ -34,31 +34,6 @@ import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
 import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entity.js';
 /**
- * The payment row placement opens in `payments`' table, and the seam feature
- * 075 keeps on purpose (D-78 point 2, `check-module-boundary`'s
- * `permanent: true`).
- *
- * `payments_order_fk` references `orders.id` with `on delete restrict`, so the
- * row must see its order **inside the placement transaction below** — a port
- * that opened a second transaction could not satisfy a foreign key against a
- * row that has not committed.
- *
- * **It is the last entity-class reach of this family left in this file apart
- * from `inventory`'s, and it is deferred by a question rather than by effort.**
- * D-169 says what replaces it: the caller's `EntityManager` in the owner's
- * signature, not the owner's class here — a foreign key needs the **table** and
- * never the class, so the constraint would be untouched. That is exactly what
- * feature 080's T048 did to the `carts` and `invoices` reaches that stood
- * beside this one. `payments` is different in one respect that decides the
- * shape: it is a **switchable** module, and the port replacing this `tx.create`
- * would be gated, so the conversion forces an answer to *"what does checkout do
- * when an operator has switched payments off?"* — refuse the placement, or
- * place an order with no payment record and no gateway hand-off. Neither is
- * obvious, both are visible to a buyer, and the answer is worth more than the
- * conversion that needs it. Until then this stays, and the ledger entry says so.
- */
-import { Payment } from '../../payments/entities/payment.entity.js';
-/**
  * The two em-carrying interfaces their owners write (D-94.5).
  *
  * Both name a MikroORM `EntityManager`, so neither can live in
@@ -80,7 +55,7 @@ import { Payment } from '../../payments/entities/payment.entity.js';
  * back — which would close a cycle.
  */
 /**
- * The three neighbours whose rows placement opens through an
+ * The four neighbours whose rows placement opens through an
  * `EntityManager`-taking port rather than through their entity class (feature
  * 080, T048; D-169).
  *
@@ -92,21 +67,35 @@ import { Payment } from '../../payments/entities/payment.entity.js';
  * MikroORM `EntityManager`, and FR-034 keeps that package free of them because
  * `admin` and `storefront` both compile it.
  *
- * All three are relative specifiers and all three are still counted by
- * `check:module-boundary`: D-171 exempts a **subpath**, and only a package has
- * one. The conversion and the retirement are two merge requests, and this is
- * the first.
+ * `inventory`'s and `payments`' are relative specifiers and both are still
+ * counted by `check:module-boundary`: D-171 exempts a **subpath**, and only a
+ * package has one. The conversion and the retirement are two merge requests,
+ * and for those two this is the first; `carts` and `invoices` have since been
+ * packaged, which is why theirs arrive by a name their owner declared.
  *
- * They differ on one axis and it decides how each is reached below. `carts`
- * is non-deactivatable, so its port is an ordinary field and its absence is not
- * a state; `invoices` and `inventory` are switchable, so each accessor answers
- * `null` when an operator has switched that module off — placement opens no
- * proforma, and reserves no stock. The `degrades-without` entries in this
- * module's manifest are what that promises, and writing the rows anyway is what
- * this module did before.
+ * They differ on one axis and it decides how each is reached below, and the axis
+ * is **not** whether the owner can be switched off — it is whether this module
+ * has a fallback for the absence. `carts` is non-deactivatable, so its port is
+ * an ordinary field and its absence is not a state. `invoices` and `inventory`
+ * are switchable and this module *does* have a fallback for each, so each
+ * accessor answers `null` when an operator has switched that module off —
+ * placement opens no proforma, and reserves no stock, which is what the
+ * `degrades-without` entries in this module's manifest promise.
  *
- * **`inventory`'s was the last of the family and the worst-spelled**: `orders`
- * held `StockLevel` and `StockAllocation` statically for the reservation *and*
+ * **`payments` is switchable and is an ordinary field even so** (D-179). There
+ * is no order without a record of what is owed, so there is no degrade to write:
+ * the port is resolved and called, and an absent owner refuses the placement
+ * through the gate on its own registration. That is the `refuses-without`
+ * entry in this module's manifest, and it is narrower than what an operator
+ * really loses — `payments` contributes every built-in payment adapter, so with
+ * it off checkout offers nothing to pay with and the shop takes no orders at
+ * all, well before placement reaches this seam. The one path that *does* reach
+ * it is a method whose adapter no module ever registered, which
+ * `assertPaymentMethodUsable` deliberately tolerates; that placement used to
+ * write a row into a switched-off module's own table.
+ *
+ * **`inventory`'s was the worst-spelled of the family**: `orders` held
+ * `StockLevel` and `StockAllocation` statically for the reservation *and*
  * through an `await import()` inside `releaseAllocations` for the release,
  * while the comment above the static pair asserted that D-94.4 had removed the
  * dynamic one. It had not. Both are gone; what crosses now is
@@ -116,10 +105,11 @@ import { Payment } from '../../payments/entities/payment.entity.js';
 import type { CartPlacementApplyPort } from '@endora-commerce/mod-carts/ports';
 import type { InventoryReservationApplyPort } from '../../inventory/ports/index.js';
 import type { InvoicePlacementApplyPort } from '@endora-commerce/mod-invoices/ports';
+import type { PaymentPlacementApplyPort } from '../../payments/ports/index.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
 import type { PromotionUsageFinalizer } from '@endora-commerce/mod-promotions/ports';
 /**
- * Re-exported so `plugin.ts` names its own module for the same four types.
+ * Re-exported so `plugin.ts` names its own module for the same six types.
  * One seam, one ledger entry each: a second import specifier in the plugin
  * would be a second crossing of a boundary that has exactly one reason to be
  * crossed, and the reason is stated above and in each owner's file.
@@ -129,6 +119,7 @@ export type {
   CreditLimitPort,
   InventoryReservationApplyPort,
   InvoicePlacementApplyPort,
+  PaymentPlacementApplyPort,
   PromotionUsageFinalizer,
 };
 import { OrderAccessService } from './order-access-service.js';
@@ -291,6 +282,17 @@ export interface OrderServiceNeighbourPorts {
    * operator, and what this module did not do while it wrote the row itself.
    */
   readonly invoicePlacementApply: () => InvoicePlacementApplyPort | null;
+  /**
+   * The payment row placement opens — this transaction's own `EntityManager`,
+   * and no accessor (feature 080, T048; D-179).
+   *
+   * A field rather than an accessor even though `payments` **is** switchable,
+   * because the axis is a fallback rather than a lock: there is no order without
+   * a record of what is owed, so an absent owner has to refuse the placement and
+   * the gate on the owner's own registration is what does it. This module
+   * declares the edge `refuses-without` and wraps no call to it in a `catch`.
+   */
+  readonly paymentPlacementApply: PaymentPlacementApplyPort;
 }
 
 export class OrderService {
@@ -1705,13 +1707,31 @@ export class OrderService {
       // Inside the placement transaction, and required to be: `payments_order_fk`
       // (`on delete restrict`) means this row cannot exist before the order does,
       // and the order does not commit until this method returns. See the import.
-      const payment = tx.create(Payment, {
+      //
+      // Written by `payments`, on **this** transaction (feature 080, T048;
+      // D-169, D-179). The constraint is untouched — a foreign key needs the
+      // table and never the class — and what moved is the statement, to the
+      // module that owns the table. Unconditional, above the credit-limit
+      // branch, for every payment-method kind: the row is the order's record of
+      // what is owed, which a bank transfer and a collection on delivery have
+      // exactly as a card does.
+      //
+      // **No presence question here, unlike `invoices` and `inventory` below**
+      // (D-179). There is no order without that record, so this module has no
+      // degrade to offer and the gate on the owner's registration refuses the
+      // placement — the `refuses-without` entry in this module's manifest. The
+      // refusal is barely reachable and the entry's sentence says why: with
+      // `payments` off there is no payment adapter, so `assertPaymentMethodUsable`
+      // has already refused every method whose adapter that module contributes.
+      // What it deliberately tolerates is a method whose adapter *no* module
+      // registered, and that placement wrote this row into a switched-off
+      // module's own table until the port was gated (issue #188's shape).
+      const payment = await this.neighbours.paymentPlacementApply.openForOrder(tx, {
         orderId: order.id,
         paymentMethodId: paymentMethod.id,
         amount: total.toFixed(2),
         currency,
       });
-      await tx.persistAndFlush(payment);
 
       // Feature 034 — invoke the adapter's storefront_order_created handler
       // (FR-021). Feature 036 — capture the returned StartPaymentResult and map
@@ -1803,8 +1823,16 @@ export class OrderService {
         // Credit-limit-paid orders: the payment status is `deferred` until the
         // invoice is paid out-of-band; admin marks it paid via
         // POST /admin/orders/:id/payment-status which releases the reservation.
+        //
+        // The order's own column is this module's, and stays an assignment. The
+        // payment row's is `payments`', and is now that module's own named
+        // operation on this same transaction (feature 080, T048): the port hands
+        // back a record rather than the managed entity, so there is nothing here
+        // to assign to — which is the point of D-77's narrowing, and the reason
+        // `deferred` is no longer a string this module spells about somebody
+        // else's aggregate.
         order.paymentStatus = 'deferred';
-        payment.status = 'deferred';
+        await this.neighbours.paymentPlacementApply.markDeferred(tx, { paymentId: payment.id });
       }
 
       // Kick off the proforma — status stays `pending` for the unit test that

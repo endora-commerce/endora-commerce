@@ -29,6 +29,8 @@ import { PaymentService } from './services/payment-service.js';
 import { PaymentRetryService } from './services/payment-retry-service.js';
 import { PaymentReadService } from './services/payment-read-port.js';
 import { PaymentReferenceService } from './services/payment-reference-port.js';
+import { PaymentPlacementApplyService } from './services/payment-placement-apply-port.js';
+import type { PaymentPlacementApplyPort } from './ports/index.js';
 import { PaymentRefundProvider } from './services/payment-refund.js';
 import { gatewayRefundRegistry } from './services/registry-singleton.js';
 import { PaymentEmailNotifier } from './services/payment-email-notifier.js';
@@ -240,6 +242,34 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<PaymentReadPort>(
     'paymentReadPort',
     ctx.asFunction(({ emFactory }: PaymentsCradle) => new PaymentReadService(emFactory)).singleton(),
+  );
+
+  /**
+   * The payment row order placement opens, on **placement's** `EntityManager`
+   * (feature 080, T048; D-169, D-179).
+   *
+   * `orders` wrote it with this module's `Payment` class until T048 — the last
+   * cross-module entity-class reach in the tree. D-168 leaves a packaged
+   * `payments` no entity class for a stranger to name, so what crosses is now
+   * this module's own interface and the statement belongs to the module that
+   * owns the table. `PaymentPlacementApplyPort` is declared in this module's
+   * `ports/` directory rather than in `@endora-commerce/contracts`, because it
+   * takes a MikroORM `EntityManager` and FR-034 keeps that package free of them.
+   *
+   * It is a **gated** registration like every other name here, and that gate is
+   * the half `orders` writing the row itself could never have. The reachable
+   * consequence is narrow, because `assertPaymentMethodUsable` already refuses a
+   * method whose adapter this module contributes while this module is absent —
+   * D-179 measured that and found checkout already fail-closed, where no money
+   * is at stake. What that guard deliberately tolerates is a method whose
+   * adapter **no** module ever registered, and such a placement went on writing
+   * a row into this module's own table with an operator having switched it off:
+   * issue #188's shape, which the gate closes. `orders` declares the edge
+   * `refuses-without` and wraps the call in no `catch`.
+   */
+  ctx.di.providePort<PaymentPlacementApplyPort>(
+    'paymentPlacementApplyPort',
+    ctx.asFunction(() => new PaymentPlacementApplyService()).singleton(),
   );
 
   /**

@@ -340,6 +340,17 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
     'held — statically for the reservation and through an `await import()` for the release ' +
     "— and is a `permanent: true` entry in `orders`' cross-module-imports shard. Retired by " +
     'F4 package entry points.',
+  'orders:paymentPlacementApplyPort':
+    'T048 / D-169 / D-179 — the last of the family, and the mirror of the entry below: ' +
+    "`PaymentPlacementApplyPort` is `payments`' own interface, kept out of " +
+    '`@endora-commerce/contracts` because both methods take the placement transaction ' +
+    '(FR-034), and held there by `payments_order_fk` (`on delete restrict`) — the payment ' +
+    'row cannot exist before the order does, and the order does not commit until placement ' +
+    'returns. It replaces the `Payment` entity import `orders` held, which was the last ' +
+    "cross-module entity-class reach in the tree, and is a `permanent: true` entry in " +
+    "`orders`' cross-module-imports shard. This name and the one below are the same two " +
+    'modules seen from either end, so the pair retires together, with F4 package entry ' +
+    'points.',
   'payments:orderPaymentStatusApplyPort':
     'T048 / D-169 — the same shape walked the other way: `OrderPaymentStatusApplyPort` is ' +
     "`orders`' own interface, kept out of `@endora-commerce/contracts` because " +

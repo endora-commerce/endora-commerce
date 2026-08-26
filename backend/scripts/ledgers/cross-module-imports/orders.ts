@@ -35,19 +35,29 @@
  *    two sides that declare `orders` rather than being imported here,
  *    `promotion_usages_order_fk` and `credit_limit_reservations_order_fk`.
  *
- * **Feature 080's T048 converts what crosses on three of them, and moves no
- * transaction and no constraint** (D-169). `carts`, `invoices` and `inventory`
- * were entity classes used as MikroORM repository handles —
- * `em.findOne(Cart, …)`, `tx.create(Invoice, …)`, `tx.create(StockAllocation, …)`
- * — and D-168 leaves a packaged owner no supported spelling for one, so each is
- * now that owner's own `EntityManager`-taking interface on its own `ports/`
- * directory, and the owner writes its own rows. The three carts keys became one
- * (two entity classes, one interface) and so did the two `inventory` ones. The
- * `payments` entry is unchanged and is the last of the family in this file:
- * converting it forces a product decision about what checkout does when an
- * operator has switched `payments` off, because the port that would replace the
- * `tx.create` is gated and `payments.enabled` is a real control. That decision
- * is worth more than the conversion and is not this merge request's to make.
+ * **Feature 080's T048 converts what crosses on every one of them, and moves no
+ * transaction and no constraint** (D-169). `carts`, `invoices`, `inventory` and
+ * `payments` were entity classes used as MikroORM repository handles —
+ * `em.findOne(Cart, …)`, `tx.create(Invoice, …)`, `tx.create(StockAllocation, …)`,
+ * `tx.create(Payment, …)` — and D-168 leaves a packaged owner no supported
+ * spelling for one, so each is now that owner's own `EntityManager`-taking
+ * interface on its own `ports/` directory, and the owner writes its own rows.
+ * The three carts keys became one (two entity classes, one interface) and so did
+ * the two `inventory` ones.
+ *
+ * **`payments` was the last, and it was deferred by a question that turned out
+ * to have been already answered** (D-179). Converting it was held to force a
+ * product decision — what does checkout do when an operator has switched
+ * `payments` off — because the port replacing the `tx.create` is gated and
+ * `payments.enabled` is a real control. The analysis commissioned to settle it
+ * refuted its own premise: that module contributes all four built-in payment
+ * adapters, the adapter registry filters its enumeration on the contributor's
+ * effective state, and `assertPaymentMethodUsable` already throws
+ * `ModuleDisabledError`. Checkout was already fail-closed, and fails closed
+ * where no money is at stake. So the conversion is a plain `lazyPort` with no
+ * presence probe: it changes no reachable behaviour and closes the one real
+ * hole, an adapter *no module registered* writing a row into that module's table
+ * while it is off — issue #188's shape, one table over.
  *
  * **`inventory`'s pair was spelled twice and only one spelling was written
  * down.** The static imports carried a comment saying D-94.4 had replaced the
@@ -105,25 +115,42 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     retiredBy:
       'F4 packages `inventory`, at which point that same directory is the package`s `./ports` subpath, D-171 stops counting the reach, and the consumer-side edit is this one specifier. It is not retired by the relocation alone: `resolveModulePackage` returns `null` for anything starting with `.`, so a relative specifier has no subpath for the exemption to apply to, and the three edits (package the owner, publish the interface, rewrite the specifier) are separable by design — this entry stands with the second done. Moving the reservation out of the placement transaction would retire it too, and would cost the `PESSIMISTIC_WRITE` on `stock_levels` that stops two placements allocating the same unit (test/contract/orders/place-stock-race.test.ts).',
   },
-  'modules/orders/services/order-service.ts:payments/entities/payment.entity': {
+  'modules/orders/services/order-service.ts:payments/ports/index': {
     permanent: true,
     reason:
       'D-78 point 2 — a co-transactional write the database holds together. ' +
       '`db/migrations/20260425T050720_core_commerce_init.ts:173` declares ' +
       '`payments_order_fk` (`payments.order_id` -> `orders.id`, `on delete restrict`), so the ' +
-      'payment row `placeOrder` creates must see its order inside ONE transaction: a second ' +
+      'payment row `placeOrder` opens must see its order inside ONE transaction: a second ' +
       'transaction opened by a port on the `payments` side cannot satisfy a foreign key ' +
       'against a row it cannot see, and the order is not committed until placement returns. ' +
-      'No port can carry the caller`s `EntityManager` without putting MikroORM into ' +
-      '`@endora-commerce/contracts` (FR-034), and D-77 refused the brand, the token and the ambient unit ' +
-      'of work in writing. `orders` does not declare `payments` in `dependencies` because ' +
-      '`payments` declares `orders` — the FK`s own direction — so the manifest edge that ' +
-      'AGENTS.md § Migrations item 4 asks for is the one `payments` already carries. What ' +
-      'crosses is one entity class, in one file, for one `tx.create`.',
+      '`orders` does not declare `payments` in `dependencies` because `payments` declares ' +
+      '`orders` — the FK`s own direction — so the manifest edge that AGENTS.md § Migrations ' +
+      'item 4 asks for is the one `payments` already carries; the port edge back is ' +
+      '`refuses-without`, which withdraws the bind an acknowledgement would keep. ' +
+      '**Feature 080`s T048 converted what crosses, and nothing else** (D-169, D-179): it was ' +
+      'the `Payment` entity class, the last cross-module entity-class reach in the tree, and ' +
+      'it is now `PaymentPlacementApplyPort` — the owner`s own interface in the owner`s ' +
+      '`ports/` directory, because its `EntityManager` parameter bars it from ' +
+      '`@endora-commerce/contracts` (FR-034), where D-77 had already refused the brand, the ' +
+      'token and the ambient unit of work in writing. The transaction and the constraint are ' +
+      'exactly as they were; a foreign key needs the **table** and never the class. What the ' +
+      'conversion removed is this module`s ability to move any other column of `payments`` ' +
+      'aggregate on a transaction it happens to hold — the port answers published records ' +
+      'and hands back no managed row, so even the credit-limit branch`s `deferred` stamp is ' +
+      'now the owner`s own named operation. And it closed a hole: the row was written into ' +
+      'that module`s table with an operator having switched it off, on the one path ' +
+      '`assertPaymentMethodUsable` tolerates (an adapter no module registered), which is ' +
+      'issue #188`s shape one table over.',
     retiredBy:
-      'F4 gives `payments` a package entry point that exports the row `orders` writes at ' +
-      'placement — then this is a package dependency, not an import of internals. Moving the ' +
-      'payment row out of the placement transaction would retire it too, and would cost the ' +
-      'guarantee that an order and its payment appear together or not at all.',
+      'F4 packages `payments`, at which point that same directory is the package`s `./ports` ' +
+      'subpath, D-171 stops counting the reach, and the consumer-side edit is this one ' +
+      'specifier. It is not retired by the relocation alone: `resolveModulePackage` returns ' +
+      '`null` for anything starting with `.`, so a relative specifier has no subpath for the ' +
+      'exemption to apply to, and the three edits (package the owner, publish the interface, ' +
+      'rewrite the specifier) are separable by design — this entry stands with the second ' +
+      'done. Moving the payment row out of the placement transaction would retire it too, ' +
+      'and would cost the guarantee that an order and its payment appear together or not at ' +
+      'all.',
   },
 };
