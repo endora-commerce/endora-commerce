@@ -6,9 +6,9 @@ import type {
   DictionaryValidator,
   DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { MegamenuCache, type MegamenuCacheOptions } from './services/megamenu-cache.js';
 import { MegamenuReferenceRegistry } from './services/megamenu-reference-registry.js';
 import { MegamenuService } from './services/megamenu-service.js';
@@ -20,6 +20,9 @@ import { registerMegamenuStorefrontRoutes } from './routes.storefront.js';
 import { registerMegamenuAssetReferences } from './services/asset-references.js';
 import { registerMegamenuCmsReferences } from './services/cms-references.js';
 import { registerMegamenuLanguageReferences } from './services/megamenu-language-reference.js';
+import { MegamenuBinding } from './entities/megamenu-binding.entity.js';
+import { MegamenuItem } from './entities/megamenu-item.entity.js';
+import { Megamenu } from './entities/megamenu.entity.js';
 
 /**
  * `megamenu` — two dependency bundles that stay outside on purpose (feature
@@ -194,3 +197,24 @@ export function registerModule(ctx: ModuleContext): void {
     );
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table->owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ *
+ * The order is the one `db/entities-registry.generated.ts` declared before this
+ * module became a package, so the registered set is the same list in the same
+ * sequence.
+ */
+export const entities = [
+  MegamenuBinding,
+  MegamenuItem,
+  Megamenu,
+];

@@ -8,7 +8,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { MegamenuService } from './services/megamenu-service.js';
 import type { MegamenuItemService } from './services/megamenu-item-service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export async function registerMegamenuAdminRoutes(
   app: FastifyInstance,

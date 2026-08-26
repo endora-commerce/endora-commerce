@@ -5,9 +5,9 @@ import type {
   AssetReferenceRegistryPort,
   CmsExternalReferenceScanner,
 } from '@endora-commerce/contracts';
-import { registerMegamenuAssetReferences } from '../../../src/modules/megamenu/services/asset-references.js';
-import { registerMegamenuCmsReferences } from '../../../src/modules/megamenu/services/cms-references.js';
-import type { MegamenuReferenceRegistry } from '../../../src/modules/megamenu/services/megamenu-reference-registry.js';
+import { registerMegamenuAssetReferences } from '../../../../packages/modules/megamenu/src/backend/services/asset-references.js';
+import { registerMegamenuCmsReferences } from '../../../../packages/modules/megamenu/src/backend/services/cms-references.js';
+import type { MegamenuReferenceRegistry } from '../../../../packages/modules/megamenu/src/backend/services/megamenu-reference-registry.js';
 
 /**
  * Feature 075, Phase C — what `megamenu` contributes to the two reference

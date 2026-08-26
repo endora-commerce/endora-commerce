@@ -12,8 +12,8 @@ import {
   type PatchMegamenuRequest,
   type ResolvedMenuItem,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { MegamenuCache } from './megamenu-cache.js';
 
 type MegamenuRow = {

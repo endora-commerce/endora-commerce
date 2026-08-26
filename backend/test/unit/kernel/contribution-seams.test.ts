@@ -16,9 +16,9 @@ import { EmailDefaultsRegistry } from '../../../../packages/modules/transactiona
 import { registerCmsAssetReferences } from '../../../../packages/modules/cms/src/backend/services/asset-references.js';
 import { registerCatalogAssetReferences } from '../../../src/modules/catalog/services/asset-references.js';
 import { registerBlogAssetReferences } from '../../../../packages/modules/blog/src/backend/services/blog-asset-references.js';
-import { registerMegamenuAssetReferences } from '../../../src/modules/megamenu/services/asset-references.js';
-import { registerMegamenuCmsReferences } from '../../../src/modules/megamenu/services/cms-references.js';
-import type { MegamenuReferenceRegistry } from '../../../src/modules/megamenu/services/megamenu-reference-registry.js';
+import { registerMegamenuAssetReferences } from '../../../../packages/modules/megamenu/src/backend/services/asset-references.js';
+import { registerMegamenuCmsReferences } from '../../../../packages/modules/megamenu/src/backend/services/cms-references.js';
+import type { MegamenuReferenceRegistry } from '../../../../packages/modules/megamenu/src/backend/services/megamenu-reference-registry.js';
 
 /**
  * The contribution seam (feature 072, D-39).

@@ -7,7 +7,7 @@
 // stub them without booting a server.
 
 import { ERROR_CODES, type MegamenuItem } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 const externalUrlRe = /^(?:https?:\/\/|tel:|mailto:)/i;
 

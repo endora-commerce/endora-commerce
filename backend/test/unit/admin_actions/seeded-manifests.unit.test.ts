@@ -5,7 +5,7 @@ import { manifest as inventoryManifest } from '../../../src/modules/inventory/ma
 import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';
 import { manifest as cmsManifest } from '../../../../packages/modules/cms/src/manifest.js';
 import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';
-import { manifest as megamenuManifest } from '../../../src/modules/megamenu/manifest.js';
+import { manifest as megamenuManifest } from '@endora-commerce/mod-megamenu';
 import { manifest as salesChannelsManifest } from '../../../../packages/modules/sales_channels/src/manifest.js';
 import { manifest as settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 import { ModuleActionSchema } from '@endora-commerce/contracts';
