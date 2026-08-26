@@ -6,6 +6,7 @@ import type {
   EmailDefaultsRegistryPort,
   OrderReadPort,
   OrderTransitionPort,
+  ReceiveShipmentPort,
   ShipmentStatus,
   ShipmentUsagePort,
   ShippingAdapterRegistryPort,
@@ -169,7 +170,7 @@ export function registerModule(ctx: ModuleContext): void {
    * answered, and the port answers the real one — may this order go there —
    * against the configured graph.
    */
-  ctx.di.providePort(
+  ctx.di.providePort<ReceiveShipmentPort>(
     'receiveShipmentHandler',
     ctx
       .asFunction(

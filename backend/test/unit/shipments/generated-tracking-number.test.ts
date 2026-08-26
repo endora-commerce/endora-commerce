@@ -14,10 +14,10 @@ import type {
   ShippingAdapter,
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '../../../src/kernel/ports/audit.js';
-import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
-import { ShipmentService } from '../../../src/modules/shipments/services/shipment-service.js';
-import type { ShippingEventBus } from '../../../src/modules/shipments/services/events.js';
-import type { Shipment } from '../../../src/modules/shipments/entities/shipment.entity.js';
+import { ShippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/shipping-adapter-registry.js';
+import { ShipmentService } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
+import type { ShippingEventBus } from '../../../../packages/modules/shipments/src/backend/services/events.js';
+import type { Shipment } from '../../../../packages/modules/shipments/src/backend/entities/shipment.entity.js';
 
 const ORDER_ID = 'eeeeeeee-0000-4000-8000-000000000001';
 const METHOD_ID = 'eeeeeeee-0000-4000-8000-000000000002';
@@ -74,7 +74,10 @@ describe('ShipmentService.createShipment — generated tracking number', () => {
           ({ id: METHOD_ID, adapter: ADAPTER_KEY }) as unknown as DeliveryMethodRecord,
       } as unknown as DeliveryMethodReadPort,
       { record: async () => {} } as unknown as AuditPort,
-      { run: async (fn) => fn(), emit: () => {} } as unknown as ShippingEventBus,
+      {
+        run: async <T>(fn: () => Promise<T> | T): Promise<T> => fn(),
+        emit: () => {},
+      } as unknown as ShippingEventBus,
     );
 
     const shipment = await service.createShipment(ORDER_ID);
