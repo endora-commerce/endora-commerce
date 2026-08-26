@@ -1,9 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { ERROR_CODES, type AdminUserReadPort } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { AdminRole } from '../entities/admin-role.entity.js';
 import type { PermissionCatalogueService } from './permission-catalogue.service.js';
 

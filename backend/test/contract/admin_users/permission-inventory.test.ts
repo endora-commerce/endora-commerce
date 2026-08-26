@@ -5,9 +5,9 @@ import {
   REGISTERED_MANIFESTS,
   resolvedManifestEntries,
 } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { scanEnforcedPermissionGates } from '../../../src/modules/admin_roles/permission-inventory.js';
+import { scanEnforcedPermissionGates } from '../../../../packages/modules/admin_roles/src/backend/permission-inventory.js';
 import { permissionScanRoots } from '../../helpers/permission-scan-roots.js';
-import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
+import { listAssignablePermissionCodes } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 
 /**
  * The `/admin-roles` catalogue and the server's gates have to describe the same

@@ -762,7 +762,7 @@ async function main(): Promise<void> {
   // Imported here rather than at the top: both live in the module tree, so a
   // static import would die at module resolution over the residue above and
   // turn an exit 2 into an unhandled rejection.
-  const { ConstantResolver } = await import('../src/modules/admin_roles/permission-inventory.js');
+  const { ConstantResolver } = await import('@endora-commerce/mod-admin-roles/backend');
   const resolver = new ConstantResolver();
   const actions = await loadActions();
 

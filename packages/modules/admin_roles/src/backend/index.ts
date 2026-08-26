@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type {
   AdminRolePort,
   AdminUserReadPort,
@@ -8,13 +8,14 @@ import type {
   PermissionReadPort,
   SystemRoleCodePort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import { effectiveState } from '@endora-commerce/platform/kernel';
 import { AdminRoleService } from './services/admin-role-service.js';
 import { createAdminRolePort, createSystemRoleCodePort } from './services/admin-role-ports.js';
 import { PermissionCatalogueService } from './services/permission-catalogue.service.js';
 import { PermissionService } from './services/permission-service.js';
+import { AdminRole } from './entities/admin-role.entity.js';
 
 /**
  * `admin_roles` — the permission model behind every admin guard (feature 072,
@@ -152,3 +153,37 @@ export function registerModule(ctx: ModuleContext): void {
     systemRoleCodePort: ctx.asFunction(() => createSystemRoleCodePort()).singleton(),
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table->owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ *
+ * The order is the one `db/entities-registry.generated.ts` declared before this
+ * module became a package, so the registered set is the same list in the same
+ * sequence.
+ */
+export const entities = [
+  AdminRole,
+];
+
+/**
+ * The permission catalogue and the inventory scanner, published **by name**.
+ *
+ * Three host programs read them — the acceptance instance probe,
+ * `check:action-route-permissions`, and the permission-inventory contract test
+ * — and each of those processes also holds this package's published artefact,
+ * so a filesystem path into this module's source would give them a second copy
+ * of everything on that file's graph (D-160.6.1). None of these is an entity,
+ * which is the one thing D-168 keeps off this door; what they are is the
+ * host-facing half of the permission estate, and it has to be the same half the
+ * platform composed or a scanner reports on a catalogue nobody enforces.
+ */
+export { PermissionCatalogueService, listAssignablePermissionCodes } from './services/permission-catalogue.service.js';
+export { ConstantResolver, defaultScanRoots, scanEnforcedPermissionCodes, scanEnforcedPermissionGates } from './permission-inventory.js';

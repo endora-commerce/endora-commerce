@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 /**
  * Static inventory of the permission codes the backend actually enforces.
@@ -20,11 +20,28 @@ import { fileURLToPath } from 'node:url';
  * because a silently dropped gate is exactly the failure this file guards.
  */
 
-/** `backend/src` — this file lives at `backend/src/modules/admin_roles/`. */
-const BACKEND_SRC = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
-
-/** `packages/contracts/src` — permission maps shared across modules live here. */
-const CONTRACTS_SRC = resolve(BACKEND_SRC, '..', '..', 'packages', 'contracts', 'src');
+/**
+ * `packages/contracts/src` — permission maps shared across modules live here.
+ *
+ * Resolved through the package's own `package.json`, never by climbing out of
+ * this file's directory (D-100). The climb worked while this module lived at
+ * `backend/src/modules/admin_roles/` and answered a *different* directory the
+ * day it became a package — silently, because every path it produced still
+ * existed. `createRequire` asks the resolver the question the manifest already
+ * answers, and this module declares `@endora-commerce/contracts` as a peer.
+ */
+const CONTRACTS_SRC = ((): string => {
+  // Its entry point, then up to the directory that owns the manifest. Asking
+  // for `./package.json` directly is not available: that package's `exports`
+  // map answers a wildcard and resolves the request to `dist/package.json.js`.
+  let dir = dirname(createRequire(import.meta.url).resolve('@endora-commerce/contracts'));
+  for (;;) {
+    if (existsSync(join(dir, 'package.json'))) return join(dir, 'src');
+    const parent = dirname(dir);
+    if (parent === dir) return '';
+    dir = parent;
+  }
+})();
 
 /** How a gate site resolves to a permission code. */
 export type GateResolution =
@@ -107,8 +124,13 @@ export interface PermissionScanRoot {
  * `null` means a bare-core build, which is what a deployment-less environment
  * has always produced.
  */
-export function defaultScanRoots(overlayModulesRoot: string | null): string[] {
-  return overlayModulesRoot === null ? [BACKEND_SRC] : [BACKEND_SRC, overlayModulesRoot];
+export function defaultScanRoots(
+  applicationSourceRoot: string,
+  overlayModulesRoot: string | null,
+): string[] {
+  return overlayModulesRoot === null
+    ? [applicationSourceRoot]
+    : [applicationSourceRoot, overlayModulesRoot];
 }
 
 /**
@@ -128,6 +150,13 @@ export function scanEnforcedPermissionCodes(
  * resolved the active deployment for itself; that resolution is the caller's
  * now (see {@link defaultScanRoots}), and a default of "bare core" would be a
  * scan that silently covered less than it was asked for.
+ *
+ * Each site's `file` is reported relative to the **first bare-string root**,
+ * which is the application's own source root by construction of
+ * {@link defaultScanRoots} — a module package is passed as an object carrying
+ * its `moduleId`. It used to be relative to a `backend/src` this file computed
+ * by climbing out of its own directory, which answered a different directory
+ * the day `admin_roles` became a package (feature 080, T040b).
  */
 export function scanEnforcedPermissionGates(
   roots: readonly (string | PermissionScanRoot)[],
@@ -135,10 +164,11 @@ export function scanEnforcedPermissionGates(
   const sites: EnforcedGateSite[] = [];
   const seen = new Set<string>();
   const resolver = new ConstantResolver();
+  const base = roots.find((entry): entry is string => typeof entry === 'string') ?? '';
   for (const entry of roots) {
     const root = typeof entry === 'string' ? { dir: entry } : entry;
     for (const file of walkSources(root.dir, seen)) {
-      collectFromFile(file, root, resolver, sites);
+      collectFromFile(file, root, base, resolver, sites);
     }
   }
   const codes = new Set<string>();
@@ -189,6 +219,7 @@ function moduleIdFor(file: string, root: PermissionScanRoot): string | null {
 function collectFromFile(
   file: string,
   root: PermissionScanRoot,
+  base: string,
   resolver: ConstantResolver,
   out: EnforcedGateSite[],
 ): void {
@@ -196,7 +227,7 @@ function collectFromFile(
   if (source === null) return;
   if (!/requireAdmin|hasPermission/.test(source)) return;
   const moduleId = moduleIdFor(file, root);
-  const relFile = relative(BACKEND_SRC, file);
+  const relFile = relative(base, file);
   for (const site of collectFromSource(source, file, resolver)) {
     out.push({ ...site, file: relFile, moduleId });
   }

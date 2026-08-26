@@ -1,6 +1,6 @@
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import { lockedOwners } from '../../scripts/lib/switchable-modules.js';
-import type { EnforcedGateSite } from '../../src/modules/admin_roles/permission-inventory.js';
+import type { EnforcedGateSite } from '../../../packages/modules/admin_roles/src/backend/permission-inventory.js';
 
 /**
  * D-173 — the `foreign-gate` sweep: a module enforcing a permission code

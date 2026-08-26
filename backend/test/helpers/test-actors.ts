@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
+import type { PermissionService } from '../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
 import type { RequireAdminFactory } from '../../src/kernel/ports/require-admin.js';
 import { createRequireAdmin } from '../../src/modules/auth/require-admin.js';
 

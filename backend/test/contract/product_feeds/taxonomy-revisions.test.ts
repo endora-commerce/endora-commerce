@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { AdminUser } from '../../helpers/package-entities.js';
 import {
   feedTaxonomyCheckSchema,
   feedTaxonomyRevisionImpactResponseSchema,
@@ -14,7 +15,6 @@ import {
   googleTaxonomyFile,
   ScriptedTaxonomyFetcher,
 } from '../../helpers/taxonomy-fixtures.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
@@ -364,9 +364,7 @@ describe('feed taxonomy revisions [contract]', () => {
     const { REGISTERED_MANIFESTS } = await import(
       '../../../src/modules/_lifecycle/registered-manifests.js'
     );
-    const { listAssignablePermissionCodes } = await import(
-      '../../../src/modules/admin_roles/services/permission-catalogue.service.js'
-    );
+    const { listAssignablePermissionCodes } = await import('@endora-commerce/mod-admin-roles/backend');
     const codes = listAssignablePermissionCodes(REGISTERED_MANIFESTS).filter((code) =>
       code.startsWith('product_feeds'),
     );

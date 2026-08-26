@@ -18,7 +18,7 @@ import {
   REGISTERED_MANIFESTS,
   type RegisteredManifestEntry,
 } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
+import { listAssignablePermissionCodes } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 import {
   declaredEntityNamesFor,
   registeredEntityNamesFor,

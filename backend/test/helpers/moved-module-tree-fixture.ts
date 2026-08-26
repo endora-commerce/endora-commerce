@@ -96,7 +96,12 @@ export const KEPT_MODULE = '_lifecycle';
 
 /** Single files of other modules a spawned check imports as code. */
 const KEPT_MODULE_FILES: readonly string[] = [
-  'admin_roles/permission-inventory.ts',
+  // `admin_roles/permission-inventory.ts` stood here until batch five packaged
+  // that module. `check-action-route-permissions` now imports the gate-argument
+  // resolver through `@endora-commerce/mod-admin-roles/backend`, which resolves
+  // through the `node_modules` this fixture borrows — so the file it needs
+  // arrives with the package rather than with a copy of one module's source.
+  //
   // `check-error-translations` imports the routing table as *code*; without it
   // that spawn dies at module resolution and its proof would pass for the wrong
   // reason. The table is also what its floor is derived from, so a fixture
@@ -415,11 +420,11 @@ export function createMovedModuleTreeFixture(
     join(BACKEND_ROOT, 'src', 'modules', KEPT_MODULE, 'manifest.ts'),
     join(backend, 'src', 'modules', KEPT_MODULE, 'manifest.ts'),
   );
-  // Same reason as the two files above: `check-action-route-permissions`
-  // imports the gate-argument resolver as *code*, so without it that spawn dies
-  // at module resolution and its proof would pass for the wrong reason. It is
-  // one file of one module, so the fixture stays the hard case — the walk still
-  // produces sources for two of the 65 registered modules.
+  // Same reason as the two files above: a spawned check imports one of these as
+  // *code*, so without it that spawn dies at module resolution and its proof
+  // would pass for the wrong reason. They are single files of single modules, so
+  // the fixture stays the hard case — the walk produces sources for a handful of
+  // the modules the registry lists, never for all of them.
   for (const file of KEPT_MODULE_FILES) {
     mkdirSync(join(backend, 'src', 'modules', dirname(file)), { recursive: true });
     cpSync(join(BACKEND_ROOT, 'src', 'modules', file), join(backend, 'src', 'modules', file));
@@ -706,19 +711,44 @@ export function createSplitModuleTreeFixture(
     available: modulesInTheApplicationTree(options.packaged),
     alreadyPackaged: alreadyPackaged.map((pkg) => pkg.moduleId),
   });
+  // The half-moved state has **two** sources, and the second is what makes the
+  // stranded pool stop draining (feature 080, T040b, batch five).
+  //
+  // Until now it could only be staged out of `backend/src/modules`: relocate a
+  // module the application tree still owns and withhold its `package.json`. That
+  // pool shrank with every batch — its members have to be routed by
+  // `ERROR_TRANSLATION_KEYS` *and* unkeyed by any check's ledger *and* still
+  // unmoved — and batch four measured it down to one. Batch five took that one.
+  //
+  // A module that has **already** become a package stages the identical state
+  // for free: the `alreadyPackaged` loop above has just copied it to
+  // `packages/modules/<id>/`, so deleting the manifest it copied leaves sources
+  // at a package address that no glob produces and no root covers — which is
+  // exactly what the relocation built by hand. Nothing moves, so no path
+  // changes, so a ledger keyed on this module stays valid; and the population
+  // this draws from grows with every batch instead of shrinking.
+  const packagedIds = new Set(alreadyPackaged.map((pkg) => pkg.moduleId));
   const toStrand = options.stranded ?? [];
   for (const id of toStrand) {
     if (modulesInTheApplicationTree([id]).length === 1) continue;
+    if (packagedIds.has(id)) continue;
     throw new Error(
-      `[moved-module-tree-fixture] cannot strand '${id}': backend/src/modules holds no such ` +
-        'module. The half-moved state is a module the application tree still owns, moved to a ' +
-        'package address with no `package.json`; pick the next candidate from the stranded ' +
-        'pool instead of naming one that has already left.',
+      `[moved-module-tree-fixture] cannot strand '${id}': it is neither under ` +
+        'backend/src/modules nor a module package this repository ships. The half-moved state ' +
+        'is a module whose sources sit at a package address with no `package.json` beside ' +
+        'them; pick a candidate from the stranded pool instead of naming one that exists ' +
+        'nowhere.',
     );
   }
 
   for (const id of toRelocate) relocate(id, true);
-  for (const id of toStrand) relocate(id, false);
+  for (const id of toStrand) {
+    if (packagedIds.has(id)) {
+      rmSync(join(root, packagedModulePath(id), 'package.json'), { force: true });
+      continue;
+    }
+    relocate(id, false);
+  }
 
   writeFileSync(
     join(backend, 'src', 'modules', KEPT_MODULE, 'manifest-index.generated.ts'),

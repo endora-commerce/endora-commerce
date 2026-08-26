@@ -14,7 +14,7 @@ import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registe
  * `permission-inventory.test.ts` for the same note).
  */
 const RESOLVED_MANIFESTS = await resolvedManifestEntries();
-import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
+import { listAssignablePermissionCodes } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 
 /**
  * T193 — Admin role CRUD + permissions catalogue exposure. Validates the

@@ -2,9 +2,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { AdminRolePort, AdminUserReadPort, SystemRoleCodePort } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { AdminRoleService } from '../../../src/modules/admin_roles/services/admin-role-service.js';
-import { createAdminRolePort } from '../../../src/modules/admin_roles/services/admin-role-ports.js';
-import { PermissionCatalogueService } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
+import { AdminRoleService } from '../../../../packages/modules/admin_roles/src/backend/services/admin-role-service.js';
+import { createAdminRolePort } from '../../../../packages/modules/admin_roles/src/backend/services/admin-role-ports.js';
+import { PermissionCatalogueService } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 import {
   BLOG_ROLE_CODES,
   seedBlogRoles,

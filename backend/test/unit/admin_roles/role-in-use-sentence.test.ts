@@ -3,7 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ERROR_TRANSLATION_KEYS } from '../../../src/modules/_i18n/services/error-translation.js';
-import { roleInUseRefusal } from '../../../src/modules/admin_roles/services/admin-role-service.js';
+import { roleInUseRefusal } from '../../../../packages/modules/admin_roles/src/backend/services/admin-role-service.js';
 
 /**
  * Issue #168 — the refusal names its reason, and the sentence has something to
