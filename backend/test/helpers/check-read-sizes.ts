@@ -531,8 +531,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // right about: fifteen `invoices` service specifiers re-pointed from the
     // package's `src` to its `dist`, and two error classes that stopped being
     // imported at all.
+    //
+    // **T061a moves neither number.** The chain-parent signal walks the same
+    // files and examines the same reaches, asking a second question of each. It
+    // adds a third corroboration instead: `tenant-chains`, every class name a
+    // `@TransitivelyScoped` decorator names, reconciled against the `@Entity()`
+    // declaration the walk found for it. Two authors in two roots — `Invoice` is
+    // a package's and `Order` is the application tree's — so a walk that lost
+    // one of them leaves a parent named and unresolved rather than reporting
+    // clean over the half it kept.
     sites: 637,
-    sources: ['manifest-index', 'entities-registry'],
+    sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
   },
   'backend/scripts/i18n-hardcoded-strings.ts': {
     prefix: '[i18n:hardcoded]',

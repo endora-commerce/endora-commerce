@@ -104,6 +104,14 @@ const CHECKS: readonly MovedTreeCheck[] = [
   // packages it derives its subject from are exactly the ones the split fixture
   // relocates, so a check that only knew `backend/src/modules` would report a
   // clean tree with no subject at all.
+  //
+  // **T061a gives it a third population that straddles both roots**, which is
+  // what makes it worth more here than a check with one walk: the chain-parent
+  // signal names `Invoice` out of a package and `Order` out of the application
+  // tree, and reconciles each against the `@Entity()` declaration the walk found
+  // for it. A walk that lost either root leaves a parent named and unresolved —
+  // a `short-walk` refusal — which is #215 arriving through a door no module-id
+  // floor covers, since both trees still hand it thousands of files.
   { script: 'check-singleton-identity.ts', args: [], prefix: '[singleton-identity]' },
 ];
 
