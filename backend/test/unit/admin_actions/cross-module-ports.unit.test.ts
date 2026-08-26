@@ -149,7 +149,11 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
       em: emReturning([actionRow(), actionRow({ module_id: 'blog', action_id: 'write' })]),
       i18nService: i18n,
       permissionService: permissions,
-      presence: { isActivated: (moduleId) => moduleId !== 'blog', version: () => 0 },
+      presence: {
+        isPlatformAvailable: () => true,
+        isActivated: (moduleId) => moduleId !== 'blog',
+        version: () => 0,
+      },
     });
 
     const result = await service.listVisibleForOperator({
@@ -210,7 +214,7 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
       permissionService: { listPermissions: async () => [] },
       requireAdmin: () => async () => undefined,
       resolveAdminContext: () => ({ adminUserId: 'admin-1' }),
-      presence: { isActivated: () => true, version: () => 0 },
+      presence: { isPlatformAvailable: () => true, isActivated: () => true, version: () => 0 },
       log: { info: () => {}, warn: () => {} },
     });
 

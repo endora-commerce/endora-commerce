@@ -103,6 +103,7 @@ describe('AdminActionsService presence-refresh window (integration)', () => {
       // Exactly what `composition.ts` and `test-server.ts` contribute as
       // `modulePresenceProbe`.
       presence: {
+        isPlatformAvailable: (moduleId) => state.presence(moduleId)?.platformAvailable ?? false,
         isActivated: (moduleId) => state.presence(moduleId)?.operatorActivated ?? true,
         version: () => state.presenceVersion(),
       },
