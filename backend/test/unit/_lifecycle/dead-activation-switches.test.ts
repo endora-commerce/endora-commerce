@@ -78,12 +78,6 @@ function deadSwitches(): string[] {
  * membership and this decides only what the entry says. Both directions fail.
  */
 const REMAINING_DEAD_SWITCHES: Readonly<Record<string, string>> = {
-  admin_notifications:
-    'A decision rather than a conversion (D-179.1). Neither `catalog` nor `organizations` ' +
-    'carries a foreign key into this module — the only `references "admin_notification…"` in ' +
-    'the tree is its own `admin_notification_reads` — so the bind buys nothing, and "record a ' +
-    'notification" reads as a degrade rather than a refusal: an import that cannot notify ' +
-    'should still import. Retires when the owner rules on `degrades-without` for both edges.',
   api_keys:
     'Legitimately bound. `orders` migration `20260724T193611_orders_order_placement_intents` ' +
     'writes `foreign key ("api_key_id") references "api_keys" ("id")`, so the dependency is ' +
@@ -126,11 +120,14 @@ describe('the dead-activation-switch derivation', () => {
     expect(LOCKED.has('catalog')).toBe(true);
   });
 
-  it('finds no locked module binding credit_limits — its switch is live', () => {
-    // The point of the merge request, stated as the predicate D-179.1 derived
-    // the candidate set from rather than as a behaviour.
-    expect(lockedBindersOf('credit_limits')).toEqual([]);
-  });
+  it.each(['credit_limits', 'admin_notifications'])(
+    'finds no locked module binding %s — its switch is live',
+    (owner) => {
+      // The point of each merge request, stated as the predicate D-179.1
+      // derived the candidate set from rather than as a behaviour.
+      expect(lockedBindersOf(owner)).toEqual([]);
+    },
+  );
 
   it('accounts for every switch that is still dead, in both directions', () => {
     expect(deadSwitches()).toEqual(Object.keys(REMAINING_DEAD_SWITCHES).sort());
@@ -225,5 +222,67 @@ describe('what the operator is shown before the flip', () => {
     );
     expect(promotionEdges).toHaveLength(2);
     for (const edge of promotionEdges) expect(edge.whenAbsent ?? '').not.toBe('');
+  });
+});
+
+
+/**
+ * D-179.3 — the same conversion over one owner, in two kinds.
+ *
+ * `admin_notifications` needed two answers rather than one: the kind belongs to
+ * the **edge**, and each of its two locked consumers had already been ruled, in
+ * code, by a different ruling. `catalog` decides absence in front of the gate
+ * (D-60) and degrades; `organizations` re-throws it (D-88) and refuses. A
+ * manifest that gave them one kind would have contradicted one of the two
+ * implementations.
+ */
+const RECLASSIFIED_D179_3 = [
+  {
+    consumer: 'catalog',
+    owner: 'admin_notifications',
+    name: 'adminNotificationRecordPort',
+    kind: 'degrades-without',
+  },
+  {
+    consumer: 'organizations',
+    owner: 'admin_notifications',
+    name: 'adminNotificationRecordPort',
+    kind: 'refuses-without',
+  },
+] as const;
+
+describe('the two edges into admin_notifications', () => {
+  it.each(RECLASSIFIED_D179_3)(
+    '$consumer declares $owner.$name as $kind, with a sentence',
+    ({ consumer, owner, name, kind }) => {
+      const edge = (manifestOf(consumer).nonBindingDependencies ?? []).find(
+        (candidate) => candidate.moduleId === owner && candidate.name === name,
+      );
+      expect(edge, `${consumer} declares no non-binding edge over ${name}`).toBeDefined();
+      expect(edge!.kind).toBe(kind);
+      // `whenAbsent` is the whole payload for both kinds: with none, the entry
+      // classifies exactly as no entry at all and the dialog names nothing.
+      expect(edge!.whenAbsent ?? '').not.toBe('');
+    },
+  );
+
+  it.each(RECLASSIFIED_D179_3)(
+    '$consumer keeps no binding declaration over $owner beside it',
+    ({ consumer, owner }) => {
+      expect(manifestOf(consumer).dependencies ?? []).not.toContain(owner);
+      expect(
+        (manifestOf(consumer).acknowledgedDependencies ?? []).map((edge) => edge.moduleId),
+      ).not.toContain(owner);
+    },
+  );
+
+  it('gives the two consumers different sentences, because they answer differently', () => {
+    const [degrades, refuses] = RECLASSIFIED_D179_3.map(
+      ({ consumer, owner, name }) =>
+        (manifestOf(consumer).nonBindingDependencies ?? []).find(
+          (candidate) => candidate.moduleId === owner && candidate.name === name,
+        )!,
+    );
+    expect(degrades!.whenAbsent).not.toBe(refuses!.whenAbsent);
   });
 });

@@ -736,8 +736,9 @@ export function registerModule(ctx: ModuleContext): void {
    *
    * `lazyPort` rather than a captured resolution, for the usual reason — a
    * captured gate keeps answering after its owner is switched off. `admin_users`
-   * is reached transitively through `admin_notifications`, which this manifest
-   * already declares, so the edge is declared and closes no cycle.
+   * is declared in this manifest's `dependencies`, and directly since D-179.3:
+   * it used to be satisfied transitively through `admin_notifications`, which is
+   * a non-binding edge now. The edge closes no cycle either way.
    */
   ctx.routes(async (app) => {
     await registerOrganizationsSalesRepRoutes(app, {
