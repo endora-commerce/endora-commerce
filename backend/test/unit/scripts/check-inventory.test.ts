@@ -5217,7 +5217,7 @@ const CHECKS: readonly CheckEntry[] = [
         () =>
           diacriticAnalyze(
             "export const k = (v: string) => v.replace(/[^a-z0-9_]/g, '_').replace(/_{2,}/g, '_');",
-            'backend/src/modules/pim_ergonode/services/key-derivation.ts',
+            'packages/modules/pim_ergonode/src/backend/services/key-derivation.ts',
           ).filter((f) => f.kind === 'slug-run').length,
       ),
       // `[^\w]+` names the same ASCII set without writing a range, so a

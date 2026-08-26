@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 import {
   BARE_SUBSCRIPTIONS_TO_DRAIN,
   WORKERS_OUTSIDE_THE_SEAM,
@@ -311,10 +311,23 @@ describe('findWorkerFactories / findWorkerSites — the queue-consumer spellings
   });
 });
 
+/**
+ * The two assertions that read the **real** tree, and the one thing about them
+ * that is easy to get wrong.
+ *
+ * They must read the roots the *check* reads — `layout.sourceRoots`, which is
+ * the application's own `src/` plus every module that has become a workspace
+ * package (feature 080, T040a). Reading `backend/src` alone is a second,
+ * narrower derivation of the same population, and it shrinks with every module
+ * the packaging sweep moves out: the floor below went red on `pim_ergonode`'s
+ * move for exactly that reason, with two real BullMQ workers leaving the walk
+ * and the check itself — which had already learned both roots — still green.
+ * A floor that shrinks with the population it protects is issue #215 one layer
+ * in, and lowering the number is never the repair.
+ */
 describe('the tree itself', () => {
-  it('has no queue consumer outside the seam, and an empty ledger', () => {
-    const srcRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', 'src');
-    const sources = readTree(srcRoot);
+  it('has no queue consumer outside the seam, and an empty ledger', async () => {
+    const sources = readModuleTree(await requireModuleLayout('[subscribe-seam-test]'));
     const result = checkWorkerSeam({ sources }, WORKERS_OUTSIDE_THE_SEAM);
     // The vacuous-pass guard the check itself exits 2 on: this tree has queue
     // consumers, so reading none means the analysis stopped working.
@@ -324,9 +337,8 @@ describe('the tree itself', () => {
     expect(Object.keys(WORKERS_OUTSIDE_THE_SEAM)).toEqual([]);
   });
 
-  it('has no bare subscription left, and an empty ledger', () => {
-    const srcRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', 'src');
-    const sources = readTree(srcRoot);
+  it('has no bare subscription left, and an empty ledger', async () => {
+    const sources = readModuleTree(await requireModuleLayout('[subscribe-seam-test]'));
     expect(sources.size, 'no sources found — a vacuous pass').toBeGreaterThan(100);
     const result = checkSubscribeSeam({ sources }, BARE_SUBSCRIPTIONS_TO_DRAIN);
     expect(result.violations.map((v) => `${v.file}:${v.event}`)).toEqual([]);
@@ -335,8 +347,22 @@ describe('the tree itself', () => {
   });
 });
 
-function readTree(root: string): Map<string, string> {
+/**
+ * Every source the check would walk, keyed the way the check keys it — so a
+ * finding here and a finding in CI name the same file.
+ */
+function readModuleTree(layout: Awaited<ReturnType<typeof requireModuleLayout>>) {
   const sources = new Map<string, string>();
+  for (const root of layout.sourceRoots) {
+    for (const [, absolute] of readTreeAbsolute(root)) {
+      sources.set(layout.keyOf(absolute), readFileSync(absolute, 'utf8'));
+    }
+  }
+  return sources;
+}
+
+function readTreeAbsolute(root: string): Map<string, string> {
+  const found = new Map<string, string>();
   const walk = (dir: string, prefix: string): void => {
     for (const name of readdirSync(dir)) {
       const full = join(dir, name);
@@ -344,10 +370,10 @@ function readTree(root: string): Map<string, string> {
         if (name === 'node_modules' || name === 'dist') continue;
         walk(full, `${prefix}${name}/`);
       } else if (name.endsWith('.ts') && !name.endsWith('.test.ts') && !name.endsWith('.d.ts')) {
-        sources.set(`${prefix}${name}`, readFileSync(full, 'utf8'));
+        found.set(`${prefix}${name}`, full);
       }
     }
   };
   walk(root, '');
-  return sources;
+  return found;
 }

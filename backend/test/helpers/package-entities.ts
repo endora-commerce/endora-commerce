@@ -32,6 +32,7 @@ import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fi
 import { entities as customersEntities } from '@endora-commerce/mod-customers/backend';
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
+import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import type { Address as AddressRow } from '../../../packages/modules/addresses/src/backend/entities/address.entity.js';
 import type { AnalyticsEvent as AnalyticsEventRow } from '../../../packages/modules/analytics/src/backend/entities/analytics-event.entity.js';
 import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
@@ -92,6 +93,16 @@ import type { CartAuditEntry as CartAuditEntryRow } from '../../../packages/modu
 import type { CustomFieldDefinition as CustomFieldDefinitionRow } from '../../../packages/modules/custom_fields/src/backend/entities/custom-field-definition.entity.js';
 import type { CustomFieldOption as CustomFieldOptionRow } from '../../../packages/modules/custom_fields/src/backend/entities/custom-field-option.entity.js';
 import type { CustomerAddress as CustomerAddressRow } from '../../../packages/modules/customers/src/backend/entities/customer-address.entity.js';
+import type { ErgonodeAttributeMapping as ErgonodeAttributeMappingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-attribute-mapping.entity.js';
+import type { ErgonodeCategoryMapping as ErgonodeCategoryMappingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-category-mapping.entity.js';
+import type { ErgonodeConnection as ErgonodeConnectionRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-connection.entity.js';
+import type { ErgonodeFieldProtection as ErgonodeFieldProtectionRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-field-protection.entity.js';
+import type { ErgonodeImportIssue as ErgonodeImportIssueRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-import-issue.entity.js';
+import type { ErgonodeImportRun as ErgonodeImportRunRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-import-run.entity.js';
+import type { ErgonodeMediaLink as ErgonodeMediaLinkRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-media-link.entity.js';
+import type { ErgonodePriceBinding as ErgonodePriceBindingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-price-binding.entity.js';
+import type { ErgonodeProductLink as ErgonodeProductLinkRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-product-link.entity.js';
+import type { ErgonodeStreamCursor as ErgonodeStreamCursorRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-stream-cursor.entity.js';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
 import type { Invoice as InvoiceRow } from '../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
 import type { InvoiceLine as InvoiceLineRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
@@ -153,10 +164,7 @@ export const QuoteRequestRevision = classNamed<QuoteRequestRevisionRow>(
   quoteRequestsEntities,
   'QuoteRequestRevision',
 );
-export const GaCustomEvent = classNamed<GaCustomEventRow>(
-  googleAnalyticsEntities,
-  'GaCustomEvent',
-);
+export const GaCustomEvent = classNamed<GaCustomEventRow>(googleAnalyticsEntities, 'GaCustomEvent');
 
 export const CreditLimit = classNamed<CreditLimitRow>(creditLimitsEntities, 'CreditLimit');
 export const CreditLimitReservation = classNamed<CreditLimitReservationRow>(
@@ -211,33 +219,78 @@ export type { PaymentMethodRow };
  * keep their relative import into the package source, which is legal and is a
  * different object on purpose.
  */
-export const AdminNotification = classNamed<AdminNotificationRow>(adminNotificationsEntities, 'AdminNotification');
+export const AdminNotification = classNamed<AdminNotificationRow>(
+  adminNotificationsEntities,
+  'AdminNotification',
+);
 export const ApiKey = classNamed<ApiKeyRow>(apiKeysEntities, 'ApiKey');
 export const CmsPage = classNamed<CmsPageRow>(cmsEntities, 'CmsPage');
-export const DeliveryMethod = classNamed<DeliveryMethodRow>(deliveryMethodsEntities, 'DeliveryMethod');
+export const DeliveryMethod = classNamed<DeliveryMethodRow>(
+  deliveryMethodsEntities,
+  'DeliveryMethod',
+);
 export const MfaEnrolment = classNamed<MfaEnrolmentRow>(mfaEntities, 'MfaEnrolment');
 export const MfaSocialIdentity = classNamed<MfaSocialIdentityRow>(mfaEntities, 'MfaSocialIdentity');
-export const NewsletterAutomationRun = classNamed<NewsletterAutomationRunRow>(newsletterEntities, 'NewsletterAutomationRun');
-export const NewsletterCampaign = classNamed<NewsletterCampaignRow>(newsletterEntities, 'NewsletterCampaign');
-export const NewsletterCustomField = classNamed<NewsletterCustomFieldRow>(newsletterEntities, 'NewsletterCustomField');
-export const NewsletterEmailBlock = classNamed<NewsletterEmailBlockRow>(newsletterEntities, 'NewsletterEmailBlock');
-export const NewsletterSendRecord = classNamed<NewsletterSendRecordRow>(newsletterEntities, 'NewsletterSendRecord');
-export const NewsletterSubscriber = classNamed<NewsletterSubscriberRow>(newsletterEntities, 'NewsletterSubscriber');
-export const NewsletterSubscriberTag = classNamed<NewsletterSubscriberTagRow>(newsletterEntities, 'NewsletterSubscriberTag');
-export const NewsletterSuppression = classNamed<NewsletterSuppressionRow>(newsletterEntities, 'NewsletterSuppression');
+export const NewsletterAutomationRun = classNamed<NewsletterAutomationRunRow>(
+  newsletterEntities,
+  'NewsletterAutomationRun',
+);
+export const NewsletterCampaign = classNamed<NewsletterCampaignRow>(
+  newsletterEntities,
+  'NewsletterCampaign',
+);
+export const NewsletterCustomField = classNamed<NewsletterCustomFieldRow>(
+  newsletterEntities,
+  'NewsletterCustomField',
+);
+export const NewsletterEmailBlock = classNamed<NewsletterEmailBlockRow>(
+  newsletterEntities,
+  'NewsletterEmailBlock',
+);
+export const NewsletterSendRecord = classNamed<NewsletterSendRecordRow>(
+  newsletterEntities,
+  'NewsletterSendRecord',
+);
+export const NewsletterSubscriber = classNamed<NewsletterSubscriberRow>(
+  newsletterEntities,
+  'NewsletterSubscriber',
+);
+export const NewsletterSubscriberTag = classNamed<NewsletterSubscriberTagRow>(
+  newsletterEntities,
+  'NewsletterSubscriberTag',
+);
+export const NewsletterSuppression = classNamed<NewsletterSuppressionRow>(
+  newsletterEntities,
+  'NewsletterSuppression',
+);
 export const NewsletterTag = classNamed<NewsletterTagRow>(newsletterEntities, 'NewsletterTag');
-export const PromptActionRequest = classNamed<PromptActionRequestRow>(promptActionsEntities, 'PromptActionRequest');
+export const PromptActionRequest = classNamed<PromptActionRequestRow>(
+  promptActionsEntities,
+  'PromptActionRequest',
+);
 export const Refund = classNamed<RefundRow>(returnsEntities, 'Refund');
 export const ReturnCase = classNamed<ReturnCaseRow>(returnsEntities, 'ReturnCase');
-export const ReturnCaseComment = classNamed<ReturnCaseCommentRow>(returnsEntities, 'ReturnCaseComment');
+export const ReturnCaseComment = classNamed<ReturnCaseCommentRow>(
+  returnsEntities,
+  'ReturnCaseComment',
+);
 export const ReturnCaseItem = classNamed<ReturnCaseItemRow>(returnsEntities, 'ReturnCaseItem');
 export const ReturnReason = classNamed<ReturnReasonRow>(returnsEntities, 'ReturnReason');
 export const ReturnShipment = classNamed<ReturnShipmentRow>(returnsEntities, 'ReturnShipment');
 export const ReturnStatus = classNamed<ReturnStatusRow>(returnsEntities, 'ReturnStatus');
-export const ReturnStatusTransition = classNamed<ReturnStatusTransitionRow>(returnsEntities, 'ReturnStatusTransition');
+export const ReturnStatusTransition = classNamed<ReturnStatusTransitionRow>(
+  returnsEntities,
+  'ReturnStatusTransition',
+);
 export const ShoppingList = classNamed<ShoppingListRow>(shoppingListsEntities, 'ShoppingList');
-export const TransactionalEmail = classNamed<TransactionalEmailRow>(transactionalEmailsEntities, 'TransactionalEmail');
-export const TransactionalEmailContent = classNamed<TransactionalEmailContentRow>(transactionalEmailsEntities, 'TransactionalEmailContent');
+export const TransactionalEmail = classNamed<TransactionalEmailRow>(
+  transactionalEmailsEntities,
+  'TransactionalEmail',
+);
+export const TransactionalEmailContent = classNamed<TransactionalEmailContentRow>(
+  transactionalEmailsEntities,
+  'TransactionalEmailContent',
+);
 export const Webhook = classNamed<WebhookRow>(webhooksEntities, 'Webhook');
 export const WebhookDelivery = classNamed<WebhookDeliveryRow>(webhooksEntities, 'WebhookDelivery');
 
@@ -252,14 +305,29 @@ export const WebhookDelivery = classNamed<WebhookDeliveryRow>(webhooksEntities, 
  * different object on purpose, and one no ORM ever sees.
  */
 export const Comparison = classNamed<ComparisonRow>(comparisonsEntities, 'Comparison');
-export const ComparisonProduct = classNamed<ComparisonProductRow>(comparisonsEntities, 'ComparisonProduct');
-export const CredentialConfiguration = classNamed<CredentialConfigurationRow>(credentialsEntities, 'CredentialConfiguration');
+export const ComparisonProduct = classNamed<ComparisonProductRow>(
+  comparisonsEntities,
+  'ComparisonProduct',
+);
+export const CredentialConfiguration = classNamed<CredentialConfigurationRow>(
+  credentialsEntities,
+  'CredentialConfiguration',
+);
 export const Country = classNamed<CountryRow>(dictionariesEntities, 'Country');
-export const DictionaryTranslation = classNamed<DictionaryTranslationRow>(dictionariesEntities, 'DictionaryTranslation');
-export const LanguageCountry = classNamed<LanguageCountryRow>(dictionariesEntities, 'LanguageCountry');
+export const DictionaryTranslation = classNamed<DictionaryTranslationRow>(
+  dictionariesEntities,
+  'DictionaryTranslation',
+);
+export const LanguageCountry = classNamed<LanguageCountryRow>(
+  dictionariesEntities,
+  'LanguageCountry',
+);
 export const KsefCredential = classNamed<KsefCredentialRow>(ksefEntities, 'KsefCredential');
 export const KsefSubmission = classNamed<KsefSubmissionRow>(ksefEntities, 'KsefSubmission');
-export const SearchPhraseRecord = classNamed<SearchPhraseRecordRow>(searchEntities, 'SearchPhraseRecord');
+export const SearchPhraseRecord = classNamed<SearchPhraseRecordRow>(
+  searchEntities,
+  'SearchPhraseRecord',
+);
 export const Tax = classNamed<TaxRow>(taxesEntities, 'Tax');
 
 export type {
@@ -326,14 +394,74 @@ export const AssetFolder = classNamed<AssetFolderRow>(assetsLibraryEntities, 'As
 export const Cart = classNamed<CartRow>(cartsEntities, 'Cart');
 export const CartItem = classNamed<CartItemRow>(cartsEntities, 'CartItem');
 export const CartAuditEntry = classNamed<CartAuditEntryRow>(cartsEntities, 'CartAuditEntry');
-export const CustomFieldDefinition = classNamed<CustomFieldDefinitionRow>(customFieldsEntities, 'CustomFieldDefinition');
-export const CustomFieldOption = classNamed<CustomFieldOptionRow>(customFieldsEntities, 'CustomFieldOption');
+export const CustomFieldDefinition = classNamed<CustomFieldDefinitionRow>(
+  customFieldsEntities,
+  'CustomFieldDefinition',
+);
+export const CustomFieldOption = classNamed<CustomFieldOptionRow>(
+  customFieldsEntities,
+  'CustomFieldOption',
+);
 export const CustomerAddress = classNamed<CustomerAddressRow>(customersEntities, 'CustomerAddress');
 export const EmailDelivery = classNamed<EmailDeliveryRow>(emailEntities, 'EmailDelivery');
 export const Invoice = classNamed<InvoiceRow>(invoicesEntities, 'Invoice');
 export const InvoiceLine = classNamed<InvoiceLineRow>(invoicesEntities, 'InvoiceLine');
-export const InvoiceNumberCounter = classNamed<InvoiceNumberCounterRow>(invoicesEntities, 'InvoiceNumberCounter');
+export const InvoiceNumberCounter = classNamed<InvoiceNumberCounterRow>(
+  invoicesEntities,
+  'InvoiceNumberCounter',
+);
 export const InvoiceTemplate = classNamed<InvoiceTemplateRow>(invoicesEntities, 'InvoiceTemplate');
+
+/**
+ * `pim_ergonode`'s ten entity classes — the largest block in this file, and the
+ * one worth reading if you are wiring a second PIM integration.
+ *
+ * Every one of them is `@GlobalEntity()`: a connector's identity map, its run
+ * history and its field protections describe the *catalogue*, which is
+ * platform-global, so there is no organization dimension to scope by. An import
+ * runs on a schedule with no request and therefore no tenant, so a tenant-scoped
+ * connection row would be a row the importer could not read.
+ */
+export const ErgonodeAttributeMapping = classNamed<ErgonodeAttributeMappingRow>(
+  pimErgonodeEntities,
+  'ErgonodeAttributeMapping',
+);
+export const ErgonodeCategoryMapping = classNamed<ErgonodeCategoryMappingRow>(
+  pimErgonodeEntities,
+  'ErgonodeCategoryMapping',
+);
+export const ErgonodeConnection = classNamed<ErgonodeConnectionRow>(
+  pimErgonodeEntities,
+  'ErgonodeConnection',
+);
+export const ErgonodeFieldProtection = classNamed<ErgonodeFieldProtectionRow>(
+  pimErgonodeEntities,
+  'ErgonodeFieldProtection',
+);
+export const ErgonodeImportIssue = classNamed<ErgonodeImportIssueRow>(
+  pimErgonodeEntities,
+  'ErgonodeImportIssue',
+);
+export const ErgonodeImportRun = classNamed<ErgonodeImportRunRow>(
+  pimErgonodeEntities,
+  'ErgonodeImportRun',
+);
+export const ErgonodeMediaLink = classNamed<ErgonodeMediaLinkRow>(
+  pimErgonodeEntities,
+  'ErgonodeMediaLink',
+);
+export const ErgonodePriceBinding = classNamed<ErgonodePriceBindingRow>(
+  pimErgonodeEntities,
+  'ErgonodePriceBinding',
+);
+export const ErgonodeProductLink = classNamed<ErgonodeProductLinkRow>(
+  pimErgonodeEntities,
+  'ErgonodeProductLink',
+);
+export const ErgonodeStreamCursor = classNamed<ErgonodeStreamCursorRow>(
+  pimErgonodeEntities,
+  'ErgonodeStreamCursor',
+);
 
 /**
  * The **row shapes** batch four's tests annotate with, on the same terms as
@@ -344,3 +472,17 @@ export const InvoiceTemplate = classNamed<InvoiceTemplateRow>(invoicesEntities, 
  * `export type` erases, so nothing is constructed and no second copy exists.
  */
 export type { CartRow, CartItemRow, InvoiceRow, EmailDeliveryRow, AssetRow };
+
+/**
+ * `pim_ergonode`'s row shapes, on the same terms — five of its tests annotate a
+ * helper's return type (`Promise<ErgonodeImportRun>`), and `classNamed` returns
+ * a value, so the *type* has to arrive under its own name. `export type`
+ * erases, so nothing is constructed and no second class object exists.
+ */
+export type {
+  ErgonodeAttributeMappingRow,
+  ErgonodeConnectionRow,
+  ErgonodeImportIssueRow,
+  ErgonodeImportRunRow,
+  ErgonodeProductLinkRow,
+};

@@ -1183,7 +1183,7 @@ describe('check-diacritic-folds — the tree it guards', () => {
    */
   const slugGenerators = [
     'backend/src/modules/product_feeds/services/feed-template-io.service.ts',
-    'backend/src/modules/pim_ergonode/services/import/category-phase.ts',
+    'packages/modules/pim_ergonode/src/backend/services/import/category-phase.ts',
     'backend/src/modules/catalog/services/catalog-admin.service.ts',
     'admin/src/modules/newsletter/pages/TagsPage.tsx',
     'admin/src/modules/cms/components/cms-template-layout.ts',
