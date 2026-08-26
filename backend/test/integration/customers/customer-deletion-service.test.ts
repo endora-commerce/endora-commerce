@@ -7,7 +7,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { SessionService } from '../../../src/modules/auth/services/session-service.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 import { CustomerAuthorityService } from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
 import { CustomerDeletionService } from '../../../../packages/modules/customers/src/backend/services/customer-deletion-service.js';
@@ -18,7 +18,7 @@ import {
   customerAccountLifecycleWriteFor,
   customerAccountPortsFor,
 } from '../../helpers/customer-account-ports.js';
-import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
+import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
 
 /**
  * Feature 040, US7 — soft-delete, restore within window, and the permanent

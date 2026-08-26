@@ -19,7 +19,7 @@ import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 
 import { OrderComment } from '../../../src/modules/orders/entities/order-comment.entity.js';
 
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 

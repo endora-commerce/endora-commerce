@@ -13,7 +13,7 @@ import {
 
 
 
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 

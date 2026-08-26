@@ -5,10 +5,10 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import type { CatalogProductReadPort, CustomerAccountReadPort } from '@endora-commerce/contracts';
-import { AvailabilityWorker } from '../../../src/modules/inventory/services/availability-worker.js';
-import { AvailabilityNotification } from '../../../src/modules/inventory/entities/availability-notification.entity.js';
+import { AvailabilityWorker } from '../../../../packages/modules/inventory/src/backend/services/availability-worker.js';
+import { AvailabilityNotification } from '../../helpers/package-entities.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 
 /**

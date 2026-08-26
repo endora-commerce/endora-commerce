@@ -10,7 +10,7 @@ import { registerCountryCurrencyReference } from '../../../../packages/modules/d
 import { registerAddressCountryReferences } from '../../../../packages/modules/addresses/src/backend/services/address-country-reference.js';
 import { registerTaxCountryReferences } from '../../../../packages/modules/taxes/src/backend/services/tax-country-reference.js';
 import { registerOrganizationCountryReferences } from '../../../../packages/modules/organizations/src/backend/services/organization-country-reference.js';
-import { registerWarehouseCountryReferences } from '../../../src/modules/inventory/services/warehouse-country-reference.js';
+import { registerWarehouseCountryReferences } from '../../../../packages/modules/inventory/src/backend/services/warehouse-country-reference.js';
 import { registerBlogLanguageReferences } from '../../../../packages/modules/blog/src/backend/services/blog-language-reference.js';
 import { registerCmsLanguageReferences } from '../../../../packages/modules/cms/src/backend/services/cms-language-reference.js';
 import { registerMegamenuLanguageReferences } from '../../../../packages/modules/megamenu/src/backend/services/megamenu-language-reference.js';

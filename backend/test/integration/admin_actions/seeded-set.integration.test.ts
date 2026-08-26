@@ -12,7 +12,7 @@ import type { PermissionService } from '../../../../packages/modules/admin_roles
 import type { SupportedAdminLanguage } from '@endora-commerce/contracts';
 import { manifest as catalogManifest } from '../../../src/modules/catalog/manifest.js';
 import { manifest as importExportManifest } from '../../../../packages/modules/import_export/src/manifest.js';
-import { manifest as inventoryManifest } from '../../../src/modules/inventory/manifest.js';
+import { manifest as inventoryManifest } from '../../../../packages/modules/inventory/src/manifest.js';
 import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';
 import { manifest as cmsManifest } from '../../../../packages/modules/cms/src/manifest.js';
 import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';

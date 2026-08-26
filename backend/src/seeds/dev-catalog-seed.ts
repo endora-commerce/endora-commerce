@@ -58,7 +58,6 @@ import { Category } from '../modules/catalog/entities/category.entity.js';
 import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
 import { createAttributeFixture } from './attribute-fixtures.js';
 import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
-import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
@@ -67,6 +66,7 @@ import { entities as megamenuEntities } from '@endora-commerce/mod-megamenu/back
 import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
 import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
 import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
+import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
 import { entityNamed } from '../packages/package-entity-lookup.js';
 // The row shapes for the three classes above. A module package publishes its
 // entities as one array and no class by name (D-168), so the *value* comes off
@@ -85,13 +85,18 @@ import type { MegamenuBinding as MegamenuBindingRow } from '../../../packages/mo
 import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/dist/backend/entities/organization.entity.js';
 import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/dist/backend/entities/admin-user.entity.js';
 import type { AdminRole as AdminRoleRow } from '../../../packages/modules/admin_roles/dist/backend/entities/admin-role.entity.js';
+import type { CustomerAccount as CustomerAccountRow } from '../../../packages/modules/customer_accounts/dist/backend/entities/customer-account.entity.js';
+import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse.entity.js';
+import type { WarehouseChannelAssignment as WarehouseChannelAssignmentRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse-channel-assignment.entity.js';
+import type { StockLevel as StockLevelRow } from '../../../packages/modules/inventory/dist/backend/entities/stock-level.entity.js';
 import { DefaultPriceListMigrator } from '@endora-commerce/mod-price-lists/backend';
 import { CatalogProductReadService } from '../modules/catalog/services/catalog-product-read.service.js';
 import { hashPassword } from '../kernel/crypto/password-hasher.js';
-import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../modules/inventory/entities/warehouse.entity.js';
-import { WarehouseChannelAssignment } from '../modules/inventory/entities/warehouse-channel-assignment.entity.js';
-import { StockLevel } from '../modules/inventory/entities/stock-level.entity.js';
-import { WarehouseChannelReconciler } from '../modules/inventory/services/warehouse-channel-reconciler.js';
+import {
+  entities as inventoryEntities,
+  DEFAULT_WAREHOUSE_ID,
+  WarehouseChannelReconciler,
+} from '@endora-commerce/mod-inventory/backend';
 
 const DEMO_ADMIN_EMAIL = 'admin@demo.local';
 const DEMO_ADMIN_PASSWORD = 'ChangeMe!123';
@@ -342,7 +347,7 @@ async function main(): Promise<void> {
   }
   await em.persistAndFlush(leaves);
 
-  // Ten entity classes come from packages, and a module package publishes one
+  // Fourteen entity classes come from packages, and a module package publishes one
   // `entities` array and no class by name (D-168). `entityNamed` takes each off
   // the array the ORM itself registered — `entities-registry.generated.ts`
   // imports the same export — under the row type imported above, so the payloads
@@ -393,6 +398,26 @@ async function main(): Promise<void> {
     adminRolesEntities,
     'AdminRole',
     '@endora-commerce/mod-admin-roles/backend',
+  );
+  const CustomerAccount = entityNamed<CustomerAccountRow>(
+    customerAccountsEntities,
+    'CustomerAccount',
+    '@endora-commerce/mod-customer-accounts/backend',
+  );
+  const Warehouse = entityNamed<WarehouseRow>(
+    inventoryEntities,
+    'Warehouse',
+    '@endora-commerce/mod-inventory/backend',
+  );
+  const WarehouseChannelAssignment = entityNamed<WarehouseChannelAssignmentRow>(
+    inventoryEntities,
+    'WarehouseChannelAssignment',
+    '@endora-commerce/mod-inventory/backend',
+  );
+  const StockLevel = entityNamed<StockLevelRow>(
+    inventoryEntities,
+    'StockLevel',
+    '@endora-commerce/mod-inventory/backend',
   );
 
   // --- Megamenu (feature 015) -----------------------------------------

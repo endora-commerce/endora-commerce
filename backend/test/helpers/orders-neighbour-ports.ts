@@ -11,14 +11,14 @@ import type {
   PaymentMethodReadPort,
 } from '@endora-commerce/contracts';
 import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@endora-commerce/contracts';
-import { CustomerAccountReadService } from '../../src/modules/customer_accounts/services/customer-account-ports.js';
+import { CustomerAccountReadService } from '../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
 import { OrganizationDetailsService } from '../../../packages/modules/organizations/src/backend/services/organization-details-port.js';
 import { CatalogProductReadService } from '../../src/modules/catalog/services/catalog-product-read.service.js';
 import { AddressReadService } from '../../../packages/modules/addresses/src/backend/services/address-ports.js';
 import { DeliveryMethodReadService } from '../../../packages/modules/delivery_methods/src/backend/services/delivery-method-read-port.js';
 import { PaymentMethodReadService } from '../../../packages/modules/payment_methods/src/backend/services/payment-method-read-port.js';
-import { InventoryStockReadService } from '../../src/modules/inventory/services/inventory-read-port.js';
-import { InventoryReservationApplyService } from '../../src/modules/inventory/services/inventory-reservation-apply-port.js';
+import { InventoryStockReadService } from '../../../packages/modules/inventory/src/backend/services/inventory-read-port.js';
+import { InventoryReservationApplyService } from '../../../packages/modules/inventory/src/backend/services/inventory-reservation-apply-port.js';
 import { CartPlacementApplyService } from '../../../packages/modules/carts/src/backend/services/cart-placement-apply-port.js';
 import { CartReadService } from '../../../packages/modules/carts/src/backend/services/cart-read-port.js';
 // **`dist`, not `src`** (feature 080, T040b, batch four; D-160.6.1). This

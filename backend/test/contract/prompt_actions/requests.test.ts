@@ -10,9 +10,9 @@ import {
 import { ScriptedLlm, seedPromptActionsSettings } from '../../helpers/prompt-actions.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
+import { StockLevel } from '../../helpers/package-entities.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { DEFAULT_WAREHOUSE_ID } from '../../../src/modules/inventory/entities/warehouse.entity.js';
+import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';
 import { PromptActionRequest } from '../../helpers/package-entities.js';
 
 /**

@@ -34,9 +34,9 @@ import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/b
 
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
 
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
 
 
 /**

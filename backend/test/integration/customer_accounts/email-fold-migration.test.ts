@@ -4,9 +4,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { Migration20260819T142837CustomerAccountsFoldEmailCase } from '../../../src/modules/customer_accounts/migrations/20260819T142837_customer_accounts_fold_email_case.js';
+import { Migration20260819T142837CustomerAccountsFoldEmailCase } from '@endora-commerce/mod-customer-accounts/migrations';
 
 /**
  * The backfill's collision policy, executed rather than described.

@@ -6,7 +6,7 @@ import type {
   CatalogProductReadPort,
   CatalogProductRecord,
 } from '@endora-commerce/contracts';
-import { StockLevelService } from '../../../src/modules/inventory/services/stock-level-service.js';
+import { StockLevelService } from '../../../../packages/modules/inventory/src/backend/services/stock-level-service.js';
 
 /**
  * Feature 075, the `inventory` shard — the threshold chain asks `catalog` which

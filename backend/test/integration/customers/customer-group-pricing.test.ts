@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
 import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
 import { DefaultPriceListMigrator } from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';

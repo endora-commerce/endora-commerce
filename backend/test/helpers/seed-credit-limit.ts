@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Cart, CartItem, CreditLimit, CreditLimitReservation, Invoice, PaymentMethod } from './package-entities.js';
-import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from './package-entities.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import { Payment } from '../../src/modules/payments/entities/payment.entity.js';
 import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   resolveThresholds,
   type ThresholdLevel,
-} from '../../../src/modules/inventory/services/threshold-resolver.js';
+} from '../../../../packages/modules/inventory/src/backend/services/threshold-resolver.js';
 
 const G: ThresholdLevel = { high: 100, medium: 20, low: 1 };
 

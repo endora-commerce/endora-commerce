@@ -7,15 +7,15 @@ import { SessionService } from '../../../src/modules/auth/services/session-servi
 import { createAuthSessionPort } from '../../../src/modules/auth/services/session-port.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { CustomerAuthService } from '../../../src/modules/customer_accounts/services/customer-auth-service.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAuthService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-auth-service.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import {
   CustomerAuthorityService,
   type SalesRepVisibility,
 } from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
 import { CustomerModerationService } from '../../../../packages/modules/customers/src/backend/services/customer-moderation-service.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
-import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
+import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
 import { customerAccountLifecycleWriteFor } from '../../helpers/customer-account-ports.js';
 
 /**

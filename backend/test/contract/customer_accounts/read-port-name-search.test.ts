@@ -4,8 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 
 /**
  * Feature 075, Phase P addendum — `CustomerAccountReadPort.searchIdsByName`.

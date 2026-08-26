@@ -6,7 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from '../../../src/modules/inventory/migrations/20260818T081243_inventory_stock_allocation_order_item_fk.js';
+import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from '@endora-commerce/mod-inventory/migrations';
 
 /**
  * `stock_allocations_order_item_fk` (D-94.1, site 1 of the co-transactional

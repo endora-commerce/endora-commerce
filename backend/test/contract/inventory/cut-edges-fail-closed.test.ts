@@ -6,9 +6,9 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
-import { AvailabilityNotification } from '../../../src/modules/inventory/entities/availability-notification.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { StockLevel } from '../../helpers/package-entities.js';
+import { AvailabilityNotification } from '../../helpers/package-entities.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 
 /**
  * Feature 075, Phase C — the `inventory` cut fails closed.

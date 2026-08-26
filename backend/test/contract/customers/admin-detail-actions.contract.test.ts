@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { manifest as customersManifest } from '../../../../packages/modules/customers/src/manifest.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**

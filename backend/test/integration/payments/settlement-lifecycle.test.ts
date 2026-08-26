@@ -15,7 +15,7 @@ import { PaymentMethod, type PaymentMethodRow } from '../../helpers/package-enti
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
-import { StockAllocation } from '../../../src/modules/inventory/entities/stock-allocation.entity.js';
+import { StockAllocation } from '../../helpers/package-entities.js';
 
 /**
  * Feature 085 Phase D — what the settlement ingress does to an order's

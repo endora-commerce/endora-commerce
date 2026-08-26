@@ -1,8 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { describe, expect, it } from 'vitest';
 import { hashPassword } from '../../../src/kernel/crypto/password-hasher.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { CustomerPasswordVerificationService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
+// This test constructs the service itself, over a stubbed `EntityManager`, and
+// its stub compares the class it is handed by **identity**. So the entity has
+// to be the copy the service under test holds — the package's own source, the
+// same specifier the service is imported from below — and not the one off the
+// published `entities` array, which is a second class with the same name
+// (D-160.6.1). Nothing here composes the platform, so there is only one copy in
+// this process and `check:singleton-identity`'s conjunct 1 is false.
+import { CustomerAccount } from '../../../../packages/modules/customer_accounts/src/backend/entities/customer-account.entity.js';
+import { CustomerPasswordVerificationService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
 
 /**
  * Feature 080, T052 — `customerPasswordVerificationPort`, the customer-side

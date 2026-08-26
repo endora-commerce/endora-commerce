@@ -12,11 +12,11 @@ import { PersonalOrganizationService } from '../../../packages/modules/organizat
 import {
   CustomerAccountMemberWriteService,
   CustomerAccountReadService,
-} from '../../src/modules/customer_accounts/services/customer-account-ports.js';
+} from '../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
 import {
   CustomerAccountAdminSearchService,
   CustomerAccountLifecycleWriteService,
-} from '../../src/modules/customer_accounts/services/customer-account-lifecycle-ports.js';
+} from '../../../packages/modules/customer_accounts/src/backend/services/customer-account-lifecycle-ports.js';
 
 /**
  * The two `customer_accounts` ports a hand-built `organizations` service needs

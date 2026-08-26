@@ -12,7 +12,7 @@ import { OrderCommentService } from '../../../src/modules/orders/services/order-
 import { ordersNeighbourPorts } from '../../helpers/orders-neighbour-ports.js';
 import { OrderStatusGraphService } from '../../../src/modules/orders/services/order-status-graph-service.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 
 /**
  * Feature 038 (US5) — order comments: visibility + notify rules, terminal

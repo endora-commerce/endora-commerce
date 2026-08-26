@@ -126,15 +126,15 @@ import { Migration20260821T140323CreditLimitsReservationReservingOrganization } 
 import { Migration20260718T200338CustomFieldsInit } from '@endora-commerce/mod-custom-fields/migrations';
 
 // ── customer_accounts ───────────────────────────────────────────────────────
-import { Migration20260425T055041CustomerAccountsPasswordResetTokens } from '../modules/customer_accounts/migrations/20260425T055041_customer_accounts_password_reset_tokens.js';
-import { Migration20260611T140351CustomerAccountsOrganizationOptional } from '../modules/customer_accounts/migrations/20260611T140351_customer_accounts_organization_optional.js';
-import { Migration20260611T140403CustomerAccountsLifecycle } from '../modules/customer_accounts/migrations/20260611T140403_customer_accounts_lifecycle.js';
-import { Migration20260718T200341CustomerAccountsCustomerAccountCustomFieldValues } from '../modules/customer_accounts/migrations/20260718T200341_customer_accounts_customer_account_custom_field_values.js';
-import { Migration20260720T044255CustomerAccountsCustomerSubtreeRollup } from '../modules/customer_accounts/migrations/20260720T044255_customer_accounts_customer_subtree_rollup.js';
-import { Migration20260819T074816CustomerAccountsPasswordSetAt } from '../modules/customer_accounts/migrations/20260819T074816_customer_accounts_password_set_at.js';
-import { Migration20260819T142837CustomerAccountsFoldEmailCase } from '../modules/customer_accounts/migrations/20260819T142837_customer_accounts_fold_email_case.js';
-import { Migration20260825T124759CustomerAccountsDropLegacyTwoFactorSecret } from '../modules/customer_accounts/migrations/20260825T124759_customer_accounts_drop_legacy_two_factor_secret.js';
-import { Migration20260825T141659CustomerAccountsOrganizationRequired } from '../modules/customer_accounts/migrations/20260825T141659_customer_accounts_organization_required.js';
+import { Migration20260425T055041CustomerAccountsPasswordResetTokens } from '@endora-commerce/mod-customer-accounts/migrations';
+import { Migration20260611T140351CustomerAccountsOrganizationOptional } from '@endora-commerce/mod-customer-accounts/migrations';
+import { Migration20260611T140403CustomerAccountsLifecycle } from '@endora-commerce/mod-customer-accounts/migrations';
+import { Migration20260718T200341CustomerAccountsCustomerAccountCustomFieldValues } from '@endora-commerce/mod-customer-accounts/migrations';
+import { Migration20260720T044255CustomerAccountsCustomerSubtreeRollup } from '@endora-commerce/mod-customer-accounts/migrations';
+import { Migration20260819T074816CustomerAccountsPasswordSetAt } from '@endora-commerce/mod-customer-accounts/migrations';
+import { Migration20260819T142837CustomerAccountsFoldEmailCase } from '@endora-commerce/mod-customer-accounts/migrations';
+import { Migration20260825T124759CustomerAccountsDropLegacyTwoFactorSecret } from '@endora-commerce/mod-customer-accounts/migrations';
+import { Migration20260825T141659CustomerAccountsOrganizationRequired } from '@endora-commerce/mod-customer-accounts/migrations';
 
 // ── customers ───────────────────────────────────────────────────────────────
 import { Migration20260611T140404CustomersCustomerAddressesInit } from '@endora-commerce/mod-customers/migrations';
@@ -157,10 +157,10 @@ import { Migration20260817T070014EmailDeliveryRecord } from '@endora-commerce/mo
 import { Migration20260715T171116GoogleAnalyticsInit } from '@endora-commerce/mod-google-analytics/migrations';
 
 // ── inventory ───────────────────────────────────────────────────────────────
-import { Migration20260503T182812InventoryWorkflow } from '../modules/inventory/migrations/20260503T182812_inventory_workflow.js';
-import { Migration20260611T140347InventoryWarehouseDefaultLowStockThreshold } from '../modules/inventory/migrations/20260611T140347_inventory_warehouse_default_low_stock_threshold.js';
-import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from '../modules/inventory/migrations/20260611T140348_inventory_per_warehouse_low_stock_thresholds.js';
-import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from '../modules/inventory/migrations/20260818T081243_inventory_stock_allocation_order_item_fk.js';
+import { Migration20260503T182812InventoryWorkflow } from '@endora-commerce/mod-inventory/migrations';
+import { Migration20260611T140347InventoryWarehouseDefaultLowStockThreshold } from '@endora-commerce/mod-inventory/migrations';
+import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from '@endora-commerce/mod-inventory/migrations';
+import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from '@endora-commerce/mod-inventory/migrations';
 
 // ── invoices ────────────────────────────────────────────────────────────────
 import { Migration20260629T125121InvoicesModule } from '@endora-commerce/mod-invoices/migrations';

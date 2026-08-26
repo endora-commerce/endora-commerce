@@ -15,7 +15,7 @@ import { PaymentMethod, type PaymentMethodRow } from '../../helpers/package-enti
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
-import { StockAllocation } from '../../../src/modules/inventory/entities/stock-allocation.entity.js';
+import { StockAllocation } from '../../helpers/package-entities.js';
 
 /**
  * Issue #284 — two orders sitting at the same status, told apart by who put

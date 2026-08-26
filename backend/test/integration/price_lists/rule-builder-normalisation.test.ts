@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Organization } from '../../helpers/package-entities.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import type { ApplicationRule } from '@endora-commerce/contracts';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
