@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { DeliveryMethodSummary } from '../../lib/api/methods';
-import { resolveShippingMethodRenderer } from '../../lib/shipping-renderers/registry';
 import { tForLocale } from '../../lib/i18n/messages';
+import { resolveShippingMethodRenderer } from '../../lib/shipping-renderers/registry';
 
 /**
  * Checkout "Shipping methods" section (feature 035, US2). Renders each eligible
@@ -30,13 +30,20 @@ export function ShippingMethods({
   const t = tForLocale(locale ?? 'en-US');
   return (
     <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
-      <legend style={{ fontWeight: 600 }}>Delivery method</legend>
+      <legend style={{ fontWeight: 600 }}>{t('checkout.shipping.title')}</legend>
       {methods.length === 0 ? (
         <p className="muted">{t('checkout.delivery.none')}</p>
       ) : (
         methods.map((m, i) => {
           const Renderer = resolveShippingMethodRenderer(m.rendererKey);
-          return <Renderer key={m.id} method={m} defaultChecked={i === selectedIdx} />;
+          return (
+            <Renderer
+              key={m.id}
+              method={m}
+              defaultChecked={i === selectedIdx}
+              locale={locale ?? 'en-US'}
+            />
+          );
         })
       )}
     </fieldset>

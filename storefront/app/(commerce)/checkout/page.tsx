@@ -497,15 +497,34 @@ async function buildPlaceOrderPayload(
       : await resolveAddress('billing', 'billing');
   const billingCompanyName = field('billingCompanyName');
   const billingTaxId = field('billingTaxId');
+  const deliveryPointProvider = field('deliveryPointProvider');
+  const deliveryPointId = field('deliveryPointId');
+  const deliveryPointMethodId = field('deliveryPointMethodId');
+  const deliveryPointLabel = field('deliveryPointLabel');
+  const deliveryPointAddress = field('deliveryPointAddress');
+  const selectedDeliveryMethodId = (formData.get('deliveryMethodId') as string) ?? '';
   return {
     deliveryAddressId,
     billingAddressId,
-    deliveryMethodId: (formData.get('deliveryMethodId') as string) ?? '',
+    deliveryMethodId: selectedDeliveryMethodId,
     paymentMethodId: (formData.get('paymentMethodId') as string) ?? '',
     ...(promo ? { promotionCode: promo } : {}),
     ...(note ? { customerNote: note } : {}),
     ...(billingCompanyName ? { billingCompanyName } : {}),
     ...(billingTaxId ? { billingTaxId } : {}),
+    ...(deliveryPointProvider &&
+    deliveryPointId &&
+    deliveryPointMethodId &&
+    deliveryPointMethodId === selectedDeliveryMethodId
+      ? {
+          deliveryPoint: {
+            provider: deliveryPointProvider,
+            pointId: deliveryPointId,
+            ...(deliveryPointLabel ? { label: deliveryPointLabel } : {}),
+            ...(deliveryPointAddress ? { address: deliveryPointAddress } : {}),
+          },
+        }
+      : {}),
   };
 }
 

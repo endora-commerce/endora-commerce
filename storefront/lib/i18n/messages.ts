@@ -166,6 +166,18 @@ export type MessageKey =
   | 'checkout.address.billingCompanyHint'
   | 'checkout.address.companyName'
   | 'checkout.address.taxId'
+  | 'checkout.shipping.title'
+  | 'checkout.shipping.empty'
+  | 'checkout.shipping.free'
+  | 'checkout.dhlParcel.postalCode'
+  | 'checkout.dhlParcel.postalPlaceholder'
+  | 'checkout.dhlParcel.findNearby'
+  | 'checkout.dhlParcel.searching'
+  | 'checkout.dhlParcel.postalRequired'
+  | 'checkout.dhlParcel.noneFound'
+  | 'checkout.dhlParcel.loadFailed'
+  | 'checkout.dhlParcel.pointsLegend'
+  | 'checkout.dhlParcel.pointFallback'
   // Feature 063 — TPay checkout / pay step.
   | 'tpay.redirect.notice'
   | 'tpay.pay.title'
@@ -448,6 +460,19 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Defaults to your organization. Override for this order if needed.',
     'checkout.address.companyName': 'Company name',
     'checkout.address.taxId': 'Tax ID (NIP)',
+    'checkout.shipping.title': 'Delivery method',
+    'checkout.shipping.empty':
+      'No delivery method is available for your account on this sales channel.',
+    'checkout.shipping.free': 'free',
+    'checkout.dhlParcel.postalCode': 'Postal code',
+    'checkout.dhlParcel.postalPlaceholder': '00-000',
+    'checkout.dhlParcel.findNearby': 'Find nearby points',
+    'checkout.dhlParcel.searching': 'Searching…',
+    'checkout.dhlParcel.postalRequired': 'Enter a postal code to search DHL pickup points.',
+    'checkout.dhlParcel.noneFound': 'No pickup points found for this postal code.',
+    'checkout.dhlParcel.loadFailed': 'Could not load pickup points right now.',
+    'checkout.dhlParcel.pointsLegend': 'Pickup points',
+    'checkout.dhlParcel.pointFallback': 'DHL pickup point',
     // Feature 063 — TPay.
     'tpay.redirect.notice':
       'After you click “Place order”, you’ll be redirected to TPay to complete your payment securely.',
@@ -745,6 +770,19 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Domyslnie dane Twojej organizacji. Mozesz je nadpisac dla tego zamowienia.',
     'checkout.address.companyName': 'Nazwa firmy',
     'checkout.address.taxId': 'NIP',
+    'checkout.shipping.title': 'Metoda dostawy',
+    'checkout.shipping.empty':
+      'Brak metody dostawy dostępnej dla Twojego konta w tym kanale sprzedaży.',
+    'checkout.shipping.free': 'bezpłatnie',
+    'checkout.dhlParcel.postalCode': 'Kod pocztowy',
+    'checkout.dhlParcel.postalPlaceholder': '00-000',
+    'checkout.dhlParcel.findNearby': 'Znajdź punkty w okolicy',
+    'checkout.dhlParcel.searching': 'Szukam…',
+    'checkout.dhlParcel.postalRequired': 'Podaj kod pocztowy, aby wyszukać punkty DHL.',
+    'checkout.dhlParcel.noneFound': 'Brak punktów odbioru dla tego kodu pocztowego.',
+    'checkout.dhlParcel.loadFailed': 'Nie udało się wczytać punktów odbioru.',
+    'checkout.dhlParcel.pointsLegend': 'Punkty odbioru',
+    'checkout.dhlParcel.pointFallback': 'Punkt DHL',
     // Feature 063 — TPay.
     'tpay.redirect.notice':
       'Po kliknięciu „Złóż zamówienie” zostaniesz przekierowany do TPay, aby bezpiecznie dokończyć płatność.',

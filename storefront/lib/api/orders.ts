@@ -61,6 +61,12 @@ export interface OrderSummary {
   paymentStatus: string;
   deliveryAddress: Record<string, string>;
   billingAddress: Record<string, string>;
+  deliveryPoint?: {
+    provider: string;
+    pointId: string;
+    label?: string | null;
+    address?: string | null;
+  } | null;
   deliveryMethod: { id: string; code: string; name: Record<string, string>; cost: number };
   paymentMethod: { id: string; code: string; name: Record<string, string>; kind: string };
   items: OrderItem[];
@@ -93,6 +99,12 @@ export interface PlaceOrderPayload {
   billingCompanyName?: string;
   /** Optional billing tax-id (NIP) override; defaults from the Organization. */
   billingTaxId?: string;
+  deliveryPoint?: {
+    provider: string;
+    pointId: string;
+    label?: string;
+    address?: string;
+  };
 }
 
 /** Server-computed order-total preview (feature 049) — pricing stays server-side. */

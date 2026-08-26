@@ -120,9 +120,9 @@ describe('the classification partitions the discovered manifest set (FR-007, SC-
     expect(classified).toEqual(allIds);
   });
 
-  it('is 23 core + 42 operator-controlled + 1 structurally unswitchable', () => {
+  it('is 23 core + 43 operator-controlled + 1 structurally unswitchable', () => {
     expect(CORE_MODULES).toHaveLength(23);
-    expect(controlIds).toHaveLength(42);
+    expect(controlIds).toHaveLength(43);
     expect(STRUCTURALLY_UNSWITCHABLE).toHaveLength(1);
     expect(CORE_MODULES.length + controlIds.length + STRUCTURALLY_UNSWITCHABLE.length).toBe(
       manifests.length,

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Pencil, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth';
+import { useModulePresence } from '@/lib/module-presence';
 import {
   deliveryMethodsClient,
   type AdminDeliveryMethod,
@@ -29,6 +32,9 @@ import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
 
 export function DeliveryMethodsPage(): ReactNode {
   const t = useTranslation('core');
+  const { hasPermission } = useAuth();
+  const { isPresent } = useModulePresence();
+  const showDhlParcel = isPresent('dhl_parcel') && hasPermission('dhl_parcel:read');
   const [rows, setRows] = useState<AdminDeliveryMethod[]>([]);
   const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,6 +134,33 @@ export function DeliveryMethodsPage(): ReactNode {
         <Alert variant="success" className="mb-4">
           <AlertDescription>{info}</AlertDescription>
         </Alert>
+      ) : null}
+
+      {showDhlParcel ? (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>{t('legacyMethods.integrations.title')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="mb-4 text-sm text-muted-foreground">
+              {t('legacyMethods.integrations.shippingDescription')}
+            </p>
+            <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+              <div>
+                <div className="font-medium">{t('legacyMethods.integrations.dhlParcel.name')}</div>
+                <div className="text-sm text-muted-foreground">
+                  {t('legacyMethods.integrations.dhlParcel.description')}
+                </div>
+              </div>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/delivery-methods/dhl-parcel">
+                  {t('legacyMethods.integrations.configure')}
+                  <ArrowRight />
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       ) : null}
 
       <Card className="mb-4">

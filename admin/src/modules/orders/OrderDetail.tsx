@@ -717,7 +717,9 @@ export function OrderDetail(): ReactNode {
           ) : null}
 
           {tab === 'payment' ? <OrderPaymentsTab orderId={id} /> : null}
-          {tab === 'delivery' ? <OrderShipmentsTab orderId={id} /> : null}
+          {tab === 'delivery' ? (
+            <OrderShipmentsTab orderId={id} deliveryMethodCode={order.deliveryMethod.code} />
+          ) : null}
 
           {tab === 'comments' ? (
             <Section title={t('orderDetail.sections.comments')}>
