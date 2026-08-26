@@ -29,7 +29,11 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'Issue #187 seed — the admin stock roster paginates with ' +
     '`knex({ p: \'products\' }).innerJoin({ sl: \'stock_levels\' }, …)`, joining `catalog`\'s ' +
     '`products` to this module\'s `stock_levels`. It is the one reach in this shard that is ' +
-    'not a lookup, and the aliasing object form is why the D-94 grep missed it.\n\n' +
+    'not a lookup, and the aliasing object form is why the D-94 grep missed it. **What it ' +
+    'couples is five columns** — `products.id`, `.sku`, `.name`, `.manage_stock` and ' +
+    '`.low_stock_threshold` — which is the largest column coupling left in the whole ' +
+    'ledger and the honest measure of the debt: a rename of any one of them in `catalog` ' +
+    'breaks this file with nothing at build time to warn either side.\n\n' +
     '**Read again for the T077 SQL sweep, and the seed\'s retiring condition does not hold.** ' +
     'It proposed "`catalog` publishing the paged product-id read this list needs". There is ' +
     'no such read, because the thing being pushed into SQL is not a *read* — it is a ' +
@@ -43,6 +47,26 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'so the owner could do it is this module shipping its rows into someone else\'s query. ' +
     'That is the design finding, and it is why forcing a port here would be worse than the ' +
     'reach.\n\n' +
+    '**Read a third time for feature 080\'s SQL-reach sweep, which retired the ' +
+    '`admin_actions` member of this family, and the comparison is what the earlier readings ' +
+    'were missing.** That one joined the kernel\'s `module_registrations` to ask "is this ' +
+    'module installed here", and it retired with nothing published, because **the owner ' +
+    'already held the answer** — one field on a projection the consumer was already reading ' +
+    'the neighbouring axis from. Here the owner holds the *operands* and nobody holds the ' +
+    'answer: the predicate is this module\'s, over a value only this module can compute. ' +
+    'That is the difference between a reach that is an oversight and a reach that is a ' +
+    'design, and it is the test to apply to the next one rather than the perf argument ' +
+    'below.\n\n' +
+    '**The second half of the usual case for a port is unreachable here, which the earlier ' +
+    'readings did not say and which changes the balance.** A published port buys two ' +
+    'things: the columns stop crossing, and the consumer gets a 503 `MODULE_DISABLED` seam ' +
+    'when the owner is switched off. The second is worth nothing at this site by ' +
+    'construction — `catalog` declares `activation.nonDeactivatable`, so there is no ' +
+    'absent state for the gate to answer for and `check:port-catches` would classify any ' +
+    'gate built here `OWNER LOCKED` on that derivation. (`inventory` itself is switchable, ' +
+    '`inventory.enabled`; the lock is the owner\'s.) So the conversion would buy the column ' +
+    'decoupling alone, against the cost priced below — which is what makes that cost ' +
+    'decisive rather than merely arguable.\n\n' +
     '**The search term is a second, independent obstacle, and it was not noticed before.** ' +
     'The `q` filter is `LOWER("p"."name"::text) LIKE ?` — and `Product.name` is JSONB ' +
     '(`Record<string, string>`, one entry per language). Cast to text it matches every ' +
@@ -50,7 +74,10 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'implementation accident, not a contract, so `catalog` publishing "search products by ' +
     'sku, name or id" either publishes the accident or quietly changes what the operator\'s ' +
     'search box matches. Whichever it is, it is a product decision about the search, not a ' +
-    'boundary repair.\n\n' +
+    'boundary repair. It is filed as its own entry in `specs/deferred-defects.md` ' +
+    '("The admin product search matches language codes and JSON punctuation"), which names ' +
+    'this conversion as the thing it blocks — so the two artefacts point at each other and ' +
+    'neither can be drained without the other being read.\n\n' +
     '**One exit does exist and is priced here rather than left to be rediscovered.** Group ' +
     '`stock_levels` alone (`product_id`, `SUM(on_hand)`, `MAX(updated_at)` — all this ' +
     'module\'s), ask `catalog` for the governance facts of the candidates, then filter, order ' +
@@ -61,9 +88,9 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'stopping at `LIMIT` and load one row per tracked product. Worth knowing before pricing ' +
     'that as prohibitive: `listLandingKpis`, forty lines up in this same file, already does ' +
     'exactly that unconditionally — every `stock_levels` group plus `findByIds` over all of ' +
-    'them — on the screen this roster is reached from. So it is a cost this surface already ' +
-    'carries, which is as much an argument for repairing that method as for taking this ' +
-    'exit.\n\n' +
+    'them — on the screen this roster is reached from. Re-measured for feature 080 and still ' +
+    'true, line for line. So it is a cost this surface already carries, which is as much an ' +
+    'argument for repairing that method as for taking this exit.\n\n' +
     'Retired by: `catalog`\'s owner choosing between that exit and a published product search ' +
     'with a stated matching rule. The seed said "feature 086 holds that module while this ' +
     'shard is drained"; that hold has lifted — the viewer-price listing work merged — so what ' +

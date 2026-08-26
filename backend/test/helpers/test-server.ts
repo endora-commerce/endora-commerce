@@ -1615,6 +1615,20 @@ export async function setupBackendServer(
     // still in flight, and the snapshot rebuilt on it is built from the
     // presence before the flip.
     modulePresenceProbe: {
+      // Issue #187 — the platform axis, which the palette used to read by
+      // joining `module_registrations` itself. `?? false` where the operator
+      // axis defaults `true`, and the asymmetry is the tri-state rather than an
+      // oversight: `presence()` answers `undefined` only for an id neither the
+      // registry nor the manifests know, and an action row naming one is an
+      // orphan the join had no row to match either.
+      //
+      // Read this one twice if a palette test surprises you: this harness never
+      // populates `module_registrations` (see `__setEnabledForTesting`'s note in
+      // the registry cache), so the platform axis here is the **seeded** enabled
+      // set and not the table. A test that inserts a registration row for a
+      // fixture module has to seed the set too.
+      isPlatformAvailable: (moduleId: string): boolean =>
+        effectiveState.presence(moduleId)?.platformAvailable ?? false,
       isActivated: (moduleId: string): boolean =>
         effectiveState.presence(moduleId)?.operatorActivated ?? true,
       version: (): number => effectiveState.presenceVersion(),

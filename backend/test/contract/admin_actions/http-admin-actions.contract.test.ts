@@ -7,6 +7,7 @@ import {
 import { GetAdminActionsResponseSchema } from '@endora-commerce/contracts';
 import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**
  * HTTP contract test for GET /api/v1/admin/admin-actions
@@ -19,6 +20,21 @@ import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registr
 
 const TEST_MODULE_ID = 'fixture_http_actions';
 const adminCookie = { b2b_session: 'stub-admin-session' };
+
+/**
+ * The enabled set this harness seeded, kept so {@link cleanup} can put it back.
+ *
+ * The fixture module has to join it, and the reason is a property of the
+ * harness rather than of the palette: `setupBackendServer` never populates
+ * `module_registrations` — it seeds the registry cache directly through
+ * `__setEnabledForTesting`, because a real `refreshFromDb` over an empty table
+ * would take every gated route down mid-run. Since issue #187 the palette
+ * resolves platform availability from that cache instead of joining the table
+ * itself, so a fixture registration row alone no longer makes a module present
+ * here. Inserting the row as well is deliberate: it is what production holds,
+ * and the reconciler's own tests read it.
+ */
+let seededEnabledIds: string[] | null = null;
 
 describe('GET /api/v1/admin/admin-actions (contract)', () => {
   let h: BackendServerHandle;
@@ -108,6 +124,8 @@ describe('GET /api/v1/admin/admin-actions (contract)', () => {
 });
 
 async function seed(h: BackendServerHandle): Promise<void> {
+  seededEnabledIds = registryCache.enabledIds();
+  registryCache.__setEnabledForTesting([...seededEnabledIds, TEST_MODULE_ID]);
   const knex = h.em().getKnex();
   const now = new Date();
   await knex('module_registrations').insert({
@@ -142,6 +160,10 @@ async function seed(h: BackendServerHandle): Promise<void> {
 }
 
 async function cleanup(h: BackendServerHandle): Promise<void> {
+  if (seededEnabledIds) {
+    registryCache.__setEnabledForTesting(seededEnabledIds);
+    seededEnabledIds = null;
+  }
   await h.em().nativeDelete(ModuleAction, { moduleId: TEST_MODULE_ID });
   await h.em().nativeDelete(ModuleRegistration, { moduleId: TEST_MODULE_ID });
 }

@@ -75,10 +75,18 @@
  *     `PLATFORM_OWNED_NAMES` is where a platform-owned name is declared.
  *   * **A platform-owned table.** `settings`, `audit_logs`,
  *     `module_registrations` and `sales_channels` are the host's, and SQL naming
- *     one names no specifier. `check:module-boundary`'s SQL predicate reads
- *     module-owned tables only, so a module→**platform** table reach is
- *     currently nobody's — the honest statement of the hole, and the natural
- *     second signal here once the host package exists to make it mean something.
+ *     one names no specifier. That door is `check:module-boundary`'s and it is
+ *     **open**: its owner map attributes those four to `kernel` off the
+ *     platform-relative path of the file declaring them, so a module's SQL
+ *     naming one is reported like any other cross-owner reach. `catalog`'s
+ *     `sales_channel_products` join is ledgered under that attribution today,
+ *     and `admin_actions`' `module_registrations` join was until feature 080
+ *     retired it. This paragraph read *"a module→platform table reach is
+ *     currently nobody's"* and was measured false while that second entry was
+ *     being drained — it was written before the platform relocation taught the
+ *     other check to attribute a `packages/platform/…` path to the kernel.
+ *     What is still not this check's is the **verdict**: a table has no barrel,
+ *     so there is no published-symbol question to ask about one.
  *   * **A module package's own layout.** Where inside a package a subpath
  *     leads is that package's `exports` map, and this check reads only the
  *     *host's*. A module that reached another module by bare specifier is
