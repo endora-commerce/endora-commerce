@@ -188,9 +188,14 @@ import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/c
 import type { PimErgonodeCradle } from '@endora-commerce/mod-pim-ergonode/backend';
 import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-client.port.js';
 import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
+import type { AkeneoMediaFetcherPort } from '../../src/modules/pim_akeneo/services/akeneo-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
+<<<<<<< HEAD
 import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
+=======
+import { ScriptedAkeneoMediaFetcher } from './scripted-akeneo-media-fetcher.js';
+>>>>>>> b2d6677a3 (Prove Akeneo media ingest reuses unchanged files and skips empty or forbidden origins.)
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
@@ -281,6 +286,13 @@ export interface BackendServerOptions {
    * `ScriptedErgonodeMediaFetcher` holding their files.
    */
   ergonodeMediaFetcher?: ErgonodeMediaFetcherPort;
+  /**
+   * Feature 087 / US5 — the byte source for imported Akeneo media. Defaults to
+   * a fetcher that has nothing scripted and therefore answers `not_found`, so a
+   * test never opens a socket; the media tests pass a
+   * `ScriptedAkeneoMediaFetcher` holding their files.
+   */
+  akeneoMediaFetcher?: AkeneoMediaFetcherPort;
   /**
    * Feature 072 (T073) — arm the cross-process pub/sub path: subscribe the
    * second Redis client to the custom-field and module-state channels.
@@ -2013,6 +2025,9 @@ export async function setupBackendServer(
     pimErgonodeSourceOverrides: {
       ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
       mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
+    },
+    pimAkeneoSourceOverrides: {
+      mediaFetcher: options.akeneoMediaFetcher ?? new ScriptedAkeneoMediaFetcher(),
     },
     productFeedsTestOverrides: {
       taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',
