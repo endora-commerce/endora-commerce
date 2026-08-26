@@ -311,7 +311,7 @@ describe('check-nul-bytes — the tree it guards', () => {
     // Moved with the platform relocation; `backend/src/http/interceptors/registry.ts`
     // is now a re-export shim and carries no separator of its own.
     'packages/platform/src/http/interceptors/registry.ts',
-    'backend/src/modules/admin_actions/services/admin-actions-service.ts',
+    'packages/modules/admin_actions/src/backend/services/admin-actions-service.ts',
     'backend/src/modules/orders/domain/order-status-graph.ts',
     'packages/modules/product_feeds/src/backend/services/taxonomy-revision-identity.ts',
     'backend/test/unit/product_feeds/xml-feed-serializer.test.ts',

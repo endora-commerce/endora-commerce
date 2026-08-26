@@ -72,7 +72,7 @@ export const manifest = defineModuleManifest({
 export const lifecycleParticipant: ModuleLifecycleParticipant<EntityManager> = {
   async onModuleInstalled({ moduleId, manifest: installed, em }) {
     const { AdminActionsReconciler } = await import(
-      './services/admin-actions-reconciler.js'
+      './backend/services/admin-actions-reconciler.js'
     );
     await new AdminActionsReconciler({ em: () => em }).installForModule({
       moduleId,
@@ -85,7 +85,7 @@ export const lifecycleParticipant: ModuleLifecycleParticipant<EntityManager> = {
   },
   async onModuleHardUninstalled({ moduleId, em }) {
     const { AdminActionsReconciler } = await import(
-      './services/admin-actions-reconciler.js'
+      './backend/services/admin-actions-reconciler.js'
     );
     await new AdminActionsReconciler({ em: () => em }).removeForModule({ moduleId, em });
   },

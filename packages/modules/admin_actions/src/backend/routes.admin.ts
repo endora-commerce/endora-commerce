@@ -5,7 +5,7 @@ import {
   type GetAdminActionsResponse,
 } from '@endora-commerce/contracts';
 import type { AdminActionsService } from './services/admin-actions-service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface AdminActionsRouteDeps {
   adminActionsService: AdminActionsService;

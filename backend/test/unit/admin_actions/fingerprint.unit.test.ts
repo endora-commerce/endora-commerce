@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fingerprintPermissions } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
+import { fingerprintPermissions } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
 
 describe('fingerprintPermissions', () => {
   it('returns the same fingerprint for the same permissions in any order', () => {

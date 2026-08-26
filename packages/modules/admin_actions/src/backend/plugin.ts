@@ -13,7 +13,7 @@ import {
   registerAdminActionsRoutes,
 } from './routes.admin.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * The attach function this module hands its composition root.

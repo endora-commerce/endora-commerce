@@ -1,10 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { AdminI18nTranslatePort, PermissionReadPort } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { ModulePresenceProbe } from './services/admin-actions-service.js';
+import { ModuleAction } from './entities/module-action.entity.js';
 import {
   adminActionsModule,
   type AdminActionsManifestRegistryView,
@@ -115,3 +116,22 @@ export function registerModule(ctx: ModuleContext): void {
     await plugin(app);
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table->owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ *
+ * The order is the one `db/entities-registry.generated.ts` declared before this
+ * module became a package, so the registered set is the same list in the same
+ * sequence.
+ */
+export const entities = [
+  ModuleAction,
+];

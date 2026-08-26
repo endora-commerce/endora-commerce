@@ -7,7 +7,7 @@ import type {
   PermissionReadPort,
   SupportedAdminLanguage,
 } from '@endora-commerce/contracts';
-import { inProcessCaches } from '../../../kernel/index.js';
+import { inProcessCaches } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin Actions Service — feature 020.
