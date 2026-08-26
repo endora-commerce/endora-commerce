@@ -224,14 +224,23 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // carried forward — see `admin_roles` below, which lost the same reference in
   // the same commit and had the same wrong reason recorded.
   //
-  // `organizations` (wave 4, T138). `composition.ts` for the deployment inputs
-  // and the login hook. There used to be another entry: the kernel
-  // type-imported the `Organization` entity to declare `OrganizationReadPort`,
-  // recorded here as "meant to be permanent". D-55 dissolved it — the port now
-  // declares a structural `OrganizationSnapshot` over `@endora-commerce/contracts`' status
+  // `organizations` (wave 4, T138). The dev seed type-imports the `Organization`
+  // row, and that is all that is left. There used to be another entry: the
+  // kernel type-imported the entity to declare `OrganizationReadPort`, recorded
+  // here as "meant to be permanent". D-55 dissolved it — the port now declares a
+  // structural `OrganizationSnapshot` over `@endora-commerce/contracts`' status
   // union, and the entity stays in this module. The kernel owning the shape
   // never required it to own the class.
-  organizations: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
+  //
+  // **`src/composition.ts` was here and was stale on `master`** (found while
+  // packaging `auth`, T040b). The root type-imports `OrganizationTreeService`
+  // and `OrganizationTaxProfilePort` from
+  // `@endora-commerce/mod-organizations/backend`, and this scan asks whether a
+  // specifier contains `modules/<id>/`, which a bare specifier does not. So the
+  // entry drained when that module was packaged and nothing in that merge
+  // request read this file — the standing shape of this ledger's failures, and
+  // the reason the entry is recorded as corrected rather than quietly deleted.
+  organizations: ['src/seeds/dev-catalog-seed.ts'],
 
   // `composition.ts` reaches into `email` once: for the `EmailCradle` type it
   // resolves the mailer with. It disappears when the mailer's consumers resolve
@@ -289,11 +298,18 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // push into. The host keeps `promptActionBulkProgressRegistry` now, so
   // `catalog` pushes from its own boot hook and no root imports
   // `catalog/prompt-tools.js` either.
-  // `customer_accounts` (wave 1, T094). `composition.ts` imports the cradle
-  // type to annotate the services it resolves and hands to `customers` and
-  // `organizations`. Both of those built their own before this conversion, and
-  // the reference leaves when they convert.
-  customer_accounts: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
+  // `customer_accounts` (wave 1, T094). The dev seed type-imports the account
+  // row; that is what is left.
+  //
+  // `src/composition.ts` was here and was **stale on `master`** — see the note
+  // on `organizations` above. The root still imports the cradle type to
+  // annotate the services it resolves and hands to `customers` and
+  // `organizations`; what changed is that the specifier is now
+  // `@endora-commerce/mod-customer-accounts/backend`, which contains no
+  // `modules/<id>/`. The residue this entry described is real and is measured by
+  // `harness-parity.test.ts`'s value-import ledger, which counts declarations
+  // rather than substrings.
+  customer_accounts: ['src/seeds/dev-catalog-seed.ts'],
   // `assets_library` (wave 1, T092). `composition.ts` imports the cradle type
   // to annotate the handle it resolves and hands the `catalog`, `cms` and
   // `megamenu` reference resolvers to. Contributing those is a root's job —
@@ -306,14 +322,19 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `kernel → http → mod-i18n → kernel` in F4's package graph. A root naming a
   // module is ordinary; a peer doing it is the defect.
   _i18n: ['src/composition.ts'],
-  // `megamenu` (wave 2, T107). `composition.ts` imports the cradle type plus
-  // the two dependency-bundle types, because the bundles themselves stay in the
-  // root — they are existence checks and URL lookups against `catalog`, `cms`
-  // and `assets_library` tables, and moving them into the module would give it
-  // direct reads of another module's storage. Those references are a root's by
-  // design rather than a leftover, so unlike most entries here they do not go
-  // when some other module converts.
-  megamenu: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
+  // `megamenu` (wave 2, T107). The dev seed type-imports three rows.
+  //
+  // `src/composition.ts` was here and was **stale on `master`**, the third of
+  // three found together — see `organizations` above. The root still imports the
+  // cradle type plus the two dependency-bundle types, because the bundles
+  // themselves stay in the root: they are existence checks and URL lookups
+  // against `catalog`, `cms` and `assets_library` tables, and moving them into
+  // the module would give it direct reads of another module's storage. Those
+  // references are a root's by design rather than a leftover, so they are the
+  // one entry here that was never going to drain — and packaging re-spelled it
+  // out of this scan's reach anyway, which is exactly why a substring ledger
+  // cannot be the record of a design decision.
+  megamenu: ['src/seeds/dev-catalog-seed.ts'],
   // `invoices` (wave 2, T113). `composition.ts` imports the bridge type to
   // annotate what it contributes. The cradle import went with T143c: it existed
   // to reach `invoiceNumberGenerator` for a `CorrectiveInvoiceProvider` the root

@@ -738,16 +738,19 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
       'harness, which is the shape T143c exists to refuse. It drains with the same D-37 A2 ' +
       'relocation as the three entries above, and no sooner.',
   },
-  'auth:promoteAdminActor': {
-    owner: 'auth',
-    roots: ['production'],
-    ownerLocked: true,
-    reason:
-      'The MFA actor bridge promotes a partially-authenticated session to an admin actor before ' +
-      'asserting it is one. Owner `auth`, which owns the actor shape. It drains when `auth` ' +
-      'provides actor promotion as a port; the harness resolves `request.testActor` directly and ' +
-      'has nothing to promote, which is why this entry is production-only.',
-  },
+  // `auth:promoteAdminActor` was here, production-only. It said it would drain
+  // *"when `auth` provides actor promotion as a port"*, and that is **not** what
+  // drained it: packaging the module (T040b) did, because this ledger's
+  // population is a root's value imports from `src/modules/**` and the root now
+  // names `@endora-commerce/mod-auth/backend`. The recorded drain condition was
+  // one honest way out and not the only one, which is worth leaving in place of
+  // the entry — a reason that names a single remedy reads as if nothing else can
+  // clear it.
+  //
+  // What survives the re-spelling is the divergence itself: production promotes,
+  // the harness resolves `request.testActor` and has nothing to promote. That is
+  // measured by the roots' own actor resolvers, not here, and the port
+  // conversion is still the thing that would collapse it.
   // `catalog:catalogPromptResolverTools`, `catalog:catalogPromptMutationTools`,
   // `inventory:inventoryPromptTools` and `orders:ordersPromptTools` were here.
   // All four were the same entry: a boot-time push into `prompt_actions`'
@@ -824,7 +827,11 @@ const ROOT_MODULE_IMPORT_CEILING: Readonly<Record<RootName, number>> = {
   // bridge. The sixth was `auth:verifyPassword`, which drained with them
   // because what it compared against was two of those entities' password
   // columns.
-  production: 5,
+  // 5 → 4 (T040b, `auth`): `promoteAdminActor` is the same declaration, now
+  // written as a bare specifier into `@endora-commerce/mod-auth/backend`. What
+  // is left is the two infrastructure modules — `_i18n` and `_lifecycle` — plus
+  // `catalog` and `orders`, i.e. no module this sweep has already converted.
+  production: 4,
   // 5 → 3 (T040b): the same collector and roll-up derivation. The third
   // declaration this root lost is `product_feeds:FeedDeliveryError`, which was
   // `permanent` and therefore never counted here — so the raw count fell by
