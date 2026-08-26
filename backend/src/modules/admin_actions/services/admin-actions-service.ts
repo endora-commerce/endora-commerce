@@ -12,11 +12,30 @@ import { inProcessCaches } from '../../../kernel/index.js';
 /**
  * Admin Actions Service — feature 020.
  *
- * Reads `module_actions` joined with `module_registrations.state =
- * 'installed'`, resolves label/description keys via the feature 019
+ * Reads this module's own `module_actions`, drops every row whose module is
+ * not effectively present, resolves label/description keys via the feature 019
  * i18n resolver, filters by the operator's permissions, sorts by
  * `(weight asc, locale-aware label asc)`, and caches the result in an
  * in-process `Map` keyed by `(language, permissionFingerprint)`.
+ *
+ * **Presence is one question with one answer, asked through the probe** (issue
+ * #187, feature 080). The row filter used to resolve only the *operator* axis
+ * that way; platform availability came from a knex
+ * `join('module_registrations as r', …).where('r.state', 'installed')` — a
+ * cross-module SQL reach into a kernel-owned table, and the only place in the
+ * tree where a presence gate went to the database for an answer every other
+ * gate reads out of `effectiveState`. Nothing had to be published to close it:
+ * `ModulePresenceState` has carried `platformAvailable` beside
+ * `operatorActivated` since feature 073, and both composition roots already
+ * build this module's probe off exactly that object.
+ *
+ * What the join cost while it stood was a **live disagreement**, not
+ * untidiness. `registryCache.refreshFromDb` is a PostgreSQL round-trip behind
+ * every state change, so for the length of it the join answered the new state
+ * and every gated route answered the old one — the palette advertising an
+ * action whose route replies 503, and hiding one the route would still serve.
+ * Reading both axes from the combiner makes the palette wrong exactly when the
+ * routes are, which is the only kind of agreement a cache can offer.
  *
  * **Two things drop that cache, and neither subsumes the other** (issue #225,
  * D-174):
@@ -72,43 +91,61 @@ export interface AdminActionsServiceDeps {
   permissionService: PermissionReadPort;
   log?: { info(msg: string): void; warn(msg: string): void };
   /**
-   * Feature 073 / issue #225 — the **operator** presence axis and the
-   * generation of the data it answers from, injected as one value.
+   * Feature 073 / issue #225 / issue #187 — **both** presence axes and the
+   * generation the readings came from, injected as one value.
    *
-   * The query below already resolves the platform axis in SQL, freshly, per
-   * call. What it cannot see is the operator's activation, which lives in a
-   * `settings` row this module has no business joining. Splitting the two this
-   * way keeps each axis read once, from its own source of truth.
+   * The platform axis joined this module's rows to `module_registrations` until
+   * feature 080's ledger sweep. It reads through the probe now, from the same
+   * `effectiveState` projection the operator axis has always come from, so the
+   * palette cannot disagree with the route gates about a module it advertises.
    *
    * Injected rather than read from the lifecycle singleton so this service
-   * stays constructible without a warmed process cache — a test that seeds
-   * `module_registrations` and asserts the platform axis must not silently
-   * start filtering on an empty in-memory set.
+   * stays constructible without a warmed process cache — a test that drives
+   * presence must be able to hand over the presence it is driving rather than
+   * reach for a process-wide seam.
    *
-   * The reading and the version travel together, in one object, because a
+   * The readings and the version travel together, in one object, because a
    * composition that supplied the first without the second would cache an
    * answer it can never drop — and there are two composition roots to keep in
-   * step. Omitted ⇒ every module's operator axis reads as activated and the
-   * version never moves, which is the behaviour of an unwired composition, not
-   * a fall-open: there is no activation state to resolve at all.
+   * step. Omitted ⇒ every module reads as present and the version never moves,
+   * which is the behaviour of an unwired composition, not a fall-open: there is
+   * no presence state to resolve at all.
    */
   presence?: ModulePresenceProbe;
 }
 
 /**
- * The operator presence axis, as this service consumes it: one reading and the
- * generation that reading came from.
+ * Module presence, as this service consumes it: both axes and the generation
+ * the two readings came from.
  *
- * Both composition roots build it off `effectiveState`, which is where the two
- * halves are already one object; stating the pair here is what stops a root
- * from wiring the reading alone.
+ * Both composition roots build it off `effectiveState`, which is where all
+ * three are already one object; stating them together here is what stops a
+ * root from wiring one reading without the others.
+ *
+ * The two axes stay **separate methods** rather than collapsing into
+ * `effectiveState.isPresent`, and the reason is the tri-state the combiner
+ * itself keeps: a module the deployment does not ship and a module the operator
+ * switched off are one answer to the palette and two different sentences on
+ * `/platform/modules`, so a probe that could only say "absent" would be a
+ * narrower value than the object both roots already hold. The conjunction is
+ * applied here, at the row filter, and nowhere else.
  */
 export interface ModulePresenceProbe {
+  /**
+   * Is this module installed and enabled on this deployment?
+   *
+   * The composition roots answer it `false` for a module id the registry and
+   * the manifests both know nothing about, which is what keeps an orphan
+   * `module_actions` row — a module uninstalled without its rows being reaped —
+   * out of the palette. That used to fall out of the `module_registrations`
+   * join having no row to match.
+   */
+  isPlatformAvailable(moduleId: string): boolean;
   /** Is this module activated by the operator? */
   isActivated(moduleId: string): boolean;
   /**
-   * Generation of the presence `isActivated` answers from. Changes when a
-   * refresh installs presence that differs from the presence before it.
+   * Generation of the presence the two readings above answer from. Changes when
+   * a refresh installs presence that differs from the presence before it.
    */
   version(): number;
 }
@@ -145,6 +182,7 @@ export class AdminActionsService {
     this.i18nService = deps.i18nService;
     this.permissionService = deps.permissionService;
     this.presence = deps.presence ?? {
+      isPlatformAvailable: (): boolean => true,
       isActivated: (): boolean => true,
       version: (): number => 0,
     };
@@ -223,9 +261,9 @@ export class AdminActionsService {
 
     this.stats.dbHits += 1;
     const knex = this.em().getKnex();
+    // This module's own table and nothing else. Presence is decided below,
+    // against the probe, for both axes at once.
     const rows = (await knex('module_actions as a')
-      .join('module_registrations as r', 'a.module_id', 'r.module_id')
-      .where('r.state', 'installed')
       .select(
         'a.module_id',
         'a.action_id',
@@ -241,10 +279,13 @@ export class AdminActionsService {
 
     const visible: ModuleActionRow[] = [];
     for (const row of rows) {
-      // Feature 073 — the join above answered the platform axis; this answers
-      // the operator's. A palette that advertises a deactivated module's action
-      // leads an operator straight to a 503, which is the same defect as an
-      // unfiltered sidebar.
+      // Constitution XVII — effective presence is the conjunction of the two
+      // axes, and both are asked here so neither can be forgotten by one of
+      // them moving. A palette that advertises an absent module's action leads
+      // an operator straight to a 503, which is the same defect as an
+      // unfiltered sidebar; one that hides a present module's action is the
+      // same defect wearing the other sign.
+      if (!this.presence.isPlatformAvailable(row.module_id)) continue;
       if (!this.presence.isActivated(row.module_id)) continue;
       if (
         row.required_permission == null ||

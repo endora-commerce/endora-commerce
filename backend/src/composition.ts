@@ -101,7 +101,7 @@ import type { EmailCradle } from '@endora-commerce/mod-email/backend';
 import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
 import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
 import type { KsefCradle } from '@endora-commerce/mod-ksef/backend';
-import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
+import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
 import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
 import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
@@ -2305,6 +2305,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // still in flight, and the snapshot rebuilt on it is built from the
     // presence before the flip.
     modulePresenceProbe: {
+      // Issue #187 — the platform axis, which the palette used to read by
+      // joining `module_registrations` itself. `?? false` where the operator
+      // axis defaults `true`, and the asymmetry is the tri-state rather than an
+      // oversight: `presence()` answers `undefined` only for an id neither the
+      // registry nor the manifests know, and an action row naming one is an
+      // orphan the join had no row to match either.
+      isPlatformAvailable: (moduleId: string): boolean =>
+        effectiveState.presence(moduleId)?.platformAvailable ?? false,
       isActivated: (moduleId: string): boolean =>
         effectiveState.presence(moduleId)?.operatorActivated ?? true,
       version: (): number => effectiveState.presenceVersion(),

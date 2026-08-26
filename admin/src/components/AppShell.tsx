@@ -703,6 +703,11 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.deliveryMethods', href: null },
   ] },
+  { test: /^\/delivery-methods\/dhl-parcel\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },
+    { labelKey: 'appShell.nav.dhlParcel', href: null },
+  ] },
   { test: /^\/payment-methods\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.paymentMethods', href: null },

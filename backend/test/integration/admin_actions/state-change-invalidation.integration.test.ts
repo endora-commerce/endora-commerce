@@ -82,6 +82,8 @@ describe('AdminActionsService cross-process invalidation (integration)', () => {
       // Exactly what `composition.ts` and `test-server.ts` contribute as
       // `modulePresenceProbe`.
       presence: {
+        isPlatformAvailable: (moduleId): boolean =>
+          state.presence(moduleId)?.platformAvailable ?? false,
         isActivated: (moduleId): boolean => state.presence(moduleId)?.operatorActivated ?? true,
         version: (): number => state.presenceVersion(),
       },

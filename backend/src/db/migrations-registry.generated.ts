@@ -143,6 +143,10 @@ import { Migration20260611T140404CustomersCustomerAddressesInit } from '@endora-
 import { Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments } from '@endora-commerce/mod-delivery-methods/migrations';
 import { Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter } from '@endora-commerce/mod-delivery-methods/migrations';
 
+// ── dhl_parcel ──────────────────────────────────────────────────────────────
+import { Migration20260824T083000DhlParcelInit } from '@endora-commerce/mod-dhl-parcel/migrations';
+import { Migration20260824T083100DhlParcelSeedDeliveryMethods } from '@endora-commerce/mod-dhl-parcel/migrations';
+
 // ── dictionaries ────────────────────────────────────────────────────────────
 import { Migration20260506T112634DictionariesDictionaryInit } from '@endora-commerce/mod-dictionaries/migrations';
 
@@ -197,6 +201,7 @@ import { Migration20260718T200339OrdersOrderCustomFieldValues } from '../modules
 import { Migration20260724T193611OrdersOrderPlacementIntents } from '../modules/orders/migrations/20260724T193611_orders_order_placement_intents.js';
 import { Migration20260820T100201OrdersNewToPaidTransition } from '../modules/orders/migrations/20260820T100201_orders_new_to_paid_transition.js';
 import { Migration20260821T131145OrdersPurchaseConversionMarker } from '../modules/orders/migrations/20260821T131145_orders_purchase_conversion_marker.js';
+import { Migration20260824T080000OrdersDeliveryPointSnapshot } from '../modules/orders/migrations/20260824T080000_orders_delivery_point_snapshot.js';
 
 // ── organizations ───────────────────────────────────────────────────────────
 import { Migration20260424T205317OrganizationsInit } from '../modules/organizations/migrations/20260424T205317_organizations_init.js';
@@ -233,13 +238,13 @@ import { Migration20260817T055457PriceListsSingleSystemPriceList } from '../modu
 import { Migration20260821T135907PriceListsUnitPriceAmountIndex } from '../modules/price_lists/migrations/20260821T135907_price_lists_unit_price_amount_index.js';
 
 // ── product_feeds ───────────────────────────────────────────────────────────
-import { Migration20260802T073547ProductFeedsInit } from '../modules/product_feeds/migrations/20260802T073547_product_feeds_init.js';
-import { Migration20260802T073627ProductFeedsRuns } from '../modules/product_feeds/migrations/20260802T073627_product_feeds_runs.js';
-import { Migration20260802T110630ProductFeedsTaxonomies } from '../modules/product_feeds/migrations/20260802T110630_product_feeds_taxonomies.js';
-import { Migration20260803T060153ProductFeedsTaxonomyRefresh } from '../modules/product_feeds/migrations/20260803T060153_product_feeds_taxonomy_refresh.js';
-import { Migration20260804T152741ProductFeedsWidenIssueSku } from '../modules/product_feeds/migrations/20260804T152741_product_feeds_widen_issue_sku.js';
-import { Migration20260806T105956ProductFeedsFeedTokenSecret } from '../modules/product_feeds/migrations/20260806T105956_product_feeds_feed_token_secret.js';
-import { Migration20260806T125806ProductFeedsDelivery } from '../modules/product_feeds/migrations/20260806T125806_product_feeds_delivery.js';
+import { Migration20260802T073547ProductFeedsInit } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260802T073627ProductFeedsRuns } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260802T110630ProductFeedsTaxonomies } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260803T060153ProductFeedsTaxonomyRefresh } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260804T152741ProductFeedsWidenIssueSku } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260806T105956ProductFeedsFeedTokenSecret } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20260806T125806ProductFeedsDelivery } from '@endora-commerce/mod-product-feeds/migrations';
 
 // ── promotions ──────────────────────────────────────────────────────────────
 import { Migration20260505T074605PromotionsCriteria } from '@endora-commerce/mod-promotions/migrations';
@@ -422,6 +427,10 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('delivery_methods', Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments),
   migration('delivery_methods', Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter),
 
+  // ── dhl_parcel ──────────────────────────────────────────────────────────────
+  migration('dhl_parcel', Migration20260824T083000DhlParcelInit),
+  migration('dhl_parcel', Migration20260824T083100DhlParcelSeedDeliveryMethods),
+
   // ── dictionaries ────────────────────────────────────────────────────────────
   migration('dictionaries', Migration20260506T112634DictionariesDictionaryInit),
 
@@ -476,6 +485,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('orders', Migration20260724T193611OrdersOrderPlacementIntents),
   migration('orders', Migration20260820T100201OrdersNewToPaidTransition),
   migration('orders', Migration20260821T131145OrdersPurchaseConversionMarker),
+  migration('orders', Migration20260824T080000OrdersDeliveryPointSnapshot),
 
   // ── organizations ───────────────────────────────────────────────────────────
   migration('organizations', Migration20260424T205317OrganizationsInit),

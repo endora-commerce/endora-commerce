@@ -193,6 +193,7 @@ async function serializeExternalOrder(
     paymentStatus: order.paymentStatus,
     deliveryAddress: order.deliveryAddress,
     billingAddress: order.billingAddress,
+    deliveryPoint: order.deliveryPointSnapshot ?? null,
     deliveryMethod: {
       id: order.deliveryMethodId,
       code: order.deliveryMethodSnapshot.code,

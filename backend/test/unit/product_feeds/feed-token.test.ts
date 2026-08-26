@@ -7,7 +7,7 @@ import {
   isFeedTokenShape,
   issueFeedToken,
   tokenHashMatches,
-} from '../../../src/modules/product_feeds/services/feed-token.service.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/feed-token.service.js';
 
 /**
  * Feature 067 / T024 — the public access token (FR-046, FR-047).
@@ -111,7 +111,7 @@ describe('tokenHashMatches — constant time', () => {
     const source = await import('node:fs').then((fs) =>
       fs.readFileSync(
         new URL(
-          '../../../src/modules/product_feeds/services/feed-token.service.ts',
+          '../../../../packages/modules/product_feeds/src/backend/services/feed-token.service.ts',
           import.meta.url,
         ),
         'utf8',

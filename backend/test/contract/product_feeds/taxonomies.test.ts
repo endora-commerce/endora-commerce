@@ -11,8 +11,8 @@ import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { FeedTaxonomyMapping } from '../../../src/modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';
-import { TaxonomyReconcilerService } from '../../../src/modules/product_feeds/services/taxonomy-reconciler.service.js';
+import { TaxonomyReconcilerService } from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-reconciler.service.js';
+import { FeedTaxonomyMapping } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T051 — the taxonomy and mapping admin surface

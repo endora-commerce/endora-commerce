@@ -492,7 +492,7 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'this entry used to carry; it is a distributed-transaction wish rather than a ' +
     'fix, and it is not what this entry is waiting for. Nothing is: do not drain ' +
     'this by narrowing it.',
-  'modules/product_feeds/backend.ts:run':
+  'packages/modules/product_feeds/src/backend/index.ts:run':
     'BOOT HOOK, and now a genuine tolerance rather than a swallowed presence ' +
     'answer (issue #147, D-62). The hook asks ' +
     "`effectiveState.isPresent('product_feeds')` first, and outside every `try` — " +

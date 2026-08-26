@@ -1533,6 +1533,16 @@ export class OrderService {
           companyName: req.billingCompanyName?.trim() || org.legalName || org.name,
           taxId: req.billingTaxId?.trim() || org.taxId,
         },
+        ...(req.deliveryPoint
+          ? {
+              deliveryPointSnapshot: {
+                provider: req.deliveryPoint.provider,
+                pointId: req.deliveryPoint.pointId,
+                ...(req.deliveryPoint.label ? { label: req.deliveryPoint.label } : {}),
+                ...(req.deliveryPoint.address ? { address: req.deliveryPoint.address } : {}),
+              },
+            }
+          : {}),
         deliveryMethodId: deliveryMethod.id,
         deliveryMethodSnapshot: {
           code: deliveryMethod.code,

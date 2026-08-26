@@ -6,7 +6,7 @@ import {
   type FeedScheduleSpec,
   type SchedulerBackend,
   type SchedulerBackendEntry,
-} from '../../../src/modules/product_feeds/services/queues/feed-scheduler.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/queues/feed-scheduler.js';
 
 /**
  * Feature 067 / T070 — the schedule reconciler (FR-031, research §R5.2).

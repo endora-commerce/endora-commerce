@@ -58,8 +58,9 @@ export interface AdminActionsCradle {
   /** Reads the lifecycle registry lazily; `undefined` until `_lifecycle` exists. */
   readonly lifecycleManifestRegistry: () => AdminActionsManifestRegistryView | undefined;
   /**
-   * The operator presence axis and its generation, so the palette hides a
-   * deactivated module and stops serving a snapshot built before it was.
+   * Both presence axes and their generation, so the palette hides an absent
+   * module — uninstalled or deactivated — and stops serving a snapshot built
+   * before it became one.
    */
   readonly modulePresenceProbe: ModulePresenceProbe;
   readonly adminActions: { handle: AdminActionsModuleHandle; plugin: unknown };
@@ -88,6 +89,8 @@ export function registerModule(ctx: ModuleContext): void {
           resolveAdminContext: (req) =>
             ctx.cradle<AdminActionsCradle>().adminContextResolver(req),
           presence: {
+            isPlatformAvailable: (moduleId) =>
+              ctx.cradle<AdminActionsCradle>().modulePresenceProbe.isPlatformAvailable(moduleId),
             isActivated: (moduleId) =>
               ctx.cradle<AdminActionsCradle>().modulePresenceProbe.isActivated(moduleId),
             version: () => ctx.cradle<AdminActionsCradle>().modulePresenceProbe.version(),
