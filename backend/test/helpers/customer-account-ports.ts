@@ -7,8 +7,8 @@ import type {
 } from '@endora-commerce/contracts';
 import type { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../src/commands/index.js';
-import type { PersonalOrganizationProvisionApi } from '../../src/modules/organizations/ports/personal-organization-provision.js';
-import { PersonalOrganizationService } from '../../src/modules/organizations/services/personal-organization-service.js';
+import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
+import { PersonalOrganizationService } from '../../../packages/modules/organizations/src/backend/services/personal-organization-service.js';
 import {
   CustomerAccountMemberWriteService,
   CustomerAccountReadService,

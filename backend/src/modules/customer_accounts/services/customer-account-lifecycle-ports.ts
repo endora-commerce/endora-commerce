@@ -23,7 +23,7 @@ import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
 // an `EntityManager`, which FR-034 keeps out of that package. Ledgered
 // `permanent: true` in `scripts/ledgers/cross-module-imports/customer_accounts.ts`,
 // beside the foreign key that holds it.
-import type { PersonalOrganizationProvisionApi } from '../../organizations/ports/personal-organization-provision.js';
+import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { toCustomerAccountRecord } from './customer-account-ports.js';
 

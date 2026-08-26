@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { InvitationService } from '../../../src/modules/organizations/services/invitation-service.js';
+import { InvitationService } from '../../../../packages/modules/organizations/src/backend/services/invitation-service.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 
 /**

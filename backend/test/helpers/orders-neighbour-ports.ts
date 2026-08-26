@@ -12,7 +12,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@endora-commerce/contracts';
 import { CustomerAccountReadService } from '../../src/modules/customer_accounts/services/customer-account-ports.js';
-import { OrganizationDetailsService } from '../../src/modules/organizations/services/organization-details-port.js';
+import { OrganizationDetailsService } from '../../../packages/modules/organizations/src/backend/services/organization-details-port.js';
 import { CatalogProductReadService } from '../../src/modules/catalog/services/catalog-product-read.service.js';
 import { AddressReadService } from '../../../packages/modules/addresses/src/backend/services/address-ports.js';
 import { DeliveryMethodReadService } from '../../../packages/modules/delivery_methods/src/backend/services/delivery-method-read-port.js';

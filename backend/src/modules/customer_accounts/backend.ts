@@ -30,7 +30,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 // Feature 075, Phase C — a pure function, so the kernel rather than `auth`.
 import { hashPassword } from '../../kernel/crypto/password-hasher.js';
-import type { PersonalOrganizationProvisionApi } from '../organizations/ports/personal-organization-provision.js';
+import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
 import { CustomerAccount } from './entities/customer-account.entity.js';
 import { registerCustomerGroupAdminRoutes } from './routes.admin.js';
 import {

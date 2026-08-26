@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   setupBackendServer,
@@ -12,10 +13,8 @@ import {
   type TenantContext,
 } from '../../../src/tenancy/tenant-context.js';
 import { systemTenantContext } from '../../../src/tenancy/resolve-tenant-context.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { OrganizationSalesRepAssignment } from '../../../src/modules/organizations/entities/organization-sales-rep-assignment.entity.js';
-import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
-import { SalesRepAssignmentService } from '../../../src/modules/organizations/services/sales-rep-assignment-service.js';
+import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
+import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
