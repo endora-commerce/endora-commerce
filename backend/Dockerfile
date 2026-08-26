@@ -76,6 +76,13 @@ RUN pnpm install --frozen-lockfile --filter backend...
 # --- Source ---
 COPY packages/ packages/
 COPY backend/ backend/
+# A module package that ships runtime assets builds as `tsc && node
+# ../../../scripts/copy-package-assets.mjs` (criterion 8), so the repo-root
+# scripts directory is part of the build context and not a developer
+# convenience. Without it the image build dies on the first such package —
+# `product_feeds` today — and the boot gate is the only thing that sees it,
+# because nothing in a source-tree check builds an image.
+COPY scripts/ scripts/
 
 # `backend^...` is the backend's workspace-dependency closure without the backend itself:
 # the packages it imports, built in topological order. It has to come first: the backend's
