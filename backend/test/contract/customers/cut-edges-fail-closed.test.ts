@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -6,7 +7,6 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 
 /**
  * Feature 075, Phase C — the `customers` customer-side cut fails closed.

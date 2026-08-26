@@ -121,6 +121,24 @@ import type { FeedTaxonomyNode as FeedTaxonomyNodeRow } from '../../../packages/
 import type { FeedTemplate as FeedTemplateRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-template.entity.js';
 import type { FeedTemplateField as FeedTemplateFieldRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-template-field.entity.js';
 import type { ProductFeed as ProductFeedRow } from '../../../packages/modules/product_feeds/src/backend/entities/product-feed.entity.js';
+import { entities as adminActionsEntities } from '@endora-commerce/mod-admin-actions/backend';
+import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
+import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
+import { entities as megamenuEntities } from '@endora-commerce/mod-megamenu/backend';
+import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
+import { entities as priceListsEntities } from '@endora-commerce/mod-price-lists/backend';
+import type { ModuleAction as ModuleActionRow } from '../../../packages/modules/admin_actions/src/backend/entities/module-action.entity.js';
+import type { AdminRole as AdminRoleRow } from '../../../packages/modules/admin_roles/src/backend/entities/admin-role.entity.js';
+import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/src/backend/entities/admin-user.entity.js';
+import type { Megamenu as MegamenuRow } from '../../../packages/modules/megamenu/src/backend/entities/megamenu.entity.js';
+import type { MegamenuItem as MegamenuItemRow } from '../../../packages/modules/megamenu/src/backend/entities/megamenu-item.entity.js';
+import type { MegamenuBinding as MegamenuBindingRow } from '../../../packages/modules/megamenu/src/backend/entities/megamenu-binding.entity.js';
+import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/src/backend/entities/organization.entity.js';
+import type { OrganizationSalesRepAssignment as OrganizationSalesRepAssignmentRow } from '../../../packages/modules/organizations/src/backend/entities/organization-sales-rep-assignment.entity.js';
+import type { PriceList as PriceListRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list.entity.js';
+import type { PriceListProduct as PriceListProductRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-product.entity.js';
+import type { PriceListPriceBracket as PriceListPriceBracketRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-price-bracket.entity.js';
+import type { PriceDisplayModeOverride as PriceDisplayModeOverrideRow } from '../../../packages/modules/price_lists/src/backend/entities/price-display-mode-override.entity.js';
 
 /**
  * How a test names a **module package's** entity class (D-168).
@@ -543,3 +561,48 @@ export type {
   FeedArtefactRow,
   FeedDeliveryAttemptRow,
 };
+
+
+/**
+ * Batch five's six modules (feature 080, T040b).
+ *
+ * Same terms as every block above: the runtime class comes off the package's
+ * published `entities` array **by name** — the one array the ORM registered, so
+ * one copy (D-160.6.1) — and the row type from an `import type` of the package's
+ * own source, which is free because it erases. This file's program has no
+ * `rootDir`, which is why it may name package *source* where
+ * `src/seeds/dev-catalog-seed.ts` may not.
+ */
+export const ModuleAction = classNamed<ModuleActionRow>(adminActionsEntities, 'ModuleAction');
+export const AdminRole = classNamed<AdminRoleRow>(adminRolesEntities, 'AdminRole');
+export const AdminUser = classNamed<AdminUserRow>(adminUsersEntities, 'AdminUser');
+export const Megamenu = classNamed<MegamenuRow>(megamenuEntities, 'Megamenu');
+export const MegamenuItem = classNamed<MegamenuItemRow>(megamenuEntities, 'MegamenuItem');
+export const MegamenuBinding = classNamed<MegamenuBindingRow>(megamenuEntities, 'MegamenuBinding');
+export const Organization = classNamed<OrganizationRow>(organizationsEntities, 'Organization');
+export const OrganizationSalesRepAssignment = classNamed<OrganizationSalesRepAssignmentRow>(organizationsEntities, 'OrganizationSalesRepAssignment');
+export const PriceList = classNamed<PriceListRow>(priceListsEntities, 'PriceList');
+export const PriceListProduct = classNamed<PriceListProductRow>(priceListsEntities, 'PriceListProduct');
+export const PriceListPriceBracket = classNamed<PriceListPriceBracketRow>(priceListsEntities, 'PriceListPriceBracket');
+export const PriceDisplayModeOverride = classNamed<PriceDisplayModeOverrideRow>(priceListsEntities, 'PriceDisplayModeOverride');
+
+/**
+ * The same twelve names as **types**.
+ *
+ * A real `class` declares a value and a type at once; `classNamed` returns only
+ * the value, so the type has to be declared beside it or every
+ * `const org: Organization` in the test tree becomes TS2749. `export type`
+ * erases, so this constructs nothing and no second copy exists.
+ */
+export type ModuleAction = ModuleActionRow;
+export type AdminRole = AdminRoleRow;
+export type AdminUser = AdminUserRow;
+export type Megamenu = MegamenuRow;
+export type MegamenuItem = MegamenuItemRow;
+export type MegamenuBinding = MegamenuBindingRow;
+export type Organization = OrganizationRow;
+export type OrganizationSalesRepAssignment = OrganizationSalesRepAssignmentRow;
+export type PriceList = PriceListRow;
+export type PriceListProduct = PriceListProductRow;
+export type PriceListPriceBracket = PriceListPriceBracketRow;
+export type PriceDisplayModeOverride = PriceDisplayModeOverrideRow;

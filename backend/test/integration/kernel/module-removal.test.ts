@@ -319,7 +319,18 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // for. The second is a root's by design — see `audit_logs/backend.ts` — and
   // the first goes when a deployment stops needing to say which module supplies
   // MFA.
-  admin_users: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
+  //
+  // **`src/composition.ts` left with T040b's fifth batch.** The reach was the
+  // `AdminUsersCradle` **type**, and this module is a package now, so the root
+  // writes `@endora-commerce/mod-admin-users/backend` — a bare specifier into a
+  // package is not a reference into `backend/src/modules/`, the same reason the
+  // `payment_methods` note above gives. The recorded reason above was right and
+  // was about the *other* half: the two contributions both roots make survive
+  // the move untouched, and they are `check:port-dependencies`' subject rather
+  // than this one. The seed entry stays: it constructs `AdminUser`, so it names
+  // the row type inside this package's built artefact, which carries the
+  // `modules/admin_users/` substring this scan reads.
+  admin_users: ['src/seeds/dev-catalog-seed.ts'],
   // `settings` needs no entry and gets none, since feature 080's T040b — this
   // module is now **absent** from the ledger, which is the strongest state a
   // key can reach.
@@ -368,15 +379,23 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // is excluded here by construction — deleting the directory and regenerating
   // removes the reference, which is the whole point of generating it (FR-030).
   _lifecycle: ['src/cli.ts', 'src/composition.ts', 'src/db/configured-migrations.ts'],
-  // `price_lists` (wave 3, T127). Two entries left this ledger together when
-  // the `apps/<deployment>/decorations/` seam was retired: the decoration file
-  // itself, and `src/composition.ts` — which named this module for exactly one
-  // reason, the `PricingServiceContract` type import the decoration lookup
-  // needed. A deployment wraps the `pricingService` registration from its own
-  // overlay module now (D-103), and that module declares the wrapped shape
-  // structurally, so no file outside this directory names it. What remains is
-  // the dev seed, which value-constructs `DefaultPriceListMigrator`.
-  price_lists: ['src/seeds/dev-catalog-seed.ts'],
+  // `price_lists` needs no entry and gets none, since T040b's fifth batch — this
+  // module is now **absent** from the ledger.
+  //
+  // Two entries left it together when the `apps/<deployment>/decorations/` seam
+  // was retired: the decoration file itself, and `src/composition.ts`. The last
+  // one was the dev seed, which value-constructs `DefaultPriceListMigrator`, and
+  // that is the entry the packaging cleared — but **not** by the route the three
+  // criterion-7 entries above take. A row type off `dist` would have kept the
+  // substring; what happened instead is that the module now publishes the
+  // migrator itself on `./backend`, so the seed names a bare specifier and holds
+  // the same class the platform composed. It had to: the reach is to a
+  // *service*, and the duplicate entity class it would have carried sits one hop
+  // behind it, where `check:singleton-identity`'s conjunct 2 cannot see it
+  // (D-160.6.1). The residue drained as a side effect of a correctness repair,
+  // which is worth recording because the reverse — a ledger entry that looks
+  // drained because a reach was re-spelled — is the failure this file exists to
+  // refuse.
   // `product_feeds` needs no entry and gets none, for `blog`'s reason and not
   // for a cleared coupling. Its move to a workspace package (feature 080,
   // criterion 8) left the contributions exactly where they were — both roots

@@ -1,12 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
-import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';

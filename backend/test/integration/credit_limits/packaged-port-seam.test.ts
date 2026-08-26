@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { Organization } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
@@ -8,7 +9,6 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { CreditLimit, CreditLimitReservation } from '../../helpers/package-entities.js';
 

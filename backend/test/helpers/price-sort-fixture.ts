@@ -1,10 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { Organization, PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../src/modules/catalog/entities/product.entity.js';
-import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
-import { PriceList } from '../../src/modules/price_lists/entities/price-list.entity.js';
-import { PriceListPriceBracket } from '../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { PriceListProduct } from '../../src/modules/price_lists/entities/price-list-product.entity.js';
 import { OTHER_TEST_ORGANIZATION_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
 
 /**

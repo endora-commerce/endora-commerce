@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { AdminUser } from '../../helpers/package-entities.js';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -7,7 +8,6 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';

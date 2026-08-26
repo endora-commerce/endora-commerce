@@ -34,9 +34,6 @@ import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
 import { SettingValue } from '../kernel/settings/setting-value.entity.js';
 import { Setting } from '../kernel/settings/setting.entity.js';
 import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
-import { ModuleAction } from '../modules/admin_actions/entities/module-action.entity.js';
-import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js';
-import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
 import { Session } from '../modules/auth/entities/session.entity.js';
 import { AttachmentType } from '../modules/catalog/entities/attachment-type.entity.js';
 import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
@@ -66,9 +63,6 @@ import { StockAllocation } from '../modules/inventory/entities/stock-allocation.
 import { StockLevel } from '../modules/inventory/entities/stock-level.entity.js';
 import { WarehouseChannelAssignment } from '../modules/inventory/entities/warehouse-channel-assignment.entity.js';
 import { Warehouse } from '../modules/inventory/entities/warehouse.entity.js';
-import { MegamenuBinding } from '../modules/megamenu/entities/megamenu-binding.entity.js';
-import { MegamenuItem } from '../modules/megamenu/entities/megamenu-item.entity.js';
-import { Megamenu } from '../modules/megamenu/entities/megamenu.entity.js';
 import { OrderAppliedPromotion } from '../modules/orders/entities/order-applied-promotion.entity.js';
 import { OrderComment } from '../modules/orders/entities/order-comment.entity.js';
 import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
@@ -77,21 +71,11 @@ import { OrderPlacementIntent } from '../modules/orders/entities/order-placement
 import { OrderStatusTransition } from '../modules/orders/entities/order-status-transition.entity.js';
 import { OrderStatus } from '../modules/orders/entities/order-status.entity.js';
 import { Order } from '../modules/orders/entities/order.entity.js';
-import { EmailVerificationToken } from '../modules/organizations/entities/email-verification-token.entity.js';
-import { OrganizationDeliveryMethodLink } from '../modules/organizations/entities/organization-delivery-method-link.entity.js';
-import { OrganizationInvitation } from '../modules/organizations/entities/organization-invitation.entity.js';
-import { OrganizationPaymentMethodLink } from '../modules/organizations/entities/organization-payment-method-link.entity.js';
-import { OrganizationSalesRepAssignment } from '../modules/organizations/entities/organization-sales-rep-assignment.entity.js';
-import { OrganizationTaxIdValidation } from '../modules/organizations/entities/organization-tax-id-validation.entity.js';
-import { OrganizationWarehouseLink } from '../modules/organizations/entities/organization-warehouse-link.entity.js';
-import { Organization } from '../modules/organizations/entities/organization.entity.js';
 import { Payment } from '../modules/payments/entities/payment.entity.js';
-import { PriceDisplayModeOverride } from '../modules/price_lists/entities/price-display-mode-override.entity.js';
-import { PriceListPriceBracket } from '../modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { PriceListProduct } from '../modules/price_lists/entities/price-list-product.entity.js';
-import { PriceList } from '../modules/price_lists/entities/price-list.entity.js';
 import { entities as addressesEntities } from '@endora-commerce/mod-addresses/backend';
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
+import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
+import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
 import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/backend';
 import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
 import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-library/backend';
@@ -111,6 +95,7 @@ import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delive
 import { entities as dhlParcelEntities } from '@endora-commerce/mod-dhl-parcel/backend';
 import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
+import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
@@ -118,12 +103,15 @@ import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/back
 import { entities as ksefEntities } from '@endora-commerce/mod-ksef/backend';
 import { entities as languagesEntities } from '@endora-commerce/mod-languages/backend';
 import { entities as linkedinAdsEntities } from '@endora-commerce/mod-linkedin-ads/backend';
+import { entities as megamenuEntities } from '@endora-commerce/mod-megamenu/backend';
 import { entities as metaAdsEntities } from '@endora-commerce/mod-meta-ads/backend';
 import { entities as mfaEntities } from '@endora-commerce/mod-mfa/backend';
+import { entities as adminActionsEntities } from '@endora-commerce/mod-admin-actions/backend';
 import { entities as newsletterEntities } from '@endora-commerce/mod-newsletter/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as paypalEntities } from '@endora-commerce/mod-paypal/backend';
 import { entities as payuEntities } from '@endora-commerce/mod-payu/backend';
+import { entities as priceListsEntities } from '@endora-commerce/mod-price-lists/backend';
 import { entities as promptActionsEntities } from '@endora-commerce/mod-prompt-actions/backend';
 import { entities as pwaEntities } from '@endora-commerce/mod-pwa/backend';
 import { entities as quickOrderEntities } from '@endora-commerce/mod-quick-order/backend';
@@ -146,9 +134,6 @@ export const ALL_ENTITIES = [
   SettingValue,
   Setting,
   TranslationBundle,
-  ModuleAction,
-  AdminRole,
-  AdminUser,
   Session,
   AttachmentType,
   AttributeSetAttribute,
@@ -178,9 +163,6 @@ export const ALL_ENTITIES = [
   StockLevel,
   WarehouseChannelAssignment,
   Warehouse,
-  MegamenuBinding,
-  MegamenuItem,
-  Megamenu,
   OrderAppliedPromotion,
   OrderComment,
   OrderItem,
@@ -189,21 +171,11 @@ export const ALL_ENTITIES = [
   OrderStatusTransition,
   OrderStatus,
   Order,
-  EmailVerificationToken,
-  OrganizationDeliveryMethodLink,
-  OrganizationInvitation,
-  OrganizationPaymentMethodLink,
-  OrganizationSalesRepAssignment,
-  OrganizationTaxIdValidation,
-  OrganizationWarehouseLink,
-  Organization,
   Payment,
-  PriceDisplayModeOverride,
-  PriceListPriceBracket,
-  PriceListProduct,
-  PriceList,
   ...(addressesEntities as readonly EntityClassLike[]),
   ...(adminNotificationsEntities as readonly EntityClassLike[]),
+  ...(adminRolesEntities as readonly EntityClassLike[]),
+  ...(adminUsersEntities as readonly EntityClassLike[]),
   ...(analyticsEntities as readonly EntityClassLike[]),
   ...(apiKeysEntities as readonly EntityClassLike[]),
   ...(assetsLibraryEntities as readonly EntityClassLike[]),
@@ -223,6 +195,7 @@ export const ALL_ENTITIES = [
   ...(dhlParcelEntities as readonly EntityClassLike[]),
   ...(transactionalEmailsEntities as readonly EntityClassLike[]),
   ...(emailEntities as readonly EntityClassLike[]),
+  ...(organizationsEntities as readonly EntityClassLike[]),
   ...(pimErgonodeEntities as readonly EntityClassLike[]),
   ...(productFeedsEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
@@ -230,12 +203,15 @@ export const ALL_ENTITIES = [
   ...(ksefEntities as readonly EntityClassLike[]),
   ...(languagesEntities as readonly EntityClassLike[]),
   ...(linkedinAdsEntities as readonly EntityClassLike[]),
+  ...(megamenuEntities as readonly EntityClassLike[]),
   ...(metaAdsEntities as readonly EntityClassLike[]),
   ...(mfaEntities as readonly EntityClassLike[]),
+  ...(adminActionsEntities as readonly EntityClassLike[]),
   ...(newsletterEntities as readonly EntityClassLike[]),
   ...(paymentMethodsEntities as readonly EntityClassLike[]),
   ...(paypalEntities as readonly EntityClassLike[]),
   ...(payuEntities as readonly EntityClassLike[]),
+  ...(priceListsEntities as readonly EntityClassLike[]),
   ...(promptActionsEntities as readonly EntityClassLike[]),
   ...(pwaEntities as readonly EntityClassLike[]),
   ...(quickOrderEntities as readonly EntityClassLike[]),

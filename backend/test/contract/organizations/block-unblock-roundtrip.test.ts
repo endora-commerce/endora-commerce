@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 
 /**
  * Feature 026 US3 — Block / unblock round-trip with transaction gate.

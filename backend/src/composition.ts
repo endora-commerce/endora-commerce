@@ -86,8 +86,8 @@ import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 // two event subscriptions. T143a — the sales-rep assignment scope too: what is
 // left here is the actor half of the orders/RFQ visibility question, which only
 // a composition can answer.
-import type { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
-import type { OrganizationTaxProfilePort } from './modules/organizations/backend.js';
+import type { OrganizationTreeService } from '../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
+import type { OrganizationTaxProfilePort } from '@endora-commerce/mod-organizations/backend';
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
 // `backend.ts`; what stays here is the cradle shape the senders below resolve
@@ -102,10 +102,10 @@ import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
 import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
 import type { KsefCradle } from '@endora-commerce/mod-ksef/backend';
 import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
-import type { AdminUsersCradle } from './modules/admin_users/backend.js';
+import type { AdminUsersCradle } from '@endora-commerce/mod-admin-users/backend';
 import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
-import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
-import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
+import type { TargetValidatorDeps } from '../../packages/modules/megamenu/src/backend/services/target-validator.js';
+import type { StorefrontDeps } from '../../packages/modules/megamenu/src/backend/services/storefront-resolver.js';
 import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
 import type { TaxesCradle } from '@endora-commerce/mod-taxes/backend';
 import { composeSettingsKernel } from './kernel/settings/compose.js';

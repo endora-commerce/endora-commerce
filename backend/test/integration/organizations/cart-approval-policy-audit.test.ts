@@ -1,4 +1,5 @@
 import { Cart } from '../../helpers/package-entities.js';
+import { Organization } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -15,7 +16,6 @@ import {
 
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 
 
 /**

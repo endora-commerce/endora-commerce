@@ -37,15 +37,15 @@ import type { MigrationClass, MigrationRegistryEntry } from './migration-order.j
 import { Migration20260507T091405I18nAdminI18nInit } from '../modules/_i18n/migrations/20260507T091405_i18n_admin_i18n_init.js';
 
 // ── admin_actions ───────────────────────────────────────────────────────────
-import { Migration20260507T142354AdminActionsInit } from '../modules/admin_actions/migrations/20260507T142354_admin_actions_init.js';
+import { Migration20260507T142354AdminActionsInit } from '@endora-commerce/mod-admin-actions/migrations';
 
 // ── admin_notifications ─────────────────────────────────────────────────────
 import { Migration20260611T140350AdminNotificationsInit } from '@endora-commerce/mod-admin-notifications/migrations';
 
 // ── admin_users ─────────────────────────────────────────────────────────────
-import { Migration20260425T053028AdminUsersInit } from '../modules/admin_users/migrations/20260425T053028_admin_users_init.js';
-import { Migration20260819T155150AdminUsersFoldEmailCase } from '../modules/admin_users/migrations/20260819T155150_admin_users_fold_email_case.js';
-import { Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret } from '../modules/admin_users/migrations/20260825T124801_admin_users_drop_legacy_two_factor_secret.js';
+import { Migration20260425T053028AdminUsersInit } from '@endora-commerce/mod-admin-users/migrations';
+import { Migration20260819T155150AdminUsersFoldEmailCase } from '@endora-commerce/mod-admin-users/migrations';
+import { Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret } from '@endora-commerce/mod-admin-users/migrations';
 
 // ── analytics ───────────────────────────────────────────────────────────────
 import { Migration20260425T143139AnalyticsInit } from '@endora-commerce/mod-analytics/migrations';
@@ -177,7 +177,7 @@ import { Migration20260425T161557LanguagesCurrenciesInit } from '@endora-commerc
 import { Migration20260727T233211LinkedinAdsInit } from '@endora-commerce/mod-linkedin-ads/migrations';
 
 // ── megamenu ────────────────────────────────────────────────────────────────
-import { Migration20260505T193836MegamenuInit } from '../modules/megamenu/migrations/20260505T193836_megamenu_init.js';
+import { Migration20260505T193836MegamenuInit } from '@endora-commerce/mod-megamenu/migrations';
 
 // ── meta_ads ────────────────────────────────────────────────────────────────
 import { Migration20260728T002715MetaAdsInit } from '@endora-commerce/mod-meta-ads/migrations';
@@ -204,14 +204,14 @@ import { Migration20260821T131145OrdersPurchaseConversionMarker } from '../modul
 import { Migration20260824T080000OrdersDeliveryPointSnapshot } from '../modules/orders/migrations/20260824T080000_orders_delivery_point_snapshot.js';
 
 // ── organizations ───────────────────────────────────────────────────────────
-import { Migration20260424T205317OrganizationsInit } from '../modules/organizations/migrations/20260424T205317_organizations_init.js';
-import { Migration20260425T051700OrganizationsInvitationsInit } from '../modules/organizations/migrations/20260425T051700_organizations_invitations_init.js';
-import { Migration20260611T140349OrganizationsConsolidation } from '../modules/organizations/migrations/20260611T140349_organizations_consolidation.js';
-import { Migration20260611T140358OrganizationsOrgOrderConfirmationEmails } from '../modules/organizations/migrations/20260611T140358_organizations_org_order_confirmation_emails.js';
-import { Migration20260611T140402OrganizationsOrgFulfilmentStrategy } from '../modules/organizations/migrations/20260611T140402_organizations_org_fulfilment_strategy.js';
-import { Migration20260717T151403OrganizationsPersonalOrganizations } from '../modules/organizations/migrations/20260717T151403_organizations_personal_organizations.js';
-import { Migration20260718T200340OrganizationsOrganizationCustomFieldValues } from '../modules/organizations/migrations/20260718T200340_organizations_organization_custom_field_values.js';
-import { Migration20260720T044254OrganizationsOrgHierarchy } from '../modules/organizations/migrations/20260720T044254_organizations_org_hierarchy.js';
+import { Migration20260424T205317OrganizationsInit } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20260425T051700OrganizationsInvitationsInit } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20260611T140349OrganizationsConsolidation } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20260611T140358OrganizationsOrgOrderConfirmationEmails } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20260611T140402OrganizationsOrgFulfilmentStrategy } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20260717T151403OrganizationsPersonalOrganizations } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20260718T200340OrganizationsOrganizationCustomFieldValues } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20260720T044254OrganizationsOrgHierarchy } from '@endora-commerce/mod-organizations/migrations';
 
 // ── payment_methods ─────────────────────────────────────────────────────────
 import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/mod-payment-methods/migrations';
@@ -232,10 +232,10 @@ import { Migration20260804T190439PimErgonodeInit } from '@endora-commerce/mod-pi
 import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-commerce/mod-pim-ergonode/migrations';
 
 // ── price_lists ─────────────────────────────────────────────────────────────
-import { Migration20260426T075235PriceListsPricingInit } from '../modules/price_lists/migrations/20260426T075235_price_lists_pricing_init.js';
-import { Migration20260504T125655PriceListsEngine } from '../modules/price_lists/migrations/20260504T125655_price_lists_engine.js';
-import { Migration20260817T055457PriceListsSingleSystemPriceList } from '../modules/price_lists/migrations/20260817T055457_price_lists_single_system_price_list.js';
-import { Migration20260821T135907PriceListsUnitPriceAmountIndex } from '../modules/price_lists/migrations/20260821T135907_price_lists_unit_price_amount_index.js';
+import { Migration20260426T075235PriceListsPricingInit } from '@endora-commerce/mod-price-lists/migrations';
+import { Migration20260504T125655PriceListsEngine } from '@endora-commerce/mod-price-lists/migrations';
+import { Migration20260817T055457PriceListsSingleSystemPriceList } from '@endora-commerce/mod-price-lists/migrations';
+import { Migration20260821T135907PriceListsUnitPriceAmountIndex } from '@endora-commerce/mod-price-lists/migrations';
 
 // ── product_feeds ───────────────────────────────────────────────────────────
 import { Migration20260802T073547ProductFeedsInit } from '@endora-commerce/mod-product-feeds/migrations';

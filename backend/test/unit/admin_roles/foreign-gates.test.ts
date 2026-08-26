@@ -13,8 +13,8 @@ import { permissionScanRoots } from '../../helpers/permission-scan-roots.js';
 import {
   scanEnforcedPermissionGates,
   type EnforcedGateSite,
-} from '../../../src/modules/admin_roles/permission-inventory.js';
-import { PermissionCatalogueService } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
+} from '../../../../packages/modules/admin_roles/src/backend/permission-inventory.js';
+import { PermissionCatalogueService } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 /**

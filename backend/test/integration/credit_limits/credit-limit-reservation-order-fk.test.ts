@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { Organization } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
@@ -7,7 +8,6 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk } from '../../../../packages/modules/credit_limits/src/migrations/20260818T081252_credit_limits_credit_limit_reservation_order_fk.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CreditLimit } from '../../helpers/package-entities.js';
 
 /**

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AdminRole, AdminUser, Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
@@ -6,10 +7,6 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
-import { AdminRole } from '../../../src/modules/admin_roles/entities/admin-role.entity.js';
-import { OrganizationSalesRepAssignment } from '../../../src/modules/organizations/entities/organization-sales-rep-assignment.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 import { ReturnCase, ReturnCaseComment, ReturnShipment, Shipment } from '../../helpers/package-entities.js';

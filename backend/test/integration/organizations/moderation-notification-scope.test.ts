@@ -1,4 +1,5 @@
 import { EmailDelivery, type EmailDeliveryRow } from '../../helpers/package-entities.js';
+import { AdminRole, AdminUser, Organization } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -9,13 +10,10 @@ import {
 
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 
-import { AdminRole } from '../../../src/modules/admin_roles/entities/admin-role.entity.js';
 
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 
 
 /**

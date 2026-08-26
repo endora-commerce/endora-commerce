@@ -65,9 +65,9 @@ import { EventBus } from '../../src/events/bus.js';
 import { CommandBus } from '../../src/commands/index.js';
 import type { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
-import type { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
-import type { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
-import type { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
+import type { PermissionService } from '../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
+import type { PermissionCatalogueService } from '../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
+import type { AdminRoleService } from '../../../packages/modules/admin_roles/src/backend/services/admin-role-service.js';
 import type { AuthCradle } from '../../src/modules/auth/backend.js';
 import {
   REGISTERED_MANIFESTS,
@@ -99,23 +99,29 @@ import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
 // D-54 — injected into the error envelope, exactly as `composition.ts` does it:
 // `src/http` may not name a module (D-52), a composition root may.
 import { ERROR_TRANSLATION_KEYS } from '../../src/modules/_i18n/services/error-translation.js';
+// Type-only, and off the package's **source** rather than its `./backend`
+// subpath, because the three service types below come from the same source
+// files: `dist` and `src` are two nominal declarations of one class, so a
+// cradle typed by one and a getter typed by the other is TS2322. It erases,
+// so nothing is loaded twice (D-160.6.1) — `check:singleton-identity` asks
+// about value reaches, and this is not one.
 import type {
   OrganizationsCradle,
   OrganizationTaxProfilePort,
-} from '../../src/modules/organizations/backend.js';
-import type { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
-import type { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
-import type { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
+} from '../../../packages/modules/organizations/src/backend/index.js';
+import type { OrganizationModerationService } from '../../../packages/modules/organizations/src/backend/services/organization-moderation-service.js';
+import type { OrganizationContextService } from '../../../packages/modules/organizations/src/backend/services/organization-context-service.js';
+import type { OrganizationRestrictionService } from '../../../packages/modules/organizations/src/backend/services/organization-restriction-service.js';
 import type {
   VatValidator,
   VatValidationResult,
-} from '../../src/modules/organizations/services/vat-validator-port.js';
+} from '../../../packages/modules/organizations/src/backend/services/vat-validator-port.js';
 // Feature 072 (T079) — `email` composes through the kernel here too, from the
 // generated list. The five hand-rolled `new ConsoleMailer()` fallbacks this
 // replaced were the reason a conversion of `composition.ts` alone would have
 // proved nothing: every mail-sending suite runs against this root.
 import type { EmailCradle } from '../../../packages/modules/email/src/backend/index.js';
-import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
+import type { AdminUsersCradle } from '@endora-commerce/mod-admin-users/backend';
 import type { ShoppingListService } from '../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js';
 import type { ReturnsBridge } from '../../../packages/modules/returns/src/backend/index.js';
 // `dist`, not `src`, and it is the type that matches the object (feature 080,
@@ -135,9 +141,9 @@ import type { CustomFieldValueService } from '../../../packages/modules/custom_f
 import type { CustomFieldDefinitionsCache } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
 import type { ApiKeysCradle } from '../../../packages/modules/api_keys/src/backend/index.js';
 import type { CmsCradle } from '../../../packages/modules/cms/src/backend/index.js';
-import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
-import type { TargetValidatorDeps } from '../../src/modules/megamenu/services/target-validator.js';
-import type { StorefrontDeps } from '../../src/modules/megamenu/services/storefront-resolver.js';
+import type { MegamenuCradle } from '@endora-commerce/mod-megamenu/backend';
+import type { TargetValidatorDeps } from '../../../packages/modules/megamenu/src/backend/services/target-validator.js';
+import type { StorefrontDeps } from '../../../packages/modules/megamenu/src/backend/services/storefront-resolver.js';
 // Feature 072 — the harness is a second composition root, so a module left
 // hand-wired here would keep passing against wiring nobody changed. It composes
 // the same generated list production does; only the host values differ.
@@ -184,7 +190,7 @@ import type { ComparisonsCradle } from '../../../packages/modules/comparisons/sr
 import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { z } from 'zod';
 import type { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
-import type { PricingServiceContract } from '../../src/modules/price_lists/services/pricing-service.interface.js';
+import type { PricingServiceContract } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
 import type { CartService } from '../../../packages/modules/carts/src/backend/services/cart-service.js';

@@ -2,8 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { CatalogCategoryReadService } from '../../src/modules/catalog/services/catalog-category-read.service.js';
 import { CatalogProductReadService } from '../../src/modules/catalog/services/catalog-product-read.service.js';
 import { CustomerGroupReadService } from '../../src/modules/customer_accounts/services/customer-group-read-port.js';
-import { OrganizationDetailsService } from '../../src/modules/organizations/services/organization-details-port.js';
-import type { PriceListTargetReads } from '../../src/modules/price_lists/services/price-list-service.js';
+import { OrganizationDetailsService } from '../../../packages/modules/organizations/src/backend/services/organization-details-port.js';
+import type { PriceListTargetReads } from '../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 
 /**
  * Feature 075 Phase C — the neighbour read ports `price_lists` resolves.

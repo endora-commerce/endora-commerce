@@ -337,7 +337,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collapse, which landed inside the −10% floor and re-recorded nothing, which
     // is the slack-absorption the `check-release-intent` entry below warns about
     // in the other direction.
-    sites: 527,
+    //
+    // **527 → 471 (T040b batch five)**, and the same rule applies: every unit of
+    // the fall is an import that stopped existing. This batch's six modules own
+    // 18 entities between them (`admin_actions` 1, `admin_roles` 1,
+    // `admin_users` 1, `megamenu` 3, `organizations` 8, `price_lists` 4), and a
+    // package contributes one `entities` array import in place of one class
+    // import per entity — exactly −12, measured per artefact against the merge
+    // base, with the other three generated files and the three override
+    // manifests moving by 0. The other 44 of the 56 were already gone: batches
+    // three and four's own collapse, which landed inside the −10% floor and
+    // re-recorded nothing. Re-recorded 2026-08-26.
+    sites: 471,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {

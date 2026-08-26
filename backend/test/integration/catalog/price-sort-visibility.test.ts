@@ -124,11 +124,8 @@ describe('a price-ordered page costs a constant number of statements in page siz
     // 120 more priced products, so page sizes 5…100 are all genuinely full.
     const em = h.em();
     const { Product } = await import('../../../src/modules/catalog/entities/product.entity.js');
-    const { PriceListProduct } = await import(
-      '../../../src/modules/price_lists/entities/price-list-product.entity.js'
-    );
-    const { PriceListPriceBracket } = await import(
-      '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js'
+    const { PriceListProduct, PriceListPriceBracket } = await import(
+      '../../helpers/package-entities.js'
     );
     const { SalesChannel } = await import(
       '../../../src/kernel/sales-channels/sales-channel.entity.js'

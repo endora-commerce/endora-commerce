@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -13,7 +14,6 @@ import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_met
 import { EnumOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
 import { createBusinessIdGenerator } from '../../../src/modules/orders/services/business-id-generator.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 /**

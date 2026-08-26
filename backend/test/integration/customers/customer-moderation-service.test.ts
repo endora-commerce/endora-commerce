@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
@@ -8,7 +9,6 @@ import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js'
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { CustomerAuthService } from '../../../src/modules/customer_accounts/services/customer-auth-service.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import {
   CustomerAuthorityService,
   type SalesRepVisibility,

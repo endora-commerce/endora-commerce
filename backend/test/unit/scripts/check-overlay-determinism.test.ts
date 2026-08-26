@@ -255,16 +255,22 @@ describe('containmentSites', () => {
     const entities = renderEntitiesRegistry().content;
     const sites = containmentSites(REGISTRY_PATH, entities, ROOTS);
     //
-    // The **totals** carry the floor and the two verdicts carry only presence,
-    // because the `core` share is a *draining* population by construction:
-    // T040b moves modules out of the application tree one batch at a time, so
-    // it fell 129 -> 99 across batches two and three and its terminal value is
-    // zero. A floor on it would go red on correct work, and raising it back
-    // each time is exactly the number-editing the read-size rule forbids. What
-    // the assertion has to keep is that neither verdict is *absent* — that is
-    // what stops the classification collapsing to one — and that is what these
-    // two now say.
-    expect(sites.length).toBeGreaterThan(100);
+    // **The floor is the artefact's own import count, not a number.** The two
+    // verdicts carry only presence, because the `core` share is a *draining*
+    // population by construction: T040b moves modules out of the application
+    // tree one batch at a time and its terminal value is zero. The **total**
+    // drains for the same reason and this assertion did not say so — packaging
+    // collapses a module's N entity imports into one `entities` array import,
+    // so batch five's six modules took it from 111 to 99 and a `> 100` floor
+    // went red on correct work. Re-recording it downward each batch is the
+    // number-editing the read-size rule forbids, so the floor is derived
+    // instead: every `import` line the rendered registry carries must have been
+    // classified. That is this test's own title, it is what issue #215 is
+    // about — a walk of the right length whose result is discarded — and it
+    // does not move when a module becomes a package.
+    const importLines = entities.split('\n').filter((line) => line.startsWith('import ')).length;
+    expect(importLines).toBeGreaterThan(0);
+    expect(sites.length).toBe(importLines);
     expect(sites.filter((site) => site.verdict === 'core').length).toBeGreaterThan(0);
     expect(sites.filter((site) => site.verdict === 'workspace-package').length).toBeGreaterThan(0);
     expect(sites.filter((site) => site.verdict === 'foreign')).toEqual([]);

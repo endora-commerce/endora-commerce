@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AdminUser } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -6,7 +7,6 @@ import {
 } from '../../helpers/test-server.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { withModuleOff } from '../../helpers/off-state.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 

@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AdminUser } from '../../helpers/package-entities.js';
 import { join } from 'node:path';
 import { ERROR_CODES, type ErrorCode } from '@endora-commerce/contracts';
 import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../../../src/http/error-envelope.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 import {
   setupBackendServer,
   teardownBackendServer,

@@ -1,4 +1,5 @@
 import type { WebhookService } from '../../../../packages/modules/webhooks/src/backend/services/webhook-service.js';
+import { Organization } from '../../helpers/package-entities.js';
 import { createHmac, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Queue, Worker } from 'bullmq';
@@ -8,7 +9,6 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import {
   createWebhookQueue,
   createWebhookWorker,

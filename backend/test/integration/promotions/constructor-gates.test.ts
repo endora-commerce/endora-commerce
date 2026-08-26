@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import type { CartSnapshot } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -7,7 +8,6 @@ import {
 } from '../../helpers/test-server.js';
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import type { PromotionService } from '../../../../packages/modules/promotions/src/backend/services/promotion-service.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { Promotion } from '../../helpers/package-entities.js';

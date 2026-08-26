@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PriceList, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
 import type { ListingPriceViewerContext } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -8,9 +9,6 @@ import {
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
-import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
 import { OTHER_TEST_ORGANIZATION_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**

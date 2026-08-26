@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { PriceList, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -7,9 +8,6 @@ import {
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
-import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
 
 /**
  * A listing pages by a **keyset over the column it is ordered by**, and

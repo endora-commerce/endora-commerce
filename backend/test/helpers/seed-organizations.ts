@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
+import { Organization } from './package-entities.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
 import {

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -10,7 +11,6 @@ import { HttpError } from '../../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 
 
 /**

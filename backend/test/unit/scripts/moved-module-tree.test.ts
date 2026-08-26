@@ -281,29 +281,47 @@ const STRANDED_MODULE_CANDIDATES: readonly string[] = [
   // stale-entry red (exit 1) rather than the missing-population red (exit 2)
   // this fixture asserts. That leaves exactly one.
   //
-  // `megamenu` is it, and it is a *good* member rather than merely the last:
-  // it is blocked on criterion 7 (`src/seeds/dev-catalog-seed.ts` constructs
-  // three of its entity classes) with its repair sitting in a file another
-  // branch holds, so it is not a candidate for the batch after this one either.
+  // **Batch five took `megamenu` and made the rewrite the comment above
+  // predicted, so this pool no longer drains.**
   //
-  // What the batch after that has to face is that the pool cannot be
-  // replenished again from a shrinking application tree: when the sweep ends
-  // there is no module left to strand, and the half-moved state will have to be
-  // staged out of a **package** — copied to the same address with its
-  // `package.json` withheld — rather than out of `backend/src/modules`. That is
-  // a change to `createSplitModuleTreeFixture`, not to this list, and it is
-  // deliberately not made here: it would be an untested rewrite of the fixture
-  // in a merge request whose subject is seven module moves.
+  // `createSplitModuleTreeFixture` now stages the half-moved state out of a
+  // **package** as well as out of the application tree: it has already copied
+  // every module package to `packages/modules/<id>/`, and deleting the
+  // `package.json` it copied leaves the identical state — sources at a package
+  // address that no glob produces and no root covers. Two consequences worth
+  // stating, because they change what a member has to be. Nothing is *moved*,
+  // so no path changes and a ledger keyed on the stranded module stays valid
+  // where a relocation would have made it stale. And the population this draws
+  // from **grows** with every batch rather than shrinking, which is what ends
+  // the replenishment treadmill four batches have now paid for.
+  //
+  // The two remaining conditions are unchanged and are what this list still
+  // exists for: `ERROR_TRANSLATION_KEYS` must route a code to the member (the
+  // paragraph above, asserted below for the whole pool), and no check script's
+  // ledger may key on its path — withholding the manifest takes the module out
+  // of every walk, so a key on it would go stale and produce an exit 1 where
+  // this fixture asserts the missing-population exit 2. Derived on 2026-08-26
+  // over `backend/scripts`, these three carry no such key.
   'megamenu',
+  'search',
+  'credentials',
 ];
 
 const STRANDED_MODULE = ((): string => {
-  const [first] = modulesInTheApplicationTree(STRANDED_MODULE_CANDIDATES);
-  if (first !== undefined) return first;
+  // The application tree first — that half needs no package to exist and is the
+  // state a half-finished `git mv` literally leaves. When the pool has no member
+  // there any more, a real package stages the same state by having its
+  // `package.json` withheld; see the fixture.
+  const [inTree] = modulesInTheApplicationTree(STRANDED_MODULE_CANDIDATES);
+  if (inTree !== undefined) return inTree;
+  const packaged = new Set(packagedModuleIds());
+  const [asPackage] = STRANDED_MODULE_CANDIDATES.filter((id) => packaged.has(id));
+  if (asPackage !== undefined) return asPackage;
   throw new Error(
-    'every module in STRANDED_MODULE_CANDIDATES has become a package, so the half-moved tree ' +
-      'has nothing to strand. Add another module that `ERROR_TRANSLATION_KEYS` routes a code ' +
-      'to and that no ledger keys on its path.',
+    'no member of STRANDED_MODULE_CANDIDATES is under backend/src/modules or is a module ' +
+      'package this repository ships, so the half-moved tree has nothing to strand. Add a ' +
+      'module that `ERROR_TRANSLATION_KEYS` routes a code to and that no check script keys ' +
+      'on its path.',
   );
 })();
 

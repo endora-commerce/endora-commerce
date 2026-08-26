@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from 'crypto';
+import { AdminUser } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ERROR_CODES, PromptActionRequestResponseSchema } from '@endora-commerce/contracts';
 import {
@@ -12,7 +13,6 @@ import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.
 import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from '../../../src/modules/inventory/entities/warehouse.entity.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 import { PromptActionRequest } from '../../helpers/package-entities.js';
 
 /**

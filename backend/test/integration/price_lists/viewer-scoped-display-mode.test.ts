@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { PriceDisplayModeOverride } from '../../helpers/package-entities.js';
 import { PRICING_SETTING_CODES, type DisplayMode } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -16,7 +17,6 @@ import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
-import { PriceDisplayModeOverride } from '../../../src/modules/price_lists/entities/price-display-mode-override.entity.js';
 
 /**
  * `GET /api/v1/storefront/pricing/display-mode/:productId` — asked for the

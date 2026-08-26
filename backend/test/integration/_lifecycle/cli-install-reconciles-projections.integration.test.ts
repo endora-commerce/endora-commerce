@@ -1,4 +1,5 @@
 import { dirname, join, resolve } from 'node:path';
+import { ModuleAction } from '../../helpers/package-entities.js';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Redis } from 'ioredis';
@@ -7,7 +8,6 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
 import { TranslationBundle } from '../../../src/modules/_i18n/entities/translation-bundle.entity.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { buildStaticRegistry } from '../../../src/modules/_lifecycle/services/static-registry.js';

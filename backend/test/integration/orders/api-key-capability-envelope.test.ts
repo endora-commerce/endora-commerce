@@ -1,4 +1,5 @@
 import { Cart, CartItem } from '../../helpers/package-entities.js';
+import { Organization } from '../../helpers/package-entities.js';
 import { randomUUID } from 'node:crypto';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -32,7 +33,6 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 
 import { DeliveryMethod } from '../../helpers/package-entities.js';
 
