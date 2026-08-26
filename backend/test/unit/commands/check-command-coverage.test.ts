@@ -373,7 +373,7 @@ describe('the analyzer flags a write in each newly scanned category', () => {
         }
       }`;
     const findings = analyzeSource(
-      'src/modules/pim_ergonode/services/import/product-phase.ts',
+      'packages/modules/pim_ergonode/src/backend/services/import/product-phase.ts',
       src,
     );
     expect(findings.map((f) => f.method)).toEqual(['apply']);
@@ -563,7 +563,9 @@ describe('a mutation name only counts off an EntityManager when the name is ambi
           await this.backend.remove(id);
         }
       }`;
-    expect(analyzeSource('src/modules/pim_ergonode/queues/import-scheduler.ts', src)).toEqual([]);
+    expect(
+      analyzeSource('packages/modules/pim_ergonode/src/backend/queues/import-scheduler.ts', src),
+    ).toEqual([]);
   });
 
   it('still flags `remove` on every EntityManager spelling in the tree', () => {
@@ -577,7 +579,10 @@ describe('a mutation name only counts off an EntityManager when the name is ambi
           }
         }`;
       const findings = analyzeSource('src/modules/catalog/services/x.ts', src);
-      expect(findings.map((f) => f.kind), em).toEqual(['unaudited-sensitive-write']);
+      expect(
+        findings.map((f) => f.kind),
+        em,
+      ).toEqual(['unaudited-sensitive-write']);
     }
   });
 
@@ -619,9 +624,10 @@ describe('a mutation name only counts off an EntityManager when the name is ambi
             ${em}.create('X', { id });
           }
         }`;
-      expect(analyzeSource('src/modules/catalog/services/x.ts', src).map((f) => f.kind), em).toEqual(
-        ['unaudited-sensitive-write'],
-      );
+      expect(
+        analyzeSource('src/modules/catalog/services/x.ts', src).map((f) => f.kind),
+        em,
+      ).toEqual(['unaudited-sensitive-write']);
     }
   });
 

@@ -86,16 +86,6 @@ import { OrganizationTaxIdValidation } from '../modules/organizations/entities/o
 import { OrganizationWarehouseLink } from '../modules/organizations/entities/organization-warehouse-link.entity.js';
 import { Organization } from '../modules/organizations/entities/organization.entity.js';
 import { Payment } from '../modules/payments/entities/payment.entity.js';
-import { ErgonodeAttributeMapping } from '../modules/pim_ergonode/entities/ergonode-attribute-mapping.entity.js';
-import { ErgonodeCategoryMapping } from '../modules/pim_ergonode/entities/ergonode-category-mapping.entity.js';
-import { ErgonodeConnection } from '../modules/pim_ergonode/entities/ergonode-connection.entity.js';
-import { ErgonodeFieldProtection } from '../modules/pim_ergonode/entities/ergonode-field-protection.entity.js';
-import { ErgonodeImportIssue } from '../modules/pim_ergonode/entities/ergonode-import-issue.entity.js';
-import { ErgonodeImportRun } from '../modules/pim_ergonode/entities/ergonode-import-run.entity.js';
-import { ErgonodeMediaLink } from '../modules/pim_ergonode/entities/ergonode-media-link.entity.js';
-import { ErgonodePriceBinding } from '../modules/pim_ergonode/entities/ergonode-price-binding.entity.js';
-import { ErgonodeProductLink } from '../modules/pim_ergonode/entities/ergonode-product-link.entity.js';
-import { ErgonodeStreamCursor } from '../modules/pim_ergonode/entities/ergonode-stream-cursor.entity.js';
 import { PriceDisplayModeOverride } from '../modules/price_lists/entities/price-display-mode-override.entity.js';
 import { PriceListPriceBracket } from '../modules/price_lists/entities/price-list-price-bracket.entity.js';
 import { PriceListProduct } from '../modules/price_lists/entities/price-list-product.entity.js';
@@ -121,6 +111,7 @@ import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delive
 import { entities as dhlParcelEntities } from '@endora-commerce/mod-dhl-parcel/backend';
 import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
+import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
@@ -207,16 +198,6 @@ export const ALL_ENTITIES = [
   OrganizationWarehouseLink,
   Organization,
   Payment,
-  ErgonodeAttributeMapping,
-  ErgonodeCategoryMapping,
-  ErgonodeConnection,
-  ErgonodeFieldProtection,
-  ErgonodeImportIssue,
-  ErgonodeImportRun,
-  ErgonodeMediaLink,
-  ErgonodePriceBinding,
-  ErgonodeProductLink,
-  ErgonodeStreamCursor,
   PriceDisplayModeOverride,
   PriceListPriceBracket,
   PriceListProduct,
@@ -242,6 +223,7 @@ export const ALL_ENTITIES = [
   ...(dhlParcelEntities as readonly EntityClassLike[]),
   ...(transactionalEmailsEntities as readonly EntityClassLike[]),
   ...(emailEntities as readonly EntityClassLike[]),
+  ...(pimErgonodeEntities as readonly EntityClassLike[]),
   ...(productFeedsEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
   ...(invoicesEntities as readonly EntityClassLike[]),

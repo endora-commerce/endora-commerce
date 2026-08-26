@@ -213,12 +213,23 @@ const PACKAGED_MODULE_CANDIDATES: readonly string[] = [
   // Replenished for T040b's fourth batch, which takes `email` — the pool's last
   // still-available member. Both additions are chosen for the property the
   // paragraph above states and for one the sweep has made scarce: they are
-  // **blocked**, so they stay under `backend/src/modules` for several batches
-  // rather than being consumed by the next one. `pim_ergonode` and
-  // `admin_users` are two of the three heavy singles T040b splits off from the
-  // batches (14 410 lines and 47 test files respectively); neither carries a
-  // `modules/<id>/…` path in any ledger, an entry point of its own under
-  // `backend/scripts`, or an overlay reach.
+  // **deferred**, so they stay under `backend/src/modules` rather than being
+  // consumed by the next batch. `pim_ergonode` and `admin_users` are two of the
+  // three heavy singles T040b splits off from the batches (14 410 lines and 47
+  // test files respectively); neither carries a `modules/<id>/…` path in any
+  // ledger, an entry point of its own under `backend/scripts`, or an overlay
+  // reach.
+  //
+  // **`pim_ergonode` has since been packaged as a single**, so it is a real
+  // package rather than a relocation candidate and `modulesInTheApplicationTree`
+  // drops it — which is the pool working as designed and cost this file no edit
+  // beyond this paragraph. The reason it was expected to stay is worth
+  // correcting rather than deleting: *deferred* is not *blocked*, and the
+  // sentence above read as if it were. Nothing blocked this module; it was
+  // split off the batches for its size alone. A pool member picked for being
+  // large is a member the sweep will reach, so the next replenishment should
+  // prefer one that is blocked on a **named criterion** — criterion 7 or 8, an
+  // open ledger shard — which is a fact an artefact carries.
   'pim_ergonode',
   'admin_users',
 ];

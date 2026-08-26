@@ -171,9 +171,9 @@ import type {
 } from '../../../packages/modules/product_feeds/src/backend/services/taxonomy-source-fetcher.interface.js';
 import type { FeedDeliveryAdapter } from '../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-adapter.interface.js';
 import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
-import type { PimErgonodeCradle } from '../../src/modules/pim_ergonode/backend.js';
-import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services/ergonode-client.port.js';
-import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/services/ergonode-media-fetcher.js';
+import type { PimErgonodeCradle } from '@endora-commerce/mod-pim-ergonode/backend';
+import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-client.port.js';
+import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
