@@ -10,18 +10,22 @@ import type {
   PriceListReadPort,
   DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { CommandBus } from '../../commands/index.js';
-import type { ModuleContext } from '../../kernel/index.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
-import { lazyPort } from '../../kernel/index.js';
+import { lazyPort } from '@endora-commerce/platform/kernel';
 import { registerPriceListAuditReferences } from './services/audit-references.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { priceListsModule, type PriceListsModuleOptions } from './plugin.js';
 import { DEFAULT_PRICING_CACHE_TTL_MS } from './services/pricing-cache.js';
 import { PriceListReadService, toPriceListRecord } from './services/price-list-read-port.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
 import { registerPriceListCurrencyReferences } from './services/price-list-currency-reference.js';
+import { PriceDisplayModeOverride } from './entities/price-display-mode-override.entity.js';
+import { PriceListPriceBracket } from './entities/price-list-price-bracket.entity.js';
+import { PriceListProduct } from './entities/price-list-product.entity.js';
+import { PriceList } from './entities/price-list.entity.js';
 
 /**
  * `price_lists` — the decoration proof target (feature 072, wave 3, T127).
@@ -270,3 +274,50 @@ export function registerModule(ctx: ModuleContext): void {
     );
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table->owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ *
+ * The order is the one `db/entities-registry.generated.ts` declared before this
+ * module became a package, so the registered set is the same list in the same
+ * sequence.
+ */
+export const entities = [
+  PriceDisplayModeOverride,
+  PriceListPriceBracket,
+  PriceListProduct,
+  PriceList,
+];
+
+/**
+ * The one-off migrator that creates this module's system price list and fills
+ * it from the catalog, published **by name** on `./backend`.
+ *
+ * `src/seeds/dev-catalog-seed.ts` runs it, and a host program is composed
+ * against this package's `dist` while the ORM is registered from the same
+ * `entities` array above — so a filesystem path into this file's source would
+ * evaluate `price-list.entity.ts` a second time and the migrator would
+ * `em.create` a `PriceList` class the ORM has never heard of (D-160.6.1).
+ * D-168 bars an entity class from leaving by this door; a service is not an
+ * entity, and `pim_ergonode`'s `ErgonodeRequestError` is the precedent for
+ * publishing the binding a caller genuinely needs to hold the same copy of.
+ */
+export { DefaultPriceListMigrator, DEFAULT_PRICE_LIST_ID } from './services/default-price-list-migration.js';
+
+/**
+ * The price-list write service, published **by name** for the same reason as
+ * the migrator above: two integration tests construct it directly over their
+ * own `EntityManager`, in a process that already holds this package's published
+ * artefact, and a second copy would `em.create` a `PriceList` the ORM never
+ * registered (D-160.6.1). The container name `priceListService` stays the
+ * production seam; this export exists so a host-side test holds the same class.
+ */
+export { PriceListService } from './services/price-list-service.js';

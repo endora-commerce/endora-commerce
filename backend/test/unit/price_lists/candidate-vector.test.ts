@@ -7,11 +7,11 @@ import {
   UnorderableRuleError,
   type CandidateListInput,
   type CandidateViewerContext,
-} from '../../../src/modules/price_lists/services/price-list-candidate-vector.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/price-list-candidate-vector.js';
 import {
   pickPriorityChain,
   type PriceListCandidate,
-} from '../../../src/modules/price_lists/services/price-list-resolver.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/price-list-resolver.js';
 
 /**
  * Feature 086, Phase A gate — the candidate vector's order **is**

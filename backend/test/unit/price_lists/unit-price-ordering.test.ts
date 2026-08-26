@@ -4,7 +4,7 @@ import {
   compareDecimalStrings,
   compareOrderRows,
   type UnitPriceStream,
-} from '../../../src/modules/price_lists/services/unit-price-ordering.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/unit-price-ordering.js';
 
 /**
  * The three shapes research §R4 measured, asserted on the statement the builder

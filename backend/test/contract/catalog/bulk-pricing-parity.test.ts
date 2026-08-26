@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -13,11 +14,10 @@ import {
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**

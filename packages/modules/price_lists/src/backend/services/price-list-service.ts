@@ -6,22 +6,22 @@ import type {
   CustomerGroupReadPort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListProduct } from '../entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
 import { PriceDisplayModeOverride } from '../entities/price-display-mode-override.entity.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
-import { Setting } from '../../../kernel/settings/setting.entity.js';
-import { SettingValue } from '../../../kernel/settings/setting-value.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
 import {
   decideDisplayMode,
   settingsDisplayModeKey,
   type DisplayModeCategoryCandidate,
 } from './display-mode-resolver.js';
 import { randomUUID } from 'crypto';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
-import type { Command, CommandBus } from '../../../commands/index.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import type { PriceListsAuditContext } from '../plugin.js';
 
 export type DisplayMode = 'gross_only' | 'net_only' | 'both' | 'none';

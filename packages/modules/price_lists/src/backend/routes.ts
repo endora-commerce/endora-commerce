@@ -7,14 +7,14 @@ import {
   ERROR_CODES,
 } from '@endora-commerce/contracts';
 import { z } from 'zod';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { ApplicationRule } from '@endora-commerce/contracts';
-import { ruleVisibleForScope } from '../../tenancy/derived-scope.js';
+import { ruleVisibleForScope } from '@endora-commerce/platform/tenancy';
 import type { PriceListService } from './services/price-list-service.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
 import type { PriceList } from './entities/price-list.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { SalesChannel } from '../../kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type {
   CatalogCategoryReadPort,
   CatalogProductReadPort,
@@ -22,8 +22,8 @@ import type {
   CustomerGroupReadPort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import { PRICE_LIST_PERMISSIONS } from './manifest.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import { PRICE_LIST_PERMISSIONS } from '../manifest.js';
 
 export interface PricingRoutesDeps {
   priceListService: PriceListService;

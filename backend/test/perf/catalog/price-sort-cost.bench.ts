@@ -1,16 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PriceList } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
-import { UNIT_PRICE_AMOUNT_INDEX } from '../../../src/modules/price_lists/migrations/20260821T135907_price_lists_unit_price_amount_index.js';
+import { UNIT_PRICE_AMOUNT_INDEX } from '../../../../packages/modules/price_lists/src/migrations/20260821T135907_price_lists_unit_price_amount_index.js';
 import {
   buildUnitPriceMergeQuery,
   type UnitPriceStream,
-} from '../../../src/modules/price_lists/services/unit-price-ordering.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/unit-price-ordering.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**

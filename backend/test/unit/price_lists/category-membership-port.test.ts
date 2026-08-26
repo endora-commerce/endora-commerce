@@ -1,14 +1,21 @@
 import { describe, expect, it } from 'vitest';
+// This test constructs the service itself, over a stubbed `EntityManager`, and
+// its stub compares the class it is handed by **identity**. So the entity has
+// to be the copy the service under test holds — the package's own source, the
+// same specifier the service is imported from below — and not the one off the
+// published `entities` array, which is a second class with the same name
+// (D-160.6.1). Nothing here composes the platform, so there is only one copy in
+// this process and `check:singleton-identity`'s conjunct 1 is false.
+import { PriceDisplayModeOverride } from '../../../../packages/modules/price_lists/src/backend/entities/price-display-mode-override.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CatalogCategoryAssignmentRecord,
   CatalogCategoryReadPort,
   CatalogCategoryRecord,
 } from '@endora-commerce/contracts';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
-import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
-import { PriceDisplayModeOverride } from '../../../src/modules/price_lists/entities/price-display-mode-override.entity.js';
-import type { PriceListTargetReads } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
+import type { PriceListTargetReads } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 
 /**
  * Feature 075 / D-87 — `price_lists` reads `catalog`'s `product_categories`

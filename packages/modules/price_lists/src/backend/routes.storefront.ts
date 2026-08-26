@@ -9,8 +9,8 @@ import {
   type OrganizationRecord,
   type ProductAudience,
 } from '@endora-commerce/contracts';
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
-import { markPersonalisedPricing, productAudienceOf } from '../../http/product-audience.js';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
+import { markPersonalisedPricing, productAudienceOf } from '@endora-commerce/platform/http';
 
 export interface StorefrontPricingRoutesDeps {
   priceListService: PriceListService;

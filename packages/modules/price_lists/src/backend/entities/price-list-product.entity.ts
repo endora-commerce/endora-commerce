@@ -1,5 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
-import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
+import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 
 /**
  * PriceListProduct — assignment join between a price list and a product.

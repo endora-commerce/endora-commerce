@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -8,15 +9,12 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../../src/modules/price_lists/services/default-price-list-migration.js';
-import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**

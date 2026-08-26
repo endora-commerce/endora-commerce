@@ -7,11 +7,11 @@ import {
 import { ANONYMOUS_PRODUCT_AUDIENCE } from '@endora-commerce/contracts';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { ProductLinkService } from '../../../src/modules/catalog/services/product-link.service.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**

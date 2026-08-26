@@ -3,7 +3,7 @@ import {
   resolveDisplayMode,
   type DisplayModeOverrideLookup,
   type SettingsDefaults,
-} from '../../../src/modules/price_lists/services/display-mode-resolver.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/display-mode-resolver.js';
 
 const SETTINGS: SettingsDefaults = {
   defaultDisplayMode: 'gross_only',

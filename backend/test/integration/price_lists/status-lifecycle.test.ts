@@ -1,14 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
-import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
-import { PriceListStatusWorker } from '../../../src/modules/price_lists/services/price-list-status-worker.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { PriceListStatusWorker } from '../../../../packages/modules/price_lists/src/backend/services/price-list-status-worker.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
