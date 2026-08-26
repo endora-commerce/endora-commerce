@@ -9,13 +9,14 @@ import type { EmailMailerPort } from '@endora-commerce/contracts';
 import {
   OrderService,
   type OrderEventBus,
-  // The five em-carrying interfaces their owners write (D-94.5, D-169),
+  // The six em-carrying interfaces their owners write (D-94.5, D-169),
   // re-exported by `order-service.ts` — which is where each seam is stated and
   // where the permanent ledger entries sit.
   type CartPlacementApplyPort,
   type CreditLimitPort,
   type InventoryReservationApplyPort,
   type InvoicePlacementApplyPort,
+  type PaymentPlacementApplyPort,
   type PromotionUsageFinalizer,
 } from './services/order-service.js';
 import { OrderStatusGraphService } from './services/order-status-graph-service.js';
@@ -207,6 +208,15 @@ export interface OrdersModuleOptions {
    * with invoicing off placement opens no document and changes nothing else.
    */
   invoicePlacementApply: () => InvoicePlacementApplyPort | null;
+  /**
+   * The payment row placement opens (feature 080, T048; D-179). A value and not
+   * an accessor, unlike the two `invoices` names above and unlike `inventory`:
+   * `payments` is switchable, but there is no order without a record of what is
+   * owed, so this module has no degrade to offer and the gate on the owner's
+   * registration refuses the placement. `orders` declares the edge
+   * `refuses-without`.
+   */
+  paymentPlacementApply: PaymentPlacementApplyPort;
   /**
    * The two method modules' registries and the delivery-eligibility service.
    * `orders` reads them for placement dispatch and for the `statusOn*`
@@ -463,6 +473,7 @@ export function commerceModule(options: OrdersModuleOptions) {
           cartPlacementApply: options.cartPlacementApply,
           cartRead: options.cartRead,
           invoicePlacementApply: options.invoicePlacementApply,
+          paymentPlacementApply: options.paymentPlacementApply,
         },
         ...(options.mailer ? { mailer: options.mailer } : {}),
         ...(options.confirmationRenderers

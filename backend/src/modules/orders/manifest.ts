@@ -321,6 +321,31 @@ export const manifest = defineModuleManifest({
         'module wrote that module`s two tables through its entity classes.',
     },
     {
+      moduleId: 'payments',
+      name: 'paymentPlacementApplyPort',
+      kind: 'refuses-without',
+      // Deliberately wider than the seam (D-179). That module contributes every
+      // built-in payment adapter, so checkout empties long before placement
+      // reaches this port. An operator reading a sentence about "the payment
+      // row" would price the flip as a missing record rather than a closed shop,
+      // and a consequence dialog that understates is the defect the ledger
+      // exists to prevent.
+      whenAbsent:
+        'the shop takes no orders at all: no payment method is left to choose, and a ' +
+        'placement reaching checkout anyway is refused rather than recorded unpaid',
+      reason:
+        'The payment row placement opens, on the placement `EntityManager` because ' +
+        '`payments_order_fk` (`on delete restrict`) means it cannot exist before its order ' +
+        'does (feature 080, T048; D-169). A `lazyPort` forward with no fallback and no ' +
+        '`catch`: an order with no record of what is owed is not an order, so there is ' +
+        'nothing to degrade to. `dependencies` was never available — `payments` declares ' +
+        'this module for the constraint — and an acknowledged edge would keep the bind and ' +
+        'make `payments.enabled` a dead switch, because this module is non-deactivatable. ' +
+        'D-179 measured the refusal barely reachable: `assertPaymentMethodUsable` refuses a ' +
+        'method whose adapter has an absent owner first, and the path it tolerates — an ' +
+        'adapter nobody registered — wrote a row into that off module`s table (issue #188).',
+    },
+    {
       moduleId: 'prompt_actions',
       name: 'promptActionToolRegistry',
       kind: 'contributes-to',

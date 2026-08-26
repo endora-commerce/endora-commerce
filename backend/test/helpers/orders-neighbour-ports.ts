@@ -32,6 +32,7 @@ import { CartReadService } from '../../../packages/modules/carts/src/backend/ser
 // instance the composed platform holds, so there is one class and the assertions
 // below are about the entity the ORM knows.
 import { InvoicePlacementApplyService } from '../../../packages/modules/invoices/dist/backend/services/invoice-placement-apply-port.js';
+import { PaymentPlacementApplyService } from '../../src/modules/payments/services/payment-placement-apply-port.js';
 import type { OrderServiceNeighbourPorts } from '../../src/modules/orders/services/order-service.js';
 import type { BackendServerHandle } from './test-server.js';
 
@@ -105,6 +106,11 @@ export function orderServiceNeighbours(
     // degrade returns `null` from it — the same shape `inventory` has below,
     // and the same reason.
     invoicePlacementApply: () => new InvoicePlacementApplyService(),
+    // A value and not an accessor, because `payments` has no degrade even though
+    // it is switchable (D-179): there is no order without a record of what is
+    // owed. A rig that wants the absent owner hands in a double that throws
+    // `ModuleDisabledError`, which is what the gated registration does.
+    paymentPlacementApply: new PaymentPlacementApplyService(),
     // D-94.4 — the two `inventory` ports the reservation runs on, live. A rig
     // that wants the module *off* returns `null` from this accessor (or flips
     // module state against the shared harness), which is what makes the
