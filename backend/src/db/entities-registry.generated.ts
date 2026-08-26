@@ -53,16 +53,6 @@ import { ProductPackagingUnit } from '../modules/catalog/entities/product-packag
 import { ProductValueOverride } from '../modules/catalog/entities/product-value-override.entity.js';
 import { ProductVariant } from '../modules/catalog/entities/product-variant.entity.js';
 import { Product } from '../modules/catalog/entities/product.entity.js';
-import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
-import { CustomerGroup } from '../modules/customer_accounts/entities/customer-group.entity.js';
-import { PasswordResetToken } from '../modules/customer_accounts/entities/password-reset-token.entity.js';
-import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
-import { InventoryThreshold } from '../modules/inventory/entities/inventory-threshold.entity.js';
-import { ProductWarehouseLowStockThreshold } from '../modules/inventory/entities/product-warehouse-low-stock-threshold.entity.js';
-import { StockAllocation } from '../modules/inventory/entities/stock-allocation.entity.js';
-import { StockLevel } from '../modules/inventory/entities/stock-level.entity.js';
-import { WarehouseChannelAssignment } from '../modules/inventory/entities/warehouse-channel-assignment.entity.js';
-import { Warehouse } from '../modules/inventory/entities/warehouse.entity.js';
 import { OrderAppliedPromotion } from '../modules/orders/entities/order-applied-promotion.entity.js';
 import { OrderComment } from '../modules/orders/entities/order-comment.entity.js';
 import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
@@ -80,6 +70,7 @@ import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/ba
 import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
 import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-library/backend';
 import { entities as autopayEntities } from '@endora-commerce/mod-autopay/backend';
+import { entities as inventoryEntities } from '@endora-commerce/mod-inventory/backend';
 import { entities as blogEntities } from '@endora-commerce/mod-blog/backend';
 import { entities as cartsEntities } from '@endora-commerce/mod-carts/backend';
 import { entities as cmsEntities } from '@endora-commerce/mod-cms/backend';
@@ -90,6 +81,7 @@ import { entities as credentialsEntities } from '@endora-commerce/mod-credential
 import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
 import { entities as currenciesEntities } from '@endora-commerce/mod-currencies/backend';
 import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fields/backend';
+import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
 import { entities as customersEntities } from '@endora-commerce/mod-customers/backend';
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
 import { entities as dhlParcelEntities } from '@endora-commerce/mod-dhl-parcel/backend';
@@ -153,16 +145,6 @@ export const ALL_ENTITIES = [
   ProductValueOverride,
   ProductVariant,
   Product,
-  CustomerAccount,
-  CustomerGroup,
-  PasswordResetToken,
-  AvailabilityNotification,
-  InventoryThreshold,
-  ProductWarehouseLowStockThreshold,
-  StockAllocation,
-  StockLevel,
-  WarehouseChannelAssignment,
-  Warehouse,
   OrderAppliedPromotion,
   OrderComment,
   OrderItem,
@@ -180,6 +162,7 @@ export const ALL_ENTITIES = [
   ...(apiKeysEntities as readonly EntityClassLike[]),
   ...(assetsLibraryEntities as readonly EntityClassLike[]),
   ...(autopayEntities as readonly EntityClassLike[]),
+  ...(inventoryEntities as readonly EntityClassLike[]),
   ...(blogEntities as readonly EntityClassLike[]),
   ...(cartsEntities as readonly EntityClassLike[]),
   ...(cmsEntities as readonly EntityClassLike[]),
@@ -190,6 +173,7 @@ export const ALL_ENTITIES = [
   ...(creditLimitsEntities as readonly EntityClassLike[]),
   ...(currenciesEntities as readonly EntityClassLike[]),
   ...(customFieldsEntities as readonly EntityClassLike[]),
+  ...(customerAccountsEntities as readonly EntityClassLike[]),
   ...(customersEntities as readonly EntityClassLike[]),
   ...(deliveryMethodsEntities as readonly EntityClassLike[]),
   ...(dhlParcelEntities as readonly EntityClassLike[]),

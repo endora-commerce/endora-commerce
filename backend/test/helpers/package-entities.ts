@@ -30,6 +30,8 @@ import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-l
 import { entities as cartsEntities } from '@endora-commerce/mod-carts/backend';
 import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fields/backend';
 import { entities as customersEntities } from '@endora-commerce/mod-customers/backend';
+import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
+import { entities as inventoryEntities } from '@endora-commerce/mod-inventory/backend';
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
@@ -94,6 +96,16 @@ import type { CartAuditEntry as CartAuditEntryRow } from '../../../packages/modu
 import type { CustomFieldDefinition as CustomFieldDefinitionRow } from '../../../packages/modules/custom_fields/src/backend/entities/custom-field-definition.entity.js';
 import type { CustomFieldOption as CustomFieldOptionRow } from '../../../packages/modules/custom_fields/src/backend/entities/custom-field-option.entity.js';
 import type { CustomerAddress as CustomerAddressRow } from '../../../packages/modules/customers/src/backend/entities/customer-address.entity.js';
+import type { CustomerAccount as CustomerAccountRow } from '../../../packages/modules/customer_accounts/src/backend/entities/customer-account.entity.js';
+import type { CustomerGroup as CustomerGroupRow } from '../../../packages/modules/customer_accounts/src/backend/entities/customer-group.entity.js';
+import type { PasswordResetToken as PasswordResetTokenRow } from '../../../packages/modules/customer_accounts/src/backend/entities/password-reset-token.entity.js';
+import type { AvailabilityNotification as AvailabilityNotificationRow } from '../../../packages/modules/inventory/src/backend/entities/availability-notification.entity.js';
+import type { InventoryThreshold as InventoryThresholdRow } from '../../../packages/modules/inventory/src/backend/entities/inventory-threshold.entity.js';
+import type { ProductWarehouseLowStockThreshold as ProductWarehouseLowStockThresholdRow } from '../../../packages/modules/inventory/src/backend/entities/product-warehouse-low-stock-threshold.entity.js';
+import type { StockAllocation as StockAllocationRow } from '../../../packages/modules/inventory/src/backend/entities/stock-allocation.entity.js';
+import type { StockLevel as StockLevelRow } from '../../../packages/modules/inventory/src/backend/entities/stock-level.entity.js';
+import type { WarehouseChannelAssignment as WarehouseChannelAssignmentRow } from '../../../packages/modules/inventory/src/backend/entities/warehouse-channel-assignment.entity.js';
+import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/src/backend/entities/warehouse.entity.js';
 import type { ErgonodeAttributeMapping as ErgonodeAttributeMappingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-attribute-mapping.entity.js';
 import type { ErgonodeCategoryMapping as ErgonodeCategoryMappingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-category-mapping.entity.js';
 import type { ErgonodeConnection as ErgonodeConnectionRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-connection.entity.js';
@@ -434,6 +446,43 @@ export const CustomFieldOption = classNamed<CustomFieldOptionRow>(
   'CustomFieldOption',
 );
 export const CustomerAddress = classNamed<CustomerAddressRow>(customersEntities, 'CustomerAddress');
+export const CustomerAccount = classNamed<CustomerAccountRow>(
+  customerAccountsEntities,
+  'CustomerAccount',
+);
+export const CustomerGroup = classNamed<CustomerGroupRow>(customerAccountsEntities, 'CustomerGroup');
+export const PasswordResetToken = classNamed<PasswordResetTokenRow>(
+  customerAccountsEntities,
+  'PasswordResetToken',
+);
+export const AvailabilityNotification = classNamed<AvailabilityNotificationRow>(
+  inventoryEntities,
+  'AvailabilityNotification',
+);
+export const InventoryThreshold = classNamed<InventoryThresholdRow>(
+  inventoryEntities,
+  'InventoryThreshold',
+);
+export const ProductWarehouseLowStockThreshold = classNamed<ProductWarehouseLowStockThresholdRow>(
+  inventoryEntities,
+  'ProductWarehouseLowStockThreshold',
+);
+export const StockAllocation = classNamed<StockAllocationRow>(
+  inventoryEntities,
+  'StockAllocation',
+);
+export const StockLevel = classNamed<StockLevelRow>(
+  inventoryEntities,
+  'StockLevel',
+);
+export const WarehouseChannelAssignment = classNamed<WarehouseChannelAssignmentRow>(
+  inventoryEntities,
+  'WarehouseChannelAssignment',
+);
+export const Warehouse = classNamed<WarehouseRow>(
+  inventoryEntities,
+  'Warehouse',
+);
 export const EmailDelivery = classNamed<EmailDeliveryRow>(emailEntities, 'EmailDelivery');
 export const Invoice = classNamed<InvoiceRow>(invoicesEntities, 'Invoice');
 export const InvoiceLine = classNamed<InvoiceLineRow>(invoicesEntities, 'InvoiceLine');
@@ -587,7 +636,11 @@ export const PriceListPriceBracket = classNamed<PriceListPriceBracketRow>(priceL
 export const PriceDisplayModeOverride = classNamed<PriceDisplayModeOverrideRow>(priceListsEntities, 'PriceDisplayModeOverride');
 
 /**
- * The same twelve names as **types**.
+ * The names the test tree also uses as a **type**, aliased.
+ *
+ * Not every name above needs one — a count would go stale on the next move
+ * (D-100), so the list is exactly the names a `const x: Name` or
+ * `Promise<Name>` in `backend/test/` names, and `tsc` is what keeps it honest.
  *
  * A real `class` declares a value and a type at once; `classNamed` returns only
  * the value, so the type has to be declared beside it or every
@@ -606,3 +659,13 @@ export type PriceList = PriceListRow;
 export type PriceListProduct = PriceListProductRow;
 export type PriceListPriceBracket = PriceListPriceBracketRow;
 export type PriceDisplayModeOverride = PriceDisplayModeOverrideRow;
+export type CustomerAccount = CustomerAccountRow;
+export type CustomerGroup = CustomerGroupRow;
+export type PasswordResetToken = PasswordResetTokenRow;
+export type AvailabilityNotification = AvailabilityNotificationRow;
+export type InventoryThreshold = InventoryThresholdRow;
+export type ProductWarehouseLowStockThreshold = ProductWarehouseLowStockThresholdRow;
+export type StockAllocation = StockAllocationRow;
+export type StockLevel = StockLevelRow;
+export type WarehouseChannelAssignment = WarehouseChannelAssignmentRow;
+export type Warehouse = WarehouseRow;

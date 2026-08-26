@@ -56,7 +56,7 @@ import { manifest as manifest18 } from '@endora-commerce/mod-credentials';
 import { manifest as manifest19 } from '@endora-commerce/mod-credit-limits';
 import { manifest as manifest20 } from '@endora-commerce/mod-currencies';
 import { manifest as manifest21, uninstallHook as uninstallHook21 } from '@endora-commerce/mod-custom-fields';
-import { manifest as manifest22 } from '../customer_accounts/manifest.js';
+import { manifest as manifest22 } from '@endora-commerce/mod-customer-accounts';
 import { manifest as manifest23 } from '@endora-commerce/mod-customers';
 import { manifest as manifest24 } from '@endora-commerce/mod-delivery-methods';
 import { manifest as manifest25 } from '@endora-commerce/mod-dhl-parcel';
@@ -66,7 +66,7 @@ import { manifest as manifest28 } from '@endora-commerce/mod-google-analytics';
 import { manifest as manifest29 } from '@endora-commerce/mod-google-tag-manager';
 import { manifest as manifest30 } from '@endora-commerce/mod-health-checks';
 import { manifest as manifest31 } from '@endora-commerce/mod-import-export';
-import { manifest as manifest32, recentActivity as recentActivity32 } from '../inventory/manifest.js';
+import { manifest as manifest32, recentActivity as recentActivity32 } from '@endora-commerce/mod-inventory';
 import { manifest as manifest33 } from '@endora-commerce/mod-invoices';
 import { manifest as manifest34 } from '@endora-commerce/mod-ksef';
 import { manifest as manifest35 } from '@endora-commerce/mod-languages';
@@ -141,7 +141,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'credit_limits', manifest: manifest19, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-credit-limits') },
   { id: 'currencies', manifest: manifest20, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-currencies') },
   { id: 'custom_fields', manifest: manifest21, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-custom-fields'), uninstallHook: uninstallHook21 },
-  { id: 'customer_accounts', manifest: manifest22, manifestPath: resolveManifestPath(import.meta.url, '../customer_accounts/manifest.js') },
+  { id: 'customer_accounts', manifest: manifest22, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-customer-accounts') },
   { id: 'customers', manifest: manifest23, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-customers') },
   { id: 'delivery_methods', manifest: manifest24, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-delivery-methods') },
   { id: 'dhl_parcel', manifest: manifest25, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-dhl-parcel') },
@@ -151,7 +151,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'google_tag_manager', manifest: manifest29, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-google-tag-manager') },
   { id: 'health_checks', manifest: manifest30, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-health-checks') },
   { id: 'import_export', manifest: manifest31, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-import-export') },
-  { id: 'inventory', manifest: manifest32, manifestPath: resolveManifestPath(import.meta.url, '../inventory/manifest.js'), recentActivity: recentActivity32 },
+  { id: 'inventory', manifest: manifest32, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-inventory'), recentActivity: recentActivity32 },
   { id: 'invoices', manifest: manifest33, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-invoices') },
   { id: 'ksef', manifest: manifest34, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-ksef') },
   { id: 'languages', manifest: manifest35, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-languages') },
