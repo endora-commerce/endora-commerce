@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
 
 /**
  * Feature 076 (D-79) — the customer-group admin surface, served by

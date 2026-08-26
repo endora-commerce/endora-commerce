@@ -15,10 +15,10 @@ import {
   type CustomerPasswordVerificationPort,
   type CustomerRolePort,
 } from '@endora-commerce/contracts';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
-import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import type { CustomerAuthService } from './customer-auth-service.js';
 import type { RoleService } from './role-service.js';

@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { CatalogCategoryReadService } from '../../src/modules/catalog/services/catalog-category-read.service.js';
 import { CatalogProductReadService } from '../../src/modules/catalog/services/catalog-product-read.service.js';
-import { CustomerGroupReadService } from '../../src/modules/customer_accounts/services/customer-group-read-port.js';
+import { CustomerGroupReadService } from '../../../packages/modules/customer_accounts/src/backend/services/customer-group-read-port.js';
 import { OrganizationDetailsService } from '../../../packages/modules/organizations/src/backend/services/organization-details-port.js';
 import type { PriceListTargetReads } from '../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 

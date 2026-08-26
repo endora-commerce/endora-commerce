@@ -12,11 +12,11 @@ import {
   type CustomerAccountStandaloneCreateInput,
   type CustomerAccountWriteRequestMeta,
 } from '@endora-commerce/contracts';
-import type { Command, CommandBus } from '../../../commands/index.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
-import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
+import type { Command, CommandBus } from '@endora-commerce/platform/commands';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 // D-178 — the one co-transactional seam this module consumes, and the reason it
 // is imported from another module's directory rather than from
 // `@endora-commerce/contracts` is on the interface itself: its signature carries

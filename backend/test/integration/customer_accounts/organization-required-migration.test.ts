@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'node:crypto';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Migration20260825T141659CustomerAccountsOrganizationRequired } from '../../../src/modules/customer_accounts/migrations/20260825T141659_customer_accounts_organization_required.js';
+import { Migration20260825T141659CustomerAccountsOrganizationRequired } from '@endora-commerce/mod-customer-accounts/migrations';
 
 /**
  * D-178 — the tightening migration, executed rather than described.

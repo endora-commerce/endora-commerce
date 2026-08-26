@@ -18,20 +18,22 @@ import type {
   CustomerRollupScopePort,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { CommandBus } from '../../commands/index.js';
-import { recordAuditFromContext } from '../../commands/index.js';
-import { withSystemScope } from '../../tenancy/index.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
 import { registerCustomerAccountAuditReferences } from './services/audit-references.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 // Feature 075, Phase C — a pure function, so the kernel rather than `auth`.
-import { hashPassword } from '../../kernel/crypto/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
 import { CustomerAccount } from './entities/customer-account.entity.js';
+import { CustomerGroup } from './entities/customer-group.entity.js';
+import { PasswordResetToken } from './entities/password-reset-token.entity.js';
 import { registerCustomerGroupAdminRoutes } from './routes.admin.js';
 import {
   CustomerAccountMemberWriteService,
@@ -569,3 +571,20 @@ export function registerModule(ctx: ModuleContext): void {
     );
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table->owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ *
+ * The order is the one `db/entities-registry.generated.ts` declared before this
+ * module became a package, so the registered set is the same list in the same
+ * sequence.
+ */
+export const entities = [CustomerAccount, CustomerGroup, PasswordResetToken];

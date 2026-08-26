@@ -17,7 +17,7 @@ import { OrganizationTreeService } from '../../../../packages/modules/organizati
 import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { randomUUID } from 'node:crypto';
 
 /**

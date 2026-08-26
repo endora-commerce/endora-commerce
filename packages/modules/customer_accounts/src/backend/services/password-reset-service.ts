@@ -1,14 +1,14 @@
 import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, normalizeEmailAddress } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 // Feature 075, Phase C — a pure function over its argument, so it lives in the
 // kernel rather than behind a gate that would answer 503 to "hash this string".
-import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { PasswordResetToken } from '../entities/password-reset-token.entity.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 /**
  * Password reset flow (FR-045 / T119).

@@ -23,7 +23,7 @@ import { OrderReorderService } from '../../../src/modules/orders/services/order-
 
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 
 
 /**

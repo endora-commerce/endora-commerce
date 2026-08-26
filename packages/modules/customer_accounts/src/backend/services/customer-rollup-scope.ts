@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CustomerRollupScopePort } from '@endora-commerce/contracts';
-import { withSystemScope } from '../../../tenancy/escape-hatch.js';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 
 /**

@@ -149,7 +149,7 @@ import type { StorefrontDeps } from '../../../packages/modules/megamenu/src/back
 // the same generated list production does; only the host values differ.
 import type { BlogCradle } from '../../../packages/modules/blog/src/backend/index.js';
 import type { DictionariesCradle } from '../../../packages/modules/dictionaries/src/backend/index.js';
-import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
+import type { CustomerAccountsCradle } from '@endora-commerce/mod-customer-accounts/backend';
 import type { TaxesCradle } from '../../../packages/modules/taxes/src/backend/index.js';
 import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';

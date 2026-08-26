@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { InvitationService } from '../../../../packages/modules/organizations/src/backend/services/invitation-service.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 
 /**

@@ -6,11 +6,11 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 import { CustomerAddressService } from '../../../../packages/modules/customers/src/backend/services/customer-address-service.js';
 
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 
 import { AddressReadService } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
 
-import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
+import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 
 

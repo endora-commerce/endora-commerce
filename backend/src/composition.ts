@@ -106,7 +106,7 @@ import type { AdminUsersCradle } from '@endora-commerce/mod-admin-users/backend'
 import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
 import type { TargetValidatorDeps } from '../../packages/modules/megamenu/src/backend/services/target-validator.js';
 import type { StorefrontDeps } from '../../packages/modules/megamenu/src/backend/services/storefront-resolver.js';
-import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
+import type { CustomerAccountsCradle } from '@endora-commerce/mod-customer-accounts/backend';
 import type { TaxesCradle } from '@endora-commerce/mod-taxes/backend';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';

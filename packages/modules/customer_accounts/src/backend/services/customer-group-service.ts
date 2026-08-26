@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import type { Command, CommandBus } from '../../../commands/index.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { CustomerGroup } from '../entities/customer-group.entity.js';
 
 export class CustomerGroupService {

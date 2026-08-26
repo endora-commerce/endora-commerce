@@ -304,7 +304,10 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
   it('opens route files, command files and the composition seam', () => {
     expect(has('/autopay/routes.admin.ts')).toBe(true);
     expect(has('/product_feeds/commands/product-feed.commands.ts')).toBe(true);
-    expect(has('/customer_accounts/backend.ts')).toBe(true);
+    // The composition seam. A packaged module keeps it at `src/backend/index.ts`,
+    // which the normaliser above strips to `/<id>/index.ts`; the walk names no
+    // file, so the spelling is the module's and not the check's.
+    expect(has('/customer_accounts/index.ts')).toBe(true);
   });
 
   it('opens CLI entry points and boot-time seeds', () => {
@@ -379,7 +382,7 @@ describe('the analyzer flags a write in each newly scanned category', () => {
     expect(findings.map((f) => f.method)).toEqual(['apply']);
   });
 
-  it('flags a boot hook in backend.ts that mutates', () => {
+  it('flags a boot hook in a module composition file that mutates', () => {
     const src = `
       export function registerModule(ctx: any) {
         ctx.onBoot(async ({ em }: any) => {
@@ -387,7 +390,10 @@ describe('the analyzer flags a write in each newly scanned category', () => {
           await em.persistAndFlush(row);
         });
       }`;
-    const findings = analyzeSource('src/modules/customer_accounts/backend.ts', src);
+    const findings = analyzeSource(
+      'packages/modules/customer_accounts/src/backend/index.ts',
+      src,
+    );
     expect(findings.map((f) => f.kind)).toEqual(['unaudited-sensitive-write']);
   });
 
