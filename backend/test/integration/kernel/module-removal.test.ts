@@ -377,11 +377,17 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // structurally, so no file outside this directory names it. What remains is
   // the dev seed, which value-constructs `DefaultPriceListMigrator`.
   price_lists: ['src/seeds/dev-catalog-seed.ts'],
-  // `product_feeds` (wave 3, T137). Both roots contribute the four adapters it
-  // reaches outside itself through — storage, availability, category expansion
-  // and stable public image URLs — plus the worker-role gate, and the harness
-  // adds the taxonomy and delivery seams. The four go when their owners convert.
-  product_feeds: ['src/composition.ts'],
+  // `product_feeds` needs no entry and gets none, for `blog`'s reason and not
+  // for a cleared coupling. Its move to a workspace package (feature 080,
+  // criterion 8) left the contributions exactly where they were — both roots
+  // still hand it the four adapters it reaches outside itself through, plus the
+  // worker-role gate, and the harness still adds the taxonomy and delivery
+  // seams. What changed is the **spelling**: `src/composition.ts` now type-
+  // imports `ProductFeedsBridge` from `@endora-commerce/mod-product-feeds/backend`,
+  // and this scan asks whether a file names `modules/<id>/`, which a bare
+  // specifier does not. The residue is real and is measured elsewhere — a
+  // contribution over a cradle name is `check:port-dependencies`' subject, not
+  // this one.
   // `carts` (wave 3, T136). Both roots contribute who is asking and the bridge
   // into `shopping_lists`, which points outward and so cannot be a port. The
   // abandonment-sweep CLI still constructs its own services — filed separately.

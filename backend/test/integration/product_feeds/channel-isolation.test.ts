@@ -15,8 +15,8 @@ import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.e
 import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
 import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { ProductFeed } from '../../../src/modules/product_feeds/entities/product-feed.entity.js';
 import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { ProductFeed } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T112 — sales-channel isolation (FR-026, FR-027, Principle XII).
@@ -47,7 +47,7 @@ const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const PUBLISHING_STATUSES = ['completed', 'completed_with_warnings'];
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MODULE_ROOT = join(HERE, '../../../src/modules/product_feeds');
+const MODULE_ROOT = join(HERE, '../../../../packages/modules/product_feeds/src/backend');
 
 /** Exclusive to channel A. Must never appear anywhere near channel B. */
 const ONLY_A_ID = '00000000-0000-4000-8000-0000000c1001';

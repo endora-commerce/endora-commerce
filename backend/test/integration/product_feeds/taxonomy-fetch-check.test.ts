@@ -14,10 +14,7 @@ import {
   PLAUSIBLE_NODE_COUNT,
   ScriptedTaxonomyFetcher,
 } from '../../helpers/taxonomy-fixtures.js';
-import { FeedTaxonomy } from '../../../src/modules/product_feeds/entities/feed-taxonomy.entity.js';
-import { FeedTaxonomyCheck } from '../../../src/modules/product_feeds/entities/feed-taxonomy-check.entity.js';
-import { FeedTaxonomyMapping } from '../../../src/modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';
-import { FeedTemplate } from '../../../src/modules/product_feeds/entities/feed-template.entity.js';
+import { FeedTaxonomy, FeedTaxonomyCheck, FeedTaxonomyMapping, FeedTemplate } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 Phase 11 / T124 — one taxonomy check, end to end
@@ -32,7 +29,7 @@ import { FeedTemplate } from '../../../src/modules/product_feeds/entities/feed-t
 
 const ACTOR = { actorAdminUserId: null } as const;
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MODULE_SRC = join(HERE, '../../../src/modules/product_feeds');
+const MODULE_SRC = join(HERE, '../../../../packages/modules/product_feeds/src/backend');
 
 const fetcher = new ScriptedTaxonomyFetcher();
 

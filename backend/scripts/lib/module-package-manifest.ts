@@ -71,10 +71,11 @@
  */
 import { readdirSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 
 import ts from 'typescript';
 
+import { classifyAssetFile } from '../../../scripts/lib/runtime-assets.mjs';
 import { readEmitLayout, type EmitLayout } from './module-packages.js';
 import { namedSpecifiers } from './specifiers.js';
 import {
@@ -156,6 +157,15 @@ export interface LayerInventory {
   readonly hasDocs: boolean;
   readonly hasTests: boolean;
   readonly hasVitestConfig: boolean;
+  /**
+   * Non-`.ts` files under `src/` that the running module opens — sorted,
+   * relative to `src/`. `tsc` copies none of them (measured), so a package that
+   * ships one needs a second build step, and whether it has one is read off the
+   * directory rather than written into the manifest by an author: an asset rule
+   * somebody has to remember is a rule somebody forgets, and the failure is
+   * silent by construction — the readers document absence as legitimate.
+   */
+  readonly assets: readonly string[];
 }
 
 /** The root export every module package has: its manifest. */
@@ -216,6 +226,7 @@ export function layerInventoryOf(packageDir: string, fs: ManifestFs): LayerInven
   }
   return {
     layers,
+    assets: assetsUnder(srcDir, fs, packageDir),
     hasI18n: fs.listFiles(join(packageDir, 'i18n')).length > 0,
     hasDocs: fs.listFiles(join(packageDir, 'docs')).length > 0,
     hasTests:
@@ -223,6 +234,43 @@ export function layerInventoryOf(packageDir: string, fs: ManifestFs): LayerInven
       fs.listDirectories(join(packageDir, 'test')).length > 0,
     hasVitestConfig: fs.readText(join(packageDir, 'vitest.config.ts')) !== null,
   };
+}
+
+/**
+ * Every runtime asset under `src/`, and a refusal for a file kind nobody has
+ * ruled on.
+ *
+ * The classification is `scripts/lib/runtime-assets.mjs`'s — one owner, shared
+ * with the application's own copier, so a module gets the same answer about the
+ * same file before and after it is packaged. The **walk** is local because this
+ * one runs over the injected {@link ManifestFs}, which is what lets a red proof
+ * hand in a whole synthetic checkout at the top of the analysis (issue #130).
+ */
+function assetsUnder(srcDir: string, fs: ManifestFs, packageDir: string): string[] {
+  const assets: string[] = [];
+  const unclassified: string[] = [];
+  const walk = (dir: string, prefix: string): void => {
+    for (const name of [...fs.listFiles(dir)].sort()) {
+      const kind = classifyAssetFile(name);
+      if (kind === 'ignored') continue;
+      (kind === 'asset' ? assets : unclassified).push(`${prefix}${name}`);
+    }
+    for (const child of [...fs.listDirectories(dir)].sort()) {
+      walk(join(dir, child), `${prefix}${child}/`);
+    }
+  };
+  walk(srcDir, '');
+  if (unclassified.length > 0) {
+    throw new ModulePackageManifestError(
+      `${packageDir}: src/ holds ${unclassified.join(', ')}, whose extension this build has ` +
+        `no ruling for. Whoever added the file knows whether the module opens it at runtime ` +
+        `and nobody downstream does — an asset that is not copied into the emitted tree is ` +
+        `read as an absent feature, silently, because every reader is handed a directory and ` +
+        `asked what is in it. Add the extension to RUNTIME_ASSET_EXTENSIONS or to ` +
+        `NON_RUNTIME_EXTENSIONS with a reason, in scripts/lib/runtime-assets.mjs.`,
+    );
+  }
+  return assets.sort();
 }
 
 // --- the module id, read from the module's own manifest --------------------
@@ -596,6 +644,7 @@ export function renderModulePackageManifests(
       existing,
       manifestSource: identity.manifestSource,
       manifestFile: join(identity.dir, ROOT_ENTRY),
+      repoRootPrefix: repoRootPrefixFor(repoRoot, identity.dir),
     });
     return {
       packageName: identity.name,
@@ -621,6 +670,25 @@ export function renderModulePackageManifests(
     registeredPackageNames:
       indexSource === null ? [] : registeredPackageNamesIn(indexSource),
   };
+}
+
+/**
+ * `packages/modules/blog` -> `../../..`, in POSIX, whatever the platform.
+ *
+ * A package directory is always under the repository root, so the relative
+ * path is always a run of `..` — but how many is a fact about the layout, and
+ * writing one down is how a package that moves a directory gets a build script
+ * pointing at nothing.
+ */
+function repoRootPrefixFor(repoRoot: string, packageDir: string): string {
+  const depth = relative(repoRoot, packageDir).split(/[\\/]/).filter(Boolean).length;
+  if (depth === 0) {
+    throw new ModulePackageManifestError(
+      `${packageDir} is the repository root, so it cannot be a module package: the build ` +
+        `script's path to the root would be empty.`,
+    );
+  }
+  return new Array(depth).fill('..').join('/');
 }
 
 /** The manifest already on disk, or `null` for a package that has none yet. */
@@ -703,6 +771,14 @@ interface RenderInput {
   readonly existing: Readonly<Record<string, unknown>> | null;
   readonly manifestSource: string;
   readonly manifestFile: string;
+  /**
+   * The package directory's own path to the repository root, POSIX, e.g.
+   * `../../..` — the prefix of the asset copier the `build` script names when
+   * this package ships one. Derived from where the package actually is, never
+   * a depth written down: a package one directory deeper would otherwise get a
+   * build script that resolves to nothing.
+   */
+  readonly repoRootPrefix: string;
 }
 
 /** `src/backend/index.ts` → `./dist/backend/index.js`, per the build declaration. */
@@ -804,8 +880,22 @@ export function renderManifest(input: RenderInput): string {
     devs.set(name, declared);
   }
 
+  // `tsc` copies nothing but `.ts` (measured), so a package whose `src/` holds
+  // a file the running module opens needs a second step — and whether it does
+  // is read off the directory rather than declared by an author. An asset rule
+  // somebody has to remember is a rule somebody forgets, and this one fails
+  // silently: every reader downstream is handed a directory and asked what is
+  // in it, for which "the build dropped it" and "this module ships none" are
+  // the same input (D-165). The `--src`/`--out` pair is this package's own
+  // emit layout, the same derivation the `exports` targets take.
+  const emitFlags = `--src ${input.emit.rootDir || '.'} --out ${input.emit.outDir || '.'}`;
+  const build =
+    input.layers.assets.length === 0
+      ? 'tsc -p tsconfig.build.json'
+      : `tsc -p tsconfig.build.json && node ${input.repoRootPrefix}/scripts/copy-package-assets.mjs ` +
+        emitFlags;
   const scripts: Record<string, string> = {
-    build: 'tsc -p tsconfig.build.json',
+    build,
     typecheck: 'tsc -p tsconfig.json',
     lint: input.layers.hasTests ? 'eslint src test' : 'eslint src',
   };

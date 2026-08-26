@@ -79,7 +79,7 @@ afterEach(() => {
 });
 
 describe('collectRuntimeAssets — what a compiled tree is missing', () => {
-  it('finds every module translation bundle and every bundled taxonomy', () => {
+  it('finds every translation bundle this application compiles, and no other kind', () => {
     const { assets } = collectRuntimeAssets(SRC_ROOT);
 
     const bundles = assets.filter((path) => /\/i18n\/(en|pl)\.json$/.test(path));
@@ -97,12 +97,16 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
     expect(compiled.length).toBeGreaterThan(0);
     expect(bundles).toHaveLength(compiled.length * 2);
 
-    expect(assets.filter((path) => path.endsWith('.txt'))).toEqual([
-      'modules/product_feeds/data/taxonomies/google_merchant/2021-09-21/en.txt',
-      'modules/product_feeds/data/taxonomies/google_merchant/2021-09-21/pl.txt',
-      'modules/product_feeds/data/taxonomies/meta/2026-08-02/en.txt',
-      'modules/product_feeds/data/taxonomies/meta/2026-08-02/pl.txt',
-    ]);
+    // **`.txt` used to be asserted here by name and no longer is**, and the
+    // reason is worth a sentence rather than a deletion. The four Google/Meta
+    // taxonomy files were `backend/src`'s only non-bundle asset; they left with
+    // `product_feeds` when it became a workspace package (feature 080,
+    // criterion 8), so this walk correctly finds none. Their successor
+    // assertion is `test/unit/packages/package-runtime-assets.test.ts`, which
+    // makes the same claim about the tree they are in now — and about every
+    // module package's built output, which is the half no source-tree check
+    // can see. What stays here is the claim this walk *can* still make.
+    expect(assets.every((path) => path.endsWith('.json'))).toBe(true);
   });
 
   it('leaves out the file kinds nothing opens at runtime, and says why', () => {

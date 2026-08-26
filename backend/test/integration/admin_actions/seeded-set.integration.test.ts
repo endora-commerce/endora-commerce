@@ -5,6 +5,8 @@ import { AdminActionsReconciler } from '../../../src/modules/admin_actions/servi
 import { AdminActionsService } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
 import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+import { ModuleRegistryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import type { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
 import type { PermissionService } from '../../../src/modules/admin_roles/services/permission-service.js';
 import type { SupportedAdminLanguage } from '@endora-commerce/contracts';
@@ -28,6 +30,15 @@ import { manifest as settingsManifest } from '../../../../packages/modules/setti
  * and assert the union of declared (moduleId, actionId) pairs comes
  * back. Also verifies the disable path: flipping any one module to
  * 'disabled' removes that module's actions only.
+ *
+ * **The disable path now goes the way a running platform goes it** (issue
+ * #187). The service used to join `module_registrations` per rebuild, so a
+ * `nativeUpdate` on that table was visible to the very next read. It resolves
+ * presence through the kernel's combiner now, and the combiner is refreshed by
+ * `registryCache.refreshFromDb` — which is exactly what the lifecycle
+ * orchestrator triggers after it writes the state. So the flip below is
+ * followed by that refresh, and a passing run proves the palette follows the
+ * platform's own presence rather than reading the table behind its back.
  */
 
 const SEEDED_MANIFESTS = [
@@ -47,12 +58,24 @@ const MODULE_IDS = SEEDED_MANIFESTS.map((m) => m.id);
 describe('seeded action set (integration, v1)', () => {
   let orm: MikroORM;
   let em: EntityManager;
+  /**
+   * A private registry cache over the rows {@link seed} writes, and the
+   * combiner on top of it — the pair both composition roots build this module's
+   * probe from. Private rather than the `registryCache` singleton: the suite
+   * shares one fork, and seeding the process-wide one would hand every other
+   * file a presence built from nine fixture registrations.
+   */
+  let cache: ModuleRegistryCache;
+  let presenceState: ModuleEffectiveState;
 
   beforeAll(async () => {
     orm = await MikroORM.init(await mikroOrmConfig());
     em = orm.em.fork() as EntityManager;
     await cleanup(em);
     await seed(em);
+    cache = new ModuleRegistryCache();
+    await cache.refreshFromDb(() => em);
+    presenceState = new ModuleEffectiveState(cache);
   }, 60_000);
 
   afterAll(async () => {
@@ -75,6 +98,15 @@ describe('seeded action set (integration, v1)', () => {
       em: () => em,
       i18nService: i18nStub as I18nService,
       permissionService: permStub as PermissionService,
+      // Exactly what `composition.ts` and `test-server.ts` contribute as
+      // `modulePresenceProbe`.
+      presence: {
+        isPlatformAvailable: (moduleId): boolean =>
+          presenceState.presence(moduleId)?.platformAvailable ?? false,
+        isActivated: (moduleId): boolean =>
+          presenceState.presence(moduleId)?.operatorActivated ?? true,
+        version: (): number => presenceState.presenceVersion(),
+      },
     });
   }
 
@@ -112,6 +144,10 @@ describe('seeded action set (integration, v1)', () => {
 
   it('disabling the catalog module hides only its actions', async () => {
     await em.nativeUpdate(ModuleRegistration, { moduleId: 'catalog' }, { state: 'disabled' });
+    // The refresh the orchestrator runs after every state write. Without it the
+    // combiner still holds the pre-flip presence, which is the correct answer
+    // for that instant and the reason `presenceVersion` exists.
+    await cache.refreshFromDb(() => em);
     try {
       const service = buildService(['*']);
       const result = await service.listVisibleForOperator({
@@ -128,6 +164,7 @@ describe('seeded action set (integration, v1)', () => {
         { moduleId: 'catalog' },
         { state: 'installed' },
       );
+      await cache.refreshFromDb(() => em);
     }
   });
 

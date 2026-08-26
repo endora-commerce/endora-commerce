@@ -8,8 +8,8 @@ import {
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
-import { FeedArtefact } from '../../../src/modules/product_feeds/entities/feed-artefact.entity.js';
 import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { FeedArtefact } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T111 — the streaming budget (FR-034, SC-004, `plan.md`

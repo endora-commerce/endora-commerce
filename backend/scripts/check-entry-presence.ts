@@ -643,7 +643,8 @@ async function main(): Promise<void> {
         'keeps running with the module switched off, so both go on writing while an operator\n' +
         "believes they stopped. Decide it: `if (!effectiveState.isPresent('<module>')) return;`\n" +
         '— first, and outside any `try`. `backend/src/modules/ksef/plugin.ts` (timer) and\n' +
-        '`backend/src/modules/product_feeds/backend.ts` (boot hook) are the worked examples.\n',
+        '`packages/modules/product_feeds/src/backend/index.ts` (boot hook) are the worked\n' +
+        'examples.\n',
     );
     for (const entry of plain) {
       console.error(

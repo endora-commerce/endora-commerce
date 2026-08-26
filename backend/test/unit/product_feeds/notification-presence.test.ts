@@ -3,7 +3,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import {
   presenceAwareRecorder,
   type AdminNotificationInput,
-} from '../../../src/modules/product_feeds/services/failed-run-notifier.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/failed-run-notifier.js';
 
 /**
  * D-60 — `admin_notifications` off is an **answer**, not an exception.

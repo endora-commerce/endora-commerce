@@ -5,10 +5,9 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { FeedTemplate } from '../../../src/modules/product_feeds/entities/feed-template.entity.js';
-import { FeedTemplateField } from '../../../src/modules/product_feeds/entities/feed-template-field.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { FeedTemplate, FeedTemplateField } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T095 — moving a template between installations

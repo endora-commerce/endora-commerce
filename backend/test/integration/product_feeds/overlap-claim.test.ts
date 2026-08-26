@@ -5,10 +5,9 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { ProductFeed } from '../../../src/modules/product_feeds/entities/product-feed.entity.js';
-import { FeedRun } from '../../../src/modules/product_feeds/entities/feed-run.entity.js';
-import { FeedRunService } from '../../../src/modules/product_feeds/services/feed-run.service.js';
+import { FeedRunService } from '../../../../packages/modules/product_feeds/src/backend/services/feed-run.service.js';
 import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { FeedRun, ProductFeed } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T071 — no two runs of the same feed at once (FR-033).

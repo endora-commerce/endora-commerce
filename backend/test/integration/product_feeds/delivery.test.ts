@@ -6,16 +6,16 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { FeedDeliveryAttempt } from '../../../src/modules/product_feeds/entities/feed-delivery-attempt.entity.js';
-import { ProductFeed } from '../../../src/modules/product_feeds/entities/product-feed.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import {
   FeedDeliveryError,
   type FeedDeliveryAdapter,
   type FeedDeliverySendInput,
   type FeedDeliveryTarget,
-} from '../../../src/modules/product_feeds/services/delivery/delivery-adapter.interface.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-adapter.interface.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { FeedDeliveryAttempt, ProductFeed } from '../../helpers/package-entities.js';
+import type { FeedDeliveryAttemptRow } from '../../helpers/package-entities.js';
 
 /**
  * Feature 070 — publish → deliver, end to end (FR-102, FR-103, FR-105, FR-108,
@@ -83,7 +83,7 @@ describe('feed delivery [integration]', () => {
   let feedId: string;
   const sftp = new RecordingAdapter('sftp');
 
-  const attempts = async (): Promise<FeedDeliveryAttempt[]> => {
+  const attempts = async (): Promise<FeedDeliveryAttemptRow[]> => {
     const em = h.em();
     em.clear();
     return em.find(

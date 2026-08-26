@@ -9,11 +9,9 @@ import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { FeedRun } from '../../../src/modules/product_feeds/entities/feed-run.entity.js';
-import { FeedArtefact } from '../../../src/modules/product_feeds/entities/feed-artefact.entity.js';
-import { FeedTemplate } from '../../../src/modules/product_feeds/entities/feed-template.entity.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { FeedArtefact, FeedRun, FeedTemplate } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T080 — the sample-product preview (FR-072, SC-013).

@@ -100,18 +100,6 @@ import { PriceDisplayModeOverride } from '../modules/price_lists/entities/price-
 import { PriceListPriceBracket } from '../modules/price_lists/entities/price-list-price-bracket.entity.js';
 import { PriceListProduct } from '../modules/price_lists/entities/price-list-product.entity.js';
 import { PriceList } from '../modules/price_lists/entities/price-list.entity.js';
-import { FeedArtefact } from '../modules/product_feeds/entities/feed-artefact.entity.js';
-import { FeedDeliveryAttempt } from '../modules/product_feeds/entities/feed-delivery-attempt.entity.js';
-import { FeedDelivery } from '../modules/product_feeds/entities/feed-delivery.entity.js';
-import { FeedRunIssue } from '../modules/product_feeds/entities/feed-run-issue.entity.js';
-import { FeedRun } from '../modules/product_feeds/entities/feed-run.entity.js';
-import { FeedTaxonomyCheck } from '../modules/product_feeds/entities/feed-taxonomy-check.entity.js';
-import { FeedTaxonomyMapping } from '../modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';
-import { FeedTaxonomyNode } from '../modules/product_feeds/entities/feed-taxonomy-node.entity.js';
-import { FeedTaxonomy } from '../modules/product_feeds/entities/feed-taxonomy.entity.js';
-import { FeedTemplateField } from '../modules/product_feeds/entities/feed-template-field.entity.js';
-import { FeedTemplate } from '../modules/product_feeds/entities/feed-template.entity.js';
-import { ProductFeed } from '../modules/product_feeds/entities/product-feed.entity.js';
 import { entities as addressesEntities } from '@endora-commerce/mod-addresses/backend';
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
 import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/backend';
@@ -133,6 +121,7 @@ import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delive
 import { entities as dhlParcelEntities } from '@endora-commerce/mod-dhl-parcel/backend';
 import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
+import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import { entities as ksefEntities } from '@endora-commerce/mod-ksef/backend';
@@ -232,18 +221,6 @@ export const ALL_ENTITIES = [
   PriceListPriceBracket,
   PriceListProduct,
   PriceList,
-  FeedArtefact,
-  FeedDeliveryAttempt,
-  FeedDelivery,
-  FeedRunIssue,
-  FeedRun,
-  FeedTaxonomyCheck,
-  FeedTaxonomyMapping,
-  FeedTaxonomyNode,
-  FeedTaxonomy,
-  FeedTemplateField,
-  FeedTemplate,
-  ProductFeed,
   ...(addressesEntities as readonly EntityClassLike[]),
   ...(adminNotificationsEntities as readonly EntityClassLike[]),
   ...(analyticsEntities as readonly EntityClassLike[]),
@@ -265,6 +242,7 @@ export const ALL_ENTITIES = [
   ...(dhlParcelEntities as readonly EntityClassLike[]),
   ...(transactionalEmailsEntities as readonly EntityClassLike[]),
   ...(emailEntities as readonly EntityClassLike[]),
+  ...(productFeedsEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
   ...(invoicesEntities as readonly EntityClassLike[]),
   ...(ksefEntities as readonly EntityClassLike[]),

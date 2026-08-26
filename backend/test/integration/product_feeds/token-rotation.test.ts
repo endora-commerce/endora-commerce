@@ -5,9 +5,9 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { ProductFeed } from '../../../src/modules/product_feeds/entities/product-feed.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { ProductFeed } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T101 — token rotation and revocation (FR-047, FR-049, FR-059).

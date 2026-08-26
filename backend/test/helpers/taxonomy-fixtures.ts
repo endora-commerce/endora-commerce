@@ -2,7 +2,7 @@ import type {
   TaxonomyFetchRequest,
   TaxonomyFetchResult,
   TaxonomySourceFetcherPort,
-} from '../../src/modules/product_feeds/services/taxonomy-source-fetcher.interface.js';
+} from '../../../packages/modules/product_feeds/src/backend/services/taxonomy-source-fetcher.interface.js';
 
 /**
  * Fixture taxonomies and a scriptable egress stub — feature 067 Phase 11.

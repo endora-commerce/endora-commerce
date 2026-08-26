@@ -8,7 +8,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
-import { issueFeedToken } from '../../../src/modules/product_feeds/services/feed-token.service.js';
+import { issueFeedToken } from '../../../../packages/modules/product_feeds/src/backend/services/feed-token.service.js';
 
 /**
  * Feature 067 / T026 — the public feed endpoint's refusal surface
@@ -229,7 +229,7 @@ describe('public feed endpoint [contract]', () => {
   it('does not call withSystemScope — the anonymous request already carries an ambient context', async () => {
     const { readFileSync } = await import('node:fs');
     const source = readFileSync(
-      new URL('../../../src/modules/product_feeds/routes.public.ts', import.meta.url),
+      new URL('../../../../packages/modules/product_feeds/src/backend/routes.public.ts', import.meta.url),
       'utf8',
     );
     // Principle XI: the escape hatch exists for CROSSING tenants. This route

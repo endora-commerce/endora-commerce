@@ -4,6 +4,8 @@ import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
 import { AdminActionsService } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
 import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+import { ModuleRegistryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import type { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
 import type { PermissionService } from '../../../src/modules/admin_roles/services/permission-service.js';
 import type { SupportedAdminLanguage } from '@endora-commerce/contracts';
@@ -12,11 +14,20 @@ import type { SupportedAdminLanguage } from '@endora-commerce/contracts';
  * Integration test for AdminActionsService.listVisibleForOperator
  * (T015, T016, T018 — feature 020 / tasks.md).
  *
- * Drives the service's SQL join (module_actions JOIN
- * module_registrations) plus its permission filter, sort, label-resolution,
- * and per-(language, perm-fingerprint) cache. The PermissionService and
- * I18nService are stubbed so the test can pivot the operator's
- * permissions without spinning up admin_users/admin_roles rows.
+ * Drives the service's row filter — both presence axes — plus its permission
+ * filter, sort, label-resolution, and per-(language, perm-fingerprint) cache.
+ * The PermissionService and I18nService are stubbed so the test can pivot the
+ * operator's permissions without spinning up admin_users/admin_roles rows.
+ *
+ * **The registration rows below still decide platform availability; what
+ * changed is the road they take** (issue #187). The service joined
+ * `module_registrations` itself until feature 080's ledger sweep, so a seeded
+ * row was read straight off the table. It reads the kernel's combiner now, so
+ * this file builds a real `ModuleRegistryCache` over the same seeded rows and
+ * hands the service the probe both composition roots contribute. The fixture is
+ * unchanged and so is every expectation: what a passing run now also proves is
+ * that the palette and the route gates answer *one* presence, which is the
+ * whole point of the cut.
  */
 
 const TEST_MODULES = ['fix_av_a', 'fix_av_b', 'fix_av_c'] as const;
@@ -35,9 +46,9 @@ const TEST_MODULES = ['fix_av_a', 'fix_av_b', 'fix_av_c'] as const;
  * pristine database and turned this file into a coin flip decided by shard
  * membership.
  *
- * The service is still fully exercised — the join, the permission filter, the
- * weight/label sort and the cache all run over every row in the table; only the
- * expectation is narrowed to the rows this file owns.
+ * The service is still fully exercised — the presence filter, the permission
+ * filter, the weight/label sort and the cache all run over every row in the
+ * table; only the expectation is narrowed to the rows this file owns.
  */
 const isFixture = (action: { moduleId: string }): boolean =>
   (TEST_MODULES as readonly string[]).includes(action.moduleId);
@@ -45,6 +56,14 @@ const isFixture = (action: { moduleId: string }): boolean =>
 describe('AdminActionsService.listVisibleForOperator (integration)', () => {
   let orm: MikroORM;
   let em: EntityManager;
+  /**
+   * The kernel's own presence, over the rows {@link seed} just wrote.
+   *
+   * A private cache rather than the `registryCache` singleton: this file runs
+   * in the shared suite fork, and seeding the process-wide one would hand every
+   * other file in the shard a presence built from three fixture modules.
+   */
+  let presenceState: ModuleEffectiveState;
 
   beforeAll(async () => {
     orm = await MikroORM.init(await mikroOrmConfig());
@@ -55,6 +74,9 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
     em = orm.em.fork() as EntityManager;
     await cleanup(em);
     await seed(em);
+    const cache = new ModuleRegistryCache();
+    await cache.refreshFromDb(() => em);
+    presenceState = new ModuleEffectiveState(cache);
   });
 
   afterEach(async () => {
@@ -89,19 +111,27 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
       em: () => em,
       i18nService: i18nStub as I18nService,
       permissionService: permStub as PermissionService,
-      // `presence`, not `isModuleActivated`. MR !738 renamed this dependency
-      // when it replaced the pub/sub invalidation with a pulled presence
-      // generation, and this file was not on that branch to be renamed with it.
+      // Exactly what `composition.ts` and `test-server.ts` contribute as
+      // `modulePresenceProbe`, with the operator axis overridable so a case can
+      // pivot it without writing a `settings` row.
       //
-      // The old name reached the constructor through a **spread**, and a spread
-      // bypasses excess-property checking — so `tsc` stayed green while
-      // `deps.presence` fell to its permissive default (`isActivated: () => true`)
-      // and every module read as activated. The one assertion that the palette
-      // filters on the operator axis quietly stopped asserting it, which is the
-      // exact state issue #213 existed to leave behind.
-      ...(isModuleActivated
-        ? { presence: { isActivated: isModuleActivated, version: (): number => 0 } }
-        : {}),
+      // It is passed unconditionally, and the reason is a defect this file
+      // already carried once: the override used to arrive through a **spread**
+      // under the pre-!738 name `isModuleActivated`, and a spread bypasses
+      // excess-property checking — so `tsc` stayed green while `deps.presence`
+      // fell to its permissive default and every module read as activated. The
+      // one assertion that the palette filters on the operator axis quietly
+      // stopped asserting it, which is the exact state issue #213 existed to
+      // leave behind. A required parameter cannot do that.
+      presence: {
+        isPlatformAvailable: (moduleId): boolean =>
+          presenceState.presence(moduleId)?.platformAvailable ?? false,
+        isActivated: (moduleId): boolean =>
+          isModuleActivated
+            ? isModuleActivated(moduleId)
+            : (presenceState.presence(moduleId)?.operatorActivated ?? true),
+        version: (): number => presenceState.presenceVersion(),
+      },
     });
   }
 
@@ -152,14 +182,15 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
   });
 
   /**
-   * The **other** presence axis, which the SQL join above cannot answer: the
-   * module is installed, and the operator has switched it off.
+   * The **other** presence axis: the module is installed, and the operator has
+   * switched it off.
    *
    * Written while closing issue #213, which found the permission catalogue
-   * reading the platform axis alone. The palette does not share that defect —
-   * the join answers platform availability and `isModuleActivated` answers the
-   * operator's — but nothing in the tree asserted the second half, so the claim
-   * "the palette is fine" rested on reading the code. It rests on this now.
+   * reading the platform axis alone. The palette does not share that defect,
+   * but nothing in the tree asserted the second half, so the claim "the palette
+   * is fine" rested on reading the code. It rests on this now — and since issue
+   * #187 both axes come off the same combiner, so what this case pins is that
+   * the conjunction is still applied and not that one source overrode another.
    */
   it('deactivated-module action is hidden even though the platform still offers it', async () => {
     const deactivated = new Set(['fix_av_a']);
@@ -169,8 +200,8 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
       adminUserId: 'admin',
     });
 
-    // `fix_av_a` is `state: 'installed'` in the fixture, so the join keeps its
-    // rows and only the operator axis can remove them.
+    // `fix_av_a` is `state: 'installed'` in the fixture, so its platform axis
+    // is available and only the operator axis can remove its rows.
     expect(result.actions.filter(isFixture).map((a) => a.actionId)).toEqual(['b1']);
   });
 

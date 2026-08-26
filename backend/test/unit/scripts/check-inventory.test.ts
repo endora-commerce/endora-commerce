@@ -117,6 +117,7 @@ import { checkSubscribeSeam, checkWorkerSeam } from '../../../scripts/check-subs
 import { checkTransactionContext } from '../../../scripts/check-transaction-context.js';
 import {
   checkSingletonIdentity,
+  transitiveParents,
   type SingletonIdentityFindingKind,
 } from '../../../scripts/check-singleton-identity.js';
 import {
@@ -2217,6 +2218,68 @@ function singletonIdentityFindings(
 /** The line that puts the package's published artefact in the same process. */
 const LOADS_THE_ARTEFACT =
   "import * as pm from '@endora-commerce/mod-payment-methods/backend';\n";
+
+/**
+ * `check-singleton-identity`'s chain-parent signal, over the arrangement batch
+ * four met (T061a): an entity class in one package, the `@TransitivelyScoped`
+ * child that names it in another, and a **service** between the consumer and the
+ * entity — so nothing the consumer writes mentions the duplicated class.
+ *
+ * Written out rather than derived, for the reason the fixture above is: the
+ * verdict rests on `Document` being both a chain parent (`Filing` names it) and
+ * a member of the package's published `entities` array, and a proof that handed
+ * in either answer would leave the derivation that finds them unproven.
+ */
+const CHAIN_PARENT_FILES: Record<string, string> = {
+  'packages/modules/billing/src/backend/entities/document.entity.ts':
+    "@Entity({ tableName: 'documents' })\nexport class Document {}\n",
+  'packages/modules/billing/src/backend/services/document-corrections.ts':
+    "import { Document } from '../entities/document.entity.js';\n" +
+    'export class DocumentCorrections { constructor() { void Document; } }\n',
+  'packages/modules/billing/src/backend/index.ts':
+    "import { Document } from './entities/document.entity.js';\n" +
+    'export const entities = [Document];\n',
+  'packages/modules/filings/src/backend/entities/filing.entity.ts':
+    "@Entity({ tableName: 'filings' })\n@TransitivelyScoped('Document', 'documentId')\n" +
+    'export class Filing {}\n',
+  'backend/src/composition.generated.ts':
+    "import * as billing from '@endora-commerce/mod-billing/backend';\n" +
+    'export const MODULES = [billing];\n',
+  'backend/test/helpers/test-server.ts':
+    "import { MODULES } from '../../src/composition.generated.js';\n" +
+    'export function setupBackendServer() { return MODULES; }\n',
+};
+
+const CHAIN_PARENT_PACKAGES = [
+  {
+    moduleId: 'billing',
+    npmName: '@endora-commerce/mod-billing',
+    root: 'packages/modules/billing',
+  },
+  {
+    moduleId: 'filings',
+    npmName: '@endora-commerce/mod-filings',
+    root: 'packages/modules/filings',
+  },
+];
+
+function chainParentFindings(
+  consumers: Record<string, string>,
+  kind: SingletonIdentityFindingKind,
+): number {
+  return checkSingletonIdentity(
+    {
+      sources: new Map(Object.entries({ ...CHAIN_PARENT_FILES, ...consumers })),
+      packages: CHAIN_PARENT_PACKAGES,
+    },
+    {},
+  ).findings.filter((finding) => finding.kind === kind).length;
+}
+
+/** The service reach: the consumer names a service, the service names the class. */
+const REACHES_THE_SERVICE =
+  "import { DocumentCorrections } from " +
+  "'../../../packages/modules/billing/src/backend/services/document-corrections.js';\n";
 
 const CHECKS: readonly CheckEntry[] = [
   {
@@ -4558,6 +4621,70 @@ const CHECKS: readonly CheckEntry[] = [
         );
         return value === 1 && typeOnly === 0 ? 1 : 0;
       }),
+      // The third signal (T061a). The consumer names a *service*; the entity is
+      // one hop behind it, which is why conjunct 2 asked of the binding could
+      // not see batch four's seven sites.
+      'chain-parent-reach': top(() =>
+        chainParentFindings(
+          {
+            'backend/test/integration/billing.test.ts':
+              "import { setupBackendServer } from '../helpers/test-server.js';\n" +
+              REACHES_THE_SERVICE,
+          },
+          'chain-parent-reach',
+        ),
+      ),
+      // Batch four's seventh site, and a shape of its own: the reach sits in a
+      // helper whose *own* closure loads no artefact — it reaches the harness
+      // through `import type` — while every test importing it holds both copies.
+      'chain-parent-reach-behind-a-helper': top(() =>
+        chainParentFindings(
+          {
+            'backend/test/helpers/billing-ports.ts':
+              `${REACHES_THE_SERVICE}import type { setupBackendServer } from './test-server.js';\n`,
+            'backend/test/integration/orders.test.ts':
+              "import { setupBackendServer } from '../helpers/test-server.js';\n" +
+              "import '../helpers/billing-ports.js';\n",
+          },
+          'chain-parent-reach',
+        ),
+      ),
+      // The refusal, not a finding: the signal's population *is* those literals,
+      // so a computed parent name would shorten it in silence.
+      'unreadable-chain-parent': top(
+        () =>
+          transitiveParents(
+            new Map([
+              [
+                'packages/modules/filings/src/backend/entities/filing.entity.ts',
+                "@Entity({ tableName: 'filings' })\n@TransitivelyScoped(PARENT, 'documentId')\n" +
+                  'export class Filing {}\n',
+              ],
+            ]),
+          ).unreadable.length,
+      ),
+      // The control that is the *narrowing*: the same transitive reach onto the
+      // same composed entity, with no tenant chain naming it, is not a finding.
+      // Without it the signal is "any composed singleton reached transitively",
+      // which is several hundred correct reaches and a ledger of exceptions.
+      'an-unnamed-entity-is-not-a-finding': top(() => {
+        const consumer = {
+          'backend/test/integration/billing.test.ts':
+            "import { setupBackendServer } from '../helpers/test-server.js';\n" +
+            REACHES_THE_SERVICE,
+        };
+        const named = chainParentFindings(consumer, 'chain-parent-reach');
+        const withoutTheChild = { ...CHAIN_PARENT_FILES };
+        delete withoutTheChild['packages/modules/filings/src/backend/entities/filing.entity.ts'];
+        const unnamed = checkSingletonIdentity(
+          {
+            sources: new Map(Object.entries({ ...withoutTheChild, ...consumer })),
+            packages: CHAIN_PARENT_PACKAGES,
+          },
+          {},
+        ).findings.length;
+        return named === 1 && unnamed === 0 ? 1 : 0;
+      }),
     },
   },
   {
@@ -5897,14 +6024,19 @@ describe('every red proof enters at the top of the analysis', () => {
       // Three spellings of a whole-table wipe, plus the baseline's second
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,
-      // Two findings — the composed singleton reached two ways it is derived
-      // (the container and the ORM's entities array) and the reach that names
-      // no binding — plus the ledger's stale direction, plus one control per
-      // conjunct. The controls are counted shapes rather than companion-test
-      // detail because the conjunction *is* the rule: this check clears 328
-      // reaches into a package's source and refuses the 329th, and a proof set
-      // that only showed the refusal would not show it is the right check.
-      'backend/scripts/check-singleton-identity.ts': 6,
+      // Three findings — the composed singleton reached two ways it is derived
+      // (the container and the ORM's entities array), the reach that names no
+      // binding, and T061a's chain parent, which carries two of its own because
+      // the shape has two halves that fail differently: the transitive reach,
+      // and the reach sitting in a helper whose own closure loads no artefact.
+      // Plus the ledger's stale direction, plus the refusal that keeps the
+      // chain population honest, plus one control per conjunct and one for the
+      // narrowing. The controls are counted shapes rather than companion-test
+      // detail because the conjunction *is* the rule: this check clears every
+      // reach into a package's source that its run prints as `sites=`, bar the
+      // handful it refuses, and a proof set that only showed the refusal would
+      // not show it is the right check.
+      'backend/scripts/check-singleton-identity.ts': 10,
       // Three spellings of a bare subscription, plus the two queue-consumer
       // shapes: a factory call whose value goes nowhere, and a `new Worker` the
       // module keeps to itself.

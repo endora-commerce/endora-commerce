@@ -9,10 +9,9 @@ import {
 } from '../../helpers/test-server.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { FeedTaxonomy } from '../../../src/modules/product_feeds/entities/feed-taxonomy.entity.js';
-import { FeedTaxonomyNode } from '../../../src/modules/product_feeds/entities/feed-taxonomy-node.entity.js';
-import { TaxonomyReconcilerService } from '../../../src/modules/product_feeds/services/taxonomy-reconciler.service.js';
+import { TaxonomyReconcilerService } from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-reconciler.service.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { FeedTaxonomy, FeedTaxonomyNode } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T052 — the **shipped** taxonomy data (FR-077, FR-078, FR-083).
@@ -45,7 +44,7 @@ import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-prod
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const DATA_ROOT = join(HERE, '../../../src/modules/product_feeds/data/taxonomies');
+const DATA_ROOT = join(HERE, '../../../../packages/modules/product_feeds/src/backend/data/taxonomies');
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 
 /** From `data/taxonomies/PROVENANCE.md` — the drop measured on 2026-08-02. */
