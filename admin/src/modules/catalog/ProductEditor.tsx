@@ -64,6 +64,10 @@ import {
   FieldProtectionSummary,
   FieldProtectionToggle,
 } from '../pim_ergonode/components/FieldProtectionToggle';
+import {
+  FieldProtectionToggle as AkeneoFieldProtectionToggle,
+} from '../pim_akeneo/components/FieldProtectionToggle';
+import { AkeneoProductIdentity } from '../pim_akeneo/AkeneoProductIdentity';
 import { ProductInventoryTab } from './ProductInventoryTab';
 import { PackagingUnitsEditor } from './components/PackagingUnitsEditor';
 import { ProductAttributesTab } from './ProductAttributesTab';
@@ -555,6 +559,7 @@ export function ProductEditor(): ReactNode {
                   <AdminZone name="product.editor.details.before" props={{ productId: id }} />
                 ) : null}
                 <FieldProtectionSummary productId={id} />
+                <AkeneoProductIdentity productId={id} />
                 {id ? (
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     {/* One mount per field, not one per field and locale: the
@@ -583,6 +588,22 @@ export function ProductEditor(): ReactNode {
                         productId={id}
                         fieldPath="description"
                         languageCode={l}
+                      />
+                    ))}
+                    {LOCALES.map((l) => (
+                      <AkeneoFieldProtectionToggle
+                        key={`akeneo-protect-name-${l}`}
+                        productId={id}
+                        fieldKey="name"
+                        locale={l}
+                      />
+                    ))}
+                    {LOCALES.map((l) => (
+                      <AkeneoFieldProtectionToggle
+                        key={`akeneo-protect-description-${l}`}
+                        productId={id}
+                        fieldKey="description"
+                        locale={l}
                       />
                     ))}
                   </div>
@@ -771,6 +792,7 @@ export function ProductEditor(): ReactNode {
                       />
                     ) : null}
                     <FieldProtectionToggle productId={id} fieldPath="categories" className="ml-3" />
+                    <AkeneoFieldProtectionToggle productId={id} fieldKey="categories" className="ml-3" />
                   </div>
                   <CategoryTreePicker
                     categories={categories}
@@ -821,6 +843,7 @@ export function ProductEditor(): ReactNode {
                 props={{ productId: id, fieldPath: 'gallery', languageCodes: null }}
               />
               <FieldProtectionToggle productId={id} fieldPath="gallery" className="mb-2" />
+              <AkeneoFieldProtectionToggle productId={id} fieldKey="gallery" className="mb-2" />
               <GallerySection ref={galleryRef} productId={id} />
             </>
           ) : null}
@@ -841,6 +864,7 @@ export function ProductEditor(): ReactNode {
                 props={{ productId: id, fieldPath: 'attachments', languageCodes: null }}
               />
               <FieldProtectionToggle productId={id} fieldPath="attachments" className="mb-2" />
+              <AkeneoFieldProtectionToggle productId={id} fieldKey="attachments" className="mb-2" />
               <AttachmentsSection productId={id} />
             </>
           ) : null}

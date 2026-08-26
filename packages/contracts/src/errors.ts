@@ -535,6 +535,8 @@ export const ERROR_CODES = {
   PIM_AKENEO_CHANNEL_REQUIRED: 'PIM_AKENEO_CHANNEL_REQUIRED',
   /** Enabling requires a stored HMAC secret. */
   PIM_AKENEO_SECRET_REQUIRED: 'PIM_AKENEO_SECRET_REQUIRED',
+  /** A protected field key does not match the grammar (data-model.md §5). */
+  PIM_AKENEO_FIELD_KEY_INVALID: 'PIM_AKENEO_FIELD_KEY_INVALID',
   /** Enabling while another PIM connector (e.g. Ergonode) is already enabled. */
   PIM_CONNECTOR_ALREADY_ACTIVE: 'PIM_CONNECTOR_ALREADY_ACTIVE',
 >>>>>>> 889727e9d (Add Akeneo connection Commands, HMAC credential and skip-bootstrap.)
