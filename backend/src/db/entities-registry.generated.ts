@@ -34,7 +34,6 @@ import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
 import { SettingValue } from '../kernel/settings/setting-value.entity.js';
 import { Setting } from '../kernel/settings/setting.entity.js';
 import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
-import { Session } from '../modules/auth/entities/session.entity.js';
 import { AttachmentType } from '../modules/catalog/entities/attachment-type.entity.js';
 import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
 import { AttributeSet } from '../modules/catalog/entities/attribute-set.entity.js';
@@ -111,6 +110,7 @@ import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-re
 import { entities as returnsEntities } from '@endora-commerce/mod-returns/backend';
 import { entities as searchEntities } from '@endora-commerce/mod-search/backend';
 import { entities as seoEntities } from '@endora-commerce/mod-seo/backend';
+import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
 import { entities as shipmentsEntities } from '@endora-commerce/mod-shipments/backend';
 import { entities as shoppingListsEntities } from '@endora-commerce/mod-shopping-lists/backend';
 import { entities as stripeEntities } from '@endora-commerce/mod-stripe/backend';
@@ -126,7 +126,6 @@ export const ALL_ENTITIES = [
   SettingValue,
   Setting,
   TranslationBundle,
-  Session,
   AttachmentType,
   AttributeSetAttribute,
   AttributeSet,
@@ -203,6 +202,7 @@ export const ALL_ENTITIES = [
   ...(returnsEntities as readonly EntityClassLike[]),
   ...(searchEntities as readonly EntityClassLike[]),
   ...(seoEntities as readonly EntityClassLike[]),
+  ...(authEntities as readonly EntityClassLike[]),
   ...(shipmentsEntities as readonly EntityClassLike[]),
   ...(shoppingListsEntities as readonly EntityClassLike[]),
   ...(stripeEntities as readonly EntityClassLike[]),

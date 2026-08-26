@@ -77,7 +77,20 @@ import {
   absolutizePublicUrl,
   assertPublicApiBaseUrlConfigured,
 } from './kernel/public-api-base-url.js';
-import { promoteAdminActor } from './modules/auth/plugin.js';
+// Feature 080 (T040b) — `auth` is `@endora-commerce/mod-auth`. This is the one
+// **value** import this root takes from a module package, and the bare
+// specifier is what makes it legal: `composition.generated.ts` already imports
+// the same `./backend` subpath, so the process holds one copy of the module
+// (D-160.6.1). The relative path it replaces named a file *inside* the module
+// and would have evaluated the package's source a second time.
+//
+// The helper stays in `auth` rather than moving to the platform the way
+// `absolutizePublicUrl` did, because `auth` reads it itself and because
+// promotion is about `request.actor` and `request.adminActor`, two decorations
+// that module owns. `harness-parity.test.ts`'s `auth:promoteAdminActor` entry
+// names the further step — actor promotion published as a port, resolved from
+// the container — which this change deliberately does not take.
+import { promoteAdminActor } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
 import { publishStateChanged, registryCache } from './kernel/lifecycle/registry-cache.js';
 import { effectiveState } from './kernel/lifecycle/effective-state.js';

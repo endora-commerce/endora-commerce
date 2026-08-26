@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 
 /**
  * Feature 026 US2 — Customer↔Organization membership shapes.

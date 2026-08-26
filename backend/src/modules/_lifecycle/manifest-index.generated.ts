@@ -45,7 +45,7 @@ import { manifest as manifest7 } from '@endora-commerce/mod-analytics';
 import { manifest as manifest8 } from '@endora-commerce/mod-api-keys';
 import { manifest as manifest9 } from '@endora-commerce/mod-assets-library';
 import { manifest as manifest10, cliCommands as cliCommands10 } from '@endora-commerce/mod-audit-logs';
-import { manifest as manifest11 } from '../auth/manifest.js';
+import { manifest as manifest11 } from '@endora-commerce/mod-auth';
 import { manifest as manifest12 } from '@endora-commerce/mod-autopay';
 import { manifest as manifest13 } from '@endora-commerce/mod-blog';
 import { manifest as manifest14, cliCommands as cliCommands14 } from '@endora-commerce/mod-carts';
@@ -130,7 +130,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'api_keys', manifest: manifest8, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-api-keys') },
   { id: 'assets_library', manifest: manifest9, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-assets-library') },
   { id: 'audit_logs', manifest: manifest10, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-audit-logs'), cliCommands: cliCommands10 },
-  { id: 'auth', manifest: manifest11, manifestPath: resolveManifestPath(import.meta.url, '../auth/manifest.js') },
+  { id: 'auth', manifest: manifest11, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-auth') },
   { id: 'autopay', manifest: manifest12, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-autopay') },
   { id: 'blog', manifest: manifest13, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-blog') },
   { id: 'carts', manifest: manifest14, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-carts'), cliCommands: cliCommands14 },

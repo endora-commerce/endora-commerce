@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { withModuleOff } from '../../helpers/off-state.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 
 /**

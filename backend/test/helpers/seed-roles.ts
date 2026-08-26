@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { CustomerAccount } from './package-entities.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
-import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
 import {
   SEED_ADDRESS_BILLING_ID,

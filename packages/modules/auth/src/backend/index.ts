@@ -1,13 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import type { AuthSessionPort, AuthSessionReadPort } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/index.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
-import type { AdminPermissionChecker } from '../../kernel/ports/require-admin.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import type { AdminPermissionChecker } from '@endora-commerce/platform/kernel';
 import { authPlugin } from './plugin.js';
 import { createRequireAdmin, createRequireAdminAny } from './require-admin.js';
 import { createRequireCustomer } from './require-customer.js';
 import { AuthSessionReadService, createAuthSessionPort } from './services/session-port.js';
+import { Session } from './entities/session.entity.js';
 import { SessionService } from './services/session-service.js';
 
 /**
@@ -160,3 +161,66 @@ export function registerModule(ctx: ModuleContext): void {
     },
   );
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ */
+export const entities = [Session];
+
+/**
+ * Actor promotion, on the `./backend` subpath because the **composition root**
+ * calls it — the MFA actor bridge promotes a partially-authenticated session to
+ * an admin actor before asserting it is one.
+ *
+ * It is published rather than relocated, and the distinction is the whole
+ * reason this export exists. `absolutizePublicUrl` moved out of `email` into
+ * the platform under the same pressure (T040b, criterion 8) because it had **no
+ * consumer inside its own module** — it was a deployment-origin helper filed
+ * under the module that first needed it. This one is the opposite: `auth` reads
+ * it itself, from `require-admin.ts`, and `@endora-commerce/platform`'s own
+ * `kernel/ports/require-admin.ts` states in as many words why the
+ * implementation lives here — *"promoting an admin actor needs the auth
+ * plugin's per-request decorations"*. A platform copy would reason about
+ * `request.actor` and `request.adminActor`, two decorations this module owns
+ * and declares.
+ *
+ * **The root resolving it as a port is a further step this does not take**, and
+ * it is written down rather than left implicit: the `auth:promoteAdminActor`
+ * entry in `test/contract/kernel/harness-parity.test.ts` records the divergence
+ * and names its own drain condition — *"it drains when `auth` provides actor
+ * promotion as a port"*. That entry still stands after this change. What the
+ * bare specifier buys is only what packaging requires: the root no longer names
+ * a file inside this module, so there is one copy of this module in the process
+ * (D-160.6.1) instead of two.
+ */
+export { promoteAdminActor } from './plugin.js';
+
+/**
+ * The module's own implementation classes and guard factories, on the
+ * `./backend` subpath.
+ *
+ * They are published for the reason `pim_ergonode` publishes
+ * `ErgonodeRequestError`: a consumer that needs the **class** must get the one
+ * the platform composed. `SessionService` reaches `Session` and
+ * `AuthSessionReadService` reaches it too, so a second copy of either is a
+ * second `Session` — a class the ORM never discovered, and `em.find` answers a
+ * `MetadataError` rather than rows (D-160.6.1). Publishing them is what lets a
+ * consumer name one copy instead of resolving a filesystem path into this
+ * package's source.
+ *
+ * No module reaches any of these; the consumers today are `backend/test/`,
+ * which is why they are not on a `./ports` subpath — that one is contract
+ * surface (D-171) and these are implementations.
+ */
+export { SessionService } from './services/session-service.js';
+export { AuthSessionReadService, createAuthSessionPort } from './services/session-port.js';
+export { createRequireAdmin, createRequireAdminAny } from './require-admin.js';
+export { createRequireCustomer } from './require-customer.js';

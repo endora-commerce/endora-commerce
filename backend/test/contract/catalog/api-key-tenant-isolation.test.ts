@@ -12,7 +12,7 @@ import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.e
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 

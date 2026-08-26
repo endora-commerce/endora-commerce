@@ -63,12 +63,12 @@ import { initOrm, closeOrm } from '../../src/db/index.js';
 import { assertServicesAvailable } from '../declared-services.js';
 import { EventBus } from '../../src/events/bus.js';
 import { CommandBus } from '../../src/commands/index.js';
-import type { SessionService } from '../../src/modules/auth/services/session-service.js';
+import type { SessionService } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
 import type { PermissionService } from '../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
 import type { PermissionCatalogueService } from '../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 import type { AdminRoleService } from '../../../packages/modules/admin_roles/src/backend/services/admin-role-service.js';
-import type { AuthCradle } from '../../src/modules/auth/backend.js';
+import type { AuthCradle } from '@endora-commerce/mod-auth/backend';
 import {
   REGISTERED_MANIFESTS,
   deploymentShippedEntries,

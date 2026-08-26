@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { SessionService } from '../../../src/modules/auth/services/session-service.js';
+import { SessionService } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
@@ -13,7 +13,7 @@ import { CustomerAuthorityService } from '../../../../packages/modules/customers
 import { CustomerDeletionService } from '../../../../packages/modules/customers/src/backend/services/customer-deletion-service.js';
 import { PersonalOrganizationService } from '../../../../packages/modules/organizations/src/backend/services/personal-organization-service.js';
 import { toOrganizationRecord } from '../../../../packages/modules/organizations/src/backend/services/organization-details-port.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import {
   customerAccountLifecycleWriteFor,
   customerAccountPortsFor,

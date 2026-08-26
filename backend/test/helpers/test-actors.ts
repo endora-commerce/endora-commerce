@@ -1,10 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { SessionService } from '../../src/modules/auth/services/session-service.js';
+import type { SessionService } from '@endora-commerce/mod-auth/backend';
 import { CustomerAccount } from './package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PermissionService } from '../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
 import type { RequireAdminFactory } from '../../src/kernel/ports/require-admin.js';
-import { createRequireAdmin } from '../../src/modules/auth/require-admin.js';
+import { createRequireAdmin } from '@endora-commerce/mod-auth/backend';
 
 /**
  * Test-only auth wiring. The US1 contract and integration tests identify the

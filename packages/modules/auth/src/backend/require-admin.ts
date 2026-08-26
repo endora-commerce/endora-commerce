@@ -1,11 +1,11 @@
 import type { FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type {
   AdminPermissionChecker,
   RequireAdminAnyFactory,
   RequireAdminFactory,
-} from '../../kernel/ports/require-admin.js';
+} from '@endora-commerce/platform/kernel';
 import { promoteAdminActor } from './plugin.js';
 
 /**

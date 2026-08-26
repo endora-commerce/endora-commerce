@@ -4,7 +4,7 @@ import { Address, Cart, CartItem, DeliveryMethod, Invoice, PaymentMethod } from 
 import { StockLevel } from './package-entities.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import { CustomerAccount } from './package-entities.js';
-import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import {
   TEST_CUSTOMER_ID,
   TEST_ORGANIZATION_ID,

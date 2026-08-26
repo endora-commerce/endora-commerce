@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-import type { RequireCustomerGuard } from '../../kernel/ports/require-customer.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { RequireCustomerGuard } from '@endora-commerce/platform/kernel';
 
 /**
  * The customer guard (issue #43). **One implementation**, shared by production

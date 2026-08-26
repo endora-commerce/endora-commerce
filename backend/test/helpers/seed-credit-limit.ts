@@ -3,7 +3,7 @@ import { Cart, CartItem, CreditLimit, CreditLimitReservation, Invoice, PaymentMe
 import { CustomerAccount } from './package-entities.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import { Payment } from '../../src/modules/payments/entities/payment.entity.js';
-import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
 import { SEED_PRODUCT_101_ID } from './seed-catalog.js';
 import { STUB_CUSTOMER_PASSWORD } from './seed-organizations.js';

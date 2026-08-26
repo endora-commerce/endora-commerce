@@ -6,7 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 
 const SETTINGS_VIEWER_ID = '00000000-0000-4000-8000-0000000000d1';

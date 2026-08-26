@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';

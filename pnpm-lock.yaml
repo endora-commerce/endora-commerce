@@ -195,6 +195,9 @@ importers:
       '@endora-commerce/mod-audit-logs':
         specifier: workspace:*
         version: link:../packages/modules/audit_logs
+      '@endora-commerce/mod-auth':
+        specifier: workspace:*
+        version: link:../packages/modules/auth
       '@endora-commerce/mod-autopay':
         specifier: workspace:*
         version: link:../packages/modules/autopay
@@ -914,6 +917,36 @@ importers:
       zod:
         specifier: ^4.2.0
         version: 4.3.6
+
+  packages/modules/auth:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      fastify-plugin:
+        specifier: ^5.1.0
+        version: 5.1.0
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
   packages/modules/autopay:
     devDependencies:

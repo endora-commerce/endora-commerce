@@ -8,7 +8,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { TaxonomyReconcilerService } from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-reconciler.service.js';

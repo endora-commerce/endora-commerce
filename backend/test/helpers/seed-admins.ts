@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AdminRole, AdminUser } from './package-entities.js';
-import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { TEST_ADMIN_ID } from './test-actors.js';
 import { STUB_CUSTOMER_PASSWORD } from './seed-organizations.js';
 
