@@ -41,8 +41,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { normalizeEmailAddress, type AdminRolePort } from '@endora-commerce/contracts';
 import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
-import { lazyPort, type ModuleContext } from '../../../kernel/index.js';
-import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
+import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { AdminUser } from '../entities/admin-user.entity.js';
 
 interface ParsedArgs {

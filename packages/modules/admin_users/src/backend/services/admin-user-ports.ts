@@ -8,7 +8,7 @@ import type {
   AdminUserRecord,
   ImpersonationPort,
 } from '@endora-commerce/contracts';
-import { verifyPassword } from '../../../kernel/crypto/password-hasher.js';
+import { verifyPassword } from '@endora-commerce/platform/kernel';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import type { AdminUserService } from './admin-user-service.js';
 import type { ImpersonationService } from './impersonation-service.js';

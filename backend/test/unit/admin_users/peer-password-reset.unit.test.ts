@@ -1,10 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+// This test constructs the service itself, over a stubbed `EntityManager`, and
+// its stub compares the class it is handed by **identity**. So the entity has
+// to be the copy the service under test holds — the package's own source, the
+// same specifier the service is imported from below — and not the one off the
+// published `entities` array, which is a second class with the same name
+// (D-160.6.1). Nothing here composes the platform, so there is only one copy in
+// this process and `check:singleton-identity`'s conjunct 1 is false.
+import { AdminUser } from '../../../../packages/modules/admin_users/src/backend/entities/admin-user.entity.js';
 import type { AdminRolePort, AuthSessionPort } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import type { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { hashPassword, verifyPassword } from '../../../src/kernel/crypto/password-hasher.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
-import { AdminUserService } from '../../../src/modules/admin_users/services/admin-user-service.js';
+import { AdminUserService } from '../../../../packages/modules/admin_users/src/backend/services/admin-user-service.js';
 
 /**
  * Issue #252 — the peer password-reset seam, on its three claims:

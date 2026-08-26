@@ -12,7 +12,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { AdminUserService } from './services/admin-user-service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin user + role CRUD (T193 / FR-080..FR-083). All gated by

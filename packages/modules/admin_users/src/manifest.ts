@@ -1,5 +1,5 @@
 import { defineModuleManifest, type ModuleCliCommand } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/module-context.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin Users module — manifest backfill (Module Lifecycle, feature 018).
@@ -127,6 +127,6 @@ wildcard \`*\` permission; narrower roles are defined from the Admin UI.
 
   --role=<code>            an existing role code (default: platform_admin)
   --skip-role-bootstrap    do not create platform_admin when it is missing`,
-    run: async (context) => (await import('./cli/create-admin.js')).createAdmin(context),
+    run: async (context) => (await import('./backend/cli/create-admin.js')).createAdmin(context),
   },
 ];

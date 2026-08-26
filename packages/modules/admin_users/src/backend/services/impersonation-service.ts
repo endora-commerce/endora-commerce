@@ -5,9 +5,9 @@ import {
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { AdminUser } from '../entities/admin-user.entity.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 /**
  * ImpersonationService (T189). Implements the switch-user pattern:

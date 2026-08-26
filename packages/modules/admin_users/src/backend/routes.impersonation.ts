@@ -1,3 +1,12 @@
+// `reply.setCookie` / `reply.clearCookie` are not on `FastifyReply`: they are a
+// declaration-merging augmentation `@fastify/cookie` contributes. Inside
+// `backend/src` that augmentation arrived ambiently, through the host's own
+// dependency and its `types` graph — so nothing in this module ever named it. A
+// package compiles against its own manifest, where an unnamed dependency does
+// not exist, and the property simply is not there (TS2339). The import is
+// type-only, so it loads the declarations and emits nothing: registering the
+// plugin stays the host's job, exactly as before.
+import type {} from '@fastify/cookie';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   ADMIN_SESSION_COOKIE_NAME,
@@ -5,9 +14,9 @@ import {
   SESSION_COOKIE_NAME,
   impersonationRequestSchema,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { ImpersonationService } from './services/impersonation-service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin impersonation routes (T191).

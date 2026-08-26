@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   registerImpersonationRoutes,
   type ImpersonationDeps,
-} from '../../../src/modules/admin_users/routes.impersonation.js';
-import type { ImpersonationService } from '../../../src/modules/admin_users/services/impersonation-service.js';
+} from '../../../../packages/modules/admin_users/src/backend/routes.impersonation.js';
+import type { ImpersonationService } from '../../../../packages/modules/admin_users/src/backend/services/impersonation-service.js';
 
 /**
  * Feature 080, T051 — impersonation identifies the acting admin from the

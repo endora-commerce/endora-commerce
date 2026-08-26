@@ -5,11 +5,11 @@ import {
   type AuthSessionPort,
   type MfaLoginPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword, verifyPassword } from '../../../kernel/crypto/password-hasher.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
 import { AdminUser } from '../entities/admin-user.entity.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 /**
  * AdminAuthService (T186; two-step login added in feature 042). login →

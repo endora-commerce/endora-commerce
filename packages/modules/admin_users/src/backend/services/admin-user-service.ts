@@ -6,11 +6,11 @@ import {
   type AdminRolePort,
   type AuthSessionPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
-import { hashPassword } from '../../../kernel/crypto/password-hasher.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { AdminUser } from '../entities/admin-user.entity.js';
-import { recordAuditFromContext } from '../../../commands/index.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 /**
  * AdminUserService (T193 / FR-080..FR-083). Backs the admin panel's
