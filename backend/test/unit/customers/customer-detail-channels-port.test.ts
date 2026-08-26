@@ -8,8 +8,8 @@ import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helper
 import {
   CustomerAdminQueryService,
   type CustomerAdminQueryPorts,
-} from '../../../src/modules/customers/services/customer-admin-query-service.js';
-import type { CustomerDefaultsService } from '../../../src/modules/customers/services/customer-defaults-service.js';
+} from '../../../../packages/modules/customers/src/backend/services/customer-admin-query-service.js';
+import type { CustomerDefaultsService } from '../../../../packages/modules/customers/src/backend/services/customer-defaults-service.js';
 
 /**
  * Feature 080, T048 (D-169) — the customer-detail channel list comes from
@@ -35,7 +35,7 @@ import type { CustomerDefaultsService } from '../../../src/modules/customers/ser
 function customerRecord(over: Partial<CustomerAccountRecord> = {}): CustomerAccountRecord {
   return {
     id: 'cust-1',
-    organizationId: null,
+    organizationId: 'org-1',
     email: 'buyer@example.test',
     firstName: 'Buyer',
     lastName: 'One',

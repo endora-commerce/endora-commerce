@@ -1303,6 +1303,96 @@ describe('findNonBindingIssues — the guard-rails on `contributes-to`', () => {
   });
 });
 
+/**
+ * `refuses-without` — the mirror rail (owner ruling, 2026-08-25).
+ *
+ * The kind makes a two-part claim: *the operation refuses* and *the owner's
+ * activation control keeps working*. Each part is decidable, and each is
+ * checked on its own fixture so neither can go blind behind the other's red.
+ *
+ * The fixture is deliberately the *good* case with one thing changed, because
+ * both signals are absences — an absent gate, an absent sentence — and a
+ * fixture that never satisfied the rule cannot tell you which absence it
+ * caught.
+ */
+describe('findNonBindingIssues — the rail on `refuses-without`', () => {
+  const call: PortResolution = {
+    moduleId: 'shop',
+    name: 'settlementPort',
+    file: '/repo/backend/src/modules/shop/backend.ts',
+    line: 1,
+    kind: 'deferred',
+    via: 'lazyPort',
+    site: 'call',
+  };
+
+  const input = (
+    over: Partial<Parameters<typeof findNonBindingIssues>[0]> = {},
+  ): Parameters<typeof findNonBindingIssues>[0] => ({
+    edges: [
+      {
+        moduleId: 'shop',
+        dependsOn: 'settlement',
+        name: 'settlementPort',
+        kind: 'refuses-without',
+        whenAbsent: 'checkout stops accepting orders',
+        reason: 'The placement seam has no fallback and lets the 503 reach the buyer.',
+      },
+    ],
+    owners: new Map([['settlementPort', 'settlement']]),
+    providedPorts: new Map([['settlementPort', 'settlement']]),
+    resolutions: [call],
+    contributionPolicies: {},
+    boundOwners: new Map([['shop', new Set<string>()]]),
+    ...over,
+  });
+
+  it('accepts a call-time read of a gated port with a sentence and no bind', () => {
+    expect(findNonBindingIssues(input())).toEqual([]);
+  });
+
+  it('refuses a refusal over a name nothing gates', () => {
+    // An ungated registration keeps resolving, or resolves to nothing; either
+    // way there is no `MODULE_DISABLED` for the entry to be describing.
+    const issues = findNonBindingIssues(input({ providedPorts: new Map<string, string>() }));
+    expect(issues.map((issue) => issue.kind)).toEqual(['refusal-over-an-ungated-name']);
+    expect(describeNonBindingIssue(issues[0]!)).toContain('di.providePort');
+  });
+
+  it('refuses a refusal whose owner the declaring module also binds', () => {
+    // `dependencies` and `acknowledgedDependencies` are what the flip-time
+    // refusal reads, so the entry's second claim is false and the owner's
+    // control is a dead switch. `defineModuleManifest` refuses this first; the
+    // check re-derives it for a manifest built without the helper.
+    const issues = findNonBindingIssues(
+      input({ boundOwners: new Map([['shop', new Set(['settlement'])]]) }),
+    );
+    expect(issues.map((issue) => issue.kind)).toEqual(['refusal-over-a-bound-owner']);
+    expect(describeNonBindingIssue(issues[0]!)).toContain('dead switch');
+  });
+
+  it('refuses a refusal that names nothing to show the operator', () => {
+    const issues = findNonBindingIssues(
+      input({ edges: [{ ...input().edges[0]!, whenAbsent: null }] }),
+    );
+    expect(issues.map((issue) => issue.kind)).toEqual(['refusal-without-a-sentence']);
+  });
+
+  it('holds the two shared rules over the new kind as well', () => {
+    // `wrong-owner` and `nothing-resolves` are about the declaration rather
+    // than the kind, and both run before the rail. A kind-specific `continue`
+    // that skipped them would be the regression.
+    expect(
+      findNonBindingIssues(input({ owners: new Map([['settlementPort', 'treasury']]) })).map(
+        (issue) => issue.kind,
+      ),
+    ).toContain('wrong-owner');
+    expect(findNonBindingIssues(input({ resolutions: [] })).map((issue) => issue.kind)).toEqual([
+      'nothing-resolves',
+    ]);
+  });
+});
+
 const layout = await requireModuleLayout('[port-dependency-check]');
 
 describe('CONTRIBUTION_POLICY_STATED — the registries a contribution may name', () => {

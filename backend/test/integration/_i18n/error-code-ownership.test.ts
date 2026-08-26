@@ -1,15 +1,22 @@
+import { CartItem } from '../../helpers/package-entities.js';
 import { randomUUID } from 'node:crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { ERROR_CODES } from '@endora-commerce/contracts';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { ERROR_TRANSLATION_KEYS } from '../../../src/modules/_i18n/services/error-translation.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
+
 import { RFQ_SHIPPED_ORDER_ID, seedShippedOrder } from '../../helpers/seed-commerce.js';
+
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+
 
 /**
  * Issue #229 / feature 082 — the sentence a refusal renders is the one the

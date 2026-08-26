@@ -19,8 +19,17 @@
  * read is a read of a row the settlement transaction never writes, and the
  * lifecycle transition runs after that transaction has committed.
  *
- * The one left is **permanent** under D-78 point 2, and feature 085 Phase D
- * narrowed what it covers: the co-transactional pair is now the payment row and
+ * The one left is **permanent** under D-78 point 2. Feature 080's T048 changed
+ * its **spelling** and nothing else: what crosses is `orders`' own
+ * `OrderPaymentStatusApplyPort`, on that module's `ports/` directory, instead
+ * of the `Order` entity class D-168 leaves a packaged `orders` no supported
+ * name for. Same transaction, same constraint, same one column. The entry stays
+ * and stays permanent, exactly as D-171 predicts — `resolveModulePackage`
+ * returns `null` for any specifier starting with `.`, so a relative import into
+ * an owner's `ports/` directory has no subpath for the exemption to apply to,
+ * and packaging `orders` is what finishes it.
+ *
+ * Feature 085 Phase D narrowed what it covers: the co-transactional pair is now the payment row and
  * `order.paymentStatus`, the two things `payments_order_fk` holds. The order's
  * *lifecycle* status left with the port. `shipments` carried the identical
  * entry, settled by D-90 on the identical ground, and it is gone entirely —
@@ -44,7 +53,7 @@
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/payments/services/receive-payment-handler.ts:orders/entities/order.entity': {
+  'modules/payments/services/receive-payment-handler.ts:orders/ports/index': {
     permanent: true,
     reason:
       'PERMANENT (D-78 point 2). `payments.order_id` carries a declared foreign key into ' +
@@ -65,11 +74,24 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
       'column, so it moved to `orderTransitionPort` and is called after the commit. ' +
       '`receive-shipment-handler.ts` wrote nothing else on the order, so its shard is deleted; ' +
       'this file still writes `paymentStatus`, which is the column the foreign key genuinely ' +
-      'holds together with the payment row.',
+      'holds together with the payment row. ' +
+      '**Feature 080`s T048 converted what crosses, and nothing else** (D-169): it was the ' +
+      '`Order` entity class, which D-168 leaves a packaged `orders` no supported spelling for, ' +
+      'and it is now `OrderPaymentStatusApplyPort` — the owner`s own interface, declared in the ' +
+      'owner`s `ports/` directory because its `EntityManager` parameter bars it from ' +
+      '`@endora-commerce/contracts` (FR-034). The transaction, the constraint and the one ' +
+      'column are exactly as they were; a foreign key needs the **table** and never the class. ' +
+      'What the conversion removed is this module`s ability to move any other column of ' +
+      '`orders`` aggregate on a transaction it happens to hold: the port answers a published ' +
+      'record and hands back no managed row.',
     retiredBy:
-      'F4 gives `orders` a package entry point, at which point this is a package dependency the ' +
-      'manifest already declares rather than an import of internals. Dropping ' +
-      '`payments_order_fk` would retire it too, and would cost the invariant the constraint ' +
-      'buys — a payment row pointing at no order.',
+      'F4 packages `orders`, at which point that same directory is the package`s `./ports` ' +
+      'subpath, D-171 stops counting the reach, and the consumer-side edit is this one ' +
+      'specifier. It is not retired by the relocation alone: `resolveModulePackage` returns ' +
+      '`null` for anything starting with `.`, so a relative specifier has no subpath for the ' +
+      'exemption to apply to, and the three edits (package the owner, publish the interface, ' +
+      'rewrite the specifier) are separable by design — this entry stands with the second ' +
+      'done. Dropping `payments_order_fk` would retire it too, and would cost the invariant ' +
+      'the constraint buys — a payment row pointing at no order.',
   },
 };

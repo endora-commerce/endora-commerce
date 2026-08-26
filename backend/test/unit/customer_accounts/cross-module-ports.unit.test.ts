@@ -2,7 +2,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuthSessionPort, MfaLoginPort } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import { hashPassword, verifyPassword } from '../../../src/kernel/crypto/password-hasher.js';
-import { enroll, verifyTotp } from '../../../src/kernel/crypto/totp.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { CustomerAuthService } from '../../../src/modules/customer_accounts/services/customer-auth-service.js';
 
@@ -17,10 +16,14 @@ import { CustomerAuthService } from '../../../src/modules/customer_accounts/serv
  *     session nothing can validate;
  *   - the **MFA seam** is a shape `auth` declares and `mfa` implements, so it
  *     is a contract type and neither module is imported for it;
- *   - **hashing** and the **TOTP primitives** are pure functions over their
- *     arguments. They relocated to `src/kernel/crypto/`, because a gated port
- *     answering 503 `MODULE_DISABLED` to "hash this string" would be a bug and
- *     not a degrade.
+ *   - **hashing** is a pure function over its arguments. It relocated to
+ *     `src/kernel/crypto/`, because a gated port answering 503
+ *     `MODULE_DISABLED` to "hash this string" would be a bug and not a
+ *     degrade. This bullet named the **TOTP primitives** on the same footing
+ *     until 2026-08-25; `customer_accounts` no longer uses them at all — the
+ *     enrolment service went with the superseded `/api/v1/me/two-factor/*`
+ *     path, `mfa` owns customer 2FA, and the kernel primitive itself was
+ *     deleted once it had no callers.
  *
  * The `EntityManager` below throws on any entity this module does not own, so
  * a read that goes around a port reads as "`customer_accounts` queried someone
@@ -172,11 +175,5 @@ describe('customer_accounts — sessions over a port, MFA over a contract, crypt
     // kernel's verifier accepts, and the old secret stops working.
     expect(await verifyPassword(account.passwordHash, 'an-even-stronger-pass')).toBe(true);
     expect(await verifyPassword(account.passwordHash, 'a-very-strong-pass')).toBe(false);
-  });
-
-  it('enrols and verifies TOTP from the kernel primitives', () => {
-    const enrolment = enroll('buyer@example.test');
-    expect(enrolment.otpauthUri).toContain('buyer%40example.test');
-    expect(verifyTotp(enrolment.secret, '000000')).toBe(false);
   });
 });

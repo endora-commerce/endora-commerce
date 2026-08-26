@@ -2,13 +2,13 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { OrderItemRecord, OrderReadPort, OrderRecord } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
-import { InvoiceLine } from '../../../src/modules/invoices/entities/invoice-line.entity.js';
-import { InvoiceService } from '../../../src/modules/invoices/services/invoice-service.js';
+import { Invoice } from '../../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
+import { InvoiceLine } from '../../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
+import { InvoiceService } from '../../../../packages/modules/invoices/src/backend/services/invoice-service.js';
 import {
   InvoiceEmailDispatcher,
   type InvoiceEmailDispatchDeps,
-} from '../../../src/modules/invoices/services/invoice-email-dispatch.js';
+} from '../../../../packages/modules/invoices/src/backend/services/invoice-email-dispatch.js';
 
 /**
  * Feature 075, Phase C — `invoices` reads orders over `orders`' port.

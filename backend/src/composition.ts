@@ -1,10 +1,9 @@
-import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
-import type { CartShoppingListBridge, CartsCradle } from './modules/carts/backend.js';
+import type { AssetsLibraryCradle } from '@endora-commerce/mod-assets-library/backend';
+import type { CartShoppingListBridge, CartsCradle } from '@endora-commerce/mod-carts/backend';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
-import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/services/customer-rollup-scope.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
 // Feature 080 (T052) — the contract types for the seven ports that replaced
@@ -18,7 +17,9 @@ import type {
   AssetReadPort,
   CustomerAccountReadPort,
   CustomerPasswordVerificationPort,
+  CustomerRollupScopePort,
   OrderReadPort,
+  SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
@@ -72,7 +73,10 @@ import {
 import { createRegistrationOwnership } from './kernel/module-context.js';
 import { platformLogger } from './kernel/logging.js';
 import { requiredModulesFrom } from './kernel/lifecycle/required-modules.js';
-import { assertPublicApiBaseUrlConfigured } from './kernel/public-api-base-url.js';
+import {
+  absolutizePublicUrl,
+  assertPublicApiBaseUrlConfigured,
+} from './kernel/public-api-base-url.js';
 import { promoteAdminActor } from './modules/auth/plugin.js';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
 import { publishStateChanged, registryCache } from './kernel/lifecycle/registry-cache.js';
@@ -86,13 +90,16 @@ import type { OrganizationTreeService } from './modules/organizations/services/o
 import type { OrganizationTaxProfilePort } from './modules/organizations/backend.js';
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
-// `backend.ts`; what stays here is the pure URL helper, which is a function,
-// not a service, and the cradle shape the senders below resolve through.
-import type { EmailCradle } from './modules/email/backend.js';
-import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
+// `backend.ts`; what stays here is the cradle shape the senders below resolve
+// through. The URL helper that also stayed was `absolutizePublicUrl`, and
+// feature 080's T040b moved it to the platform: it had no consumer inside
+// `email` at all, so it was a deployment-origin helper filed under the module
+// that first needed it — and a root value import of a module's source is a
+// spelling that ends the day that module becomes a package (D-160.6.1).
+import type { EmailCradle } from '@endora-commerce/mod-email/backend';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
-import type { InvoicesBridge } from './modules/invoices/backend.js';
+import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
 import type { KsefCradle } from '@endora-commerce/mod-ksef/backend';
 import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
 import type { AdminUsersCradle } from './modules/admin_users/backend.js';
@@ -116,7 +123,6 @@ import type { NewsletterBridge } from '@endora-commerce/mod-newsletter/backend';
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
 // Feature 066 — Google Tag Manager.
-import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
@@ -424,6 +430,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const orderReadPort = (): OrderReadPort =>
     (container.cradle as never as { orderReadPort: OrderReadPort }).orderReadPort;
 
+  // Feature 080 (T040b) — the two ports that replaced this root's value
+  // imports of a module's own sources. Same reason as the block above and the
+  // same lazy read: a packaged module publishes `./backend`, not a file path,
+  // so a root that names one stops compiling the day its owner moves — and a
+  // root that names the *source* of a module the platform composes from `dist`
+  // evaluates it twice, which fails silently rather than loudly (D-160.6.1).
+  const customerRollupScopePort = (): CustomerRollupScopePort =>
+    (container.cradle as never as { customerRollupScopePort: CustomerRollupScopePort })
+      .customerRollupScopePort;
+
+  const settingsManifestCollectionPort = (): SettingsManifestCollectionPort =>
+    (
+      container.cradle as never as {
+        settingsManifestCollectionPort: SettingsManifestCollectionPort;
+      }
+    ).settingsManifestCollectionPort;
+
   const assetReadPort = (): AssetReadPort =>
     (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
 
@@ -566,12 +589,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   /**
    * Resolver for routes that require an authenticated Customer **with** an
-   * Organization. Feature 026 US2 introduces no-org Customer accounts;
-   * routes that read price lists, credit limit, addresses, or place orders
-   * still need an Organization, so this resolver throws 422 when one is
-   * missing. Routes that genuinely work without an Organization (cart-add,
-   * browsing, profile-read) use `resolveCartActor` or read `request.actor`
-   * directly.
+   * Organization. Routes that work without one (cart-add, browsing,
+   * profile-read) use `resolveCartActor` or read `request.actor` directly.
+   *
+   * **The refusal below asserts an invariant; it does not describe a business
+   * state** (D-178). It was a 422 `organization_required`, introduced by
+   * feature 026 US2 for accounts that were allowed to have no Organization.
+   * Every transacting customer has one — `customer_accounts.organization_id` is
+   * `NOT NULL` and an individual is backed by a personal organisation — so a
+   * caller reaching this branch is a broken invariant, and a 422 telling a buyer
+   * to attach an Organization they have no way to attach is a lie with a
+   * remedy attached.
+   *
+   * The guard is **kept** rather than deleted: `request.actor.organizationId` is
+   * `string | null | undefined` at this seam and the consumers' input type is
+   * `organizationId: string`, so removing the check would push `undefined`
+   * through silently.
    */
   const customerResolver = (
     request: FastifyRequest,
@@ -585,10 +618,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }
     if (!request.actor.organizationId) {
       throw new HttpError(
-        422,
-        ERROR_CODES.VALIDATION_FAILED,
-        'This action requires an Organization attached to your account.',
-        { code: 'organization_required' },
+        500,
+        ERROR_CODES.INTERNAL,
+        'Invariant violated: a customer account has no Organization (Principle XI).',
+        { code: 'customer_account_organization_missing' },
       );
     }
     return {
@@ -1140,11 +1173,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
         // Feature 056 (T032) — a roll-up-enabled customer widens to its org
         // subtree (server-derived). Absent the capability, stays single-org.
-        const rollupSubtree = await resolveCustomerRollupSubtreeIds(
-          em,
-          (id) => organizationTreeService().subtreeIds(id),
+        const rollupSubtree = await customerRollupScopePort().resolveSubtreeIds(
           actor.customerAccountId,
           orgId,
+          (id) => organizationTreeService().subtreeIds(id),
         );
         return resolveTenantContext({
           kind: 'customer',
@@ -1747,12 +1779,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
       }
+      // D-178 — an invariant, not a business state; see `customerResolver`.
       if (!request.actor.organizationId) {
         throw new HttpError(
-          422,
-          ERROR_CODES.VALIDATION_FAILED,
-          'Quote Requests require an Organization attached to your account.',
-          { code: 'organization_required' },
+          500,
+          ERROR_CODES.INTERNAL,
+          'Invariant violated: a customer account has no Organization (Principle XI).',
+          { code: 'customer_account_organization_missing' },
         );
       }
       const account = await identityPorts().customerAccountReadPort.findById(
@@ -2399,7 +2432,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // that also applies its migrations — so reconciling them here as well would
   // let a `SettingCodeConflict` in something an operator merely `pnpm add`ed
   // abort this boot.
-  const settingsManifests: ModuleSettingsManifest[] = collectRegisteredSettingsManifests(
+  const settingsManifests: ModuleSettingsManifest[] = settingsManifestCollectionPort().collect(
     deploymentShippedEntries(resolvedRegistry),
   );
   const reconcilerEm = em();

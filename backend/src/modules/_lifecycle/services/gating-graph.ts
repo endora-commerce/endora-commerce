@@ -84,8 +84,11 @@ export interface NonBindingPortEdge {
   readonly dependsOn: string;
   /** The container registration name, e.g. `promptActionToolRegistry`. */
   readonly name: string;
-  readonly kind: 'contributes-to' | 'degrades-without';
-  /** What stops working — `degrades-without` only, `null` for a contribution. */
+  readonly kind: 'contributes-to' | 'degrades-without' | 'refuses-without';
+  /**
+   * What stops working — required for `degrades-without` and for
+   * `refuses-without`, `null` for a contribution.
+   */
   readonly whenAbsent: string | null;
   readonly reason: string;
 }

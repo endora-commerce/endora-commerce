@@ -77,18 +77,21 @@ export const manifest = defineModuleManifest({
   //   → payment_methods    (organization_payment_methods.payment_method_id)
   // The last two close no cycle on their own; they are dropped because a
   // tenancy root that cannot install before an optional commercial module is
-  // not a root. (A third, `admin_users`, was here until T138 declared
-  // `admin_notifications` — which depends on it — and made the edge
-  // transitively satisfied.) All four are recorded in
+  // not a root. All four are recorded in
   // test/unit/db/acknowledged-fk-edges.ts, which asserts each is still real and
   // still an exception.
   // `dictionaries` since feature 072 (T138): registration validates the
   // Organization's country code against the dictionary. `RegistrationService`
   // has always taken the validator and neither root ever passed one, so the
   // check was dead and the edge undeclared.
-  // `email` and `admin_notifications` since feature 072 (T138): the invitation,
-  // verification and new-registration mails, and the in-app admin notification
-  // that accompanies the last of them. `addresses` is deliberately absent for
+  // `email` since feature 072 (T138): the invitation, verification and
+  // new-registration mails. The in-app admin notification that accompanies the
+  // last of them was declared in the same task and has moved to
+  // `nonBindingDependencies` below (D-179.3). `admin_users` comes back with it:
+  // the sales-rep endpoints resolve `adminUserReadPort`, and the edge was
+  // satisfied transitively through `admin_notifications` until now. It closes no
+  // cycle — `admin_users` depends on `admin_roles` and `auth`, neither of which
+  // declares this module. `addresses` is deliberately absent for
   // the same reason the five FK edges above are — it declares this module, so
   // the edge is mutual and declaring it back closes the cycle; it is recorded
   // in `acknowledgedDependencies` below instead.
@@ -99,8 +102,8 @@ export const manifest = defineModuleManifest({
   // expands an assignment to its subtree. Declarable rather than acknowledged —
   // `admin_roles` depends on nothing, so the edge closes no cycle.
   dependencies: [
-    'admin_notifications',
     'admin_roles',
+    'admin_users',
     'custom_fields',
     'dictionaries',
     'email',
@@ -131,13 +134,13 @@ export const manifest = defineModuleManifest({
       moduleId: 'customer_accounts',
       port: 'customerAuthPort',
       reason:
-        'The same mutual pair, six names over. `customer_accounts` declares this ' +
+        'The same mutual pair, five names over. `customer_accounts` declares this ' +
         'module — every account belongs to one, and feature 051 made that the tenancy ' +
-        "direction — while this module's public registration, login, password-reset " +
-        'and TOTP routes are served by those services. The manifest already ' +
+        "direction — while this module's public registration, login and password-reset " +
+        'routes are served by those services. The manifest already ' +
         'records the mirror of this as an acknowledged FK edge ' +
         '(`email_verification_tokens.customer_account_id`). Feature 075 Phase C ' +
-        'renamed two of the six: `customerAuthService` and `customerRoleService` hand ' +
+        'renamed two of the five: `customerAuthService` and `customerRoleService` hand ' +
         "back that module's entity, and this module resolves the record-returning " +
         '`customerAuthPort` / `customerRolePort` beside them instead.',
     },
@@ -149,11 +152,6 @@ export const manifest = defineModuleManifest({
     {
       moduleId: 'customer_accounts',
       port: 'customerRolePort',
-      reason: 'See the `customerAuthPort` edge above — same mutual pair.',
-    },
-    {
-      moduleId: 'customer_accounts',
-      port: 'totpEnrolmentService',
       reason: 'See the `customerAuthPort` edge above — same mutual pair.',
     },
     {
@@ -177,21 +175,6 @@ export const manifest = defineModuleManifest({
         'the audit rows stayed here. Same mutual pair, same trade.',
     },
     {
-      moduleId: 'credit_limits',
-      port: 'creditLimitReadPort',
-      reason:
-        'Feature 077, D-87. `creditOwner` walks an ancestor chain and has to know which of ' +
-        "those organisations hold a credit limit. It selected from that module's table — a " +
-        'statement naming no import specifier, so the boundary compiled and returned rows ' +
-        'whatever state the owner was in. It asks `creditLimitReadPort` now, for ids rather ' +
-        "than that module's rows. Acknowledged rather than declared because `credit_limits` " +
-        'declares this module (D-94.1 puts a foreign key behind it), so the second direction ' +
-        'closes the cycle. **Off, the call refuses** — an empty set would read as "nobody ' +
-        'here holds a limit", which on a credit check is the difference between refusing an ' +
-        "order and quoting unlimited credit. No operator sees it: the only caller is that " +
-        "module's own service, stopped by its own gate first.",
-    },
-    {
       moduleId: 'price_lists',
       port: 'priceListReadPort',
       reason:
@@ -202,6 +185,59 @@ export const manifest = defineModuleManifest({
         'closes the cycle and makes the tenancy root uninstallable first, which Rule 3 ' +
         'forbids — the same trade the four FK edges above record. It goes when the panel ' +
         'moves to the module that owns the table.',
+    },
+  ],
+  /**
+   * D-44 — real to the container, binding on no operator.
+   *
+   * D-179.1 moves the `credit_limits` edge here. It described its own refusal
+   * in prose before the spelling for it existed, and the spelling is what makes
+   * the owner's control work.
+   *
+   * D-179.3 moves `admin_notifications` here for the same reason and with the
+   * same kind. `catalog` reaches that owner too and takes `degrades-without`,
+   * because its recorder decides absence in front of the gate; the kind belongs
+   * to the **edge**, not to the owner, and the two consumers answer differently.
+   */
+  nonBindingDependencies: [
+    {
+      moduleId: 'admin_notifications',
+      name: 'adminNotificationRecordPort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'nobody is told a new organisation has registered: the bell entry refuses, and that ' +
+        'refusal stops the new-registration e-mails too — the registration itself still ' +
+        'completes',
+      reason:
+        'D-179.3. The registration notifier writes one bell entry and then mails the ' +
+        'recipient list, and its `catch` calls `rethrowIfModuleDisabled` first under D-88: a ' +
+        'registration nobody was told about is not a degrade this module may choose on the ' +
+        'owner’s behalf, so the refusal surfaces instead of being absorbed by the ' +
+        'best-effort tolerance around it. That is what `refuses-without` spells, and ' +
+        'declaring `degrades-without` here would reverse D-88 in a manifest field. It was ' +
+        '`dependencies`, which bought no schema order — nothing this module owns references ' +
+        'either `admin_notification` table — and only the flip-time refusal that made ' +
+        '`admin_notifications.enabled` a control an operator could move with nothing ' +
+        'happening.',
+    },
+    {
+      moduleId: 'credit_limits',
+      name: 'creditLimitReadPort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'the ancestor-chain lookup for who holds a credit limit refuses — no screen reaches ' +
+        "it, because its only caller is that module's own service",
+      reason:
+        'Feature 077, D-87. `creditOwner` walks an ancestor chain and has to know which of ' +
+        "those organisations hold a credit limit. It selected from that module's table — a " +
+        'statement naming no import specifier, so the boundary compiled and returned rows ' +
+        'whatever state the owner was in. It asks `creditLimitReadPort` now, through a ' +
+        '`lazyPort` call on a `di.providePort` name, with no fallback and no `catch`: an ' +
+        'empty set would read as "nobody here holds a limit", which on a credit check is the ' +
+        'difference between refusing an order and quoting unlimited credit. D-179.1 spells ' +
+        'that `refuses-without`. It was `acknowledgedDependencies`, which described the same ' +
+        'behaviour and carried a bind as well, and the bind is what made the owner\'s ' +
+        'activation control answer 409 forever.',
     },
   ],
   // Feature 072/073 (Constitution XVII). The Organization is the single unit of

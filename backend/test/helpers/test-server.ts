@@ -1,5 +1,5 @@
-import type { AssetsLibraryCradle } from '../../src/modules/assets_library/backend.js';
-import type { CartShoppingListBridge, CartsCradle } from '../../src/modules/carts/backend.js';
+import type { AssetsLibraryCradle } from '../../../packages/modules/assets_library/src/backend/index.js';
+import type { CartShoppingListBridge, CartsCradle } from '../../../packages/modules/carts/src/backend/index.js';
 import type { ConfigurationTypeRegistry } from '../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js';
 import type { CredentialsService } from '../../../packages/modules/credentials/src/backend/services/credentials.service.js';
 import type { AdminNotificationService } from '../../../packages/modules/admin_notifications/src/backend/services/admin-notification-service.js';
@@ -89,7 +89,9 @@ import type {
   AssetReadPort,
   CustomerAccountReadPort,
   CustomerPasswordVerificationPort,
+  CustomerRollupScopePort,
   OrderReadPort,
+  SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
@@ -104,7 +106,6 @@ import type {
 import type { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import type { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import type { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
-import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
 import type {
   VatValidator,
   VatValidationResult,
@@ -113,16 +114,25 @@ import type {
 // generated list. The five hand-rolled `new ConsoleMailer()` fallbacks this
 // replaced were the reason a conversion of `composition.ts` alone would have
 // proved nothing: every mail-sending suite runs against this root.
-import type { EmailCradle } from '../../src/modules/email/backend.js';
+import type { EmailCradle } from '../../../packages/modules/email/src/backend/index.js';
 import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
 import type { ShoppingListService } from '../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js';
 import type { ReturnsBridge } from '../../../packages/modules/returns/src/backend/index.js';
-import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
+// `dist`, not `src`, and it is the type that matches the object (feature 080,
+// T040b, batch four). The container holds the **composed** cradle, which the
+// platform built out of `@endora-commerce/mod-invoices/backend` — i.e. out of
+// `dist` — so typing it from the package's source was already describing a
+// different class. It is usually harmless, because most of these shapes are
+// structural; it stops being harmless where one has a private field, which makes
+// it nominal: `InvoiceNumberGenerator` does, and handing `h.invoices.numberGenerator`
+// to a `dist`-imported `CorrectiveInvoiceProvider` is TS2345 until this import
+// names the same build the runtime does.
+import type { InvoicesBridge, InvoicesCradle } from '../../../packages/modules/invoices/dist/backend/index.js';
 import type { NewsletterBridge } from '../../../packages/modules/newsletter/src/backend/index.js';
-import type { CustomFieldsCradle } from '../../src/modules/custom_fields/backend.js';
-import type { CustomFieldDefinitionService } from '../../src/modules/custom_fields/services/custom-field-definition.service.js';
-import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
-import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
+import type { CustomFieldsCradle } from '../../../packages/modules/custom_fields/src/backend/index.js';
+import type { CustomFieldDefinitionService } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-definition.service.js';
+import type { CustomFieldValueService } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-value.service.js';
+import type { CustomFieldDefinitionsCache } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
 import type { ApiKeysCradle } from '../../../packages/modules/api_keys/src/backend/index.js';
 import type { CmsCradle } from '../../../packages/modules/cms/src/backend/index.js';
 import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
@@ -138,7 +148,7 @@ import type { TaxesCradle } from '../../../packages/modules/taxes/src/backend/in
 import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
-import type { SettingsCradle } from '../../src/modules/settings/backend.js';
+import type { SettingsCradle } from '../../../packages/modules/settings/src/backend/index.js';
 import type { MfaActorBridge } from '../../../packages/modules/mfa/src/backend/index.js';
 import type { OAuthProviderPort } from '../../../packages/modules/mfa/src/backend/services/oauth-provider-service.js';
 import { composeSalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
@@ -159,11 +169,8 @@ import type {
   TaxonomyFetchResult,
   TaxonomySourceFetcherPort,
 } from '../../src/modules/product_feeds/services/taxonomy-source-fetcher.interface.js';
-import {
-  FeedDeliveryError,
-  type FeedDeliveryAdapter,
-} from '../../src/modules/product_feeds/services/delivery/delivery-adapter.interface.js';
-import type { FeedDeliveryProtocol } from '@endora-commerce/contracts';
+import type { FeedDeliveryAdapter } from '../../src/modules/product_feeds/services/delivery/delivery-adapter.interface.js';
+import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type { PimErgonodeCradle } from '../../src/modules/pim_ergonode/backend.js';
 import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services/ergonode-client.port.js';
 import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/services/ergonode-media-fetcher.js';
@@ -180,9 +187,8 @@ import type { CatalogAttributeReadService } from '../../src/modules/catalog/serv
 import type { PricingServiceContract } from '../../src/modules/price_lists/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
-import { collectRegisteredSettingsManifests } from '../../src/modules/settings/services/registered-settings-manifests.js';
-import type { CartService } from '../../src/modules/carts/services/cart-service.js';
-import type { Mailer } from '../../src/modules/email/services/mailer.js';
+import type { CartService } from '../../../packages/modules/carts/src/backend/services/cart-service.js';
+import type { Mailer } from '../../../packages/modules/email/src/backend/services/mailer.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations, TEST_ORGANIZATION_TAX_ID } from './seed-organizations.js';
 import { seedUs2Commerce } from './seed-commerce.js';
@@ -958,6 +964,21 @@ export async function setupBackendServer(
   const assetReadPort = (): AssetReadPort =>
     (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
 
+  // Feature 080 (T040b) — the roll-up and settings-collection ports, again
+  // mirroring `composition.ts` name for name. Both roots imported the two
+  // derivations out of a module's own sources, which is the spelling that ends
+  // the day the owner becomes a package (D-160.6.1).
+  const customerRollupScopePort = (): CustomerRollupScopePort =>
+    (container.cradle as never as { customerRollupScopePort: CustomerRollupScopePort })
+      .customerRollupScopePort;
+
+  const settingsManifestCollectionPort = (): SettingsManifestCollectionPort =>
+    (
+      container.cradle as never as {
+        settingsManifestCollectionPort: SettingsManifestCollectionPort;
+      }
+    ).settingsManifestCollectionPort;
+
   // T143a — `inventory`'s availability port, mirroring `composition.ts`.
   const inventoryCradle = (): {
     inventoryAvailabilityPort: {
@@ -1429,16 +1450,15 @@ export async function setupBackendServer(
           // per request, and being its own it walked the subtree with
           // `organizations` switched off — the roll-up rule answering out of a
           // module the platform was refusing to serve.
-          const rollupSubtree = await resolveCustomerRollupSubtreeIds(
-            em,
+          const rollupSubtree = await customerRollupScopePort().resolveSubtreeIds(
+            actor.customerAccountId,
+            orgId,
             (id) =>
               (
                 container.cradle as never as {
                   organizationTreeService: { subtreeIds(id: string): Promise<string[]> };
                 }
               ).organizationTreeService.subtreeIds(id),
-            actor.customerAccountId,
-            orgId,
           );
           return resolveTenantContext({
             kind: 'customer',
@@ -2567,7 +2587,7 @@ export async function setupBackendServer(
   // bare-core `REGISTERED_MANIFESTS`, so an overlay module's activation Setting
   // was created by nothing, here or in production.
   await new ManifestReconciler(em()).apply(
-    collectRegisteredSettingsManifests(deploymentShippedEntries(resolvedRegistry)),
+    settingsManifestCollectionPort().collect(deploymentShippedEntries(resolvedRegistry)),
   );
 
   // The explicit boot phase (FR-021), run **once**, after every registration
@@ -2775,10 +2795,13 @@ function customerResolver(request: FastifyRequest): {
   if (request.testActor?.kind !== 'customer') {
     return { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID };
   }
-  // Feature 026 US2 — testActor.organizationId may be null (no-org Customer).
-  // Tests that drive routes requiring an Organization fall back to the
-  // shared TEST_ORGANIZATION_ID; tests that genuinely exercise the no-org
-  // path use `cartActorResolver` or call services directly.
+  // The test actor carries an optional organisation, so a test that names none
+  // falls back to the shared TEST_ORGANIZATION_ID. This is the harness's
+  // deliberate divergence from `composition.ts`'s resolver, which refuses
+  // instead — and since D-178 that refusal is a 500 asserting an invariant
+  // rather than a 422 describing a business state. Substituting here is still
+  // right: the actor is a fixture, not a row, and a test that wants the
+  // invariant's refusal drives the composed resolver.
   return {
     customerAccountId: request.testActor.customerAccountId,
     organizationId: request.testActor.organizationId ?? TEST_ORGANIZATION_ID,

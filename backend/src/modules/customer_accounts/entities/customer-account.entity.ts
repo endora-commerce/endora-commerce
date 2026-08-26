@@ -7,8 +7,7 @@ import { randomUUID } from 'crypto';
  * CustomerAccount installation-wide (FR-041).
  *
  * `passwordHash` is an argon2id-derived key (see services/password-hasher.ts
- * in the auth module). `twoFactorSecret` holds the base32 TOTP secret only
- * once 2FA is confirmed.
+ * in the auth module).
  */
 @OrgScoped()
 @Entity({ tableName: 'customer_accounts' })
@@ -21,7 +20,6 @@ export class CustomerAccount {
     | 'role'
     | 'emailVerifiedAt'
     | 'passwordSetAt'
-    | 'twoFactorSecret'
     | 'twoFactorConfirmedAt'
     | 'lastLoginAt'
     | 'deletedAt'
@@ -39,16 +37,30 @@ export class CustomerAccount {
   id: string = randomUUID();
 
   /**
-   * Feature 026 US2 — relaxed to nullable so the platform can serve no-org /
-   * guest-style Customer accounts that fall back to platform defaults for
-   * prices, credit limit, allowed payment / delivery methods, and warehouse
-   * visibility. Order placement and RFQ submission still require a
-   * non-null organizationId — the order / RFQ route handlers refuse a
-   * 422 when the caller has no Organization.
+   * The tenant that scopes this account, and the platform's single unit of
+   * tenancy (Principle XI).
+   *
+   * **Not nullable, since D-178.** Feature 026 US2 relaxed it so the platform
+   * could serve "no-org / guest-style" accounts falling back to platform
+   * defaults for prices, credit limit, allowed payment and delivery methods and
+   * warehouse visibility. Feature 051 replaced that design: an individual (B2C)
+   * customer is backed by a single-member **personal** organisation, so the
+   * guard always has a concrete tenant and there is no "no-organization"
+   * scoping path. The column stayed nullable for another year and three write
+   * paths went on producing NULLs — self-registration's two-flush window,
+   * federated sign-in (which provisioned no organisation at all), and an admin
+   * "un-assign" button. All three are closed, and the column is `NOT NULL`,
+   * which is the only refusal available: MikroORM applies its tenant filter to
+   * `SELECT` / `UPDATE` / `DELETE` and not to `INSERT`, so nothing in the guard
+   * can stop a tenant-less row being written.
+   *
+   * The account and its organisation are created in **one transaction** — see
+   * `CustomerAccountLifecycleWriteService.createStandalone` and the
+   * federated-sign-in `autoCreate` in this module's `backend.ts`.
    */
-  @Property({ type: 'uuid', nullable: true })
+  @Property({ type: 'uuid' })
   @Index()
-  organizationId?: string | null;
+  organizationId!: string;
 
   @Property({ type: 'string', length: 320 })
   @Unique()
@@ -90,9 +102,20 @@ export class CustomerAccount {
   @Property({ type: 'datetime', nullable: true })
   emailVerifiedAt?: Date | null;
 
-  @Property({ type: 'string', length: 64, nullable: true })
-  twoFactorSecret?: string | null;
-
+  /**
+   * Never written. Its only non-null writer was the superseded customer 2FA
+   * path, deleted with `two_factor_secret`, so the published
+   * `twoFactorEnabled` derived from it is a **provably constant `false`** —
+   * not merely unpopulated, and not "possibly stale". The live answer is
+   * `mfa`'s `mfa_enrolments`, served as `totpActive` by
+   * `GET /api/v1/account/mfa/status`.
+   *
+   * Deferred deliberately, with a clock: the column and the field go when the
+   * five sites deriving it are repointed at `mfa`, and if that is not built
+   * within a release the field is deleted instead. See
+   * `specs/deferred-defects.md` and
+   * `specs/087-tenant-scope-enforcement/superseded-2fa-analysis.md` §7.
+   */
   @Property({ type: 'datetime', nullable: true })
   twoFactorConfirmedAt?: Date | null;
 

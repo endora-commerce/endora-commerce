@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { LockMode } from '@mikro-orm/core';
 import {
   ERROR_CODES,
   type CartSnapshot,
@@ -29,52 +28,36 @@ import {
 import type { AuditPort } from '../../../kernel/ports/audit.js';
 import { actorFromContext } from '../../../commands/index.js';
 import { getTenantContext } from '../../../tenancy/index.js';
-import { Cart } from '../../carts/entities/cart.entity.js';
-import { CartItem } from '../../carts/entities/cart-item.entity.js';
 import { NoSystemDefaultChannel } from '../../../kernel/sales-channels/no-system-default-channel.error.js';
 import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
 import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entity.js';
 /**
- * The two rows placement opens in another module's table, and the two imports
- * feature 075 keeps on purpose (D-78 point 2, `check-module-boundary`'s
+ * The payment row placement opens in `payments`' table, and the seam feature
+ * 075 keeps on purpose (D-78 point 2, `check-module-boundary`'s
  * `permanent: true`).
  *
- * `payments_order_fk` and `invoices_order_fk` both reference `orders.id` with
- * `on delete restrict`, so each child row must see its order **inside the
- * placement transaction below** — a port would open a second transaction and
- * could not satisfy a foreign key against a row that has not committed. The
- * ledger entries name the constraints and what would retire them.
+ * `payments_order_fk` references `orders.id` with `on delete restrict`, so the
+ * row must see its order **inside the placement transaction below** — a port
+ * that opened a second transaction could not satisfy a foreign key against a
+ * row that has not committed.
+ *
+ * **It is the last entity-class reach of this family left in this file apart
+ * from `inventory`'s, and it is deferred by a question rather than by effort.**
+ * D-169 says what replaces it: the caller's `EntityManager` in the owner's
+ * signature, not the owner's class here — a foreign key needs the **table** and
+ * never the class, so the constraint would be untouched. That is exactly what
+ * feature 080's T048 did to the `carts` and `invoices` reaches that stood
+ * beside this one. `payments` is different in one respect that decides the
+ * shape: it is a **switchable** module, and the port replacing this `tx.create`
+ * would be gated, so the conversion forces an answer to *"what does checkout do
+ * when an operator has switched payments off?"* — refuse the placement, or
+ * place an order with no payment record and no gateway hand-off. Neither is
+ * obvious, both are visible to a buyer, and the answer is worth more than the
+ * conversion that needs it. Until then this stays, and the ledger entry says so.
  */
 import { Payment } from '../../payments/entities/payment.entity.js';
-import { Invoice } from '../../invoices/entities/invoice.entity.js';
-/**
- * The stock reservation, and the two `inventory` classes it writes on the
- * placement `EntityManager` (D-94.1 / D-94.4).
- *
- * `stock_allocations_order_item_fk` (`stock_allocations.order_item_id` ->
- * `order_items.id`, `on delete restrict`) means an allocation row cannot exist
- * before its order item does, and the order items are not committed until
- * placement returns. The `PESSIMISTIC_WRITE` on `stock_levels` is the other
- * half of the same fact: it has to be held by the transaction that writes the
- * order, or two placements allocate the same unit
- * (`test/contract/orders/place-stock-race.test.ts`), and a `reserved`
- * increment committed separately would survive a placement that then rolled
- * back. So this is D-78 point 2 — a co-transactional write the database holds
- * together — and the two ledger entries are `permanent: true` naming the
- * constraint.
- *
- * They were `await import(…)` inside the method body until D-94.4: a dynamic
- * import is invisible to a reviewer scanning this block, which is exactly the
- * property a permanent boundary exception must not have. Everything else the
- * reservation used to reach into this module for — the channel → warehouse
- * binding, the default-warehouse fallback and both strategy resolvers — is
- * gone, published as `inventoryStockReadPort.listChannelWarehouses` and
- * `inventoryFulfilmentPlanningPort`.
- */
-import { StockLevel } from '../../inventory/entities/stock-level.entity.js';
-import { StockAllocation } from '../../inventory/entities/stock-allocation.entity.js';
 /**
  * The two em-carrying interfaces their owners write (D-94.5).
  *
@@ -96,18 +79,62 @@ import { StockAllocation } from '../../inventory/entities/stock-allocation.entit
  * acknowledges the two container names rather than declaring the dependency
  * back — which would close a cycle.
  */
+/**
+ * The three neighbours whose rows placement opens through an
+ * `EntityManager`-taking port rather than through their entity class (feature
+ * 080, T048; D-169).
+ *
+ * Every interface is declared by its **owner**, in that owner's `ports/`
+ * directory, for the reason the `credit_limits` / `promotions` block above
+ * gives: `lazyPort<T>` is an unchecked cast, so a `T` this module wrote would
+ * verify that this module is self-consistent and never that the provider still
+ * satisfies it. None can live in `@endora-commerce/contracts` — each names a
+ * MikroORM `EntityManager`, and FR-034 keeps that package free of them because
+ * `admin` and `storefront` both compile it.
+ *
+ * All three are relative specifiers and all three are still counted by
+ * `check:module-boundary`: D-171 exempts a **subpath**, and only a package has
+ * one. The conversion and the retirement are two merge requests, and this is
+ * the first.
+ *
+ * They differ on one axis and it decides how each is reached below. `carts`
+ * is non-deactivatable, so its port is an ordinary field and its absence is not
+ * a state; `invoices` and `inventory` are switchable, so each accessor answers
+ * `null` when an operator has switched that module off — placement opens no
+ * proforma, and reserves no stock. The `degrades-without` entries in this
+ * module's manifest are what that promises, and writing the rows anyway is what
+ * this module did before.
+ *
+ * **`inventory`'s was the last of the family and the worst-spelled**: `orders`
+ * held `StockLevel` and `StockAllocation` statically for the reservation *and*
+ * through an `await import()` inside `releaseAllocations` for the release,
+ * while the comment above the static pair asserted that D-94.4 had removed the
+ * dynamic one. It had not. Both are gone; what crosses now is
+ * `PlacementStockSnapshot`, published records rather than the managed rows this
+ * module could have moved any column of.
+ */
+import type { CartPlacementApplyPort } from '@endora-commerce/mod-carts/ports';
+import type { InventoryReservationApplyPort } from '../../inventory/ports/index.js';
+import type { InvoicePlacementApplyPort } from '@endora-commerce/mod-invoices/ports';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
 import type { PromotionUsageFinalizer } from '@endora-commerce/mod-promotions/ports';
 /**
- * Re-exported so `plugin.ts` names its own module for the same two types.
+ * Re-exported so `plugin.ts` names its own module for the same four types.
  * One seam, one ledger entry each: a second import specifier in the plugin
  * would be a second crossing of a boundary that has exactly one reason to be
  * crossed, and the reason is stated above and in each owner's file.
  */
-export type { CreditLimitPort, PromotionUsageFinalizer };
+export type {
+  CartPlacementApplyPort,
+  CreditLimitPort,
+  InventoryReservationApplyPort,
+  InvoicePlacementApplyPort,
+  PromotionUsageFinalizer,
+};
 import { OrderAccessService } from './order-access-service.js';
 import type {
   AddressReadPort,
+  CartReadPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
   DeliveryMethodReadPort,
@@ -131,6 +158,7 @@ import {
   noCarrierShippingLineRenderer,
   noGatewayPaymentLineRenderer,
 } from '../email-templates/adapter-line-baselines.js';
+import { mayHoldCreditLimitReservation } from '../domain/credit-limit-reservation.js';
 
 
 export interface OrderEvents extends Record<string, EventBase> {
@@ -192,8 +220,9 @@ export interface CustomerContext {
  *   2. Organization must be active → else 423 ORGANIZATION_SUSPENDED.
  *   3. Addresses must belong to the org → else 403 ADDRESS_NOT_OWNED.
  *   4. Delivery + payment methods must be active.
- *   5. For each item with a StockLevel row, reserve via SELECT … FOR UPDATE —
- *      if (on_hand - reserved) < quantity, raise 409 STOCK_UNAVAILABLE.
+ *   5. Reserve each line through `inventoryReservationApplyPort`, which takes
+ *      this transaction's SELECT … FOR UPDATE lock — if (on_hand - reserved) <
+ *      quantity, raise 409 STOCK_UNAVAILABLE.
  *   6. Persist Order + OrderItems + Payment row.
  *   7. Generate a proforma Invoice row (status='pending'). For US2 we
  *      synthesize a tiny %PDF bytes blob inline so GET /orders/:id/invoice
@@ -218,19 +247,50 @@ export interface OrderServiceNeighbourPorts {
   /** `null` ⇒ `delivery_methods` is not effectively present. */
   readonly deliveryMethodRead: () => DeliveryMethodReadPort | null;
   /**
-   * The two `inventory` ports placement reserves through — `null` when that
-   * module is not effectively present (D-94.4, issue #188).
+   * The three `inventory` ports placement reserves through — `null` when that
+   * module is not effectively present (D-94.4, issue #188; feature 080, T048).
    *
-   * One accessor for both, because there is one presence question and one
+   * One accessor for all three, because there is one presence question and one
    * answer to it: with `inventory` off the reservation block is skipped whole,
    * and an order is placed without reserving stock — which is exactly what
-   * this module's `degrades-without` entry for it declares. Two accessors
-   * would have let half the block run.
+   * this module's `degrades-without` entries for it declare. Separate accessors
+   * would have let part of the block run.
+   *
+   * `reservationApply` is the one that takes this transaction's own
+   * `EntityManager`; the other two do not, and the difference is which
+   * transaction each runs in rather than a shape anybody chose.
    */
   readonly inventory: () => {
     readonly stockRead: InventoryStockReadPort;
     readonly planning: InventoryFulfilmentPlanningPort;
+    readonly reservationApply: InventoryReservationApplyPort;
   } | null;
+  /**
+   * The basket half of placement, on this transaction's own `EntityManager`
+   * (feature 080, T048). Not an accessor: `carts` is non-deactivatable, so
+   * there is no absent state to answer for, and a placement that cannot see the
+   * basket has nothing to place.
+   */
+  readonly cartPlacementApply: CartPlacementApplyPort;
+  /**
+   * The customer's active basket, read **outside** any transaction, for the
+   * total preview. A different port from the one above on purpose: this one
+   * takes no `EntityManager`, because a read handed one is a write seam
+   * re-opened to serve a read (D-169).
+   */
+  readonly cartRead: CartReadPort;
+  /**
+   * The proforma placement opens — `null` when `invoices` is not effectively
+   * present (feature 080, T048).
+   *
+   * An accessor rather than a field, and for the same reason `inventory` above
+   * is one: the module is switchable, this module is not, so the edge is
+   * declared `degrades-without` and placement asks before it calls. With
+   * invoicing off no proforma is opened and nothing else about the order
+   * changes — which is what `invoices.enabled`'s own description promises an
+   * operator, and what this module did not do while it wrote the row itself.
+   */
+  readonly invoicePlacementApply: () => InvoicePlacementApplyPort | null;
 }
 
 export class OrderService {
@@ -997,13 +1057,33 @@ export class OrderService {
     total: number;
     currency: string;
   }> {
-    const em = this.emFactory();
+    // No `EntityManager` at all any more: the last thing this method used one
+    // for was the basket read below, and it is a port now (feature 080, T048).
     const org = await this.neighbours.organizationDetails.findById(ctx.organizationId);
-    const cart = await em.findOne(Cart, {
+    // The **standalone** read, through `cartReadPort` — no `EntityManager`,
+    // because this method opens no transaction and a read handed one is a
+    // write seam re-opened to serve a read (D-169). Placement's own read is a
+    // different port for exactly that reason; see `cartPlacementApply` below.
+    //
+    // `CartReadPort`'s own doc block recorded this seam as a port published for
+    // a demand the tree had ruled out, and asked whoever settled the
+    // escalation to write the real consumer down. This is it (feature 080,
+    // T048).
+    //
+    // `organizationId: null` is deliberate and preserves the query this
+    // replaces exactly. `CartReadPort` adds an `organization_id` predicate when
+    // it is given one, and the read here — like placement's — filtered on the
+    // customer account and the status alone; `Cart` is `@CustomerScoped`, so
+    // the tenant guard is on the customer and not on the organisation, and
+    // `carts.organization_id` is nullable for a customer account that has none.
+    // Narrowing it would be a real change of behaviour for those rows and is
+    // not this conversion's to make.
+    const basket = await this.neighbours.cartRead.findActiveForCustomer({
       customerAccountId: ctx.customerAccountId,
-      status: 'active',
+      organizationId: null,
     });
-    const items = cart ? await em.find(CartItem, { cartId: cart.id }) : [];
+    const cart = basket?.cart ?? null;
+    const items = basket?.items ?? [];
     if (!cart || items.length === 0) {
       throw new HttpError(409, ERROR_CODES.CART_EMPTY, 'Cart is empty.');
     }
@@ -1102,11 +1182,19 @@ export class OrderService {
         );
       }
 
-      const cart = await tx.findOne(Cart, {
+      // The basket, read on **this** transaction through the port `carts`
+      // publishes for placement (feature 080, T048). It is the same
+      // `EntityManager` the completion below writes on, which is the whole
+      // content of the seam: a read on a second one would put a commit boundary
+      // between the totals this method quotes and the basket it clears.
+      const basket = await this.neighbours.cartPlacementApply.readActiveForPlacement(tx, {
         customerAccountId: ctx.customerAccountId,
-        status: 'active',
+        // `null` for the reason `previewTotal` states above: the query this
+        // replaces filtered on the customer account and the status alone.
+        organizationId: null,
       });
-      const items = cart ? await tx.find(CartItem, { cartId: cart.id }) : [];
+      const cart = basket?.cart ?? null;
+      const items = basket?.items ?? [];
       if (!cart || items.length === 0) {
         throw new HttpError(409, ERROR_CODES.CART_EMPTY, 'Cart is empty.');
       }
@@ -1287,35 +1375,27 @@ export class OrderService {
             continue;
           }
 
-          // Snapshot per-candidate availability under a write lock. We
-          // load each (product, variant, warehouse) row individually so
-          // the lock is fine-grained — and on `tx`, so it is held until the
-          // order commits.
-          const candidates: Array<{
-            warehouseId: string;
-            warehouseCode: string;
-            isDefault: boolean;
-            available: number;
-            stockRow: StockLevel | null;
-          }> = [];
-          for (const row of candidateWarehouses) {
-            const stock = await tx.findOne(
-              StockLevel,
-              {
-                productId: item.productId,
-                variantId: item.variantId ?? null,
-                warehouseId: row.warehouseId,
-              },
-              { lockMode: LockMode.PESSIMISTIC_WRITE },
-            );
-            candidates.push({
-              warehouseId: row.warehouseId,
-              warehouseCode: row.warehouseCode,
-              isDefault: row.isDefault,
-              available: stock ? stock.onHand - stock.reserved : 0,
-              stockRow: stock,
-            });
-          }
+          // Snapshot per-candidate availability under a write lock, taken by
+          // the module that owns `stock_levels` and on **this** transaction's
+          // `EntityManager`, so it is held until the order commits (feature
+          // 080, T048; D-169). What comes back is a record per warehouse — no
+          // managed row crosses the seam, which is what stops this module
+          // moving a column of somebody else's aggregate on a transaction it
+          // happens to hold (D-77's first narrowing).
+          const snapshot = await inventory.reservationApply.lockAvailabilityForPlacement(tx, {
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+            warehouseIds: candidateWarehouses.map((row) => row.warehouseId),
+          });
+          const availableByWarehouseId = new Map(
+            snapshot.map((row) => [row.warehouseId, row.available]),
+          );
+          const candidates = candidateWarehouses.map((row) => ({
+            warehouseId: row.warehouseId,
+            warehouseCode: row.warehouseCode,
+            isDefault: row.isDefault,
+            available: availableByWarehouseId.get(row.warehouseId) ?? 0,
+          }));
 
           // Precedence: Product → Organization → Sales Channel → platform default.
           const { strategy, warehouseOrder } = inventory.planning.resolveEffectiveStrategy(
@@ -1351,35 +1431,25 @@ export class OrderService {
             );
           }
 
-          // Apply the plan: increment reserved per warehouse. If a row
-          // didn't exist, create it inline so the reserved counter has
-          // somewhere to live (still no on-hand).
-          const allocationsForLine: Array<{
-            warehouseId: string;
-            quantity: number;
-            isBackorder: boolean;
-          }> = [];
-          for (const allocation of outcome.allocations) {
-            const candidate = candidates.find((c) => c.warehouseId === allocation.warehouseId);
-            if (!candidate) continue;
-            if (candidate.stockRow) {
-              candidate.stockRow.reserved += allocation.quantity;
-            } else {
-              const fresh = tx.create(StockLevel, {
-                productId: item.productId,
-                ...(item.variantId ? { variantId: item.variantId } : {}),
-                warehouseId: candidate.warehouseId,
-                onHand: 0,
-                reserved: allocation.quantity,
-              });
-              tx.persist(fresh);
-            }
-            allocationsForLine.push({
+          // Apply the plan, on the same transaction that took the lock: the
+          // `reserved` increment, and a fresh row where the line had none in a
+          // warehouse it is being allocated to. Both statements are written by
+          // the module that owns `stock_levels` (feature 080, T048) — this one
+          // used to reach for `StockLevel` and do them itself.
+          const allocationsForLine = outcome.allocations
+            .filter((allocation) =>
+              candidates.some((c) => c.warehouseId === allocation.warehouseId),
+            )
+            .map((allocation) => ({
               warehouseId: allocation.warehouseId,
               quantity: allocation.quantity,
               isBackorder: allocation.isBackorder,
-            });
-          }
+            }));
+          await inventory.reservationApply.reserveForPlacement(tx, {
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+            allocations: allocationsForLine,
+          });
           allocationPlan.push(allocationsForLine);
         }
       }
@@ -1601,19 +1671,34 @@ export class OrderService {
       // row cannot exist before its order item does. See the import.
       // `allocationPlan` is empty when `inventory` is not effectively present,
       // so this loop reads `undefined` at every index and writes nothing.
+      const allocationRows: Array<{
+        orderItemId: string;
+        warehouseId: string;
+        quantity: number;
+        isBackorder: boolean;
+      }> = [];
       for (let i = 0; i < orderItems.length; i++) {
         const plan = allocationPlan[i];
         if (!plan) continue;
         const oi = orderItems[i]!;
         for (const allocation of plan) {
-          const row = tx.create(StockAllocation, {
+          allocationRows.push({
             orderItemId: oi.id,
             warehouseId: allocation.warehouseId,
             quantity: allocation.quantity,
             isBackorder: allocation.isBackorder,
           });
-          tx.persist(row);
         }
+      }
+      // The same `inventory` the reservation ran against, not a second call to
+      // the accessor: presence is decided **once** per placement, at the top of
+      // the block above, so a flip landing between the reservation and this
+      // write cannot leave half a reservation behind. `allocationRows` is empty
+      // whenever that answer was `null`, because the plan it is built from is.
+      if (inventory !== null && allocationRows.length > 0) {
+        await inventory.reservationApply.recordAllocationsForOrderItems(tx, {
+          allocations: allocationRows,
+        });
       }
       await tx.flush();
 
@@ -1722,19 +1807,32 @@ export class OrderService {
         payment.status = 'deferred';
       }
 
-      // Kick off invoice row — status stays `pending` for the unit test that
+      // Kick off the proforma — status stays `pending` for the unit test that
       // hits the "not ready" contract; fixtures transition it to `ready` for
       // the download test.
-      // The `payments` note above, for `invoices_order_fk`.
-      const invoice = tx.create(Invoice, {
-        orderId: order.id,
-        kind: 'proforma',
-        number: `${new Date().toISOString().slice(0, 10)}/${order.id.slice(0, 8)}`,
-        currency,
-        total: total.toFixed(2),
-        status: 'pending',
-      });
-      await tx.persistAndFlush(invoice);
+      //
+      // Written by `invoices`, on **this** transaction, for the reason the
+      // `payments` note above gives about `invoices_order_fk` (feature 080,
+      // T048; D-169). The constraint is untouched — a foreign key needs the
+      // table and never the class — and what moved is the statement, to the
+      // module that owns the table.
+      //
+      // **Presence is decided here, and the call is skipped whole.** `invoices`
+      // is switchable and this module is not, so the edge is declared
+      // `degrades-without` with `whenAbsent: 'an order is placed without a
+      // proforma document'`, and this is the check that declaration obliges.
+      // Until it existed, an operator who switched invoicing off went on having
+      // a row written into `invoices`' own table by every placement — the shape
+      // issue #188 names, one table over — while `invoices.enabled`'s
+      // description promised them the opposite.
+      const invoicePlacement = this.neighbours.invoicePlacementApply();
+      if (invoicePlacement !== null) {
+        await invoicePlacement.createProformaForOrder(tx, {
+          orderId: order.id,
+          currency,
+          total: total.toFixed(2),
+        });
+      }
 
       // Clear cart — the cart produced an Order, so its lifecycle terminates
       // in `completed` per feature 027's renamed status vocabulary. Also
@@ -1742,19 +1840,25 @@ export class OrderService {
       // checkout today, but defensively cleared for future edge cases
       // where a customer might check out from an anon-derived cart that
       // still carries the token).
-      await tx.nativeDelete(CartItem, { cartId: cart.id });
-      cart.status = 'completed';
-      // Which order emptied this cart (D-94.1). Written here rather than by a
-      // `cartWritePort` call, and held by `carts_completed_order_fk`
-      // (`carts.completed_order_id` -> `orders.id`, `on delete set null`): the
-      // pointer cannot be written before the order exists, and a second
-      // transaction would commit the completion for a placement that then
-      // failed — which is the property
+      // Written by `carts`, on **this** transaction, and held by
+      // `carts_completed_order_fk` (`carts.completed_order_id` -> `orders.id`,
+      // `on delete set null`): the pointer cannot be written before the order
+      // exists, and a second transaction would commit the completion for a
+      // placement that then failed — which is the property
       // `test/integration/orders/place-order-failure-preserves-cart.test.ts`
       // asserts. The cart-side column is the direction that forces that;
       // `orders.cart_id` would have been satisfiable by a split.
-      cart.completedOrderId = order.id;
-      cart.anonymousCartToken = null;
+      //
+      // It was four statements written here against `carts`' two tables until
+      // feature 080's T048. The transaction is unchanged and so is the
+      // constraint — a foreign key needs the table and never the class (D-169)
+      // — and what moved is the statements, to the module that owns them. Not a
+      // `cartWritePort` call even now: that port opens its own transaction, and
+      // this one may not.
+      await this.neighbours.cartPlacementApply.completeForOrder(tx, {
+        cartId: cart.id,
+        orderId: order.id,
+      });
       await tx.flush();
 
       this.events.emit('order.created.v1', {
@@ -1850,12 +1954,30 @@ export class OrderService {
    * stamp `released_at`. Idempotent — re-running this on a cancelled
    * order is a no-op because already-released rows are filtered out
    * by the `released_at IS NULL` predicate.
+   *
+   * **Both tables are written by their owner** since feature 080's T048: this
+   * method read `order_items`, which it owns, and then reached `inventory`'s
+   * `StockAllocation` and `StockLevel` classes through an `await import()`
+   * inside the transaction body. That pair was the last dynamic reach in this
+   * module and it had outlived the comment claiming D-94.4 had removed it.
+   *
+   * **Presence is decided first, and outside the transaction.** `inventory` is
+   * switchable and this module is not, so the edge is `degrades-without` and a
+   * gated port call inside a cancellation would be a 503 in the middle of one.
+   * With the module off nothing is released — the allocation rows and the
+   * counters stay exactly as they were, which is what makes switching a module
+   * off non-destructive, and a release run once an operator switches it back on
+   * releases them. Writing them anyway is the shape issue #188 names.
    */
   async releaseAllocations(orderId: string): Promise<{ released: number }> {
-    // command-coverage-ignore: internal stock-reservation release — a lifecycle
-    // side effect of the audited `order.status_transition` (cancel) command, not
-    // a standalone admin write. Runs in its own transaction; the parent
-    // transition owns the audit trail (mirrors credit_limits reserve/release).
+    // No coverage marker here since T048: this method writes nothing any more.
+    // It reads its own `order_items` and hands them to the port, and the two
+    // `inventory` tables are written on the other side of the seam, where the
+    // marker and its reason now live. The audit trail is unchanged and belongs
+    // to the audited `order.status_transition` (cancel) Command this is a
+    // lifecycle side effect of.
+    const inventory = this.neighbours.inventory();
+    if (inventory === null) return { released: 0 };
     const em = this.emFactory();
     return em.transactional(async (tx) => {
       // `tx.execute`, not `tx.getKnex()`: the knex instance is connection-level
@@ -1873,36 +1995,18 @@ export class OrderService {
       );
       if (itemRows.length === 0) return { released: 0 };
 
-      const { StockAllocation } = await import(
-        '../../inventory/entities/stock-allocation.entity.js'
-      );
-      const { StockLevel } = await import(
-        '../../inventory/entities/stock-level.entity.js'
-      );
-
-      const allocations = await tx.find(StockAllocation, {
-        orderItemId: { $in: itemRows.map((r) => r.id) },
-        releasedAt: null,
+      // On `tx`, so the counter decrement and the `released_at` stamp are one
+      // operation with each other and with whatever else this transaction is
+      // doing. The lines are passed in because `stock_allocations` records the
+      // warehouse and the order item and not the product: resolving it on the
+      // other side would mean `inventory` reading `order_items`.
+      return inventory.reservationApply.releaseForOrderItems(tx, {
+        items: itemRows.map((r) => ({
+          orderItemId: r.id,
+          productId: r.product_id,
+          variantId: r.variant_id ?? null,
+        })),
       });
-      if (allocations.length === 0) return { released: 0 };
-
-      const itemById = new Map(itemRows.map((r) => [r.id, r]));
-      const now = new Date();
-      for (const a of allocations) {
-        const item = itemById.get(a.orderItemId);
-        if (!item) continue;
-        const stock = await tx.findOne(StockLevel, {
-          productId: item.product_id,
-          variantId: item.variant_id ?? null,
-          warehouseId: a.warehouseId,
-        });
-        if (stock) {
-          stock.reserved = Math.max(0, stock.reserved - a.quantity);
-        }
-        a.releasedAt = now;
-      }
-      await tx.flush();
-      return { released: allocations.length };
     });
   }
 
@@ -1932,7 +2036,14 @@ export class OrderService {
       });
     }
     await em.flush();
-    if (to === 'paid' && this.creditLimit) {
+    // D-179.3 — release the credit this order actually drew, and ask
+    // `credit_limits` about nothing else. The predicate reads
+    // `paymentMethodSnapshot.kind`, stamped at placement from the same value
+    // that decides whether `reserve` runs, so an order that is not on credit
+    // has no reservation and the gated port is not resolved for it. Without
+    // it, an operator who switched `credit_limits` off could mark no order
+    // paid at all.
+    if (to === 'paid' && this.creditLimit && mayHoldCreditLimitReservation(order)) {
       await this.creditLimit.releaseByOrder({
         orderId: order.id,
         reason: 'invoice_paid',

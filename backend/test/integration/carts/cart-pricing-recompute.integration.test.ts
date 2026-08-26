@@ -3,8 +3,8 @@ import { Redis } from 'ioredis';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { CartRecomputeCache } from '../../../src/modules/carts/services/cart-recompute-cache.js';
-import { CartPricingRecompute } from '../../../src/modules/carts/services/cart-pricing-recompute.js';
+import { CartRecomputeCache } from '../../../../packages/modules/carts/src/backend/services/cart-recompute-cache.js';
+import { CartPricingRecompute } from '../../../../packages/modules/carts/src/backend/services/cart-pricing-recompute.js';
 import type {
   CatalogProductReadPort,
   LinePricePort,

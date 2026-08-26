@@ -180,6 +180,9 @@ importers:
       '@endora-commerce/mod-api-keys':
         specifier: workspace:*
         version: link:../packages/modules/api_keys
+      '@endora-commerce/mod-assets-library':
+        specifier: workspace:*
+        version: link:../packages/modules/assets_library
       '@endora-commerce/mod-audit-logs':
         specifier: workspace:*
         version: link:../packages/modules/audit_logs
@@ -189,6 +192,9 @@ importers:
       '@endora-commerce/mod-blog':
         specifier: workspace:*
         version: link:../packages/modules/blog
+      '@endora-commerce/mod-carts':
+        specifier: workspace:*
+        version: link:../packages/modules/carts
       '@endora-commerce/mod-cms':
         specifier: workspace:*
         version: link:../packages/modules/cms
@@ -204,6 +210,12 @@ importers:
       '@endora-commerce/mod-currencies':
         specifier: workspace:*
         version: link:../packages/modules/currencies
+      '@endora-commerce/mod-custom-fields':
+        specifier: workspace:*
+        version: link:../packages/modules/custom_fields
+      '@endora-commerce/mod-customers':
+        specifier: workspace:*
+        version: link:../packages/modules/customers
       '@endora-commerce/mod-delivery-methods':
         specifier: workspace:*
         version: link:../packages/modules/delivery_methods
@@ -213,6 +225,9 @@ importers:
       '@endora-commerce/mod-dictionaries':
         specifier: workspace:*
         version: link:../packages/modules/dictionaries
+      '@endora-commerce/mod-email':
+        specifier: workspace:*
+        version: link:../packages/modules/email
       '@endora-commerce/mod-google-analytics':
         specifier: workspace:*
         version: link:../packages/modules/google_analytics
@@ -225,6 +240,9 @@ importers:
       '@endora-commerce/mod-import-export':
         specifier: workspace:*
         version: link:../packages/modules/import_export
+      '@endora-commerce/mod-invoices':
+        specifier: workspace:*
+        version: link:../packages/modules/invoices
       '@endora-commerce/mod-ksef':
         specifier: workspace:*
         version: link:../packages/modules/ksef
@@ -279,6 +297,9 @@ importers:
       '@endora-commerce/mod-seo':
         specifier: workspace:*
         version: link:../packages/modules/seo
+      '@endora-commerce/mod-settings':
+        specifier: workspace:*
+        version: link:../packages/modules/settings
       '@endora-commerce/mod-shipments':
         specifier: workspace:*
         version: link:../packages/modules/shipments
@@ -717,6 +738,48 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/modules/assets_library:
+    devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1042.0
+        version: 3.1042.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1042.0
+        version: 3.1042.0
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@fastify/multipart':
+        specifier: ^10.0.0
+        version: 10.0.0
+      '@google-cloud/storage':
+        specifier: ^7.19.0
+        version: 7.19.0
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      file-type:
+        specifier: ^22.0.1
+        version: 22.0.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/modules/audit_logs:
     devDependencies:
       '@endora-commerce/contracts':
@@ -779,6 +842,42 @@ importers:
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
+  packages/modules/carts:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.0.2
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.13
@@ -957,6 +1056,69 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/modules/custom_fields:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/modules/customers:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.0.2
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
   packages/modules/delivery_methods:
     devDependencies:
       '@endora-commerce/contracts':
@@ -1056,6 +1218,36 @@ importers:
       zod:
         specifier: ^4.2.0
         version: 4.3.6
+
+  packages/modules/email:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/nodemailer':
+        specifier: ^7.0.4
+        version: 7.0.11
+      nodemailer:
+        specifier: ^7.0.9
+        version: 7.0.13
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
   packages/modules/google_analytics:
     devDependencies:
@@ -1167,6 +1359,45 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/modules/invoices:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:*
+        version: link:../../email-components
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/pdfmake':
+        specifier: ^0.3.2
+        version: 0.3.2
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      pdfmake:
+        specifier: ^0.3.7
+        version: 0.3.7
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
 
   packages/modules/ksef:
     devDependencies:
@@ -1768,6 +1999,33 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
+  packages/modules/settings:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@fastify/rate-limit':
+        specifier: ^10.3.0
+        version: 10.3.0
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/modules/shipments:
     devDependencies:
       '@endora-commerce/contracts':
@@ -2040,9 +2298,6 @@ importers:
       openapi-types:
         specifier: ^12.1.3
         version: 12.1.3
-      otpauth:
-        specifier: ^9.5.0
-        version: 9.5.0
       pino:
         specifier: ^10.3.1
         version: 10.3.1

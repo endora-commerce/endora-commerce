@@ -1,5 +1,5 @@
 import type { Readable } from 'node:stream';
-import type { FeedDeliveryFailureReason, FeedDeliveryProtocol } from '@endora-commerce/contracts';
+import type { FeedDeliveryProtocol } from '@endora-commerce/contracts';
 
 /**
  * The delivery transport SPI — feature 070 / plan.md § Transport SPI.
@@ -51,23 +51,20 @@ export interface FeedDeliverySendInput {
 }
 
 /**
- * A transport refusal an operator can be told about, carrying the closed-set
- * reason and the transport's own words. Adapters throw this rather than a bare
- * `Error` so the service does not have to guess a reason from a message.
+ * The transport refusal every adapter throws now lives in
+ * `@endora-commerce/contracts` (feature 080, T040b) — re-exported here so the
+ * adapters beside this file keep one import, and because it is part of this
+ * SPI whichever package declares it.
  *
- * `detail` is **not** redacted here — the adapter does not know the full secret
- * set. `DeliveryService` redacts on the way to the attempt row (FR-108).
+ * It moved because an adapter is a **contribution**: the composition roots
+ * contribute the real three and the test harness contributes refusing ones, so
+ * the class has to be nameable from outside this module. Once `product_feeds`
+ * is a package, a second evaluation of these sources would be a second class
+ * object and `DeliveryService`'s `instanceof` would be false across the two
+ * copies — every declared refusal reclassified as `internal_error` and made
+ * retryable, silently (D-160.6.1).
  */
-export class FeedDeliveryError extends Error {
-  override readonly name = 'FeedDeliveryError';
-  constructor(
-    readonly reason: FeedDeliveryFailureReason,
-    message: string,
-    override readonly cause?: unknown,
-  ) {
-    super(message);
-  }
-}
+export { FeedDeliveryError } from '@endora-commerce/contracts';
 
 export interface FeedDeliveryAdapter {
   readonly protocol: FeedDeliveryProtocol;

@@ -18,6 +18,20 @@ import { AddressReadService } from '../../../packages/modules/addresses/src/back
 import { DeliveryMethodReadService } from '../../../packages/modules/delivery_methods/src/backend/services/delivery-method-read-port.js';
 import { PaymentMethodReadService } from '../../../packages/modules/payment_methods/src/backend/services/payment-method-read-port.js';
 import { InventoryStockReadService } from '../../src/modules/inventory/services/inventory-read-port.js';
+import { InventoryReservationApplyService } from '../../src/modules/inventory/services/inventory-reservation-apply-port.js';
+import { CartPlacementApplyService } from '../../../packages/modules/carts/src/backend/services/cart-placement-apply-port.js';
+import { CartReadService } from '../../../packages/modules/carts/src/backend/services/cart-read-port.js';
+// **`dist`, not `src`** (feature 080, T040b, batch four; D-160.6.1). This
+// specifier's target value-imports `invoices`' `Invoice` entity, so importing it
+// from the package's source evaluates that decorated class a second time, beside
+// the copy the ORM registered out of `dist`. `KsefSubmission` is
+// `@TransitivelyScoped('Invoice', …)` and the platform resolves a chain by class
+// **name**, so two `Invoice` classes are an ambiguity `assertTransitiveParentsResolve`
+// refuses at ORM init — `UnresolvableTenantParentError` inside `setupBackendServer`,
+// which takes every test file in the process with it. `dist` is the same module
+// instance the composed platform holds, so there is one class and the assertions
+// below are about the entity the ORM knows.
+import { InvoicePlacementApplyService } from '../../../packages/modules/invoices/dist/backend/services/invoice-placement-apply-port.js';
 import type { OrderServiceNeighbourPorts } from '../../src/modules/orders/services/order-service.js';
 import type { BackendServerHandle } from './test-server.js';
 
@@ -79,6 +93,18 @@ export function orderServiceNeighbours(
     addressRead,
     deliveryMethodRead: () => deliveryMethodRead,
     paymentMethodRead: () => paymentMethodRead,
+    // Feature 080, T048 — the three seams placement used to spell with another
+    // module's entity class. The real implementations, like every other port
+    // here: they are the classes the container registers, so a hand-built
+    // service takes the same statements the composed one does. What the
+    // container adds is the effective-state gate, and a rig that wants the
+    // 503 flips module state against the shared harness.
+    cartPlacementApply: new CartPlacementApplyService(),
+    cartRead: new CartReadService(emFactory),
+    // An accessor, because `invoices` is switchable. A rig that wants the
+    // degrade returns `null` from it — the same shape `inventory` has below,
+    // and the same reason.
+    invoicePlacementApply: () => new InvoicePlacementApplyService(),
     // D-94.4 — the two `inventory` ports the reservation runs on, live. A rig
     // that wants the module *off* returns `null` from this accessor (or flips
     // module state against the shared harness), which is what makes the
@@ -91,6 +117,11 @@ export function orderServiceNeighbours(
         resolveEffectiveStrategy: resolveEffectiveFulfilmentStrategy,
         planAllocations: resolveAllocations,
       } satisfies InventoryFulfilmentPlanningPort,
+      // Feature 080, T048 — the reservation itself, which `orders` performed
+      // with that module's two entity classes until the conversion. The real
+      // implementation, under the same accessor and the same presence answer as
+      // the two above.
+      reservationApply: new InventoryReservationApplyService(),
     }),
   };
 }

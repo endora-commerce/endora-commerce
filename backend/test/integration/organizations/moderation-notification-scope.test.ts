@@ -1,15 +1,22 @@
+import { EmailDelivery, type EmailDeliveryRow } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
+
 import { AdminRole } from '../../../src/modules/admin_roles/entities/admin-role.entity.js';
+
 import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
+
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { EmailDelivery } from '../../../src/modules/email/entities/email-delivery.entity.js';
+
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+
 
 /**
  * Feature 075 (D-87) — the moderation notification finds its recipient under a
@@ -107,7 +114,7 @@ describe('organizations — the moderation notification crosses tenants (feature
     return { organization, email };
   };
 
-  const deliveriesTo = async (email: string): Promise<EmailDelivery[]> => {
+  const deliveriesTo = async (email: string): Promise<EmailDeliveryRow[]> => {
     const em = h.em();
     em.clear();
     return em.find(EmailDelivery, { recipient: email });

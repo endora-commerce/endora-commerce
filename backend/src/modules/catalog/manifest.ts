@@ -29,9 +29,10 @@ export const manifest = defineModuleManifest({
   // Feature 061 (FR-020) — product attributes are catalog extensions of
   // product-host Custom Field definitions; the lifecycle must install
   // custom_fields first and must not hard-uninstall it under a live catalog.
-  // Feature 072 (T142) — `admin_notifications` and `email` were reached through
-  // options a root passed down, so neither appeared here: a finished bulk
-  // operation notifies and mails.
+  // Feature 072 (T142) — `email` was reached through an option a root passed
+  // down, so it did not appear here: a finished bulk operation mails. The bell
+  // arrived in the same task and has moved to `nonBindingDependencies` below
+  // (D-179.3), which is what this module's own recorder has said since D-60.
   //
   // `price_lists` is deliberately absent and recorded in
   // `acknowledgedDependencies` below instead. The external catalog namespace
@@ -44,7 +45,6 @@ export const manifest = defineModuleManifest({
   // owner is non-deactivatable, so the declaration buys install and migration
   // order rather than a flip-time refusal.
   dependencies: [
-    'admin_notifications',
     'audit_logs',
     'admin_users',
     'assets_library',
@@ -94,8 +94,27 @@ export const manifest = defineModuleManifest({
         'build on it, which is how this was found.',
     },
   ],
-  // D-44 — four edges that are real to the container and bind no operator.
+  // D-44 — five edges that are real to the container and bind no operator.
   nonBindingDependencies: [
+    {
+      moduleId: 'admin_notifications',
+      name: 'adminNotificationRecordPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'bulk edits and search reindexes still run and still report on the Bulk actions page; ' +
+        'only the bell entry is missing — the completion e-mail to the admin still goes out',
+      reason:
+        'D-179.3. This module reaches the bell once, from the bulk-operation completion ' +
+        'notice, and it has decided the owner’s absence in front of the gate since D-60: ' +
+        '`presenceAwareBulkRecorder` probes the effective state and hands the bulk-operation ' +
+        'service `not-present` in the return type, so nothing here fails closed. The ' +
+        '`dependencies` entry therefore contradicted this module’s own implementation. It ' +
+        'bought no schema order either — neither `admin_notification` table is referenced ' +
+        'from anything this module owns — only the flip-time refusal, which is what made ' +
+        '`admin_notifications.enabled` a control an operator could move with nothing ' +
+        'happening. Feature 072 (T142) declared it when the recorder arrived through a root ' +
+        'option; the recorder is the whole answer.',
+    },
     {
       moduleId: 'inventory',
       // The name this module resolves. A composition root registers it on

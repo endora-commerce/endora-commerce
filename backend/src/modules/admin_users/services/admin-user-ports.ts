@@ -21,8 +21,8 @@ import type { ImpersonationService } from './impersonation-service.js';
  * listing the admins a notification goes to, `catalog` attributing a bulk
  * operation, `organizations` rendering the sales-rep picker.
  *
- * `passwordHash` and `twoFactorSecret` do not survive the mapping, for the
- * reason `CustomerAccountRecord` gives: exactly one module reads either.
+ * `passwordHash` does not survive the mapping, for the reason
+ * `CustomerAccountRecord` gives: exactly one module reads it.
  */
 export class AdminUserReadService implements AdminUserReadPort {
   constructor(private readonly emFactory: () => EntityManager) {}

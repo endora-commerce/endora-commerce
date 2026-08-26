@@ -78,13 +78,21 @@ export function OrganizationAssignmentPanel({
           </div>
         </div>
         {organizationId ? (
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={(): void => void run(() => apiClient.delete(`/api/v1/admin/customers/${customerId}/organization`))}
-          >
-            {t('detail.org.unassign')}
-          </Button>
+          <div className="space-y-1">
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={(): void => void run(() => apiClient.delete(`/api/v1/admin/customers/${customerId}/organization`))}
+            >
+              {t('detail.org.unassign')}
+            </Button>
+            {/*
+              D-178 — the operation moves the customer to their own personal
+              organization rather than leaving them without one, and the button
+              said "Unassign", which described the outcome it used to have.
+            */}
+            <p className="text-sm text-muted-foreground">{t('detail.org.unassignHint')}</p>
+          </div>
         ) : null}
       </CardContent>
     </Card>

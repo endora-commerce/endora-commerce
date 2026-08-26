@@ -3,7 +3,7 @@ import {
   CustomFieldDefinitionsCache,
   CUSTOM_FIELDS_CACHE_TTL_MS,
   type CachedDefinition,
-} from '../../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
+} from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
 
 /**
  * Feature 055 (T037) — per-entity-type definition cache invalidation. Pure unit

@@ -468,7 +468,7 @@ describe('the ledger ratchet', () => {
     // the handler that dropped it is the platform's own — already a site, and
     // ledgered where it lives.
     const falsifiable = [
-      "src/modules/custom_fields/services/custom-field-definitions-cache.ts:start:on('message')",
+      "packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.ts:start:on('message')",
       'packages/platform/src/kernel/container.ts:installShutdownDisposal:process.once',
     ];
     for (const key of falsifiable) {

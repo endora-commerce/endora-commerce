@@ -1,12 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import type { SupportedEntityType } from '@endora-commerce/contracts';
+import { isCustomFieldValidationFailure, type SupportedEntityType } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CustomFieldValidationError } from '../../../src/modules/custom_fields/services/custom-field-value.service.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 
 /**
@@ -98,7 +97,21 @@ describe('Custom Fields — value matrix across entities [real DB]', () => {
           [`${p}_number`]: 'not-a-number',
           [`${p}_select`]: 'unknown',
         }),
-      ).rejects.toBeInstanceOf(CustomFieldValidationError);
+        // `isCustomFieldValidationFailure` rather than `toBeInstanceOf`, and the
+        // published guard's own doc block predicted why: the thrower is the
+        // **composed** service — `h.customFields.valueService` comes off the
+        // harness's container, which resolves `custom_fields` through
+        // `@endora-commerce/mod-custom-fields/backend`, i.e. out of `dist` — so
+        // a class imported here by filesystem path into the package's *source*
+        // is a second evaluation and `instanceof` is false against an error of
+        // exactly the right kind (feature 080, T040b, batch four; D-160.6.1 —
+        // the shape batch three met as `KsefUnavailableError`). Feature 075's
+        // Phase C published the structural guard for the five host modules that
+        // catch this error, saying in as many words that testing `name` and the
+        // `errors` array "is what makes it survive the error crossing a package
+        // boundary once each module is its own npm package (F4)". This is that
+        // day, and the test uses the seam the hosts use.
+      ).rejects.toSatisfy(isCustomFieldValidationFailure);
     }
   });
 

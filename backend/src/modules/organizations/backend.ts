@@ -11,7 +11,6 @@ import type {
   CustomerAuthPort,
   CustomerPasswordResetPort,
   CustomerRolePort,
-  CustomerTotpEnrolmentPort,
   DictionaryValidator,
   EmailDefaultsRegistryPort,
   EmailMailerPort,
@@ -50,6 +49,7 @@ import {
   toOrganizationRecord,
 } from './services/organization-details-port.js';
 import { PersonalOrganizationService } from './services/personal-organization-service.js';
+import type { PersonalOrganizationProvisionApi } from './ports/personal-organization-provision.js';
 import { OrganizationRestrictionService } from './services/organization-restriction-service.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import { OrganizationInheritanceService } from './services/organization-inheritance-service.js';
@@ -170,7 +170,6 @@ export interface OrganizationsCradle {
   readonly customerAuthPort: CustomerAuthPort;
   readonly passwordResetService: CustomerPasswordResetPort;
   readonly customerRolePort: CustomerRolePort;
-  readonly totpEnrolmentService: CustomerTotpEnrolmentPort;
   /**
    * The two halves of `customer_accounts`' published surface this module runs
    * its member lifecycle over (feature 075, Phase C). Every route file and
@@ -395,10 +394,6 @@ export function registerModule(ctx: ModuleContext): void {
               'passwordResetService',
             ),
             customerRoleService: lazyPort<CustomerRolePort>(ctx, 'customerRolePort'),
-            totpEnrolmentService: lazyPort<CustomerTotpEnrolmentPort>(
-              ctx,
-              'totpEnrolmentService',
-            ),
             customerAccountRead: lazyPort<CustomerAccountReadPort>(
               ctx,
               'customerAccountReadPort',
@@ -515,9 +510,54 @@ export function registerModule(ctx: ModuleContext): void {
           return {
             ensureForCustomerAccount: async (customerAccountId) =>
               toOrganizationRecord(await service.ensureForCustomerAccountId(customerAccountId)),
+            provisionPersonalOrganization: async (customerAccountId) =>
+              toOrganizationRecord(
+                await service.provisionPersonalOrganizationFor(customerAccountId),
+              ),
             anonymizeIfOrphaned: async (customerAccountId) => {
               const org = await service.anonymizeIfOrphaned(customerAccountId);
               return org ? toOrganizationRecord(org) : null;
+            },
+          };
+        },
+      )
+      .singleton(),
+  );
+
+  /**
+   * D-178 — the co-transactional half of the same provisioning, for the module
+   * that owns the account row.
+   *
+   * A second registration rather than a method on `personalOrganizationPort`
+   * because its signature carries the caller's `EntityManager`, which
+   * `@endora-commerce/contracts` may not name (FR-034). It is declared in this
+   * module's own `ports/` directory, in the shape `credit_limits` and
+   * `promotions` already publish for the same reason, and what holds it
+   * co-transactional is `customer_accounts_organization_fk` — see that file.
+   *
+   * It reads and writes nothing on `customer_accounts`, so unlike the port above
+   * it needs neither of that module's two ports.
+   */
+  ctx.di.providePort<PersonalOrganizationProvisionApi>(
+    'personalOrganizationProvisionApi',
+    ctx
+      .asFunction(
+        ({ emFactory, auditLogService }: OrganizationsCradle): PersonalOrganizationProvisionApi => {
+          const service = new PersonalOrganizationService(
+            emFactory,
+            {
+              read: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+              write: lazyPort<CustomerAccountMemberWritePort>(
+                ctx,
+                'customerAccountMemberWritePort',
+              ),
+            },
+            auditLogService,
+          );
+          return {
+            provisionFor: async (em, input) => {
+              const org = await service.provisionFor(em, input);
+              return { id: org.id };
             },
           };
         },
@@ -696,8 +736,9 @@ export function registerModule(ctx: ModuleContext): void {
    *
    * `lazyPort` rather than a captured resolution, for the usual reason — a
    * captured gate keeps answering after its owner is switched off. `admin_users`
-   * is reached transitively through `admin_notifications`, which this manifest
-   * already declares, so the edge is declared and closes no cycle.
+   * is declared in this manifest's `dependencies`, and directly since D-179.3:
+   * it used to be satisfied transitively through `admin_notifications`, which is
+   * a non-binding edge now. The edge closes no cycle either way.
    */
   ctx.routes(async (app) => {
     await registerOrganizationsSalesRepRoutes(app, {

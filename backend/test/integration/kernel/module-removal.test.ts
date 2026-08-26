@@ -163,11 +163,53 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // module's directory. That is the residue this ledger exists to watch drain,
   // draining — the entry is deleted rather than re-pointed, because a bare
   // specifier into a package is not a reference into `backend/src/modules/`.
+  // `custom_fields` **keeps** its entry, and the reason is criterion 7's rather
+  // than a conversion left undone (T040b, batch four). The module is a package,
+  // so `attribute-fixtures.ts` takes both classes off the published `entities`
+  // array by a bare specifier — and needs a row type to do it precisely, which is
+  // a caller-supplied `import type` of the declaration inside the package's built
+  // artefact. `packages/modules/custom_fields/dist/backend/entities/…` carries the
+  // same `modules/custom_fields/` substring this scan reads, so the reference is
+  // real: deleting the package breaks the **build**. It is not runtime coupling —
+  // the type imports erase — and it retires on the same condition as the
+  // `delivery_methods` / `payment_methods` / `taxes` block below.
   custom_fields: ['src/seeds/attribute-fixtures.ts'],
   inventory: ['src/seeds/dev-catalog-seed.ts'],
-  // `payment_methods` needs no entry either, since T040b's first batch: it is
-  // a package, and the comment above says why a specifier into one is not a
-  // reference into `backend/src/modules/`.
+  // ── Criterion 7's cost, and it is a cost of a decision rather than a defect ─
+  //
+  // The three entries below came back on 2026-08-25 with !997, and the comment
+  // above them — which said `payment_methods` needs no entry because the seed
+  // names a **bare** specifier — stopped being true in the same merge request.
+  // It is corrected here rather than deleted, because the reason it gave was
+  // right for the shape it described.
+  //
+  // A module package publishes `entities` as an array and **no named entity
+  // class** (D-168), so a host program that must *construct* one picks it out
+  // by name — and needs a row type to do it precisely, because `find` over a
+  // heterogeneous array returns a union `em.create` collapses to the first
+  // member. That row type is a caller-supplied `import type` of the entity's
+  // declaration **inside the built artefact**, and `dist` is not a preference:
+  // `backend/tsconfig.build.json` sets `rootDir`, and a `.ts` outside it is
+  // TS6059 **even for a type-only import**, because such an import still joins
+  // the program. A `.d.ts` is exempt. A bare specifier is unavailable because
+  // no `exports` subpath declares a deep entity path, and declaring one would
+  // publish the class D-168 exists to keep unpublished.
+  //
+  // So these are references, and they are ledgered rather than argued away:
+  // deleting one of these packages breaks the **build**. What they are not is
+  // runtime coupling — the imports erase, and `grep -c 'packages/modules'
+  // dist/seeds/dev-catalog-seed.js` is **0**, measured. They retire when the
+  // developer bootstrap stops needing to construct entities at all, which is
+  // the same condition the `src/seeds/` block above already names.
+  // `credit_limits` joined on 2026-08-25 with !1021, and for a reason worth
+  // keeping: seeding the `credit_limit` payment method alone would have added
+  // an option no seeded buyer could ever see, because checkout filters the
+  // method on a granted limit against the cart total. The seed therefore
+  // grants one too, which is what puts this module here.
+  credit_limits: ['src/seeds/dev-catalog-seed.ts'],
+  delivery_methods: ['src/seeds/dev-catalog-seed.ts'],
+  payment_methods: ['src/seeds/dev-catalog-seed.ts'],
+  taxes: ['src/seeds/dev-catalog-seed.ts'],
   // `orders` needs no entry and gets none, since feature 080's T052. Its single
   // reference was `import { Order } from './modules/orders/entities/order.entity.js'`,
   // read by one `em.findOne` inside a bridge the root contributes; D-168 gives a
@@ -191,11 +233,23 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // never required it to own the class.
   organizations: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
 
-  // `composition.ts` still reaches into `email` twice: for the `EmailCradle`
-  // type it resolves the mailer with, and for `absolutizePublicUrl`, a URL
-  // helper it applies on behalf of its consumers. Both disappear when those
-  // consumers resolve it themselves; neither belongs to `email`.
-  email: ['src/composition.ts'],
+  // `composition.ts` reaches into `email` once: for the `EmailCradle` type it
+  // resolves the mailer with. It disappears when the mailer's consumers resolve
+  // it themselves.
+  //
+  // There was a second reach, `absolutizePublicUrl`, and it was a **value**
+  // import — the shape that stops having a spelling once the owner is a package
+  // (D-160.6.1). Feature 080's T040b moved the function to the platform rather
+  // than converting the call: it had no consumer inside `email` at all, so it
+  // was a deployment-origin helper filed under the module that first needed it.
+  //
+  // **`email` is now absent, and so are `assets_library`, `carts` and
+  // `invoices`** (T040b, batch four). All four held exactly one reach —
+  // `src/composition.ts`, for a cradle or bridge **type** — and all four are
+  // packages now, so the root writes `@endora-commerce/mod-<id>/backend`. A bare
+  // specifier into a package is not a reference into `backend/src/modules/`,
+  // which is the same reason the `payment_methods` note above gives. The entries
+  // are deleted rather than re-pointed.
   // `auth` (T078). `composition.ts` imports `promoteAdminActor` and the
   // `AuthCradle` type. The type import is the ordinary shape of a root
   // resolving a module's registrations. `promoteAdminActor` is the interesting
@@ -240,7 +294,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `megamenu` reference resolvers to. Contributing those is a root's job —
   // which modules a deployment ships is not this module's business — so that
   // one stays.
-  assets_library: ['src/composition.ts'],
   // `_i18n` (wave 1, T089). `composition.ts` imports the cradle type and, since
   // D-54, the `ERROR_TRANSLATION_KEYS` map it injects into the error envelope.
   // That map used to be imported by `src/http/error-envelope.ts` itself, which
@@ -261,20 +314,28 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // to reach `invoiceNumberGenerator` for a `CorrectiveInvoiceProvider` the root
   // built, and that adapter is `correctiveInvoicePort` now — which is also what
   // ended the two roots numbering corrections out of two different counters.
-  invoices: ['src/composition.ts'],
   // `admin_users` (wave 2, T121). Both roots contribute the late-bound MFA
   // getter and the `auditActorResolver` adapter that `audit_logs` owns the name
   // for. The second is a root's by design — see `audit_logs/backend.ts` — and
   // the first goes when a deployment stops needing to say which module supplies
   // MFA.
   admin_users: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
-  // `settings` (wave 2, T118). Both roots compose the kernel reader through
-  // `composeSettingsKernel` and register the two deployment properties the
-  // admin surface needs — the `secret` encryption key and the effective-state
-  // reader. Like `sales_channels`, that is design rather than residue: a
-  // settings read backs behaviour in nearly every module and cannot be gated
-  // on the settings screens.
-  settings: ['src/composition.ts'],
+  // `settings` needs no entry and gets none, since feature 080's T040b — this
+  // module is now **absent** from the ledger, which is the strongest state a
+  // key can reach.
+  //
+  // The entry that stood here recorded a different reference from the one that
+  // actually held it, which is worth naming rather than quietly deleting. It
+  // read "both roots compose the kernel reader through `composeSettingsKernel`
+  // and register the two deployment properties the admin surface needs"; that
+  // is true and is not a reference into `src/modules/settings/` at all —
+  // `composeSettingsKernel` is `src/kernel/settings/compose.ts`, a sibling of
+  // the reader, and it has been for as long as this entry has. What the scan
+  // was seeing was `collectRegisteredSettingsManifests`, a **value** import of
+  // the module's own source, which T040b replaced with the published
+  // `settingsManifestCollectionPort`. So a reason that was individually true
+  // stood in for a reference it did not describe, and the drain is what
+  // surfaced it — the same failure mode as `orders` and `admin_roles` above.
   // `_lifecycle` (wave 2, T125). It was the longest entry here until D-37 A1
   // moved the presence machinery into `src/kernel/lifecycle/`: the entity left
   // the module and the two kernel files — which held the gating wrappers this
@@ -324,7 +385,6 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `carts` (wave 3, T136). Both roots contribute who is asking and the bridge
   // into `shopping_lists`, which points outward and so cannot be a port. The
   // abandonment-sweep CLI still constructs its own services — filed separately.
-  carts: ['src/composition.ts'],
   // Every other module is absent, and absence is the record: an absent key
   // means "no residue", which is not the same as a key with an empty list. The
   // scan only reports modules something still refers to, so an empty array

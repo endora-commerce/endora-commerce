@@ -1,11 +1,14 @@
+import { Asset } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Asset } from '../../../src/modules/assets_library/entities/asset.entity.js';
+
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
+
 
 /**
  * T086 — Contract test: PATCH category with mainImageAssetId.

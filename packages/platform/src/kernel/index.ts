@@ -117,7 +117,6 @@ export {
 } from './cache/in-process-cache-registry.js';
 
 export { hashPassword, verifyPassword } from './crypto/password-hasher.js';
-export { enroll, verifyTotp } from './crypto/totp.js';
 
 export { SalesChannel } from './sales-channels/sales-channel.entity.js';
 /**

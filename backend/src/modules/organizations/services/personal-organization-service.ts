@@ -62,17 +62,65 @@ export class PersonalOrganizationService {
   }
 
   /**
+   * The provisioning itself — find-or-create the personal organisation for an
+   * account, on the `EntityManager` the caller hands in.
+   *
+   * D-178 made this the one place the row is written, and gave it a caller that
+   * has no account row yet: `customer_accounts` inserts the account and its
+   * organisation in one transaction, so it passes the id it is *about* to write
+   * and the name components it already holds. Nothing here reads
+   * `customer_accounts` and nothing here writes it.
+   *
+   * Idempotent by `taxId`, which is derived from the account id — a retry after
+   * a rolled-back attempt re-finds the row rather than creating a second one.
+   *
+   * command-coverage-ignore: idempotent auto-provisioning of a customer's
+   * personal (B2C) organization — a system invariant the constitution mandates
+   * (Principle XI), not an operator-initiated write. Its caller's own write is
+   * the audited event.
+   */
+  async provisionFor(
+    em: EntityManager,
+    input: {
+      customerAccountId: string;
+      email: string;
+      firstName?: string | null;
+      lastName?: string | null;
+    },
+  ): Promise<Organization> {
+    const taxId = personalTaxId(input.customerAccountId);
+    const existingByTaxId = await em.findOne(Organization, { taxId });
+    if (existingByTaxId) return existingByTaxId;
+    const org = em.create(Organization, {
+      name: PersonalOrganizationService.personalName({
+        firstName: input.firstName ?? '',
+        lastName: input.lastName ?? '',
+        email: input.email,
+      }),
+      taxId,
+      status: 'active',
+      vatStatus: 'vat_exempt',
+      isPersonal: true,
+      registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
+    });
+    // Flushed here rather than left pending, because the caller's next statement
+    // inserts a row whose `organization_id` foreign key points at this one. It
+    // is the caller's `EntityManager` and therefore the caller's transaction, so
+    // a rollback takes this row with it.
+    await em.persistAndFlush(org);
+    return org;
+  }
+
+  /**
    * Return the customer's organization, provisioning a personal one iff none is
    * linked. Idempotent by customer — a customer that already has an organization
    * is returned as-is (never a second personal org).
    *
-   * The two writes are two units of work since feature 075's Phase C: the
-   * Organization is this module's row and the membership binding is
-   * `customer_accounts`'. They were already two flushes, so nothing atomic is
-   * lost — and the order is the recoverable one, because an Organization no
-   * account points at is re-found by the caller's next attempt (the taxId is
-   * derived from the account id), while a binding to an Organization that was
-   * never created is not.
+   * **Since D-178 this repairs rather than provisions.** Every write path now
+   * creates the account and its organisation in one transaction, so a live
+   * account always has one and this method's provisioning arm is reached only by
+   * a caller holding an account written before that ruling. It is kept because
+   * it is idempotent and because `ensureForCustomerAccount` is a published port.
    */
   async ensureForCustomerAccountId(customerAccountId: string): Promise<Organization> {
     const accounts = this.#accounts();
@@ -85,35 +133,37 @@ export class PersonalOrganizationService {
         `Customer account ${customerAccountId} not found.`,
       );
     }
-    // command-coverage-ignore: idempotent auto-provisioning of a customer's
-    // personal (B2C) organization on first transact — a system invariant repair
-    // (returns the existing org if any), not an operator-initiated write.
     if (account.organizationId) {
       const existing = await em.findOne(Organization, { id: account.organizationId });
       if (existing) return existing;
     }
-    // Two units of work rather than one since the boundary cut: the
-    // Organization is this module's row, the membership binding is
-    // `customer_accounts`'. They were already two flushes, so nothing atomic is
-    // lost. The order is the recoverable one — the taxId is derived from the
-    // account id, so an Organization no account points at is *re-found* by the
-    // next attempt rather than duplicated, while a binding to an Organization
-    // that was never created has nothing to point at.
-    const taxId = personalTaxId(account.id);
-    const existingByTaxId = await em.findOne(Organization, { taxId });
-    const org =
-      existingByTaxId ??
-      em.create(Organization, {
-        name: PersonalOrganizationService.personalName(account),
-        taxId,
-        status: 'active',
-        vatStatus: 'vat_exempt',
-        isPersonal: true,
-        registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
-      });
-    if (!existingByTaxId) await em.persistAndFlush(org);
+    const org = await this.provisionFor(em, { ...account, customerAccountId: account.id });
     await accounts.write.attachToOrganization(account.id, org.id);
     return org;
+  }
+
+  /**
+   * D-178 — the account's **own** personal organisation, whatever it currently
+   * belongs to, provisioned if it has never existed.
+   *
+   * `unassign` on the admin customer screen is what wants it: an operator
+   * detaching a member from a company used to write `organization_id = NULL`,
+   * and the account it produced could never transact. The operation is now the
+   * move it always meant, and this is the destination. The **binding** is not
+   * written here — `customers` writes it through
+   * `CustomerAccountLifecycleWritePort.detachToPersonalOrganization` once its
+   * own authority and org-administrator-depletion guards have passed.
+   */
+  async provisionPersonalOrganizationFor(customerAccountId: string): Promise<Organization> {
+    const account = await this.#accounts().read.findById(customerAccountId);
+    if (!account) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.NOT_FOUND,
+        `Customer account ${customerAccountId} not found.`,
+      );
+    }
+    return this.provisionFor(this.emFactory(), { ...account, customerAccountId: account.id });
   }
 
   /**

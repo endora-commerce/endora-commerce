@@ -6,7 +6,7 @@ import {
   deploymentShippedEntries,
   type RegisteredManifestEntry,
 } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { collectRegisteredSettingsManifests } from '../../../src/modules/settings/services/registered-settings-manifests.js';
+import { collectRegisteredSettingsManifests } from '../../../../packages/modules/settings/src/backend/services/registered-settings-manifests.js';
 import {
   coreModulesRoot,
   overlayModulesRootFor,

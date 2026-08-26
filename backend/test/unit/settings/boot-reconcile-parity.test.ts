@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { settingsManifest as settingsModuleManifest } from '../../../src/modules/settings/manifest.js';
-import { collectRegisteredSettingsManifests } from '../../../src/modules/settings/services/registered-settings-manifests.js';
+import { settingsManifest as settingsModuleManifest } from '../../../../packages/modules/settings/src/manifest.js';
+import { collectRegisteredSettingsManifests } from '../../../../packages/modules/settings/src/backend/services/registered-settings-manifests.js';
 
 /**
  * Regression guard — every module that declares a settings manifest must be

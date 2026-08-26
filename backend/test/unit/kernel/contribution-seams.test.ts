@@ -10,7 +10,7 @@ import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helper
 import { ConfigurationTypeRegistry } from '../../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js';
 import { EnumOrderStatusRegistry as PaymentOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
 import { EnumOrderStatusRegistry as ShippingOrderStatusRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/order-status-registry.port.js';
-import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
+import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
 import { CmsReferenceRegistry } from '../../../../packages/modules/cms/src/backend/services/cms-reference-registry.js';
 import { EmailDefaultsRegistry } from '../../../../packages/modules/transactional_emails/src/backend/services/email-defaults-registry.js';
 import { registerCmsAssetReferences } from '../../../../packages/modules/cms/src/backend/services/asset-references.js';

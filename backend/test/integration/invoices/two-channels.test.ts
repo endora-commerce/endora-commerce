@@ -10,7 +10,7 @@ import {
   ensureSalesChannelId,
   systemDefaultSalesChannel,
 } from '../../helpers/sales-channel-fixtures.js';
-import { NumberingConfigurationService } from '../../../src/modules/invoices/services/numbering-configuration.js';
+import { NumberingConfigurationService } from '../../../../packages/modules/invoices/src/backend/services/numbering-configuration.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
 
 /**

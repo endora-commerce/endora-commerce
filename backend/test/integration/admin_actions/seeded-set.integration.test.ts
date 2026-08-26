@@ -16,7 +16,7 @@ import { manifest as cmsManifest } from '../../../../packages/modules/cms/src/ma
 import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';
 import { manifest as megamenuManifest } from '../../../src/modules/megamenu/manifest.js';
 import { manifest as salesChannelsManifest } from '../../../../packages/modules/sales_channels/src/manifest.js';
-import { manifest as settingsManifest } from '../../../src/modules/settings/manifest.js';
+import { manifest as settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 
 /**
  * End-to-end integration test for the v1 seed action set

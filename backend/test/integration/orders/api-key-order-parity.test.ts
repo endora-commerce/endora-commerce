@@ -1,23 +1,33 @@
+import { Invoice } from '../../helpers/package-entities.js';
 import { randomUUID } from 'node:crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+
 import {
   SEED_ADDRESS_BILLING_ID,
   SEED_ADDRESS_DELIVERY_ID,
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
+
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+
 import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
-import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
-import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
+
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
+
 
 /**
  * Feature 062 / T022 (SC-004) — a key-placed order is a first-class Order:

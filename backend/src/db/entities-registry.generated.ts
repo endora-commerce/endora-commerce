@@ -37,12 +37,7 @@ import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.
 import { ModuleAction } from '../modules/admin_actions/entities/module-action.entity.js';
 import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js';
 import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
-import { AssetFolder } from '../modules/assets_library/entities/asset-folder.entity.js';
-import { Asset } from '../modules/assets_library/entities/asset.entity.js';
 import { Session } from '../modules/auth/entities/session.entity.js';
-import { CartAuditEntry } from '../modules/carts/entities/cart-audit-entry.entity.js';
-import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
-import { Cart } from '../modules/carts/entities/cart.entity.js';
 import { AttachmentType } from '../modules/catalog/entities/attachment-type.entity.js';
 import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
 import { AttributeSet } from '../modules/catalog/entities/attribute-set.entity.js';
@@ -61,13 +56,9 @@ import { ProductPackagingUnit } from '../modules/catalog/entities/product-packag
 import { ProductValueOverride } from '../modules/catalog/entities/product-value-override.entity.js';
 import { ProductVariant } from '../modules/catalog/entities/product-variant.entity.js';
 import { Product } from '../modules/catalog/entities/product.entity.js';
-import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
-import { CustomFieldOption } from '../modules/custom_fields/entities/custom-field-option.entity.js';
 import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
 import { CustomerGroup } from '../modules/customer_accounts/entities/customer-group.entity.js';
 import { PasswordResetToken } from '../modules/customer_accounts/entities/password-reset-token.entity.js';
-import { CustomerAddress } from '../modules/customers/entities/customer-address.entity.js';
-import { EmailDelivery } from '../modules/email/entities/email-delivery.entity.js';
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
 import { InventoryThreshold } from '../modules/inventory/entities/inventory-threshold.entity.js';
 import { ProductWarehouseLowStockThreshold } from '../modules/inventory/entities/product-warehouse-low-stock-threshold.entity.js';
@@ -75,10 +66,6 @@ import { StockAllocation } from '../modules/inventory/entities/stock-allocation.
 import { StockLevel } from '../modules/inventory/entities/stock-level.entity.js';
 import { WarehouseChannelAssignment } from '../modules/inventory/entities/warehouse-channel-assignment.entity.js';
 import { Warehouse } from '../modules/inventory/entities/warehouse.entity.js';
-import { InvoiceLine } from '../modules/invoices/entities/invoice-line.entity.js';
-import { InvoiceNumberCounter } from '../modules/invoices/entities/invoice-number-counter.entity.js';
-import { InvoiceTemplate } from '../modules/invoices/entities/invoice-template.entity.js';
-import { Invoice } from '../modules/invoices/entities/invoice.entity.js';
 import { MegamenuBinding } from '../modules/megamenu/entities/megamenu-binding.entity.js';
 import { MegamenuItem } from '../modules/megamenu/entities/megamenu-item.entity.js';
 import { Megamenu } from '../modules/megamenu/entities/megamenu.entity.js';
@@ -129,8 +116,10 @@ import { entities as addressesEntities } from '@endora-commerce/mod-addresses/ba
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
 import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/backend';
 import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
+import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-library/backend';
 import { entities as autopayEntities } from '@endora-commerce/mod-autopay/backend';
 import { entities as blogEntities } from '@endora-commerce/mod-blog/backend';
+import { entities as cartsEntities } from '@endora-commerce/mod-carts/backend';
 import { entities as cmsEntities } from '@endora-commerce/mod-cms/backend';
 import { entities as comparisonsEntities } from '@endora-commerce/mod-comparisons/backend';
 import { entities as dictionariesEntities } from '@endora-commerce/mod-dictionaries/backend';
@@ -138,10 +127,14 @@ import { entities as promotionsEntities } from '@endora-commerce/mod-promotions/
 import { entities as credentialsEntities } from '@endora-commerce/mod-credentials/backend';
 import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
 import { entities as currenciesEntities } from '@endora-commerce/mod-currencies/backend';
+import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fields/backend';
+import { entities as customersEntities } from '@endora-commerce/mod-customers/backend';
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
 import { entities as dhlParcelEntities } from '@endora-commerce/mod-dhl-parcel/backend';
 import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
+import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
+import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import { entities as ksefEntities } from '@endora-commerce/mod-ksef/backend';
 import { entities as languagesEntities } from '@endora-commerce/mod-languages/backend';
 import { entities as linkedinAdsEntities } from '@endora-commerce/mod-linkedin-ads/backend';
@@ -176,12 +169,7 @@ export const ALL_ENTITIES = [
   ModuleAction,
   AdminRole,
   AdminUser,
-  AssetFolder,
-  Asset,
   Session,
-  CartAuditEntry,
-  CartItem,
-  Cart,
   AttachmentType,
   AttributeSetAttribute,
   AttributeSet,
@@ -200,13 +188,9 @@ export const ALL_ENTITIES = [
   ProductValueOverride,
   ProductVariant,
   Product,
-  CustomFieldDefinition,
-  CustomFieldOption,
   CustomerAccount,
   CustomerGroup,
   PasswordResetToken,
-  CustomerAddress,
-  EmailDelivery,
   AvailabilityNotification,
   InventoryThreshold,
   ProductWarehouseLowStockThreshold,
@@ -214,10 +198,6 @@ export const ALL_ENTITIES = [
   StockLevel,
   WarehouseChannelAssignment,
   Warehouse,
-  InvoiceLine,
-  InvoiceNumberCounter,
-  InvoiceTemplate,
-  Invoice,
   MegamenuBinding,
   MegamenuItem,
   Megamenu,
@@ -268,8 +248,10 @@ export const ALL_ENTITIES = [
   ...(adminNotificationsEntities as readonly EntityClassLike[]),
   ...(analyticsEntities as readonly EntityClassLike[]),
   ...(apiKeysEntities as readonly EntityClassLike[]),
+  ...(assetsLibraryEntities as readonly EntityClassLike[]),
   ...(autopayEntities as readonly EntityClassLike[]),
   ...(blogEntities as readonly EntityClassLike[]),
+  ...(cartsEntities as readonly EntityClassLike[]),
   ...(cmsEntities as readonly EntityClassLike[]),
   ...(comparisonsEntities as readonly EntityClassLike[]),
   ...(dictionariesEntities as readonly EntityClassLike[]),
@@ -277,10 +259,14 @@ export const ALL_ENTITIES = [
   ...(credentialsEntities as readonly EntityClassLike[]),
   ...(creditLimitsEntities as readonly EntityClassLike[]),
   ...(currenciesEntities as readonly EntityClassLike[]),
+  ...(customFieldsEntities as readonly EntityClassLike[]),
+  ...(customersEntities as readonly EntityClassLike[]),
   ...(deliveryMethodsEntities as readonly EntityClassLike[]),
   ...(dhlParcelEntities as readonly EntityClassLike[]),
   ...(transactionalEmailsEntities as readonly EntityClassLike[]),
+  ...(emailEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
+  ...(invoicesEntities as readonly EntityClassLike[]),
   ...(ksefEntities as readonly EntityClassLike[]),
   ...(languagesEntities as readonly EntityClassLike[]),
   ...(linkedinAdsEntities as readonly EntityClassLike[]),

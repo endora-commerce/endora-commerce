@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ModuleManifestSchema, defineModuleManifest } from '@endora-commerce/contracts';
 import { manifest as adminI18nManifest } from '../../../src/modules/_i18n/manifest.js';
-import { manifest as settingsManifest } from '../../../src/modules/settings/manifest.js';
+import { manifest as settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 
 /**
  * T033 / FR-008, FR-016 — `ModuleManifest.i18n` is the additive manifest

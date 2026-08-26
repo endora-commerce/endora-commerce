@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { manifest as customersManifest } from '../../../src/modules/customers/manifest.js';
+import { manifest as customersManifest } from '../../../../packages/modules/customers/src/manifest.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 

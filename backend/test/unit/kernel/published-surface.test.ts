@@ -136,7 +136,6 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
   ],
   /** Rows 20 and 38. */
   'crypto/password-hasher.js': ['hashPassword', 'verifyPassword'],
-  'crypto/totp.js': ['enroll', 'verifyTotp'],
   /** Row 9 — the singleton case (§3). */
   'sales-channels/sales-channel.entity.js': ['SalesChannel'],
   /** Row 34 — the four symbols modules take. */

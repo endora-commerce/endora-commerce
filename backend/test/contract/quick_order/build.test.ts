@@ -1,13 +1,15 @@
+import { Cart, CartItem } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import exceljs from 'exceljs';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
+
 
 /**
  * Feature 039 (US1) — quick-order Excel import + build to Cart / Quote Request.

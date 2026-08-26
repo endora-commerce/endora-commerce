@@ -85,14 +85,19 @@ export type CustomerAccountBlockSource = 'staff' | 'org_owner';
  * A customer account as it crosses a module boundary — a plain shape, never
  * the ORM entity (FR-011).
  *
- * `passwordHash` and `twoFactorSecret` are deliberately absent. Both are read
- * by exactly one module — the owner — and neither has any business travelling:
- * a record that carries them turns every consumer into a place a credential
- * can leak from.
+ * `passwordHash` is deliberately absent. It is read by exactly one module —
+ * the owner — and has no business travelling: a record that carries it turns
+ * every consumer into a place a credential can leak from.
  */
 export interface CustomerAccountRecord {
   id: string;
-  organizationId: string | null;
+  /**
+   * The tenant that scopes this account. Never `null` since D-178:
+   * `customer_accounts.organization_id` is `NOT NULL`, an individual is backed
+   * by a single-member personal organisation, and there is no
+   * "no-organization" scoping path (Principle XI).
+   */
+  organizationId: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -481,6 +486,44 @@ export interface CustomerPasswordVerificationPort {
 }
 
 /**
+ * Container name: `customerRollupScopePort`. Owner: `customer_accounts`.
+ *
+ * Feature 056 (T032) — whether a customer login widens from single-org to its
+ * organization's subtree, and the widened id set when it does. Derived from the
+ * authenticated actor and never from request inputs (Principle XI).
+ *
+ * **Its consumer is a composition root, which is why the shape is unusual.**
+ * The per-request tenant-context builder is where the answer is needed, and the
+ * question has two halves owned by two modules: the capability flag on the
+ * account, which is this module's column, and the tree traversal, which is
+ * `organizations`'. The traversal therefore arrives as `subtreeIds` rather than
+ * being resolved here — the root already holds that module's tree service, and
+ * resolving it from this side would be a cross-module reach into a container
+ * name no contract publishes.
+ *
+ * `undefined` means "stay single-org", for both of the reasons it can: the
+ * account has no organisation, or it does not hold the capability. A caller
+ * that receives it must not widen.
+ *
+ * The capability read runs under a system scope on the owner's side, because
+ * the tenant context is being *established* by the caller and does not exist
+ * yet.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `customer_accounts` has an off state at all is its
+ * manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface CustomerRollupScopePort {
+  resolveSubtreeIds(
+    customerAccountId: string,
+    organizationId: string | null,
+    subtreeIds: (organizationId: string) => Promise<string[]>,
+  ): Promise<string[] | undefined>;
+}
+
+/**
  * Container name: `customerRolePort`. Owner: `customer_accounts`.
  *
  * (It said `roleService` until issue #192. Nothing registers that name; the
@@ -508,32 +551,6 @@ export interface CustomerRolePort {
   removeMember(organizationId: string, targetCustomerAccountId: string): Promise<void>;
 }
 
-/** The one-time enrolment payload. The backup codes are shown once and hashed. */
-export interface CustomerTotpEnrolmentResult {
-  secret: string;
-  otpauthUri: string;
-  backupCodes: string[];
-}
-
-/**
- * Container name: `totpEnrolmentService`. Owner: `customer_accounts`.
- *
- * The customer's own second factor, which is a different thing from the `mfa`
- * module's login orchestration: this port writes the enrolment onto the
- * account row, `mfa` decides whether a login must present one.
- *
- * **Owner off:** the seam fails closed — resolving this port throws
- * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
- * half-executes. Whether `customer_accounts` has an off state at all is its manifest's
- * `activation` to say, not this line's: a module declaring
- * `nonDeactivatable` never enters one.
- */
-export interface CustomerTotpEnrolmentPort {
-  enable(customerAccountId: string): Promise<CustomerTotpEnrolmentResult>;
-  confirm(customerAccountId: string, code: string): Promise<void>;
-  disable(customerAccountId: string, codeOrBackup: string): Promise<void>;
-}
-
 // --- the lifecycle surface `customers` runs ----------------------------------
 
 /**
@@ -544,10 +561,13 @@ export interface CustomerTotpEnrolmentPort {
  * side of the port, and a caller that hashes is a caller that has to be told
  * which algorithm the owner uses and be trusted to keep using it.
  *
- * There is no `organizationId`: the account is created org-less and
- * `organizations`' `personalOrganizationPort` binds it to the personal
- * organisation it provisions, in its own unit of work. That order is the
- * recoverable one — see {@link PersonalOrganizationPort}.
+ * There is no `organizationId`, and since D-178 that is not because the account
+ * is created without one. The owner provisions the individual's personal
+ * organisation and writes the account **in one transaction**, so the caller has
+ * no organisation to supply and no window in which to supply it: the account
+ * row and its tenant either both exist or neither does. Before D-178 the two
+ * were separate units of work and a failure between them left a committed
+ * account with `organization_id = NULL` that nothing retried.
  */
 export interface CustomerAccountStandaloneCreateInput {
   email: string;
@@ -709,10 +729,38 @@ export interface CustomerAccountLifecycleWritePort {
     input: { actorAdminUserId: string },
   ): Promise<CustomerAccountRecord>;
 
-  /** `null` detaches the account, leaving it standalone. */
+  /**
+   * Moves the account into `organizationId`, recording
+   * `customer_account.organization_assigned`.
+   *
+   * The parameter was `string | null` until D-178, and the `null` meant "detach
+   * this account, leaving it standalone" — a durable row with no tenant, which
+   * Principle XI forbids and `customer_accounts.organization_id NOT NULL` now
+   * refuses at the column. What an operator detaching a member actually wants
+   * is {@link detachToPersonalOrganization} below.
+   */
   setOrganization(
     customerAccountId: string,
-    organizationId: string | null,
+    organizationId: string,
+    input: { actorAdminUserId: string },
+  ): Promise<CustomerAccountRecord>;
+
+  /**
+   * D-178 — the operator's "this person no longer belongs to that company",
+   * expressed as the move it has to be rather than as the detach it used to be.
+   *
+   * `personalOrganizationId` is the account's own personal organisation, which
+   * the caller obtains from
+   * `PersonalOrganizationPort.provisionPersonalOrganization`; passing anything
+   * else is a plain assignment and belongs in {@link setOrganization}. It is a
+   * separate method rather than a flag because each write on this port owns one
+   * audit verb, and this one keeps `customer_account.organization_unassigned` —
+   * the verb an operator's history already reads, now describing what really
+   * happened.
+   */
+  detachToPersonalOrganization(
+    customerAccountId: string,
+    personalOrganizationId: string,
     input: { actorAdminUserId: string },
   ): Promise<CustomerAccountRecord>;
 

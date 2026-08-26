@@ -1,6 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
-import { CustomFieldOption } from '../modules/custom_fields/entities/custom-field-option.entity.js';
+import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fields/backend';
+import type { CustomFieldDefinition as CustomFieldDefinitionRow } from '../../../packages/modules/custom_fields/dist/backend/entities/custom-field-definition.entity.js';
+import type { CustomFieldOption as CustomFieldOptionRow } from '../../../packages/modules/custom_fields/dist/backend/entities/custom-field-option.entity.js';
+import { entityNamed } from '../packages/package-entity-lookup.js';
 import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
 import {
   legacyToCfType,
@@ -59,9 +61,37 @@ export interface AttributeFixtureInput {
   }>;
 }
 
+/**
+ * The two `custom_fields` entity classes this file constructs (feature 080,
+ * T040b — criterion 7).
+ *
+ * `custom_fields` is a workspace package, and a module package publishes one
+ * `entities` array and no entity class by name (D-168). `entityNamed` takes each
+ * off the array the ORM itself registered — `entities-registry.generated.ts`
+ * imports the same export — so there is one copy in the process (D-160.6.1),
+ * and the row type comes from an `import type` of the declaration inside the
+ * package's **built** artefact. `dist` and not `src`: `tsconfig.build.json` sets
+ * `rootDir: ./src`, and a `.ts` outside it is TS6059 even for a type-only
+ * import, because such an import still joins the program.
+ *
+ * The array publishes two classes, so the union `find` returns would collapse to
+ * whichever constituent TypeScript picks — which is what makes the row type
+ * load-bearing here rather than decorative.
+ */
+const CustomFieldDefinition = entityNamed<CustomFieldDefinitionRow>(
+  customFieldsEntities,
+  'CustomFieldDefinition',
+  '@endora-commerce/mod-custom-fields/backend',
+);
+const CustomFieldOption = entityNamed<CustomFieldOptionRow>(
+  customFieldsEntities,
+  'CustomFieldOption',
+  '@endora-commerce/mod-custom-fields/backend',
+);
+
 export interface AttributeFixture {
   extension: ProductAttribute;
-  definition: CustomFieldDefinition;
+  definition: CustomFieldDefinitionRow;
 }
 
 /** Create a definition + extension pair (+ options) in one flush. */
@@ -132,6 +162,6 @@ export async function findAttributeExtensionByKey(
 export async function findAttributeDefinitionByKey(
   em: EntityManager,
   key: string,
-): Promise<CustomFieldDefinition | null> {
+): Promise<CustomFieldDefinitionRow | null> {
   return em.findOne(CustomFieldDefinition, { entityType: 'product', key });
 }

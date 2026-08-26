@@ -1,17 +1,26 @@
+import { Asset } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { mkdtemp, rm, writeFile, mkdir, stat } from 'node:fs/promises';
+
 import { tmpdir } from 'node:os';
+
 import { dirname, join } from 'node:path';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Asset } from '../../../src/modules/assets_library/entities/asset.entity.js';
-import { HardDeleteAssetWorker } from '../../../src/modules/assets_library/jobs/hard-delete-asset.job.js';
+
+import { HardDeleteAssetWorker } from '../../../../packages/modules/assets_library/src/backend/jobs/hard-delete-asset.job.js';
+
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
+
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+
 
 /**
  * T099 — Hard-delete worker integration test.

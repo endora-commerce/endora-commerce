@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CartRecomputeCache } from '../../../src/modules/carts/services/cart-recompute-cache.js';
+import { CartRecomputeCache } from '../../../../packages/modules/carts/src/backend/services/cart-recompute-cache.js';
 
 /**
  * Feature 027 §R5 / FR-008 — re-pricing on read.

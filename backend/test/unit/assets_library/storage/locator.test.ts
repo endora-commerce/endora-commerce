@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeLocator } from '../../../../src/modules/assets_library/services/storage/locator.js';
+import { computeLocator } from '../../../../../packages/modules/assets_library/src/backend/services/storage/locator.js';
 
 describe('computeLocator', () => {
   it('shards by first two and next two hex chars of the assetId', () => {

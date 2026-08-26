@@ -31,7 +31,7 @@ const onlyPresent =
     ids.includes(id);
 
 describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests', () => {
-  it('reads the twenty-three real edges the manifests deliberately keep out of `dependencies`', () => {
+  it('reads the twenty real edges the manifests deliberately keep out of `dependencies`', () => {
     // Two arrived with issue #90, when `check-port-dependencies` learned to
     // follow a module-local cradle alias and two edges that had always been
     // resolved through one became visible: the lifecycle admin surfaces
@@ -69,12 +69,26 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
     // time — that last edge was reaching `quote_requests` through `carts`'
     // closure, which the same ruling removed.
     //
-    // Note what does **not** change with them: an acknowledged edge is in the
-    // refusal graph exactly as a declared one is, so `promotions`,
-    // `credit_limits` and `quote_requests` stay precisely as (un)deactivatable
-    // as they were the day before. The ruling withdraws the ordering claim the
-    // constraints contradict and withdraws nothing else — which is why it is
-    // not a way of quietly demoting a live dependency.
+    // Two more arrive with feature 080's T048, and they are the same family a
+    // step further on: `orders` reaches `carts` through `cartPlacementApplyPort`
+    // (the basket read and the completion, on the placement `EntityManager`,
+    // which is what `carts_completed_order_fk` obliges) and through
+    // `cartReadPort` (the storefront total preview, which opens no transaction
+    // and therefore takes no `EntityManager`). Both were one `Cart` /`CartItem`
+    // entity import until that row; the cycle they are acknowledged for is the
+    // one `cartWritePort` above already names.
+    //
+    // Five of those seven have since **left** again, and the reason is the
+    // sentence that used to stand here: *"an acknowledged edge is in the refusal
+    // graph exactly as a declared one is, so `promotions`, `credit_limits` and
+    // `quote_requests` stay precisely as (un)deactivatable as they were the day
+    // before."* That was true and it was the defect. `orders` cannot be switched
+    // off, so its acknowledgement made all three owners' activation controls
+    // answer 409 for ever — D-179.1's dead switches. The owner ruling of
+    // 2026-08-25 added the spelling that was missing, `nonBindingDependencies`
+    // kind `refuses-without`, and `orders`' four edges plus
+    // `organizations:creditLimitReadPort` moved there. The behaviour is
+    // unchanged in every case: the gate refused before and refuses now.
     //
     // What makes the acknowledgement honest is that the edge is in the refusal
     // graph either way: withholding it from `dependencies` withdraws the
@@ -96,11 +110,9 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'carts:promotionService',
       'catalog:organizationDetailsPort',
       'catalog:pricingService',
+      'orders:cartPlacementApplyPort',
+      'orders:cartReadPort',
       'orders:cartWritePort',
-      'orders:creditLimitService',
-      'orders:promotionService',
-      'orders:promotionUsageFinalizer',
-      'orders:rfqService',
       'organizations:addressServicePort',
       'organizations:customerAccountMemberWritePort',
       'organizations:customerAccountReadPort',
@@ -108,7 +120,6 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'organizations:customerRolePort',
       'organizations:passwordResetService',
       'organizations:priceListReadPort',
-      'organizations:totpEnrolmentService',
       'quote_requests:cartWritePort',
       'quote_requests:orderReadPort',
     ]);
@@ -157,10 +168,6 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
     'orders:cartWritePort':
       'Same bound, stated of both ends: it says what the acknowledgement withdraws (the ' +
       'ordering claim) and that nothing an operator can reach changes with it.',
-    'orders:creditLimitService':
-      'Argues from the **dependent** module\'s lock, not the owner\'s: `credit_limits` stays ' +
-      'exactly as (un)deactivatable under `orders` as it was. A different statement, and one ' +
-      'the shipped graph makes true.',
   };
 
   /**
@@ -173,7 +180,7 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
    * the difference the ratchet is measuring.
    */
 
-  it('no reason argues from the lock, except the four that bound the claim', () => {
+  it('no reason argues from the lock, except the two that bound the claim', () => {
     const claiming = acknowledgedPortEdgesFrom(MANIFESTS)
       .filter((edge) => /non-?deactivatable/i.test(edge.reason))
       .map((edge) => `${edge.moduleId}:${edge.port}`)

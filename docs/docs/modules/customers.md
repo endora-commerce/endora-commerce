@@ -5,9 +5,14 @@ title: customers
 # `customers`
 
 Customer (Klienci) lifecycle business logic layered on top of the
-`customer_accounts` data module (feature 040). Customers may or may not belong
-to an Organization; org-less ("standalone") customers fall back to platform
-defaults and have organization-scoped features hidden.
+`customer_accounts` data module (feature 040). **Every customer belongs to an
+Organization** — a company for B2B, a single-member *personal* organization for
+an individual (feature 051), and `customer_accounts.organization_id` is
+`NOT NULL` (D-178). "Standalone" throughout this page means *outside a company
+organization*, never *without one*: such a customer is their own tenant, and the
+organization-scoped features a company offers (shared addresses, invitations,
+credit limit, a sales-rep assignment) are simply absent for them rather than
+switched off by a special case.
 
 ## Capabilities
 
@@ -15,6 +20,7 @@ defaults and have organization-scoped features hidden.
 
 - Standalone registration, gated by the
   `customers.allow_registration_without_organization` setting. On success the
+  account and its personal organization are written in one transaction and the
   new account is logged in automatically.
 - A personal address book (billing/delivery), one default per kind, plus the
   ability to select the Organization's shared addresses (org-bound customers).
@@ -27,16 +33,18 @@ defaults and have organization-scoped features hidden.
   showing creation date, customer group, organization, blocked status, and last
   login.
 - Block / unblock and soft-delete / restore, with role-based authority: a
-  Platform Administrator may act on anyone; for an org-bound customer the
-  authorized salesperson is the one inherited from the customer's Organization;
-  a standalone customer is open to any salesperson. An org-owner depletion guard
-  refuses blocking or deleting the last organization administrator.
-- Impersonation (works for org-less customers); audited as `impersonation.start`
-  / `impersonation.end`.
+  Platform Administrator may act on anyone; otherwise the authorized salesperson
+  is the one inherited from the customer's Organization. A personal organization
+  never carries a sales-rep assignment, so the unassigned-organization fallback
+  leaves a standalone customer open to any salesperson. An org-owner depletion
+  guard refuses blocking or deleting the last organization administrator.
+- Impersonation; audited as `impersonation.start` / `impersonation.end`.
 - Admin-triggered password reset (emails a set-password link).
 - NIP/VAT validation (VIES / Biała lista port).
-- Organization assign / unassign; direct customer-group assignment (overrides
-  the Organization's group when resolving pricing and promotions).
+- Organization assign, and detach-from-organization, which moves the customer to
+  their own personal organization rather than leaving them without one (D-178).
+  Direct customer-group assignment (overrides the Organization's group when
+  resolving pricing and promotions).
 - Read-only orders, quote-requests, and (current + abandoned) carts panels.
 - An "online customers" view backed by recent session activity.
 

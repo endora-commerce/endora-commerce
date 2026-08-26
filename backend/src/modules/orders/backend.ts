@@ -6,6 +6,7 @@ import type {
   AddressReadPort,
   AddressServicePort,
   AssetReadPort,
+  CartReadPort,
   CartWritePort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
@@ -45,6 +46,18 @@ import { ERROR_CODES } from '@endora-commerce/contracts';
  * reads its own module's shape verifies that this module is self-consistent and
  * never that the provider still satisfies anything.
  */
+/**
+ * The three neighbours' `EntityManager`-taking interfaces (feature 080, T048),
+ * re-exported by `order-service.ts` so this module names each owner once. Same
+ * rule as the two above and for the same reason: the type argument to
+ * `lazyPort` must name the **owner's** published contract, never this module's
+ * own shape.
+ */
+import type {
+  CartPlacementApplyPort,
+  InventoryReservationApplyPort,
+  InvoicePlacementApplyPort,
+} from './services/order-service.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
 import type { PromotionUsageFinalizer } from '@endora-commerce/mod-promotions/ports';
 import { HttpError } from '../../http/error-envelope.js';
@@ -56,9 +69,11 @@ import { lazyPort } from '../../kernel/index.js';
 import type { OrganizationReadPort } from '../../kernel/ports/organizations.js';
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';
+import type { OrderPaymentStatusApplyPort } from './ports/index.js';
 import { commerceModule, type OrdersModuleOptions } from './plugin.js';
 import { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { emitOrderStatusAfter } from './events/order-status-events.js';
+import { OrderPaymentStatusApplyService } from './services/order-payment-status-apply-port.js';
 import { OrderReadService, toOrderRecord } from './services/order-read-port.js';
 import { OrderReturnContextProvider } from './services/order-return-context.js';
 import { registerOrderSalesChannelAttributions } from './services/sales-channel-attributions.js';
@@ -300,6 +315,7 @@ export function registerModule(ctx: ModuleContext): void {
   const inventoryPorts = (): {
     readonly stockRead: InventoryStockReadPort;
     readonly planning: InventoryFulfilmentPlanningPort;
+    readonly reservationApply: InventoryReservationApplyPort;
   } | null =>
     effectiveState.isPresent('inventory')
       ? {
@@ -307,6 +323,14 @@ export function registerModule(ctx: ModuleContext): void {
           planning: lazyPort<InventoryFulfilmentPlanningPort>(
             ctx,
             'inventoryFulfilmentPlanningPort',
+          ),
+          // Feature 080, T048 — the reservation itself, on the placement
+          // `EntityManager`. A third name under the same presence question,
+          // because there is one answer to it: with `inventory` off the whole
+          // block is skipped, and two accessors would have let half of it run.
+          reservationApply: lazyPort<InventoryReservationApplyPort>(
+            ctx,
+            'inventoryReservationApplyPort',
           ),
         }
       : null;
@@ -356,6 +380,15 @@ export function registerModule(ctx: ModuleContext): void {
             // Ports, every one of them read lazily: this registration is a
             // singleton and a gate may not be frozen inside one.
             cartWritePort: lazyPort<CartWritePort>(ctx, 'cartWritePort'),
+            // The two other `carts` names, and the three differ only in which
+            // transaction they run in (feature 080, T048): `cartWritePort`
+            // opens its own, `cartReadPort` reads on `carts`' own
+            // `EntityManager`, and `cartPlacementApplyPort` takes placement's
+            // because `carts_completed_order_fk` holds the completion and the
+            // order together. Neither is an accessor: `carts` is
+            // non-deactivatable, so it has no absent state to answer for.
+            cartPlacementApply: lazyPort<CartPlacementApplyPort>(ctx, 'cartPlacementApplyPort'),
+            cartRead: lazyPort<CartReadPort>(ctx, 'cartReadPort'),
             catalogProductRead: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
             customerAccountRead: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
             organizationDetails: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
@@ -380,6 +413,16 @@ export function registerModule(ctx: ModuleContext): void {
             invoicePdf: () =>
               effectiveState.isPresent('invoices')
                 ? lazyPort<InvoicePdfPort>(ctx, 'invoicePdfPort')
+                : null,
+            // The proforma placement opens (feature 080, T048). Presence is
+            // asked here for the same reason the two reads above ask it — the
+            // module is switchable and this one is not — and the consequence is
+            // the `degrades-without` sentence this module's manifest declares:
+            // with invoicing off no proforma is opened, and the order is placed
+            // exactly as before in every other respect.
+            invoicePlacementApply: () =>
+              effectiveState.isPresent('invoices')
+                ? lazyPort<InvoicePlacementApplyPort>(ctx, 'invoicePlacementApplyPort')
                 : null,
             // Feature 075, Phase C (issue #195) — `addressServicePort`, the
             // record-mapping adapter, rather than the `addressService` class
@@ -654,6 +697,29 @@ export function registerModule(ctx: ModuleContext): void {
           ),
       )
       .singleton(),
+  );
+
+  /**
+   * The money axis of an order, written on the **caller's** `EntityManager`
+   * (feature 080, T048; D-169).
+   *
+   * `payments` held this module's `Order` class for it until T048: a gateway
+   * callback moves the payment row and `orders.payment_status` in one
+   * transaction, and `payments_order_fk` is what obliges it to. The seam is
+   * unchanged — same transaction, same constraint, same column — and what moved
+   * is the statement, to the module that owns the table. `OrderPaymentStatusApplyPort`
+   * is declared in this module's `ports/` directory rather than in
+   * `@endora-commerce/contracts`, because its first parameter is a MikroORM
+   * `EntityManager` and FR-034 keeps that package free of them.
+   *
+   * The lifecycle half stays `orderTransitionPort` above, called after the
+   * settlement commits. Two ports rather than one because they run in two
+   * different transactions, which is a fact about the seam and not a shape
+   * anybody chose.
+   */
+  ctx.di.providePort<OrderPaymentStatusApplyPort>(
+    'orderPaymentStatusApplyPort',
+    ctx.asFunction(() => new OrderPaymentStatusApplyService()).singleton(),
   );
 
   /**

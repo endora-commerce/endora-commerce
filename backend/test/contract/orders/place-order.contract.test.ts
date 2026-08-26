@@ -1,12 +1,16 @@
+import { Cart } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
+
 import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
+
 
 /**
  * Feature 036 (US1) — `POST /api/v1/orders` contract over the real HTTP stack.

@@ -43,31 +43,31 @@ import { manifest as manifest5 } from '../admin_roles/manifest.js';
 import { manifest as manifest6, cliCommands as cliCommands6 } from '../admin_users/manifest.js';
 import { manifest as manifest7 } from '@endora-commerce/mod-analytics';
 import { manifest as manifest8 } from '@endora-commerce/mod-api-keys';
-import { manifest as manifest9 } from '../assets_library/manifest.js';
+import { manifest as manifest9 } from '@endora-commerce/mod-assets-library';
 import { manifest as manifest10, cliCommands as cliCommands10 } from '@endora-commerce/mod-audit-logs';
 import { manifest as manifest11 } from '../auth/manifest.js';
 import { manifest as manifest12 } from '@endora-commerce/mod-autopay';
 import { manifest as manifest13 } from '@endora-commerce/mod-blog';
-import { manifest as manifest14, cliCommands as cliCommands14 } from '../carts/manifest.js';
+import { manifest as manifest14, cliCommands as cliCommands14 } from '@endora-commerce/mod-carts';
 import { manifest as manifest15, recentActivity as recentActivity15 } from '../catalog/manifest.js';
 import { manifest as manifest16 } from '@endora-commerce/mod-cms';
 import { manifest as manifest17 } from '@endora-commerce/mod-comparisons';
 import { manifest as manifest18 } from '@endora-commerce/mod-credentials';
 import { manifest as manifest19 } from '@endora-commerce/mod-credit-limits';
 import { manifest as manifest20 } from '@endora-commerce/mod-currencies';
-import { manifest as manifest21, uninstallHook as uninstallHook21 } from '../custom_fields/manifest.js';
+import { manifest as manifest21, uninstallHook as uninstallHook21 } from '@endora-commerce/mod-custom-fields';
 import { manifest as manifest22 } from '../customer_accounts/manifest.js';
-import { manifest as manifest23 } from '../customers/manifest.js';
+import { manifest as manifest23 } from '@endora-commerce/mod-customers';
 import { manifest as manifest24 } from '@endora-commerce/mod-delivery-methods';
 import { manifest as manifest25 } from '@endora-commerce/mod-dhl-parcel';
 import { manifest as manifest26 } from '@endora-commerce/mod-dictionaries';
-import { manifest as manifest27 } from '../email/manifest.js';
+import { manifest as manifest27 } from '@endora-commerce/mod-email';
 import { manifest as manifest28 } from '@endora-commerce/mod-google-analytics';
 import { manifest as manifest29 } from '@endora-commerce/mod-google-tag-manager';
 import { manifest as manifest30 } from '@endora-commerce/mod-health-checks';
 import { manifest as manifest31 } from '@endora-commerce/mod-import-export';
 import { manifest as manifest32, recentActivity as recentActivity32 } from '../inventory/manifest.js';
-import { manifest as manifest33 } from '../invoices/manifest.js';
+import { manifest as manifest33 } from '@endora-commerce/mod-invoices';
 import { manifest as manifest34 } from '@endora-commerce/mod-ksef';
 import { manifest as manifest35 } from '@endora-commerce/mod-languages';
 import { manifest as manifest36 } from '@endora-commerce/mod-linkedin-ads';
@@ -93,7 +93,7 @@ import { manifest as manifest55 } from '@endora-commerce/mod-returns';
 import { manifest as manifest56 } from '@endora-commerce/mod-sales-channels';
 import { manifest as manifest57, cliCommands as cliCommands57 } from '@endora-commerce/mod-search';
 import { manifest as manifest58 } from '@endora-commerce/mod-seo';
-import { manifest as manifest59, cliCommands as cliCommands59 } from '../settings/manifest.js';
+import { manifest as manifest59, cliCommands as cliCommands59 } from '@endora-commerce/mod-settings';
 import { manifest as manifest60 } from '@endora-commerce/mod-shipments';
 import { manifest as manifest61 } from '@endora-commerce/mod-shopping-lists';
 import { manifest as manifest62 } from '@endora-commerce/mod-stripe';
@@ -128,31 +128,31 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'admin_users', manifest: manifest6, manifestPath: resolveManifestPath(import.meta.url, '../admin_users/manifest.js'), cliCommands: cliCommands6 },
   { id: 'analytics', manifest: manifest7, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-analytics') },
   { id: 'api_keys', manifest: manifest8, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-api-keys') },
-  { id: 'assets_library', manifest: manifest9, manifestPath: resolveManifestPath(import.meta.url, '../assets_library/manifest.js') },
+  { id: 'assets_library', manifest: manifest9, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-assets-library') },
   { id: 'audit_logs', manifest: manifest10, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-audit-logs'), cliCommands: cliCommands10 },
   { id: 'auth', manifest: manifest11, manifestPath: resolveManifestPath(import.meta.url, '../auth/manifest.js') },
   { id: 'autopay', manifest: manifest12, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-autopay') },
   { id: 'blog', manifest: manifest13, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-blog') },
-  { id: 'carts', manifest: manifest14, manifestPath: resolveManifestPath(import.meta.url, '../carts/manifest.js'), cliCommands: cliCommands14 },
+  { id: 'carts', manifest: manifest14, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-carts'), cliCommands: cliCommands14 },
   { id: 'catalog', manifest: manifest15, manifestPath: resolveManifestPath(import.meta.url, '../catalog/manifest.js'), recentActivity: recentActivity15 },
   { id: 'cms', manifest: manifest16, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-cms') },
   { id: 'comparisons', manifest: manifest17, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-comparisons') },
   { id: 'credentials', manifest: manifest18, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-credentials') },
   { id: 'credit_limits', manifest: manifest19, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-credit-limits') },
   { id: 'currencies', manifest: manifest20, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-currencies') },
-  { id: 'custom_fields', manifest: manifest21, manifestPath: resolveManifestPath(import.meta.url, '../custom_fields/manifest.js'), uninstallHook: uninstallHook21 },
+  { id: 'custom_fields', manifest: manifest21, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-custom-fields'), uninstallHook: uninstallHook21 },
   { id: 'customer_accounts', manifest: manifest22, manifestPath: resolveManifestPath(import.meta.url, '../customer_accounts/manifest.js') },
-  { id: 'customers', manifest: manifest23, manifestPath: resolveManifestPath(import.meta.url, '../customers/manifest.js') },
+  { id: 'customers', manifest: manifest23, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-customers') },
   { id: 'delivery_methods', manifest: manifest24, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-delivery-methods') },
   { id: 'dhl_parcel', manifest: manifest25, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-dhl-parcel') },
   { id: 'dictionaries', manifest: manifest26, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-dictionaries') },
-  { id: 'email', manifest: manifest27, manifestPath: resolveManifestPath(import.meta.url, '../email/manifest.js') },
+  { id: 'email', manifest: manifest27, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-email') },
   { id: 'google_analytics', manifest: manifest28, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-google-analytics') },
   { id: 'google_tag_manager', manifest: manifest29, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-google-tag-manager') },
   { id: 'health_checks', manifest: manifest30, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-health-checks') },
   { id: 'import_export', manifest: manifest31, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-import-export') },
   { id: 'inventory', manifest: manifest32, manifestPath: resolveManifestPath(import.meta.url, '../inventory/manifest.js'), recentActivity: recentActivity32 },
-  { id: 'invoices', manifest: manifest33, manifestPath: resolveManifestPath(import.meta.url, '../invoices/manifest.js') },
+  { id: 'invoices', manifest: manifest33, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-invoices') },
   { id: 'ksef', manifest: manifest34, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-ksef') },
   { id: 'languages', manifest: manifest35, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-languages') },
   { id: 'linkedin_ads', manifest: manifest36, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-linkedin-ads') },
@@ -178,7 +178,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'sales_channels', manifest: manifest56, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-sales-channels') },
   { id: 'search', manifest: manifest57, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-search'), cliCommands: cliCommands57 },
   { id: 'seo', manifest: manifest58, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-seo') },
-  { id: 'settings', manifest: manifest59, manifestPath: resolveManifestPath(import.meta.url, '../settings/manifest.js'), cliCommands: cliCommands59 },
+  { id: 'settings', manifest: manifest59, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-settings'), cliCommands: cliCommands59 },
   { id: 'shipments', manifest: manifest60, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-shipments') },
   { id: 'shopping_lists', manifest: manifest61, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-shopping-lists') },
   { id: 'stripe', manifest: manifest62, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-stripe') },

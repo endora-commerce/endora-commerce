@@ -147,7 +147,7 @@ export type ModuleAcknowledgedDependency = z.infer<
  * still forces a `dependencies` entry, and `fk-dependency-drift.test.ts` still
  * fails for one declared here instead.
  *
- * The two kinds are the two ways an edge can exist without the bind bit:
+ * The three kinds are the three ways an edge can exist without the bind bit:
  *
  *  - **`contributes-to`** — the declaring module pushes an inert descriptor
  *    into `moduleId`'s ungated registry at boot. It has no failure mode in
@@ -158,6 +158,43 @@ export type ModuleAcknowledgedDependency = z.infer<
  *    `moduleId`, checks presence before it does, and keeps working with less.
  *    `whenAbsent` is required and states that behaviour, which is what an
  *    off-state test for the edge is held to.
+ *  - **`refuses-without`** — the declaring module reads a **gated port**, has
+ *    no fallback for it, and lets the 503 `MODULE_DISABLED` refusal reach the
+ *    caller. The operation stops; the rest of the declaring module keeps
+ *    working; the owner's activation control keeps working. `whenAbsent` is
+ *    required and names **what** refuses, because that is the whole payload:
+ *    the deactivation-consequence ledger classifies the edge `fails-closed`
+ *    and the operator's confirmation dialog renders this sentence.
+ *
+ * The third kind was an omission rather than a narrowing, and it is worth
+ * saying why, because the gap is invisible from the manifest side. A read with
+ * no fallback had only one spelling — `dependencies` (or
+ * `acknowledgedDependencies`) — and both carry the bind, so a dependent that
+ * cannot itself be switched off turned the *owner's* activation control into a
+ * dead switch: the operator flips it, the flip-time refusal names a module
+ * that will never go away, and nothing happens. That is a worse answer than
+ * either alternative, since a control that lies is not a control. So the
+ * missing spelling is "refuse, and do not bind", which is what this kind is;
+ * the outcome it produces (`fails-closed`) has been in the ledger's vocabulary
+ * since feature 074 and was reachable only for edges that also bound.
+ *
+ * **The half of the claim about the owner's control is already unspellable**,
+ * and it is worth knowing where: rule 2 of `assertNonBindingRules` refuses any
+ * non-binding edge whose target the same manifest also names in
+ * `dependencies` or `acknowledgedDependencies` — one edge, one claim, in one
+ * place. So a `refuses-without` entry cannot sit beside the bind it denies;
+ * a module that wants both is telling the operator two things at once and is
+ * refused before the ledger ever sees it. `check-port-dependencies.ts` re-
+ * derives the same fact from the manifests as a second net, for a manifest
+ * built without this helper.
+ *
+ * The other two halves are the check's alone, because both are properties of
+ * the *tree* rather than of the manifest: the name is registered with
+ * `di.providePort` (an ungated registration has no refusal to propagate), and
+ * the resolution happens at call time (a gated port resolved at boot stops the
+ * next start rather than one request — the ledger's
+ * `gated-port-before-first-request`, which is assigned before any declaration
+ * is consulted and which no entry can therefore rescue).
  *
  * The fourth quadrant — order without bind — stays deliberately unspellable
  * (Constitution IV). An edge that needs both goes back to `dependencies`, and
@@ -168,8 +205,11 @@ export const ModuleNonBindingDependencySchema = z.object({
   moduleId: z.string().regex(moduleIdRe),
   /** The container registration name, e.g. `promptActionToolRegistry`. */
   name: z.string().min(1),
-  kind: z.enum(['contributes-to', 'degrades-without']),
-  /** `degrades-without` only: what stops working. Rendered beside the control. */
+  kind: z.enum(['contributes-to', 'degrades-without', 'refuses-without']),
+  /**
+   * `degrades-without` and `refuses-without` only: what stops working, and for
+   * the second, what refuses. Rendered beside the control.
+   */
   whenAbsent: z.string().min(1).max(200).optional(),
   reason: z.string().min(1).max(800),
 });
@@ -359,6 +399,20 @@ function assertNonBindingRules(m: ModuleManifest): void {
         `[contracts/modules] manifest "${m.id}" declares "${edge.moduleId}:${edge.name}" ` +
           `as \`degrades-without\` with no \`whenAbsent\` — the kind is a promise about ` +
           `behaviour and the sentence is what a reviewer and an off-state test hold it to.`,
+      );
+    }
+    // 3a. And it is the whole of `refuses-without`, for a sharper reason: the
+    //     outcome that kind produces is the one an undeclared gated port
+    //     produces anyway, so the sentence is the only thing the declaration
+    //     adds. Without it the entry classifies identically to no entry at
+    //     all, and the operator's dialog falls back to a translated default
+    //     that names no capability.
+    if (edge.kind === 'refuses-without' && edge.whenAbsent === undefined) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares "${edge.moduleId}:${edge.name}" ` +
+          `as \`refuses-without\` with no \`whenAbsent\` — the ledger classifies such an ` +
+          `edge exactly as it classifies an undeclared one, so the sentence is the whole ` +
+          `of what the declaration buys. Name what refuses, in the operator's words.`,
       );
     }
     if (edge.kind === 'contributes-to' && edge.whenAbsent !== undefined) {
@@ -822,6 +876,53 @@ export function settingsManifestWithRecentActivity(
     ...manifest.settings,
     settings: [...manifest.settings.settings, entry],
   };
+}
+
+/**
+ * The two properties of a module-registry entry the boot settings reconcile
+ * reads — see {@link SettingsManifestCollectionPort}.
+ */
+export interface SettingsManifestSource {
+  readonly manifest: ModuleManifest;
+  /**
+   * The module's recent-activity eligibility (feature 080, T042j / D-163.1).
+   * It implies one Setting — the operator's choice of whether this module's
+   * entries reach the dashboard card — which is derived rather than declared,
+   * so a module that adds the eligibility export gets the control with it.
+   */
+  readonly recentActivity?: ModuleRecentActivity | undefined;
+}
+
+/**
+ * Container name: `settingsManifestCollectionPort`. Owner: `settings`.
+ *
+ * The boot-time reconcile's input list, assembled from the module registry the
+ * caller hands in.
+ *
+ * **Two owners, one list, and that is why this is a port.** Which modules a
+ * deployment ships is a composition-root input — core plus this deployment's
+ * overlay modules, never an installed package — so the registry arrives as an
+ * argument. How that registry becomes a reconcile list is `settings`' own rule:
+ * the settings module's manifest goes first, because every other manifest's
+ * entries fall back to its `general` group and the group has to exist before
+ * they are inserted, and each module code appears exactly once. A root that
+ * imported the derivation would be a root that has to be edited when the rule
+ * changes, and there are two of them.
+ *
+ * Nothing is gated on the module axis here on purpose: a module that is
+ * switched off keeps its settings rows and keeps its group on `/settings`,
+ * because a deactivation is not an uninstall (Constitution XVII) and the
+ * operator has to be able to switch it back on.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError`. It is resolved once, at boot, where a throw ends the
+ * process rather than answering a request, which is the ruled-correct
+ * behaviour for a composition that cannot be what the code says it is. Whether
+ * `settings` has an off state at all is its manifest's `activation` to say, not
+ * this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface SettingsManifestCollectionPort {
+  collect(registry: ReadonlyArray<SettingsManifestSource>): ModuleSettingsManifest[];
 }
 
 /** Aggregate of what a module's `manifest.ts` may export at runtime. */

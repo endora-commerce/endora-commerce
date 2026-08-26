@@ -202,6 +202,17 @@ const PACKAGED_MODULE_CANDIDATES: readonly string[] = [
   'payu',
   'quick_order',
   'taxes',
+  // Replenished for T040b's fourth batch, which takes `email` — the pool's last
+  // still-available member. Both additions are chosen for the property the
+  // paragraph above states and for one the sweep has made scarce: they are
+  // **blocked**, so they stay under `backend/src/modules` for several batches
+  // rather than being consumed by the next one. `pim_ergonode` and
+  // `admin_users` are two of the three heavy singles T040b splits off from the
+  // batches (14 410 lines and 47 test files respectively); neither carries a
+  // `modules/<id>/…` path in any ledger, an entry point of its own under
+  // `backend/scripts`, or an overlay reach.
+  'pim_ergonode',
+  'admin_users',
 ];
 
 const PACKAGED_MODULES = modulesInTheApplicationTree(PACKAGED_MODULE_CANDIDATES);
@@ -235,6 +246,36 @@ const STRANDED_MODULE_CANDIDATES: readonly string[] = [
   'dictionaries',
   'search',
   'assets_library',
+  // T040b's fourth batch takes `assets_library`, the last member the
+  // application tree still held.
+  //
+  // **This pool is running out for a structural reason and not for want of
+  // curation, and the next batch should read this rather than re-derive it.**
+  // A member has to satisfy three conditions at once: `ERROR_TRANSLATION_KEYS`
+  // must route a code to it (the paragraph above), no ledger may key on its
+  // path, and it has to still be under `backend/src/modules` when the fixture
+  // runs. Derived on 2026-08-25, the routed set that is still in the
+  // application tree is eight modules; batch four takes four of them
+  // (`assets_library`, `carts`, `invoices`, `settings`), and of the four left
+  // — `catalog`, `inventory`, `orders`, `megamenu` — the first three each own a
+  // cross-module ledger shard keyed on their own files, so stranding one is a
+  // stale-entry red (exit 1) rather than the missing-population red (exit 2)
+  // this fixture asserts. That leaves exactly one.
+  //
+  // `megamenu` is it, and it is a *good* member rather than merely the last:
+  // it is blocked on criterion 7 (`src/seeds/dev-catalog-seed.ts` constructs
+  // three of its entity classes) with its repair sitting in a file another
+  // branch holds, so it is not a candidate for the batch after this one either.
+  //
+  // What the batch after that has to face is that the pool cannot be
+  // replenished again from a shrinking application tree: when the sweep ends
+  // there is no module left to strand, and the half-moved state will have to be
+  // staged out of a **package** — copied to the same address with its
+  // `package.json` withheld — rather than out of `backend/src/modules`. That is
+  // a change to `createSplitModuleTreeFixture`, not to this list, and it is
+  // deliberately not made here: it would be an untested rewrite of the fixture
+  // in a merge request whose subject is seven module moves.
+  'megamenu',
 ];
 
 const STRANDED_MODULE = ((): string => {

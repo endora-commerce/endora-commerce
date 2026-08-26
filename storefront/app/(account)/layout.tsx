@@ -49,7 +49,6 @@ export default async function AccountLayout({
         <Link href="/account/payments">Payments</Link>
         <Link href="/addresses">My addresses</Link>
         <Link href="/account/password">Change password</Link>
-        <Link href="/account/two-factor">Two-factor</Link>
         {/*
           Order placement, RFQ submission, shopping lists, and quick order all
           require an Organization (the backend 422s for org-less callers), so

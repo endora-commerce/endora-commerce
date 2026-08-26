@@ -60,7 +60,7 @@ function accountRecord(
 ): CustomerAccountRecord {
   return {
     id,
-    organizationId: null,
+    organizationId: 'org-1',
     email: `${id}@example.test`,
     firstName: 'Ada',
     lastName: 'Lovelace',

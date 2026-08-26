@@ -9,10 +9,13 @@ import type { EmailMailerPort } from '@endora-commerce/contracts';
 import {
   OrderService,
   type OrderEventBus,
-  // The two em-carrying interfaces their owners write (D-94.5), re-exported by
-  // `order-service.ts` — which is where the seam is stated and where the two
-  // permanent ledger entries sit.
+  // The five em-carrying interfaces their owners write (D-94.5, D-169),
+  // re-exported by `order-service.ts` — which is where each seam is stated and
+  // where the permanent ledger entries sit.
+  type CartPlacementApplyPort,
   type CreditLimitPort,
+  type InventoryReservationApplyPort,
+  type InvoicePlacementApplyPort,
   type PromotionUsageFinalizer,
 } from './services/order-service.js';
 import { OrderStatusGraphService } from './services/order-status-graph-service.js';
@@ -34,6 +37,7 @@ import type {
   AddressServicePort,
   AssetReadPort,
   CustomFieldValuePort,
+  CartReadPort,
   CartWritePort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
@@ -57,6 +61,7 @@ import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerOrderRoutes } from './routes.js';
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import type { OrderConfirmationRenderers } from './email-templates/order-confirmation.js';
+import { mayHoldCreditLimitReservation } from './domain/credit-limit-reservation.js';
 // Feature 035 — shipping-method adapter framework + shipment lifecycle.
 import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 
@@ -142,6 +147,23 @@ export interface OrdersModuleOptions {
    */
   cartWritePort: CartWritePort;
   /**
+   * `carts`' basket-half-of-placement seam (feature 080, T048).
+   *
+   * A third `carts` name beside `cartWritePort` and `cartRead`, and the three
+   * differ on the transaction they run in — which is the only axis that
+   * matters here. `cartWritePort` opens its own; `cartRead` reads on the
+   * owner's own `EntityManager`; this one takes **placement's**, because
+   * `carts_completed_order_fk` holds the completion and the order together.
+   * `carts` is non-deactivatable, so it is a value and not an accessor.
+   */
+  cartPlacementApply: CartPlacementApplyPort;
+  /**
+   * `carts`' standalone read — the total preview, which opens no transaction.
+   * Handing it an `EntityManager` would re-open a write seam to serve a read
+   * (D-169), which is why it is a different port from the one above.
+   */
+  cartRead: CartReadPort;
+  /**
    * The read models the route surface, the external intake and the admin
    * create path resolve from the modules that own the rows (feature 075).
    */
@@ -161,14 +183,16 @@ export interface OrdersModuleOptions {
    */
   orderTransitionPort: OrderTransitionPort;
   /**
-   * The two `inventory` ports the stock reservation runs on, as one accessor
-   * (D-94.4, issue #188). `null` ⇒ `inventory` is not effectively present, and
-   * placement skips the reservation whole — `orders` declares the edge
-   * `degrades-without` with exactly that sentence.
+   * The three `inventory` ports the stock reservation runs on, as one accessor
+   * (D-94.4, issue #188; feature 080, T048). `null` ⇒ `inventory` is not
+   * effectively present, and placement skips the reservation whole and the
+   * cancellation releases nothing — `orders` declares the edges
+   * `degrades-without` with exactly those sentences.
    */
   inventory: () => {
     readonly stockRead: InventoryStockReadPort;
     readonly planning: InventoryFulfilmentPlanningPort;
+    readonly reservationApply: InventoryReservationApplyPort;
   } | null;
   assetRead: AssetReadPort;
   /**
@@ -177,6 +201,12 @@ export interface OrdersModuleOptions {
    */
   invoiceRead: () => InvoiceReadPort | null;
   invoicePdf: () => InvoicePdfPort | null;
+  /**
+   * The proforma placement opens (feature 080, T048). An accessor for the same
+   * reason the two above are: the module is switchable, this one is not, and
+   * with invoicing off placement opens no document and changes nothing else.
+   */
+  invoicePlacementApply: () => InvoicePlacementApplyPort | null;
   /**
    * The two method modules' registries and the delivery-eligibility service.
    * `orders` reads them for placement dispatch and for the `statusOn*`
@@ -430,6 +460,9 @@ export function commerceModule(options: OrdersModuleOptions) {
           paymentMethodRead: options.paymentMethodRead,
           deliveryMethodRead: options.deliveryMethodRead,
           inventory: options.inventory,
+          cartPlacementApply: options.cartPlacementApply,
+          cartRead: options.cartRead,
+          invoicePlacementApply: options.invoicePlacementApply,
         },
         ...(options.mailer ? { mailer: options.mailer } : {}),
         ...(options.confirmationRenderers
@@ -452,7 +485,13 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderStatusGraphService,
       async ({ order, to }) => {
         if (to === 'cancelled') {
-          if (options.creditLimit) {
+          // D-179.3 — only an order placed against a credit limit holds a
+          // reservation, and `paymentMethodSnapshot.kind` is this module's own
+          // record of that. Asking the gated port about every cancellation is
+          // what made an operator who switched `credit_limits` off unable to
+          // cancel any order at all; an order that did draw credit still
+          // refuses, which is the half that must not be caught.
+          if (options.creditLimit && mayHoldCreditLimitReservation(order)) {
             await options.creditLimit.releaseByOrder({ orderId: order.id, reason: 'order_cancelled' });
           }
           await orderService.releaseAllocations(order.id);

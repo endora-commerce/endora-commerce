@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { defineModuleSettingsManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { settingsManifest } from '../../../src/modules/settings/manifest.js';
+import { settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';

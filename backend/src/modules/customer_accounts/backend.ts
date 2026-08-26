@@ -15,7 +15,7 @@ import type {
   CustomerPasswordStatePort,
   CustomerPasswordVerificationPort,
   CustomerRolePort,
-  CustomerTotpEnrolmentPort,
+  CustomerRollupScopePort,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '../../kernel/ports/audit.js';
@@ -30,6 +30,7 @@ import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
 import type { SettingsReadPort } from '../../kernel/ports/settings.js';
 // Feature 075, Phase C — a pure function, so the kernel rather than `auth`.
 import { hashPassword } from '../../kernel/crypto/password-hasher.js';
+import type { PersonalOrganizationProvisionApi } from '../organizations/ports/personal-organization-provision.js';
 import { CustomerAccount } from './entities/customer-account.entity.js';
 import { registerCustomerGroupAdminRoutes } from './routes.admin.js';
 import {
@@ -47,9 +48,9 @@ import {
 import { CustomerAuthService } from './services/customer-auth-service.js';
 import { CustomerGroupReadService } from './services/customer-group-read-port.js';
 import { CustomerGroupService } from './services/customer-group-service.js';
+import { CustomerRollupScopeService } from './services/customer-rollup-scope.js';
 import { PasswordResetService } from './services/password-reset-service.js';
 import { RoleService } from './services/role-service.js';
-import { TotpEnrolmentService } from './services/totp-enrolment-service.js';
 
 /**
  * `customer_accounts` — one customer auth service, where there were two
@@ -131,7 +132,6 @@ export interface CustomerAccountsCradle {
   readonly customerAuthService: CustomerAuthService;
   readonly passwordResetService: PasswordResetService;
   readonly customerRoleService: RoleService;
-  readonly totpEnrolmentService: TotpEnrolmentService;
   readonly customerGroupService: CustomerGroupService;
 }
 
@@ -144,11 +144,11 @@ export function registerModule(ctx: ModuleContext): void {
   // ---------------------------------------------------------------------------
   // Feature 075, Phase P — the published surface.
   //
-  // The four ports below this block already existed; what they lacked was a
+  // The three ports below this block already existed; what they lacked was a
   // contract a consumer could name without naming a file in this directory.
-  // Two of them (`passwordResetService`, `totpEnrolmentService`) already return
-  // plain shapes, so they gain nothing but a type parameter, which is now the
-  // compile-time proof that they still satisfy what was published.
+  // One of them (`passwordResetService`) already returns a plain shape, so it
+  // gains nothing but a type parameter, which is now the compile-time proof
+  // that it still satisfies what was published.
   //
   // The other two return the `CustomerAccount` **entity**, and an entity
   // crossing a boundary is the problem this feature exists to remove — so they
@@ -200,7 +200,15 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ emFactory, auditLogService, commandBus }: CustomerAccountsCradle) =>
-          new CustomerAccountLifecycleWriteService(emFactory, auditLogService, commandBus),
+          new CustomerAccountLifecycleWriteService(
+            emFactory,
+            auditLogService,
+            // D-178 — `lazyPort` rather than a captured value: the gate stays
+            // live inside this singleton and the seam is resolved per call. The
+            // proxy is what makes the capture legal at all.
+            lazyPort<PersonalOrganizationProvisionApi>(ctx, 'personalOrganizationProvisionApi'),
+            commandBus,
+          ),
       )
       .singleton(),
   );
@@ -229,6 +237,25 @@ export function registerModule(ctx: ModuleContext): void {
    * needs it, which is why it is its own port rather than a field on
    * `customerAccountReadPort`'s record.
    */
+  /**
+   * Feature 080 (T040b) — the roll-up widening the per-request tenant-context
+   * builder asks about, published because both composition roots used to
+   * import the derivation out of this module's sources.
+   *
+   * The traversal arrives as an argument rather than being resolved here: the
+   * caller already holds `organizations`' tree service, and reading it from
+   * this side would be a cross-module resolution of a container name no
+   * contract publishes (`check:port-shape` signal 3).
+   */
+  ctx.di.providePort<CustomerRollupScopePort>(
+    'customerRollupScopePort',
+    ctx
+      .asFunction(
+        ({ emFactory }: CustomerAccountsCradle) => new CustomerRollupScopeService(emFactory),
+      )
+      .singleton(),
+  );
+
   ctx.di.providePort<CustomerPasswordStatePort>(
     'customerPasswordStatePort',
     ctx
@@ -312,16 +339,6 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
           new RoleService(emFactory, auditLogService),
-      )
-      .singleton(),
-  );
-
-  ctx.di.providePort<CustomerTotpEnrolmentPort>(
-    'totpEnrolmentService',
-    ctx
-      .asFunction(
-        ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
-          new TotpEnrolmentService(emFactory, auditLogService),
       )
       .singleton(),
   );
@@ -412,40 +429,70 @@ export function registerModule(ctx: ModuleContext): void {
           }
           if (!allowed) return null;
 
-          return withSystemScope('mfa: auto-create customer from social login', async () => {
-            const em = emFactory();
-            const account = em.create(CustomerAccount, {
-              email: normalizeEmailAddress(email),
-              // No password was ever chosen for this account: it signs in
-              // through the provider. A random one keeps the column non-null
-              // without minting a credential anybody could guess — and issue
-              // #222 is the other half of that sentence: `passwordSetAt` stays
-              // null, so a reader can tell this account from one whose holder
-              // really has a password. Do not stamp it here.
-              passwordHash: await hashPassword(randomUUID() + randomUUID()),
-              passwordSetAt: null,
-              firstName: '',
-              lastName: '',
-              role: 'regular_user',
-              organizationId: null,
-              emailVerifiedAt: new Date(),
-            });
-            // The other way an account is created without an admin —
-            // `customers`' standalone self-registration — records this same
-            // shape with a null actor, and this path did not record anything at
-            // all until the coverage scan reached `backend.ts` (issue #122). An
-            // account appearing out of a federated sign-in is exactly the event
-            // an operator later needs to explain.
-            recordAuditFromContext(auditLogService, em, {
-              action: 'customer_account.register_social',
-              objectType: 'customer_account',
-              objectId: account.id,
-              stateBefore: null,
-              stateAfter: { email: account.email },
-            });
-            await em.persistAndFlush(account);
-            return { id: account.id };
-          });
+          const folded = normalizeEmailAddress(email);
+          const customerAccountId = randomUUID();
+          // No password was ever chosen for this account: it signs in through
+          // the provider. A random one keeps the column non-null without minting
+          // a credential anybody could guess — and issue #222 is the other half
+          // of that sentence: `passwordSetAt` stays null, so a reader can tell
+          // this account from one whose holder really has a password. Do not
+          // stamp it here.
+          const passwordHash = await hashPassword(randomUUID() + randomUUID());
+          const provision = lazyPort<PersonalOrganizationProvisionApi>(
+            ctx,
+            'personalOrganizationProvisionApi',
+          );
+          return withSystemScope('mfa: auto-create customer from social login', async () =>
+            emFactory().transactional(async (em) => {
+              /**
+               * D-178 — the personal organisation, in the same transaction as
+               * the account.
+               *
+               * This path provisioned **none**, so every account a federated
+               * sign-in created carried `organization_id = NULL` permanently:
+               * not a window but the steady state of a shipped feature, and the
+               * buyer reaching checkout was told to attach an Organization they
+               * had no way to attach. `customers`' self-registration provisioned
+               * one in a second unit of work; this one is a single transaction,
+               * which is what closes the window that shape leaves.
+               *
+               * The provider sends no name with the claim this seam reads, so
+               * the organisation is named from the address' local part — which
+               * is exactly what `PersonalOrganizationService.personalName` falls
+               * back to for a nameless account.
+               */
+              const organization = await provision.provisionFor(em, {
+                customerAccountId,
+                email: folded,
+              });
+              const account = em.create(CustomerAccount, {
+                id: customerAccountId,
+                email: folded,
+                passwordHash,
+                passwordSetAt: null,
+                firstName: '',
+                lastName: '',
+                role: 'regular_user',
+                organizationId: organization.id,
+                emailVerifiedAt: new Date(),
+              });
+              // The other way an account is created without an admin —
+              // `customers`' standalone self-registration — records this same
+              // shape with a null actor, and this path did not record anything at
+              // all until the coverage scan reached `backend.ts` (issue #122). An
+              // account appearing out of a federated sign-in is exactly the event
+              // an operator later needs to explain.
+              recordAuditFromContext(auditLogService, em, {
+                action: 'customer_account.register_social',
+                objectType: 'customer_account',
+                objectId: account.id,
+                stateBefore: null,
+                stateAfter: { email: account.email },
+              });
+              await em.flush();
+              return { id: account.id };
+            }),
+          );
         },
       }))
       .singleton(),

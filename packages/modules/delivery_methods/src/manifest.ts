@@ -86,8 +86,13 @@ export const manifest = defineModuleManifest({
         // Feature 073 — the operator's activation control. Platform-wide.
         code: 'delivery_methods.enabled',
         name: 'Delivery methods enabled',
+        // The consequence sentence was missing the same way the payments one
+        // was: "the public list a checkout picks from" is accurate and stops
+        // short of what it means for the shop. With no method to pick, order
+        // placement answers "Delivery method is not active" and no order can be
+        // completed at all.
         description:
-          'Switches the delivery-method catalog on or off: the admin screens that define methods and their per-channel availability, and the public list a checkout picks from. Nothing is dropped — every method, its channel bindings and the shipments already created against it stay in the database, and the catalog returns exactly as configured when you switch it back on.',
+          'Switches the delivery-method catalog on or off: the admin screens that define methods and their per-channel availability, and the public list a checkout picks from. With no method to pick, checkout cannot be completed and the shop stops taking orders. Nothing is dropped — every method, its channel bindings and the shipments already created against it stay in the database, and the catalog returns exactly as configured when you switch it back on.',
         groupCode: 'delivery_methods',
         valueType: 'boolean',
         defaultValue: true,

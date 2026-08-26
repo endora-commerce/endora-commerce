@@ -43,7 +43,7 @@ describe('ShippingMethods section', () => {
   it('localizes the shipping section for pl-PL', () => {
     const html = renderToString(<ShippingMethods methods={[]} locale="pl-PL" />);
     expect(html).toContain('Metoda dostawy');
-    expect(html).toContain('Brak metody dostawy');
+    expect(html).toContain('Brak dostępnych metod dostawy');
   });
 });
 
