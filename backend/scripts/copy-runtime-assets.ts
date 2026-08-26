@@ -10,6 +10,12 @@
  * `TaxonomyReconcilerService.listBundledRevisions` reads an absent data
  * directory as *"no revision is bundled"* and installs none. Both are green.
  *
+ * A **module package** has the same hole in its own build and closes it with
+ * the same walk — `scripts/copy-package-assets.mjs`, over that package's own
+ * `rootDir`/`outDir` (criterion 8). The two share one classification, at
+ * `scripts/lib/runtime-assets.mjs`, so a module gets the same answer about the
+ * same file before and after it is packaged.
+ *
  * So this runs after the compile, and it **audits its own output**: every
  * registered module that declares `i18n.bundlesDir` must have those bundles in
  * the built tree. That check is possible here and nowhere downstream, because
@@ -94,9 +100,10 @@ function main(): number {
   }
   if (assets.length === 0) {
     console.error(
-      `[runtime-assets] no runtime asset found under ${SRC_ROOT}. Every module that ` +
-        'declares `i18n.bundlesDir` ships two of them and `product_feeds` ships four ' +
-        'taxonomy files; finding none means the walk did not read what it thinks it read.',
+      `[runtime-assets] no runtime asset found under ${SRC_ROOT}. Every module this ` +
+        'application compiles that declares `i18n.bundlesDir` ships two of them, and the ' +
+        'audit below asserts as much; finding none means the walk did not read what it ' +
+        'thinks it read.',
     );
     return 2;
   }
