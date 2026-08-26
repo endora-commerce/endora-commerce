@@ -76,8 +76,14 @@ import { join, relative } from 'node:path';
 import ts from 'typescript';
 
 import { classifyAssetFile } from '../../../scripts/lib/runtime-assets.mjs';
+import { type SourceReader } from './emitted-exports.js';
+import {
+  modulePackageSurfaces,
+  type ModulePackageSurfaces,
+  type SubpathSurface,
+} from './module-package-subpaths.js';
 import { readEmitLayout, type EmitLayout } from './module-packages.js';
-import { namedSpecifiers } from './specifiers.js';
+import { namedSpecifiers, type SpecifierKind } from './specifiers.js';
 import {
   expandWorkspaceGlob,
   nodeWorkspaceFs,
@@ -364,20 +370,52 @@ export function npmNameFor(scope: string, moduleId: string): string {
 // --- the peers -------------------------------------------------------------
 
 /**
- * Every third-party package the given sources name, as package names.
+ * One reach into a package, as the source wrote it.
+ *
+ * The subpath and the import kind are what R4's narrowing turns on (D-171): a
+ * type-only import at a subpath whose emitted module exports nothing is a reach
+ * into published contract surface, and every other shape is the coupling R4
+ * refuses. Both facts were already on {@link NamedSpecifier} and were discarded
+ * one line before the refusal saw them.
+ */
+export interface PackageReach {
+  /** The specifier's remainder after the package name: `ports`, `''` for the root. */
+  readonly subpath: string;
+  readonly kind: SpecifierKind;
+  /** Package-relative source file, for a refusal that names where to look. */
+  readonly file: string;
+  readonly line: number;
+}
+
+/**
+ * Every third-party package the given sources name, with how each was reached.
  *
  * A Node builtin is not a dependency, in either spelling: `isBuiltin` answers
  * for `node:crypto` and for the bare `crypto` all three shipped packages
  * actually write, and asking Node rather than keeping a list is what keeps this
  * right when the next builtin arrives (D-100).
+ *
+ * The reaches are kept **per name and in source order** rather than reduced to a
+ * name: the R4 decision is over *every* reach into one package — one value
+ * import beside ten type-only ones is the coupling, and a set of names cannot
+ * say so.
  */
-export function peerNamesOf(sources: ReadonlyMap<string, string>): ReadonlySet<string> {
-  const names = new Set<string>();
+export function peerNamesOf(
+  sources: ReadonlyMap<string, string>,
+): ReadonlyMap<string, readonly PackageReach[]> {
+  const names = new Map<string, PackageReach[]>();
   for (const [file, text] of sources) {
     for (const specifier of namedSpecifiers(text, file)) {
       const name = packageNameOf(specifier.text);
       if (name === null) continue;
-      names.add(name);
+      const reaches = names.get(name) ?? [];
+      reaches.push({
+        subpath: subpathOf(specifier.text),
+        kind: specifier.kind,
+        file,
+        line: specifier.line,
+      });
+      names.set(name, reaches);
     }
   }
   return names;
@@ -390,6 +428,19 @@ export function packageNameOf(specifier: string): string | null {
   const parts = specifier.split('/');
   const name = specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!;
   return isBuiltin(name) ? null : name;
+}
+
+/**
+ * The remainder {@link packageNameOf} drops: `@scope/name/ports` → `ports`.
+ *
+ * The root export is `''`, which is the spelling `surfaceOfSubpath` takes and
+ * renders back as `.` — one convention, so the two never disagree about what a
+ * bare package name means.
+ */
+export function subpathOf(specifier: string): string {
+  const name = packageNameOf(specifier);
+  if (name === null || specifier === name) return '';
+  return specifier.slice(name.length + 1);
 }
 
 /**
@@ -442,7 +493,12 @@ export interface RenderedPackageManifest {
 /** What one run rendered, and what it read to do it. */
 export interface ManifestRenderRun {
   readonly rendered: readonly RenderedPackageManifest[];
-  /** Files opened — sources, manifests and build configurations alike. */
+  /**
+   * Files opened — sources, manifests and build configurations alike, plus the
+   * owner manifests and emitted modules the D-171 surfaces predicate reads. A
+   * check that reads files without counting them is issue #244 in the tool that
+   * exists to prevent it.
+   */
   readonly filesRead: number;
   /** Import specifiers examined inside them: the finer population (#237). */
   readonly specifierSites: number;
@@ -596,6 +652,16 @@ export function renderModulePackageManifests(
     return { dir, moduleId, name: npmNameFor(scope, moduleId), manifestSource };
   });
   const modulePackageNames = new Set(identities.map((identity) => identity.name));
+  // D-171's predicate, read through the one function `check:module-boundary` and
+  // T050's guard already read (`lib/module-package-subpaths.ts`). It opens each
+  // owner's `package.json` and each measured emitted module, so it keeps its own
+  // file count and this run adds it to the `read:` line rather than to
+  // `countingFs` — the two readers would otherwise count the same manifest
+  // twice.
+  const surfaces = modulePackageSurfaces(
+    new Map(identities.map((identity) => [identity.name, identity.dir])),
+    surfaceReaderOver(fs),
+  );
 
   const rendered = identities.map((identity) => {
     const layers = layerInventoryOf(identity.dir, countingFs);
@@ -636,6 +702,7 @@ export function renderModulePackageManifests(
       layers,
       emit,
       imported,
+      surfaces,
       selfName: identity.name,
       modulePackageNames,
       workspaceNames,
@@ -654,6 +721,8 @@ export function renderModulePackageManifests(
     };
   });
 
+  refuseModulePackageDevDependencyCycle(rendered);
+
   const indexSource =
     manifestIndexPath === undefined ? null : readText(manifestIndexPath);
   if (manifestIndexPath !== undefined && indexSource === null) {
@@ -665,10 +734,107 @@ export function renderModulePackageManifests(
 
   return {
     rendered,
-    filesRead,
+    filesRead: filesRead + surfaces.filesRead(),
     specifierSites,
     registeredPackageNames:
       indexSource === null ? [] : registeredPackageNamesIn(indexSource),
+  };
+}
+
+/**
+ * Two module packages that devDepend on each other, refused here rather than
+ * discovered by a scheduling race in `build:packages`.
+ *
+ * pnpm's workspace graph **includes** `devDependencies`, and that is a benefit:
+ * it is what orders `pnpm -r run build` so an owner's `dist/ports/index.d.ts`
+ * exists before its consumer's `tsc` looks for it. A cycle is where it bites.
+ * Measured on this tree, with `returns` and `credit_limits` devDepending on each
+ * other and both `dist` directories cleared:
+ *
+ * ```
+ * WARN There are cyclic workspace dependencies: .../credit_limits, .../returns
+ * packages/modules/credit_limits build: Done
+ * packages/modules/returns   build: error TS2307: Cannot find module
+ *   '@endora-commerce/mod-credit-limits/ports'
+ * ```
+ *
+ * pnpm **warns and does not fail**, loses the ordering and runs the pair
+ * concurrently; re-running the consumer's build immediately afterwards succeeds.
+ * So it is not a breakage, it is a race — a fresh CI checkout red or green by
+ * scheduling, reported as a TypeScript resolution error that names nothing about
+ * the cycle that caused it. That is the worst failure mode available, and it is
+ * why this is a refusal at generation time and not a note.
+ *
+ * There is no cycle in this tree today, and there is a pair one packaging merge
+ * request away: T048 (!1052) converted `orders`' reach into `payments`' `Payment`
+ * entity class into a published port, so `orders` reaches `payments/ports/index`
+ * and `payments` reaches `orders/ports/index` — both `import type`, both
+ * directions, both still relative and therefore naming no package yet. Both exits
+ * out of the refusal are real and the message names them, because "the generator
+ * blocked my conversion" must not be the end of the sentence.
+ */
+function refuseModulePackageDevDependencyCycle(
+  rendered: readonly RenderedPackageManifest[],
+): void {
+  const edges = new Map<string, ReadonlySet<string>>();
+  const names = new Set(rendered.map((entry) => entry.packageName));
+  for (const entry of rendered) {
+    const manifest = JSON.parse(entry.content) as Record<string, unknown>;
+    const devs = manifest['devDependencies'];
+    const reached =
+      typeof devs === 'object' && devs !== null && !Array.isArray(devs)
+        ? Object.keys(devs as Record<string, unknown>).filter((name) => names.has(name))
+        : [];
+    edges.set(entry.packageName, new Set(reached));
+  }
+  // Mutual only, deliberately. A longer cycle is not reachable today — every
+  // edge in this graph is a type-only reach into a `./ports` subpath and there
+  // are none — and a refusal wider than the shape that has been measured is a
+  // refusal whose message cannot say what to do about it.
+  for (const [name, reached] of [...edges].sort((left, right) => byAscii(left[0], right[0]))) {
+    for (const other of [...reached].sort(byAscii)) {
+      if (byAscii(name, other) >= 0) continue;
+      if (!edges.get(other)?.has(name)) continue;
+      throw new ModulePackageManifestError(
+        `${name} and ${other} would each devDepend on the other. pnpm's workspace graph ` +
+          `includes devDependencies, so a cycle makes it warn, lose the build ordering and ` +
+          `run the pair concurrently — the consumer's \`tsc\` then fails with TS2307 on the ` +
+          `owner's not-yet-emitted \`.d.ts\` and succeeds on a re-run, which is a CI red that ` +
+          `depends on scheduling. Two exits, both of which this tree already demonstrates: ` +
+          `publish the interface on ONE side only and let the other keep resolving by ` +
+          `container name (its manifest's \`acknowledgedDependencies\` / ` +
+          `\`nonBindingDependencies\` is where that edge is recorded), or move the interface ` +
+          `whose signature permits it into @endora-commerce/contracts, which is not a module ` +
+          `and is therefore not in this graph at all.`,
+      );
+    }
+  }
+}
+
+/**
+ * The surfaces reader over the generator's own injected filesystem.
+ *
+ * `ManifestFs` answers absence with `null` and `SourceReader` with a separate
+ * `exists`, so the adaptor memoises: without it `exists` then `read` opens every
+ * emitted module twice, and the second open is a file this run would report as
+ * having read. A fixture therefore enters the surfaces predicate through exactly
+ * the same map it enters the rest of the generator through (issue #130).
+ */
+function surfaceReaderOver(fs: ManifestFs): SourceReader {
+  const seen = new Map<string, string | null>();
+  const load = (path: string): string | null => {
+    if (seen.has(path)) return seen.get(path) ?? null;
+    const text = fs.readText(path);
+    seen.set(path, text);
+    return text;
+  };
+  return {
+    exists: (path) => load(path) !== null,
+    read: (path) => {
+      const text = load(path);
+      if (text === null) throw new Error(`ENOENT: ${path}`);
+      return text;
+    },
   };
 }
 
@@ -757,12 +923,59 @@ function assertEndoraAgreement(
   }
 }
 
+/**
+ * The one sentence R4's refusal gains: which reach failed, and why.
+ *
+ * `null` means every reach into `name` is a type-only import at contract
+ * surface, which is the whole of D-171's exemption. The first failure is
+ * reported rather than all of them: R4 is a refusal and not a ledger, and the
+ * author's next step is the same whichever of them they repair first.
+ *
+ * {@link UnreadableSubpathError} is deliberately **not** caught here. A subpath
+ * whose emitted module cannot be read is a broken artefact, not a coupling, and
+ * a refusal that says "coupling" when the truth is "I could not read the file"
+ * is worse than no refusal — it sends the author to redesign a seam that is
+ * fine. The CLI turns it into exit 2 with its own message, which already names
+ * the remedy (`pnpm run build:packages`).
+ */
+function firstNonContractReach(
+  name: string,
+  reaches: readonly PackageReach[],
+  surfaces: ModulePackageSurfaces,
+): string | null {
+  for (const reach of reaches) {
+    const where = `${reach.file}:${reach.line}`;
+    const written = `'${reach.subpath === '' ? name : `${name}/${reach.subpath}`}'`;
+    if (reach.kind !== 'type-only-import') {
+      return (
+        `${where} writes ${written} as a ${reach.kind}, which survives into the emitted ` +
+        `JavaScript and would need a real runtime dependency. Only an \`import type\` is ` +
+        `erased, and only an erased reach is one npm need not know about (D-171).`
+      );
+    }
+    const surface: SubpathSurface = surfaces.surfaceOfSubpath(name, reach.subpath);
+    if (surface.kind === 'contract') continue;
+    return (
+      `${where} reaches ${written}, whose surface is '${surface.kind}'` +
+      (surface.runtimeExports.length === 0
+        ? ''
+        : ` (its emitted module exports ${surface.runtimeExports.join(', ')})`) +
+      `. A subpath is contract surface iff the module it resolves to exports no runtime ` +
+      `binding (D-171); this one is not, so the reach is the coupling R4 refuses.`
+    );
+  }
+  return null;
+}
+
 interface RenderInput {
   readonly packageName: string;
   readonly moduleId: string;
   readonly layers: LayerInventory;
   readonly emit: EmitLayout;
-  readonly imported: ReadonlySet<string>;
+  /** Every package the sources name, with every reach into it (R4's population). */
+  readonly imported: ReadonlyMap<string, readonly PackageReach[]>;
+  /** Answers whether a module package's subpath is contract surface (D-171). */
+  readonly surfaces: ModulePackageSurfaces;
   readonly selfName: string;
   readonly modulePackageNames: ReadonlySet<string>;
   readonly workspaceNames: ReadonlySet<string>;
@@ -811,15 +1024,34 @@ export function renderManifest(input: RenderInput): string {
 
   const peers = new Map<string, string>();
   const devs = new Map<string, string>();
-  for (const name of [...input.imported].sort(byAscii)) {
+  for (const name of [...input.imported.keys()].sort(byAscii)) {
     if (name === input.selfName) continue;
     if (input.modulePackageNames.has(name)) {
-      throw new ModulePackageManifestError(
-        `${input.packageName} imports ${name}, another module package. R4: a module reaches ` +
-          `another through a port declared in its manifest \`dependencies\`, never through ` +
-          `npm — a package edge is one the lifecycle, the migration order and an operator ` +
-          `switching the owner off all know nothing about.`,
+      // R4, narrowed by D-171 rather than waived. Every reach into that name
+      // must be a type-only import at a subpath whose emitted module exports no
+      // runtime binding; then the reach survives into nothing a consumer
+      // resolves and `devDependencies` is the only npm field that is true about
+      // it. Anything else keeps R4's refusal and R4's message.
+      const failure = firstNonContractReach(
+        name,
+        input.imported.get(name) ?? [],
+        input.surfaces,
       );
+      if (failure !== null) {
+        throw new ModulePackageManifestError(
+          `${input.packageName} imports ${name}, another module package. R4: a module reaches ` +
+            `another through a port declared in its manifest \`dependencies\`, never through ` +
+            `npm — a package edge is one the lifecycle, the migration order and an operator ` +
+            `switching the owner off all know nothing about. ${failure}`,
+        );
+      }
+      // D-171's exemption is a build-time declaration and nothing more: no
+      // `dependencies` (R4's own word, D-11 rule 3) and no `peerDependencies`,
+      // which would assert an install-time requirement the module manifest's
+      // `acknowledgedDependencies` / `nonBindingDependencies` classification
+      // explicitly denies for four of today's reaches.
+      devs.set(name, 'workspace:*');
+      continue;
     }
     if (input.workspaceNames.has(name)) {
       // R5 — `pnpm pack` rewrites `workspace:*` to the exact version, so this

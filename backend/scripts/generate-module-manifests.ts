@@ -53,6 +53,7 @@ import {
   nodeManifestFs,
   renderModulePackageManifests,
 } from './lib/module-package-manifest.js';
+import { UnreadableSubpathError } from './lib/module-package-subpaths.js';
 import { findManifestIndex, findRepoRoot } from './lib/module-roots.js';
 
 const PREFIX = '[module-manifests]';
@@ -99,7 +100,9 @@ async function main(): Promise<void> {
 
   // What was read, beside what was found (issue #244). `files` counts every
   // file opened — sources, module manifests, build configurations, the two
-  // application manifests and the index. `sites` is the finer population the
+  // application manifests, the index, and every owner manifest and emitted
+  // module the D-171 surfaces predicate opened to decide whether a reach into
+  // another module package is contract surface. `sites` is the finer population the
   // peer derivation actually answers over: every import specifier examined,
   // which is the number that moves when a module gains a dependency without
   // gaining a file. The independent derivation is the generated manifest index:
@@ -130,7 +133,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     await main();
   } catch (error: unknown) {
-    if (error instanceof ModulePackageManifestError) {
+    // Two refusals, one exit code, and they are kept apart deliberately.
+    // `ModulePackageManifestError` says the manifest cannot be derived;
+    // `UnreadableSubpathError` says a subpath's emitted module could not be
+    // read, which is a cold `dist` and not a coupling — R4's narrowing must
+    // never dress the second up as the first (D-171, issue #113).
+    if (
+      error instanceof ModulePackageManifestError ||
+      error instanceof UnreadableSubpathError
+    ) {
       process.stderr.write(`${PREFIX} ${error.message}\n`);
       process.exit(2);
     }

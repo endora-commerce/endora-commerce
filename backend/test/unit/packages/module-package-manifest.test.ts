@@ -16,6 +16,7 @@ import {
   renderModulePackageManifests,
   type ManifestFs,
 } from '../../../scripts/lib/module-package-manifest.js';
+import { UnreadableSubpathError } from '../../../scripts/lib/module-package-subpaths.js';
 
 /**
  * A module package's `package.json` is **derived**, not written (feature 080,
@@ -347,6 +348,326 @@ describe('module package manifests are generated (feature 080, T041)', () => {
         ...packageFiles('gadgets', BACKEND_ONLY),
       };
       expect(() => render(files)).toThrow(/mod-gadgets/);
+    });
+  });
+
+  /**
+   * R4, narrowed to what its reason actually reaches (D-171).
+   *
+   * D-11 rule 3's own words are *"must not list any `@endora-commerce/mod-*` in
+   * **`dependencies`**"*, and the "Why" beneath it names the type-only case by
+   * name — *"Type-only imports of another module's contracts are the mirror
+   * false positive"*. The generator widened that from a field to every import,
+   * because when it was written `./ports` did not exist. It does now, and
+   * D-171 already ruled that a reach into it is not cross-module coupling.
+   *
+   * So: **every** reach into another module package must be a type-only import
+   * at a subpath whose emitted module exports no runtime binding, and then the
+   * name is rendered into `devDependencies` alone. Everything else keeps R4's
+   * refusal and R4's message.
+   *
+   * ## Where these proofs enter
+   *
+   * At the top, like every other proof in this file: a synthetic checkout in
+   * which the owner package carries a **real `exports` map** and a **real
+   * emitted module**, so the surfaces predicate parses the same artefact a real
+   * run parses. A proof that handed in a pre-classified `SubpathSurface` would
+   * prove the branch and leave the predicate unproven (issue #130) — and the
+   * predicate is the whole ruling.
+   */
+  describe('a type-only reach into contract surface is a devDependency (R4 narrowed, D-171)', () => {
+    /** An owner package that really declares a subpath and really emits it. */
+    function ownerFiles(
+      id: string,
+      options: {
+        readonly subpath: string;
+        /** The emitted module's text; `undefined` leaves the file absent. */
+        readonly emitted?: string;
+        /** Declare the subpath in the `exports` map at all? */
+        readonly declared?: boolean;
+      },
+    ): Record<string, string> {
+      const dir = `${ROOT}/packages/modules/${id}`;
+      const name = `@endora-commerce/mod-${id.replace(/_/g, '-')}`;
+      const files: Record<string, string> = {
+        ...packageFiles(id, {
+          ...BACKEND_ONLY,
+          [`src/${options.subpath}/index.ts`]:
+            'export interface GadgetPort { read(): void }\n',
+        }),
+        [`${dir}/package.json`]: JSON.stringify({
+          name,
+          description: 'A module package.',
+          endora: { type: 'module', id },
+          exports: {
+            '.': { types: './dist/manifest.d.ts', default: './dist/manifest.js' },
+            './backend': {
+              types: './dist/backend/index.d.ts',
+              default: './dist/backend/index.js',
+            },
+            ...(options.declared === false
+              ? {}
+              : {
+                  [`./${options.subpath}`]: {
+                    types: `./dist/${options.subpath}/index.d.ts`,
+                    default: `./dist/${options.subpath}/index.js`,
+                  },
+                }),
+            './package.json': './package.json',
+          },
+        }),
+        // `./backend` is the runtime layer every module package publishes, and
+        // it is emitted here so the `./backend` proof measures a real module
+        // rather than an unreadable one.
+        [`${dir}/dist/backend/index.js`]:
+          'export function registerModule(ctx) { void ctx; }\nexport const entities = [];\n',
+      };
+      if (options.emitted !== undefined) {
+        files[`${dir}/dist/${options.subpath}/index.js`] = options.emitted;
+      }
+      return files;
+    }
+
+    /** A consumer whose single foreign specifier is the subject of the proof. */
+    function consumerReaching(line: string): Record<string, string> {
+      return widgets({ ...BACKEND_ONLY, 'src/backend/reach.ts': `${line}\n` });
+    }
+
+    const TYPE_ONLY_PORTS =
+      "import type { GadgetPort } from '@endora-commerce/mod-gadgets/ports';\n" +
+      'export type P = GadgetPort;';
+
+    it('renders it into devDependencies alone when the emitted module exports nothing', () => {
+      const manifest = manifestOf({
+        ...consumerReaching(TYPE_ONLY_PORTS),
+        ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+      });
+      expect(manifest['devDependencies']).toMatchObject({
+        '@endora-commerce/mod-gadgets': 'workspace:*',
+      });
+      // The two fields an installer resolves. `devDependencies` of a dependency
+      // are never installed, so this creates no edge in any consumer's install
+      // graph and imposes no range on anybody — which is the whole reason it is
+      // the field D-171's exemption may use.
+      expect(manifest['peerDependencies']).not.toHaveProperty(
+        '@endora-commerce/mod-gadgets',
+      );
+      expect(manifest).not.toHaveProperty('dependencies');
+    });
+
+    it('refuses it when the subpath emits a const — the exemption fails closed', () => {
+      // D-171 in terms: *"put a `const` on `./ports` and the exemption
+      // evaporates in the same run T050's guard goes red."* Identical specifier,
+      // identical import kind; only the artefact moved.
+      expect(() =>
+        render({
+          ...consumerReaching(TYPE_ONLY_PORTS),
+          ...ownerFiles('gadgets', {
+            subpath: 'ports',
+            emitted: "export const REGISTRY = new Map();\n",
+          }),
+        }),
+      ).toThrow(/surface is 'runtime'.*REGISTRY/s);
+    });
+
+    it('refuses a value import at the same contract-surface subpath', () => {
+      expect(() =>
+        render({
+          ...consumerReaching(
+            "import { GadgetPort } from '@endora-commerce/mod-gadgets/ports';\n" +
+              'export const p = GadgetPort;',
+          ),
+          ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+        }),
+      ).toThrow(/as a value-import, which survives into the emitted JavaScript/);
+    });
+
+    it('refuses a side-effect import at the same contract-surface subpath', () => {
+      // `import '<pkg>/ports'` is erased by nothing: it is in the emitted `.js`
+      // and needs a dependency an installer really resolves.
+      expect(() =>
+        render({
+          ...consumerReaching("import '@endora-commerce/mod-gadgets/ports';"),
+          ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+        }),
+      ).toThrow(/as a side-effect-import, which survives into the emitted JavaScript/);
+    });
+
+    it('refuses a type-only reach at ./backend with R4’s message, unchanged', () => {
+      let message = '';
+      try {
+        render({
+          ...consumerReaching(
+            "import type { Gadget } from '@endora-commerce/mod-gadgets/backend';\n" +
+              'export type G = Gadget;',
+          ),
+          ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+        });
+      } catch (error: unknown) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      // R4's original sentence, verbatim — the narrowing adds one sentence and
+      // rewrites none.
+      expect(message).toContain(
+        'imports @endora-commerce/mod-gadgets, another module package. R4: a module reaches ' +
+          'another through a port declared in its manifest `dependencies`, never through npm ' +
+          '— a package edge is one the lifecycle, the migration order and an operator ' +
+          'switching the owner off all know nothing about.',
+      );
+      expect(message).toMatch(/surface is 'runtime'.*registerModule/s);
+    });
+
+    it('refuses a type-only reach at a subpath the owner does not declare', () => {
+      expect(() =>
+        render({
+          ...consumerReaching(
+            "import type { GadgetPort } from '@endora-commerce/mod-gadgets/internals';\n" +
+              'export type P = GadgetPort;',
+          ),
+          ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+        }),
+      ).toThrow(/surface is 'undeclared'/);
+    });
+
+    it('refuses a declared subpath whose emitted module is missing, as exit 2 and not as R4', () => {
+      // The one direction in which a silence would grant standing rather than
+      // withhold it (issue #113). A cold `dist` is a broken artefact, not a
+      // coupling, and a refusal that said "coupling" would send the author to
+      // redesign a seam that is fine.
+      let caught: unknown;
+      try {
+        render({
+          ...consumerReaching(TYPE_ONLY_PORTS),
+          ...ownerFiles('gadgets', { subpath: 'ports' }),
+        });
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(UnreadableSubpathError);
+      expect(caught).not.toBeInstanceOf(ModulePackageManifestError);
+      expect((caught as Error).message).toContain('pnpm run build:packages');
+    });
+
+    it('counts the owner manifests and emitted modules it opened', () => {
+      // A check that reads files without counting them is issue #244 in the
+      // tool that exists to prevent it.
+      const withReach = render({
+        ...consumerReaching(TYPE_ONLY_PORTS),
+        ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+      });
+      // The same checkout, file for file, with the one specifier pointing at
+      // the consumer's own tree instead of at the owner — so the difference is
+      // the surfaces reader's two files and nothing else.
+      const withoutReach = render({
+        ...consumerReaching(
+          "import type { ModuleContext } from '@endora-commerce/platform/kernel';\n" +
+            'export type P = ModuleContext;',
+        ),
+        ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+      });
+      // The owner's `package.json` and its emitted `dist/ports/index.js`: two
+      // files the run would otherwise have read and not reported.
+      expect(withReach.filesRead - withoutReach.filesRead).toBe(2);
+    });
+  });
+
+  /**
+   * A devDependency cycle between two module packages, refused here.
+   *
+   * pnpm's workspace graph includes `devDependencies`, which is what orders
+   * `pnpm -r run build` so an owner's `dist/ports/index.d.ts` exists before its
+   * consumer's `tsc` looks for it. A cycle is where that benefit bites:
+   * measured on this tree, pnpm **warns and does not fail**, loses the ordering,
+   * builds the pair concurrently, and the consumer fails with TS2307 — then
+   * succeeds on a re-run. A CI red that depends on scheduling.
+   *
+   * `orders` ↔ `payments` **is** that pair, and it stopped being hypothetical
+   * while this was being written. T048 (!1052) converted `orders`' reach into
+   * `payments`' `Payment` entity class into a published port, so the tree now
+   * holds both directions, both `import type`, both into a `ports/index`:
+   *
+   *   `orders/services/order-service.ts`     → `payments/ports/index`
+   *   `payments/services/receive-payment-handler.ts` → `orders/ports/index`
+   *
+   * They are relative specifiers today, which is why nothing is red: a relative
+   * specifier has no subpath and names no package. The moment both modules are
+   * packaged and both specifiers become bare, each manifest devDepends on the
+   * other — which is this fixture, with the real names and the real directions.
+   */
+  describe('a mutual type-only devDependency pair is refused (§7)', () => {
+    /**
+     * `orders` and `payments` as packages, each publishing the `./ports` its
+     * `backend/src/modules/<id>/ports/index.ts` already holds and each reaching
+     * the other's, exactly as the two files above reach each other today.
+     */
+    function mutualPair(): Record<string, string> {
+      const files: Record<string, string> = { ...checkoutWith({}) };
+      for (const [id, other, takes] of [
+        ['orders', 'payments', 'PaymentPlacementApplyPort'],
+        ['payments', 'orders', 'OrderPaymentStatusApplyPort'],
+      ] as const) {
+        const dir = `${ROOT}/packages/modules/${id}`;
+        const publishes =
+          id === 'orders' ? 'OrderPaymentStatusApplyPort' : 'PaymentPlacementApplyPort';
+        Object.assign(
+          files,
+          packageFiles(id, {
+            ...BACKEND_ONLY,
+            'src/ports/index.ts': `export interface ${publishes} { apply(): void }\n`,
+            'src/backend/reach.ts':
+              `import type { ${takes} } from '@endora-commerce/mod-${other}/ports';\n` +
+              `export type P = ${takes};\n`,
+          }),
+        );
+        files[`${dir}/package.json`] = JSON.stringify({
+          name: `@endora-commerce/mod-${id}`,
+          description: 'A module package.',
+          endora: { type: 'module', id },
+          exports: {
+            '.': { types: './dist/manifest.d.ts', default: './dist/manifest.js' },
+            './backend': {
+              types: './dist/backend/index.d.ts',
+              default: './dist/backend/index.js',
+            },
+            './ports': {
+              types: './dist/ports/index.d.ts',
+              default: './dist/ports/index.js',
+            },
+            './package.json': './package.json',
+          },
+        });
+        files[`${dir}/dist/ports/index.js`] = 'export {};\n';
+        files[`${dir}/dist/backend/index.js`] =
+          'export function registerModule(ctx) { void ctx; }\nexport const entities = [];\n';
+      }
+      return files;
+    }
+
+    it('refuses the pair, naming both packages and both clean exits', () => {
+      let message = '';
+      try {
+        render(mutualPair());
+      } catch (error: unknown) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      expect(message).toContain('@endora-commerce/mod-orders');
+      expect(message).toContain('@endora-commerce/mod-payments');
+      expect(message).toContain('would each devDepend on the other');
+      // The two exits the tree already demonstrates. A refusal whose message
+      // stops at "blocked" is a refusal that blocks the sweep.
+      expect(message).toContain('publish the interface on ONE side only');
+      expect(message).toContain('@endora-commerce/contracts');
+    });
+
+    it('renders the same pair when only one side reaches the other', () => {
+      const files = mutualPair();
+      delete files[`${ROOT}/packages/modules/payments/src/backend/reach.ts`];
+      const orders = manifestOf(files, 'orders');
+      const payments = manifestOf(files, 'payments');
+      expect(orders['devDependencies']).toMatchObject({
+        '@endora-commerce/mod-payments': 'workspace:*',
+      });
+      expect(payments['devDependencies']).not.toHaveProperty('@endora-commerce/mod-orders');
     });
   });
 
@@ -695,7 +1016,25 @@ describe('module package manifests are generated (feature 080, T041)', () => {
           ],
         ]),
       );
-      expect([...names].sort()).toEqual(['bullmq', 'fastify', 'ioredis', 'zod']);
+      expect([...names.keys()].sort()).toEqual(['bullmq', 'fastify', 'ioredis', 'zod']);
+    });
+
+    it('keeps the subpath and the import kind of every reach (D-171)', () => {
+      // Both facts are what R4's narrowing turns on, and both were discarded one
+      // line before the refusal saw them.
+      const names = peerNamesOf(
+        new Map([
+          [
+            'a.ts',
+            "import type { A } from '@endora-commerce/mod-gadgets/ports';\n" +
+              "import { B } from '@endora-commerce/mod-gadgets';\n",
+          ],
+        ]),
+      );
+      expect(names.get('@endora-commerce/mod-gadgets')).toEqual([
+        { subpath: 'ports', kind: 'type-only-import', file: 'a.ts', line: 1 },
+        { subpath: '', kind: 'value-import', file: 'a.ts', line: 2 },
+      ]);
     });
   });
 });
