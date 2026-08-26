@@ -525,7 +525,7 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // construction (T131).
   'pimErgonodeRunWorkers',
   // Same category: whether this process runs the Pimcore import consumer
-  // (feature 076).
+  // (feature 089).
   'pimPimcoreRunWorkers',
   // Same category: whether this process runs the feed generation and reaper
   // consumers, read at construction because it decides whether they are built

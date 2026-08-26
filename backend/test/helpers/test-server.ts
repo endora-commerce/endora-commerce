@@ -366,7 +366,7 @@ export interface BackendServerHandle {
   productFeeds: ProductFeedsCradle['productFeeds']['handle'];
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
   pimErgonode: PimErgonodeCradle['pimErgonode']['handle'];
-  /** Feature 076 — Pimcore PIM handle (source client seam, inline import). */
+  /** Feature 089 — Pimcore PIM handle (source client seam, inline import). */
   pimPimcore: PimPimcoreCradle['pimPimcore']['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: PwaCradle['pwa']['handle'];
@@ -554,7 +554,7 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
-  // Feature 076 — Pimcore PIM. Truncated explicitly because nothing cascades
+  // Feature 089 — Pimcore PIM. Truncated explicitly because nothing cascades
   // here from the tables below. Listed children-first.
   'pimcore_import_issues',
   'pimcore_field_protections',

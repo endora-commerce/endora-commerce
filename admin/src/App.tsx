@@ -320,7 +320,7 @@ export function App(): ReactNode {
         />
         <Route path="/pim-ergonode/runs" element={<ErgonodeRunsPage />} />
         <Route path="/pim-ergonode/runs/:runId" element={<ErgonodeRunDetailPage />} />
-        {/* Feature 076 — Pimcore PIM. Literal segments first, parametric run
+        {/* Feature 089 — Pimcore PIM. Literal segments first, parametric run
             route last (same ordering rule as Ergonode). */}
         <Route path="/pim-pimcore" element={<PimcoreConnectionPage />} />
         <Route path="/pim-pimcore/runs" element={<PimcoreRunsPage />} />

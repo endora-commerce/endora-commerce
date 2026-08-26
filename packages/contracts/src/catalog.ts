@@ -2771,7 +2771,7 @@ export interface CatalogBundleSlotRow {
  * Container name: `bundleService`. Owner: `catalog`.
  *
  * `pim_pimcore` writes mappable bundle compositions through this seam
- * (feature 076 / FR-022) — never against catalog's tables.
+ * (feature 089 / FR-022) — never against catalog's tables.
  */
 export interface CatalogBundlePort {
   listSlots(parentProductId: string): Promise<CatalogBundleSlotRow[]>;
@@ -2811,7 +2811,7 @@ export interface CatalogBundlePort {
  * Container name: `packagingUnitService`. Owner: `catalog`.
  *
  * `pim_pimcore` writes mappable packaging units through this seam
- * (feature 076 / FR-026).
+ * (feature 089 / FR-026).
  */
 export interface CatalogPackagingPort {
   list(productId: string): Promise<PackagingUnitDto[]>;

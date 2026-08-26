@@ -169,7 +169,7 @@ pnpm -r run typecheck
 pnpm -r run lint
 pnpm -r run build
 
-pnpm --filter @b2b/cms-components build   # after CMS component class changes
+pnpm --filter @endora-commerce/cms-components build   # after CMS component class changes
 pnpm --filter backend run test            # needs postgres (+ redis for some suites)
 ```
 

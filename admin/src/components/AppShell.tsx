@@ -186,7 +186,7 @@ const NAV: NavSection[] = [
         requiredPermission: 'pim_ergonode:read',
         module: 'pim_ergonode',
       },
-      // Feature 076 — Pimcore PIM. Same Catalog placement as Ergonode: one
+      // Feature 089 — Pimcore PIM. Same Catalog placement as Ergonode: one
       // sidebar row; mapping surfaces arrive as tabs in later stories.
       {
         to: '/pim-pimcore',
@@ -609,7 +609,7 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.pimErgonode', href: null },
   ] },
-  // Feature 076 — Pimcore PIM. Deepest trail first.
+  // Feature 089 — Pimcore PIM. Deepest trail first.
   { test: /^\/pim-pimcore\/runs\/[^/]+\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.pimPimcore', href: '/pim-pimcore' },
