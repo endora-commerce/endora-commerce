@@ -103,7 +103,7 @@ import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entit
  * module could have moved any column of.
  */
 import type { CartPlacementApplyPort } from '@endora-commerce/mod-carts/ports';
-import type { InventoryReservationApplyPort } from '../../inventory/ports/index.js';
+import type { InventoryReservationApplyPort } from '@endora-commerce/mod-inventory/ports';
 import type { InvoicePlacementApplyPort } from '@endora-commerce/mod-invoices/ports';
 import type { PaymentPlacementApplyPort } from '../../payments/ports/index.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';

@@ -13,13 +13,11 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import {
-  DEFAULT_WAREHOUSE_ID,
-  Warehouse,
-} from '../../../src/modules/inventory/entities/warehouse.entity.js';
-import { WarehouseChannelAssignment } from '../../../src/modules/inventory/entities/warehouse-channel-assignment.entity.js';
-import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
-import { StockAllocation } from '../../../src/modules/inventory/entities/stock-allocation.entity.js';
+import { Warehouse } from '../../helpers/package-entities.js';
+import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';
+import { WarehouseChannelAssignment } from '../../helpers/package-entities.js';
+import { StockLevel } from '../../helpers/package-entities.js';
+import { StockAllocation } from '../../helpers/package-entities.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 
 /**

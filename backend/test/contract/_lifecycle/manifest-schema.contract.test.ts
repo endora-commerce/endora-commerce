@@ -6,7 +6,7 @@ import { manifest as salesChannelsManifest } from '../../../../packages/modules/
 import { manifest as searchManifest } from '../../../../packages/modules/search/src/manifest.js';
 import { manifest as comparisonsManifest } from '../../../../packages/modules/comparisons/src/manifest.js';
 import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';
-import { manifest as inventoryManifest } from '../../../src/modules/inventory/manifest.js';
+import { manifest as inventoryManifest } from '../../../../packages/modules/inventory/src/manifest.js';
 import { manifest as priceListsManifest } from '@endora-commerce/mod-price-lists';
 import { manifest as assetsLibraryManifest } from '../../../../packages/modules/assets_library/src/manifest.js';
 import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';

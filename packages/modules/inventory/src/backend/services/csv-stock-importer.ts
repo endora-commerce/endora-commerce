@@ -4,11 +4,11 @@ import type {
   StockImportError,
   StockImportResult,
 } from '@endora-commerce/contracts';
-import type { EventBus } from '../../../events/bus.js';
+import type { EventBus } from '@endora-commerce/platform/events';
 import { randomUUID } from 'crypto';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { Warehouse } from '../entities/warehouse.entity.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface CsvImportInput {

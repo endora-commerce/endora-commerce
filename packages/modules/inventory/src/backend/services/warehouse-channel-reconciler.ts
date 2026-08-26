@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { WarehouseChannelAssignment } from '../entities/warehouse-channel-assignment.entity.js';
 import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../entities/warehouse.entity.js';
-import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * WarehouseChannelReconciler — idempotent boot-time check that every

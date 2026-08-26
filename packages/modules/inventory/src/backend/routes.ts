@@ -14,15 +14,15 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AvailabilityNotificationService } from './services/availability-notification-service.js';
 import type { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import type { StockLevelService } from './services/stock-level-service.js';
-import type { SalesChannelResolutionPort } from '../../kernel/ports/sales-channel.js';
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
-import { productAudienceOf } from '../../http/product-audience.js';
+import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
+import { productAudienceOf } from '@endora-commerce/platform/http';
 import { StockLevel } from './entities/stock-level.entity.js';
 import { resolveDisplayBand } from './services/display-band-resolver.js';
 import { resolveThresholds } from './services/threshold-resolver.js';
 import { InventoryThreshold } from './entities/inventory-threshold.entity.js';
-import { INVENTORY_SETTING_CODES } from './manifest.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
+import { INVENTORY_SETTING_CODES } from '../manifest.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 export interface InventoryRoutesDeps {
   emFactory: () => EntityManager;

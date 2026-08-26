@@ -4,10 +4,10 @@ import type {
   CatalogCategoryRecord,
   CatalogProductReadPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { randomUUID } from 'crypto';
-import type { EventBus } from '../../../events/bus.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import type { EventBus } from '@endora-commerce/platform/events';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface InventoryAdjustedEvent {

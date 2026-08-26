@@ -8,8 +8,8 @@ import {
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
-import { InventoryThreshold } from '../../../src/modules/inventory/entities/inventory-threshold.entity.js';
-import { INVENTORY_SETTING_CODES } from '../../../src/modules/inventory/manifest.js';
+import { InventoryThreshold } from '../../helpers/package-entities.js';
+import { INVENTORY_SETTING_CODES } from '../../../../packages/modules/inventory/src/manifest.js';
 
 /**
  * Issue #107 — a module's EventBus subscriptions stop when the module does.

@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EventBus } from '../../events/bus.js';
+import type { EventBus } from '@endora-commerce/platform/events';
 import { AvailabilityNotificationService } from './services/availability-notification-service.js';
 import { AvailabilityWorker } from './services/availability-worker.js';
 import { CsvStockImporter } from './services/csv-stock-importer.js';
@@ -12,9 +12,9 @@ import { ThresholdAdminService } from './services/threshold-admin-service.js';
 import { LowStockAlertService, type InventoryTemplateEmailPort } from './services/low-stock-alert-service.js';
 import { registerInventoryRoutes } from './routes.js';
 import { registerInventoryAdminRoutes } from './routes.admin.js';
-import type { SalesChannelResolutionPort } from '../../kernel/ports/sales-channel.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type {
   CatalogCategoryReadPort,
   CatalogCategoryWritePort,
@@ -23,7 +23,7 @@ import type {
   DictionaryValidator,
   EmailMailerPort,
 } from '@endora-commerce/contracts';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface InventoryAuditContext {
   actorAdminUserId: string;

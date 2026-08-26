@@ -3,9 +3,9 @@ import type { FastifyRequest } from 'fastify';
 import type { DictionaryValidator,
   DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../kernel/ports/audit.js';
-import type { CommandBus } from '../../commands/index.js';
-import type { EventBus } from '../../events/bus.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { EventBus } from '@endora-commerce/platform/events';
 import type {
   CatalogCategoryReadPort,
   CatalogCategoryWritePort,
@@ -27,13 +27,13 @@ import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
  * may name no MikroORM type, because `admin` and `storefront` both compile it
  * (FR-034).
  */
-import type { InventoryReservationApplyPort } from './ports/index.js';
-import type { ModuleContext } from '../../kernel/index.js';
-import { lazyPort } from '../../kernel/index.js';
-import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
-import type { SalesChannelResolutionPort } from '../../kernel/ports/sales-channel.js';
-import type { SettingsReadPort } from '../../kernel/ports/settings.js';
+import type { InventoryReservationApplyPort } from '../ports/index.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { inventoryModule, type InventoryModuleOptions } from './plugin.js';
 import type { AdjustedPayload } from './services/availability-worker.js';
 import type { SettingsValueChangedPayload } from './services/threshold-settings-mirror.js';
@@ -48,6 +48,13 @@ import { AVAILABILITY_BACK_IN_STOCK_DEFAULT, LOW_STOCK_ALERT_DEFAULT } from './e
 import { inventoryPromptTools } from './prompt-tools.js';
 import { registerWarehouseCountryReferences } from './services/warehouse-country-reference.js';
 import { registerInventoryAuditReferences } from './services/audit-references.js';
+import { AvailabilityNotification } from './entities/availability-notification.entity.js';
+import { InventoryThreshold } from './entities/inventory-threshold.entity.js';
+import { ProductWarehouseLowStockThreshold } from './entities/product-warehouse-low-stock-threshold.entity.js';
+import { StockAllocation } from './entities/stock-allocation.entity.js';
+import { StockLevel } from './entities/stock-level.entity.js';
+import { WarehouseChannelAssignment } from './entities/warehouse-channel-assignment.entity.js';
+import { Warehouse } from './entities/warehouse.entity.js';
 
 /**
  * `inventory` — three capabilities the test harness never had (feature 072,
@@ -499,3 +506,44 @@ export function registerModule(ctx: ModuleContext): void {
     );
   });
 }
+
+/**
+ * The module's persisted entity classes, on the `./backend` subpath, as one
+ * array and **no named class export** (D-168).
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table->owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ *
+ * The order is the one `db/entities-registry.generated.ts` declared before this
+ * module became a package, so the registered set is the same list in the same
+ * sequence.
+ */
+export const entities = [
+  AvailabilityNotification,
+  InventoryThreshold,
+  ProductWarehouseLowStockThreshold,
+  StockAllocation,
+  StockLevel,
+  WarehouseChannelAssignment,
+  Warehouse,
+];
+
+/**
+ * The warehouse↔channel reconciler and this module's system warehouse id,
+ * published **by name** on `./backend`.
+ *
+ * `src/seeds/dev-catalog-seed.ts` runs the reconciler, and a host program is
+ * composed against this package's `dist` while the ORM is registered from the
+ * same `entities` array above — so a filesystem path into this file's source
+ * would evaluate `warehouse.entity.ts` a second time and the reconciler would
+ * `em.create` a `WarehouseChannelAssignment` class the ORM has never heard of
+ * (D-160.6.1). D-168 bars an entity class from leaving by this door; a service
+ * and a constant are not entities, and `price_lists`' `DefaultPriceListMigrator`
+ * / `DEFAULT_PRICE_LIST_ID` pair is the precedent for exactly this shape.
+ */
+export { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
+export { DEFAULT_WAREHOUSE_ID } from './entities/warehouse.entity.js';

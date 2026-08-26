@@ -4,9 +4,9 @@ import type {
   CatalogCategoryWritePort,
   CatalogProductReadPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { InventoryThreshold } from '../entities/inventory-threshold.entity.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface ThresholdTriple {

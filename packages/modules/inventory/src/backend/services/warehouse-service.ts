@@ -5,7 +5,7 @@ import {
   dispatchValidatorMode,
   type DictionaryValidator,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import {
   Warehouse,
   DEFAULT_WAREHOUSE_CODE,
@@ -13,7 +13,7 @@ import {
 } from '../entities/warehouse.entity.js';
 import { WarehouseChannelAssignment } from '../entities/warehouse-channel-assignment.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { InventoryAuditContext } from '../plugin.js';
 
 export interface WarehouseContact {

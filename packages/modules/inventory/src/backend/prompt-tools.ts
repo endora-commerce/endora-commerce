@@ -9,9 +9,9 @@ import {
   type ToolContext,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { HttpError } from '../../http/error-envelope.js';
-import type { EventBus } from '../../events/bus.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { EventBus } from '@endora-commerce/platform/events';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { StockLevel } from './entities/stock-level.entity.js';
 import { Warehouse } from './entities/warehouse.entity.js';
 import { StockLevelService } from './services/stock-level-service.js';

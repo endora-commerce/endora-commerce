@@ -5,7 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { DEFAULT_WAREHOUSE_ID } from '../../../src/modules/inventory/entities/warehouse.entity.js';
+import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';
 import { withModuleOff } from '../../helpers/off-state.js';
 
 /**

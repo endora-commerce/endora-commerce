@@ -5,7 +5,7 @@ import type {
   EmailMailerPort,
 } from '@endora-commerce/contracts';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
-import { withSystemScope } from '../../../tenancy/escape-hatch.js';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 
 export interface AdjustedPayload {
   productId: string;

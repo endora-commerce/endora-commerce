@@ -4,10 +4,10 @@ import type {
   CatalogProductRecord,
   EmailMailerPort,
 } from '@endora-commerce/contracts';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { z } from 'zod';
 import { StockLevel } from '../entities/stock-level.entity.js';
-import { INVENTORY_SETTING_CODES } from '../manifest.js';
+import { INVENTORY_SETTING_CODES } from '../../manifest.js';
 
 /** Feature 047 — structural port for sending via the admin-editable templates. */
 export interface InventoryTemplateEmailPort {

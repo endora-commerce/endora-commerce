@@ -1,8 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { HttpError } from '../../../http/error-envelope.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
-import { actorFromContext } from '../../../commands/index.js';
-import { getTenantContext } from '../../../tenancy/index.js';
+import { HttpError } from '@endora-commerce/platform/http';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { actorFromContext } from '@endora-commerce/platform/commands';
+import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import { Warehouse } from '../entities/warehouse.entity.js';
 import { WarehouseChannelAssignment } from '../entities/warehouse-channel-assignment.entity.js';
 

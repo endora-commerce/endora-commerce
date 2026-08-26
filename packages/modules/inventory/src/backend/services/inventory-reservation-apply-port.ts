@@ -5,7 +5,7 @@ import { StockLevel } from '../entities/stock-level.entity.js';
 import type {
   InventoryReservationApplyPort,
   PlacementStockSnapshot,
-} from '../ports/index.js';
+} from '../../ports/index.js';
 
 /**
  * `inventoryReservationApplyPort` — the stock reservation order placement

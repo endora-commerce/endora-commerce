@@ -1,8 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type { SettingsReadPort } from '../../../kernel/ports/settings.js';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { InventoryThreshold } from '../entities/inventory-threshold.entity.js';
-import { INVENTORY_SETTING_CODES } from '../manifest.js';
+import { INVENTORY_SETTING_CODES } from '../../manifest.js';
 
 export interface SettingsValueChangedPayload {
   settingCode: string;

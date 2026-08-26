@@ -5,7 +5,7 @@ import {
   type CustomerAccountReadPort,
   type EmailMailerPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../../http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import type { InventoryTemplateEmailPort } from './low-stock-alert-service.js';

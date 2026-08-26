@@ -33,7 +33,7 @@ import { AuditReferenceRegistry } from '../../../../packages/modules/audit_logs/
 
 const reconcilerRun = vi.fn(async () => undefined);
 
-vi.mock('../../../src/modules/inventory/services/warehouse-channel-reconciler.js', () => ({
+vi.mock('../../../../packages/modules/inventory/src/backend/services/warehouse-channel-reconciler.js', () => ({
   WarehouseChannelReconciler: class {
     run = reconcilerRun;
   },
@@ -41,9 +41,19 @@ vi.mock('../../../src/modules/inventory/services/warehouse-channel-reconciler.js
 
 // The plugin builds queues, workers and a Redis-backed cache; the boot hooks
 // never touch it, so it is stubbed away rather than composed.
-vi.mock('../../../src/modules/inventory/plugin.js', () => ({
+vi.mock('../../../../packages/modules/inventory/src/backend/plugin.js', () => ({
   inventoryModule: () => ({ handle: {}, plugin: async () => undefined }),
 }));
+
+// Named statically. `vi.mock` is hoisted above every import in this file, so the
+// two stubs above are in place either way — and a dynamic import names no
+// binding, which takes the whole import graph of the file it reaches
+// (`check:singleton-identity`'s `whole-file-reach`). This test composes its own
+// container out of `registerModule` and hands the ORM nothing, so the source
+// copy is the only copy of anything behind `./backend` in this process; the
+// published artefact it shares the process with is the package's **root**
+// export, the manifest `manifest-index.generated.ts` imports.
+import { registerModule } from '../../../../packages/modules/inventory/src/backend/index.js';
 
 const ALL_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
 
@@ -56,7 +66,6 @@ interface Composed {
 }
 
 async function composeInventory(): Promise<Composed> {
-  const { registerModule } = await import('../../../src/modules/inventory/backend.js');
   const container = createRootContainer();
   const registeredEmailDefaults: string[] = [];
   const registeredPromptTools: string[] = [];

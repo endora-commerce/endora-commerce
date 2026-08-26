@@ -6,7 +6,7 @@ import type {
   InventoryStockImportPort,
   StockLevelImportRow,
 } from '@endora-commerce/contracts';
-import type { CommandBus } from '../../../commands/index.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from '../entities/warehouse.entity.js';
 

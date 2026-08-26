@@ -17,8 +17,8 @@ import {
 import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
 import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
-import { StockAllocation } from '../../../src/modules/inventory/entities/stock-allocation.entity.js';
-import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
+import { StockAllocation } from '../../helpers/package-entities.js';
+import { StockLevel } from '../../helpers/package-entities.js';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
