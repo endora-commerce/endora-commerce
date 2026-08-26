@@ -250,14 +250,19 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // specifier into a package is not a reference into `backend/src/modules/`,
   // which is the same reason the `payment_methods` note above gives. The entries
   // are deleted rather than re-pointed.
-  // `auth` (T078). `composition.ts` imports `promoteAdminActor` and the
-  // `AuthCradle` type. The type import is the ordinary shape of a root
-  // resolving a module's registrations. `promoteAdminActor` is the interesting
-  // one: the MFA actor bridge promotes a partially-authenticated session before
-  // asserting it is an admin, and it leaves when `auth` provides actor
-  // promotion as a port. It was never the customer guard's — that one is
-  // `auth`'s `requireCustomer` port since issue #43 and promotes nothing.
-  auth: ['src/composition.ts'],
+  // **`auth` is absent too** (T040b), and it is the one case where the value
+  // import was the *blocker* rather than a consequence. `composition.ts`
+  // imported `promoteAdminActor` from `./modules/auth/plugin.js` — a file
+  // inside the module — so packaging `auth` would have left the root evaluating
+  // the package's source a second time (D-160.6.1). Unlike
+  // `absolutizePublicUrl`, the function could not move to the platform: `auth`
+  // reads it itself, and promotion is about two request decorations `auth`
+  // owns. It is published from `./backend` instead, so the root's reach is a
+  // bare specifier and no longer a reference into `backend/src/modules/`.
+  //
+  // The further step is still open and is recorded where it belongs, in
+  // `test/contract/kernel/harness-parity.test.ts`'s `auth:promoteAdminActor`
+  // entry: actor promotion published as a port, resolved from the container.
   // `admin_roles` (wave 1). The dev seed writes roles like it writes everything
   // else, and that is all that is left.
   //

@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+import { PRUNED_DIRECTORIES, requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * One `RequireAdminFactory` declaration, and one implementation (T145).
@@ -43,8 +44,15 @@ const REPO = layout.repoRoot.endsWith('/') ? layout.repoRoot : `${layout.repoRoo
 const ROOTS = layout.sourceRoots;
 const KERNEL_PORT = 'packages/platform/src/kernel/ports/require-admin.ts';
 
+/**
+ * `PRUNED_DIRECTORIES` is not an optimisation here. A package root holds its own
+ * `node_modules`, and pnpm links every workspace member into it — so an
+ * unpruned walk reads the platform's `require-admin.ts` once per module package
+ * and reports 60 declarations of a type that has one.
+ */
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
+    if (PRUNED_DIRECTORIES.includes(entry)) continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full, out);
     else if (entry.endsWith('.ts')) out.push(full);

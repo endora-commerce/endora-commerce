@@ -77,19 +77,23 @@ export interface AuthPluginOptions {
   adminCookieName?: string;
 }
 
-/**
+/*
  * Customer (storefront) sessions live in `b2b_session`; admin (Admin UI)
  * sessions live in a **separate** `b2b_admin_session` cookie. Using two distinct
  * cookie names lets a customer stay signed in on the storefront while an admin is
  * signed in on the Admin UI in the same browser — on a shared host (e.g. all
  * `localhost` ports) a single cookie name would clobber the other on every login.
  *
- * The two spellings moved to `@endora-commerce/contracts` in feature 075's Phase P: they are
- * constants, not behaviour, and five modules set or clear the cookie. They are
- * re-exported from here so the consumers Phase C has not reached yet keep
- * resolving them at this path.
+ * The two spellings moved to `@endora-commerce/contracts` in feature 075's Phase
+ * P. This file re-exported them for the consumers Phase C had not reached; that
+ * re-export is gone with the move to a package (T040b) because **there were
+ * none left** — every one of the five modules that set or clear the cookie
+ * already names the contracts package, which is what packaging them forced.
+ * Keeping it would also have put a `@endora-commerce/contracts` re-export on
+ * this package's `./backend` barrel, which `module-package-entity-surface.test.ts`
+ * refuses under D-168: it cannot follow the specifier, so whether a named entity
+ * class comes through it is unknown rather than false.
  */
-export { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME };
 
 /**
  * If the request carries a valid admin session (resolved into `request.adminActor`

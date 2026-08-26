@@ -36,6 +36,8 @@ import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
+import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
+import type { Session as SessionRow } from '../../../packages/modules/auth/src/backend/entities/session.entity.js';
 import type { Address as AddressRow } from '../../../packages/modules/addresses/src/backend/entities/address.entity.js';
 import type { AnalyticsEvent as AnalyticsEventRow } from '../../../packages/modules/analytics/src/backend/entities/analytics-event.entity.js';
 import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
@@ -228,6 +230,8 @@ export const AnalyticsEvent = classNamed<AnalyticsEventRow>(analyticsEntities, '
 export const Shipment = classNamed<ShipmentRow>(shipmentsEntities, 'Shipment');
 
 export const PaymentMethod = classNamed<PaymentMethodRow>(paymentMethodsEntities, 'PaymentMethod');
+
+export const Session = classNamed<SessionRow>(authEntities, 'Session');
 
 /**
  * The **row shape**, for a test that annotates a variable with it.
