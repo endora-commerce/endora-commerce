@@ -10,9 +10,14 @@ import {
   metaTaxonomyFile,
   ScriptedTaxonomyFetcher,
 } from '../../helpers/taxonomy-fixtures.js';
-import { TAXONOMY_REFRESH_SCHEDULER_ID } from '../../../src/modules/product_feeds/workers/taxonomy-refresh-worker.js';
-import { FeedTaxonomy } from '../../../src/modules/product_feeds/entities/feed-taxonomy.entity.js';
-import { FeedTaxonomyCheck } from '../../../src/modules/product_feeds/entities/feed-taxonomy-check.entity.js';
+import { TAXONOMY_REFRESH_SCHEDULER_ID } from '../../../../packages/modules/product_feeds/src/backend/workers/taxonomy-refresh-worker.js';
+// Named statically rather than through `await import(...)`: a dynamic import
+// names no binding, so it takes the file's whole import graph, and this
+// process already holds `@endora-commerce/mod-product-feeds`'s published copy
+// (`setupBackendServer` composes it). The class itself is constructed here,
+// by this test, over its own stubs — nothing the platform composed.
+import { FeedScheduleReconciler } from '../../../../packages/modules/product_feeds/src/backend/services/feed-schedule-reconciler.js';
+import { FeedTaxonomy, FeedTaxonomyCheck } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 Phase 11 / T125 — **off is the shipped default, and off is a
@@ -96,9 +101,6 @@ describe('taxonomy fetch, switched off [integration]', () => {
 
   it('installs the scheduler when the switch goes on, and removes it when it goes off', async () => {
     const calls: Array<'ensure' | 'remove'> = [];
-    const { FeedScheduleReconciler } = await import(
-      '../../../src/modules/product_feeds/services/feed-schedule-reconciler.js'
-    );
     let enabled = true;
     const reconciler = new FeedScheduleReconciler({
       emFactory: h.em,

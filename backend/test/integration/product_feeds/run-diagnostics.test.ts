@@ -8,10 +8,9 @@ import { Product } from '../../../src/modules/catalog/entities/product.entity.js
 import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { FeedRunIssue } from '../../../src/modules/product_feeds/entities/feed-run-issue.entity.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { AdminNotification, type AdminNotificationRow } from '../../helpers/package-entities.js';
+import { AdminNotification, FeedRunIssue, type AdminNotificationRow } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T100 — run diagnostics (FR-037, FR-054).

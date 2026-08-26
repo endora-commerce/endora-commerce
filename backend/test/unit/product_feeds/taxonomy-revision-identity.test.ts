@@ -6,12 +6,12 @@ import {
   normaliseTaxonomyContent,
   taxonomyContentHash,
   withCollisionSuffix,
-} from '../../../src/modules/product_feeds/services/taxonomy-revision-identity.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-revision-identity.js';
 import {
   buildTaxonomyNodes,
   parseTaxonomyFile,
   parseTaxonomyHeader,
-} from '../../../src/modules/product_feeds/services/taxonomy-file-parser.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-file-parser.js';
 
 /**
  * Feature 067 Phase 11 / T121 — revision identity (FR-088, research §R20).

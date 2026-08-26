@@ -267,6 +267,9 @@ importers:
       '@endora-commerce/mod-payu':
         specifier: workspace:*
         version: link:../packages/modules/payu
+      '@endora-commerce/mod-product-feeds':
+        specifier: workspace:*
+        version: link:../packages/modules/product_feeds
       '@endora-commerce/mod-promotions':
         specifier: workspace:*
         version: link:../packages/modules/promotions
@@ -1652,6 +1655,57 @@ importers:
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
+  packages/modules/product_feeds:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@fastify/rate-limit':
+        specifier: ^10.3.0
+        version: 10.3.0
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/ssh2-sftp-client':
+        specifier: ^9.0.6
+        version: 9.0.6
+      basic-ftp:
+        specifier: ^6.2.0
+        version: 6.2.0
+      bullmq:
+        specifier: ^5.76.1
+        version: 5.76.1
+      exceljs:
+        specifier: ^4.4.0
+        version: 4.4.0
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      ssh2-sftp-client:
+        specifier: ^12.1.1
+        version: 12.1.1
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

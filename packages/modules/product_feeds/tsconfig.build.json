@@ -1,0 +1,37 @@
+{
+  // Emit configuration — the only configuration in this package allowed to write
+  // files, and the declaration the composer reads to learn where this package's
+  // sources end up (`backend/scripts/lib/module-packages.ts`). The **asset
+  // copier reads the same two fields**: `pnpm --filter backend run
+  // manifests:generate` renders `--src`/`--out` into this package's `build`
+  // script from `rootDir` and `outDir` here, so the emitted code and the data
+  // beside it can never be told to go to two different places.
+  //
+  // `paths` is cleared, so `@endora-commerce/contracts` resolves through its own
+  // `exports` map to its built `.d.ts`; `pnpm run build:packages` builds
+  // `contracts` and `platform` before this package, which is what makes that
+  // resolution real. `rootDir` with an active `paths` block is the TS6059 trap:
+  // `tsc` reports the sibling's source as outside `rootDir`, exits 2, and emits
+  // that sibling's `.js`/`.d.ts` beside its source anyway.
+  //
+  // **This package emits, rather than shipping source, because of its twelve
+  // entity files** (D-164). `tsx` loads exactly one tsconfig per process and
+  // applies its `compilerOptions` only to files under that tsconfig's own
+  // directory; a file outside gets tsx's defaults, which lower decorators with
+  // standard semantics while MikroORM's are legacy, and the entity dies at load
+  // with `Cannot read properties of undefined (reading 'constructor')`.
+  //
+  // **And `tsc` copies nothing but `.ts`** (measured), which is why this
+  // package's `build` has a second half at all: `src/backend/data/taxonomies/`
+  // holds four bundled taxonomy files the module opens relative to
+  // `import.meta.url`, i.e. relative to the *emitted* file (criterion 8).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "./src",
+    "noEmit": false,
+    // A compile that failed must ship nothing (feature 080, R11). Without this a
+    // diagnostic is not a stop — the artefacts are written before the exit code is.
+    "noEmitOnError": true
+  }
+}

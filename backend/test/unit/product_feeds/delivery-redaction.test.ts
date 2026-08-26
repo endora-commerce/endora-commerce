@@ -3,7 +3,7 @@ import {
   REDACTED_MARKER,
   redactSecrets,
   toFailureDetail,
-} from '../../../src/modules/product_feeds/services/delivery/delivery-redaction.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-redaction.js';
 
 /**
  * Feature 070 / FR-108 — nothing a delivery attempt records may be a credential.

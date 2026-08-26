@@ -5,8 +5,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { FeedRunIssue } from '../../../src/modules/product_feeds/entities/feed-run-issue.entity.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { FeedRunIssue } from '../../helpers/package-entities.js';
 
 /**
  * Regression for the "`g:link` has no value and no fallback" report.

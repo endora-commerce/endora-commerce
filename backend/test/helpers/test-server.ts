@@ -164,12 +164,12 @@ import type { KsefCradle } from '../../../packages/modules/ksef/src/backend/inde
 import type {
   ProductFeedsBridge,
   ProductFeedsCradle,
-} from '../../src/modules/product_feeds/backend.js';
+} from '../../../packages/modules/product_feeds/src/backend/index.js';
 import type {
   TaxonomyFetchResult,
   TaxonomySourceFetcherPort,
-} from '../../src/modules/product_feeds/services/taxonomy-source-fetcher.interface.js';
-import type { FeedDeliveryAdapter } from '../../src/modules/product_feeds/services/delivery/delivery-adapter.interface.js';
+} from '../../../packages/modules/product_feeds/src/backend/services/taxonomy-source-fetcher.interface.js';
+import type { FeedDeliveryAdapter } from '../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-adapter.interface.js';
 import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type { PimErgonodeCradle } from '../../src/modules/pim_ergonode/backend.js';
 import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services/ergonode-client.port.js';
