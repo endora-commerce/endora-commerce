@@ -132,6 +132,7 @@ import { manifest as manifest46 } from '@endora-commerce/mod-payments';
 import * as module47 from '@endora-commerce/mod-pim-ergonode/backend';
 import { manifest as manifest47 } from '@endora-commerce/mod-pim-ergonode';
 <<<<<<< HEAD
+<<<<<<< HEAD
 import * as module48 from '@endora-commerce/mod-product-feeds/backend';
 import { manifest as manifest48 } from '@endora-commerce/mod-product-feeds';
 import * as module49 from '@endora-commerce/mod-promotions/backend';
@@ -167,6 +168,10 @@ import { manifest as manifest63 } from '@endora-commerce/mod-inpost';
 =======
 import * as module48 from './modules/pim_pimcore/backend.js';
 import { manifest as manifest48 } from './modules/pim_pimcore/manifest.js';
+=======
+import * as module48 from '@endora-commerce/mod-pim-pimcore/backend';
+import { manifest as manifest48 } from '@endora-commerce/mod-pim-pimcore';
+>>>>>>> 3a05490ae (feat(089): finish pim_pimcore workspace module packaging)
 import * as module49 from '@endora-commerce/mod-product-feeds/backend';
 import { manifest as manifest49 } from '@endora-commerce/mod-product-feeds';
 import * as module50 from '@endora-commerce/mod-promotions/backend';

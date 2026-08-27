@@ -241,8 +241,8 @@ import { Migration20260804T190439PimErgonodeInit } from '@endora-commerce/mod-pi
 import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-commerce/mod-pim-ergonode/migrations';
 
 // ── pim_pimcore ─────────────────────────────────────────────────────────────
-import { Migration20260818T102204PimPimcoreInit } from '../modules/pim_pimcore/migrations/20260818T102204_pim_pimcore_init.js';
-import { Migration20260820T150317PimPimcoreCompleteRecordDelivery } from '../modules/pim_pimcore/migrations/20260820T150317_pim_pimcore_complete_record_delivery.js';
+import { Migration20260818T102204PimPimcoreInit } from '@endora-commerce/mod-pim-pimcore/migrations';
+import { Migration20260820T150317PimPimcoreCompleteRecordDelivery } from '@endora-commerce/mod-pim-pimcore/migrations';
 
 // ── price_lists ─────────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '@endora-commerce/mod-price-lists/migrations';

@@ -38,6 +38,7 @@ import { entities as inventoryEntities } from '@endora-commerce/mod-inventory/ba
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
+import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
 import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
@@ -140,6 +141,14 @@ import type { ErgonodeMediaLink as ErgonodeMediaLinkRow } from '../../../package
 import type { ErgonodePriceBinding as ErgonodePriceBindingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-price-binding.entity.js';
 import type { ErgonodeProductLink as ErgonodeProductLinkRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-product-link.entity.js';
 import type { ErgonodeStreamCursor as ErgonodeStreamCursorRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-stream-cursor.entity.js';
+import type { PimcoreCatalogueDelivery as PimcoreCatalogueDeliveryRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-catalogue-delivery.entity.js';
+import type { PimcoreConnection as PimcoreConnectionRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-connection.entity.js';
+import type { PimcoreDeliveredRecord as PimcoreDeliveredRecordRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-delivered-record.entity.js';
+import type { PimcoreFieldProtection as PimcoreFieldProtectionRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-field-protection.entity.js';
+import type { PimcoreImportIssue as PimcoreImportIssueRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-import-issue.entity.js';
+import type { PimcoreImportRun as PimcoreImportRunRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-import-run.entity.js';
+import type { PimcoreMediaLink as PimcoreMediaLinkRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-media-link.entity.js';
+import type { PimcoreSourceLink as PimcoreSourceLinkRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-source-link.entity.js';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
 import type { Invoice as InvoiceRow } from '../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
 import type { InvoiceLine as InvoiceLineRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
@@ -682,6 +691,39 @@ export const ErgonodeProductLink = classNamed<ErgonodeProductLinkRow>(
 export const ErgonodeStreamCursor = classNamed<ErgonodeStreamCursorRow>(
   pimErgonodeEntities,
   'ErgonodeStreamCursor',
+);
+
+export const PimcoreCatalogueDelivery = classNamed<PimcoreCatalogueDeliveryRow>(
+  pimPimcoreEntities,
+  'PimcoreCatalogueDelivery',
+);
+export const PimcoreConnection = classNamed<PimcoreConnectionRow>(
+  pimPimcoreEntities,
+  'PimcoreConnection',
+);
+export const PimcoreDeliveredRecord = classNamed<PimcoreDeliveredRecordRow>(
+  pimPimcoreEntities,
+  'PimcoreDeliveredRecord',
+);
+export const PimcoreFieldProtection = classNamed<PimcoreFieldProtectionRow>(
+  pimPimcoreEntities,
+  'PimcoreFieldProtection',
+);
+export const PimcoreImportIssue = classNamed<PimcoreImportIssueRow>(
+  pimPimcoreEntities,
+  'PimcoreImportIssue',
+);
+export const PimcoreImportRun = classNamed<PimcoreImportRunRow>(
+  pimPimcoreEntities,
+  'PimcoreImportRun',
+);
+export const PimcoreMediaLink = classNamed<PimcoreMediaLinkRow>(
+  pimPimcoreEntities,
+  'PimcoreMediaLink',
+);
+export const PimcoreSourceLink = classNamed<PimcoreSourceLinkRow>(
+  pimPimcoreEntities,
+  'PimcoreSourceLink',
 );
 
 /**
