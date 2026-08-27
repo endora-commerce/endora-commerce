@@ -12,7 +12,7 @@ import { hashPassword } from '@endora-commerce/platform/kernel';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 import { TaxonomyReconcilerService } from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-reconciler.service.js';
-import { FeedTaxonomyMapping } from '../../helpers/package-entities.js';
+import { FeedTaxonomy, FeedTaxonomyMapping } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T051 — the taxonomy and mapping admin surface
@@ -64,6 +64,30 @@ describe('feed taxonomies [contract]', () => {
       emFactory: () => h.em(),
       dataRoot: FIXTURE,
     }).reconcile();
+
+    // Promote this file's own revision, and this is not ceremony. The
+    // reconciler marks a revision current **only when the provider has none**
+    // — a deliberate product rule (FR-086: a platform upgrade must not
+    // activate a revision an operator never chose). So if anything else in the
+    // fork installed a `google_merchant` revision first, the fixture installs
+    // and stays dormant, and the listing endpoint — which returns
+    // `isCurrent: true` only — never shows it. Promoting through the same
+    // Command an operator uses makes this file independent of what ran before
+    // it, which is the only thing that makes its assertions its own.
+    const fixtureRevision = await h
+      .em()
+      .findOneOrFail(FeedTaxonomy, { providerCode: 'google_merchant', revision: '2020-01-01' });
+    if (!fixtureRevision.isCurrent) {
+      // `expectedStaleMappingCount` is the operator's own confirmation of how
+      // many mappings the promotion will invalidate, so it is required rather
+      // than optional. Nothing has mapped anything yet at this point in
+      // `beforeAll`, so the honest number is zero — and passing it asserts
+      // that, rather than waiving the check.
+      await h.productFeeds.taxonomyRevisions.promote({
+        taxonomyId: fixtureRevision.id,
+        expectedStaleMappingCount: 0,
+      });
+    }
 
     const role = await h.app.inject({
       method: 'PUT',
