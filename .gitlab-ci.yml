@@ -1165,6 +1165,18 @@ boot-gate:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  # Memory, and the same fact about this host that serialises `test:backend`.
+  # The three image builds share one stage and used to run concurrently: two of
+  # them are frontend builds (Vite and Next), each of which holds the whole
+  # module graph in one process, and the runner is 4 vCPU on a box that also
+  # carries another project. Pipeline 11938 died `cannot allocate memory` in
+  # `build:admin` **and** `build:storefront` at once, which is the shape a
+  # concurrency limit fixes and a heap flag does not — the OOM is the host's,
+  # not V8's, so `--max-old-space-size` would only move which fork the kernel
+  # picks. Serialising costs wall clock on a stage that already only runs on
+  # `master`. Revisit from the runner's own `concurrent` setting once the suite
+  # has a machine to itself, not from here.
+  resource_group: image-builds
 
 build:backend:
   extends: .build-base
