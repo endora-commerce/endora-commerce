@@ -62,8 +62,7 @@ const BUNDLE = passthroughBundle('core', [
   'orderDetail.shipments.status.pending_manual',
   'orderDetail.shipments.carrierNotContacted.title',
   'orderDetail.shipments.carrierNotContacted.body',
-  'orderDetail.shipments.carrierNotContacted.action',
-  'orderDetail.shipments.carrierNotContacted.actionBusy',
+  'orderDetail.shipments.generate.again',
 ]);
 
 beforeEach(() => {
@@ -79,6 +78,17 @@ function renderTab(): void {
   renderWithI18n(<OrderShipmentsTab orderId="o1" deliveryMethodCode="courier" />, BUNDLE);
 }
 
+/**
+ * #250 — a shipment no carrier was asked for.
+ *
+ * The recovery used to be its own button inside the alert, labelled
+ * `carrierNotContacted.action`. !1008 consolidated it into the general
+ * `generateAgain` button below the table, and the capability is unchanged:
+ * `canGenerate` includes `latest?.status === 'pending_manual'`, which is
+ * exactly this state, and the handler is the same one. So this file asserts
+ * the merged label — what it must keep asserting is that **a recovery is
+ * offered at all**, not which of the two buttons offers it.
+ */
 describe('OrderShipmentsTab — a shipment no carrier was asked for (#250)', () => {
   it('names the state, explains it and offers the recovery', async () => {
     getSpy.mockResolvedValue({ data: [STALLED] });
@@ -94,7 +104,7 @@ describe('OrderShipmentsTab — a shipment no carrier was asked for (#250)', () 
     // switch back on; no translation can supply that. It reads twice — in the
     // banner and in the row's own reason column — and both are wanted.
     expect(screen.getAllByText(/demo_carrier/)).toHaveLength(2);
-    expect(screen.getByText('orderDetail.shipments.carrierNotContacted.action')).toBeInTheDocument();
+    expect(screen.getByText('orderDetail.shipments.generate.again')).toBeInTheDocument();
   });
 
   it('generates a new attempt — the endpoint that asks the carrier — and reloads', async () => {
@@ -104,11 +114,11 @@ describe('OrderShipmentsTab — a shipment no carrier was asked for (#250)', () 
 
     await waitFor(() =>
       expect(
-        screen.getByText('orderDetail.shipments.carrierNotContacted.action'),
+        screen.getByText('orderDetail.shipments.generate.again'),
       ).toBeInTheDocument(),
     );
     getSpy.mockResolvedValue({ data: [STALLED, ACCEPTED] });
-    await userEvent.click(screen.getByText('orderDetail.shipments.carrierNotContacted.action'));
+    await userEvent.click(screen.getByText('orderDetail.shipments.generate.again'));
 
     await waitFor(() => expect(postSpy).toHaveBeenCalledWith(SHIPMENTS_PATH, {}));
     // The list is re-read, and the banner goes with the stalled attempt no
