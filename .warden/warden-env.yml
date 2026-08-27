@@ -92,7 +92,10 @@ services:
       - postgres
       - redis
     volumes:
-      - ./.warden/nginx/api.conf:/etc/nginx/conf.d/default.conf:ro
+      # Directory bind, not a single file. Docker Desktop on WSL2 proxies file
+      # mounts through /run/desktop/.../docker-desktop-bind-mounts/ which
+      # disappears across daemon restarts and then runc fails with ENOENT.
+      - ./.warden/nginx/api:/etc/nginx/conf.d:ro
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     labels:
@@ -107,7 +110,7 @@ services:
     hostname: '${WARDEN_ENV_NAME}-nginx-storefront'
     image: nginx:1.27-alpine
     volumes:
-      - ./.warden/nginx/storefront.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./.warden/nginx/storefront:/etc/nginx/conf.d:ro
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     labels:
@@ -122,7 +125,7 @@ services:
     hostname: '${WARDEN_ENV_NAME}-nginx-admin'
     image: nginx:1.27-alpine
     volumes:
-      - ./.warden/nginx/admin.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./.warden/nginx/admin:/etc/nginx/conf.d:ro
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     labels:
