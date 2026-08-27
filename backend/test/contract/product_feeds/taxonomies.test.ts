@@ -31,6 +31,25 @@ const BASE = '/api/v1/admin/feed-taxonomies';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(HERE, '../../fixtures/product_feeds/taxonomies-v1');
 
+/**
+ * This file installs its own four-node fixture taxonomy and asserts against
+ * **that**, never against the whole table.
+ *
+ * It used to claim `toHaveLength(1)` and to take the first row a provider had,
+ * which is a claim about the platform rather than about the rows this file
+ * created. It held only while nothing else in the same fork installed a
+ * `google_merchant` revision — and `taxonomy-bundled-data.test.ts` does exactly
+ * that, with the 21 real revisions the package ships. The two were in different
+ * shards until the packaging sweep moved this module, and then they were not:
+ * shard composition is a function of where the files sit, so it changes under a
+ * move and nothing announces it.
+ *
+ * The endpoint cannot help: `GET .../nodes` scopes by `providerCode` and has no
+ * revision parameter, so it answers across every installed revision. That is
+ * not a defect this file may assert away, so it asserts presence of its own
+ * node instead of absence of everyone else's — which is the claim it is
+ * entitled to make.
+ */
 describe('feed taxonomies [contract]', () => {
   let h: BackendServerHandle;
   let rootId: string;
@@ -104,8 +123,14 @@ describe('feed taxonomies [contract]', () => {
     const res = await h.app.inject({ method: 'GET', url: BASE, ...ADMIN });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: Array<Record<string, unknown>> };
-    const google = body.data.find((t) => t['providerCode'] === 'google_merchant')!;
-    expect(google['revision']).toBe('2020-01-01');
+    // Find **this file's own** revision rather than the first row the provider
+    // has. The bundled taxonomies ship with the package and another file in the
+    // same fork installs them, so `google_merchant` legitimately has more than
+    // one revision installed — see the header.
+    const google = body.data.find(
+      (t) => t['providerCode'] === 'google_merchant' && t['revision'] === '2020-01-01',
+    )!;
+    expect(google).toBeDefined();
     expect(google['nodeCount']).toBe(4);
     expect(typeof google['installedAt']).toBe('string');
   });
@@ -139,13 +164,16 @@ describe('feed taxonomies [contract]', () => {
       });
       expect(res.statusCode).toBe(200);
       const rows = (res.json() as { data: Array<Record<string, unknown>> }).data;
-      expect(rows).toHaveLength(1);
-      expect(rows[0]!['externalId']).toBe('3');
-      expect(rows[0]!['label']).toBe('Bird Supplies');
-      expect(rows[0]!['fullPath']).toBe(
-        'Animals & Pet Supplies > Pet Supplies > Bird Supplies',
-      );
-      expect(rows[0]!['depth']).toBe(2);
+      // Not `toHaveLength(1)`: the endpoint scopes by provider and has no
+      // revision parameter, so it answers across every installed revision of
+      // `google_merchant`. This asserts what this file created, which is the
+      // only claim it is entitled to make — see the header.
+      const hit = rows.find(
+        (r) => r['externalId'] === '3' && r['label'] === 'Bird Supplies',
+      )!;
+      expect(hit).toBeDefined();
+      expect(hit['fullPath']).toBe('Animals & Pet Supplies > Pet Supplies > Bird Supplies');
+      expect(hit['depth']).toBe(2);
     });
 
     it('searches the Polish path when asked, returning the same node id (FR-085)', async () => {
@@ -156,11 +184,12 @@ describe('feed taxonomies [contract]', () => {
       });
       expect(res.statusCode).toBe(200);
       const rows = (res.json() as { data: Array<Record<string, unknown>> }).data;
-      expect(rows).toHaveLength(1);
       // Same identity, different label — which is exactly why a mapping stores
-      // the external id and not a path.
-      expect(rows[0]!['externalId']).toBe('3');
-      expect(rows[0]!['label']).toBe('Artykuły dla ptaków');
+      // the external id and not a path. Scoped to this file's own node for the
+      // reason the English case above gives.
+      const hit = rows.find((r) => r['label'] === 'Artykuły dla ptaków')!;
+      expect(hit).toBeDefined();
+      expect(hit['externalId']).toBe('3');
     });
 
     it('returns an empty list rather than failing for an uninstalled provider', async () => {
