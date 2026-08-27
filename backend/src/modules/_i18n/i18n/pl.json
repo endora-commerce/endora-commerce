@@ -1027,8 +1027,6 @@
   "orderDetail.sections.items": "Pozycje",
   "orderDetail.sections.organization": "Organizacja",
   "orderDetail.sections.status": "Status",
-  "orderDetail.shipments.carrierNotContacted.action": "Wygeneruj przesyłkę ponownie",
-  "orderDetail.shipments.carrierNotContacted.actionBusy": "Generowanie…",
   "orderDetail.shipments.carrierNotContacted.body": "Przesyłka została utworzona, ale moduł obsługujący jej przewoźnika jest wyłączony, więc etykieta, numer śledzenia ani odbiór nigdy nie zostały zamówione. Włącz moduł ponownie i wygeneruj przesyłkę jeszcze raz.",
   "orderDetail.shipments.carrierNotContacted.title": "Przewoźnik nie został powiadomiony",
   "orderDetail.shipments.columns.attempt": "Próba",
