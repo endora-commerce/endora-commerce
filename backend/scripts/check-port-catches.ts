@@ -252,7 +252,11 @@ import {
   lockedOwners,
   type ManifestActivationInput,
 } from './lib/switchable-modules.js';
-import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import {
+  refuseVacuousModulePopulation,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
+} from './lib/module-population.js';
 import { declaresRegisterModule, requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
@@ -571,6 +575,15 @@ export interface PortCatchInput {
    * default — a site is only ever retired by a lock somebody declared.
    */
   readonly manifests?: readonly ManifestActivationInput[];
+  /**
+   * Directories whose files belong to a module no `modules/<id>/` segment names
+   * — `lib/module-roots.ts`' `hostResidentModules` (feature 080, T040b).
+   *
+   * Omitting it does not merely lose a module: every file of one attributes to
+   * `ROOT`, so its ports read as a composition root's and every `catch` around
+   * one of them is judged under the wrong scope.
+   */
+  readonly hostResidentModules?: HostResidentModules | undefined;
 }
 
 interface Analysis {
@@ -652,7 +665,10 @@ function isContainerRegistration(node: ts.CallExpression): boolean {
  * container name resolved by a module three files away. Each round can only add
  * aliases, and a round that adds none is the last.
  */
-function analyze(sources: ReadonlyMap<string, string>): Analysis {
+function analyze(
+  sources: ReadonlyMap<string, string>,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): Analysis {
   const parsed = new Map<string, ts.SourceFile>();
   for (const [file, text] of sources) {
     parsed.set(file, ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true));
@@ -678,7 +694,7 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
     // composer and this check cannot disagree about which file composes a
     // module.
     if (!declaresRegisterModule(sf.getFullText())) continue;
-    const owner = moduleOf(`/src/${file}`);
+    const owner = moduleOf(`/src/${file}`, hostResident);
     if (owner === null) continue;
     for (const name of providedPortNames(sf.getFullText(), file)) portOwners.set(name, owner);
   }
@@ -800,7 +816,7 @@ function analyze(sources: ReadonlyMap<string, string>): Analysis {
    */
   const round = (): void => {
     for (const [file, sf] of parsed) {
-      const scope = moduleOf(`/src/${file}`) ?? ROOT;
+      const scope = moduleOf(`/src/${file}`, hostResident) ?? ROOT;
       const reads = (name: string, at?: ts.Node): boolean => readsAsPort(name, scope, file, at);
       const at = (node: ts.Node): string =>
         `${file}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`;
@@ -1322,7 +1338,8 @@ function classesIn(sf: ts.SourceFile): Map<string, Map<string, ts.Node>> {
 
 /** Every `try` in `src/**` whose body calls through a gated port. */
 export function findPortCatches(input: PortCatchInput): PortCatch[] {
-  const analysis = analyze(input.sources);
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
+  const analysis = analyze(input.sources, hostResident);
   const locked = lockedOwners(input.manifests ?? []);
   /**
    * D-63 — every gate this alias carries is owned by a module the platform
@@ -1363,12 +1380,13 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
     declaredMembers.get(file)?.get(className)?.has(name) === true;
   const carryingMethods = collectCarryingMethods(
     parsed,
-    (file, name, at) => analysis.readsAsPort(name, moduleOf(`/src/${file}`) ?? ROOT, file, at),
+    (file, name, at) =>
+      analysis.readsAsPort(name, moduleOf(`/src/${file}`, hostResident) ?? ROOT, file, at),
     declaresMember,
   );
 
   for (const [file] of input.sources) {
-    const moduleId = moduleOf(`/src/${file}`) ?? ROOT;
+    const moduleId = moduleOf(`/src/${file}`, hostResident) ?? ROOT;
     const sf = parsed.get(file) as ts.SourceFile;
 
     const readsAsPort = (name: string, at?: ts.Node): boolean =>
@@ -1554,10 +1572,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  const result = checkPortCatches({ sources, manifests });
+  const catchInput = {
+    sources,
+    manifests,
+    hostResidentModules: layout.hostResidentModules,
+  };
+  const result = checkPortCatches(catchInput);
 
   if (listMode) {
-    for (const entry of findPortCatches({ sources, manifests })) {
+    for (const entry of findPortCatches(catchInput)) {
       const tag = entry.handled
         ? 'HANDLED '
         : entry.ownerLocked

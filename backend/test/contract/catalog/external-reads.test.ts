@@ -12,7 +12,7 @@ import { Category } from '../../helpers/package-entities.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**

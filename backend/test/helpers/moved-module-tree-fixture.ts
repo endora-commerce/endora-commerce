@@ -14,9 +14,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DISCOVERED_MANIFESTS } from '../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../src/manifest-index.generated.js';
 import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
 import { discoverModulePackages } from '../../scripts/lib/module-packages.js';
+import { MANIFEST_INDEX_FILENAME } from '../../scripts/lib/module-roots.js';
 
 /**
  * A backend whose module tree has moved, with the residue left behind — the
@@ -170,6 +171,36 @@ function routedModuleShippingABundle(): KeptBundle {
   );
 }
 
+/**
+ * The kept module's real directory, and where the fixture stages it.
+ *
+ * `_lifecycle` sits at `backend/src/lifecycle/` since feature 080's T040b —
+ * D-160.11 keeps the lifecycle subsystem out of the package sweep, so it is the
+ * one registered module whose sources the host owns — and the fixture stages it
+ * at the same place relative to `src/`, along with the manifest index, which
+ * became host-owned with it (D-160.3). Both are derived rather than spelled:
+ * the ledgers the spawned checks compare against are keyed on where these files
+ * are, so staging them at their pre-T040b addresses made five of those ledgers
+ * read stale *inside the fixture* — five checks exiting 1 on a residue they
+ * exist to refuse with 2, which is a red for the wrong reason.
+ */
+function keptModuleDirectory(): string {
+  const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === KEPT_MODULE);
+  const directory = entry === undefined ? null : dirname(entry.manifestPath);
+  if (directory === null || !directory.startsWith(join(BACKEND_ROOT, 'src') + sep)) {
+    throw new Error(
+      `[moved-module-tree-fixture] '${KEPT_MODULE}' is not in the application's own source ` +
+        'tree, so the fixture cannot copy the files its spawned checks import as code. ' +
+        'Point KEPT_MODULE at a module the application still holds.',
+    );
+  }
+  return directory;
+}
+
+const KEPT_MODULE_RELATIVE_DIR = relative(join(BACKEND_ROOT, 'src'), keptModuleDirectory())
+  .split(sep)
+  .join('/');
+
 const KEPT_BUNDLE = routedModuleShippingABundle();
 
 // ---------------------------------------------------------------------------
@@ -295,8 +326,16 @@ function stubManifestIndex(ids: readonly string[], backendRoot: string): string 
   // field being absent, never about the file being present. It is written here,
   // in a fixture whose job is to be a concrete layout, and not derived, so that
   // the stub keeps saying what a pre-move index said.
+  // The kept module is the exception, and it has to be: its files are really
+  // there, so an entry pointing at its pre-move address would leave the layout
+  // unable to place them and every ledger keyed on where they are reading stale.
   const pathFor = (id: string): string =>
-    join(backendRoot, 'src', 'modules', id, 'manifest.ts').split('\\').join('/');
+    (id === KEPT_MODULE
+      ? join(backendRoot, 'src', KEPT_MODULE_RELATIVE_DIR, 'manifest.ts')
+      : join(backendRoot, 'src', 'modules', id, 'manifest.ts')
+    )
+      .split('\\')
+      .join('/');
   return [
     '// Fixture stand-in for the generated manifest index.',
     '//',
@@ -434,17 +473,17 @@ export function createMovedModuleTreeFixture(
     });
   }
   cpSync(
-    join(BACKEND_ROOT, 'src', 'modules', KEPT_MODULE, 'services'),
-    join(backend, 'src', 'modules', KEPT_MODULE, 'services'),
+    join(keptModuleDirectory(), 'services'),
+    join(backend, 'src', KEPT_MODULE_RELATIVE_DIR, 'services'),
     { recursive: true },
   );
   cpSync(
-    join(BACKEND_ROOT, 'src', 'modules', KEPT_MODULE, 'registered-manifests.ts'),
-    join(backend, 'src', 'modules', KEPT_MODULE, 'registered-manifests.ts'),
+    join(keptModuleDirectory(), 'registered-manifests.ts'),
+    join(backend, 'src', KEPT_MODULE_RELATIVE_DIR, 'registered-manifests.ts'),
   );
   cpSync(
-    join(BACKEND_ROOT, 'src', 'modules', KEPT_MODULE, 'manifest.ts'),
-    join(backend, 'src', 'modules', KEPT_MODULE, 'manifest.ts'),
+    join(keptModuleDirectory(), 'manifest.ts'),
+    join(backend, 'src', KEPT_MODULE_RELATIVE_DIR, 'manifest.ts'),
   );
   // Same reason as the two files above: a spawned check imports one of these as
   // *code*, so without it that spawn dies at module resolution and its proof
@@ -461,7 +500,7 @@ export function createMovedModuleTreeFixture(
     { recursive: true },
   );
   writeFileSync(
-    join(backend, 'src', 'modules', KEPT_MODULE, 'manifest-index.generated.ts'),
+    join(backend, 'src', MANIFEST_INDEX_FILENAME),
     stubManifestIndex(
       options.registeredIds ?? DISCOVERED_MANIFESTS.map((entry) => entry.id),
       backend,
@@ -592,8 +631,21 @@ function repointEscapingSpecifiers(root: string, id: string): void {
 /** The index, rewritten so a relocated module's manifest still resolves. */
 function splitManifestIndex(relocated: ReadonlySet<string>): string {
   const ids = DISCOVERED_MANIFESTS.map((entry) => entry.id);
-  const specifierOf = (id: string): string =>
-    relocated.has(id) ? `../../../../packages/modules/${id}/src/manifest.js` : `../${id}/manifest.js`;
+  // Computed from the two paths rather than written as a shape, because the
+  // index moved out of the module tree with T040b (D-160.3) and every one of
+  // these specifiers is relative to wherever it sits.
+  const indexDirectory = posix.join('backend', 'src');
+  const specifierOf = (id: string): string => {
+    const target = relocated.has(id)
+      ? posix.join(packagedModulePath(id).split(sep).join('/'), 'src', 'manifest.js')
+      : posix.join(
+          indexDirectory,
+          id === KEPT_MODULE ? KEPT_MODULE_RELATIVE_DIR : posix.join('modules', id),
+          'manifest.js',
+        );
+    const specifier = posix.relative(indexDirectory, target);
+    return specifier.startsWith('.') ? specifier : `./${specifier}`;
+  };
   return [
     '// Fixture stand-in for the generated manifest index, over a split tree.',
     '//',
@@ -777,7 +829,7 @@ export function createSplitModuleTreeFixture(
   }
 
   writeFileSync(
-    join(backend, 'src', 'modules', KEPT_MODULE, 'manifest-index.generated.ts'),
+    join(backend, 'src', MANIFEST_INDEX_FILENAME),
     splitManifestIndex(
       new Set([...alreadyPackaged.map((pkg) => pkg.moduleId), ...toRelocate, ...toStrand]),
     ),

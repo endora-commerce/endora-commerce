@@ -5,7 +5,7 @@ import {
   ReducedDeploymentDeclarationSchema,
   type ReducedDeploymentDeclaration,
 } from '@endora-commerce/contracts';
-import { selectedDeployment } from '../../../overlay/overlay-roots.js';
+import { selectedDeployment } from '../../overlay/overlay-roots.js';
 
 /**
  * The declared escape from D-101's boot refusal.
@@ -35,7 +35,7 @@ import { selectedDeployment } from '../../../overlay/overlay-roots.js';
  * module (`test/integration/kernel/module-removal.test.ts` counts exactly that).
  */
 
-/** `backend/src` — this file lives at `backend/src/modules/_lifecycle/services/`. */
+/** `backend/src` — this file lives at `backend/src/lifecycle/services/`. */
 const BACKEND_SRC = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
 
 const RUNNING_FROM_DIST = import.meta.url.includes('/dist/');

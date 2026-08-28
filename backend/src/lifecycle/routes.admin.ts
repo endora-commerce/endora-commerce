@@ -14,18 +14,18 @@ import {
   type ModuleDeactivationImpact,
   type ModuleListResponse,
 } from '@endora-commerce/contracts';
-import type { CommandBus } from '../../commands/index.js';
-import type { ApiInterceptorRegistry } from '../../http/interceptors/index.js';
-import { HttpError } from '../../http/error-envelope.js';
+import type { CommandBus } from '../commands/index.js';
+import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
+import { HttpError } from '../http/error-envelope.js';
 import type { ModuleLifecycleOrchestrator } from './services/orchestrator.js';
-import { effectiveState, toModulePresenceDto } from '../../kernel/lifecycle/effective-state.js';
-import { rethrowIfModuleDisabled } from '../../kernel/lifecycle/plugin-helpers.js';
+import { effectiveState, toModulePresenceDto } from '../kernel/lifecycle/effective-state.js';
+import { rethrowIfModuleDisabled } from '../kernel/lifecycle/plugin-helpers.js';
 import {
   makeSetActivationCommand,
   propagateActivationChange,
   type ActivationPropagation,
 } from './commands/activation.commands.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '../kernel/ports/require-admin.js';
 
 /**
  * Read-only admin surface for the lifecycle subsystem (feature 018 / E-1).

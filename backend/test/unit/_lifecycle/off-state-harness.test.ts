@@ -10,7 +10,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * The off-state harness is about to be used by ~66 modules, so it gets its own

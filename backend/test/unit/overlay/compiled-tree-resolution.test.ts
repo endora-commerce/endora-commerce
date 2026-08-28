@@ -7,7 +7,7 @@ import {
   overlayModuleManifestsUnder,
 } from '../../../src/overlay/overlay-runtime.js';
 import { classifyKind, indexCore, scanOverlay } from '../../../src/overlay/resolve-overlay.js';
-import { discoverManifests } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+import { discoverManifests } from '../../../src/lifecycle/services/manifest-loader.js';
 import { FIXTURES } from '../../overlay/_fixtures.js';
 
 /**

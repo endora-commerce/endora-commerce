@@ -10,9 +10,9 @@ import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.
 import {
   REGISTERED_MANIFESTS,
   type RegisteredManifestEntry,
-} from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { buildStaticRegistry } from '../../../src/modules/_lifecycle/services/static-registry.js';
-import { ModuleLifecycleOrchestrator } from '../../../src/modules/_lifecycle/services/orchestrator.js';
+} from '../../../src/lifecycle/registered-manifests.js';
+import { buildStaticRegistry } from '../../../src/lifecycle/services/static-registry.js';
+import { ModuleLifecycleOrchestrator } from '../../../src/lifecycle/services/orchestrator.js';
 import { migrationOwnershipOf } from '../../../src/db/configured-migrations.js';
 import { repoRoot } from '../../../src/overlay/overlay-roots.js';
 

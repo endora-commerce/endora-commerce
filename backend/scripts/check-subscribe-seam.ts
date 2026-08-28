@@ -121,7 +121,11 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { moduleOf } from './check-port-dependencies.js';
-import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import {
+  refuseVacuousModulePopulation,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
+} from './lib/module-population.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
@@ -201,6 +205,14 @@ export function keyOf(found: BareSubscription): string {
 export interface SubscribeSeamInput {
   /** Every source under `src/`, keyed by path relative to `src/`. */
   readonly sources: ReadonlyMap<string, string>;
+  /**
+   * Directories whose files belong to a module no `modules/<id>/` segment names
+   * — `lib/module-roots.ts`' `hostResidentModules` (feature 080, T040b).
+   * Without it those files attribute to `null` and both halves of this check
+   * read them as "not a module's", which is a clean line over an unprotected
+   * subtree.
+   */
+  readonly hostResidentModules?: HostResidentModules | undefined;
 }
 
 /** The trailing identifier of a receiver: `this.deps.eventBus` → `eventBus`. */
@@ -236,8 +248,9 @@ function stringLiteralOf(node: ts.Node): string | null {
 export function findBareSubscriptions(input: SubscribeSeamInput): BareSubscription[] {
   const found: BareSubscription[] = [];
 
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
   for (const [file, text] of input.sources) {
-    const moduleId = moduleOf(`/src/${file}`);
+    const moduleId = moduleOf(`/src/${file}`, hostResident);
     // Only a module has an effective state to gate on. A file outside one —
     // the kernel, `http/`, `db/`, a composition root — is not this rule's
     // business.
@@ -521,6 +534,7 @@ export function findWorkerSites(
 ): WorkerSite[] {
   const sites: WorkerSite[] = [];
   const seams = new Set([...WORKER_SEAM_CALLEES, ...forwarders]);
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
 
   for (const [file, text] of input.sources) {
     const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
@@ -570,7 +584,7 @@ export function findWorkerSites(
         sites.push({
           file,
           line: lineOf(node),
-          moduleId: moduleOf(`/src/${file}`),
+          moduleId: moduleOf(`/src/${file}`, hostResident),
           kind: 'construction',
           spelling: `new ${binding}`,
           gated: isGated(node),
@@ -582,7 +596,7 @@ export function findWorkerSites(
           sites.push({
             file,
             line: lineOf(node),
-            moduleId: moduleOf(`/src/${file}`),
+            moduleId: moduleOf(`/src/${file}`, hostResident),
             kind: 'registration',
             spelling: callee,
             gated: isGated(node),
@@ -670,8 +684,9 @@ async function main(): Promise<void> {
     moduleIdOf: layout.moduleIdOfPath,
   });
 
-  const result = checkSubscribeSeam({ sources });
-  const workers = checkWorkerSeam({ sources });
+  const seamInput = { sources, hostResidentModules: layout.hostResidentModules };
+  const result = checkSubscribeSeam(seamInput);
+  const workers = checkWorkerSeam(seamInput);
 
   // Issue #113's shape for the worker half, and it needs its own refusal: the
   // subscription half's floor is the module population, which stays satisfied

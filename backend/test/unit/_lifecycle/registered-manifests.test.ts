@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import { discoverModulePackages } from '../../../scripts/lib/module-packages.js';
-import type { DiscoveredManifestEntry } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import type { DiscoveredManifestEntry } from '../../../src/manifest-index.generated.js';
 import {
   ModuleManifestPathUnresolvableError,
   resolveManifestPath,
-} from '../../../src/modules/_lifecycle/manifest-locations.js';
+} from '../../../src/manifest-locations.js';
 import {
   ManifestPathMissingError,
   REGISTERED_MANIFESTS,
   coreManifestEntries,
   resolvedManifestEntries,
-} from '../../../src/modules/_lifecycle/registered-manifests.js';
+} from '../../../src/lifecycle/registered-manifests.js';
 
 /** `backend/src`, derived from this file rather than spelled. */
 const BACKEND_SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'src');
@@ -169,22 +169,26 @@ describe('a module’s location is answered, or refused — never guessed (T041a
     // `vitest` that is `manifest.ts`, and in a `dist` build it is `manifest.js`;
     // the assertion is `existsSync`, never an extension, so it holds in both.
     //
-    // The module is taken from the tree rather than named: this read `blog`
-    // until that module became a package (feature 080, T040b), at which point
-    // the relative shape had no subject left. The bare shape is exercised in the
-    // test below, over the package that actually exists.
-    const indexUrl = pathToFileURL(
-      join(BACKEND_SRC, 'modules', '_lifecycle', 'manifest-index.generated.ts'),
-    ).href;
-    const inTheTree = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id).find((id) =>
-      existsSync(join(BACKEND_SRC, 'modules', id, 'manifest.ts')),
+    // The module is taken from the tree rather than named, and so is **where**
+    // it sits: this read `blog` until that module became a package (feature
+    // 080, T040b), then `modules/<id>/`, which outlived it by one merge request
+    // — with `_i18n` packaged and `_lifecycle` host-owned at `src/lifecycle/`
+    // (D-160.11), no registered module is under `modules/` at all. What the
+    // control needs is a registered module the application's own tree still
+    // holds, wherever it holds it, and the index records that in `filePath`.
+    // The bare shape is exercised in the test below, over a real package.
+    const indexUrl = pathToFileURL(join(BACKEND_SRC, 'manifest-index.generated.ts')).href;
+    const inTheTree = REGISTERED_MANIFESTS.find((entry) =>
+      entry.filePath.startsWith(`${BACKEND_SRC}${sep}`),
     );
     expect(inTheTree, 'no registered module is in the application tree').toBeDefined();
 
-    const resolved = resolveManifestPath(indexUrl, `../${inTheTree!}/manifest.js`);
+    const directory = dirname(inTheTree!.filePath);
+    const specifier = `./${relative(BACKEND_SRC, directory).split(sep).join('/')}/manifest.js`;
+    const resolved = resolveManifestPath(indexUrl, specifier);
 
     expect(existsSync(resolved)).toBe(true);
-    expect(dirname(resolved)).toBe(join(BACKEND_SRC, 'modules', inTheTree!));
+    expect(dirname(resolved)).toBe(directory);
   });
 
   it('resolves a packaged module through its own package.json, so dirname() is the package', () => {

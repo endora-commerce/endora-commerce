@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { setupBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { ScriptedLlm, seedPromptActionsSettings } from '../../helpers/prompt-actions.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**

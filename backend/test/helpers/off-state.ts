@@ -2,7 +2,7 @@ import { expect } from 'vitest';
 import type { InjectOptions } from 'fastify';
 import { effectiveState } from '../../src/kernel/lifecycle/effective-state.js';
 import { registryCache } from '../../src/kernel/lifecycle/registry-cache.js';
-import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../src/lifecycle/registered-manifests.js';
 
 /**
  * Shared off-state harness — feature 073, FR-052 / Constitution XVII.

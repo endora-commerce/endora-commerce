@@ -219,7 +219,11 @@ import {
   registeredNames,
   resolvedNames,
 } from './check-port-dependencies.js';
-import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import {
+  refuseVacuousModulePopulation,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
+} from './lib/module-population.js';
 import { requireModuleLayout, type ModuleTreeLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
@@ -450,6 +454,13 @@ export interface PortShapeInput {
    * real one.
    */
   readonly unpublishedResolutionLedger?: Readonly<Record<string, string>>;
+  /**
+   * Directories whose files belong to a module no `modules/<id>/` segment names
+   * — `lib/module-roots.ts`' `hostResidentModules` (feature 080, T040b).
+   * Without it a host-resident module's registrations are owned by nobody, and
+   * signal 3 cannot tell its self-resolutions from cross-module ones.
+   */
+  readonly hostResidentModules?: HostResidentModules;
 }
 
 export interface PortShapeResult {
@@ -576,8 +587,11 @@ function implementedNames(sf: ts.SourceFile): string[] {
  * what gets reported. Normalising is not re-deciding: the id still comes from
  * the one function that owns that question.
  */
-function moduleOfKey(file: string): string | null {
-  return moduleOf(forOwnerLookup(file));
+function moduleOfKey(
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): string | null {
+  return moduleOf(forOwnerLookup(file), hostResident);
 }
 
 /** The key spelling `moduleOf`, `registeredNames` and `resolvedNames` expect. */
@@ -630,6 +644,7 @@ function memberName(member: ts.TypeElement): string {
  * does (issue #130): nothing above this function classifies anything.
  */
 export function checkPortShape(input: PortShapeInput): PortShapeResult {
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
   const parsedContracts = new Map<string, ts.SourceFile>();
   const portTypes = new Set<string>();
   /** Every published port, with where it is declared and what it documents. */
@@ -683,7 +698,7 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
   const parsedModulePorts = new Map<string, ts.SourceFile>();
   let modulePortCount = 0;
   for (const [file, text] of modulePorts) {
-    modulePortCount += collect(file, text, moduleOfKey(file), (sf) =>
+    modulePortCount += collect(file, text, moduleOfKey(file, hostResident), (sf) =>
       parsedModulePorts.set(file, sf),
     );
   }
@@ -744,13 +759,13 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
       gatedNames.add(port.name);
       if (port.typeName !== null && !gatedNameOfType.has(port.typeName)) {
         gatedNameOfType.set(port.typeName, port.name);
-        const owner = moduleOfKey(file);
+        const owner = moduleOfKey(file, hostResident);
         if (owner !== null) gatedModuleOfType.set(port.typeName, owner);
       }
     }
   }
   for (const [file, sf] of moduleScan) {
-    const owner = moduleOfKey(file);
+    const owner = moduleOfKey(file, hostResident);
     if (owner === null) continue;
     for (const name of implementedNames(sf)) {
       const claimed = implementsByModule.get(owner);
@@ -873,7 +888,7 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
     // reported. Normalising is not re-deciding: the module id still comes from
     // the one function that owns that question.
     const lookupKey = forOwnerLookup(file);
-    const moduleId = moduleOf(lookupKey);
+    const moduleId = moduleOf(lookupKey, hostResident);
     if (moduleId === null) continue;
     for (const name of registeredNames(text, lookupKey)) ownerOfName.set(name, moduleId);
     for (const resolution of resolvedNames(text, lookupKey)) {
@@ -1054,6 +1069,7 @@ async function main(): Promise<void> {
     contracts: read(CONTRACTS_SRC, contractFiles, 'contracts/'),
     modules: keyed(moduleFiles, layout.keyOf),
     modulePorts: keyed(ports.files, layout.keyOf),
+    hostResidentModules: layout.hostResidentModules,
   };
   const result = checkPortShape(input);
 

@@ -1,16 +1,16 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
-import type { ModulePlugin } from '../../http/server.js';
-import type { AuditPort } from '../../kernel/ports/audit.js';
+import type { ModulePlugin } from '../http/server.js';
+import type { AuditPort } from '../kernel/ports/audit.js';
 import {
   ModuleLifecycleOrchestrator,
   type OrchestratorDeps,
 } from './services/orchestrator.js';
 import type {
-  ModuleRegistryCache} from '../../kernel/lifecycle/registry-cache.js';
+  ModuleRegistryCache} from '../kernel/lifecycle/registry-cache.js';
 import {
   registryCache
-} from '../../kernel/lifecycle/registry-cache.js';
+} from '../kernel/lifecycle/registry-cache.js';
 import { buildStaticRegistry } from './services/static-registry.js';
 import type { LoadedManifestRegistry } from './services/manifest-loader.js';
 

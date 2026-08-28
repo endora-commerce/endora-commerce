@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -15,7 +15,7 @@ import {
   RUNTIME_ASSET_EXTENSIONS,
   type RegisteredBundleModule,
 } from '../../../scripts/lib/runtime-assets.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
 /**
  * D-165 step B — the assets a compiled backend needs, and the audit that
@@ -151,20 +151,26 @@ describe('auditBuiltBundles — a registered module whose bundles are not in the
 
   it('goes red when one registered module’s bundle directory is removed', () => {
     const modules = registeredBundleModules();
-    // The victim is **derived, never named**. This assertion read
-    // `moduleId === 'orders'` until T040b packaged that module, at which point
-    // the built tree the copier produces from `src/` holds no directory for it
-    // and the proof failed on its own fixture rather than on the audit. A module
-    // id written into a test is a fact about a layout that moves; what the proof
-    // actually needs is *any* module the copier really emitted.
-    const victim = modules.find((module) =>
-      existsSync(join(builtRoot, 'modules', module.moduleId, module.bundlesDir)),
-    );
+    // The victim is **derived, never named**, and so is *where its bundles
+    // land*. This assertion read `moduleId === 'orders'` until T040b packaged
+    // that module, at which point the built tree the copier produces from
+    // `src/` held no directory for it; it then looked under
+    // `modules/<id>/<bundlesDir>`, which is a second fact about the layout and
+    // outlived the first by one merge request — with `_i18n` packaged and
+    // `_lifecycle` host-owned at `src/lifecycle/` (D-160.11), no registered
+    // module's bundles sit under `modules/` at all and the proof failed on its
+    // own fixture rather than on the audit. The built path is therefore
+    // computed the way `auditBuiltBundles` computes it, from the module's own
+    // directory relative to `src/`, so the proof follows a module wherever the
+    // application keeps it.
+    const builtBundlesOf = (module: RegisteredBundleModule): string =>
+      join(builtRoot, relative(SRC_ROOT, module.moduleDir), module.bundlesDir);
+    const victim = modules.find((module) => existsSync(builtBundlesOf(module)));
     expect(
       victim,
       'the copier emitted no module bundle directory at all, so there is nothing to remove',
     ).toBeDefined();
-    const removed = join(builtRoot, 'modules', victim!.moduleId, victim!.bundlesDir);
+    const removed = builtBundlesOf(victim!);
     expect(existsSync(removed)).toBe(true);
     rmSync(removed, { recursive: true });
 
@@ -182,7 +188,7 @@ describe('auditBuiltBundles — a registered module whose bundles are not in the
       SRC_ROOT,
       builtRoot,
       collectRuntimeAssets(SRC_ROOT).assets.filter((path) =>
-        path.startsWith(`modules/${victim!.moduleId}/`),
+        path.startsWith(`${relative(SRC_ROOT, victim!.moduleDir).split(sep).join('/')}/`),
       ),
     );
     expect(auditBuiltBundles(modules, SRC_ROOT, builtRoot)).toEqual([]);

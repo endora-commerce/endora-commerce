@@ -32,7 +32,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DISCOVERED_MANIFESTS } from '../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../src/manifest-index.generated.js';
 import {
   auditBuiltBundles,
   bundleModulesUnder,

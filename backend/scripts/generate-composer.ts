@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
  *   - `backend/src/composition.generated.ts` — the list a composition root
  *     walks: one `{ id, version, registerModule }` entry per converted **core**
  *     module, in the order it must be composed.
- *   - `backend/src/modules/_lifecycle/manifest-index.generated.ts` — the one
+ *   - `backend/src/manifest-index.generated.ts` — the one
  *     manifest registry: every core module's manifest, plus the install hooks
  *     it exports.
  *   - `backend/src/db/entities-registry.generated.ts` — the explicit entity
@@ -87,11 +87,7 @@ export function modulePackages(): readonly ModulePackage[] {
 }
 
 const composerOutputPath = join(srcRoot, 'composition.generated.ts');
-const manifestIndexOutputPath = join(
-  modulesRoot,
-  '_lifecycle',
-  'manifest-index.generated.ts',
-);
+const manifestIndexOutputPath = join(srcRoot, 'manifest-index.generated.ts');
 const entitiesRegistryOutputPath = join(srcRoot, 'db', 'entities-registry.generated.ts');
 const migrationsRegistryOutputPath = join(srcRoot, 'db', 'migrations-registry.generated.ts');
 
@@ -103,7 +99,7 @@ const migrationsRegistryOutputPath = join(srcRoot, 'db', 'migrations-registry.ge
  * per D-160.3 — changes this specifier in the next regeneration instead of
  * leaving an artefact that imports a path no longer there (D-100).
  */
-const manifestLocationsPath = join(modulesRoot, '_lifecycle', 'manifest-locations.ts');
+const manifestLocationsPath = join(srcRoot, 'manifest-locations.ts');
 const manifestLocationsSpecifier = ((): string => {
   const relativePath = relative(dirname(manifestIndexOutputPath), manifestLocationsPath)
     .split('\\')
@@ -177,6 +173,60 @@ function directoriesIn(root: string): string[] {
     .filter((name) => !name.startsWith('.') && statSync(join(root, name)).isDirectory());
 }
 
+/**
+ * A module whose sources the **host application** owns, rather than a modules
+ * root or a package (feature 080, T040b).
+ *
+ * There is one, `_lifecycle`, and it is one because of D-160.11: the lifecycle
+ * subsystem is the platform's operator half, so it never became
+ * `@endora-commerce/mod-lifecycle` the way the other 66 modules did. It is
+ * still a registered module — it carries a manifest, permissions, an activation
+ * declaration, a palette action and two i18n bundles, and every other module's
+ * installation is recorded against it — so all three walks below have to find
+ * it, and its directory is not under `modulesRoot` any more.
+ *
+ * Two things are deliberately derived rather than written down (D-100). The
+ * directory is found by walking the source root's own children for a
+ * lifecycle-shape `manifest.ts`, the same marker core discovery uses one level
+ * down, so a second host-resident module needs no edit here. And the **id comes
+ * out of the manifest**, never off the directory name: `_lifecycle` lives in
+ * `src/lifecycle/` precisely because the two must differ —
+ * `scripts/lib/module-roots.ts` reads a directory *named* after a registered id
+ * as a module directory, so `src/_lifecycle/` would make `backend/src` itself a
+ * module root and every kernel file a module's source.
+ */
+interface HostResidentModule {
+  readonly id: string;
+  readonly directory: string;
+  readonly manifestPath: string;
+}
+
+const MANIFEST_ID_RE = /defineModuleManifest\(\{[\s\S]*?\bid:\s*'([^']+)'/;
+
+function hostResidentModules(): HostResidentModule[] {
+  const found: HostResidentModule[] = [];
+  for (const name of directoriesIn(srcRoot)) {
+    const directory = join(srcRoot, name);
+    if (directory === modulesRoot) continue;
+    const manifestPath = join(directory, 'manifest.ts');
+    if (!existsSync(manifestPath)) continue;
+    const source = readFileSync(manifestPath, 'utf8');
+    const id = MANIFEST_ID_RE.exec(source)?.[1];
+    if (id === undefined) continue;
+    found.push({ id, directory, manifestPath });
+  }
+  return found;
+}
+
+/** How the emitted index, which sits at the source root, names a file under it. */
+function srcSpecifier(absolutePath: string): string {
+  const relativePath = relative(dirname(manifestIndexOutputPath), absolutePath)
+    .split('\\')
+    .join('/')
+    .replace(/\.ts$/, '.js');
+  return relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
+}
+
 interface DiscoveredConverted {
   id: string;
   /** Absolute path to the module's `manifest.ts` — read for `manifest.dependencies`. */
@@ -213,6 +263,18 @@ function discoverConverted(packages: readonly ModulePackage[] = modulePackages()
       manifestPath: join(modulesRoot, id, 'manifest.ts'),
       backendImportPath: `./modules/${id}/backend.js`,
       manifestImportPath: `./modules/${id}/manifest.js`,
+    });
+  }
+  for (const host of hostResidentModules()) {
+    const backend = join(host.directory, 'backend.ts');
+    if (!existsSync(backend)) continue;
+    exposesRegisterModule(backend);
+    const dir = relative(srcRoot, host.directory).split('\\').join('/');
+    byId.set(host.id, {
+      id: host.id,
+      manifestPath: host.manifestPath,
+      backendImportPath: `./${dir}/backend.js`,
+      manifestImportPath: `./${dir}/manifest.js`,
     });
   }
   for (const pkg of packages) {
@@ -369,6 +431,9 @@ async function discoverPresentModules(
       continue;
     }
     byId.set(id, await loadManifest(manifestPath));
+  }
+  for (const host of hostResidentModules()) {
+    byId.set(host.id, await loadManifest(host.manifestPath));
   }
   for (const pkg of packages) {
     byId.set(pkg.moduleId, await loadManifest(packageEntryPoints(pkg).manifestPath));
@@ -600,13 +665,21 @@ function discoverManifests(
     // detector, so a packaged module declares one on core's terms.
     hasRecentActivity: detectHookExport('recentActivity', source, id),
   });
-  // The index lives in `_lifecycle/`, so a core manifest is one folder up.
+  // The index sits at the source root (D-160.3), so every specifier it emits
+  // for a file of this application is computed from the two paths rather than
+  // written as a shape — the same reason `manifestLocationsSpecifier` is.
   for (const id of directoriesIn(modulesRoot)) {
     const manifestPath = join(modulesRoot, id, 'manifest.ts');
     if (!existsSync(manifestPath)) continue;
     const source = readFileSync(manifestPath, 'utf8');
     if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(source)) continue;
-    byId.set(id, entryFrom(id, source, `../${id}/manifest.js`));
+    byId.set(id, entryFrom(id, source, srcSpecifier(manifestPath)));
+  }
+  for (const host of hostResidentModules()) {
+    byId.set(
+      host.id,
+      entryFrom(host.id, readFileSync(host.manifestPath, 'utf8'), srcSpecifier(host.manifestPath)),
+    );
   }
   // A packaged module's manifest is imported by the **bare** specifier its own
   // exports map publishes (D-149), so this artefact does not change on the day

@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MODULES } from '../../../src/composition.generated.js';
@@ -13,11 +13,11 @@ import {
   BASELINE_THROUGH,
   type MigrationRegistryEntry,
 } from '../../../src/db/migration-order.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 import {
   REGISTERED_MANIFESTS,
   type RegisteredManifestEntry,
-} from '../../../src/modules/_lifecycle/registered-manifests.js';
+} from '../../../src/lifecycle/registered-manifests.js';
 import { listAssignablePermissionCodes } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 import {
   declaredEntityNamesFor,
@@ -400,7 +400,8 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // activation propagation) and the manifest index the migration order is
   // built from — which issue #289 moved out of `mikro-orm.config.ts` into
   // `configured-migrations.ts`, so that the ordering could be computed without
-  // importing a config that captures `DATABASE_URL` at import.
+  // importing a config that captures `DATABASE_URL` at import. That last one is
+  // the entry T040b drained; see below.
   //
   // **`src/cli.ts` is a *new reference*, which by this ledger's own rule is the
   // regression half and not the conversion half — so it is named rather than
@@ -422,7 +423,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // named `modules/blog/` was `composition.generated.ts`, and a generated file
   // is excluded here by construction — deleting the directory and regenerating
   // removes the reference, which is the whole point of generating it (FR-030).
-  _lifecycle: ['src/cli.ts', 'src/composition.ts', 'src/db/configured-migrations.ts'],
+  //
+  // **`src/db/configured-migrations.ts` left with T040b's last move**, and it
+  // left without anything in that file changing: the reference it held was the
+  // *manifest index*, which is now host-owned under `backend/src/` (D-160.3)
+  // rather than a file of this module's. The module's own sources moved with it
+  // — `src/lifecycle/` since D-160.11 — so the two entries that remain are
+  // named against that directory. What did **not** change is the count of real
+  // references: three files still import this subsystem, and one of them now
+  // imports an artefact that is nobody's module.
+  _lifecycle: ['src/cli.ts', 'src/composition.ts'],
   // `price_lists` needs no entry and gets none, since T040b's fifth batch — this
   // module is now **absent** from the ledger.
   //
@@ -491,18 +501,69 @@ function importSpecifiers(source: string): string[] {
  * That is the whole point of generating them (FR-030).
  */
 function residueFor(moduleId: string): string[] {
-  const needle = `modules/${moduleId}/`;
-  const own = join(srcRoot, 'modules', moduleId);
+  const own = ownDirectoryOf(moduleId);
+  // The address the module keeps *outside* this application — `modules/<id>/`,
+  // which is where a packaged module's own directory sits too. `null` for a
+  // host-resident module: it exists nowhere but here, so a specifier that
+  // leaves `src/` cannot be reaching it.
+  const elsewhere =
+    own === join(srcRoot, 'modules', moduleId) ? `modules/${moduleId}/` : null;
   const offenders = new Set<string>();
   for (const file of walk(srcRoot)) {
-    if (file.startsWith(`${own}/`)) continue;
+    if (file.startsWith(`${own}${sep}`)) continue;
     if (file.endsWith('.generated.ts')) continue;
     const specs = importSpecifiers(readFileSync(file, 'utf8'));
-    if (specs.some((spec) => spec.includes(needle))) {
+    if (specs.some((spec) => reaches(spec, file, own, elsewhere))) {
       offenders.add(relative(resolve(srcRoot, '..'), file));
     }
   }
   return [...offenders].sort();
+}
+
+/**
+ * The module's own directory, which is no longer always `src/modules/<id>`.
+ *
+ * `_lifecycle` sits at `src/lifecycle/` since feature 080's T040b: D-160.11
+ * keeps the lifecycle subsystem out of the package sweep, so it is the one
+ * registered module whose sources the host itself owns. The location is read
+ * off the index's `manifestPath`, the field that answers it for all three
+ * origins; a module that has become a package answers outside `src/`, and for
+ * those the name below is the address a relative specifier would still use.
+ */
+function ownDirectoryOf(moduleId: string): string {
+  const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === moduleId);
+  const directory = entry === undefined ? null : dirname(entry.manifestPath);
+  return directory !== null && directory.startsWith(`${srcRoot}${sep}`)
+    ? directory
+    : join(srcRoot, 'modules', moduleId);
+}
+
+/**
+ * Does this specifier reach the module's own directory?
+ *
+ * A specifier that stays **inside** the application's source tree is resolved
+ * and compared, because a substring test is ambiguous the moment a module's
+ * directory is one path segment: the kernel's own `lifecycle/` (the gating
+ * wrappers, D-37 A1) would answer for `_lifecycle` in every file that imports
+ * `effective-state`. One that leaves it is compared as text against the address
+ * the module keeps out there — which is how a packaged module's built artefact
+ * is recognised (`packages/modules/<id>/dist/…`, the dev seed's row type) and
+ * which resolving would not answer, since a bare specifier goes through an
+ * `exports` map rather than the filesystem.
+ */
+function reaches(
+  specifier: string,
+  file: string,
+  own: string,
+  elsewhere: string | null,
+): boolean {
+  if (specifier.startsWith('.')) {
+    const resolved = resolve(dirname(file), specifier);
+    if (resolved === srcRoot || resolved.startsWith(`${srcRoot}${sep}`)) {
+      return resolved === own || resolved.startsWith(`${own}${sep}`);
+    }
+  }
+  return elsewhere !== null && specifier.includes(elsewhere);
 }
 
 describe('T055 — deleting the module directory leaves no dangling reference', () => {

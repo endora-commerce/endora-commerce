@@ -10,7 +10,7 @@ import { hashPassword } from '@endora-commerce/platform/kernel';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * Feature 067 / T025 — feed CRUD contract (FR-019, FR-021, FR-023, FR-044,

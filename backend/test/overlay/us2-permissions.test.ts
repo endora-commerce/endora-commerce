@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../src/lifecycle/registered-manifests.js';
 import { listAssignablePermissionCodes } from '../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 import { manifest as exampleOverlayManifest } from '../../src/apps/example/modules/example_overlay/manifest.js';
 

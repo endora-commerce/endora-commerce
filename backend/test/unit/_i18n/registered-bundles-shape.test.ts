@@ -4,7 +4,7 @@ import {
   BundleLoadError,
   loadModuleBundles,
 } from '@endora-commerce/mod-i18n/backend';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * Regression guard — every on-disk bundle shipped by a registered module

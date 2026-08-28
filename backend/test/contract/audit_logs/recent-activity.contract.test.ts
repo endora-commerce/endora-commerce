@@ -8,7 +8,7 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { KnownIconNameSchema } from '@endora-commerce/contracts';
 import { RecentActivityCatalog } from '../../../../packages/modules/audit_logs/src/backend/services/recent-activity-catalog.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
 /**

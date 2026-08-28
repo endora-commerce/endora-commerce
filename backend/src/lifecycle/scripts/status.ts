@@ -2,12 +2,12 @@ import { z } from 'zod';
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleListItem } from '@endora-commerce/contracts';
-import { initOrm, closeOrm } from '../../../db/index.js';
-import { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import { initOrm, closeOrm } from '../../db/index.js';
+import { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { ModuleLifecycleOrchestrator } from '../services/orchestrator.js';
 import { buildStaticRegistry } from '../services/static-registry.js';
 import { resolvedManifestEntries } from '../registered-manifests.js';
-import { enterSystemScope } from '../../../kernel/scope.js';
+import { enterSystemScope } from '../../kernel/scope.js';
 
 const StatusArgsSchema = z.object({
   id: z.string().regex(/^_?[a-z][a-z0-9_]*$/).optional(),

@@ -19,10 +19,10 @@ import {
 import {
   loadModulePresence,
   type ShippedModuleEntry,
-} from '../../../src/modules/_lifecycle/services/presence-load.js';
+} from '../../../src/lifecycle/services/presence-load.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { coreModulesRoot } from '../../../src/overlay/overlay-roots.js';
 
 /**

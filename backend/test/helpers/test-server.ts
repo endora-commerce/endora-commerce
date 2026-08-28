@@ -73,11 +73,11 @@ import {
   REGISTERED_MANIFESTS,
   deploymentShippedEntries,
   resolvedManifestEntries,
-} from '../../src/modules/_lifecycle/registered-manifests.js';
+} from '../../src/lifecycle/registered-manifests.js';
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
 import { loadPackageModuleEntries } from '../../src/packages/package-runtime.js';
-import { buildStaticRegistry } from '../../src/modules/_lifecycle/services/static-registry.js';
-import type { LoadedManifestRegistry } from '../../src/modules/_lifecycle/services/manifest-loader.js';
+import { buildStaticRegistry } from '../../src/lifecycle/services/static-registry.js';
+import type { LoadedManifestRegistry } from '../../src/lifecycle/services/manifest-loader.js';
 import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
 // Feature 080 (T052) — the contract types for the seven ports that replaced
 // this root's five entity-class reads, spelled exactly as `composition.ts`

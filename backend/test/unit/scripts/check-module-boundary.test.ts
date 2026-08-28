@@ -635,7 +635,7 @@ describe('analyzeSource — what it must not flag', () => {
     expect(
       analyzeSource(
         "import { manifest } from '../catalog/manifest.js';",
-        'modules/_lifecycle/manifest-index.generated.ts',
+        'manifest-index.generated.ts',
       ),
     ).toEqual([]);
   });

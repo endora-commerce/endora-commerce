@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import type { Command } from '../../../commands/command.js';
-import { HttpError } from '../../../http/error-envelope.js';
-import { Setting } from '../../../kernel/settings/setting.entity.js';
-import { effectiveState } from '../../../kernel/lifecycle/effective-state.js';
+import type { Command } from '../../commands/command.js';
+import { HttpError } from '../../http/error-envelope.js';
+import { Setting } from '../../kernel/settings/setting.entity.js';
+import { effectiveState } from '../../kernel/lifecycle/effective-state.js';
 import { gatingGraph } from '../services/gating-graph.js';
-import { registryCache } from '../../../kernel/lifecycle/registry-cache.js';
+import { registryCache } from '../../kernel/lifecycle/registry-cache.js';
 
 /**
  * The operator-activation flip — feature 073 / US1, FR-007, Principle XIII.

@@ -10,11 +10,11 @@ import type {
   ModuleListItem,
   ModuleListItemFlag,
 } from '@endora-commerce/contracts';
-import { ManifestReconciler } from '../../../kernel/settings/manifest-reconciler.js';
-import { Setting } from '../../../kernel/settings/setting.entity.js';
-import { SettingGroup } from '../../../kernel/settings/setting-group.entity.js';
-import type { AuditPort } from '../../../kernel/ports/audit.js';
-import { ModuleRegistration } from '../../../kernel/lifecycle/module-registration.entity.js';
+import { ManifestReconciler } from '../../kernel/settings/manifest-reconciler.js';
+import { Setting } from '../../kernel/settings/setting.entity.js';
+import { SettingGroup } from '../../kernel/settings/setting-group.entity.js';
+import type { AuditPort } from '../../kernel/ports/audit.js';
+import { ModuleRegistration } from '../../kernel/lifecycle/module-registration.entity.js';
 import {
   acquireLifecycleLock,
   type LifecycleLeaseHandle,
@@ -22,11 +22,11 @@ import {
 import {
   publishStateChanged,
   registryCache,
-} from '../../../kernel/lifecycle/registry-cache.js';
+} from '../../kernel/lifecycle/registry-cache.js';
 import {
   pauseWorkersFor,
   resumeWorkersFor,
-} from '../../../kernel/lifecycle/plugin-helpers.js';
+} from '../../kernel/lifecycle/plugin-helpers.js';
 import type {
   LoadedLifecycleParticipant,
   LoadedManifestRegistry,
@@ -34,8 +34,8 @@ import type {
 import {
   coreMigrationOwnership,
   type MigrationOwnership,
-} from '../../../db/configured-migrations.js';
-import { findModuleCycles } from '../../../db/migration-order.js';
+} from '../../db/configured-migrations.js';
+import { findModuleCycles } from '../../db/migration-order.js';
 
 // ---------------------------------------------------------------------------
 // Public types

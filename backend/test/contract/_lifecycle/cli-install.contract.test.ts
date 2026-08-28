@@ -8,7 +8,7 @@ const exec = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const installScript = resolve(
   here,
-  '../../../src/modules/_lifecycle/scripts/install.ts',
+  '../../../src/lifecycle/scripts/install.ts',
 );
 
 /**

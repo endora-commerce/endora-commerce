@@ -51,11 +51,20 @@ function tree(files: Readonly<Record<string, string>>): string {
 }
 
 /** The generated index, in the shape the composer emits. */
-function indexSource(entries: ReadonlyArray<{ id: string; from: string }>): string {
+function indexSource(
+  entries: ReadonlyArray<{ id: string; from: string; manifestPath?: string }>,
+): string {
   return [
     ...entries.map((entry, i) => `import { manifest as manifest${i} } from '${entry.from}';`),
     'export const DISCOVERED_MANIFESTS = [',
-    ...entries.map((entry, i) => `  { id: '${entry.id}', manifest: manifest${i} },`),
+    ...entries.map(
+      (entry, i) =>
+        `  { id: '${entry.id}', manifest: manifest${i}` +
+        // Emitted only where a test is about *where* a module is: the real
+        // artefact always carries it (T041a), and the derivations that do not
+        // read it must keep answering for an index that predates the field.
+        `${entry.manifestPath === undefined ? '' : `, manifestPath: ${JSON.stringify(entry.manifestPath)}`} },`,
+    ),
     '];',
     '',
   ].join('\n');
@@ -129,7 +138,7 @@ describe('the workspace declaration is the authority for what a package is', () 
 });
 
 describe('the manifest index is located, not spelled', () => {
-  it('finds it under `_lifecycle`, where it is today', () => {
+  it('finds it under `_lifecycle`, where it used to be', () => {
     const root = splitCheckout();
     expect(findManifestIndex(root, nodeWorkspaceFs())).toBe(
       join(root, 'backend/src/modules/_lifecycle/manifest-index.generated.ts'),
@@ -138,8 +147,11 @@ describe('the manifest index is located, not spelled', () => {
 
   it('finds it at the host source root, where the 2026-08-22 ruling puts it', () => {
     // The index is bare core by D-104 and it enumerates *other* packages, so it
-    // becomes host-owned after the move. A derivation that joined
-    // `modules/_lifecycle/` onto a source root would answer "gone" here.
+    // became host-owned with the move (D-160.3, delivered by T040b). A
+    // derivation that joined `modules/_lifecycle/` onto a source root would
+    // answer "gone" here — and the case above, the pre-move layout, has to keep
+    // answering too: this repository is one checkout of it and a client tree
+    // that has not taken the move is another.
     const root = tree({
       'pnpm-workspace.yaml': WORKSPACE,
       'backend/package.json': '{ "name": "backend" }\n',
@@ -196,6 +208,50 @@ describe('the roots themselves', () => {
     expect(layout.moduleIdOfPath(join(root, 'backend/src/modules/blog/backend.ts'))).toBe('blog');
     expect(layout.moduleIdOfPath(join(root, 'packages/modules/shop/src/backend.ts'))).toBe('shop');
     expect(layout.moduleIdOfPath(join(root, 'backend/src/kernel/index.ts'))).toBeNull();
+  });
+
+  it('places a host-resident module from the index, and only that one', async () => {
+    // Feature 080, T040b. `_lifecycle` is the one registered module the host
+    // itself owns (D-160.11), so its directory is neither under a modules root
+    // nor a workspace package — and it is deliberately **not** named after its
+    // id, because a `src/_lifecycle/` would make `backend/src` a module root
+    // and every kernel file a module's source. The location comes off the
+    // index's own `manifestPath`, the same field the runtime reads.
+    const root = tree({
+      'pnpm-workspace.yaml': WORKSPACE,
+      'package.json': '{ "name": "root", "type": "module", "private": true }\n',
+      'backend/package.json': '{ "name": "backend", "type": "module", "private": true }\n',
+      'backend/src/manifest-index.generated.ts': '',
+      'backend/src/lifecycle/manifest.ts': manifestSource('_lifecycle'),
+      'backend/src/modules/blog/manifest.ts': manifestSource('blog'),
+      'backend/src/modules/blog/backend.ts': 'export const a = 1;\n',
+      'backend/src/kernel/index.ts': 'export const k = 1;\n',
+    });
+    writeFileSync(
+      join(root, 'backend/src/manifest-index.generated.ts'),
+      indexSource([
+        { id: '_lifecycle', from: './lifecycle/manifest.js', manifestPath: join(root, 'backend/src/lifecycle/manifest.ts') },
+        { id: 'blog', from: './modules/blog/manifest.js', manifestPath: join(root, 'backend/src/modules/blog/manifest.ts') },
+      ]),
+      'utf8',
+    );
+    const layout = await resolveModuleLayout(join(root, 'backend'));
+
+    expect(layout.moduleWalkRoots).toEqual([
+      join(root, 'backend/src/modules'),
+      join(root, 'backend/src/lifecycle'),
+      join(root, 'backend/src/apps'),
+    ]);
+    expect(layout.moduleIdOfPath(join(root, 'backend/src/lifecycle/services/lock.ts'))).toBe(
+      '_lifecycle',
+    );
+    expect(layout.moduleDirectoryOf('_lifecycle')).toBe(join(root, 'backend/src/lifecycle'));
+    expect([...layout.hostResidentModules]).toEqual([['lifecycle', '_lifecycle']]);
+    // The ordinary module is not one of them, and the source root is never a
+    // root of its own: a candidate that swallowed the tree would report every
+    // kernel file as a module's.
+    expect(layout.moduleIdOfPath(join(root, 'backend/src/kernel/index.ts'))).toBeNull();
+    expect(layout.moduleWalkRoots).not.toContain(join(root, 'backend/src'));
   });
 
   it('keeps the application spelling and answers repo-relative for a package', async () => {

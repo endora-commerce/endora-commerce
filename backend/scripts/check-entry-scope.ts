@@ -224,7 +224,7 @@ export function keyOf(site: EntrySite): string {
  * longer describes an unscoped site fails it too.
  */
 export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
-  'src/modules/_lifecycle/services/lock.ts:acquireLifecycleLock:setInterval':
+  'src/lifecycle/services/lock.ts:acquireLifecycleLock:setInterval':
     'Lease refresh: one Redis EVAL per tick, no EntityManager. A tenant context ' +
     'would be dead weight and the entry would emit an escape-hatch audit record ' +
     'every few seconds for the life of every lease.',

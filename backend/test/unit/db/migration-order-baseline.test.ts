@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BASELINE_THROUGH, orderMigrations } from '../../../src/db/migration-order.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
 /**
  * The frozen historical prefix, committed as a literal.

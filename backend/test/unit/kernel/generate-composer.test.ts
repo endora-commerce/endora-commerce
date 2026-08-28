@@ -13,8 +13,8 @@ import {
   type ComposerNode,
 } from '../../../scripts/generate-composer.js';
 import { MODULES } from '../../../src/composition.generated.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
@@ -113,21 +113,22 @@ describe('F2 — a single generated manifest registry', () => {
 
   it('is the only file that imports a module manifest statically', () => {
     const registry = readFileSync(
-      new URL('../../../src/modules/_lifecycle/registered-manifests.ts', import.meta.url),
+      new URL('../../../src/lifecycle/registered-manifests.ts', import.meta.url),
       'utf8',
     );
-    expect(registry).not.toMatch(/from '\.\.\/[a-z_]+\/manifest\.js'/);
+    expect(registry).not.toMatch(/from '\.[^']*\/manifest\.js'/);
     // The control: the index really does import manifests, so the assertion
-    // above is about `registered-manifests.ts` and not about an empty file. The
-    // module is derived rather than named — it read `blog` until that module
-    // became a package (feature 080, T040b) and the index started naming it
-    // `@endora-commerce/mod-blog`, at which point a named module is an expiry
-    // date with 64 more moves behind it.
+    // above is about `registered-manifests.ts` and not about an empty file.
+    // Neither the module nor the *shape* of the specifier is named — it read
+    // `blog` until that module became a package (feature 080, T040b) and the
+    // index started naming it `@endora-commerce/mod-blog`, then `../<id>/` until
+    // the index moved to the source root (D-160.3) and every relative specifier
+    // it emits gained a directory. Both are expiry dates; "a relative manifest
+    // import, of any depth" is the property the assertion above is about.
     const index = renderManifestIndex().content;
-    const inTheApplicationTree = DISCOVERED_MANIFESTS.map((entry) => entry.id).find((id) =>
-      new RegExp(`from '\\.\\./${id}/manifest\\.js'`).test(index),
+    expect(index, 'the index imports no manifest by relative path').toMatch(
+      /from '\.[^']*\/manifest\.js'/,
     );
-    expect(inTheApplicationTree, 'the index imports no manifest by relative path').toBeDefined();
   });
 
   it('carries the install hooks the registry used to import a second time', () => {

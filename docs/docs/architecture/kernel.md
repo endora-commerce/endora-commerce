@@ -371,7 +371,7 @@ depending on an absent one**. Every seam between the two then needs an answer to
 "what happens?", and the operator being asked to accept the flip needs the same
 answer, by name, before the write. There is one artefact for both, and that is
 the point of it rather than an economy:
-`modules/_lifecycle/services/deactivation-ledger.ts`.
+`lifecycle/services/deactivation-ledger.ts`.
 
 `buildDeactivationLedger` assigns every cross-module edge whose owner an
 operator may switch off one of four outcomes:

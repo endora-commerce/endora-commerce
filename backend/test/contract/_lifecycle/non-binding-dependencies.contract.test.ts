@@ -10,7 +10,7 @@ import {
   type MigrationRegistryEntry,
 } from '../../../src/db/migration-order.js';
 import { coreModuleDependencies } from '../../../src/db/configured-migrations.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
 /**
  * D-44 — a `nonBindingDependencies` entry cannot change an emitted migration

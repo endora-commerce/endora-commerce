@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ModuleManifest } from '@endora-commerce/contracts';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import {
   buildDeactivationLedger,
   deactivationConsequencesFor,
   type CrossModuleRead,
-} from '../../../src/modules/_lifecycle/services/deactivation-ledger.js';
-import { nonBindingPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
+} from '../../../src/lifecycle/services/deactivation-ledger.js';
+import { nonBindingPortEdgesFrom } from '../../../src/lifecycle/services/gating-graph.js';
 
 /**
  * What an operator switching `payments` off is told, produced by running the

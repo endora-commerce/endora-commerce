@@ -104,8 +104,8 @@ import {
   type PortViolation,
   type RootRegistrationIssue,
 } from '../../../scripts/check-port-dependencies.js';
-import { buildDeactivationLedger } from '../../../src/modules/_lifecycle/services/deactivation-ledger.js';
-import { nonBindingPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
+import { buildDeactivationLedger } from '../../../src/lifecycle/services/deactivation-ledger.js';
+import { nonBindingPortEdgesFrom } from '../../../src/lifecycle/services/gating-graph.js';
 import {
   checkPlatformSurface,
   platformSurfaceRefusal,

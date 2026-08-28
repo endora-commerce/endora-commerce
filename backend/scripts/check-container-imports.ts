@@ -31,7 +31,12 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
-import { moduleIdOf, refuseVacuousModulePopulation } from './lib/module-population.js';
+import {
+  moduleIdOf,
+  refuseVacuousModulePopulation,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
+} from './lib/module-population.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
@@ -70,13 +75,23 @@ export function isContainerSpecifier(specifier: string): boolean {
  * reports clean. That is issue #215's failure one layer in, and it is why
  * `resolveModuleLayout` refuses a package root whose location the segment
  * reader cannot attribute rather than letting it through unnamed.
+ *
+ * The fourth answer is `hostResident`, the map the layout derives from the
+ * manifest index for a module whose sources the host owns and whose directory
+ * therefore carries no `modules/<id>/` segment (feature 080, T040b). It is
+ * threaded from `main` rather than left to default, for exactly the reason the
+ * third shape exists: a file the walk reads and cannot name is a file this
+ * check judges as nobody's and reports clean about.
  */
-export function moduleOf(file: string): string | null {
+export function moduleOf(
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): string | null {
   const overlay = /\/src\/apps\/[^/]+\/modules\/([^/]+)\//.exec(file);
   if (overlay) return overlay[1] ?? null;
   const core = /\/src\/modules\/([^/]+)\//.exec(file);
   if (core) return core[1] ?? null;
-  return moduleIdOf(file);
+  return moduleIdOf(file, hostResident);
 }
 
 /**
@@ -119,8 +134,12 @@ function walk(dir: string, out: string[] = []): string[] {
  * **also** a finding: it erases at runtime, but it is still a module reading
  * the container's types instead of the kernel's, which is what the seam is for.
  */
-export function analyzeSource(source: string, file: string): ContainerImportFinding[] {
-  const moduleId = moduleOf(file);
+export function analyzeSource(
+  source: string,
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): ContainerImportFinding[] {
+  const moduleId = moduleOf(file, hostResident);
   if (moduleId === null) return [];
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const findings: ContainerImportFinding[] = [];
@@ -173,11 +192,17 @@ async function main(): Promise<void> {
     files,
     moduleIdOf: layout.moduleIdOfPath,
   });
-  const findings = files.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
+  const findings = files.flatMap((f) =>
+    analyzeSource(readFileSync(f, 'utf8'), f, layout.hostResidentModules),
+  );
   const rel = layout.displayOf;
 
   if (listMode) {
-    const modules = new Set(files.map(moduleOf).filter((id): id is string => id !== null));
+    const modules = new Set(
+      files
+        .map((file) => moduleOf(file, layout.hostResidentModules))
+        .filter((id): id is string => id !== null),
+    );
     console.log(`[container-imports] scanning ${modules.size} modules`);
   }
 

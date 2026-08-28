@@ -11,7 +11,7 @@ import { PaymentRefundProvider } from '../../../../packages/modules/payments/dis
 import { gatewayRefundRegistry } from '../../../../packages/modules/payments/dist/backend/services/registry-singleton.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * What a return settles into when the PSP module that would refund it is

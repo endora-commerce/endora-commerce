@@ -10,9 +10,9 @@ import {
   firstBootInsertPopulation,
   loadModulePresence,
   type ShippedModuleEntry,
-} from '../../../src/modules/_lifecycle/services/presence-load.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { installGatingGraph } from '../../../src/modules/_lifecycle/services/gating-graph.js';
+} from '../../../src/lifecycle/services/presence-load.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { installGatingGraph } from '../../../src/lifecycle/services/gating-graph.js';
 import {
   coreModulesRoot,
   overlayModulesRootFor,

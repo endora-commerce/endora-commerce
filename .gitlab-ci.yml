@@ -949,7 +949,13 @@ acceptance:package-schema:
         # Discovery and composition: the seam a package plugs into.
         - backend/src/composition.ts
         - backend/src/overlay/**/*
-        - backend/src/modules/_lifecycle/**/*
+        # The lifecycle subsystem: host-owned since feature 080's T040b
+        # (D-160.11), so it is `src/lifecycle/` rather than a module directory,
+        # and the manifest index it used to hold is at the source root
+        # (D-160.3).
+        - backend/src/lifecycle/**/*
+        - backend/src/manifest-index.generated.ts
+        - backend/src/manifest-locations.ts
         # The deployments themselves, not only the machinery that loads them.
         # `src/overlay/**` is the loader; `src/apps/**` is what it loads, and a
         # criterion that asserts a deployment's behaviour has to run when that

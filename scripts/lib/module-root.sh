@@ -274,6 +274,24 @@ module_root_module_directories() {
           ;;
       esac
     done
+  # The second pass: a module whose sources the **host application** owns
+  # (feature 080, T040b). `_lifecycle` is one — D-160.11 keeps the lifecycle
+  # subsystem out of the package sweep — and its directory is deliberately not
+  # named after its module id, because a directory named after a registered id
+  # directly under the source root would make the source root itself a module
+  # root and every file under it a module's. So the id is read out of the
+  # manifest instead of off the directory, which is the same thing
+  # `scripts/lib/module-roots.ts` does from the index's own `manifestPath`.
+  for candidate in "$source_root"/*/manifest.ts; do
+    [ -f "$candidate" ] || continue
+    directory="$(dirname "$candidate")"
+    declared="$(perl -0777 -ne "print \$1 if m{defineModuleManifest\(\{[\s\S]*?\bid:\s*'([A-Za-z0-9_]+)'}" "$candidate")"
+    [ -n "$declared" ] || continue
+    printf '%s\n' "$ids" | grep -qx "$declared" || continue
+    # Already listed by the id-named pass above? Then it is an ordinary module.
+    [ "$(basename "$directory")" = "$declared" ] && continue
+    printf '%s\n' "$directory"
+  done
   return 0
 }
 
@@ -289,10 +307,20 @@ module_root_module_directories() {
 # tree it is that plus each package root's own children.
 module_root_module_folders() {
   local index="$1"
-  local dirs roots root
+  local dirs ids roots root
   dirs="$(module_root_module_directories "$index")" || return 1
   [ -n "$dirs" ] || return 1
-  roots="$(printf '%s\n' "$dirs" | while IFS= read -r directory; do dirname "$directory"; done | sort -u)"
+  ids="$(module_root_registered_ids "$index")" || return 1
+  # Only a directory **named** after a registered module contributes a root.
+  # A host-resident module's is not (feature 080, T040b), and taking its parent
+  # would make the application's source root a module root: every directory
+  # beside it — `kernel`, `db`, `http`, `apps` — would then be judged as a
+  # module folder name by a rule that is about module folders.
+  roots="$(printf '%s\n' "$dirs" |
+    while IFS= read -r directory; do
+      printf '%s\n' "$ids" | grep -qx "$(basename "$directory")" || continue
+      dirname "$directory"
+    done | sort -u)"
   printf '%s\n' "$roots" | while IFS= read -r root; do
     [ -d "$root" ] || continue
     find "$root" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sed 's|^\./||'

@@ -4,8 +4,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ModuleIdCollisionError } from '../../../src/packages/module-id-claims.js';
-import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { buildStaticRegistry } from '../../../src/modules/_lifecycle/services/static-registry.js';
+import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
+import { buildStaticRegistry } from '../../../src/lifecycle/services/static-registry.js';
 
 /**
  * T036 / D-157.6(a) — the five `module:*` commands answer over the same module
@@ -37,7 +37,7 @@ const SCRIPTS = ['install', 'uninstall', 'enable', 'disable', 'status'] as const
 const sourceOf = (name: string): string =>
   readFileSync(
     fileURLToPath(
-      new URL(`../../../src/modules/_lifecycle/scripts/${name}.ts`, import.meta.url),
+      new URL(`../../../src/lifecycle/scripts/${name}.ts`, import.meta.url),
     ),
     'utf8',
   );

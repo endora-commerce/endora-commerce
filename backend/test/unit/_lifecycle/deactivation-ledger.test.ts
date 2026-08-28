@@ -5,7 +5,7 @@ import {
   deactivationConsequencesFor,
   type LedgerInput,
   type CrossModuleRead,
-} from '../../../src/modules/_lifecycle/services/deactivation-ledger.js';
+} from '../../../src/lifecycle/services/deactivation-ledger.js';
 
 /**
  * The deactivation-consequence ledger (feature 074, FR-017 … FR-023).

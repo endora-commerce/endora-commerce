@@ -14,12 +14,12 @@
 // directory, which depends on the deployment the process runs as.
 
 import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
-import { discoverOverlayModuleManifests } from '../../overlay/overlay-runtime.js';
+import { discoverOverlayModuleManifests } from '../overlay/overlay-runtime.js';
 import {
   assertNoPackageModuleIdCollisions,
   type ModuleIdClaim,
   type ModuleIdClaimOrigin,
-} from '../../packages/module-id-claims.js';
+} from '../packages/module-id-claims.js';
 /**
  * Re-exported for this module's own files. `presence-load.ts` types
  * `ShippedModuleEntry.origin` on it, and reaching the host directly for a
@@ -28,11 +28,11 @@ import {
  * already owns it.
  */
 export type { ModuleIdClaimOrigin };
-import { discoverPackageModuleManifests } from '../../packages/package-runtime.js';
+import { discoverPackageModuleManifests } from '../packages/package-runtime.js';
 import {
   DISCOVERED_MANIFESTS,
   type DiscoveredManifestEntry,
-} from './manifest-index.generated.js';
+} from '../manifest-index.generated.js';
 
 /**
  * Each entry carries a real `filePath` so downstream reconcilers can locate the

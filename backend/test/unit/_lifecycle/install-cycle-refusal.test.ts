@@ -3,12 +3,12 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
 import {
   ModuleLifecycleOrchestrator,
   LifecycleError,
-} from '../../../src/modules/_lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
-import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+} from '../../../src/lifecycle/services/orchestrator.js';
+import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
+import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
 import { orderMigrations, BASELINE_THROUGH } from '../../../src/db/migration-order.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
 /**
  * The install-time reader of the `module-cycle` diagnostic — feature 081
