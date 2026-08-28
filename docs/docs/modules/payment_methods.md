@@ -19,16 +19,18 @@ relying on the catalogue codes for this screen has to be granted the new ones on
 
 `GET /api/v1/admin/order-statuses` is the one exception, and it is an any-of
 rather than a widening: the route is registered here but read by two editors —
-this module's screen and the `delivery_methods` one, which still enforces
-`catalog:read` — so it accepts either. That second member goes when
-`delivery_methods` mints its own pair.
+this module's screen and the `delivery_methods` one — so it accepts either
+module's read code. The second member was `catalog:read` while
+`delivery_methods` still borrowed the catalogue's authority; it became
+`delivery_methods:read` when that module minted its own pair, so no catalogue
+holder reaches the shared list any more.
 
 | Verb + Path | Audience | Gate | Purpose |
 | --- | --- | --- | --- |
 | `GET /api/v1/payment-methods` | anon | — | Eligible methods for the storefront checkout (active ∩ org allow-list ∩ registered adapter ∩ `validateUseOnStorefront`) |
 | `GET /api/v1/admin/payment-methods` | admin | `payment_methods:read` | Full config (active + inactive) incl. `adapter`, `additionalPrice`, `statusOn*`, sales channels |
 | `GET /api/v1/admin/payment-methods/adapters` | admin | `payment_methods:read` | Registered adapter keys, for the admin adapter picker |
-| `GET /api/v1/admin/order-statuses` | admin | `payment_methods:read` **or** `catalog:read` | Order-status options for the `statusOn*` selectors, here and on the delivery-method screen |
+| `GET /api/v1/admin/order-statuses` | admin | `payment_methods:read` **or** `delivery_methods:read` | Order-status options for the `statusOn*` selectors, here and on the delivery-method screen |
 | `PUT /api/v1/admin/payment-methods/:code` | admin | `payment_methods:write` | Upsert by code; `adapter` defaults to `kind`, `statusOn*` validated against the order-status registry |
 | `PATCH /api/v1/admin/payment-methods/:id/status` | admin | `payment_methods:write` | Availability alone (feature 076, D-82) — the one write the four gateway screens link to |
 | `DELETE /api/v1/admin/payment-methods/:id` | admin | `payment_methods:write` | Delete — blocked (409) when a `Payment` references the method; set it `inactive` instead |

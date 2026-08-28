@@ -208,6 +208,78 @@ describe('foreign-gate sweep — the shapes it refuses', () => {
   });
 
   /**
+   * The any-of narrowing, and its two directions (2026-08-28).
+   *
+   * `requireAdminAny(['payment_methods:read', 'delivery_methods:read'])` in
+   * miniature. The second code is foreign and its owner is switchable, so the
+   * per-code reading calls it `undeclared-owner`; but the first member is the
+   * enforcing module's **own** code, and no operator can make that
+   * un-grantable, so the route is never stranded and the harm this sweep
+   * measures cannot occur. It is a `pass` with a kind that says why, not a
+   * finding that disappears.
+   *
+   * The negative is the half that matters: take the alternative away — the same
+   * gate written as a plain `requireAdmin`, one code — and the same run reports
+   * the same code as a violation. Nothing is ledgered and nothing is silenced.
+   */
+  it('passes an any-of member whose alternative the operator cannot withdraw', () => {
+    const manifests = [
+      manifest('payment_methods', {
+        permissions: [{ code: 'payment_methods:read', label: 'View payment methods' }],
+      }),
+      manifest('delivery_methods', {
+        permissions: [{ code: 'delivery_methods:read', label: 'View delivery methods' }],
+      }),
+    ];
+    const anyOf = gate(
+      'payment_methods',
+      'modules/payment_methods/routes.ts',
+      'payment_methods:read',
+      'delivery_methods:read',
+    );
+    const found = classifyForeignGates(input([anyOf], manifests));
+    expect(found).toHaveLength(1);
+    expect(found[0]?.code).toBe('delivery_methods:read');
+    expect(found[0]?.kind).toBe('sufficient-alternative');
+    expect(found[0]?.verdict).toBe('pass');
+
+    // Same code, same modules, no alternative on the site.
+    const alone = gate(
+      'payment_methods',
+      'modules/payment_methods/routes.ts',
+      'delivery_methods:read',
+    );
+    const withoutAlternative = classifyForeignGates(input([alone], manifests));
+    expect(withoutAlternative).toHaveLength(1);
+    expect(withoutAlternative[0]?.kind).toBe('undeclared-owner');
+    expect(withoutAlternative[0]?.verdict).toBe('violation');
+  });
+
+  /**
+   * The alternative has to be one an operator cannot withdraw. Two switchable
+   * foreign codes on one any-of strand the route exactly as one does, so the
+   * narrowing must not reach them — otherwise every violation is escapable by
+   * adding a second code to the array.
+   */
+  it('does not pass an any-of whose every member can be withdrawn', () => {
+    const found = classifyForeignGates(
+      input(
+        [gate('shipments', 'modules/shipments/routes.ts', 'returns:read', 'invoices:read')],
+        [
+          manifest('shipments'),
+          manifest('returns', {
+            permissions: [{ code: 'returns:read', label: 'View returns' }],
+          }),
+          manifest('invoices', {
+            permissions: [{ code: 'invoices:read', label: 'View invoices' }],
+          }),
+        ],
+      ),
+    );
+    expect(found.map((finding) => finding.verdict)).toEqual(['violation', 'violation']);
+  });
+
+  /**
    * A host-owned file owns no code and has no activation control, so a foreign
    * gate there is the locked-consumer case. There are none today; the proof is
    * what stops the first one arriving unseen, which is the whole reason the
@@ -331,8 +403,12 @@ describe('foreign-gate sweep — this build', () => {
 
   it('reports only passes, and every one for a reason the manifests carry', async () => {
     const { findings: found } = await findings;
-    const kinds = new Set(found.map((finding) => finding.kind));
-    expect([...kinds]).toEqual(['owner-locked']);
+    const kinds = [...new Set(found.map((finding) => finding.kind))].sort();
+    // `sufficient-alternative` joined on 2026-08-28 with the shared
+    // `GET /admin/order-statuses` gate, whose any-of names `payment_methods`'
+    // own read code beside `delivery_methods`'. Both kinds are passes and both
+    // are derived from the manifests on every run.
+    expect(kinds).toEqual(['owner-locked', 'sufficient-alternative']);
     // Non-vacuity of the live half: the population is real gates, not an empty
     // walk that agrees with everything.
     expect(found.length).toBeGreaterThan(0);

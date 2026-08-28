@@ -198,6 +198,38 @@ export const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-pm-seeded-sales-rep-session': {
     adminUserId: '00000000-0000-4000-8000-0000000000dd',
   },
+  // `delivery_methods` owns its codes — the four roles that prove it, on the
+  // same terms as the `payment_methods` set above and with ids of its own for
+  // the same reason: two files sharing an admin user id would make each one's
+  // fixtures depend on whether the other had booted first.
+  //
+  // A catalogue editor must be refused the delivery-method configuration it
+  // could read, rewrite and delete before; a viewer holding only
+  // `delivery_methods:read` must read it and be refused every write; an editor
+  // holding the pair must complete the write, so the pair is shown to be
+  // *sufficient* and not merely newly required; and the fourth carries the
+  // seeded `sales_representative` permission list verbatim. All four roles and
+  // users are created by
+  // `test/contract/delivery_methods/permission-authority.test.ts`.
+  'stub-dm-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000de',
+  },
+  'stub-delivery-methods-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000df',
+  },
+  'stub-delivery-methods-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e0',
+  },
+  'stub-dm-seeded-sales-rep-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e1',
+  },
+  // The delivery-method read code is the second member of the shared
+  // `GET /admin/order-statuses` gate, which `payment_methods` registers, so the
+  // `payment_methods` authority file needs a role holding it. Its own id, for
+  // the reason every other role in both files has one.
+  'stub-pm-delivery-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e2',
+  },
 };
 
 declare module 'fastify' {

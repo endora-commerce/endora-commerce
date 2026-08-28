@@ -48,11 +48,20 @@ const CATALOG_EDITOR_ID = '00000000-0000-4000-8000-0000000000da';
 const METHODS_VIEWER_ID = '00000000-0000-4000-8000-0000000000db';
 const METHODS_EDITOR_ID = '00000000-0000-4000-8000-0000000000dc';
 const SEEDED_SALES_REP_ID = '00000000-0000-4000-8000-0000000000dd';
+/**
+ * The delivery-method editor's read code is the second member of the shared
+ * `/admin/order-statuses` gate, so this file needs a role holding it — and its
+ * own, for the reason every other role here is its own: an id shared with
+ * `test/contract/delivery_methods/permission-authority.test.ts` would make each
+ * file's fixtures depend on whether the other had booted first.
+ */
+const DELIVERY_VIEWER_ID = '00000000-0000-4000-8000-0000000000e2';
 
 const CATALOG_EDITOR = { cookies: { b2b_session: 'stub-pm-catalog-editor-session' } };
 const METHODS_VIEWER = { cookies: { b2b_session: 'stub-payment-methods-viewer-session' } };
 const METHODS_EDITOR = { cookies: { b2b_session: 'stub-payment-methods-editor-session' } };
 const SEEDED_SALES_REP = { cookies: { b2b_session: 'stub-pm-seeded-sales-rep-session' } };
+const DELIVERY_VIEWER = { cookies: { b2b_session: 'stub-pm-delivery-viewer-session' } };
 
 describe('payment_methods permission authority', () => {
   let h: BackendServerHandle;
@@ -110,7 +119,15 @@ describe('payment_methods permission authority', () => {
     await createAdmin(CATALOG_EDITOR_ID, 'pm-catalog-editor@example.com', catalogRoleId);
     await createAdmin(METHODS_VIEWER_ID, 'pm-methods-viewer@example.com', viewerRoleId);
     await createAdmin(METHODS_EDITOR_ID, 'pm-methods-editor@example.com', editorRoleId);
+    // The other member of the shared order-status gate.
+    const deliveryViewerRoleId = await createRole(
+      'pm_delivery_methods_viewer',
+      'Delivery methods viewer',
+      ['delivery_methods:read'],
+    );
+
     await createAdmin(SEEDED_SALES_REP_ID, 'pm-seeded-sales-rep@example.com', salesRepRoleId);
+    await createAdmin(DELIVERY_VIEWER_ID, 'pm-delivery-viewer@example.com', deliveryViewerRoleId);
   }, 60_000);
 
   afterAll(async () => {
@@ -291,20 +308,23 @@ describe('payment_methods permission authority', () => {
   });
 
   /**
-   * `GET /api/v1/admin/order-statuses` is the one route of the six that does
-   * **not** move to `payment_methods:read` alone, and the reason is a fact
+   * `GET /api/v1/admin/order-statuses` is the one route of the six that is
+   * **not** gated on `payment_methods:read` alone, and the reason is a fact
    * about the tree the design note did not have: the route is registered here
    * but read by two editors. `admin/src/modules/delivery_methods/api/
    * delivery-methods-client.ts` fetches it for the delivery-method status
-   * selectors, and `delivery_methods` still gates its own screen on
-   * `catalog:read` (its own pair is a separate merge request). Gating this read
-   * on `payment_methods:read` alone would have taken the delivery-method editor
-   * down for every role that can open it.
+   * selectors. Gating this read on `payment_methods:read` alone would take the
+   * delivery-method status selectors down for every role that can open that
+   * screen and not this one.
    *
    * So it is an any-of, and both members are asserted here: whichever editor an
    * operator is allowed to open, the shared status list opens with it. The
-   * `catalog:read` member retires when `delivery_methods` mints its own pair —
-   * that merge request replaces it, and this case is what tells it to.
+   * second member was `catalog:read` while `delivery_methods` still borrowed
+   * the catalogue's authority, and it was asserted so that the merge request
+   * giving that module its own pair had to replace it visibly. It has: the
+   * member is now `delivery_methods:read`, and the catalogue case below is the
+   * other half of the same assertion — no catalogue holder reaches the shared
+   * list, because no catalogue holder opens either editor.
    */
   it('serves the shared order-status list to either editor’s read code', async () => {
     const viaMethods = await h.app.inject({
@@ -314,11 +334,21 @@ describe('payment_methods permission authority', () => {
     });
     expect(viaMethods.statusCode).toBe(200);
 
-    const viaCatalog = await h.app.inject({
+    const viaDelivery = await h.app.inject({
       method: 'GET',
       url: '/api/v1/admin/order-statuses',
-      ...CATALOG_EDITOR,
+      ...DELIVERY_VIEWER,
     });
-    expect(viaCatalog.statusCode).toBe(200);
+    expect(viaDelivery.statusCode).toBe(200);
+  });
+
+  it('refuses the shared order-status list to a catalogue editor', async () => {
+    expectForbidden(
+      await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/order-statuses',
+        ...CATALOG_EDITOR,
+      }),
+    );
   });
 });

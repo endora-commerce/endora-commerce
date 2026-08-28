@@ -139,23 +139,28 @@ export async function registerPaymentMethodsAdminRoutes(
    * consumers rather than about its data. It is registered once, here, and read
    * by two editors: the payment-method screen and — through
    * `admin/src/modules/delivery_methods/api/delivery-methods-client.ts` — the
-   * delivery-method one, whose own routes still enforce `catalog:read` because
-   * `delivery_methods` minting its own pair is a separate merge request.
-   * Gating this on `payment_methods:read` alone would have left the
-   * delivery-method status selectors answering 403 for every role that can open
-   * that screen, and its loader rejects the whole page when they do.
+   * delivery-method one. Gating it on `payment_methods:read` alone would leave
+   * the delivery-method status selectors 403 for a role that holds only the
+   * delivery pair, which is every role that can open that screen and not this
+   * one.
    *
    * So it is an any-of over the two editors' read codes: holding either one is
-   * sufficient, which is what `requireAdminAny` means. The `catalog:read`
-   * member is the delivery-method editor's *current* gate and nothing more —
-   * the merge request that gives `delivery_methods` its own pair replaces it,
-   * and `test/contract/payment_methods/permission-authority.test.ts` asserts
-   * both members so that replacement is a visible edit rather than a silent
-   * widening.
+   * sufficient, which is what `requireAdminAny` means. The second member was
+   * `catalog:read` for as long as `delivery_methods` borrowed the catalogue's
+   * authority (MR !1078), and both members were asserted in
+   * `test/contract/payment_methods/permission-authority.test.ts` so that the
+   * merge request giving that module its own pair had to replace it visibly
+   * rather than widen the gate in silence. This is that replacement: the member
+   * is now `delivery_methods:read`, and no catalogue holder reaches the shared
+   * list any more, because no catalogue holder opens either editor.
+   *
+   * The edge does not bind: an operator may switch `delivery_methods` off, and
+   * when they do the code stops being grantable while `payment_methods:read`
+   * goes on opening the list for the only screen still asking for it.
    */
   app.get(
     '/api/v1/admin/order-statuses',
-    { preHandler: deps.requireAdminAny(['payment_methods:read', 'catalog:read']) },
+    { preHandler: deps.requireAdminAny(['payment_methods:read', 'delivery_methods:read']) },
     async () => {
       const list = deps.orderStatusRegistry?.list() ?? [];
       return { data: list };

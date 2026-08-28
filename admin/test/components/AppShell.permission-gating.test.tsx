@@ -95,6 +95,7 @@ const coreBundle = passthroughBundle('core', [
   'appShell.nav.organizations',
   'appShell.nav.priceLists',
   'appShell.nav.paymentMethods',
+  'appShell.nav.deliveryMethods',
 ]);
 
 const { AppShell } = await import('../../src/components/AppShell');
@@ -186,8 +187,35 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
   it('shows /payment-methods to a role holding payment_methods:read', async () => {
     renderShell(['payment_methods:read']);
     expect(sidebarHrefs()).toContain('/payment-methods');
+    // …and only that one. The two method screens sit next to each other and
+    // used to carry one code between them, so the discriminating assertion is
+    // that the neighbour stays hidden. One render per case on purpose:
+    // `renderShell` mounts a second shell beside the first rather than
+    // replacing it, so a `not.toContain` after two renders reads both.
+    expect(sidebarHrefs()).not.toContain('/delivery-methods');
     expect(
       (await openPaletteItems()).some((t) => t.includes('appShell.nav.paymentMethods')),
+    ).toBe(true);
+  });
+
+  /**
+   * `delivery_methods` took its own codes on 2026-08-28, on the same terms and
+   * for the same reason.
+   */
+  it('hides /delivery-methods from a catalogue editor', async () => {
+    renderShell(['catalog:read', 'catalog:write']);
+    expect(sidebarHrefs()).not.toContain('/delivery-methods');
+    expect(
+      (await openPaletteItems()).some((t) => t.includes('appShell.nav.deliveryMethods')),
+    ).toBe(false);
+  });
+
+  it('shows /delivery-methods to a role holding delivery_methods:read', async () => {
+    renderShell(['delivery_methods:read']);
+    expect(sidebarHrefs()).toContain('/delivery-methods');
+    expect(sidebarHrefs()).not.toContain('/payment-methods');
+    expect(
+      (await openPaletteItems()).some((t) => t.includes('appShell.nav.deliveryMethods')),
     ).toBe(true);
   });
 

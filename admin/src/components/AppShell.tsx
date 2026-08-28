@@ -206,7 +206,7 @@ const NAV: NavSection[] = [
       { to: '/promotions', labelKey: 'appShell.nav.promotions', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
       { to: '/promotion-rules', labelKey: 'appShell.nav.promotionRules', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
       { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt, requiredPermission: 'catalog:write', module: 'taxes' },
-      { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck, requiredPermission: 'catalog:read', module: 'delivery_methods' },
+      { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck, requiredPermission: 'delivery_methods:read', module: 'delivery_methods' },
       { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard, requiredPermission: 'payment_methods:read', module: 'payment_methods' },
       // Stripe settings are no longer a top-level sidebar entry — they are
       // reached as an "integration" from the Payment methods page (below).
@@ -1041,9 +1041,11 @@ function matchesQuery(needle: string, ...haystacks: string[]): boolean {
  *
  *  - `/inventory` and `/warehouses` are gated by `orders:read`, not by anything
  *    named after inventory (`inventory/routes.admin.ts:103,183`);
- *  - `/payment-methods` by `payment_methods:read`, its owner's own code since
- *    2026-08-28, while `/delivery-methods` beside it is still `catalog:read` —
- *    the neighbourhood is exactly what cannot be copied here
+ *  - `/payment-methods` by `payment_methods:read` and `/delivery-methods` by
+ *    `delivery_methods:read`, each its owner's own code since 2026-08-28. They
+ *    look like a pair and are not one: the codes are separate, they are granted
+ *    separately, and neither is `catalog:read`, which is what both said until
+ *    the two modules stopped borrowing the catalogue's authority
  *    (`packages/modules/payment_methods/src/backend/routes.ts:125`,
  *    `packages/modules/delivery_methods/src/backend/routes.ts:106`);
  *  - `/api-keys` and `/webhooks` by one shared `integrations:manage`
@@ -1093,7 +1095,7 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.salesChannels', sub: 'appShell.palette.sub.storefrontChannels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels kanał sprzedaży', requiredPermission: 'sales_channels:read' , module: 'sales_channels' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.paymentMethods', sub: 'appShell.palette.sub.paymentMethods', icon: CreditCard, to: '/payment-methods', keywords: 'payment methods pay gateway checkout metody płatności płatności bramka', requiredPermission: 'payment_methods:read' , module: 'payment_methods' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.deliveryMethods', sub: 'appShell.palette.sub.deliveryMethods', icon: Truck, to: '/delivery-methods', keywords: 'delivery shipping methods courier metody dostawy wysyłka kurier', requiredPermission: 'catalog:read' , module: 'delivery_methods' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.deliveryMethods', sub: 'appShell.palette.sub.deliveryMethods', icon: Truck, to: '/delivery-methods', keywords: 'delivery shipping methods courier metody dostawy wysyłka kurier', requiredPermission: 'delivery_methods:read' , module: 'delivery_methods' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionary', sub: 'appShell.palette.sub.dictionary', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n słownik kraje waluty języki', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionaryAudit', sub: 'appShell.palette.sub.dictionaryAudit', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references audyt słownika', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja', requiredPermission: 'settings:read' , module: 'settings' },

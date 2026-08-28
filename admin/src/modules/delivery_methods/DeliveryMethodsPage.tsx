@@ -2,8 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { Link } from 'react-router-dom';
 import { ArrowRight, Pencil, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
-import { useAuth } from '@/lib/auth';
-import { useModulePresence } from '@/lib/module-presence';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 import {
   deliveryMethodsClient,
   type AdminDeliveryMethod,
@@ -32,9 +31,35 @@ import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
 
 export function DeliveryMethodsPage(): ReactNode {
   const t = useTranslation('core');
-  const { hasPermission } = useAuth();
-  const { isPresent } = useModulePresence();
-  const showDhlParcel = isPresent('dhl_parcel') && hasPermission('dhl_parcel:read');
+  /**
+   * `useSurfaceVisibility` is the predicate the sidebar, the palette and the
+   * dashboard already share, and it answers both axes at once: the operator's
+   * permission and the owning module's effective presence. The DHL card below
+   * was already asking both questions by hand; this is the same question in one
+   * expression, which is what stops the two from drifting.
+   */
+  const isVisible = useSurfaceVisibility();
+  const showDhlParcel = isVisible({ module: 'dhl_parcel', requiredPermission: 'dhl_parcel:read' });
+  /**
+   * The screen's own gate (2026-08-28), on the code its routes now enforce.
+   *
+   * `delivery_methods` used to borrow `catalog:read`, so this page had no
+   * permission of its own to check and the sidebar entry beside it carried the
+   * catalogue's. Both moved together; hiding the screen rather than letting it
+   * 403 is the treatment the sidebar, the palette and the dashboard already
+   * apply to a denied destination, and `AppShell.tsx`'s `PALETTE_ITEMS` comment
+   * argues it at length. The module half is asked too, because the admin router
+   * carries no guard of its own: a switched-off module must contribute no
+   * surface at all (Constitution XVII item 5), and a permission gate alone
+   * leaves this screen rendering and answering 503.
+   *
+   * The fetch is skipped as well as the render — a page that renders nothing has
+   * no reason to ask the API two questions it will be refused.
+   */
+  const canRead = isVisible({
+    module: 'delivery_methods',
+    requiredPermission: 'delivery_methods:read',
+  });
   const [rows, setRows] = useState<AdminDeliveryMethod[]>([]);
   const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,12 +68,19 @@ export function DeliveryMethodsPage(): ReactNode {
   const [editing, setEditing] = useState<AdminDeliveryMethod | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const [methods, statuses] = await Promise.all([
         deliveryMethodsClient.list(),
-        // Shared endpoint owned by the payment-methods admin routes (feature 035).
+        // Shared endpoint owned by the payment-methods admin routes (feature 035);
+        // gated `requireAdminAny(['payment_methods:read', 'delivery_methods:read'])`
+        // since this module took its own codes, so the read code that opened this
+        // screen also opens the status list.
         deliveryMethodsClient.orderStatuses().catch(() => [] as OrderStatusOption[]),
       ]);
       setRows(methods);
@@ -58,7 +90,7 @@ export function DeliveryMethodsPage(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canRead]);
 
   useEffect(() => {
     void refresh();
@@ -117,6 +149,14 @@ export function DeliveryMethodsPage(): ReactNode {
     },
     [refresh],
   );
+
+  if (!canRead) {
+    return (
+      <Alert>
+        <AlertDescription>{t('legacyMethods.delivery.noPermission')}</AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <>

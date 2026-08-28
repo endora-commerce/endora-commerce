@@ -78,6 +78,33 @@ export const manifest = defineModuleManifest({
         'operators are meant to have.',
     },
   ],
+  /**
+   * The module's own authority (2026-08-28).
+   *
+   * All three admin routes used to enforce `catalog:read` / `catalog:write`, so
+   * whoever could edit a product could read the delivery-method configuration,
+   * rewrite it — which methods a checkout offers, their surcharge, and which
+   * order status a shipment outcome moves an order to — and delete a method
+   * outright. Both codes were real, declared and enforced, so the permission
+   * inventory's two directions were clean over the site, and
+   * `check:action-route-permissions` never looked at all: this module declares
+   * no manifest action, so the check has nothing of its own to compare.
+   *
+   * A pair and no third code, spelled `<module id>:<read|write>` like the five
+   * gateway modules, `payment_methods`, `returns` and `invoices`. A prefix that
+   * is not its owner's id is the mistake `PERMISSION_CATALOGUE` comments on
+   * twice (`integrations:manage`, `audit_log:read`), both frozen because they
+   * are persisted in role rows; getting it right on a code that does not exist
+   * yet is free. The codes stay here rather than in `PERMISSION_CATALOGUE`,
+   * which is for codes spanning modules — this module owns these outright.
+   *
+   * No data migration: see
+   * `test/contract/delivery_methods/permission-authority.test.ts`.
+   */
+  permissions: [
+    { code: 'delivery_methods:read', label: 'View delivery methods' },
+    { code: 'delivery_methods:write', label: 'Configure delivery methods' },
+  ],
   settings: {
     moduleCode: 'delivery_methods',
     groups: [{ code: 'delivery_methods', name: 'Delivery methods' }],
