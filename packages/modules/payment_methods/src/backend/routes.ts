@@ -27,7 +27,10 @@ import {
   OrderStatusRegistryError,
   type OrderStatusRegistry,
 } from './services/order-status-registry.port.js';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type {
+  RequireAdminAnyFactory,
+  RequireAdminFactory,
+} from '@endora-commerce/platform/kernel';
 
 /**
  * Public read endpoint: list active payment methods (storefront checkout).
@@ -52,6 +55,11 @@ export interface PaymentMethodsPublicDeps {
 export interface PaymentMethodsAdminDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  /**
+   * Only `GET /api/v1/admin/order-statuses` uses it, and only because that one
+   * route is read by two editors — see the comment on its registration below.
+   */
+  requireAdminAny: RequireAdminAnyFactory;
   /** Issue #125 — the two admin writes run on the bus (Principle XIII). */
   commandBus: CommandBus;
   /** Feature 005 / T027b — new payment methods auto-bind to the system default. */
@@ -114,7 +122,7 @@ export async function registerPaymentMethodsAdminRoutes(
 
   app.get(
     '/api/v1/admin/payment-methods',
-    { preHandler: requireAdmin('catalog:read') },
+    { preHandler: requireAdmin('payment_methods:read') },
     async () => {
       const em = deps.emFactory();
       const rows = await em.find(PaymentMethod, {}, { orderBy: { code: 'asc' } });
@@ -123,10 +131,31 @@ export async function registerPaymentMethodsAdminRoutes(
     },
   );
 
-  // T017a — Order-status options for the admin status selectors (FR-009).
+  /**
+   * T017a — Order-status options for the admin status selectors (FR-009).
+   *
+   * The one route of this module's six that is **not** gated on
+   * `payment_methods:read` alone, and the exception is a fact about its
+   * consumers rather than about its data. It is registered once, here, and read
+   * by two editors: the payment-method screen and — through
+   * `admin/src/modules/delivery_methods/api/delivery-methods-client.ts` — the
+   * delivery-method one, whose own routes still enforce `catalog:read` because
+   * `delivery_methods` minting its own pair is a separate merge request.
+   * Gating this on `payment_methods:read` alone would have left the
+   * delivery-method status selectors answering 403 for every role that can open
+   * that screen, and its loader rejects the whole page when they do.
+   *
+   * So it is an any-of over the two editors' read codes: holding either one is
+   * sufficient, which is what `requireAdminAny` means. The `catalog:read`
+   * member is the delivery-method editor's *current* gate and nothing more —
+   * the merge request that gives `delivery_methods` its own pair replaces it,
+   * and `test/contract/payment_methods/permission-authority.test.ts` asserts
+   * both members so that replacement is a visible edit rather than a silent
+   * widening.
+   */
   app.get(
     '/api/v1/admin/order-statuses',
-    { preHandler: requireAdmin('catalog:read') },
+    { preHandler: deps.requireAdminAny(['payment_methods:read', 'catalog:read']) },
     async () => {
       const list = deps.orderStatusRegistry?.list() ?? [];
       return { data: list };
@@ -138,7 +167,7 @@ export async function registerPaymentMethodsAdminRoutes(
   // (e.g. `stripe`, `bank_transfer`) rather than defaulting to its `kind`.
   app.get(
     '/api/v1/admin/payment-methods/adapters',
-    { preHandler: requireAdmin('catalog:read') },
+    { preHandler: requireAdmin('payment_methods:read') },
     async () => {
       const list = deps.registry?.list() ?? [];
       return { data: list };
@@ -148,7 +177,7 @@ export async function registerPaymentMethodsAdminRoutes(
   app.put<{ Params: { code: string } }>(
     '/api/v1/admin/payment-methods/:code',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('payment_methods:write'),
       schema: { body: paymentMethodUpsertSchema },
     },
     async (request) => {
@@ -212,7 +241,7 @@ export async function registerPaymentMethodsAdminRoutes(
   app.patch<{ Params: { id: string } }>(
     '/api/v1/admin/payment-methods/:id/status',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('payment_methods:write'),
       schema: { body: paymentMethodStatusPatchSchema },
     },
     async (request) => {
@@ -226,7 +255,7 @@ export async function registerPaymentMethodsAdminRoutes(
 
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/payment-methods/:id',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: requireAdmin('payment_methods:write') },
     async (request, reply) => {
       // The 404 and the T017b delete-guard (FR-003) live inside the Command.
       // The guard's count runs on `paymentReadPort`, so it is `payments`

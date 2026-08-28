@@ -43,6 +43,33 @@ export const manifest = defineModuleManifest({
         'method whose references nobody could count.',
     },
   ],
+  /**
+   * The module's own authority (2026-08-28).
+   *
+   * All six admin routes used to enforce `catalog:read` / `catalog:write`, so
+   * whoever could edit a product could read the payment-method configuration
+   * and rewrite it — which methods a checkout offers, their surcharge, and
+   * which order status each payment outcome moves an order to. Both codes were
+   * real, declared and enforced, so the permission inventory's two directions
+   * were clean over the site and `check:action-route-permissions` found the
+   * palette action in perfect agreement with its target: they both said
+   * `catalog:read`.
+   *
+   * A pair and no third code, spelled `<module id>:<read|write>` like the five
+   * gateway modules, `returns` and `invoices`. A prefix that is not its owner's
+   * id is the mistake `PERMISSION_CATALOGUE` comments on twice
+   * (`integrations:manage`, `audit_log:read`), both frozen because they are
+   * persisted in role rows; getting it right on a code that does not exist yet
+   * is free. The codes stay here rather than in `PERMISSION_CATALOGUE`, which
+   * is for codes spanning modules — this module owns these outright.
+   *
+   * No data migration: see
+   * `test/contract/payment_methods/permission-authority.test.ts`.
+   */
+  permissions: [
+    { code: 'payment_methods:read', label: 'View payment methods' },
+    { code: 'payment_methods:write', label: 'Configure payment methods' },
+  ],
   settings: {
     moduleCode: 'payment_methods',
     groups: [{ code: 'payment_methods', name: 'Payment methods' }],
@@ -82,8 +109,9 @@ export const manifest = defineModuleManifest({
   //
   // `targetRoute` is the landing route **plain**: the action route regex rejects
   // a query string, so the gateway screens' `?highlight=<code>` deep link is an
-  // in-page anchor rather than a second action. `catalog:read` is what gates
-  // `GET /api/v1/admin/payment-methods`, so the palette never advertises a 403.
+  // in-page anchor rather than a second action. `payment_methods:read` is what
+  // gates `GET /api/v1/admin/payment-methods`, so the palette never advertises
+  // a 403.
   actions: [
     {
       id: 'open-payment-methods',
@@ -91,7 +119,7 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.openPaymentMethods.description',
       icon: 'CreditCard',
       targetRoute: '/payment-methods',
-      requiredPermission: 'catalog:read',
+      requiredPermission: 'payment_methods:read',
       keywords: ['payment', 'method', 'availability', 'checkout', 'płatność', 'metoda'],
       weight: 150,
     },

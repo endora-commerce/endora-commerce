@@ -94,6 +94,7 @@ const coreBundle = passthroughBundle('core', [
   'appShell.nav.comparisons',
   'appShell.nav.organizations',
   'appShell.nav.priceLists',
+  'appShell.nav.paymentMethods',
 ]);
 
 const { AppShell } = await import('../../src/components/AppShell');
@@ -164,6 +165,30 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
 
     renderShell(['customers:read']);
     expect(sidebarHrefs()).toContain('/organizations');
+  });
+
+  /**
+   * `payment_methods` took its own codes on 2026-08-28. The sidebar entry and
+   * the Navigate row are two literals nothing derives — `check:action-route-
+   * permissions` reads the manifest action and the backend route and no file in
+   * this application — so the code they carry is checked here or nowhere. A
+   * catalogue editor is the role the old gate handed the screen to, which makes
+   * it the discriminating negative rather than an arbitrary one.
+   */
+  it('hides /payment-methods from a catalogue editor', async () => {
+    renderShell(['catalog:read', 'catalog:write']);
+    expect(sidebarHrefs()).not.toContain('/payment-methods');
+    expect(
+      (await openPaletteItems()).some((t) => t.includes('appShell.nav.paymentMethods')),
+    ).toBe(false);
+  });
+
+  it('shows /payment-methods to a role holding payment_methods:read', async () => {
+    renderShell(['payment_methods:read']);
+    expect(sidebarHrefs()).toContain('/payment-methods');
+    expect(
+      (await openPaletteItems()).some((t) => t.includes('appShell.nav.paymentMethods')),
+    ).toBe(true);
   });
 
   it('leaves an ungated shell surface alone', async () => {
