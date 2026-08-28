@@ -164,6 +164,18 @@ export interface LayerInventory {
   readonly hasTests: boolean;
   readonly hasVitestConfig: boolean;
   /**
+   * Every test file the package ships — under `src/` and under `test/` alike,
+   * sorted, package-relative.
+   *
+   * It exists because the two questions it joins were answered in different
+   * places and never against each other: `hasVitestConfig` said whether a `test`
+   * script would be emitted, and nothing said whether there was anything for it
+   * to run. Four packaged modules shipped fifteen co-located test files with no
+   * configuration, so no runner collected them, no job reported them and no
+   * total counted them — not failing, simply absent (feature 089, Phase 1).
+   */
+  readonly testFiles: readonly string[];
+  /**
    * Non-`.ts` files under `src/` that the running module opens — sorted,
    * relative to `src/`. `tsc` copies none of them (measured), so a package that
    * ships one needs a second build step, and whether it has one is read off the
@@ -180,9 +192,10 @@ export const ROOT_ENTRY = 'src/manifest.ts';
 /**
  * What a package ships, read off its directory.
  *
- * Three refusals, and each one is a file that would otherwise be published by
- * nothing: a missing root manifest, a directory under `src/` that maps to no
- * subpath, and a mapped directory with no `index.ts` for its subpath to name.
+ * Four refusals, and each one is a file that would otherwise be published — or
+ * run — by nothing: a missing root manifest, a directory under `src/` that maps
+ * to no subpath, a mapped directory with no `index.ts` for its subpath to name,
+ * and a test file in a package that declares no `vitest.config.ts`.
  */
 export function layerInventoryOf(packageDir: string, fs: ManifestFs): LayerInventory {
   if (fs.readText(join(packageDir, ROOT_ENTRY)) === null) {
@@ -230,6 +243,18 @@ export function layerInventoryOf(packageDir: string, fs: ManifestFs): LayerInven
     }
     layers.push({ subpath, directory, entry });
   }
+  const hasVitestConfig = fs.readText(join(packageDir, 'vitest.config.ts')) !== null;
+  const testFiles = testFilesIn(packageDir, fs);
+  if (testFiles.length > 0 && !hasVitestConfig) {
+    throw new ModulePackageManifestError(
+      `${packageDir}: ships ${testFiles.join(', ')} and declares no vitest.config.ts. The ` +
+        `\`test\` script is emitted only for a package that has one (module-package-layout.md ` +
+        `§0.5), so without it these files are collected by no run, reported by no job and ` +
+        `counted in no total — not failing, absent. Add vitest.config.ts (merging the ` +
+        `repository's vitest.config.base.ts, which is where issue #255's foreign-link refusal ` +
+        `lives), or move the file to backend/test/ if it needs a booted server.`,
+    );
+  }
   return {
     layers,
     assets: assetsUnder(srcDir, fs, packageDir),
@@ -238,8 +263,38 @@ export function layerInventoryOf(packageDir: string, fs: ManifestFs): LayerInven
     hasTests:
       fs.listFiles(join(packageDir, 'test')).length > 0 ||
       fs.listDirectories(join(packageDir, 'test')).length > 0,
-    hasVitestConfig: fs.readText(join(packageDir, 'vitest.config.ts')) !== null,
+    hasVitestConfig,
+    testFiles,
   };
+}
+
+/**
+ * Vitest's own default test-file spelling, over the extensions this walk sees.
+ *
+ * {@link sourceFilesUnder} yields `.ts`/`.tsx`/`.mts`/`.cts` only, which is
+ * every file a module package can hold — it ships compiled output and its
+ * sources are TypeScript. The pattern is written against vitest's default
+ * `include` rather than as a `.test.ts` suffix test so the refusal and the
+ * runner answer the same question about the same file.
+ */
+const TEST_FILE_RE = /\.(?:test|spec)\.[cm]?tsx?$/;
+
+/**
+ * Every test file a package ships, under `src/` and under `test/`.
+ *
+ * Both roots, because the layout contract §1 puts package-owned tests in
+ * `test/unit/` and every file this refusal was written for is co-located beside
+ * its source under `src/`. Reading only one of them would leave exactly the
+ * population that produced the defect invisible.
+ */
+function testFilesIn(packageDir: string, fs: ManifestFs): readonly string[] {
+  const found: string[] = [];
+  for (const root of ['src', 'test']) {
+    for (const path of sourceFilesUnder(packageDir, root, fs)) {
+      if (TEST_FILE_RE.test(path)) found.push(path);
+    }
+  }
+  return found.sort();
 }
 
 /**
@@ -1426,7 +1481,17 @@ export function renderManifest(input: RenderInput): string {
     typecheck: 'tsc -p tsconfig.json',
     lint: input.layers.hasTests ? 'eslint src test' : 'eslint src',
   };
-  if (input.layers.hasVitestConfig) scripts['test'] = 'vitest run --passWithNoTests';
+  // Bare `vitest run`, never `--passWithNoTests` (feature 089, Phase 1). The
+  // flag is the defect this script exists to fix, one layer up: a package that
+  // declares a test configuration and collects zero files would exit 0, which is
+  // `read-size.ts`'s own family — a green that means "not looking". Measured on
+  // vitest 2.1.9 over a package with no test file: bare `run` exits 1 with
+  // "No test files found", `--passWithNoTests` exits 0. So the floor costs
+  // nothing; it only has to not be switched off. The other half of the same
+  // rule is `layerInventoryOf`'s refusal of a test file with no configuration —
+  // this one makes a *declared* run honest, that one makes an *undeclared* one
+  // impossible.
+  if (input.layers.hasVitestConfig) scripts['test'] = 'vitest run';
 
   const files = [input.emit.outDir === '' ? 'dist' : input.emit.outDir];
   if (input.layers.hasI18n) files.push('i18n');

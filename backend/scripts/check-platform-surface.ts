@@ -829,6 +829,33 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * A module package's own tooling configuration, which is not module source.
+ *
+ * `vitest.config.ts` is the first `.ts` file a module package holds that its
+ * build does not compile (feature 089, Phase 1): `tsconfig.build.json` roots the
+ * emit at `src/`, and the manifest's `files` ships `dist` and the asset
+ * directories, so nothing a consumer installs contains it and no `exports`
+ * subpath can name it. The other configurations a package carries are `.json`
+ * and were therefore never in this walk at all.
+ *
+ * It has to leave the population rather than be made to resolve, because the
+ * file exists to `mergeConfig` the repository root's `vitest.config.base.ts` —
+ * which is where issue #255's foreign-workspace-link refusal lives, so the reach
+ * is mandatory — and that root is in no module walk root and no source root. A
+ * reach the walk cannot resolve is `unresolvable-reach`, deliberately fail-closed
+ * (#215 one layer in), and the honest answer here is that this file is not a
+ * module reach at all.
+ *
+ * Narrow on purpose: only a `*.config.ts` sitting **directly** at a module walk
+ * root, which is a package's own root or a module directory. A `config.ts` under
+ * `src/` stays module source, and a directory named `config/` is untouched.
+ */
+export function isPackageToolingConfig(root: string, file: string): boolean {
+  const within = relative(root, file).split('\\').join('/');
+  return !within.includes('/') && within.endsWith('.config.ts');
+}
+
 /** The remedy sentence a finding gets, by kind. */
 function remedyOf(finding: PlatformSurfaceFinding): string {
   switch (finding.kind) {
@@ -861,7 +888,9 @@ async function main(): Promise<void> {
   const repoKeyOf = (absolutePath: string): string =>
     relative(layout.repoRoot, absolutePath).split('\\').join('/');
 
-  const moduleFiles = layout.moduleWalkRoots.flatMap((root) => walk(root));
+  const moduleFiles = layout.moduleWalkRoots.flatMap((root) =>
+    walk(root).filter((file) => !isPackageToolingConfig(root, file)),
+  );
   const sources = new Map<string, string>();
   for (const file of moduleFiles) sources.set(repoKeyOf(file), readFileSync(file, 'utf8'));
 
