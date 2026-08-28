@@ -11,10 +11,23 @@ narrowed by zero or more of `country`, `productType`, `appliesToVatStatuses`.
 
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/admin/taxes` | admin (`catalog:write`) | List rules |
-| `PUT /api/v1/admin/taxes/:code` | admin | Upsert |
-| `DELETE /api/v1/admin/taxes/:id` | admin | Remove |
-| `GET /api/v1/admin/taxes/preview?country&productType&vatStatus` | admin | Resolve effective rate |
+| `GET /api/v1/admin/taxes` | admin (`taxes:read`) | List rules |
+| `PUT /api/v1/admin/taxes/:code` | admin (`taxes:write`) | Upsert |
+| `DELETE /api/v1/admin/taxes/:id` | admin (`taxes:write`) | Remove |
+| `GET /api/v1/admin/taxes/preview?country&productType&vatStatus` | admin (`taxes:read`) | Resolve effective rate |
+
+Every one of the four enforced `catalog:write` until 2026-08-28 — the two reads
+included, so seeing a VAT rate required the authority to change it. The module
+now owns `taxes:read` and `taxes:write`, declared in its manifest and therefore
+grantable on `/admin-roles`. It is a **clean break**: a role that reached the tax
+table through the catalogue's write code is granted `taxes:read` (and
+`taxes:write`, to edit) explicitly. See
+`specs/080-f4-real-scope/payments-permission-ownership.md` §7.2 and
+`backend/test/contract/taxes/permission-authority.test.ts`.
+
+Nothing else reads a rate through these routes: `orders`, `carts`,
+`product_feeds` and `quote_requests` resolve one in process through the
+`taxService` port, which the permission change does not touch.
 
 ## Resolution algorithm
 

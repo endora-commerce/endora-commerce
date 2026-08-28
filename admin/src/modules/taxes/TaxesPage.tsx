@@ -19,6 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 import { CountryPicker } from '../dictionaries/components/CountryPicker';
 
 interface AdminTax {
@@ -38,12 +39,46 @@ const VAT_STATUSES = ['vat_payer', 'vat_exempt', 'reverse_charge'] as const;
 
 export function TaxesPage(): ReactNode {
   const t = useTranslation('core');
+  /**
+   * The screen's own gate (2026-08-28), on the codes its routes now enforce.
+   *
+   * `taxes` used to borrow `catalog:write` — on all four routes, the two reads
+   * included — so this page had no permission of its own to check and the
+   * sidebar entry beside it carried the catalogue's write code. Both moved
+   * together; hiding the screen rather than letting it 403 is the treatment the
+   * sidebar, the palette and the dashboard already apply to a denied
+   * destination, and `AppShell.tsx`'s `PALETTE_ITEMS` comment argues it at
+   * length. The module half is asked too, because the admin router carries no
+   * guard of its own: a module the platform is not running must contribute no
+   * surface at all (Constitution XVII item 5), and a permission gate alone
+   * leaves this screen rendering and answering 503.
+   *
+   * `useSurfaceVisibility` is the predicate the sidebar, the palette and the
+   * dashboard already share, so the two axes are one expression rather than two
+   * that can drift.
+   */
+  const isVisible = useSurfaceVisibility();
+  const canRead = isVisible({ module: 'taxes', requiredPermission: 'taxes:read' });
+  /**
+   * The write half, which is new rather than moved: until this change there was
+   * no read-only role to have, because reading the table required the code that
+   * rewrites it. Now there is, so the upsert form and the per-row delete are
+   * hidden from it — hidden and not disabled, for the reason the screen itself
+   * is, and hidden rather than left to 403 on submit.
+   */
+  const canWrite = isVisible({ module: 'taxes', requiredPermission: 'taxes:write' });
   const [rows, setRows] = useState<AdminTax[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
+    // A page that renders nothing has no reason to ask the API a question it
+    // will be refused.
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -54,7 +89,7 @@ export function TaxesPage(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [canRead, t]);
 
   useEffect(() => {
     void refresh();
@@ -98,6 +133,14 @@ export function TaxesPage(): ReactNode {
     [refresh, t],
   );
 
+  if (!canRead) {
+    return (
+      <Alert>
+        <AlertDescription>{t('taxes.noPermission')}</AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <>
       <PageHeader
@@ -116,14 +159,16 @@ export function TaxesPage(): ReactNode {
         </Alert>
       ) : null}
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>{t('taxes.upsert.title')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <UpsertForm onSubmit={handleUpsert} />
-        </CardContent>
-      </Card>
+      {canWrite ? (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>{t('taxes.upsert.title')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <UpsertForm onSubmit={handleUpsert} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardContent className="pt-6">
@@ -164,15 +209,17 @@ export function TaxesPage(): ReactNode {
                     </TableCell>
                     <TableCell>{r.priority}</TableCell>
                     <TableCell>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        type="button"
-                        onClick={(): void => void handleDelete(r.id)}
-                      >
-                        <Trash2 />
-                        {t('taxes.action.delete')}
-                      </Button>
+                      {canWrite ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          type="button"
+                          onClick={(): void => void handleDelete(r.id)}
+                        >
+                          <Trash2 />
+                          {t('taxes.action.delete')}
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}

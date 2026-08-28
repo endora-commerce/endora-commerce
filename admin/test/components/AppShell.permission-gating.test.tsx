@@ -96,6 +96,7 @@ const coreBundle = passthroughBundle('core', [
   'appShell.nav.priceLists',
   'appShell.nav.paymentMethods',
   'appShell.nav.deliveryMethods',
+  'appShell.nav.taxes',
 ]);
 
 const { AppShell } = await import('../../src/components/AppShell');
@@ -217,6 +218,35 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
     expect(
       (await openPaletteItems()).some((t) => t.includes('appShell.nav.deliveryMethods')),
     ).toBe(true);
+  });
+
+  /**
+   * `taxes` took its own codes on 2026-08-28, the last of the four the sweep in
+   * `specs/080-f4-real-scope/payments-permission-ownership.md` §7.2 classified
+   * as defective — and the only one whose sidebar entry carried a **write**
+   * code, because every one of its four routes did.
+   *
+   * So the negative here is not the catalogue *reader* the three predecessors
+   * used: `catalog:read` never opened this screen. It is the catalogue
+   * **editor**, which did, and which now must not.
+   *
+   * The sidebar is asserted alone because there is nothing else to assert:
+   * `taxes` contributes no `PALETTE_ITEMS` Navigate row and no manifest action,
+   * so the ⌘K palette has never offered this screen at all. That is a
+   * Principle XVI gap and it is reported rather than repaired here — adding a
+   * discovery surface is not this merge request's subject, and a palette row
+   * added now would carry the code without ever having carried the wrong one.
+   */
+  it('hides /taxes from a catalogue editor', () => {
+    renderShell(['catalog:read', 'catalog:write']);
+    expect(sidebarHrefs()).not.toContain('/taxes');
+  });
+
+  it('shows /taxes to a role holding taxes:read', () => {
+    renderShell(['taxes:read']);
+    expect(sidebarHrefs()).toContain('/taxes');
+    // The read half alone opens the screen; the write half is what the screen's
+    // own editing affordances are gated on, not its entry.
   });
 
   it('leaves an ungated shell surface alone', async () => {
