@@ -88,6 +88,15 @@
  *     older than the lockfile. `pnpm install --frozen-lockfile` is what answers
  *     that question, and in this repository it takes about 3 s against a warm
  *     store.
+ *   * **A vitest run that does not import `vitest.config.base.ts`.** The
+ *     population below is complete — it classifies every declared
+ *     consumer→package link in the checkout, whichever workspace asked — but
+ *     the question is asked only where the base config is imported. A package
+ *     with no vitest configuration runs on vitest's defaults and never asks;
+ *     five did, until 2026-08-28, and the only visible difference was the
+ *     absence of the line this file prints.
+ *     `backend/test/unit/harness/workspace-resolution.test.ts` now fails a
+ *     workspace member in either shape.
  *   * **`tsc`, `eslint` and the `check-*` scripts.** They are not vitest, so
  *     they never load this. The `tsc` half is closed structurally instead, by
  *     the `paths` block in `tsconfig.base.json`, which
