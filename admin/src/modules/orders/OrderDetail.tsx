@@ -23,6 +23,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 import {
   Table,
   TableBody,
@@ -178,6 +179,22 @@ export function OrderDetail(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [tab, setTab] = useState<OrderTab>('overview');
+
+  /**
+   * The payments tab is a surface `payments` owns on a screen `orders` owns, so
+   * it answers to `payments`' own authority and to `payments`' own presence.
+   * `useSurfaceVisibility` is the predicate the sidebar, the palette and the
+   * dashboard already use, which is what keeps this from becoming a fourth
+   * answer to "may this operator see this" (issue #230).
+   *
+   * The refusal is an **absent tab**, never a disabled one and never a 403
+   * inside the panel: the panel's endpoint is gated `payments:read`, so without
+   * the code the tab could only ever advertise a refusal. The gate has to live
+   * here rather than inside `OrderPaymentsTab` because the tab button is
+   * rendered here.
+   */
+  const isVisible = useSurfaceVisibility();
+  const showPayments = isVisible({ module: 'payments', requiredPermission: 'payments:read' });
 
   // Warn before leaving with an unsent comment draft.
   useUnsavedChangesPrompt(commentBody.trim() !== '');
@@ -445,13 +462,15 @@ export function OrderDetail(): ReactNode {
                 active={tab}
                 onChange={setTab}
               />
-              <TabBtn
-                id="payment"
-                label={t('orderDetail.tabs.payment')}
-                icon={<CreditCard size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
+              {showPayments ? (
+                <TabBtn
+                  id="payment"
+                  label={t('orderDetail.tabs.payment')}
+                  icon={<CreditCard size={14} />}
+                  active={tab}
+                  onChange={setTab}
+                />
+              ) : null}
               <TabBtn
                 id="delivery"
                 label={t('orderDetail.tabs.delivery')}
@@ -716,7 +735,7 @@ export function OrderDetail(): ReactNode {
             </>
           ) : null}
 
-          {tab === 'payment' ? <OrderPaymentsTab orderId={id} /> : null}
+          {tab === 'payment' && showPayments ? <OrderPaymentsTab orderId={id} /> : null}
           {tab === 'delivery' ? (
             <OrderShipmentsTab orderId={id} deliveryMethodCode={order.deliveryMethod.code} />
           ) : null}

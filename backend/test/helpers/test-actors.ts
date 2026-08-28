@@ -157,6 +157,23 @@ export const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-rfq-handler-session': {
     adminUserId: '00000000-0000-4000-8000-0000000000d6',
   },
+  // `payments` owns its codes — the three roles that prove it. A catalogue
+  // editor must be refused every payments route, a payments viewer must read
+  // the history and be refused the two writes, and the third carries the
+  // seeded `sales_representative` permission list verbatim so the shipped
+  // role's loss of payment access is asserted rather than assumed. All three
+  // roles and users are created by
+  // `test/contract/payments/permission-authority.test.ts`, the way the
+  // scoped-role contract test creates its four.
+  'stub-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d7',
+  },
+  'stub-payments-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d8',
+  },
+  'stub-seeded-sales-rep-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d9',
+  },
 };
 
 declare module 'fastify' {

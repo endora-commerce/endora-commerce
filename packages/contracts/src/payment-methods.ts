@@ -131,20 +131,82 @@ export const paymentMethodListItemSchema = z.object({
 });
 export type PaymentMethodListItem = z.infer<typeof paymentMethodListItemSchema>;
 
+/**
+ * The fields a settlement carries whichever door it arrives through. Split out
+ * so the operator's HTTP body and the gateway modules' in-code payload differ
+ * in exactly one place — `providerDetails` — and cannot drift anywhere else.
+ */
+const receivePaymentBaseShape = {
+  paymentId: uuidSchema.optional(),
+  orderId: uuidSchema.optional(),
+  externalReference: z.string().max(255).nullish(),
+  outcome: z.enum(['success', 'failure']),
+  failureReason: z.string().max(2000).nullish(),
+};
+
+const RECEIVE_PAYMENT_IDENTIFIER_MESSAGE = 'paymentId or (orderId + externalReference) is required';
+
+const hasReceivePaymentIdentifier = (d: {
+  paymentId?: string | undefined;
+  orderId?: string | undefined;
+  externalReference?: string | null | undefined;
+}): boolean => Boolean(d.paymentId) || Boolean(d.orderId && d.externalReference);
+
 /** `receive_payment` ingress payload (FR-022). */
 export const receivePaymentSchema = z
   .object({
-    paymentId: uuidSchema.optional(),
-    orderId: uuidSchema.optional(),
-    externalReference: z.string().max(255).nullish(),
-    outcome: z.enum(['success', 'failure']),
-    failureReason: z.string().max(2000).nullish(),
+    ...receivePaymentBaseShape,
     providerDetails: z.record(z.string(), z.unknown()).optional(),
   })
-  .refine((d) => Boolean(d.paymentId) || Boolean(d.orderId && d.externalReference), {
-    message: 'paymentId or (orderId + externalReference) is required',
-  });
+  .refine(hasReceivePaymentIdentifier, { message: RECEIVE_PAYMENT_IDENTIFIER_MESSAGE });
 export type ReceivePayment = z.infer<typeof receivePaymentSchema>;
+
+/**
+ * What an **operator** may write into `payments.provider_details`.
+ *
+ * That column is a JSON bag, and `POST /api/v1/payments/receive` is one of the
+ * paths that fills it — the caller-supplied one. It took
+ * `z.record(z.string(), z.unknown())` and persisted the result verbatim, which
+ * is the caller deciding what the platform stores: any JSON document, of any
+ * depth and any size, echoed back in full by
+ * `GET /api/v1/admin/orders/:id/payments`. What we persist there has to be
+ * bounded by our schema rather than by somebody else's.
+ *
+ * A flat map of scalars is the bound, not a named field set, and the reason is
+ * that the column has several authors. The key vocabulary belongs to whichever
+ * adapter wrote the row — `refundedAt` and `refundReference` are the two the
+ * platform itself reads back — so enumerating keys here would be this route
+ * claiming an ownership it does not have. What it can refuse is the part that
+ * makes an unbounded bag dangerous: arbitrary nesting, unbounded strings and an
+ * unbounded number of entries. An operator settling an offline payment by hand
+ * records a bank statement line or a reference, which this admits.
+ *
+ * The bound is on the route body only. The gateway modules build `ReceivePayment`
+ * in code with their own shapes, including nested ones, and bounding *their*
+ * writes is a different repair with a different owner.
+ */
+export const operatorProviderDetailsSchema = z
+  .record(
+    z.string().min(1).max(64),
+    z.union([z.string().max(1000), z.number().finite(), z.boolean(), z.null()]),
+  )
+  .refine((details) => Object.keys(details).length <= 50, {
+    message: 'providerDetails may carry at most 50 entries',
+  });
+export type OperatorProviderDetails = z.infer<typeof operatorProviderDetailsSchema>;
+
+/**
+ * The body of `POST /api/v1/payments/receive` — `receivePaymentSchema` with the
+ * operator's bound on `providerDetails`. Its output is assignable to
+ * `ReceivePayment`, so the handler is unchanged.
+ */
+export const receivePaymentRequestSchema = z
+  .object({
+    ...receivePaymentBaseShape,
+    providerDetails: operatorProviderDetailsSchema.optional(),
+  })
+  .refine(hasReceivePaymentIdentifier, { message: RECEIVE_PAYMENT_IDENTIFIER_MESSAGE });
+export type ReceivePaymentRequest = z.infer<typeof receivePaymentRequestSchema>;
 
 // ---------------------------------------------------------------------------
 // Behavioural adapter contract (TypeScript types — not persisted).
