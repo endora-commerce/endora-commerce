@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { CartRecomputeCache } from '../../../../packages/modules/carts/src/backend/services/cart-recompute-cache.js';
 import { CartPricingRecompute } from '../../../../packages/modules/carts/src/backend/services/cart-pricing-recompute.js';
 import type {

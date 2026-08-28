@@ -10,7 +10,7 @@ import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
 import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 
 /**
  * T048 — Audit-trail coverage (FR-019).

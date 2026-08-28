@@ -9,9 +9,9 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 
-import { ProductLink } from '../../../src/modules/catalog/entities/product-link.entity.js';
+import { ProductLink } from '../../helpers/package-entities.js';
 
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 

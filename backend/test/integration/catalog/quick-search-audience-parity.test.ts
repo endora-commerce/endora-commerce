@@ -8,8 +8,8 @@ import {
   type ProductVisibility,
 } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { CatalogQuickSearchService } from '../../../src/modules/catalog/services/catalog-quick-search.service.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { CatalogQuickSearchService } from '../../../../packages/modules/catalog/src/backend/services/catalog-quick-search.service.js';
+import { Product } from '../../helpers/package-entities.js';
 
 /**
  * Issue #262 — the parity `catalogQuickSearchPort` had no test for.

@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PriceList, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
-import { CatalogProductReadService } from '../../../src/modules/catalog/services/catalog-product-read.service.js';
+import { CatalogProductReadService } from '../../../../packages/modules/catalog/src/backend/services/catalog-product-read.service.js';
 
 /**
  * Feature 011 / US1 — Default seed + legacy migration.

@@ -10,7 +10,7 @@ import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-st
 import type { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
 import type { PermissionService } from '../../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
 import type { SupportedAdminLanguage } from '@endora-commerce/contracts';
-import { manifest as catalogManifest } from '../../../src/modules/catalog/manifest.js';
+import { manifest as catalogManifest } from '../../../../packages/modules/catalog/src/manifest.js';
 import { manifest as importExportManifest } from '../../../../packages/modules/import_export/src/manifest.js';
 import { manifest as inventoryManifest } from '../../../../packages/modules/inventory/src/manifest.js';
 import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';

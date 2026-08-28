@@ -4,8 +4,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   CatalogAttributeIntegrityError,
   CatalogAttributeReadService,
-} from '../../../src/modules/catalog/services/catalog-attribute-read.service.js';
-import type { ProductAttribute } from '../../../src/modules/catalog/entities/product-attribute.entity.js';
+} from '../../../../packages/modules/catalog/src/backend/services/catalog-attribute-read.service.js';
+import type { ProductAttributeRow } from '../../helpers/package-entities.js';
 import type {
   CachedDefinition,
 } from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
@@ -86,7 +86,7 @@ function makeDefinition(def: StubDef): CachedDefinition {
   } as unknown as CachedDefinition;
 }
 
-function makeExtension(ext: StubExt): ProductAttribute {
+function makeExtension(ext: StubExt): ProductAttributeRow {
   return {
     id: ext.id,
     customFieldDefinitionId: ext.customFieldDefinitionId,
@@ -106,7 +106,7 @@ function makeExtension(ext: StubExt): ProductAttribute {
     massEditable: ext.massEditable ?? false,
     createdAt: NOW,
     updatedAt: NOW,
-  } as unknown as ProductAttribute;
+  } as unknown as ProductAttributeRow;
 }
 
 function makeService(defs: StubDef[], exts: StubExt[]): CatalogAttributeReadService {

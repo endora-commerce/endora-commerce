@@ -33,16 +33,16 @@ import path from 'node:path';
 const allowlist = [
   // Foundation + the migration itself
   'backend/src/db/migrations/20260424T165847_core_foundation_init.ts',
-  'backend/src/modules/catalog/migrations/20260505T060113_catalog_attribute_options_and_flags.ts',
+  'packages/modules/catalog/src/migrations/20260505T060113_catalog_attribute_options_and_flags.ts',
   // Boundary helpers — accept + project the legacy shape
-  'backend/src/modules/catalog/services/attribute-type-mapping.ts',
-  'backend/src/modules/catalog/services/catalog-admin.service.ts',
-  'backend/src/modules/catalog/services/catalog-query.service.ts',
+  'packages/modules/catalog/src/backend/services/attribute-type-mapping.ts',
+  'packages/modules/catalog/src/backend/services/catalog-admin.service.ts',
+  'packages/modules/catalog/src/backend/services/catalog-query.service.ts',
   // Feature 061 — the attribute create Command inherits the write-side
   // legacy `enumValues` acceptance from catalog-admin.service.ts.
-  'backend/src/modules/catalog/commands/attribute-commands.ts',
-  'backend/src/modules/catalog/routes.admin.ts',
-  'backend/src/modules/catalog/entities/product-attribute.entity.ts',
+  'packages/modules/catalog/src/backend/commands/attribute-commands.ts',
+  'packages/modules/catalog/src/backend/routes.admin.ts',
+  'packages/modules/catalog/src/backend/entities/product-attribute.entity.ts',
   'backend/src/seeds/dev-catalog-seed.ts',
   // Contracts package — deprecated request field
   'packages/contracts/src/catalog.ts',

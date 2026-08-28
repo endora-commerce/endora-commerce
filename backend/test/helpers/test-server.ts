@@ -187,9 +187,9 @@ import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/bac
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from '../../src/kernel/i18n/request-language.js';
 import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
-import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
+import type { CatalogQueryService } from '../../../packages/modules/catalog/src/backend/services/catalog-query.service.js';
 import { z } from 'zod';
-import type { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
+import type { CatalogAttributeReadService } from '../../../packages/modules/catalog/src/backend/services/catalog-attribute-read.service.js';
 import type { PricingServiceContract } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';

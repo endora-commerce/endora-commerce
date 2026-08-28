@@ -10,7 +10,7 @@ import {
   seedRichListingCorpus,
   type RichListingCorpus,
 } from '../../helpers/rich-listing-corpus.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 
 /**
  * A listing card's asset and its category slugs are read **for the page**, and

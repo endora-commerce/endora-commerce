@@ -1,11 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Asset, Organization, PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Category } from '../../src/modules/catalog/entities/category.entity.js';
-import { GalleryItem } from '../../src/modules/catalog/entities/gallery-item.entity.js';
-import { GalleryItemLabel } from '../../src/modules/catalog/entities/gallery-item-label.entity.js';
-import { Product } from '../../src/modules/catalog/entities/product.entity.js';
-import { ProductLink } from '../../src/modules/catalog/entities/product-link.entity.js';
+import { Category } from './package-entities.js';
+import { GalleryItem } from './package-entities.js';
+import { GalleryItemLabel } from './package-entities.js';
+import { Product } from './package-entities.js';
+import { ProductLink } from './package-entities.js';
 import { OTHER_TEST_ORGANIZATION_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
 
 /**
