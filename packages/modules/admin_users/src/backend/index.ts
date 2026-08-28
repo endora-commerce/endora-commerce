@@ -9,6 +9,7 @@ import type {
   AuthSessionPort,
   CustomerAccountReadPort,
   ImpersonationPort,
+  MfaEnrolmentStatePort,
   MfaLoginPort,
   PermissionCataloguePort,
   PermissionReadPort,
@@ -25,6 +26,7 @@ import {
   createAdminUserPreferencePort,
   createImpersonationPort,
 } from './services/admin-user-ports.js';
+import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
 
 /**
  * `admin_users` — who the admin is, and who is allowed to say so (feature 072,
@@ -83,6 +85,27 @@ export function registerModule(ctx: ModuleContext): void {
   // module's effective state at each call rather than at composition.
   const mfaLoginPort = lazyPort<MfaLoginPort>(ctx, 'mfaLoginPort');
 
+  // The live source of `twoFactorEnabled`, on the same terms as the login port
+  // above and for the same reason. This module's own `two_factor_confirmed_at`
+  // column has never had a writer, so the field derived from it was a provably
+  // constant `false` on `/admin-users`, on `/admin/me` and on the login
+  // response the Admin UI seeds its auth context from.
+  const mfaEnrolmentStatePort = lazyPort<MfaEnrolmentStatePort>(ctx, 'mfaEnrolmentStatePort');
+
+  /**
+   * The degrade is performed by **not resolving**, exactly as `getMfaLoginPort`
+   * below does it — presence is decided first and there is deliberately no
+   * `catch` anywhere near the port. An admin list is the wrong place for a 503,
+   * and `false` is not a substitute for the answer here: with `mfa` absent no
+   * sign-in asks for a second factor, so no account is protected by one. The
+   * sentence an operator is shown before the flip is this module's
+   * `degrades-without` entry for `mfaEnrolmentStatePort`.
+   */
+  const twoFactorEnrolments: TwoFactorEnrolmentReader = async (adminUserIds) => {
+    if (!effectiveState.isPresent('mfa')) return new Set<string>();
+    return new Set(await mfaEnrolmentStatePort.activeSubjectIds('admin', adminUserIds));
+  };
+
   ctx.di.register({
     admin: ctx
       .asFunction(({ emFactory, auditLogService }: AdminUsersCradle) =>
@@ -114,6 +137,7 @@ export function registerModule(ctx: ModuleContext): void {
           // branch — the password-only fallback of feature 042 FR-033 — is what
           // `undefined` selects.
           getMfaLoginPort: () => (effectiveState.isPresent('mfa') ? mfaLoginPort : undefined),
+          twoFactorEnrolments,
         }),
       )
       .singleton(),
@@ -142,7 +166,10 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<AdminUserReadPort>(
     'adminUserReadPort',
     ctx
-      .asFunction(({ emFactory }: AdminUsersCradle) => new AdminUserReadService(emFactory))
+      .asFunction(
+        ({ emFactory }: AdminUsersCradle) =>
+          new AdminUserReadService(emFactory, twoFactorEnrolments),
+      )
       .singleton(),
   );
 
@@ -163,7 +190,10 @@ export function registerModule(ctx: ModuleContext): void {
     'adminUserPreferencePort',
     ctx
       .asFunction(() =>
-        createAdminUserPreferencePort(() => ctx.cradle<AdminUsersCradle>().adminUserService),
+        createAdminUserPreferencePort(
+          () => ctx.cradle<AdminUsersCradle>().adminUserService,
+          twoFactorEnrolments,
+        ),
       )
       .singleton(),
   );

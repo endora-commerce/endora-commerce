@@ -103,18 +103,19 @@ export class CustomerAccount {
   emailVerifiedAt?: Date | null;
 
   /**
-   * Never written. Its only non-null writer was the superseded customer 2FA
-   * path, deleted with `two_factor_secret`, so the published
-   * `twoFactorEnabled` derived from it is a **provably constant `false`** —
-   * not merely unpopulated, and not "possibly stale". The live answer is
-   * `mfa`'s `mfa_enrolments`, served as `totpActive` by
-   * `GET /api/v1/account/mfa/status`.
+   * Never written, and since 2026-08-28 never **read** either.
    *
-   * Deferred deliberately, with a clock: the column and the field go when the
-   * five sites deriving it are repointed at `mfa`, and if that is not built
-   * within a release the field is deleted instead. See
-   * `specs/deferred-defects.md` and
-   * `specs/087-tenant-scope-enforcement/superseded-2fa-analysis.md` §7.
+   * Its only non-null writer was the superseded customer 2FA path, deleted with
+   * `two_factor_secret`, so the published `twoFactorEnabled` derived from it
+   * was a provably constant `false` — including on `GET /api/v1/me/customer`,
+   * which told a buyer their own account was unprotected while it was not.
+   * `CustomerAccountRecord.twoFactorEnabled` is now the live `mfa` enrolment,
+   * read through `mfaEnrolmentStatePort`, and nothing in the tree reads this
+   * column.
+   *
+   * It is dead schema kept for one more step: dropping it is a migration on
+   * this module's table and is deliberately not folded into the repair of the
+   * five derivation sites. Do not read it — the honest answer is `mfa`'s.
    */
   @Property({ type: 'datetime', nullable: true })
   twoFactorConfirmedAt?: Date | null;

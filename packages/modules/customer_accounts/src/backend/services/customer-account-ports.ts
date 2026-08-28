@@ -22,6 +22,7 @@ import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import type { CustomerAuthService } from './customer-auth-service.js';
 import type { RoleService } from './role-service.js';
+import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
 
 /**
  * The published face of `customer_accounts` (feature 075, Phase P).
@@ -38,7 +39,22 @@ import type { RoleService } from './role-service.js';
  * can leak from.
  */
 
-export function toCustomerAccountRecord(account: CustomerAccount): CustomerAccountRecord {
+/**
+ * The published record, with `twoFactorEnabled` taken from `mfa` rather than
+ * from this module's `two_factor_confirmed_at` column.
+ *
+ * The second parameter is required and has no default on purpose. That column's
+ * only non-null writer was the superseded TOTP path deleted on 2026-08-25, so
+ * the field was a **provably constant `false`** — on the admin customer detail,
+ * on both organisation member panels, and on `GET /api/v1/me/customer`, which
+ * is the buyer's own account page telling them their account is unprotected. A
+ * default would let the next call site reintroduce that silently; making the
+ * caller answer means the compiler asks.
+ */
+export function toCustomerAccountRecord(
+  account: CustomerAccount,
+  twoFactorEnabled: boolean,
+): CustomerAccountRecord {
   return {
     id: account.id,
     organizationId: account.organizationId ?? null,
@@ -47,7 +63,7 @@ export function toCustomerAccountRecord(account: CustomerAccount): CustomerAccou
     lastName: account.lastName,
     role: account.role,
     emailVerifiedAt: account.emailVerifiedAt ?? null,
-    twoFactorEnabled: Boolean(account.twoFactorConfirmedAt),
+    twoFactorEnabled,
     lastLoginAt: account.lastLoginAt ?? null,
     createdAt: account.createdAt,
     updatedAt: account.updatedAt,
@@ -65,13 +81,40 @@ export function toCustomerAccountRecord(account: CustomerAccount): CustomerAccou
   };
 }
 
+/**
+ * One `mfa` read for a whole page of accounts, rather than one per row.
+ *
+ * Every caller is a list or a single row, so batching here keeps the admin
+ * customer list at two queries instead of one per customer, and leaves the
+ * single-row callers spelling the same thing.
+ */
+export async function toCustomerAccountRecords(
+  twoFactorEnrolments: TwoFactorEnrolmentReader,
+  accounts: readonly CustomerAccount[],
+): Promise<CustomerAccountRecord[]> {
+  if (accounts.length === 0) return [];
+  const enrolled = await twoFactorEnrolments(accounts.map((account) => account.id));
+  return accounts.map((account) => toCustomerAccountRecord(account, enrolled.has(account.id)));
+}
+
+/** The single-row spelling of {@link toCustomerAccountRecords}. */
+export async function toOneCustomerAccountRecord(
+  twoFactorEnrolments: TwoFactorEnrolmentReader,
+  account: CustomerAccount,
+): Promise<CustomerAccountRecord> {
+  return (await toCustomerAccountRecords(twoFactorEnrolments, [account]))[0]!;
+}
+
 /** `{ deletedAt: null }` when the caller asked for it, nothing otherwise. */
 function activeFilter(options?: CustomerAccountLookupOptions): { deletedAt?: null } {
   return options?.activeOnly ? { deletedAt: null } : {};
 }
 
 export class CustomerAccountReadService implements CustomerAccountReadPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly twoFactorEnrolments: TwoFactorEnrolmentReader,
+  ) {}
 
   async findById(
     id: string,
@@ -81,7 +124,7 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
       id,
       ...activeFilter(options),
     });
-    return account ? toCustomerAccountRecord(account) : null;
+    return account ? toOneCustomerAccountRecord(this.twoFactorEnrolments, account) : null;
   }
 
   async findByIds(
@@ -93,7 +136,7 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
       id: { $in: [...ids] },
       ...activeFilter(options),
     });
-    return accounts.map(toCustomerAccountRecord);
+    return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
   }
 
   async findByEmail(
@@ -108,7 +151,7 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
       email: normalizeEmailAddress(email),
       ...activeFilter(options),
     });
-    return account ? toCustomerAccountRecord(account) : null;
+    return account ? toOneCustomerAccountRecord(this.twoFactorEnrolments, account) : null;
   }
 
   async findInOrganization(
@@ -121,7 +164,7 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
       organizationId,
       ...activeFilter(options),
     });
-    return account ? toCustomerAccountRecord(account) : null;
+    return account ? toOneCustomerAccountRecord(this.twoFactorEnrolments, account) : null;
   }
 
   async listByOrganization(
@@ -133,7 +176,7 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
       { organizationId, ...activeFilter(options) },
       { orderBy: { role: 'asc', createdAt: 'asc' } },
     );
-    return accounts.map(toCustomerAccountRecord);
+    return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
   }
 
   async countByOrganizationRole(
@@ -163,7 +206,7 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
       trimmed ? { email: { $ilike: `%${trimmed}%` } } : {},
       { orderBy: { email: 'asc' }, limit },
     );
-    return accounts.map(toCustomerAccountRecord);
+    return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
   }
 
   async searchIdsByName(query: string): Promise<string[]> {
@@ -190,7 +233,7 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
       {},
       { orderBy: { email: 'asc' } },
     );
-    return accounts.map(toCustomerAccountRecord);
+    return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
   }
 }
 
@@ -264,6 +307,7 @@ export class CustomerPasswordVerificationService implements CustomerPasswordVeri
 export class CustomerAccountMemberWriteService implements CustomerAccountMemberWritePort {
   constructor(
     private readonly emFactory: () => EntityManager,
+    private readonly twoFactorEnrolments: TwoFactorEnrolmentReader,
     private readonly auditLog?: AuditPort,
   ) {}
 
@@ -312,7 +356,7 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       }
       throw err;
     }
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async updateProfile(
@@ -349,7 +393,7 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       lastName: account.lastName,
     });
     await em.flush();
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async setSubtreeRollup(
@@ -364,7 +408,7 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       subtreeRollupEnabled: enabled,
     });
     await em.flush();
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async promoteToOrganizationAdmin(customerAccountId: string): Promise<CustomerAccountRecord> {
@@ -376,7 +420,7 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       role: account.role,
     });
     await em.flush();
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async markEmailVerified(
@@ -398,7 +442,7 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       });
       await em.flush();
     }
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async attachToOrganization(
@@ -416,7 +460,7 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       organizationId,
     });
     await em.flush();
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   #audit(
@@ -455,14 +499,20 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
  * here is precisely the divergence this module's conversion removed: the two
  * composition roots each built one, and their MFA argument differed.
  */
-export function createCustomerAuthPort(getService: () => CustomerAuthService): CustomerAuthPort {
+export function createCustomerAuthPort(
+  getService: () => CustomerAuthService,
+  twoFactorEnrolments: TwoFactorEnrolmentReader,
+): CustomerAuthPort {
   return {
     async login(input) {
       const outcome = await getService().login(input);
       if (outcome.status !== 'authenticated') return outcome;
       return {
         status: 'authenticated',
-        customerAccount: toCustomerAccountRecord(outcome.customerAccount),
+        customerAccount: await toOneCustomerAccountRecord(
+          twoFactorEnrolments,
+          outcome.customerAccount,
+        ),
         sessionCookieValue: outcome.sessionCookieValue,
         sessionExpiresAt: outcome.sessionExpiresAt,
       };
@@ -474,13 +524,20 @@ export function createCustomerAuthPort(getService: () => CustomerAuthService): C
 }
 
 /** Same substitution for the member-management surface `organizations` calls. */
-export function createCustomerRolePort(getService: () => RoleService): CustomerRolePort {
+export function createCustomerRolePort(
+  getService: () => RoleService,
+  twoFactorEnrolments: TwoFactorEnrolmentReader,
+): CustomerRolePort {
   return {
     async listMembers(organizationId) {
-      return (await getService().listMembers(organizationId)).map(toCustomerAccountRecord);
+      return toCustomerAccountRecords(
+        twoFactorEnrolments,
+        await getService().listMembers(organizationId),
+      );
     },
     async changeRole(organizationId, targetCustomerAccountId, newRole) {
-      return toCustomerAccountRecord(
+      return toOneCustomerAccountRecord(
+        twoFactorEnrolments,
         await getService().changeRole(organizationId, targetCustomerAccountId, newRole),
       );
     },

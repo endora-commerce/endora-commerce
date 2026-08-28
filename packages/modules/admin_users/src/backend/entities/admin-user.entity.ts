@@ -46,15 +46,18 @@ export class AdminUser {
   status: 'active' | 'inactive' = 'active';
 
   /**
-   * Never written — this table has no writer for it at all, not even a broken
-   * one. The published `twoFactorEnabled` derived from it is therefore a
-   * **provably constant `false`**, while the live admin second factor is
-   * `mfa`'s, over `mfa_enrolments`. So `/admin-users` reports no second factor
-   * for an administrator who enrolled an hour earlier.
+   * Never written, and since 2026-08-28 never **read** either.
    *
-   * Deferred deliberately, with a clock — see the twin comment on
-   * `CustomerAccount.twoFactorConfirmedAt`, `specs/deferred-defects.md` and
-   * `specs/087-tenant-scope-enforcement/superseded-2fa-analysis.md` §7.
+   * This table has no writer for it at all, not even a broken one, so the
+   * published `twoFactorEnabled` derived from it was a provably constant
+   * `false`: `/admin-users` reported no second factor for an administrator who
+   * had enrolled an hour earlier. That field is now the live `mfa` enrolment,
+   * read through `mfaEnrolmentStatePort`, and nothing in the tree reads this
+   * column.
+   *
+   * It is dead schema kept for one more step: dropping it is a migration on
+   * this module's table and is deliberately not folded into the repair of the
+   * five derivation sites. Do not read it — the honest answer is `mfa`'s.
    */
   @Property({ type: 'datetime', nullable: true })
   twoFactorConfirmedAt?: Date | null;

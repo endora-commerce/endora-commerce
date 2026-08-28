@@ -12,6 +12,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { AdminUserService } from './services/admin-user-service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
+import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
@@ -29,6 +30,14 @@ export interface AdminUsersAdminDeps {
   /** Resolves the current admin's id — reads `request.actor` in production
    *  and `request.testActor` under the test harness. */
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
+  /**
+   * `mfa`'s answer to "which of these admins hold a second factor", already
+   * narrowed to this module's subject type. `twoFactorEnabled` used to be
+   * `!!u.twoFactorConfirmedAt` — a column on this module's own table that has
+   * never been written — so the 2FA column on `/admin-users` read `—` for an
+   * admin who had enrolled an hour earlier.
+   */
+  twoFactorEnrolments: TwoFactorEnrolmentReader;
 }
 
 export async function registerAdminUsersAdminRoutes(
@@ -42,7 +51,19 @@ export async function registerAdminUsersAdminRoutes(
     permissionService,
     requireAdmin,
     resolveAdminContext,
+    twoFactorEnrolments,
   } = deps;
+
+  /** One `mfa` read per response, whether the response carries one admin or a page. */
+  async function serializeAdminUsers(users: readonly AdminUser[]) {
+    if (users.length === 0) return [];
+    const enrolled = await twoFactorEnrolments(users.map((u) => u.id));
+    return users.map((u) => serializeAdminUser(u, enrolled.has(u.id)));
+  }
+
+  async function serializeOneAdminUser(user: AdminUser) {
+    return (await serializeAdminUsers([user]))[0]!;
+  }
 
   // --- Current admin (for the UI auth gate) ---------------------------------
   app.get(
@@ -64,7 +85,7 @@ export async function registerAdminUsersAdminRoutes(
         : null;
       return {
         data: {
-          adminUser: serializeAdminUser(adminUser),
+          adminUser: await serializeOneAdminUser(adminUser),
           role: role ? serializeAdminRole(role) : null,
           permissions,
         },
@@ -90,7 +111,7 @@ export async function registerAdminUsersAdminRoutes(
         ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
         ...(body.password !== undefined ? { password: body.password } : {}),
       });
-      return { data: serializeAdminUser(user) };
+      return { data: await serializeOneAdminUser(user) };
     },
   );
 
@@ -114,7 +135,7 @@ export async function registerAdminUsersAdminRoutes(
         ...(q['pageSize'] ? { pageSize: Number.parseInt(q['pageSize'], 10) } : {}),
       });
       return {
-        data: result.items.map(serializeAdminUser),
+        data: await serializeAdminUsers(result.items),
         pagination: {
           page: result.page,
           pageSize: result.pageSize,
@@ -143,7 +164,7 @@ export async function registerAdminUsersAdminRoutes(
         ...(body.adminRoleId !== undefined ? { adminRoleId: body.adminRoleId } : {}),
       });
       reply.status(201);
-      return { data: serializeAdminUser(user) };
+      return { data: await serializeOneAdminUser(user) };
     },
   );
 
@@ -161,7 +182,7 @@ export async function registerAdminUsersAdminRoutes(
         ...(body.adminRoleId !== undefined ? { adminRoleId: body.adminRoleId } : {}),
         ...(body.status !== undefined ? { status: body.status } : {}),
       });
-      return { data: serializeAdminUser(user) };
+      return { data: await serializeOneAdminUser(user) };
     },
   );
 
@@ -196,7 +217,7 @@ export async function registerAdminUsersAdminRoutes(
     async (request) => {
       const body = resetAdminUserPasswordRequestSchema.parse(request.body);
       const user = await adminUserService.resetPassword(request.params.id, body.password);
-      return { data: serializeAdminUser(user) };
+      return { data: await serializeOneAdminUser(user) };
     },
   );
 
@@ -249,14 +270,14 @@ export async function registerAdminUsersAdminRoutes(
   );
 }
 
-function serializeAdminUser(u: AdminUser) {
+function serializeAdminUser(u: AdminUser, twoFactorEnabled: boolean) {
   return {
     id: u.id,
     email: u.email,
     firstName: u.firstName,
     lastName: u.lastName,
     adminRoleId: u.adminRoleId ?? null,
-    twoFactorEnabled: !!u.twoFactorConfirmedAt,
+    twoFactorEnabled,
     status: u.status,
     // Feature 019: surface the per-user Admin UI language preference so the
     // SPA's TranslationProvider can seed itself without a separate fetch.

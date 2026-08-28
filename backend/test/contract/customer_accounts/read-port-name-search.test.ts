@@ -5,6 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
+import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 
 /**
@@ -29,7 +30,7 @@ describe('CustomerAccountReadPort.searchIdsByName', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    port = new CustomerAccountReadService(h.em);
+    port = new CustomerAccountReadService(h.em, twoFactorEnrolmentsFor(h.em, 'customer'));
     sample = await h.em().findOneOrFail(CustomerAccount, { deletedAt: null });
   });
 

@@ -12,6 +12,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@endora-commerce/contracts';
 import { CustomerAccountReadService } from '../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
+import { twoFactorEnrolmentsFor } from './two-factor-enrolments.js';
 import { OrganizationDetailsService } from '../../../packages/modules/organizations/src/backend/services/organization-details-port.js';
 import { CatalogProductReadService } from '../../../packages/modules/catalog/dist/backend/services/catalog-product-read.service.js';
 import { AddressReadService } from '../../../packages/modules/addresses/src/backend/services/address-ports.js';
@@ -53,7 +54,10 @@ export function ordersNeighbourPorts(emFactory: () => EntityManager): {
   catalogProductRead: CatalogProductReadPort;
 } {
   return {
-    customerAccountRead: new CustomerAccountReadService(emFactory),
+    customerAccountRead: new CustomerAccountReadService(
+      emFactory,
+      twoFactorEnrolmentsFor(emFactory, 'customer'),
+    ),
     organizationDetails: new OrganizationDetailsService(emFactory),
     catalogProductRead: new CatalogProductReadService(emFactory),
   };

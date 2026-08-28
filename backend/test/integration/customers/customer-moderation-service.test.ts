@@ -16,6 +16,7 @@ import {
 import { CustomerModerationService } from '../../../../packages/modules/customers/src/backend/services/customer-moderation-service.js';
 import { hashPassword } from '@endora-commerce/platform/kernel';
 import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
+import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 import { customerAccountLifecycleWriteFor } from '../../helpers/customer-account-ports.js';
 
 /**
@@ -70,7 +71,7 @@ describe('CustomerModerationService', () => {
   function makeService(canSee: boolean): CustomerModerationService {
     const visibility: SalesRepVisibility = { canSeeOrganization: async () => canSee };
     return new CustomerModerationService(
-      new CustomerAccountReadService(() => em),
+      new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer')),
       customerAccountLifecycleWriteFor(() => em, audit),
       new CustomerAuthorityService(visibility),
       sessions,

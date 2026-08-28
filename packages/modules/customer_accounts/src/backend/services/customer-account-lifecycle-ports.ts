@@ -25,7 +25,12 @@ import { hashPassword } from '@endora-commerce/platform/kernel';
 // beside the foreign key that holds it.
 import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
-import { toCustomerAccountRecord } from './customer-account-ports.js';
+import {
+  toCustomerAccountRecord,
+  toCustomerAccountRecords,
+  toOneCustomerAccountRecord,
+} from './customer-account-ports.js';
+import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
 
 /**
  * The account lifecycle `customers` runs over this module's table
@@ -76,6 +81,14 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly auditLog: AuditPort,
+    /**
+     * `mfa`'s answer to which of these accounts hold a second factor. Every
+     * method here answers with a `CustomerAccountRecord`, and that record
+     * carries `twoFactorEnabled` — so the alternative to threading it is a
+     * record that says `false` about an enrolled buyer, which is the defect
+     * this parameter exists to remove.
+     */
+    private readonly twoFactorEnrolments: TwoFactorEnrolmentReader,
     /**
      * D-178 — `organizations`' co-transactional provisioning seam, held here
      * because {@link createStandalone} writes the account **and** the individual's
@@ -172,7 +185,13 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         }
         throw err;
       }
-      return toCustomerAccountRecord(account);
+      // `false` is **derived** here rather than defaulted: the account was
+      // created microseconds ago inside this transaction, `mfa_enrolments` is
+      // keyed on its id and nobody has had a chance to enrol against it. Asking
+      // `mfa` would take a second pooled connection while this transaction
+      // holds one, on the pre-auth registration path, to be told the same
+      // thing.
+      return toCustomerAccountRecord(account, false);
     });
   }
 
@@ -186,7 +205,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
   ): Promise<CustomerAccountRecord> {
     const em = this.emFactory();
     const account = await this.#loadLive(em, customerAccountId);
-    if (account.blockedAt) return toCustomerAccountRecord(account);
+    if (account.blockedAt) return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
 
     const before = blockSnapshot(account);
     account.blockedAt = new Date();
@@ -203,7 +222,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       blockSnapshot(account),
       input.audit,
     );
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async unblock(
@@ -212,7 +231,9 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
   ): Promise<CustomerAccountRecord> {
     const em = this.emFactory();
     const account = await this.#loadLive(em, customerAccountId);
-    if (!account.blockedAt) return toCustomerAccountRecord(account);
+    if (!account.blockedAt) {
+      return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
+    }
 
     const before = blockSnapshot(account);
     account.blockedAt = null;
@@ -229,7 +250,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       blockSnapshot(account),
       input.audit,
     );
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async softDelete(
@@ -255,7 +276,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       { deletedAt: null },
       { deletedAt: account.deletedAt.toISOString() },
     );
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async restore(
@@ -284,7 +305,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       { deletedAt: 'set' },
       { deletedAt: null },
     );
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async setOrganization(
@@ -339,7 +360,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     account.organizationId = organizationId;
     await em.flush();
     await this.#record(action, account.id, input.actorAdminUserId, before, { organizationId });
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async setCustomerGroup(
@@ -359,7 +380,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       before,
       { customerGroupId },
     );
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async setCustomFieldValues(
@@ -372,6 +393,11 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         'CustomerAccountLifecycleWriteService: the custom-field write runs a Command; construct the service with a CommandBus.',
       );
     }
+    // Asked **before** the Command opens its transaction. The answer belongs to
+    // another module's table and is only needed to shape the response, so
+    // reading it inside `run` would put a foreign read on the caller's
+    // transaction for no benefit.
+    const enrolled = await this.twoFactorEnrolments([customerAccountId]);
     const command: Command<CustomerAccountRecord> = {
       action: 'customer.custom_fields.update',
       objectType: 'customer_account',
@@ -387,7 +413,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         }
         account.customFieldValues = await merge(account.customFieldValues ?? {});
         return {
-          result: toCustomerAccountRecord(account),
+          result: toCustomerAccountRecord(account, enrolled.has(account.id)),
           after: { customFieldValues: account.customFieldValues },
         };
       },
@@ -400,13 +426,15 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       deletedAt: { $ne: null, $lt: cutoff },
       anonymizedAt: null,
     });
-    return accounts.map(toCustomerAccountRecord);
+    return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
   }
 
   async anonymize(customerAccountId: string): Promise<CustomerAccountRecord> {
     const em = this.emFactory();
     const account = await this.#load(em, customerAccountId);
-    if (account.anonymizedAt) return toCustomerAccountRecord(account);
+    if (account.anonymizedAt) {
+      return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
+    }
 
     const before = { email: account.email };
     account.email = `deleted+${account.id}@anonymized.invalid`;
@@ -424,7 +452,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     await this.#record('customer_account.anonymized', account.id, null, before, {
       anonymizedAt: account.anonymizedAt.toISOString(),
     });
-    return toCustomerAccountRecord(account);
+    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
   async #record(
@@ -477,7 +505,10 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
  * narrowing reads the whole table.
  */
 export class CustomerAccountAdminSearchService implements CustomerAccountAdminSearchPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly twoFactorEnrolments: TwoFactorEnrolmentReader,
+  ) {}
 
   async search(
     criteria: CustomerAccountAdminSearchCriteria,
@@ -529,6 +560,6 @@ export class CustomerAccountAdminSearchService implements CustomerAccountAdminSe
       limit: criteria.pageSize,
       offset: (criteria.page - 1) * criteria.pageSize,
     });
-    return { rows: rows.map(toCustomerAccountRecord), total };
+    return { rows: await toCustomerAccountRecords(this.twoFactorEnrolments, rows), total };
   }
 }
