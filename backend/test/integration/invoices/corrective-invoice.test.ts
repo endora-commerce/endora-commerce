@@ -38,7 +38,7 @@ import {
 import type {
   CorrectiveInvoiceInput,
   CorrectiveInvoiceIssued,
-} from '../../../../packages/modules/returns/src/backend/ports/corrective-invoice.port.js';
+} from '@endora-commerce/contracts';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
 
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';

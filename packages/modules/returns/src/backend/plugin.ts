@@ -1,6 +1,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
+import type {
+  CorrectiveInvoicePort,
+  CreditTopupPort,
+  OrderReturnContextPort,
+  PaymentRefundPort,
+} from '@endora-commerce/contracts';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -23,10 +29,6 @@ import {
   type ReturnNotifier,
 } from './services/return-authorization-service.js';
 import { createRmaNumberGenerator } from './services/rma-number-generator.js';
-import type { OrderReturnContextPort } from './ports/order-return-context.port.js';
-import type { PaymentRefundPort } from './ports/payment-refund.port.js';
-import type { CorrectiveInvoicePort } from './ports/corrective-invoice.port.js';
-import type { CreditTopupPort } from './ports/credit-topup.port.js';
 import { registerReturnsCustomerRoutes } from './routes.customer.js';
 import { registerReturnsAdminRoutes } from './routes.admin.js';
 
