@@ -34,24 +34,6 @@ import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
 import { SettingValue } from '../kernel/settings/setting-value.entity.js';
 import { Setting } from '../kernel/settings/setting.entity.js';
 import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
-import { AttachmentType } from '../modules/catalog/entities/attachment-type.entity.js';
-import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
-import { AttributeSet } from '../modules/catalog/entities/attribute-set.entity.js';
-import { BulkOperation } from '../modules/catalog/entities/bulk-operation.entity.js';
-import { BundleSlotOption } from '../modules/catalog/entities/bundle-slot-option.entity.js';
-import { BundleSlot } from '../modules/catalog/entities/bundle-slot.entity.js';
-import { Category } from '../modules/catalog/entities/category.entity.js';
-import { GalleryItemLabel } from '../modules/catalog/entities/gallery-item-label.entity.js';
-import { GalleryItem } from '../modules/catalog/entities/gallery-item.entity.js';
-import { GroupedItem } from '../modules/catalog/entities/grouped-item.entity.js';
-import { ProductAttachment } from '../modules/catalog/entities/product-attachment.entity.js';
-import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
-import { ProductEditorPreference } from '../modules/catalog/entities/product-editor-preference.entity.js';
-import { ProductLink } from '../modules/catalog/entities/product-link.entity.js';
-import { ProductPackagingUnit } from '../modules/catalog/entities/product-packaging-unit.entity.js';
-import { ProductValueOverride } from '../modules/catalog/entities/product-value-override.entity.js';
-import { ProductVariant } from '../modules/catalog/entities/product-variant.entity.js';
-import { Product } from '../modules/catalog/entities/product.entity.js';
 import { OrderAppliedPromotion } from '../modules/orders/entities/order-applied-promotion.entity.js';
 import { OrderComment } from '../modules/orders/entities/order-comment.entity.js';
 import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
@@ -68,6 +50,7 @@ import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users
 import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/backend';
 import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
 import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-library/backend';
+import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
 import { entities as autopayEntities } from '@endora-commerce/mod-autopay/backend';
 import { entities as inventoryEntities } from '@endora-commerce/mod-inventory/backend';
 import { entities as blogEntities } from '@endora-commerce/mod-blog/backend';
@@ -126,24 +109,6 @@ export const ALL_ENTITIES = [
   SettingValue,
   Setting,
   TranslationBundle,
-  AttachmentType,
-  AttributeSetAttribute,
-  AttributeSet,
-  BulkOperation,
-  BundleSlotOption,
-  BundleSlot,
-  Category,
-  GalleryItemLabel,
-  GalleryItem,
-  GroupedItem,
-  ProductAttachment,
-  ProductAttribute,
-  ProductEditorPreference,
-  ProductLink,
-  ProductPackagingUnit,
-  ProductValueOverride,
-  ProductVariant,
-  Product,
   OrderAppliedPromotion,
   OrderComment,
   OrderItem,
@@ -160,6 +125,7 @@ export const ALL_ENTITIES = [
   ...(analyticsEntities as readonly EntityClassLike[]),
   ...(apiKeysEntities as readonly EntityClassLike[]),
   ...(assetsLibraryEntities as readonly EntityClassLike[]),
+  ...(catalogEntities as readonly EntityClassLike[]),
   ...(autopayEntities as readonly EntityClassLike[]),
   ...(inventoryEntities as readonly EntityClassLike[]),
   ...(blogEntities as readonly EntityClassLike[]),

@@ -142,17 +142,32 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // exist because `db:fresh` seeds from fixtures. Neither is F3 work, and
   // neither is served by moving the file somewhere this test cannot walk.
   //
-  // `catalog` (wave 4, T142). `composition.ts` types the five contributions a
-  // root supplies — the bulk-operation worker flag, the admin audit actor
-  // shape, availability bands, the image placeholder, and the Meilisearch
-  // reindex production runs and the harness must not. The two seed files are
-  // new here for the reason above, and `catalog` is on the list because the
-  // seed writes products and categories like it writes everything else.
-  catalog: [
-    'src/composition.ts',
-    'src/seeds/attribute-fixtures.ts',
-    'src/seeds/dev-catalog-seed.ts',
-  ],
+  // `catalog` (wave 4, T142), now two entries rather than three (feature 080,
+  // T040b). **`src/composition.ts` is gone and is a real retirement**: its one
+  // reference was `import type { CatalogQueryService }` from a path inside the
+  // module's directory, and the module is a package, so the root type-imports it
+  // from `@endora-commerce/mod-catalog/backend` — the same door it already uses
+  // for nine other packaged modules' interfaces. A bare specifier into a package
+  // is not a reference into `backend/src/modules/`, so deleting the directory
+  // breaks nothing there. The five contributions the root supplies — the
+  // bulk-operation worker flag, the admin audit actor shape, availability bands,
+  // the image placeholder, and the Meilisearch reindex production runs and the
+  // harness must not — are container names and were never what held the entry.
+  //
+  // **The two seed files stay, and for criterion 7's reason** (the block below,
+  // verbatim): the dev seed constructs `Product`, `Category` and
+  // `AttributeSetAttribute`, and `attribute-fixtures.ts` constructs
+  // `ProductAttribute`. A module package publishes an `entities` array and no
+  // named class (D-168), so each is taken off that array by name — and needs a
+  // row type to be taken precisely, which for this module matters more than
+  // anywhere else: the array holds **eighteen** classes, so the union `find`
+  // returns collapses to a constructor that is almost certainly not the one
+  // asked for. The row type is an `import type` of the declaration inside the
+  // package's built artefact, whose `packages/modules/catalog/dist/…` path
+  // carries the `modules/catalog/` substring this scan reads. So the reference
+  // is real — deleting the package breaks the **build** — and it is not runtime
+  // coupling, because the type imports erase.
+  catalog: ['src/seeds/attribute-fixtures.ts', 'src/seeds/dev-catalog-seed.ts'],
   // The three modules the dev seed holds and nothing else does. Each is a plain
   // entity import in the seed — a warehouse, a stock level, a delivery method,
   // and the custom-field definition half of a product attribute.

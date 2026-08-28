@@ -7,7 +7,7 @@ import type { Command } from '../../../src/commands/command.js';
 import { EventBus, type EventBase } from '../../../src/events/bus.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { BulkOperation } from '../../../src/modules/catalog/entities/bulk-operation.entity.js';
+import { BulkOperation, type BulkOperationRow } from '../../helpers/package-entities.js';
 
 /**
  * FR-003 co-transactional guarantee against a REAL Postgres (feature 054, T004).
@@ -44,7 +44,7 @@ describe('CommandBus transactional guarantee (feature 054, FR-003) [real DB]', (
     await orm.close(true);
   });
 
-  function makeBulkOp(em: import('@mikro-orm/postgresql').EntityManager, id: string): BulkOperation {
+  function makeBulkOp(em: import('@mikro-orm/postgresql').EntityManager, id: string): BulkOperationRow {
     const op = em.create(BulkOperation, {
       id,
       type: 'cmdbus_test',

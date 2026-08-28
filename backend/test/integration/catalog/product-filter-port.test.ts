@@ -8,8 +8,8 @@ import {
   type ProductVisibility,
 } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { CatalogProductFilterService } from '../../../src/modules/catalog/services/catalog-product-filter.service.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { CatalogProductFilterService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-product-filter.service.js';
+import { Product } from '../../helpers/package-entities.js';
 
 /**
  * Feature 075 — `catalogProductFilterPort`, the answer to the one demand Phase P

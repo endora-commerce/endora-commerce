@@ -3,11 +3,12 @@ import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fi
 import type { CustomFieldDefinition as CustomFieldDefinitionRow } from '../../../packages/modules/custom_fields/dist/backend/entities/custom-field-definition.entity.js';
 import type { CustomFieldOption as CustomFieldOptionRow } from '../../../packages/modules/custom_fields/dist/backend/entities/custom-field-option.entity.js';
 import { entityNamed } from '../packages/package-entity-lookup.js';
-import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
+import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
 import {
   legacyToCfType,
   type LegacyAttributeValueType,
-} from '../modules/catalog/services/attribute-type-mapping.js';
+} from '@endora-commerce/mod-catalog/backend';
+import type { ProductAttribute as ProductAttributeRow } from '../../../packages/modules/catalog/dist/backend/entities/product-attribute.entity.js';
 
 /**
  * Seed/fixture helpers for the feature-061 unified attribute model.
@@ -76,7 +77,13 @@ export interface AttributeFixtureInput {
  *
  * The array publishes two classes, so the union `find` returns would collapse to
  * whichever constituent TypeScript picks — which is what makes the row type
- * load-bearing here rather than decorative.
+ * load-bearing here rather than decorative. `catalog`'s array publishes
+ * **eighteen**, the widest in the tree, so the same is true of `ProductAttribute`
+ * with room to spare.
+ *
+ * `legacyToCfType` comes from the same package by name rather than by path: it is
+ * a pure mapping function, not an entity, so D-168 does not bar the door, and the
+ * bare specifier is what keeps this file inside `rootDir` (see above).
  */
 const CustomFieldDefinition = entityNamed<CustomFieldDefinitionRow>(
   customFieldsEntities,
@@ -88,9 +95,14 @@ const CustomFieldOption = entityNamed<CustomFieldOptionRow>(
   'CustomFieldOption',
   '@endora-commerce/mod-custom-fields/backend',
 );
+const ProductAttribute = entityNamed<ProductAttributeRow>(
+  catalogEntities,
+  'ProductAttribute',
+  '@endora-commerce/mod-catalog/backend',
+);
 
 export interface AttributeFixture {
-  extension: ProductAttribute;
+  extension: ProductAttributeRow;
   definition: CustomFieldDefinitionRow;
 }
 
@@ -152,7 +164,7 @@ export async function createAttributeFixture(
 export async function findAttributeExtensionByKey(
   em: EntityManager,
   key: string,
-): Promise<ProductAttribute | null> {
+): Promise<ProductAttributeRow | null> {
   const definition = await em.findOne(CustomFieldDefinition, { entityType: 'product', key });
   if (!definition) return null;
   return em.findOne(ProductAttribute, { customFieldDefinitionId: definition.id });

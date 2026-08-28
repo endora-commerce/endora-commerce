@@ -10,8 +10,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Category } from '../../helpers/package-entities.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
 import { ProductFeed } from '../../helpers/package-entities.js';

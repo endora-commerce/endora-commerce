@@ -10,7 +10,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { lazyPort, type ModuleContext } from '../../../src/kernel/index.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { presenceAwareBulkRecorder } from '../../../src/modules/catalog/services/bulk-operation.service.js';
+import { presenceAwareBulkRecorder } from '../../../../packages/modules/catalog/dist/backend/services/bulk-operation.service.js';
 import type { OrgRegistrationNotifier } from '../../../../packages/modules/organizations/src/backend/services/org-registration-notifier.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { TEST_RESTRICTED_ADMIN_ID } from '../../helpers/seed-admins.js';

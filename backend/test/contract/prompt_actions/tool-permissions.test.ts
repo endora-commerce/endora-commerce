@@ -17,7 +17,7 @@ import {
   catalogPromptMutationTools,
   catalogPromptResolverTools,
   type CatalogPromptToolsDeps,
-} from '../../../src/modules/catalog/prompt-tools.js';
+} from '../../../../packages/modules/catalog/src/backend/prompt-tools.js';
 import {
   inventoryPromptTools,
   type InventoryPromptToolsDeps,

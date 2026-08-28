@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ProductLink } from '../../../src/modules/catalog/entities/product-link.entity.js';
+import { ProductLink } from '../../helpers/package-entities.js';
 import {
   SEED_PRODUCT_101_ID,
   SEED_PRODUCT_102_ID,

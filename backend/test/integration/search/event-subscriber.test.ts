@@ -7,7 +7,7 @@ import {
 import { EventBus } from '../../../src/events/bus.js';
 import { SearchIndexer, indexUidFor } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
 import { SearchEventSubscriber } from '../../../../packages/modules/search/src/backend/services/search-event-subscriber.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Meilisearch } from 'meilisearch';

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AssetReadPort } from '@endora-commerce/contracts';
-import { GalleryService } from '../../../src/modules/catalog/services/gallery.service.js';
+import { GalleryService } from '../../../../packages/modules/catalog/src/backend/services/gallery.service.js';
 
 /**
  * Feature 075 / D-87 — the batch gallery read `catalog` owes the two modules

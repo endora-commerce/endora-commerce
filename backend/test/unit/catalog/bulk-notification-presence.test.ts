@@ -3,7 +3,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import {
   presenceAwareBulkRecorder,
   type BulkNotificationInput,
-} from '../../../src/modules/catalog/services/bulk-operation.service.js';
+} from '../../../../packages/modules/catalog/src/backend/services/bulk-operation.service.js';
 
 /**
  * D-60 — the third of the three sites, and the one with the sharpest cost.

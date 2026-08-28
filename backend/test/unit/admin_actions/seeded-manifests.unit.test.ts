@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { manifest as catalogManifest } from '../../../src/modules/catalog/manifest.js';
+import { manifest as catalogManifest } from '../../../../packages/modules/catalog/src/manifest.js';
 import { manifest as importExportManifest } from '../../../../packages/modules/import_export/src/manifest.js';
 import { manifest as inventoryManifest } from '../../../../packages/modules/inventory/src/manifest.js';
 import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';

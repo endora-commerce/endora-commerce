@@ -69,6 +69,7 @@ import {
   isViolation,
   RELATION_DECORATOR_HINT,
 } from '../../../scripts/check-kernel-boundary.js';
+import { inTreeRelationTarget } from '../../helpers/in-tree-relation-target.js';
 import {
   analyzeSource as moduleBoundaryAnalyze,
   checkModuleBoundary,
@@ -515,12 +516,22 @@ const SEARCH_ENTITY = join(BACKEND_ROOT, 'src/modules/search/entities/search-phr
  */
 const PLATFORM_ROOT = join(BACKEND_ROOT, '..', 'packages', 'platform', 'src');
 const KERNEL_FILE = join(PLATFORM_ROOT, 'kernel/thing.ts');
+/**
+ * Rule A resolves its target as a **file on disk**, so this proof needs an entity
+ * the application tree really holds — derived rather than named, and shared with
+ * `test/unit/kernel/boundary-check.test.ts`, whose four fixtures rest on the same
+ * fact. It spelled `catalog/entities/category.entity.js` until feature 080's T040b
+ * made `catalog` a package and this proof went green (issue #113's shape: a check's
+ * own evidence of redness quietly stops being evidence). See
+ * `test/helpers/in-tree-relation-target.ts`.
+ */
+const RELATION_TARGET = inTreeRelationTarget();
 const CROSS_MODULE_RELATION = [
-  "import { Category } from '../../catalog/entities/category.entity.js';",
+  `import { ${RELATION_TARGET.name} } from '${RELATION_TARGET.specifier}';`,
   '@Entity()',
   'export class SearchPhraseRecord {',
-  '  @ManyToOne(() => Category, { fieldName: "category_id" })',
-  '  category!: Category;',
+  `  @ManyToOne(() => ${RELATION_TARGET.name}, { fieldName: "target_id" })`,
+  `  target!: ${RELATION_TARGET.name};`,
   '}',
 ].join('\n');
 

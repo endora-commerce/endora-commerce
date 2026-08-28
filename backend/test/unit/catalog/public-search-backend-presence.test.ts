@@ -6,9 +6,9 @@ import { systemTenantContext } from '../../../src/tenancy/resolve-tenant-context
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { registerCatalogPublicRoutes } from '../../../src/modules/catalog/routes.public.js';
+import { registerCatalogPublicRoutes } from '../../../../packages/modules/catalog/src/backend/routes.public.js';
 import type { SearchListOutcome, SearchQueryPort } from '@endora-commerce/contracts';
-import type { CatalogQueryService } from '../../../src/modules/catalog/services/catalog-query.service.js';
+import type { CatalogQueryService } from '../../../../packages/modules/catalog/src/backend/services/catalog-query.service.js';
 
 /**
  * Issue #144 — the public catalogue listing decides `search`'s presence before
