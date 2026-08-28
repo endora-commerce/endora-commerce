@@ -12,6 +12,7 @@ import { verifyPassword } from '@endora-commerce/platform/kernel';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import type { AdminUserService } from './admin-user-service.js';
 import type { ImpersonationService } from './impersonation-service.js';
+import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
 
 /**
  * The published face of `admin_users` (feature 075, Phase P).
@@ -25,11 +26,14 @@ import type { ImpersonationService } from './impersonation-service.js';
  * `CustomerAccountRecord` gives: exactly one module reads it.
  */
 export class AdminUserReadService implements AdminUserReadPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly twoFactorEnrolments: TwoFactorEnrolmentReader,
+  ) {}
 
   async findById(id: string, options?: AdminUserLookupOptions): Promise<AdminUserRecord | null> {
     const admin = await this.emFactory().findOne(AdminUser, { id, ...activeFilter(options) });
-    return admin ? toAdminUserRecord(admin) : null;
+    return admin ? (await toAdminUserRecords(this.twoFactorEnrolments, [admin]))[0]! : null;
   }
 
   async findByIds(
@@ -41,7 +45,7 @@ export class AdminUserReadService implements AdminUserReadPort {
       id: { $in: [...ids] },
       ...activeFilter(options),
     });
-    return admins.map(toAdminUserRecord);
+    return toAdminUserRecords(this.twoFactorEnrolments, admins);
   }
 
   async findByEmail(
@@ -56,7 +60,7 @@ export class AdminUserReadService implements AdminUserReadPort {
       email: normalizeEmailAddress(email),
       ...activeFilter(options),
     });
-    return admin ? toAdminUserRecord(admin) : null;
+    return admin ? (await toAdminUserRecords(this.twoFactorEnrolments, [admin]))[0]! : null;
   }
 
   async listAll(options?: AdminUserLookupOptions): Promise<AdminUserRecord[]> {
@@ -65,7 +69,7 @@ export class AdminUserReadService implements AdminUserReadPort {
       activeFilter(options),
       { orderBy: { email: 'asc' } },
     );
-    return admins.map(toAdminUserRecord);
+    return toAdminUserRecords(this.twoFactorEnrolments, admins);
   }
 
   async listByRoleId(adminRoleId: string): Promise<AdminUserRecord[]> {
@@ -74,7 +78,7 @@ export class AdminUserReadService implements AdminUserReadPort {
       { adminRoleId },
       { orderBy: { email: 'asc' } },
     );
-    return admins.map(toAdminUserRecord);
+    return toAdminUserRecords(this.twoFactorEnrolments, admins);
   }
 }
 
@@ -111,10 +115,12 @@ export function createAdminPasswordVerificationPort(
 /** `_i18n` writes the admin's language choice and reads nothing else. */
 export function createAdminUserPreferencePort(
   getService: () => AdminUserService,
+  twoFactorEnrolments: TwoFactorEnrolmentReader,
 ): AdminUserPreferencePort {
   return {
     async setPreferredLanguage(id, preferredLanguage) {
-      return toAdminUserRecord(await getService().setPreferredLanguage(id, preferredLanguage));
+      const admin = await getService().setPreferredLanguage(id, preferredLanguage);
+      return (await toAdminUserRecords(twoFactorEnrolments, [admin]))[0]!;
     },
   };
 }
@@ -153,7 +159,17 @@ export function createImpersonationPort(
   };
 }
 
-export function toAdminUserRecord(admin: AdminUser): AdminUserRecord {
+/**
+ * The published record, with `twoFactorEnabled` taken from `mfa` rather than
+ * from this module's `two_factor_confirmed_at` column.
+ *
+ * The second parameter is required and has no default on purpose. The column it
+ * replaces had no writer on this table — ever — so the field was a provably
+ * constant `false` on `/admin-users`, on `/admin/me` and on every consumer of
+ * this record. A default would have let the next call site reintroduce exactly
+ * that, silently; making the caller answer means the compiler asks.
+ */
+export function toAdminUserRecord(admin: AdminUser, twoFactorEnabled: boolean): AdminUserRecord {
   return {
     id: admin.id,
     email: admin.email,
@@ -161,11 +177,27 @@ export function toAdminUserRecord(admin: AdminUser): AdminUserRecord {
     lastName: admin.lastName,
     adminRoleId: admin.adminRoleId ?? null,
     status: admin.status,
-    twoFactorEnabled: Boolean(admin.twoFactorConfirmedAt),
+    twoFactorEnabled,
     lastLoginAt: admin.lastLoginAt ?? null,
     preferredLanguage: admin.preferredLanguage ?? null,
     createdAt: admin.createdAt,
     updatedAt: admin.updatedAt,
     deletedAt: admin.deletedAt ?? null,
   };
+}
+
+/**
+ * One `mfa` read for a whole page of admins, rather than one per row.
+ *
+ * Every caller of this mapper is a list or a single entity, so batching here
+ * keeps `/admin-users` at two queries instead of one per user, and leaves the
+ * single-row callers spelling the same thing.
+ */
+export async function toAdminUserRecords(
+  twoFactorEnrolments: TwoFactorEnrolmentReader,
+  admins: readonly AdminUser[],
+): Promise<AdminUserRecord[]> {
+  if (admins.length === 0) return [];
+  const enrolled = await twoFactorEnrolments(admins.map((admin) => admin.id));
+  return admins.map((admin) => toAdminUserRecord(admin, enrolled.has(admin.id)));
 }

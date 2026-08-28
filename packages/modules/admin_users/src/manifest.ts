@@ -76,6 +76,26 @@ export const manifest = defineModuleManifest({
         'accounts are never auto-created and always carry a human-chosen password a peer ' +
         'admin can reset, so no admin becomes unreachable while the module is off.',
     },
+    {
+      moduleId: 'mfa',
+      name: 'mfaEnrolmentStatePort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'Reads "no second factor" for every admin on /admin-users, on /admin/me and on the ' +
+        'login response. True while MFA is off — admin sign-in asks for none — and not a ' +
+        'claim that nobody is enrolled.',
+      reason:
+        '`twoFactorEnabled` on every response carrying an admin user is the live `mfa` ' +
+        'enrolment, read in one batch through `mfaEnrolmentStatePort`. It was ' +
+        '`!!u.twoFactorConfirmedAt` until 2026-08-28 — a column on this module\'s own table ' +
+        'that has never had a writer — so the screen whose job is to tell an operator who is ' +
+        'protected answered "nobody" while people were protected. Non-binding for the reason ' +
+        'the login edge beside it is: `mfa` declares this module in its own `dependencies`, ' +
+        'so an ordinary declaration closes a cycle, and an acknowledged edge would make a ' +
+        'client security policy unswitchable over a column on a list screen. The degrade is ' +
+        'taken by **not resolving** — `backend.ts` probes presence first and answers an empty ' +
+        'set — so nothing catches `ModuleDisabledError`.',
+    },
   ],
   // D-173 — `customers:impersonate` is a **shared** gate, in the shape issue
   // #213 gave `integrations:manage`: it guards this module's

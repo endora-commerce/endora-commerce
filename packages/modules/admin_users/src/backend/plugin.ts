@@ -16,6 +16,7 @@ import { registerAdminPublicRoutes } from './routes.public.js';
 import { registerImpersonationRoutes } from './routes.impersonation.js';
 import { registerAdminUsersAdminRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
 
 /**
  * Every collaborator this module does not own is named by its **container
@@ -47,6 +48,12 @@ export interface AdminModuleOptions {
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
   /** Feature 042 — lazily resolved MFA login port (absent ⇒ password-only). */
   getMfaLoginPort?: () => MfaLoginPort | undefined;
+  /**
+   * Which admins hold a second factor. Required, not optional: the field it
+   * feeds has a value on every response that carries an admin user, and the
+   * defect being repaired is exactly what a plausible default produces.
+   */
+  twoFactorEnrolments: TwoFactorEnrolmentReader;
 }
 
 export interface AdminModuleHandle {
@@ -98,7 +105,10 @@ export function adminModule(
   return {
     handle,
     plugin: async (app) => {
-      await registerAdminPublicRoutes(app, { adminAuthService });
+      await registerAdminPublicRoutes(app, {
+        adminAuthService,
+        twoFactorEnrolments: options.twoFactorEnrolments,
+      });
       await registerImpersonationRoutes(app, {
         impersonationService,
         requireAdmin: options.requireAdmin,
@@ -115,6 +125,7 @@ export function adminModule(
         permissionService: options.permissionService,
         requireAdmin: options.requireAdmin,
         resolveAdminContext: options.resolveAdminContext,
+        twoFactorEnrolments: options.twoFactorEnrolments,
       });
     },
   };

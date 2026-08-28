@@ -19,6 +19,7 @@ import {
   customerAccountPortsFor,
 } from '../../helpers/customer-account-ports.js';
 import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
+import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 
 /**
  * Feature 040, US7 — soft-delete, restore within window, and the permanent
@@ -48,7 +49,7 @@ describe('CustomerDeletionService', () => {
       audit,
     );
     svc = new CustomerDeletionService(
-      new CustomerAccountReadService(() => em),
+      new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer')),
       customerAccountLifecycleWriteFor(() => em, audit),
       {
         ensureForCustomerAccount: async (id) =>

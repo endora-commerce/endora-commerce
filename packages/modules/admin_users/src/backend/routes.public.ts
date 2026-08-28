@@ -11,6 +11,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { ADMIN_SESSION_COOKIE_NAME, adminLoginRequestSchema } from '@endora-commerce/contracts';
 import type { AdminAuthService } from './services/admin-auth-service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
+import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
 
 /**
  * Anonymous admin endpoints — login + logout. The admin surface is otherwise
@@ -18,13 +19,26 @@ import type { AdminUser } from './entities/admin-user.entity.js';
  */
 export interface AdminPublicDeps {
   adminAuthService: AdminAuthService;
+  /**
+   * `mfa`'s answer to "does this admin hold a second factor". The login
+   * response carries `twoFactorEnabled`, and it used to carry
+   * `!!a.twoFactorConfirmedAt` — a column nothing writes — so the Admin UI's
+   * auth context has always seen `false` for an admin who had just satisfied a
+   * TOTP challenge two steps earlier.
+   */
+  twoFactorEnrolments: TwoFactorEnrolmentReader;
 }
 
 export async function registerAdminPublicRoutes(
   app: FastifyInstance,
   deps: AdminPublicDeps,
 ): Promise<void> {
-  const { adminAuthService } = deps;
+  const { adminAuthService, twoFactorEnrolments } = deps;
+
+  async function serializeOneAdminUser(user: AdminUser): Promise<Record<string, unknown>> {
+    const enrolled = await twoFactorEnrolments([user.id]);
+    return serializeAdminUser(user, enrolled.has(user.id));
+  }
 
   app.post(
     '/api/v1/auth/admin/login',
@@ -48,7 +62,10 @@ export async function registerAdminPublicRoutes(
       }
       setSessionCookie(reply, result.sessionCookieValue, result.sessionExpiresAt);
       return {
-        data: { status: 'authenticated', adminUser: serializeAdminUser(result.adminUser) },
+        data: {
+          status: 'authenticated',
+          adminUser: await serializeOneAdminUser(result.adminUser),
+        },
       };
     },
   );
@@ -79,14 +96,14 @@ function setSessionCookie(reply: FastifyReply, value: string, expiresAt: Date): 
   });
 }
 
-function serializeAdminUser(a: AdminUser): Record<string, unknown> {
+function serializeAdminUser(a: AdminUser, twoFactorEnabled: boolean): Record<string, unknown> {
   return {
     id: a.id,
     email: a.email,
     firstName: a.firstName,
     lastName: a.lastName,
     adminRoleId: a.adminRoleId ?? null,
-    twoFactorEnabled: !!a.twoFactorConfirmedAt,
+    twoFactorEnabled,
     status: a.status,
     // Feature 019: surface the per-user Admin UI language preference so the
     // SPA's TranslationProvider can seed itself without a separate fetch.

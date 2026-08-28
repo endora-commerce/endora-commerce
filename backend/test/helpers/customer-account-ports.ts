@@ -17,6 +17,7 @@ import {
   CustomerAccountAdminSearchService,
   CustomerAccountLifecycleWriteService,
 } from '../../../packages/modules/customer_accounts/src/backend/services/customer-account-lifecycle-ports.js';
+import { twoFactorEnrolmentsFor } from './two-factor-enrolments.js';
 
 /**
  * The two `customer_accounts` ports a hand-built `organizations` service needs
@@ -33,8 +34,11 @@ export function customerAccountPortsFor(emFactory: () => EntityManager): {
   write: CustomerAccountMemberWritePort;
 } {
   return {
-    read: new CustomerAccountReadService(emFactory),
-    write: new CustomerAccountMemberWriteService(emFactory),
+    read: new CustomerAccountReadService(emFactory, twoFactorEnrolmentsFor(emFactory, 'customer')),
+    write: new CustomerAccountMemberWriteService(
+      emFactory,
+      twoFactorEnrolmentsFor(emFactory, 'customer'),
+    ),
   };
 }
 
@@ -55,6 +59,7 @@ export function customerAccountLifecycleWriteFor(
   return new CustomerAccountLifecycleWriteService(
     emFactory,
     auditLog,
+    twoFactorEnrolmentsFor(emFactory, 'customer'),
     personalOrganizations,
     commandBus,
   );
@@ -89,5 +94,8 @@ export function personalOrganizationProvisionFor(
 export function customerAccountAdminSearchFor(
   emFactory: () => EntityManager,
 ): CustomerAccountAdminSearchPort {
-  return new CustomerAccountAdminSearchService(emFactory);
+  return new CustomerAccountAdminSearchService(
+    emFactory,
+    twoFactorEnrolmentsFor(emFactory, 'customer'),
+  );
 }

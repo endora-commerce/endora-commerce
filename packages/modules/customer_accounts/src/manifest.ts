@@ -64,6 +64,26 @@ export const manifest = defineModuleManifest({
         'was ever told, so with the buttons gone its only route back is a password reset, ' +
         'keyed on the e-mail the provider verified.',
     },
+    {
+      moduleId: 'mfa',
+      name: 'mfaEnrolmentStatePort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'Reads "no second factor" for every customer — admin customer detail, both ' +
+        'organisation member panels, and the buyer\'s own account page. True while MFA is off; ' +
+        'not a claim that nobody is enrolled.',
+      reason:
+        '`twoFactorEnabled` on `CustomerAccountRecord` is the live `mfa` enrolment, read in ' +
+        'one batch through `mfaEnrolmentStatePort`. It was ' +
+        '`Boolean(account.twoFactorConfirmedAt)` until 2026-08-28, and that column\'s only ' +
+        'non-null writer was the superseded TOTP path deleted on 2026-08-25 — so GET ' +
+        '/api/v1/me/customer told a buyer who had enrolled an hour earlier that their own ' +
+        'account was unprotected. Non-binding for the reason the login edge beside it is: ' +
+        '`mfa` declares this module in its own `dependencies`, so an ordinary declaration ' +
+        'closes a cycle, and an acknowledged edge would make a client security policy ' +
+        'unswitchable. The degrade is taken by **not resolving** — `backend.ts` probes ' +
+        'presence first and answers an empty set — so nothing catches `ModuleDisabledError`.',
+    },
   ],
   // Feature 074 (Constitution XVII), test C1 — reachability. The flag used to
   // rest on four port edges another module declares; ruling 2 withdraws that

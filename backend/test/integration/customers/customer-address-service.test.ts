@@ -11,6 +11,7 @@ import { CustomerAccount } from '../../helpers/package-entities.js';
 import { AddressReadService } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
 
 import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
+import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 
 
@@ -38,7 +39,7 @@ describe('CustomerAddressService', () => {
     service = new CustomerAddressService(
       () => em,
       new AddressReadService(() => em),
-      new CustomerAccountReadService(() => em),
+      new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer')),
     );
     // D-178 — every account is scoped by an Organization, so the fixture writes
     // one. It is a company organisation rather than a personal one because

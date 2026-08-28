@@ -16,6 +16,7 @@ import type {
   CustomerPasswordVerificationPort,
   CustomerRolePort,
   CustomerRollupScopePort,
+  MfaEnrolmentStatePort,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -53,6 +54,7 @@ import { CustomerGroupService } from './services/customer-group-service.js';
 import { CustomerRollupScopeService } from './services/customer-rollup-scope.js';
 import { PasswordResetService } from './services/password-reset-service.js';
 import { RoleService } from './services/role-service.js';
+import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
 
 /**
  * `customer_accounts` — one customer auth service, where there were two
@@ -143,6 +145,28 @@ export function registerModule(ctx: ModuleContext): void {
   // module's effective state at each call rather than at composition.
   const mfaLoginPort = lazyPort<MfaLoginPort>(ctx, 'mfaLoginPort');
 
+  // The live source of `twoFactorEnabled`, on the same terms as the login port
+  // above and for the same reason. This module's `two_factor_confirmed_at`
+  // column lost its only non-null writer when the superseded TOTP path was
+  // deleted, so the field derived from it was a provably constant `false` —
+  // including on `GET /api/v1/me/customer`, which is the buyer's own account
+  // page telling them their account is unprotected while it is not.
+  const mfaEnrolmentStatePort = lazyPort<MfaEnrolmentStatePort>(ctx, 'mfaEnrolmentStatePort');
+
+  /**
+   * The degrade is performed by **not resolving**, exactly as the login port's
+   * getter below does it — presence is decided first and there is deliberately
+   * no `catch` anywhere near the port. A buyer's own account page is the wrong
+   * place for a 503, and `false` is not a substitute for the answer here: with
+   * `mfa` absent no sign-in asks for a second factor, so no account is
+   * protected by one. The sentence an operator is shown before the flip is this
+   * module's `degrades-without` entry for `mfaEnrolmentStatePort`.
+   */
+  const twoFactorEnrolments: TwoFactorEnrolmentReader = async (customerAccountIds) => {
+    if (!effectiveState.isPresent('mfa')) return new Set<string>();
+    return new Set(await mfaEnrolmentStatePort.activeSubjectIds('customer', customerAccountIds));
+  };
+
   // ---------------------------------------------------------------------------
   // Feature 075, Phase P — the published surface.
   //
@@ -164,7 +188,10 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<CustomerAccountReadPort>(
     'customerAccountReadPort',
     ctx
-      .asFunction(({ emFactory }: CustomerAccountsCradle) => new CustomerAccountReadService(emFactory))
+      .asFunction(
+        ({ emFactory }: CustomerAccountsCradle) =>
+          new CustomerAccountReadService(emFactory, twoFactorEnrolments),
+      )
       .singleton(),
   );
 
@@ -180,7 +207,7 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
-          new CustomerAccountMemberWriteService(emFactory, auditLogService),
+          new CustomerAccountMemberWriteService(emFactory, twoFactorEnrolments, auditLogService),
       )
       .singleton(),
   );
@@ -205,6 +232,7 @@ export function registerModule(ctx: ModuleContext): void {
           new CustomerAccountLifecycleWriteService(
             emFactory,
             auditLogService,
+            twoFactorEnrolments,
             // D-178 — `lazyPort` rather than a captured value: the gate stays
             // live inside this singleton and the seam is resolved per call. The
             // proxy is what makes the capture legal at all.
@@ -219,7 +247,8 @@ export function registerModule(ctx: ModuleContext): void {
     'customerAccountAdminSearchPort',
     ctx
       .asFunction(
-        ({ emFactory }: CustomerAccountsCradle) => new CustomerAccountAdminSearchService(emFactory),
+        ({ emFactory }: CustomerAccountsCradle) =>
+          new CustomerAccountAdminSearchService(emFactory, twoFactorEnrolments),
       )
       .singleton(),
   );
@@ -228,7 +257,10 @@ export function registerModule(ctx: ModuleContext): void {
     'customerAuthPort',
     ctx
       .asFunction(() =>
-        createCustomerAuthPort(() => ctx.cradle<CustomerAccountsCradle>().customerAuthService),
+        createCustomerAuthPort(
+          () => ctx.cradle<CustomerAccountsCradle>().customerAuthService,
+          twoFactorEnrolments,
+        ),
       )
       .singleton(),
   );
@@ -291,7 +323,10 @@ export function registerModule(ctx: ModuleContext): void {
     'customerRolePort',
     ctx
       .asFunction(() =>
-        createCustomerRolePort(() => ctx.cradle<CustomerAccountsCradle>().customerRoleService),
+        createCustomerRolePort(
+          () => ctx.cradle<CustomerAccountsCradle>().customerRoleService,
+          twoFactorEnrolments,
+        ),
       )
       .singleton(),
   );
