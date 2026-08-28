@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { initOrm, closeOrm } from '../../../db/index.js';
-import { AuditLogService } from '../../../kernel/audit/audit-log-service.js';
+import { initOrm, closeOrm } from '../../db/index.js';
+import { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../services/orchestrator.js';
 import { buildStaticRegistry } from '../services/static-registry.js';
 import { resolvedManifestEntries } from '../registered-manifests.js';
-import { enterSystemScope } from '../../../kernel/scope.js';
+import { enterSystemScope } from '../../kernel/scope.js';
 
 /**
  * `pnpm --filter backend run module:uninstall <module-id> [--hard] [--force] [--json]`

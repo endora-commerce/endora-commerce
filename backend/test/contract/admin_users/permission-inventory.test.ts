@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   REGISTERED_MANIFESTS,
   resolvedManifestEntries,
-} from '../../../src/modules/_lifecycle/registered-manifests.js';
+} from '../../../src/lifecycle/registered-manifests.js';
 import { scanEnforcedPermissionGates } from '../../../../packages/modules/admin_roles/src/backend/permission-inventory.js';
 import { permissionScanRoots } from '../../helpers/permission-scan-roots.js';
 import { listAssignablePermissionCodes } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';

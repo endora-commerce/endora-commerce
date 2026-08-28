@@ -2,7 +2,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { describe, expect, it } from 'vitest';
-import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**

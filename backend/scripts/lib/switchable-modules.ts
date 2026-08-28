@@ -96,6 +96,39 @@ export async function loadManifestActivations(
   }));
 }
 
+/**
+ * Where each registered module's manifest actually is, straight from the index.
+ *
+ * The index records it (feature 080, T041a) because a module's own directory is
+ * `dirname` of it, and three origins answer differently: a module in the
+ * application tree with `<src>/modules/<id>/manifest.ts`, a packaged one with
+ * its `package.json`, and — since T040b — the one module the host itself owns,
+ * whose directory is neither. `lib/module-roots.ts` reads this to place that
+ * last one, rather than inferring it from a directory that is deliberately not
+ * named after its module id.
+ *
+ * Same reader and same import as {@link loadManifestActivations}, so the two
+ * cannot come to disagree about which modules exist or where they are.
+ */
+export async function loadManifestLocations(
+  indexPath: string,
+): Promise<ReadonlyMap<string, string>> {
+  let entries: ReadonlyArray<{ id: string; manifestPath?: string }>;
+  try {
+    const loaded = (await import(pathToFileURL(indexPath).href)) as {
+      DISCOVERED_MANIFESTS?: ReadonlyArray<{ id: string; manifestPath?: string }>;
+    };
+    entries = loaded.DISCOVERED_MANIFESTS ?? [];
+  } catch (err: unknown) {
+    throw new ManifestIndexUnreadableError(`${indexPath} could not be imported: ${String(err)}`);
+  }
+  const located = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.manifestPath !== undefined) located.set(entry.id, entry.manifestPath);
+  }
+  return located;
+}
+
 /** The locked set, straight from the generated index. */
 export async function loadLockedOwners(indexPath: string): Promise<ReadonlySet<string>> {
   return lockedOwners(await loadManifestActivations(indexPath));

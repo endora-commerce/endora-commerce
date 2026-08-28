@@ -56,7 +56,7 @@ describe('transactional emails — registration + prune (US5)', () => {
     // manifests are not passed here, so they would be pruned — guard by passing
     // them through alongside (use the registered set + ours).
     const { REGISTERED_MANIFESTS } = await import(
-      '../../../src/modules/_lifecycle/registered-manifests.js'
+      '../../../src/lifecycle/registered-manifests.js'
     );
     const base = REGISTERED_MANIFESTS.map((e) => e.manifest);
 

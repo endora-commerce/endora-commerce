@@ -257,7 +257,7 @@ async function phaseSchema(): Promise<AssertionResult[]> {
  */
 async function identityAndAssets(em: () => EntityManager): Promise<AssertionResult> {
   const { resolvedManifestEntries } = await import(
-    '../../src/modules/_lifecycle/registered-manifests.js'
+    '../../src/lifecycle/registered-manifests.js'
   );
   const { PermissionCatalogueService } = await import('@endora-commerce/mod-admin-roles/backend');
   const { I18nService, reconcileBundles } = await import('@endora-commerce/mod-i18n/backend');
@@ -415,13 +415,13 @@ async function phaseInstall(): Promise<AssertionResult[]> {
   const { initOrm, closeOrm } = await import('../../src/db/index.js');
   const { AuditLogService } = await import('../../src/kernel/audit/audit-log-service.js');
   const { ModuleLifecycleOrchestrator } = await import(
-    '../../src/modules/_lifecycle/services/orchestrator.js'
+    '../../src/lifecycle/services/orchestrator.js'
   );
   const { buildStaticRegistry } = await import(
-    '../../src/modules/_lifecycle/services/static-registry.js'
+    '../../src/lifecycle/services/static-registry.js'
   );
   const { resolvedManifestEntries } = await import(
-    '../../src/modules/_lifecycle/registered-manifests.js'
+    '../../src/lifecycle/registered-manifests.js'
   );
   const { enterSystemScope } = await import('../../src/kernel/scope.js');
   const { default: Redis } = await import('ioredis');
@@ -594,13 +594,13 @@ async function phaseUninstall(): Promise<AssertionResult[]> {
   const { initOrm, closeOrm } = await import('../../src/db/index.js');
   const { AuditLogService } = await import('../../src/kernel/audit/audit-log-service.js');
   const { ModuleLifecycleOrchestrator } = await import(
-    '../../src/modules/_lifecycle/services/orchestrator.js'
+    '../../src/lifecycle/services/orchestrator.js'
   );
   const { buildStaticRegistry } = await import(
-    '../../src/modules/_lifecycle/services/static-registry.js'
+    '../../src/lifecycle/services/static-registry.js'
   );
   const { resolvedManifestEntries } = await import(
-    '../../src/modules/_lifecycle/registered-manifests.js'
+    '../../src/lifecycle/registered-manifests.js'
   );
   const { enterSystemScope } = await import('../../src/kernel/scope.js');
   const { configuredMigrations } = await import('../../src/db/configured-migrations.js');

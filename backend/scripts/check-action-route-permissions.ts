@@ -86,6 +86,8 @@ import { activeOverlayModulesRoot } from '../src/overlay/overlay-roots.js';
 import {
   moduleIdOf as segmentModuleIdOf,
   refuseVacuousModulePopulation,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
 } from './lib/module-population.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
@@ -191,6 +193,15 @@ export interface RouteScanInput {
    */
   readonly absolutePathOf?: (file: string) => string;
   readonly lookupConstant?: ConstantLookup;
+  /**
+   * Directories whose files belong to a module no `modules/<id>/` segment names
+   * — `lib/module-roots.ts`' `hostResidentModules` (feature 080, T040b).
+   *
+   * `_lifecycle` serves `/api/v1/admin/modules/**`, so without it those routes
+   * are read as belonging to no module and the third resolution level — the
+   * owning module's own routes — has nothing to fall back to.
+   */
+  readonly hostResidentModules?: HostResidentModules;
 }
 
 // ---------------------------------------------------------------------------
@@ -411,7 +422,7 @@ export function findAdminRoutes(input: RouteScanInput): RouteScanResult {
     if (!text.includes(ADMIN_API_PREFIX)) continue;
     const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
     const bindings = localBindings(sf);
-    const moduleId = moduleIdOf(file);
+    const moduleId = moduleIdOf(file, input.hostResidentModules);
 
     const visit = (node: ts.Node): void => {
       if (
@@ -460,13 +471,16 @@ export function findAdminRoutes(input: RouteScanInput): RouteScanResult {
  * repository-relative and starts with neither `modules` nor `apps` (feature
  * 080, T040a).
  */
-export function moduleIdOf(file: string): string | null {
+export function moduleIdOf(
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): string | null {
   const segments = file.split('/');
   if (segments[0] === 'modules') return segments[1] ?? null;
   // `apps/<deployment>/modules/<id>/…` — an overlay module is an ordinary
   // lifecycle participant and owns its actions the same way (feature 057).
   if (segments[0] === 'apps' && segments[2] === 'modules') return segments[3] ?? null;
-  return segmentModuleIdOf(file);
+  return segmentModuleIdOf(file, hostResident);
 }
 
 // ---------------------------------------------------------------------------
@@ -710,7 +724,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 async function loadActions(): Promise<ActionRecord[]> {
-  const { resolvedManifestEntries } = await import('../src/modules/_lifecycle/registered-manifests.js');
+  const { resolvedManifestEntries } = await import('../src/lifecycle/registered-manifests.js');
   const entries = await resolvedManifestEntries();
   const actions: ActionRecord[] = [];
   for (const entry of entries) {
@@ -769,6 +783,7 @@ async function main(): Promise<void> {
   const result = analyse({
     sources,
     actions,
+    hostResidentModules: layout.hostResidentModules,
     absolutePathOf: layout.absolutePathOf,
     lookupConstant: (file, name, property) => resolver.lookup(file, name, property),
   });

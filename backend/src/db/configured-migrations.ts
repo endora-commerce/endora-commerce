@@ -1,5 +1,5 @@
 import type { MigrationObject } from '@mikro-orm/core';
-import { DISCOVERED_MANIFESTS } from '../modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../manifest-index.generated.js';
 import { MIGRATION_REGISTRY } from './migrations-registry.generated.js';
 import {
   discoverPackageSchema,

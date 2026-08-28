@@ -362,7 +362,7 @@ describe('feed taxonomy revisions [contract]', () => {
 
   it('adds no permission code — the existing read/write pair gates every route (FR-099)', async () => {
     const { REGISTERED_MANIFESTS } = await import(
-      '../../../src/modules/_lifecycle/registered-manifests.js'
+      '../../../src/lifecycle/registered-manifests.js'
     );
     const { listAssignablePermissionCodes } = await import('@endora-commerce/mod-admin-roles/backend');
     const codes = listAssignablePermissionCodes(REGISTERED_MANIFESTS).filter((code) =>

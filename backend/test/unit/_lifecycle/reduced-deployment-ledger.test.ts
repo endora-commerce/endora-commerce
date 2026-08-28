@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   loadReducedDeploymentDeclarations,
   parseReducedDeploymentDeclarations,
-} from '../../../src/modules/_lifecycle/services/reduced-deployment.js';
+} from '../../../src/lifecycle/services/reduced-deployment.js';
 
 /**
  * The declared escape from D-101's refusal — the half that reads the disk.

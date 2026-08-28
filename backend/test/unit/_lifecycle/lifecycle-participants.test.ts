@@ -5,12 +5,12 @@ import {
   type ModuleInstalledEvent,
   type ModuleLifecycleParticipant,
 } from '@endora-commerce/contracts';
-import { ModuleLifecycleOrchestrator } from '../../../src/modules/_lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
+import { ModuleLifecycleOrchestrator } from '../../../src/lifecycle/services/orchestrator.js';
+import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
 import type {
   LoadedLifecycleParticipant,
   LoadedManifestRegistry,
-} from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+} from '../../../src/lifecycle/services/manifest-loader.js';
 import { migrationOwnershipOf } from '../../../src/db/configured-migrations.js';
 
 /**

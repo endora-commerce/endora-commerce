@@ -437,11 +437,11 @@ const DEPLOYMENT_FILE =
 
 export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach>> = {
   // === CONTAINERLESS_CLI (5) ===
-  'backend/src/modules/_lifecycle/scripts/disable.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/modules/_lifecycle/scripts/enable.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/modules/_lifecycle/scripts/install.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/modules/_lifecycle/scripts/status.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/modules/_lifecycle/scripts/uninstall.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
+  'backend/src/lifecycle/scripts/disable.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
+  'backend/src/lifecycle/scripts/enable.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
+  'backend/src/lifecycle/scripts/install.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
+  'backend/src/lifecycle/scripts/status.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
+  'backend/src/lifecycle/scripts/uninstall.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
 
   // === DEPLOYMENT_FILE (4) ===
   'backend/src/apps/acceptance/override-manifest.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
@@ -450,36 +450,37 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/apps/example/reduced-deployment.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
 
   // === LIFECYCLE_HOST_HALF (16) ===
-  'backend/src/modules/_lifecycle/backend.ts|packages/platform/src/http/interceptors/index.ts': { symbols: ['ApiInterceptorRegistry'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/commands/activation.commands.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/plugin.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['ModuleRegistryCache', 'registryCache'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/registered-manifests.ts|backend/src/overlay/overlay-runtime.ts': { symbols: ['discoverOverlayModuleManifests'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/registered-manifests.ts|backend/src/packages/module-id-claims.ts': { symbols: ['ModuleIdClaim', 'ModuleIdClaimOrigin', 'assertNoPackageModuleIdCollisions'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/registered-manifests.ts|backend/src/packages/package-runtime.ts': { symbols: ['discoverPackageModuleManifests'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/routes.admin.ts|packages/platform/src/http/interceptors/index.ts': { symbols: ['ApiInterceptorRegistry'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/orchestrator.ts|backend/src/db/configured-migrations.ts': { symbols: ['MigrationOwnership', 'coreMigrationOwnership'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/orchestrator.ts|backend/src/db/migration-order.ts': { symbols: ['findModuleCycles'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': { symbols: ['ModuleRegistration'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['publishStateChanged', 'registryCache'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/orchestrator.ts|packages/platform/src/kernel/settings/manifest-reconciler.ts': { symbols: ['ManifestReconciler'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/activation-resolver.ts': { symbols: ['activationDeclarationsFrom'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': { symbols: ['ModuleRegistration'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/modules/_lifecycle/services/reduced-deployment.ts|backend/src/overlay/overlay-roots.ts': { symbols: ['selectedDeployment'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/backend.ts|packages/platform/src/http/interceptors/index.ts': { symbols: ['ApiInterceptorRegistry'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/commands/activation.commands.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/plugin.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['ModuleRegistryCache', 'registryCache'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/registered-manifests.ts|backend/src/manifest-index.generated.ts': { symbols: ['DISCOVERED_MANIFESTS', 'DiscoveredManifestEntry'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/registered-manifests.ts|backend/src/overlay/overlay-runtime.ts': { symbols: ['discoverOverlayModuleManifests'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/registered-manifests.ts|backend/src/packages/module-id-claims.ts': { symbols: ['ModuleIdClaim', 'ModuleIdClaimOrigin', 'assertNoPackageModuleIdCollisions'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/registered-manifests.ts|backend/src/packages/package-runtime.ts': { symbols: ['discoverPackageModuleManifests'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/routes.admin.ts|packages/platform/src/http/interceptors/index.ts': { symbols: ['ApiInterceptorRegistry'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/services/orchestrator.ts|backend/src/db/configured-migrations.ts': { symbols: ['MigrationOwnership', 'coreMigrationOwnership'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/services/orchestrator.ts|backend/src/db/migration-order.ts': { symbols: ['findModuleCycles'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': { symbols: ['ModuleRegistration'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['publishStateChanged', 'registryCache'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/kernel/settings/manifest-reconciler.ts': { symbols: ['ManifestReconciler'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/activation-resolver.ts': { symbols: ['activationDeclarationsFrom'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': { symbols: ['ModuleRegistration'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
+  'backend/src/lifecycle/services/reduced-deployment.ts|backend/src/overlay/overlay-roots.ts': { symbols: ['selectedDeployment'], reason: LIFECYCLE_HOST_HALF },
 
   // === MODULE_PLUGIN (1) ===
-  'backend/src/modules/_lifecycle/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
+  'backend/src/lifecycle/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
 
   // === ORM_BOOTSTRAP (5) ===
-  'backend/src/modules/_lifecycle/scripts/disable.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
-  'backend/src/modules/_lifecycle/scripts/enable.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
-  'backend/src/modules/_lifecycle/scripts/install.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
-  'backend/src/modules/_lifecycle/scripts/status.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
-  'backend/src/modules/_lifecycle/scripts/uninstall.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
+  'backend/src/lifecycle/scripts/disable.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
+  'backend/src/lifecycle/scripts/enable.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
+  'backend/src/lifecycle/scripts/install.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
+  'backend/src/lifecycle/scripts/status.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
+  'backend/src/lifecycle/scripts/uninstall.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
 
 
   // === WORKER_WRAPPERS (1) ===
-  'backend/src/modules/_lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['pauseWorkersFor', 'resumeWorkersFor'], reason: WORKER_WRAPPERS },
+  'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['pauseWorkersFor', 'resumeWorkersFor'], reason: WORKER_WRAPPERS },
 };
 
 export interface PlatformSurfaceInput {

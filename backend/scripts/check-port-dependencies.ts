@@ -85,13 +85,18 @@ import {
   type CrossModuleRead,
   type DeactivationLedger,
   type UnassignedEdge,
-} from '../src/modules/_lifecycle/services/deactivation-ledger.js';
+} from '../src/lifecycle/services/deactivation-ledger.js';
 import {
   acknowledgedPortEdgesFrom,
   nonBindingPortEdgesFrom,
   type NonBindingPortEdge,
-} from '../src/modules/_lifecycle/services/gating-graph.js';
-import { moduleIdOf, refuseVacuousModulePopulation } from './lib/module-population.js';
+} from '../src/lifecycle/services/gating-graph.js';
+import {
+  moduleIdOf,
+  refuseVacuousModulePopulation,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
+} from './lib/module-population.js';
 import { declaresRegisterModule, requireModuleLayout } from './lib/module-roots.js';
 import {
   loadPackageDeclarations,
@@ -1052,13 +1057,23 @@ function walk(dir: string, out: string[] = []): string[] {
  * reports clean. That is issue #215's failure one layer in, and it is why
  * `resolveModuleLayout` refuses a package root whose location the segment
  * reader cannot attribute rather than letting it through unnamed.
+ *
+ * The fourth answer is `hostResident`, the map the layout derives from the
+ * manifest index for a module whose sources the host owns and whose directory
+ * therefore carries no `modules/<id>/` segment (feature 080, T040b). It is
+ * threaded from `main` rather than left to default, for exactly the reason the
+ * third shape exists: a file the walk reads and cannot name is a file this
+ * check judges as nobody's and reports clean about.
  */
-export function moduleOf(file: string): string | null {
+export function moduleOf(
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): string | null {
   const overlay = /\/src\/apps\/[^/]+\/modules\/([^/]+)\//.exec(file);
   if (overlay) return overlay[1] ?? null;
   const core = /\/src\/modules\/([^/]+)\//.exec(file);
   if (core) return core[1] ?? null;
-  return moduleIdOf(file);
+  return moduleIdOf(file, hostResident);
 }
 
 /** `ctx.di.register` → `di.register`; used to match on the tail, not the receiver name. */
@@ -1330,8 +1345,12 @@ function isWithin(node: ts.Node, scope: ts.Node): boolean {
  * until issue #127 — the eighth time this scanner's *reach*, rather than the
  * rules under it, turned out to be the defect.
  */
-export function resolvedNames(source: string, file: string): PortResolution[] {
-  const moduleId = moduleOf(file);
+export function resolvedNames(
+  source: string,
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): PortResolution[] {
+  const moduleId = moduleOf(file, hostResident);
   if (moduleId === null) return [];
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const found: PortResolution[] = [];
@@ -1561,8 +1580,12 @@ export interface ImportedContributionSeam {
   readonly site: ResolutionSite;
 }
 
-export function importedContributionSeams(source: string, file: string): ImportedContributionSeam[] {
-  const moduleId = moduleOf(file);
+export function importedContributionSeams(
+  source: string,
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): ImportedContributionSeam[] {
+  const moduleId = moduleOf(file, hostResident);
   if (moduleId === null) return [];
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
 
@@ -1575,7 +1598,7 @@ export function importedContributionSeams(source: string, file: string): Importe
     if (!specifier.startsWith('.')) continue;
     // `moduleOf` reads a directory segment, so the resolved path needs one
     // more separator after the module name to match on a file at its root.
-    const owner = moduleOf(`${resolvePath(dirname(file), specifier)}/`);
+    const owner = moduleOf(`${resolvePath(dirname(file), specifier)}/`, hostResident);
     if (owner === null || owner === moduleId) continue;
     const bindings = statement.importClause?.namedBindings;
     if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
@@ -2329,7 +2352,7 @@ async function main(): Promise<void> {
   const moduleEntryPoints = new Map<string, string>();
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
-    const moduleId = moduleOf(file);
+    const moduleId = moduleOf(file, layout.hostResidentModules);
     if (moduleId === null) continue;
     if (
       !moduleEntryPoints.has(moduleId) &&
@@ -2338,8 +2361,8 @@ async function main(): Promise<void> {
       moduleEntryPoints.set(moduleId, file);
     }
     for (const name of registeredNames(source, file)) owners.set(name, moduleId);
-    resolutions.push(...resolvedNames(source, file));
-    seams.push(...importedContributionSeams(source, file));
+    resolutions.push(...resolvedNames(source, file, layout.hostResidentModules));
+    seams.push(...importedContributionSeams(source, file, layout.hostResidentModules));
   }
   // The tree wins a collision, as it does in `check-module-boundary`'s table
   // map: two registrations of one name is a `DuplicateRegistrationError` the
@@ -2588,7 +2611,9 @@ async function main(): Promise<void> {
     coverage: coverages,
   });
   console.log(
-    `[port-deps] modules scanned=${new Set(files.map(moduleOf)).size} ` +
+    `[port-deps] modules scanned=${
+      new Set(files.map((file) => moduleOf(file, layout.hostResidentModules))).size
+    } ` +
       `resolutions=${resolutions.length} violations=${violations.length} ` +
       `root-issues=${rootIssues.length} ` +
       `packages=${packages.discovered} package-names=${packages.containerNames.length} ` +

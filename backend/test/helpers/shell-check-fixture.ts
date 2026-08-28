@@ -60,7 +60,7 @@ esac
 export const BASELINE_MODULE_SOURCE = 'backend/src/modules/orders/order-service.ts';
 
 /** Where the fixture's generated manifest index lives, as both scripts read it. */
-const MANIFEST_INDEX = 'backend/src/modules/_lifecycle/manifest-index.generated.ts';
+const MANIFEST_INDEX = 'backend/src/manifest-index.generated.ts';
 
 /**
  * The generated index, in the shape the composer emits and the shape
@@ -113,7 +113,15 @@ export interface ShellCheckFixture {
   lists: (sources: readonly string[], docs?: readonly string[]) => void;
   /** The listing verbatim, module coverage and all — the short-walk fixture. */
   listsExactly: (sources: readonly string[], docs?: readonly string[]) => void;
-  /** Deletes the generated manifest index, leaving the module tree standing. */
+  /**
+   * Deletes the generated manifest index, leaving the module tree standing.
+   *
+   * The two are genuinely separate since feature 080's T040b: the index is
+   * host-owned under `backend/src/` (D-160.3), so removing the module tree
+   * leaves one behind. "No index at all" and "an index registering modules the
+   * tree no longer holds" are different refusals, and a test that wants the
+   * first now has to ask for it.
+   */
   removeManifestIndex: () => void;
   /**
    * Deletes `backend/src/modules`, leaving the rest of the fixture standing —
@@ -121,9 +129,13 @@ export interface ShellCheckFixture {
    */
   removeModuleTree: () => void;
   /**
-   * Moves the module tree, index and all, to `backend/src/<name>` — the layout
-   * change F4 performs, rather than the loss #215 measured. Returns the new
-   * root, so a caller can write into it and list from it.
+   * Moves the module tree to `backend/src/<name>` — the layout change F4
+   * performs, rather than the loss #215 measured. Returns the new root, so a
+   * caller can write into it and list from it.
+   *
+   * The index stays where it is, and that is the real shape of the move since
+   * T040b: it is the host's, not the module tree's, so a tree that relocates
+   * leaves it in place and the derivation has to find the modules from it.
    *
    * The difference between this and `removeModuleTree` is the whole of T012: a
    * check that spells its root reports a clean tree here, and one that resolves

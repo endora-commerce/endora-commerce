@@ -74,16 +74,60 @@ export interface ModulePopulationInput {
 }
 
 /**
+ * Directories whose files belong to one module although no `modules/<id>/`
+ * segment says so — keyed by the directory's path under the application's own
+ * source root, mapped to the module id (feature 080, T040b).
+ *
+ * There is one, and it is `_lifecycle` at `src/lifecycle/`. D-160.11 keeps the
+ * lifecycle subsystem out of the package sweep — it is the platform's operator
+ * half — so it is the one registered module whose sources the host owns, and
+ * the directory is deliberately not named after its id (a `src/_lifecycle/`
+ * would make `backend/src` itself a module root, see
+ * `scripts/lib/module-roots.ts`). Nothing here is written down: the map is
+ * derived per run from the manifest index's own `manifestPath`, which is the
+ * artefact that records where each module's manifest actually is.
+ */
+export type HostResidentModules = ReadonlyMap<string, string>;
+
+/** The default: every path attributes by its `modules/<id>/` segment alone. */
+export const NO_HOST_RESIDENT_MODULES: HostResidentModules = new Map();
+
+/**
  * The module a path belongs to, or `null` for a file outside the module tree.
  *
  * Reads the **first** `modules/<id>/` segment, so an overlay module under
  * `apps/<deployment>/modules/<id>/` resolves to its own id rather than to the
  * deployment. `node_modules/` cannot match: the segment must start the path or
  * follow a separator.
+ *
+ * `hostResident` is the second answer, and it is a **map rather than a shape**
+ * because there is no shape to read: a host-resident module's directory says
+ * nothing about which module it is, so the id comes from the index. Omitting it
+ * is not a neutral default — a file the walk read and attributed to `null` is a
+ * file every consumer treats as *not a module's*, which is the check judging
+ * nothing and reporting clean (issue #215 one layer in). Every caller that
+ * attributes inside its analysis therefore takes it from the layout and passes
+ * it down; the default exists for a fixture that has no such module.
+ *
+ * The comparison is made on the path's tail after the last `/src/`, so it
+ * answers the same for the three key shapes this repository uses — a layout
+ * key, an absolute path, and the synthetic `/src/<key>` several checks build —
+ * and cannot be fooled by a directory of that name deeper in another tree
+ * (`packages/platform/src/kernel/lifecycle/` is the live example).
  */
-export function moduleIdOf(path: string): string | null {
-  const match = /(?:^|\/)modules\/([^/]+)\//.exec(path.split('\\').join('/'));
-  return match?.[1] ?? null;
+export function moduleIdOf(
+  path: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): string | null {
+  const normalised = path.split('\\').join('/');
+  const match = /(?:^|\/)modules\/([^/]+)\//.exec(normalised);
+  if (match) return match[1] ?? null;
+  const marker = normalised.lastIndexOf('/src/');
+  const tail = marker === -1 ? normalised : normalised.slice(marker + '/src/'.length);
+  for (const [directory, moduleId] of hostResident) {
+    if (tail === directory || tail.startsWith(`${directory}/`)) return moduleId;
+  }
+  return null;
 }
 
 /** Registered modules the walk produced no file for. */

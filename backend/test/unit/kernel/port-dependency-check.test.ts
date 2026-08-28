@@ -26,7 +26,7 @@ import {
   type PortResolution,
 } from '../../../scripts/check-port-dependencies.js';
 import { defineModuleManifest } from '@endora-commerce/contracts';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**

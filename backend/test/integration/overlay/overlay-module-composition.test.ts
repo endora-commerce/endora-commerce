@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { withModuleOff } from '../../helpers/off-state.js';
-import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 import { listAssignablePermissionCodes } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 
 /**

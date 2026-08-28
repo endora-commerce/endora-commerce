@@ -15,7 +15,7 @@ import {
   type EnforcedGateSite,
 } from '../../../../packages/modules/admin_roles/src/backend/permission-inventory.js';
 import { PermissionCatalogueService } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
-import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * D-173 — the `foreign-gate` sweep, red-first.

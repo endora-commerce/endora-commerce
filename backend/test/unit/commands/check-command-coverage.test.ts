@@ -736,7 +736,7 @@ describe('a marker attaches to the unit it is written on', () => {
         for (const m of manifests) em.create('ModuleRegistration', { moduleId: m.id });
         await em.flush();
       }`;
-    expect(analyzeSource('src/modules/_lifecycle/services/presence-load.ts', src)).toEqual([]);
+    expect(analyzeSource('src/lifecycle/services/presence-load.ts', src)).toEqual([]);
   });
 
   it('ignores a file header even when the unit under it has no doc comment', () => {

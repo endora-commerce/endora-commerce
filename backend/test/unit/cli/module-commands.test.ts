@@ -18,7 +18,7 @@ import { composeModules } from '../../../src/kernel/compose.js';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import type { ModuleContext } from '../../../src/kernel/module-context.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { packageModuleManifestsUnder } from '../../../src/packages/package-runtime.js';
 
 /**

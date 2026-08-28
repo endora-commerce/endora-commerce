@@ -478,7 +478,18 @@ describe('the tree itself', () => {
     expect(lockedModules.size, 'no module read as locked — the manifests did not load').toBeGreaterThan(
       0,
     );
-    const result = checkEntryPresence({ sources, lockedModules }, ENTRY_PRESENCE_LEDGER);
+    // The same third input the CLI passes (feature 080, T040b): without it
+    // `_lifecycle`'s files attribute to no module and its ledgered lease
+    // heartbeat reads as stale — a red that says the timer is gone when the
+    // timer is exactly where it was.
+    const result = checkEntryPresence(
+      {
+        sources,
+        lockedModules,
+        hostResidentModules: (await resolveModuleLayout()).hostResidentModules,
+      },
+      ENTRY_PRESENCE_LEDGER,
+    );
     expect(result.violations.map((v) => `${v.file}:${v.line} ${v.finding}`)).toEqual([]);
     expect(result.stale).toEqual([]);
   });

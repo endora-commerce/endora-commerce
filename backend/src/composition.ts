@@ -138,13 +138,13 @@ import type { NewsletterBridge } from '@endora-commerce/mod-newsletter/backend';
 // Feature 066 — Google Tag Manager.
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
-import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
-import { loadModulePresence } from './modules/_lifecycle/services/presence-load.js';
+import { lifecycleModuleFromStaticEntries } from './lifecycle/plugin.js';
+import { loadModulePresence } from './lifecycle/services/presence-load.js';
 import {
   deploymentShippedEntries,
   resolvedManifestEntries,
   type RegisteredManifestEntry,
-} from './modules/_lifecycle/registered-manifests.js';
+} from './lifecycle/registered-manifests.js';
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
 import { loadOverlayModuleEntries } from './overlay/overlay-runtime.js';
 // Feature 080 — installed extension packages, discovered at runtime (D-155).

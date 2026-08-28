@@ -12,7 +12,7 @@ tools read this file directly; Claude Code reaches it through the `@AGENTS.md` i
 
 - **`backend/`** — TypeScript 5.x strict on Node.js ≥ 22.17. Fastify, MikroORM (PostgreSQL),
   Zod, ioredis, BullMQ, Meilisearch, `nodemailer`, `pdfmake`. Cross-cutting infrastructure:
-  module lifecycle (`src/modules/_lifecycle/`; i18n is now the package
+  module lifecycle (`src/lifecycle/`, host-owned since D-160.11; i18n is now the package
   `@endora-commerce/mod-i18n`). The kernel, the
   HTTP layer, the in-process `EventBus`, the Command Bus and TenantContext are **not** in
   `backend/src` — they are `@endora-commerce/platform` (see `packages/` below), and `backend/src`
@@ -514,7 +514,15 @@ effective state rather than adding a parallel check. They live in the kernel, al
 registry cache, the activation resolver and the effective-state combiner, because the kernel
 applies them to every module it composes and may not import from `src/modules/` (D-37).
 `_lifecycle` keeps the operator-facing half: the manifest, the permissions, the routes, the
-Commands, the orchestrator and the `module:*` CLI scripts.
+Commands, the orchestrator and the `module:*` CLI scripts. It is a **registered module whose
+sources the host owns** — `backend/src/lifecycle/`, not `backend/src/modules/_lifecycle/` — and it
+is the one module the packaging sweep does not turn into a package (D-160.11): as a package the
+host would have to publish twelve platform targets for its sole consumer, and a package that
+enumerates all of its siblings is a cycle waiting to be declared. The generated manifest index
+went to `backend/src/` with it (D-160.3). Everything else about it is unchanged: it carries a
+manifest, permissions, an activation declaration, i18n bundles and a palette action, and every
+check that judges a module judges it — `scripts/lib/module-roots.ts` places it from the index's
+own `manifestPath` rather than from a directory named after its id.
 
 **You almost never call those wrappers yourself.** Every core module is composed through
 the kernel container (feature 072), and `ctx.routes` / `ctx.worker` / `ctx.subscribe` apply
@@ -795,7 +803,7 @@ convention nothing verified, and every consumer takes `dirname` of it to reach t
 own directory — the `_i18n` boot reconciler joins `bundlesDir` to it and **logs and skips** a
 directory that is not there. A packaged module would therefore have loaded no bundle and
 rendered every command-palette entry as its raw i18n key, with no error anywhere. The
-generator emits the location it walked (`_lifecycle/manifest-locations.ts` resolves it against
+generator emits the location it walked (`src/manifest-locations.ts` resolves it against
 the index's own `import.meta.url`, so it follows a `dist` run and a moved index alike), and
 both halves **refuse** rather than substitute: a specifier reaching no file throws at the
 first import of the index, and an entry with no path throws in `coreManifestEntries`.

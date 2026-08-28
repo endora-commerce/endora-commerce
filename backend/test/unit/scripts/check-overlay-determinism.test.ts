@@ -37,7 +37,7 @@ import { deploymentsOnDisk } from '../../../src/overlay/overlay-roots.js';
  * not about whether two strings match.
  */
 
-const PATH = '/repo/backend/src/modules/_lifecycle/manifest-index.generated.ts';
+const PATH = '/repo/backend/src/manifest-index.generated.ts';
 const RENDERED = 'export const DISCOVERED_MANIFESTS = [];\n';
 
 describe('compareArtifact', () => {

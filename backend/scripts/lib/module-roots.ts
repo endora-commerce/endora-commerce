@@ -25,8 +25,8 @@
  * each from the artefact that owns it:
  *
  *   1. **The generated manifest index, by search.** It used to be
- *      `join(srcRoot, 'modules/_lifecycle/manifest-index.generated.ts')`, which
- *      is the module tree's location spelled out inside the derivation that
+ *      `join(srcRoot, 'modules/_lifecycle/manifest-index.generated.ts')`,
+ *      which is the module tree's location spelled out inside the derivation that
  *      exists to avoid spelling it. It is now found by walking this
  *      repository's own workspace members for a file of that name — so it is
  *      found where it is today, and equally where the owner's ruling of
@@ -81,7 +81,11 @@ import {
   workspaceMembers,
   type WorkspaceFs,
 } from './workspace-packages.js';
-import { loadManifestActivations, ManifestIndexUnreadableError } from './switchable-modules.js';
+import {
+  loadManifestActivations,
+  loadManifestLocations,
+  ManifestIndexUnreadableError,
+} from './switchable-modules.js';
 import { moduleIdOf } from './module-population.js';
 import { platformPackageNameOf, platformSourceRootOf } from './platform-root.js';
 
@@ -118,7 +122,7 @@ export interface ModuleSourceRoot {
    * the directory holds several and attribution is read from the path.
    */
   readonly moduleId: string | null;
-  readonly origin: 'application' | 'workspace-package';
+  readonly origin: 'application' | 'workspace-package' | 'host-resident';
 }
 
 export interface ModuleTreeLayout {
@@ -227,6 +231,15 @@ export interface ModuleTreeLayout {
    * and would answer wrongly for the first package that is not named that way.
    */
   readonly modulePackageNames: ReadonlyMap<string, string>;
+  /**
+   * The directories of every **host-resident** module, keyed as
+   * {@link ModuleTreeLayout.keyOf} keys them, mapped to the module id.
+   *
+   * It is what a check hands to `moduleIdOf` / `moduleOf` so that its analysis
+   * attributes those files to their module. Empty on a tree that has none, in
+   * which case every attributor answers exactly as it did before this existed.
+   */
+  readonly hostResidentModules: ReadonlyMap<string, string>;
 }
 
 function isUnder(child: string, parent: string): boolean {
@@ -382,6 +395,51 @@ export function applicationModuleRoots(
 }
 
 /**
+ * The module roots the two derivations above cannot see: a module whose sources
+ * the **host application** owns (feature 080, T040b).
+ *
+ * There is one, `_lifecycle`, and it is one by D-160.11 — the lifecycle
+ * subsystem is the platform's operator half, so it never became a package the
+ * way the other 66 modules did. It is still a registered module with a
+ * manifest, permissions, an activation declaration and its own i18n bundles, so
+ * every module walk has to keep reading it; what changed is only where its
+ * directory sits.
+ *
+ * It cannot be found the way {@link applicationModuleRoots} finds a module,
+ * because that predicate is *"a directory named after a registered id"* and
+ * this directory is deliberately **not**: a `src/_lifecycle/` would make
+ * `backend/src` itself a module root, and every kernel, `db/` and `http/` file
+ * under it a module's source with no module to attribute it to. So it is read
+ * from the index's own `manifestPath` — the artefact that already records where
+ * each module's manifest is, for all three origins — and a module whose
+ * manifest sits under the application source root but is not an immediate child
+ * of a module root is one of these.
+ *
+ * Nothing is written down and the derivation fails closed in both directions
+ * (D-100, issue #215). A module whose directory disappeared cannot arrive here
+ * as "host-resident": its manifest specifier would resolve to nothing and the
+ * index would not import at all, which is exit 2 at the reader. And a candidate
+ * that is the source root itself, or an ancestor of a root already found, is
+ * refused rather than walked — a root that swallows the tree reports every file
+ * in it as one module's.
+ */
+export function hostResidentModuleRoots(
+  srcRoot: string,
+  found: readonly ModuleSourceRoot[],
+  manifestPaths: ReadonlyMap<string, string>,
+): ModuleSourceRoot[] {
+  const roots: ModuleSourceRoot[] = [];
+  for (const [moduleId, manifestPath] of manifestPaths) {
+    const directory = dirname(resolve(manifestPath));
+    if (!isUnder(directory, srcRoot) || directory === srcRoot) continue;
+    if (found.some((root) => isUnder(directory, root.directory))) continue;
+    if (found.some((root) => isUnder(root.directory, directory))) continue;
+    roots.push({ directory, moduleId, origin: 'host-resident' });
+  }
+  return roots.sort((a, b) => a.directory.localeCompare(b.directory));
+}
+
+/**
  * The whole layout, resolved once.
  *
  * Async because the registered ids come out of the generated index, which is a
@@ -427,6 +485,10 @@ export async function resolveModuleLayout(
       origin: 'workspace-package',
     });
     modulePackageNames.set(member.name, declared);
+  }
+
+  for (const root of hostResidentModuleRoots(srcRoot, moduleRoots, await loadManifestLocations(manifestIndexPath))) {
+    moduleRoots.push(root);
   }
 
   const overlayRoot = join(srcRoot, 'apps');
@@ -484,7 +546,9 @@ export async function resolveModuleLayout(
     platformPackageName,
     sourceRoots: platformRoot === null ? [srcRoot, ...packageRoots] : [srcRoot, platformRoot, ...packageRoots],
     moduleWalkRoots: [
-      ...moduleRoots.filter((root) => root.origin === 'application').map((root) => root.directory),
+      ...moduleRoots
+        .filter((root) => root.origin === 'application' || root.origin === 'host-resident')
+        .map((root) => root.directory),
       overlayRoot,
       ...packageRoots,
     ],
@@ -495,6 +559,11 @@ export async function resolveModuleLayout(
     moduleDirectories,
     moduleDirectoryOf,
     modulePackageNames,
+    hostResidentModules: new Map(
+      moduleRoots
+        .filter((root) => root.origin === 'host-resident' && root.moduleId !== null)
+        .map((root) => [keyOf(root.directory), root.moduleId!] as const),
+    ),
   };
 }
 

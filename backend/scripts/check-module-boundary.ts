@@ -347,6 +347,8 @@ import { pluralize } from '../src/db/pluralizing-naming-strategy.js';
 import {
   loadRegisteredModuleIds,
   modulePopulationCoverage,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
   vacuousModulePopulation,
 } from './lib/module-population.js';
 import {
@@ -370,7 +372,7 @@ const LEDGER_ROOT = join(BACKEND_ROOT, 'scripts', 'ledgers', 'cross-module-impor
  * its reason.
  */
 export const GENERATED_MODULE_FILES: Readonly<Record<string, string>> = {
-  'modules/_lifecycle/manifest-index.generated.ts': 'scripts/generate-composer.ts',
+  'manifest-index.generated.ts': 'scripts/generate-composer.ts',
 };
 
 /** The specifier shape, as `scripts/lib/specifiers.ts` classifies it. */
@@ -733,6 +735,16 @@ export interface ModuleBoundaryInput {
    * off the package's own `exports` map and its own emitted module.
    */
   readonly modulePackageSurfaces?: ModulePackageSurfaces;
+  /**
+   * Directories whose files belong to a module no `modules/<id>/` segment names
+   * — `lib/module-roots.ts`' `hostResidentModules` (feature 080, T040b).
+   *
+   * Absent is a tree that has none. Present, it is what lets both predicates
+   * attribute a host-resident module's files: without it they are read as
+   * belonging to no module, which clears every reach out of them and reports
+   * that module's shard as an orphan.
+   */
+  readonly hostResidentModules?: HostResidentModules;
 }
 
 /** The tree with no module package installed — every fixture, and CI before !910. */
@@ -781,13 +793,26 @@ interface ModuleLocation {
  * answer for a specifier that resolves to the module directory itself
  * (`from '../catalog'`).
  */
-function moduleLocationOf(pathUnderSrc: string): ModuleLocation | null {
-  const id = moduleOf(`/src/${pathUnderSrc}/`);
+function moduleLocationOf(
+  pathUnderSrc: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): ModuleLocation | null {
+  const id = moduleOf(`/src/${pathUnderSrc}/`, hostResident);
   if (id === null) return null;
   const segments = pathUnderSrc.split('/');
   const modulesAt = segments.indexOf('modules');
   const index = segments.indexOf(id, modulesAt);
-  if (index === -1) return null;
+  // A host-resident module's directory is not named after its id (feature 080,
+  // T040b), so the segment search cannot find it — the map that named the
+  // module is also the one that says where it starts.
+  if (index === -1) {
+    for (const [directory, moduleId] of hostResident) {
+      if (moduleId === id && (pathUnderSrc === directory || pathUnderSrc.startsWith(`${directory}/`))) {
+        return { id, dir: directory };
+      }
+    }
+    return null;
+  }
   return { id, dir: segments.slice(0, index + 1).join('/') };
 }
 
@@ -885,9 +910,10 @@ export function analyzeSource(
   file: string,
   modulePackages: ReadonlyMap<string, string> = NO_MODULE_PACKAGES,
   surfaces: ModulePackageSurfaces = EVERY_SUBPATH_IS_A_REACH,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
 ): CrossModuleImport[] {
   if (GENERATED_MODULE_FILES[file] !== undefined) return [];
-  const owner = moduleLocationOf(file);
+  const owner = moduleLocationOf(file, hostResident);
   if (owner === null) return [];
 
   const found: CrossModuleImport[] = [];
@@ -924,7 +950,7 @@ export function analyzeSource(
     }
     const resolved = resolveSpecifier(file, specifier.text);
     if (resolved === null) continue;
-    const target = moduleLocationOf(resolved);
+    const target = moduleLocationOf(resolved, hostResident);
     if (target === null) continue;
     if (target.dir === owner.dir) continue;
     const targetPath = resolved === target.dir ? '' : resolved.slice(target.dir.length + 1);
@@ -948,8 +974,9 @@ export function analyzeSource(
 export function findCrossModuleImports(input: ModuleBoundaryInput): CrossModuleImport[] {
   const packages = input.modulePackages ?? NO_MODULE_PACKAGES;
   const surfaces = input.modulePackageSurfaces ?? EVERY_SUBPATH_IS_A_REACH;
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
   const found = [...input.sources].flatMap(([file, text]) =>
-    analyzeSource(text, file, packages, surfaces),
+    analyzeSource(text, file, packages, surfaces, hostResident),
   );
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return found;
@@ -996,8 +1023,11 @@ export interface TableOwnerReport {
 }
 
 /** The declaring file's owner: a module, the kernel, or a core directory. */
-function declaringOwnerOf(file: string): TableOwner | null {
-  const module = moduleLocationOf(file);
+function declaringOwnerOf(
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): TableOwner | null {
+  const module = moduleLocationOf(file, hostResident);
   if (module !== null) return module;
   const head = file.split('/')[0] ?? '';
   if (head === 'kernel') return { id: 'kernel', dir: 'kernel' };
@@ -1025,6 +1055,7 @@ function isCoreOwner(owner: TableOwner): boolean {
 export function buildTableOwners(
   schema: ReadonlyMap<string, string>,
   packageTables: readonly PackageTable[] = [],
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
 ): {
   readonly owners: ReadonlyMap<string, TableOwner>;
   readonly report: TableOwnerReport;
@@ -1034,7 +1065,7 @@ export function buildTableOwners(
   const fromMigration = new Set<string>();
 
   for (const [file, text] of schema) {
-    const owner = declaringOwnerOf(file);
+    const owner = declaringOwnerOf(file, hostResident);
     if (owner === null) continue;
     for (const declaration of declaredTableNames(text, file)) {
       const seen = declaration.source === 'entity' ? fromEntity : fromMigration;
@@ -1119,12 +1150,13 @@ export function analyzeSqlSource(
   source: string,
   file: string,
   owners: ReadonlyMap<string, TableOwner>,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
 ): CrossModuleSqlAccess[] {
   if (GENERATED_MODULE_FILES[file] !== undefined) return [];
   // A migration naming another module's table is the execution order's problem,
   // and `fk-dependency-drift.test.ts` already owns it.
   if (file.includes('/migrations/')) return [];
-  const owner = moduleLocationOf(file);
+  const owner = moduleLocationOf(file, hostResident);
   if (owner === null) return [];
 
   const found: CrossModuleSqlAccess[] = [];
@@ -1165,8 +1197,15 @@ export function findCrossModuleSql(input: ModuleBoundaryInput): {
       },
     };
   }
-  const { owners, report } = buildTableOwners(input.schema, input.packageTables ?? []);
-  const found = [...input.sources].flatMap(([file, text]) => analyzeSqlSource(text, file, owners));
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
+  const { owners, report } = buildTableOwners(
+    input.schema,
+    input.packageTables ?? [],
+    hostResident,
+  );
+  const found = [...input.sources].flatMap(([file, text]) =>
+    analyzeSqlSource(text, file, owners, hostResident),
+  );
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return { found, report };
 }
@@ -1201,9 +1240,10 @@ export function checkModuleBoundary(
     found.set(key, (found.get(key) ?? 0) + 1);
   }
 
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
   const modules = new Set<string>();
   for (const file of input.sources.keys()) {
-    const owner = moduleLocationOf(file);
+    const owner = moduleLocationOf(file, hostResident);
     if (owner !== null) modules.add(owner.id);
   }
 
@@ -1224,7 +1264,7 @@ export function checkModuleBoundary(
     if (shapeIssue !== null) shardShapeIssues.push(shapeIssue);
     for (const key of keys) {
       const file = fileOfKey(key);
-      const owner = file === null ? null : moduleLocationOf(file);
+      const owner = file === null ? null : moduleLocationOf(file, hostResident);
       // A shard accounts for its own module and nothing else, so it cannot be
       // used to make another module's violation disappear.
       if (owner === null || owner.id !== shard.moduleId) {
@@ -1599,7 +1639,7 @@ function describeFinding(finding: ModuleBoundaryFinding): string {
 }
 
 /** `backend/test/**` — reporting only, never part of the exit code. */
-function testSites(): number {
+function testSites(hostResident: HostResidentModules): number {
   let total = 0;
   for (const file of walk(TEST_ROOT)) {
     const fromBackend = relative(BACKEND_ROOT, file).split('\\').join('/');
@@ -1607,7 +1647,7 @@ function testSites(): number {
       if (!specifier.text.startsWith('.')) continue;
       const resolved = posixNormalize(posixJoin(posixDirname(fromBackend), specifier.text));
       if (!resolved.startsWith('src/')) continue;
-      if (moduleLocationOf(resolved.slice('src/'.length)) !== null) total += 1;
+      if (moduleLocationOf(resolved.slice('src/'.length), hostResident) !== null) total += 1;
     }
   }
   return total;
@@ -1633,7 +1673,7 @@ async function main(): Promise<void> {
   // reach into one report clean.
   const packages = await loadPackageDeclarations();
   refuseUnreadablePackages('[module-boundary]', packages);
-  const owners = buildTableOwners(schema, packages.tables).report;
+  const owners = buildTableOwners(schema, packages.tables, layout.hostResidentModules).report;
   let registeredModules: readonly string[];
   try {
     registeredModules = await loadRegisteredModuleIds(layout.manifestIndexPath);
@@ -1682,6 +1722,7 @@ async function main(): Promise<void> {
         packageTables: packages.tables,
         modulePackages: layout.modulePackageNames,
         modulePackageSurfaces: surfaces,
+        hostResidentModules: layout.hostResidentModules,
       },
       shards,
     );
@@ -1749,6 +1790,10 @@ async function main(): Promise<void> {
   const modules = modulePopulationCoverage({
     registered: registeredModules,
     files: [...sources.keys()],
+    // The keys are `layout.keyOf`'s, not absolute paths, so the layout's own
+    // resolver cannot be used here: the attribution has to happen on the key,
+    // which is what `moduleOf` does for every other population in this file.
+    moduleIdOf: (key) => moduleOf(`/src/${key}`, layout.hostResidentModules),
   });
   const installed = packageCoverage(packages);
   const coverages: ReadCoverage[] = installed === null ? [modules] : [modules, installed];
@@ -1803,7 +1848,7 @@ async function main(): Promise<void> {
 
   if (testMode) {
     console.log(
-      `[module-boundary] test sites=${testSites()} (backend/test/** — reporting only, ` +
+      `[module-boundary] test sites=${testSites(layout.hostResidentModules)} (backend/test/** — reporting only, ` +
         'a test is allowed to know more than the code it tests)',
     );
   }

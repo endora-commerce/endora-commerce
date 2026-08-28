@@ -5,7 +5,7 @@ import {
   type MigrationOrderDiagnostic,
   type MigrationRegistryEntry,
 } from '../../../src/db/migration-order.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
 /**
  * The module dependency graph the migration order is computed from (081

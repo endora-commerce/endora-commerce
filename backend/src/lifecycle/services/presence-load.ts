@@ -1,9 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
-import { ModuleRegistration } from '../../../kernel/lifecycle/module-registration.entity.js';
-import { activationDeclarationsFrom } from '../../../kernel/lifecycle/activation-resolver.js';
+import { ModuleRegistration } from '../../kernel/lifecycle/module-registration.entity.js';
+import { activationDeclarationsFrom } from '../../kernel/lifecycle/activation-resolver.js';
 import { installGatingGraph } from './gating-graph.js';
-import { registryCache } from '../../../kernel/lifecycle/registry-cache.js';
+import { registryCache } from '../../kernel/lifecycle/registry-cache.js';
 import { loadReducedDeploymentDeclarations } from './reduced-deployment.js';
 import {
   deploymentShippedEntries,

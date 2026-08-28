@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { discoverModulePackages } from '../../../scripts/lib/module-packages.js';
 import {
@@ -24,7 +24,7 @@ import {
 } from '../../helpers/fk-graph.js';
 import { TABLE_OWNER_OVERRIDES } from './table-owner-overrides.js';
 import { ACKNOWLEDGED_FK_EDGES, type AcknowledgedFkEdge } from './acknowledged-fk-edges.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 import { BASELINE_THROUGH } from '../../../src/db/migration-order.js';
 
 /**
@@ -67,6 +67,20 @@ const graph = deriveFkGraph(backendSrc, {
       origin: 'core' as const,
       moduleId: pkg.moduleId,
     })),
+    // The third root, and there is one module in it: `_lifecycle`, whose
+    // sources the host itself owns (D-160.11) and whose directory is therefore
+    // under neither of the two above. Read off the index's `manifestPath` — the
+    // field that answers "where is this module" for all three origins — so the
+    // refusal below keeps meaning "the walk lost a module" rather than "the
+    // layout changed".
+    ...DISCOVERED_MANIFESTS.flatMap((entry) => {
+      const directory = dirname(entry.manifestPath);
+      const inApplication = directory.startsWith(backendSrc + sep);
+      const inModulesRoot = directory.startsWith(join(backendSrc, 'modules') + sep);
+      return inApplication && !inModulesRoot
+        ? [{ directory, origin: 'core' as const, moduleId: entry.id }]
+        : [];
+    }),
   ],
 });
 

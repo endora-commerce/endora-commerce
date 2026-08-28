@@ -3,7 +3,7 @@ import { ModuleAction } from '../../helpers/package-entities.js';
 import { dirname } from 'node:path';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { I18nService } from '@endora-commerce/mod-i18n/backend';
 import { TranslationBundle } from '../../helpers/package-entities.js';
 import { AdminActionsReconciler } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-reconciler.js';

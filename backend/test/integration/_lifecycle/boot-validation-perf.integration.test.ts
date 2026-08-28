@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defineModuleManifest } from '@endora-commerce/contracts';
-import { buildStaticRegistry } from '../../../src/modules/_lifecycle/services/static-registry.js';
+import { buildStaticRegistry } from '../../../src/lifecycle/services/static-registry.js';
 
 /**
  * Integration test for SC-006 — boot validation budget (US4).

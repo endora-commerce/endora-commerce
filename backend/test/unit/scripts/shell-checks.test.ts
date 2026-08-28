@@ -198,13 +198,17 @@ describe('check-naming.sh', () => {
     //
     // The listing is deliberately non-empty here, so the empty-listing guard
     // above cannot be what fires. Since T012 the root is resolved from the
-    // generated index, so a tree that is *gone* is refused at the resolution,
-    // before any rule runs.
+    // generated index, so a tree that is *gone* is refused before any rule
+    // runs — and since T040b the index survives the tree, because it is
+    // host-owned under `backend/src/` (D-160.3). So the refusal that fires is
+    // the module-directory one: an index that registers modules the filesystem
+    // no longer holds. Both are exit 2, and the second is now the shape a lost
+    // module tree really has.
     fixture.removeModuleTree();
     fixture.lists(['backend/src/kernel/thing.ts']);
     const result = fixture.run('check-naming.sh');
     expect(result.status, result.output).toBe(2);
-    expect(result.output).toContain('no generated manifest index');
+    expect(result.output).toContain('resolved no module directory');
   });
 
   it('exits 2 when the module root resolves twice, rather than picking one', () => {
@@ -291,6 +295,7 @@ describe('check-naming.sh', () => {
     // nested one would put every rule to work on another branch's tree and
     // report the verdict as this repository's.
     fixture.removeModuleTree();
+    fixture.removeManifestIndex();
     fixture.nestCheckout('.claude/worktrees/agent-x');
     fixture.lists(['backend/src/kernel/thing.ts']);
     const result = fixture.run('check-naming.sh');
@@ -437,7 +442,7 @@ describe('check-language.sh', () => {
 
   it('follows the module tree when it moves, instead of refusing to run', () => {
     // The T012 conversion, arriving one feature late: this script spelled
-    // `backend/src/modules/_lifecycle/manifest-index.generated.ts` where
+    // `backend/src/manifest-index.generated.ts` where
     // `check-naming.sh` resolves it, so a moved tree took its expectation with
     // it and the run ended on "could not read the manifest index" — a refusal,
     // so not the silent green #215 measured, but still a check that stops

@@ -9,7 +9,7 @@ import {
   settingsManifestWithRecentActivity,
   type ModuleManifest,
 } from '@endora-commerce/contracts';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import {
   RecentActivityActionConflict,
   RecentActivityCatalog,
