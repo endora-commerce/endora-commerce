@@ -12,7 +12,7 @@ import {
   type SupportedAdminLanguage,
 } from '@endora-commerce/contracts';
 import type { I18nService } from './services/i18n-service.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin UI i18n HTTP surface — feature 019 / contracts/admin-http.md.

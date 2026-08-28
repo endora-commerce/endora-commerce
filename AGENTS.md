@@ -12,7 +12,8 @@ tools read this file directly; Claude Code reaches it through the `@AGENTS.md` i
 
 - **`backend/`** — TypeScript 5.x strict on Node.js ≥ 22.17. Fastify, MikroORM (PostgreSQL),
   Zod, ioredis, BullMQ, Meilisearch, `nodemailer`, `pdfmake`. Cross-cutting infrastructure:
-  module lifecycle (`src/modules/_lifecycle/`), i18n (`src/modules/_i18n/`). The kernel, the
+  module lifecycle (`src/modules/_lifecycle/`; i18n is now the package
+  `@endora-commerce/mod-i18n`). The kernel, the
   HTTP layer, the in-process `EventBus`, the Command Bus and TenantContext are **not** in
   `backend/src` — they are `@endora-commerce/platform` (see `packages/` below), and `backend/src`
   reaches them through re-export shims at their old paths while feature 080's T040b drains them.

@@ -95,10 +95,10 @@ import type {
 } from '@endora-commerce/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
-import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
+import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 // D-54 — injected into the error envelope, exactly as `composition.ts` does it:
 // `src/http` may not name a module (D-52), a composition root may.
-import { ERROR_TRANSLATION_KEYS } from '../../src/modules/_i18n/services/error-translation.js';
+import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
 // Type-only, and off the package's **source** rather than its `./backend`
 // subpath, because the three service types below come from the same source
 // files: `dist` and `src` are two nominal declarations of one class, so a

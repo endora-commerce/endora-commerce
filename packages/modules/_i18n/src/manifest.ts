@@ -4,7 +4,7 @@ import {
   type ModuleCliCommand,
   type ModuleLifecycleParticipant,
 } from '@endora-commerce/contracts';
-import type { ModuleContext } from '../../kernel/module-context.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin UI i18n subsystem — feature 019.
@@ -22,9 +22,12 @@ import type { ModuleContext } from '../../kernel/module-context.js';
 export const manifest = defineModuleManifest({
   id: '_i18n',
   name: 'Admin UI i18n',
+  // One string literal, not a concatenation: `manifests:generate` reads this
+  // field to render the package's `description`, and it reads a literal — a
+  // package whose description is computed is one the generator refuses rather
+  // than invents a sentence for (feature 080, T041).
   description:
-    "Per-user Admin UI language preference and module-scoped translation bundles. " +
-    'English is the platform-wide fallback (FR-013 / FR-016).',
+    'Per-user Admin UI language preference and module-scoped translation bundles. English is the platform-wide fallback (FR-013 / FR-016).',
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port every route here is gated by;
   // `admin_users` owns the service the preferred-language setter writes through.
@@ -74,7 +77,7 @@ export const lifecycleParticipant: ModuleLifecycleParticipant<EntityManager> = {
     // The declaration belongs to the module being installed, so the decision
     // is this one's to make: a manifest with no `i18n` block ships no bundle.
     if (!installed.i18n) return;
-    const { I18nService } = await import('./services/i18n-service.js');
+    const { I18nService } = await import('./backend/services/i18n-service.js');
     await new I18nService({ em: () => em }).installBundlesForModule(
       moduleId,
       modulePath,
@@ -87,7 +90,7 @@ export const lifecycleParticipant: ModuleLifecycleParticipant<EntityManager> = {
     // block: the manifest is `null` for an orphan row whose module this
     // instance no longer has, and that is the one case whose rows nothing
     // else will ever remove.
-    const { I18nService } = await import('./services/i18n-service.js');
+    const { I18nService } = await import('./backend/services/i18n-service.js');
     await new I18nService({ em: () => em }).removeBundlesForModule(moduleId, em);
   },
 };
@@ -110,11 +113,11 @@ export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
   {
     name: 'reload',
     summary: "Re-read every module's on-disk i18n bundles into translation_bundles.",
-    run: async (context) => (await import('./cli/reload.js')).reload(context),
+    run: async (context) => (await import('./backend/cli/reload.js')).reload(context),
   },
   {
     name: 'coverage',
     summary: 'Print the per-module, per-language translation coverage snapshot.',
-    run: async (context) => (await import('./cli/coverage.js')).coverage(context),
+    run: async (context) => (await import('./backend/cli/coverage.js')).coverage(context),
   },
 ];

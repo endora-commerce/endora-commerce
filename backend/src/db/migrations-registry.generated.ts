@@ -34,7 +34,7 @@
 import type { MigrationClass, MigrationRegistryEntry } from './migration-order.js';
 
 // ── _i18n ───────────────────────────────────────────────────────────────────
-import { Migration20260507T091405I18nAdminI18nInit } from '../modules/_i18n/migrations/20260507T091405_i18n_admin_i18n_init.js';
+import { Migration20260507T091405I18nAdminI18nInit } from '@endora-commerce/mod-i18n/migrations';
 
 // ── admin_actions ───────────────────────────────────────────────────────────
 import { Migration20260507T142354AdminActionsInit } from '@endora-commerce/mod-admin-actions/migrations';

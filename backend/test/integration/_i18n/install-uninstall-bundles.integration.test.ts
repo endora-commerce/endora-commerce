@@ -3,8 +3,8 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
-import { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
-import { TranslationBundle } from '../../../src/modules/_i18n/entities/translation-bundle.entity.js';
+import { I18nService } from '@endora-commerce/mod-i18n/backend';
+import { TranslationBundle } from '../../helpers/package-entities.js';
 
 /**
  * T034–T037 / SC-003 / FR-011 — bundle install / soft-uninstall /

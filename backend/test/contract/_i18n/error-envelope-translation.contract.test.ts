@@ -39,7 +39,9 @@ import {
  * `_i18n` → `core` rename that sits between the map and the row.
  */
 
-const CORE_BUNDLES = fileURLToPath(new URL('../../../src/modules/_i18n/i18n/', import.meta.url));
+const CORE_BUNDLES = fileURLToPath(
+  new URL('../../../../packages/modules/_i18n/i18n/', import.meta.url),
+);
 
 function sentence(language: 'en' | 'pl', key: string): string {
   const bundle = JSON.parse(readFileSync(`${CORE_BUNDLES}${language}.json`, 'utf8')) as Record<

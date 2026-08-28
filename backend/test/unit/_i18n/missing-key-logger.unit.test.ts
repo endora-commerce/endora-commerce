@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MissingKeyLogger } from '../../../src/modules/_i18n/services/missing-key-logger.js';
+import { MissingKeyLogger } from '@endora-commerce/mod-i18n/backend';
 
 /**
  * T049 / FR-014 — `MissingKeyLogger` emits a structured `i18n.fallback`

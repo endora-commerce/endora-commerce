@@ -70,6 +70,13 @@ const graph = deriveFkGraph(backendSrc, {
   ],
 });
 
+/** Every module package's npm name, mapped to the module id it declares. */
+const PACKAGE_MODULE_IDS: ReadonlyMap<string, string> = new Map(
+  discoverModulePackages(resolve(backendSrc, '../..')).map(
+    (pkg) => [pkg.name, pkg.moduleId] as const,
+  ),
+);
+
 const MANIFEST_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map(
   DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
 );
@@ -166,14 +173,32 @@ function shipsTypeScriptIn(graph: FkGraph, moduleId: string, folder: string): bo
  *
  * Text rather than an import: the registry pulls in 250 migration classes, and
  * the question here is which modules it *names*, which the specifiers answer
- * without loading anything. It is the same recognizer `read-size.sh` uses on
- * the manifest index, and for the same reason — the generator cannot emit those
- * paths differently without moving every migration.
+ * without loading anything.
+ *
+ * **Both spellings, because the generator emits both** (D-149): a relative
+ * `'../modules/<id>/migrations/…'` for a module in the application tree, and a
+ * bare `'<package>/migrations'` for one that has become a package. The bare
+ * half was missing and the floor above is what found it: T040b packaged the
+ * last module whose migration the registry named relatively, `expected` came
+ * back **empty**, and the non-vacuity assertion beside it fired. That ordering
+ * is the whole design — a recognizer that quietly stopped matching would have
+ * left `modulesWithoutSources` answering `[]` over a population of nothing,
+ * which is the shape issue #215 is about, in the test written to refuse it.
+ *
+ * The package→id direction is derived, never spelled: a package's npm name is
+ * npm's namespace and its `endora.id` is identity of record (D-142), and only
+ * the module that declares the block can say which is which.
  */
-function modulesWithMigrationsInRegistry(registrySource: string): string[] {
+function modulesWithMigrationsInRegistry(
+  registrySource: string,
+  packageModuleIds: ReadonlyMap<string, string> = PACKAGE_MODULE_IDS,
+): string[] {
   const found = new Set<string>();
   for (const match of registrySource.matchAll(/from '\.\.\/modules\/([A-Za-z0-9_]+)\/migrations\//g)) {
     found.add(match[1]!);
+  }
+  for (const [name, moduleId] of packageModuleIds) {
+    if (registrySource.includes(`from '${name}/migrations'`)) found.add(moduleId);
   }
   return [...found].sort();
 }
@@ -1198,13 +1223,34 @@ describe('fk position — T021 proofs', () => {
     const registry =
       `import { M1 } from '../modules/a/migrations/20260901T000000_a_init.js';\n` +
       `import { M2 } from '../modules/b/migrations/20260902T000000_b_init.js';\n`;
-    const expected = modulesWithMigrationsInRegistry(registry);
+    const expected = modulesWithMigrationsInRegistry(registry, new Map());
 
     expect(expected).toEqual(['a', 'b']);
     expect(modulesWithoutSources(graphOf(), expected)).toEqual(['b']);
     // The control, one variable away: the registry that names only what the
     // tree holds.
     expect(modulesWithoutSources(graphOf(), ['a'])).toEqual([]);
+  });
+
+  it('F2 reads a packaged module’s bare migration specifier as that module', () => {
+    // The other half of the same floor, and the one that was missing. Once a
+    // module is a package the registry names it `'<package>/migrations'`, and a
+    // recognizer that reads only the relative spelling reports the module as
+    // shipping no migration — silently, and by construction more often with
+    // every move the sweep makes.
+    const packages = new Map([
+      ['@endora-commerce/mod-a', 'a'],
+      ['@endora-commerce/mod-b', 'b'],
+    ]);
+    const registry =
+      `import { M1 } from '@endora-commerce/mod-a/migrations';\n` +
+      `import { M2 } from '@endora-commerce/mod-b/migrations';\n`;
+
+    expect(modulesWithMigrationsInRegistry(registry, packages)).toEqual(['a', 'b']);
+    // The control: the same text read without the derivation that maps a
+    // package name to a module id sees nothing at all, which is exactly the
+    // state that made this proof necessary.
+    expect(modulesWithMigrationsInRegistry(registry, new Map())).toEqual([]);
   });
 
   it('G0b a package fixture is read, and read as a package', () => {

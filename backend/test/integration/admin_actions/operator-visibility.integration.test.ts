@@ -6,7 +6,7 @@ import { AdminActionsService } from '../../../../packages/modules/admin_actions/
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { ModuleRegistryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
-import type { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
+import type { I18nService } from '@endora-commerce/mod-i18n/backend';
 import type { PermissionService } from '../../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
 import type { SupportedAdminLanguage } from '@endora-commerce/contracts';
 

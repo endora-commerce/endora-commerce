@@ -33,7 +33,6 @@ import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
 import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
 import { SettingValue } from '../kernel/settings/setting-value.entity.js';
 import { Setting } from '../kernel/settings/setting.entity.js';
-import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
 import { entities as addressesEntities } from '@endora-commerce/mod-addresses/backend';
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
 import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
@@ -92,6 +91,7 @@ import { entities as shoppingListsEntities } from '@endora-commerce/mod-shopping
 import { entities as stripeEntities } from '@endora-commerce/mod-stripe/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { entities as tpayEntities } from '@endora-commerce/mod-tpay/backend';
+import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
 import { entities as webhooksEntities } from '@endora-commerce/mod-webhooks/backend';
 
 export const ALL_ENTITIES = [
@@ -101,7 +101,6 @@ export const ALL_ENTITIES = [
   SettingGroup,
   SettingValue,
   Setting,
-  TranslationBundle,
   ...(addressesEntities as readonly EntityClassLike[]),
   ...(adminNotificationsEntities as readonly EntityClassLike[]),
   ...(adminRolesEntities as readonly EntityClassLike[]),
@@ -160,5 +159,6 @@ export const ALL_ENTITIES = [
   ...(stripeEntities as readonly EntityClassLike[]),
   ...(taxesEntities as readonly EntityClassLike[]),
   ...(tpayEntities as readonly EntityClassLike[]),
+  ...(i18nEntities as readonly EntityClassLike[]),
   ...(webhooksEntities as readonly EntityClassLike[]),
 ] as const;

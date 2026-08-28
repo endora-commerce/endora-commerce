@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
-import { MissingKeyLogger } from '../../../src/modules/_i18n/services/missing-key-logger.js';
+import { I18nService } from '@endora-commerce/mod-i18n/backend';
+import { MissingKeyLogger } from '@endora-commerce/mod-i18n/backend';
 
 /**
  * T048 / FR-013 — backend resolver fallback chain.

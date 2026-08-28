@@ -108,6 +108,16 @@ const moduleFile = (relative: string): string => join(BACKEND_ROOT, 'src/modules
 const RELATION_TARGET = inTreeRelationTarget();
 const RELATION_TARGET_IMPORT =
   `import { ${RELATION_TARGET.name} } from '${RELATION_TARGET.specifier}';`;
+/**
+ * The importing file for a proof that names {@link RELATION_TARGET_IMPORT}.
+ *
+ * It has to sit in the **fixture** tree rather than under `backend/src/modules`,
+ * because the specifier above is relative and rule A resolves it against the
+ * importing file. `moduleFile` stays for the proofs whose target is a real
+ * platform file — the kernel's `SalesChannel` — which is where a path under the
+ * application tree is still the right one.
+ */
+const relationFixtureFile = RELATION_TARGET.sourceFile;
 
 describe('analyzeSource', () => {
   it('finds the relation target through the import that declares it', () => {
@@ -116,7 +126,7 @@ describe('analyzeSource', () => {
         `@ManyToOne(() => ${RELATION_TARGET.name}, { fieldName: "target_id" })`,
         RELATION_TARGET_IMPORT,
       ),
-      moduleFile('search/entities/search-phrase-record.entity.ts'),
+      relationFixtureFile('search/entities/search-phrase-record.entity.ts'),
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
@@ -131,7 +141,7 @@ describe('analyzeSource', () => {
   it('ignores a plain @Property — an FK column is not an ORM relation', () => {
     const findings = analyzeSource(
       ENTITY('@Property({ type: "uuid" })', RELATION_TARGET_IMPORT),
-      moduleFile('search/entities/x.entity.ts'),
+      relationFixtureFile('search/entities/x.entity.ts'),
     );
     expect(findings).toEqual([]);
   });
@@ -142,7 +152,7 @@ describe('analyzeSource', () => {
         `@ManyToMany({ entity: () => ${RELATION_TARGET.name}, pivotTable: "setting_targets" })`,
         RELATION_TARGET_IMPORT,
       ),
-      moduleFile('settings/entities/setting.entity.ts'),
+      relationFixtureFile('settings/entities/setting.entity.ts'),
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe(RELATION_TARGET.module);
@@ -191,7 +201,7 @@ describe('rule A — the scan scope', () => {
         `@OneToMany(() => ${RELATION_TARGET.name}, (c) => c.thing)`,
         RELATION_TARGET_IMPORT,
       ),
-      moduleFile('search/entities/index.ts'),
+      relationFixtureFile('search/entities/index.ts'),
     );
     expect(findings).toHaveLength(1);
     expect(isViolation(findings[0]!)).toBe(true);

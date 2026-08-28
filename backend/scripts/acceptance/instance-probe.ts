@@ -260,10 +260,7 @@ async function identityAndAssets(em: () => EntityManager): Promise<AssertionResu
     '../../src/modules/_lifecycle/registered-manifests.js'
   );
   const { PermissionCatalogueService } = await import('@endora-commerce/mod-admin-roles/backend');
-  const { I18nService } = await import('../../src/modules/_i18n/services/i18n-service.js');
-  const { reconcileBundles } = await import(
-    '../../src/modules/_i18n/services/bundle-reconciler.js'
-  );
+  const { I18nService, reconcileBundles } = await import('@endora-commerce/mod-i18n/backend');
 
   const title = 'the module, its permission and its palette action all travel with the package';
   const refuses =

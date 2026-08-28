@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AdminUser } from '../../helpers/package-entities.js';
-import { join } from 'node:path';
+import { dirname } from 'node:path';
+import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 import { ERROR_CODES, type ErrorCode } from '@endora-commerce/contracts';
 import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../../../src/http/error-envelope.js';
@@ -10,6 +11,15 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
+
+/** A registered module's own directory — a package root or an application one. */
+function moduleDirectoryOf(moduleId: string): string {
+  const entry = REGISTERED_MANIFESTS.find((candidate) => candidate.manifest.id === moduleId);
+  if (entry === undefined) {
+    throw new Error(`[i18n-error-translation] no registered module "${moduleId}"`);
+  }
+  return dirname(entry.filePath);
+}
 
 describe('i18n error-envelope translation', () => {
   let h: BackendServerHandle;
@@ -37,16 +47,21 @@ describe('i18n error-envelope translation', () => {
       ],
     });
     app = h.app;
-    await h.adminI18n.i18nService.installBundlesForModule(
-      '_i18n',
-      join(process.cwd(), 'src/modules/_i18n'),
-      'i18n',
-    );
-    await h.adminI18n.i18nService.installBundlesForModule(
-      'settings',
-      join(process.cwd(), 'src/modules/settings'),
-      'i18n',
-    );
+    // Both bundles are read from the module's **own directory**, derived from
+    // the registered manifest the way the boot reconciler derives it — never
+    // from `src/modules/<id>`, which stopped being where either module lives
+    // (feature 080, T040b). The `settings` half had already gone stale that
+    // way, and its staleness was invisible: `loadModuleBundles` reads an absent
+    // directory as "this module ships no translatable strings", so the install
+    // was a silent no-op and the assertions below passed on the bundle
+    // `setupBackendServer`'s own reconcile had installed.
+    for (const moduleId of ['_i18n', 'settings']) {
+      await h.adminI18n.i18nService.installBundlesForModule(
+        moduleId,
+        moduleDirectoryOf(moduleId),
+        'i18n',
+      );
+    }
   });
 
   afterAll(async () => {

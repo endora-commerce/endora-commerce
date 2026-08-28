@@ -25,7 +25,7 @@ import { setSellerSettings } from '../invoices/helpers.js';
 
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
-import { TranslationBundle } from '../../../src/modules/_i18n/entities/translation-bundle.entity.js';
+import { TranslationBundle } from '../../helpers/package-entities.js';
 
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { Order } from '../../helpers/package-entities.js';
@@ -34,7 +34,7 @@ import { gatewayRefundRegistryOf } from '../../helpers/package-singletons.js';
 
 const I18N_MODULE_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../src/modules/_i18n',
+  '../../../../packages/modules/_i18n',
 );
 
 /**

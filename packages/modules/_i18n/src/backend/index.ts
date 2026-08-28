@@ -1,8 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { AdminUserPreferencePort } from '@endora-commerce/contracts';
-import { lazyPort, type ModuleContext } from '../../kernel/index.js';
-import type { RequireAdminFactory } from '../../kernel/ports/require-admin.js';
+import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { registerI18nAdminRoutes } from './routes.admin.js';
 import { I18nService } from './services/i18n-service.js';
 import {
@@ -10,6 +10,7 @@ import {
   type I18nReconcileEntry,
   type I18nReconcileResult,
 } from './services/bundle-reconciler.js';
+import { TranslationBundle } from './entities/translation-bundle.entity.js';
 
 /**
  * `_i18n` — the module whose boot-time work does not run in `ctx.onBoot`
@@ -176,3 +177,65 @@ async function runReconcile(ctx: ModuleContext): Promise<I18nReconcileResult> {
     warn: (msg) => ctx.log.warn({}, msg),
   });
 }
+
+/**
+ * The module's own entity classes, as one array — D-168.
+ *
+ * This is the shape the platform reads when the package is *installed*: the
+ * boot-time loader (`src/packages/package-runtime.ts`, `exported['entities']`)
+ * and the static declaration reader (`scripts/lib/package-declarations.ts`),
+ * which is the third source of `check:module-boundary`'s `table→owner` map and
+ * the package pass of `check-entity-tenant-classification`. A missing array is
+ * answered with `[]` — zero entities registered, no error anywhere.
+ *
+ * The class is **not** exported by name beside it (D-168): the ORM registers
+ * whichever copy this array carries, and a second, source-reached copy of a
+ * MikroORM entity is a lookup miss rather than a type error. A test that needs
+ * the runtime class takes it out of this array by name
+ * (`backend/test/helpers/package-entities.ts`).
+ */
+export const entities = [
+  TranslationBundle,
+];
+
+/**
+ * The rest of this module's published surface, and why each name is on it.
+ *
+ * Every one of these was reached relatively from `backend/` before the move,
+ * and a relative reach into a package's `src` is the defect
+ * `check:singleton-identity` refuses: the composed platform loads this
+ * package's `dist`, so a second evaluation of the same file is a second copy of
+ * everything module-scoped in it. Publishing the names is what gives those
+ * callers a spelling that lands on the copy the platform holds.
+ *
+ *   * `ERROR_TRANSLATION_KEYS` / `ErrorTranslationTarget` — the routing table
+ *     both composition roots inject into the error envelope (D-54), and the
+ *     table `check:error-translations` reads as code.
+ *   * `I18nService` — the resolver the reconciler, the CLI commands and the
+ *     acceptance probe construct over an `EntityManager` of their own.
+ *   * `MissingKeyLogger` — the resolver's collaborator, constructed the same way.
+ *   * `loadModuleBundles` / `BundleLoadError` and their shapes — the filesystem
+ *     reader every module's bundles arrive through.
+ *   * `reconcileBundles` and its shapes — the boot pass itself, which the
+ *     acceptance probe runs against a live instance.
+ *   * `registerI18nAdminRoutes` / `I18nAdminDeps` — the HTTP surface, registered
+ *     against a bare Fastify instance by its own contract test.
+ */
+export {
+  ERROR_TRANSLATION_KEYS,
+  type ErrorTranslationTarget,
+} from './services/error-translation.js';
+export { I18nService } from './services/i18n-service.js';
+export { MissingKeyLogger } from './services/missing-key-logger.js';
+export {
+  BundleLoadError,
+  loadModuleBundles,
+  type BundleLoaderOptions,
+  type LoadedBundles,
+} from './services/bundle-loader.js';
+export {
+  reconcileBundles,
+  type I18nReconcileFailure,
+} from './services/bundle-reconciler.js';
+export { registerI18nAdminRoutes, type I18nAdminDeps } from './routes.admin.js';
+export type { I18nReconcileEntry, I18nReconcileResult };
