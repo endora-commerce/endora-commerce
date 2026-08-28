@@ -5,11 +5,11 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { BulkOperationService } from '../../../../packages/modules/catalog/src/backend/services/bulk-operation.service.js';
+import { BulkOperationService } from '../../../../packages/modules/catalog/dist/backend/services/bulk-operation.service.js';
 import type {
   CatalogBulkUpdateService,
   BulkUpdateResult,
-} from '../../../../packages/modules/catalog/src/backend/services/catalog-bulk-update.service.js';
+} from '../../../../packages/modules/catalog/dist/backend/services/catalog-bulk-update.service.js';
 
 /**
  * Consumer-side contract for the queued bulk-operation path (Constitution

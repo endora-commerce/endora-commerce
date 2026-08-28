@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { ANONYMOUS_PRODUCT_AUDIENCE } from '@endora-commerce/contracts';
 import { Product, type ProductRow } from '../../helpers/package-entities.js';
-import { ProductLinkService } from '../../../../packages/modules/catalog/src/backend/services/product-link.service.js';
+import { ProductLinkService } from '../../../../packages/modules/catalog/dist/backend/services/product-link.service.js';
 import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import {
   DefaultPriceListMigrator,

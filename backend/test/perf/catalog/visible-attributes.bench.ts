@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CatalogQueryService } from '../../../../packages/modules/catalog/src/backend/services/catalog-query.service.js';
+import { CatalogQueryService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-query.service.js';
 import type {
   ProductRow,
   ProductAttributeRow,

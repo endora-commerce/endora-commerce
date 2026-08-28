@@ -8,9 +8,9 @@ import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.
 import {
   CatalogAdminService,
   type CatalogEventBus,
-} from '../../../../packages/modules/catalog/src/backend/services/catalog-admin.service.js';
-import { CatalogBulkUpdateService } from '../../../../packages/modules/catalog/src/backend/services/catalog-bulk-update.service.js';
-import { BulkOperationService } from '../../../../packages/modules/catalog/src/backend/services/bulk-operation.service.js';
+} from '../../../../packages/modules/catalog/dist/backend/services/catalog-admin.service.js';
+import { CatalogBulkUpdateService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-bulk-update.service.js';
+import { BulkOperationService } from '../../../../packages/modules/catalog/dist/backend/services/bulk-operation.service.js';
 import { Product } from '../../helpers/package-entities.js';
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID } from '../../helpers/seed-catalog.js';
 import {

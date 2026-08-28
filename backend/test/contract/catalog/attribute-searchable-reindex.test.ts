@@ -8,8 +8,8 @@ import {
 import {
   BulkOperationService,
   type SearchReindexRunner,
-} from '../../../../packages/modules/catalog/src/backend/services/bulk-operation.service.js';
-import type { CatalogBulkUpdateService } from '../../../../packages/modules/catalog/src/backend/services/catalog-bulk-update.service.js';
+} from '../../../../packages/modules/catalog/dist/backend/services/bulk-operation.service.js';
+import type { CatalogBulkUpdateService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-bulk-update.service.js';
 
 /**
  * Flipping an attribute's `searchable` flag must enqueue a full Meilisearch

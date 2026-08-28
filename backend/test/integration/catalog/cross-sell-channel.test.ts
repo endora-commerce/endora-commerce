@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ANONYMOUS_PRODUCT_AUDIENCE } from '@endora-commerce/contracts';
-import { ProductLinkService } from '../../../../packages/modules/catalog/src/backend/services/product-link.service.js';
+import { ProductLinkService } from '../../../../packages/modules/catalog/dist/backend/services/product-link.service.js';
 import { Product, type ProductRow } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 

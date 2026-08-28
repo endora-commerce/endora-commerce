@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CommandBus } from '../../../src/commands/index.js';
-import { CatalogBulkImportService } from '../../../../packages/modules/catalog/src/backend/services/catalog-bulk-import.service.js';
+import { CatalogBulkImportService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-bulk-import.service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { Category } from '../../helpers/package-entities.js';
 import { Product } from '../../helpers/package-entities.js';

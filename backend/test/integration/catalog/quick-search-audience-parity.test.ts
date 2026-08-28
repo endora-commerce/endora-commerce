@@ -8,7 +8,7 @@ import {
   type ProductVisibility,
 } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { CatalogQuickSearchService } from '../../../../packages/modules/catalog/src/backend/services/catalog-quick-search.service.js';
+import { CatalogQuickSearchService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-quick-search.service.js';
 import { Product } from '../../helpers/package-entities.js';
 
 /**

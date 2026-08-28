@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { CommandBus } from '../../../src/commands/index.js';
 import { InventoryStockImportService } from '../../../../packages/modules/inventory/src/backend/services/stock-import.service.js';
-import { CatalogProductReadService } from '../../../../packages/modules/catalog/src/backend/services/catalog-product-read.service.js';
+import { CatalogProductReadService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-product-read.service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { StockLevel } from '../../helpers/package-entities.js';
 import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';

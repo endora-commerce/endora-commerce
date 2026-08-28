@@ -187,9 +187,18 @@ import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/bac
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from '../../src/kernel/i18n/request-language.js';
 import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
-import type { CatalogQueryService } from '../../../packages/modules/catalog/src/backend/services/catalog-query.service.js';
+// `catalog`'s two service types name the package's **`dist`**, unlike the other
+// packaged modules above, and the difference is not cosmetic: the values these
+// annotate come off the composed container, which is `dist`, and integration
+// tests that construct a `CatalogQueryService` themselves must name `dist` too —
+// a source copy would build entity classes the ORM never discovered (D-160.6.1,
+// measured on `bulk-undo.test.ts` when this module was packaged). Typing the
+// harness against `src` while every consumer names `dist` makes the two
+// structurally-identical declarations non-assignable, which is TS2345 rather
+// than a silent divergence, so the spelling has to agree.
+import type { CatalogQueryService } from '../../../packages/modules/catalog/dist/backend/services/catalog-query.service.js';
 import { z } from 'zod';
-import type { CatalogAttributeReadService } from '../../../packages/modules/catalog/src/backend/services/catalog-attribute-read.service.js';
+import type { CatalogAttributeReadService } from '../../../packages/modules/catalog/dist/backend/services/catalog-attribute-read.service.js';
 import type { PricingServiceContract } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
