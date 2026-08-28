@@ -53,9 +53,10 @@ import { initOrm, closeOrm } from '../db/index.js';
 import { mustBeNonProduction } from './dev-seed-guard.js';
 import { SEED_SCOPE_REASON } from './seed-scope.js';
 import { enterSystemScope } from '../kernel/scope.js';
-import { Product } from '../modules/catalog/entities/product.entity.js';
-import { Category } from '../modules/catalog/entities/category.entity.js';
-import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
+import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
+import type { Product as ProductRow } from '../../../packages/modules/catalog/dist/backend/entities/product.entity.js';
+import type { Category as CategoryRow } from '../../../packages/modules/catalog/dist/backend/entities/category.entity.js';
+import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/dist/backend/entities/attribute-set-attribute.entity.js';
 import { createAttributeFixture } from './attribute-fixtures.js';
 import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
@@ -90,13 +91,43 @@ import type { Warehouse as WarehouseRow } from '../../../packages/modules/invent
 import type { WarehouseChannelAssignment as WarehouseChannelAssignmentRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse-channel-assignment.entity.js';
 import type { StockLevel as StockLevelRow } from '../../../packages/modules/inventory/dist/backend/entities/stock-level.entity.js';
 import { DefaultPriceListMigrator } from '@endora-commerce/mod-price-lists/backend';
-import { CatalogProductReadService } from '../modules/catalog/services/catalog-product-read.service.js';
+import { CatalogProductReadService } from '@endora-commerce/mod-catalog/backend';
 import { hashPassword } from '../kernel/crypto/password-hasher.js';
 import {
   entities as inventoryEntities,
   DEFAULT_WAREHOUSE_ID,
   WarehouseChannelReconciler,
 } from '@endora-commerce/mod-inventory/backend';
+
+/**
+ * `catalog`'s three entity classes, taken off the package's published `entities`
+ * array by name (D-168, feature 080 T040b — criterion 7).
+ *
+ * At module scope rather than inside `seedDevCatalog` because the category loop
+ * constructs a `Category` two hundred lines above the block below, which is
+ * where the other packages' classes are resolved. The row types come from an
+ * `import type` of the declaration inside the package's **built** artefact —
+ * `dist` and not `src`, because `backend/tsconfig.build.json` sets
+ * `rootDir: ./src` and a `.ts` outside it is TS6059 even for a type-only import.
+ * With eighteen classes in the array the row type is what stops `em.create`
+ * checking a product payload against whichever constituent of the union
+ * TypeScript picks.
+ */
+const Product = entityNamed<ProductRow>(
+  catalogEntities,
+  'Product',
+  '@endora-commerce/mod-catalog/backend',
+);
+const Category = entityNamed<CategoryRow>(
+  catalogEntities,
+  'Category',
+  '@endora-commerce/mod-catalog/backend',
+);
+const AttributeSetAttribute = entityNamed<AttributeSetAttributeRow>(
+  catalogEntities,
+  'AttributeSetAttribute',
+  '@endora-commerce/mod-catalog/backend',
+);
 
 const DEMO_ADMIN_EMAIL = 'admin@demo.local';
 const DEMO_ADMIN_PASSWORD = 'ChangeMe!123';
@@ -313,7 +344,7 @@ async function main(): Promise<void> {
     { slug: 'electronics', nameEn: 'Electronics' },
     { slug: 'safety', nameEn: 'Safety equipment' },
   ];
-  const sections: Category[] = [];
+  const sections: CategoryRow[] = [];
   for (const s of sectionDefs) {
     const cat = em.create(Category, {
       parentCategoryId: root.id,
@@ -334,7 +365,7 @@ async function main(): Promise<void> {
     { parentSlug: 'safety', slug: 'gloves', nameEn: 'Gloves' },
     { parentSlug: 'safety', slug: 'helmets', nameEn: 'Helmets' },
   ];
-  const leaves: Category[] = [];
+  const leaves: CategoryRow[] = [];
   for (const l of leafDefs) {
     const parent = sections.find((s) => s.slug === l.parentSlug)!;
     leaves.push(
@@ -347,9 +378,9 @@ async function main(): Promise<void> {
   }
   await em.persistAndFlush(leaves);
 
-  // Fourteen entity classes come from packages, and a module package publishes one
-  // `entities` array and no class by name (D-168). `entityNamed` takes each off
-  // the array the ORM itself registered — `entities-registry.generated.ts`
+  // Fourteen more entity classes come from packages, and a module package publishes
+  // one `entities` array and no class by name (D-168). `entityNamed` takes each
+  // off the array the ORM itself registered — `entities-registry.generated.ts`
   // imports the same export — under the row type imported above, so the payloads
   // below are checked against the entity actually being created rather than
   // against whichever constituent of the array's union TypeScript picks.
@@ -592,8 +623,8 @@ async function main(): Promise<void> {
   // name loop used a 1-based index while the category loop used a 0-based one,
   // which shifted every product into the neighbouring category (e.g. a product
   // named "Screws …" ended up filed under Helmets).
-  const products: Product[] = [];
-  const productLeaves: Category[] = [];
+  const products: ProductRow[] = [];
+  const productLeaves: CategoryRow[] = [];
   for (let i = 1; i <= PRODUCT_COUNT; i++) {
     const idx = String(i).padStart(4, '0');
     const leaf = leaves[i % leaves.length]!;

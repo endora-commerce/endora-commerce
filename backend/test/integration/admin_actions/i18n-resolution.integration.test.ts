@@ -9,7 +9,7 @@ import { TranslationBundle } from '../../../src/modules/_i18n/entities/translati
 import { AdminActionsReconciler } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-reconciler.js';
 import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
 import type { PermissionService } from '../../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
-import { manifest as catalogManifest } from '../../../src/modules/catalog/manifest.js';
+import { manifest as catalogManifest } from '../../../../packages/modules/catalog/src/manifest.js';
 import { manifest as importExportManifest } from '../../../../packages/modules/import_export/src/manifest.js';
 import { manifest as inventoryManifest } from '../../../../packages/modules/inventory/src/manifest.js';
 import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';

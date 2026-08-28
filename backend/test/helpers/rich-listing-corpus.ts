@@ -2,10 +2,10 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Asset, PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
 import type { AssetRow } from './package-entities.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Category } from '../../src/modules/catalog/entities/category.entity.js';
-import { GalleryItem } from '../../src/modules/catalog/entities/gallery-item.entity.js';
-import { GalleryItemLabel } from '../../src/modules/catalog/entities/gallery-item-label.entity.js';
-import { Product } from '../../src/modules/catalog/entities/product.entity.js';
+import { Category } from './package-entities.js';
+import { GalleryItem } from './package-entities.js';
+import { GalleryItemLabel } from './package-entities.js';
+import { Product } from './package-entities.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,

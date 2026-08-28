@@ -11,7 +11,7 @@ import { InventoryProductThresholdWriteService } from '../../../../packages/modu
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { ProductWarehouseLowStockThreshold } from '../../helpers/package-entities.js';
 import { Warehouse } from '../../helpers/package-entities.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**

@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Organization } from '../../helpers/package-entities.js';
+import { Organization, type CategoryRow, type ProductRow } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
+import { Product } from '../../helpers/package-entities.js';
+import { Category } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
@@ -31,8 +31,8 @@ import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js'
  */
 describe('Feature 011 / US7 — display-mode chain (T079)', () => {
   let h: BackendServerHandle;
-  let product: Product;
-  let category: Category;
+  let product: ProductRow;
+  let category: CategoryRow;
   let salesChannel: SalesChannel;
   let organization: Organization;
 

@@ -37,9 +37,22 @@ import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/back
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
+import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
 import { entities as ordersEntities } from '@endora-commerce/mod-orders/backend';
 import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
 import type { Session as SessionRow } from '../../../packages/modules/auth/src/backend/entities/session.entity.js';
+import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/src/backend/entities/attribute-set-attribute.entity.js';
+import type { BulkOperation as BulkOperationRow } from '../../../packages/modules/catalog/src/backend/entities/bulk-operation.entity.js';
+import type { Category as CategoryRow } from '../../../packages/modules/catalog/src/backend/entities/category.entity.js';
+import type { GalleryItem as GalleryItemRow } from '../../../packages/modules/catalog/src/backend/entities/gallery-item.entity.js';
+import type { GalleryItemLabel as GalleryItemLabelRow } from '../../../packages/modules/catalog/src/backend/entities/gallery-item-label.entity.js';
+import type { GroupedItem as GroupedItemRow } from '../../../packages/modules/catalog/src/backend/entities/grouped-item.entity.js';
+import type { Product as ProductRow } from '../../../packages/modules/catalog/src/backend/entities/product.entity.js';
+import type { ProductAttachment as ProductAttachmentRow } from '../../../packages/modules/catalog/src/backend/entities/product-attachment.entity.js';
+import type { ProductAttribute as ProductAttributeRow } from '../../../packages/modules/catalog/src/backend/entities/product-attribute.entity.js';
+import type { ProductLink as ProductLinkRow } from '../../../packages/modules/catalog/src/backend/entities/product-link.entity.js';
+import type { ProductValueOverride as ProductValueOverrideRow } from '../../../packages/modules/catalog/src/backend/entities/product-value-override.entity.js';
+import type { ProductVariant as ProductVariantRow } from '../../../packages/modules/catalog/src/backend/entities/product-variant.entity.js';
 import type { Address as AddressRow } from '../../../packages/modules/addresses/src/backend/entities/address.entity.js';
 import type { AnalyticsEvent as AnalyticsEventRow } from '../../../packages/modules/analytics/src/backend/entities/analytics-event.entity.js';
 import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
@@ -273,6 +286,41 @@ export const PaymentMethod = classNamed<PaymentMethodRow>(paymentMethodsEntities
 export const Session = classNamed<SessionRow>(authEntities, 'Session');
 
 /**
+ * `catalog` — twelve of the module's eighteen entity classes, the ones this
+ * repository's tests construct or query. `Product` alone is named by 99 test
+ * imports and `Category` by 35, which is what makes the single-copy property
+ * above load-bearing here rather than theoretical: a relative reach into the
+ * package's source would hand `em.find` a class the ORM never registered.
+ */
+export const AttributeSetAttribute = classNamed<AttributeSetAttributeRow>(
+  catalogEntities,
+  'AttributeSetAttribute',
+);
+export const BulkOperation = classNamed<BulkOperationRow>(catalogEntities, 'BulkOperation');
+export const Category = classNamed<CategoryRow>(catalogEntities, 'Category');
+export const GalleryItem = classNamed<GalleryItemRow>(catalogEntities, 'GalleryItem');
+export const GalleryItemLabel = classNamed<GalleryItemLabelRow>(
+  catalogEntities,
+  'GalleryItemLabel',
+);
+export const GroupedItem = classNamed<GroupedItemRow>(catalogEntities, 'GroupedItem');
+export const Product = classNamed<ProductRow>(catalogEntities, 'Product');
+export const ProductAttachment = classNamed<ProductAttachmentRow>(
+  catalogEntities,
+  'ProductAttachment',
+);
+export const ProductAttribute = classNamed<ProductAttributeRow>(
+  catalogEntities,
+  'ProductAttribute',
+);
+export const ProductLink = classNamed<ProductLinkRow>(catalogEntities, 'ProductLink');
+export const ProductValueOverride = classNamed<ProductValueOverrideRow>(
+  catalogEntities,
+  'ProductValueOverride',
+);
+export const ProductVariant = classNamed<ProductVariantRow>(catalogEntities, 'ProductVariant');
+
+/**
  * The **row shape**, for a test that annotates a variable with it.
  *
  * `classNamed` returns MikroORM's `EntityClass<T>`, which is
@@ -294,6 +342,22 @@ export const Session = classNamed<SessionRow>(authEntities, 'Session');
  * to disagree with.
  */
 export type { PaymentMethodRow };
+
+/**
+ * `catalog`'s row shapes, for the same reason and on the same terms.
+ *
+ * Twenty-eight test files annotate a variable, a parameter or a helper's return
+ * with one of these while also handing the class to a live `EntityManager`, so
+ * both halves are needed and the type half arrives under its own name. `export
+ * type` erases; nothing here is a second copy of anything.
+ */
+export type {
+  BulkOperationRow,
+  CategoryRow,
+  ProductRow,
+  ProductAttributeRow,
+  ProductVariantRow,
+};
 
 /**
  * Batch two (feature 080, T040b). Twenty-nine classes across thirteen packages, each

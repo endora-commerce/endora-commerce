@@ -10,7 +10,7 @@ import {
   SORTABLE_ATTRIBUTES,
 } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';
 import {
   SEED_PRODUCT_101_SKU,

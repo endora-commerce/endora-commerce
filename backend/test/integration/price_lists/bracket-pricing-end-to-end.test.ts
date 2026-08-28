@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
+import {
+  PriceListPriceBracket,
+  PriceListProduct,
+  type ProductRow,
+} from '../../helpers/package-entities.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import { DefaultPriceListMigrator } from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
@@ -34,7 +38,7 @@ describe('Feature 011 / US3 — multi-bracket pricing (T044)', () => {
     await migrator.seedDefault();
   });
 
-  async function makeProduct(em = db.em(), suffix = '1'): Promise<Product> {
+  async function makeProduct(em = db.em(), suffix = '1'): Promise<ProductRow> {
     const p = em.create(Product, {
       sku: `us3-${suffix}`,
       slug: `us3-${suffix}`,

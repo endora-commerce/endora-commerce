@@ -5,7 +5,7 @@ import { EventBus } from '../../../src/events/bus.js';
 import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
 import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product, type ProductRow } from '../../helpers/package-entities.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 
 /**
@@ -57,7 +57,7 @@ describe('membership invariant: at-least-one-channel (T022)', () => {
     return channel;
   }
 
-  async function createProduct(suffix: string): Promise<Product> {
+  async function createProduct(suffix: string): Promise<ProductRow> {
     const em = db.em();
     const product = em.create(Product, {
       sku: `T022-${suffix}`,

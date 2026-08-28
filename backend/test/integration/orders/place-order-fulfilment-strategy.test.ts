@@ -20,8 +20,7 @@ import { WarehouseChannelAssignment } from '../../helpers/package-entities.js';
 import { StockLevel } from '../../helpers/package-entities.js';
 import { StockAllocation } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { OrderItem } from '../../helpers/package-entities.js';
+import { OrderItem, Product } from '../../helpers/package-entities.js';
 
 /**
  * Integration — order placement honors the configurable warehouse-picking

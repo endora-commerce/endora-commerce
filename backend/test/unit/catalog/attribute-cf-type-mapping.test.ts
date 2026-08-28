@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   cfToLegacyValueType,
   legacyToCfType,
-} from '../../../src/modules/catalog/services/attribute-type-mapping.js';
+} from '../../../../packages/modules/catalog/src/backend/services/attribute-type-mapping.js';
 import {
   dbToApiAttributeType,
   resolveAttributeApiType,
-} from '../../../src/modules/catalog/services/catalog-admin.service.js';
+} from '../../../../packages/modules/catalog/src/backend/services/catalog-admin.service.js';
 
 /**
  * T015 (feature 061) — full round-trip of the research §R7 map:

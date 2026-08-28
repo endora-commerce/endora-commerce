@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Organization } from '../../helpers/package-entities.js';
+import { Organization, type CategoryRow, type ProductRow } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
+import { Product } from '../../helpers/package-entities.js';
+import { Category } from '../../helpers/package-entities.js';
 import { CustomerGroup } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
@@ -37,8 +37,8 @@ import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js'
  */
 describe('Feature 011 / US5 — resolver priority + tie-break (T059)', () => {
   let h: BackendServerHandle;
-  let product: Product;
-  let category: Category;
+  let product: ProductRow;
+  let category: CategoryRow;
   let salesChannel: SalesChannel;
   let customerGroup: CustomerGroup;
   let organization: Organization;

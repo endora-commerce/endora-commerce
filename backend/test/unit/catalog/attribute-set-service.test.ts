@@ -5,7 +5,7 @@ import {
   assertNotInUse,
   partitionAttributesForSetChange,
   AttributeSetValidationError,
-} from '../../../src/modules/catalog/services/attribute-set-validations.js';
+} from '../../../../packages/modules/catalog/src/backend/services/attribute-set-validations.js';
 
 /**
  * T010 — pure unit tests over the AttributeSetService domain invariants

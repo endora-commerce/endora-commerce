@@ -7,11 +7,11 @@ import {
 } from '@endora-commerce/contracts';
 
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { CatalogAttributeReadService } from '../../../src/modules/catalog/services/catalog-attribute-read.service.js';
+import { CatalogAttributeReadService } from '../../../../packages/modules/catalog/src/backend/services/catalog-attribute-read.service.js';
 import {
   updateAttributeCommand,
   type AttributeCommandDeps,
-} from '../../../src/modules/catalog/commands/attribute-commands.js';
+} from '../../../../packages/modules/catalog/src/backend/commands/attribute-commands.js';
 import type { CustomFieldDefinitionApplyApi } from '../../../../packages/modules/custom_fields/src/ports/index.js';
 
 /**

@@ -70,27 +70,27 @@ import { Migration20260611T140413CartsCartItemPackaging } from '@endora-commerce
 import { Migration20260818T081253CartsCartCompletedOrderFk } from '@endora-commerce/mod-carts/migrations';
 
 // ── catalog ─────────────────────────────────────────────────────────────────
-import { Migration20260429T064146CatalogAttributeSetsInit } from '../modules/catalog/migrations/20260429T064146_catalog_attribute_sets_init.js';
-import { Migration20260429T070004CatalogProductAttributeExtensions } from '../modules/catalog/migrations/20260429T070004_catalog_product_attribute_extensions.js';
-import { Migration20260429T102322CatalogProductTypeAndVirtualFields } from '../modules/catalog/migrations/20260429T102322_catalog_product_type_and_virtual_fields.js';
-import { Migration20260429T111839CatalogGalleryItemsAndLabels } from '../modules/catalog/migrations/20260429T111839_catalog_gallery_items_and_labels.js';
-import { Migration20260429T112543CatalogProductAttachments } from '../modules/catalog/migrations/20260429T112543_catalog_product_attachments.js';
-import { Migration20260429T123726CatalogProductLinks } from '../modules/catalog/migrations/20260429T123726_catalog_product_links.js';
-import { Migration20260429T130803CatalogGroupedAndBundle } from '../modules/catalog/migrations/20260429T130803_catalog_grouped_and_bundle.js';
-import { Migration20260501T185835CatalogProductAttributeIsComparable } from '../modules/catalog/migrations/20260501T185835_catalog_product_attribute_is_comparable.js';
-import { Migration20260505T060113CatalogAttributeOptionsAndFlags } from '../modules/catalog/migrations/20260505T060113_catalog_attribute_options_and_flags.js';
-import { Migration20260515T082629CatalogAttributeMassEditable } from '../modules/catalog/migrations/20260515T082629_catalog_attribute_mass_editable.js';
-import { Migration20260526T124736CatalogProductStatusInactive } from '../modules/catalog/migrations/20260526T124736_catalog_product_status_inactive.js';
-import { Migration20260611T140346CatalogProductValueOverridesInit } from '../modules/catalog/migrations/20260611T140346_catalog_product_value_overrides_init.js';
-import { Migration20260611T140400CatalogAttributeQuickSearchable } from '../modules/catalog/migrations/20260611T140400_catalog_attribute_quick_searchable.js';
-import { Migration20260611T140407CatalogBulkOperations } from '../modules/catalog/migrations/20260611T140407_catalog_bulk_operations.js';
-import { Migration20260611T140408CatalogBulkOperationLogs } from '../modules/catalog/migrations/20260611T140408_catalog_bulk_operation_logs.js';
-import { Migration20260611T140412CatalogProductPackagingUnits } from '../modules/catalog/migrations/20260611T140412_catalog_product_packaging_units.js';
-import { Migration20260718T060659CatalogBulkOperationRevertState } from '../modules/catalog/migrations/20260718T060659_catalog_bulk_operation_revert_state.js';
-import { Migration20260718T200343CatalogCategoryCustomFieldValues } from '../modules/catalog/migrations/20260718T200343_catalog_category_custom_field_values.js';
-import { Migration20260723T230401CatalogAttributesOnCustomFields } from '../modules/catalog/migrations/20260723T230401_catalog_attributes_on_custom_fields.js';
-import { Migration20260804T152604CatalogWidenProductSku } from '../modules/catalog/migrations/20260804T152604_catalog_widen_product_sku.js';
-import { Migration20260804T160244CatalogCategoryActivation } from '../modules/catalog/migrations/20260804T160244_catalog_category_activation.js';
+import { Migration20260429T064146CatalogAttributeSetsInit } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260429T070004CatalogProductAttributeExtensions } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260429T102322CatalogProductTypeAndVirtualFields } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260429T111839CatalogGalleryItemsAndLabels } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260429T112543CatalogProductAttachments } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260429T123726CatalogProductLinks } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260429T130803CatalogGroupedAndBundle } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260501T185835CatalogProductAttributeIsComparable } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260505T060113CatalogAttributeOptionsAndFlags } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260515T082629CatalogAttributeMassEditable } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260526T124736CatalogProductStatusInactive } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260611T140346CatalogProductValueOverridesInit } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260611T140400CatalogAttributeQuickSearchable } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260611T140407CatalogBulkOperations } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260611T140408CatalogBulkOperationLogs } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260611T140412CatalogProductPackagingUnits } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260718T060659CatalogBulkOperationRevertState } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260718T200343CatalogCategoryCustomFieldValues } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260723T230401CatalogAttributesOnCustomFields } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260804T152604CatalogWidenProductSku } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260804T160244CatalogCategoryActivation } from '@endora-commerce/mod-catalog/migrations';
 
 // ── cms ─────────────────────────────────────────────────────────────────────
 import { Migration20260425T162418CmsPagesInit } from '@endora-commerce/mod-cms/migrations';

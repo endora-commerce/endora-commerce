@@ -6,8 +6,8 @@ import {
 } from '../../helpers/test-server.js';
 import type { CatalogProductReadPort, CustomerAccountReadPort } from '@endora-commerce/contracts';
 import { AvailabilityWorker } from '../../../../packages/modules/inventory/src/backend/services/availability-worker.js';
-import { AvailabilityNotification } from '../../helpers/package-entities.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { AvailabilityNotification, type ProductRow } from '../../helpers/package-entities.js';
+import { Product } from '../../helpers/package-entities.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 
@@ -41,7 +41,7 @@ describe('AvailabilityWorker.dispatchForStockIncrease', () => {
   let h: BackendServerHandle;
   let mailer: InMemoryMailer;
   let worker: AvailabilityWorker;
-  let product: Product;
+  let product: ProductRow;
   let customer: CustomerAccount;
 
   beforeAll(async () => {

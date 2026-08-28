@@ -14,7 +14,7 @@ import { AssetReferenceRegistry } from '../../../../packages/modules/assets_libr
 import { CmsReferenceRegistry } from '../../../../packages/modules/cms/src/backend/services/cms-reference-registry.js';
 import { EmailDefaultsRegistry } from '../../../../packages/modules/transactional_emails/src/backend/services/email-defaults-registry.js';
 import { registerCmsAssetReferences } from '../../../../packages/modules/cms/src/backend/services/asset-references.js';
-import { registerCatalogAssetReferences } from '../../../src/modules/catalog/services/asset-references.js';
+import { registerCatalogAssetReferences } from '../../../../packages/modules/catalog/src/backend/services/asset-references.js';
 import { registerBlogAssetReferences } from '../../../../packages/modules/blog/src/backend/services/blog-asset-references.js';
 import { registerMegamenuAssetReferences } from '../../../../packages/modules/megamenu/src/backend/services/asset-references.js';
 import { registerMegamenuCmsReferences } from '../../../../packages/modules/megamenu/src/backend/services/cms-references.js';
