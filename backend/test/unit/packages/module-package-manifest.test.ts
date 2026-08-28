@@ -659,6 +659,37 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       expect(message).toContain('@endora-commerce/contracts');
     });
 
+    /**
+     * The message must not describe the two-sided failure as a race.
+     *
+     * !1047 measured the pair `returns` ↔ `credit_limits`, where **one**
+     * direction carried a real reach: the other side compiled, emitted its
+     * `dist/ports/index.d.ts`, and an immediate re-run of the consumer went
+     * green — a scheduling-dependent red. Re-measured on this tree for the
+     * shape this refusal was actually written against, `orders` ↔ `payments`,
+     * where **both** directions carry one: every package build sets
+     * `noEmitOnError: true`, so the side that loses the race emits nothing and
+     * the side that would have won never gets the `.d.ts` it is waiting for.
+     * Seven runs, seven reds, the same TS2307 every time — four cold and
+     * concurrent, two warm, one cold at `--workspace-concurrency=1`. **There is
+     * no build order**, which is why `build:packages` cannot be taught one and
+     * why "just re-run it" is advice that cannot work here.
+     *
+     * The distinction is load-bearing for the author who reads this message: a
+     * race invites a retry, and a deadlock does not.
+     */
+    it('says a two-sided pair has no build order, rather than calling it a race', () => {
+      let message = '';
+      try {
+        render(mutualPair());
+      } catch (error: unknown) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      expect(message).toContain('noEmitOnError');
+      expect(message).toContain('no build order');
+      expect(message).not.toContain('succeeds on a re-run');
+    });
+
     it('renders the same pair when only one side reaches the other', () => {
       const files = mutualPair();
       delete files[`${ROOT}/packages/modules/payments/src/backend/reach.ts`];
