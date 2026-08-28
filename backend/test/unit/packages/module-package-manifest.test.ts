@@ -115,6 +115,12 @@ function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, s
         '@types/react': '^19.2.14',
         react: '^19.2.5',
         typescript: '^5.9.3',
+        // The real application declares it, and a fixture that ships a test
+        // file has to: the specifier walk reads the test's own `import … from
+        // 'vitest'` and the peer range is the major of what the application
+        // runs, so without this a realistic test fixture is refused for a
+        // reason that has nothing to do with what it is proving.
+        vitest: '^2.1.4',
       },
     }),
     // The installed `@types/*` packages D-181's split reads, in the two shapes it
@@ -1029,9 +1035,68 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       const withTests = manifestOf(
         widgets(BACKEND_ONLY, {
           [`${ROOT}/packages/modules/widgets/test/unit/a.test.ts`]: 'export {};\n',
+          // A test file with no configuration is refused since feature 089's
+          // Phase 1, so a fixture that ships one ships the runner too.
+          [`${ROOT}/packages/modules/widgets/vitest.config.ts`]: 'export default {};\n',
         }),
       );
       expect((withTests['scripts'] as Record<string, string>)['lint']).toBe('eslint src test');
+    });
+  });
+
+  /**
+   * A test file nothing runs (feature 089, Phase 1).
+   *
+   * `specs/deferred-defects.md` recorded the state this closes: four packaged
+   * modules carried fifteen co-located test files, no runner collected them, no
+   * job reported them and no total counted them. They were not failing — as far
+   * as the pipeline was concerned they did not exist, which in review reads as
+   * coverage. The two halves below are the whole repair: an *undeclared* run is
+   * refused here, and a *declared* one is made honest by the script it emits.
+   */
+  describe('a test file has a runner', () => {
+    const VITEST_CONFIG = 'export default {};\n';
+
+    it('refuses a co-located test file when the package declares no vitest config', () => {
+      const tree = (): Record<string, string> =>
+        widgets({
+          ...BACKEND_ONLY,
+          'src/backend/services/thing.service.test.ts': "import { it } from 'vitest';\n",
+        });
+      expect(() => manifestOf(tree())).toThrow(ModulePackageManifestError);
+      expect(() => manifestOf(tree())).toThrow(/src\/backend\/services\/thing\.service\.test\.ts/);
+      expect(() => manifestOf(tree())).toThrow(/vitest\.config\.ts/);
+    });
+
+    it('refuses one under test/ too — the layout contract puts them there', () => {
+      const tree = (): Record<string, string> =>
+        widgets(BACKEND_ONLY, {
+          [`${ROOT}/packages/modules/widgets/test/unit/thing.test.ts`]:
+            "import { it } from 'vitest';\n",
+        });
+      expect(() => manifestOf(tree())).toThrow(ModulePackageManifestError);
+      expect(() => manifestOf(tree())).toThrow(/test\/unit\/thing\.test\.ts/);
+    });
+
+    it('emits a bare `vitest run` for a package that declares one', () => {
+      // Never `--passWithNoTests`: measured on vitest 2.1.9, bare `run` exits 1
+      // on "No test files found" and the flag turns that into 0 — which is the
+      // same "green means not looking" this refusal exists to stop, one layer up.
+      const manifest = manifestOf(
+        widgets(
+          {
+            ...BACKEND_ONLY,
+            'src/backend/services/thing.service.test.ts': "import { it } from 'vitest';\n",
+          },
+          { [`${ROOT}/packages/modules/widgets/vitest.config.ts`]: VITEST_CONFIG },
+        ),
+      );
+      expect((manifest['scripts'] as Record<string, string>)['test']).toBe('vitest run');
+    });
+
+    it('emits no test script for a package that ships neither', () => {
+      const manifest = manifestOf(widgets(BACKEND_ONLY));
+      expect((manifest['scripts'] as Record<string, string>)['test']).toBeUndefined();
     });
   });
 
