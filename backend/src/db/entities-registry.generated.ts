@@ -52,15 +52,6 @@ import { ProductPackagingUnit } from '../modules/catalog/entities/product-packag
 import { ProductValueOverride } from '../modules/catalog/entities/product-value-override.entity.js';
 import { ProductVariant } from '../modules/catalog/entities/product-variant.entity.js';
 import { Product } from '../modules/catalog/entities/product.entity.js';
-import { OrderAppliedPromotion } from '../modules/orders/entities/order-applied-promotion.entity.js';
-import { OrderComment } from '../modules/orders/entities/order-comment.entity.js';
-import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
-import { OrderListSavedView } from '../modules/orders/entities/order-list-saved-view.entity.js';
-import { OrderPlacementIntent } from '../modules/orders/entities/order-placement-intent.entity.js';
-import { OrderStatusTransition } from '../modules/orders/entities/order-status-transition.entity.js';
-import { OrderStatus } from '../modules/orders/entities/order-status.entity.js';
-import { Order } from '../modules/orders/entities/order.entity.js';
-import { Payment } from '../modules/payments/entities/payment.entity.js';
 import { entities as addressesEntities } from '@endora-commerce/mod-addresses/backend';
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
 import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
@@ -99,7 +90,9 @@ import { entities as metaAdsEntities } from '@endora-commerce/mod-meta-ads/backe
 import { entities as mfaEntities } from '@endora-commerce/mod-mfa/backend';
 import { entities as adminActionsEntities } from '@endora-commerce/mod-admin-actions/backend';
 import { entities as newsletterEntities } from '@endora-commerce/mod-newsletter/backend';
+import { entities as ordersEntities } from '@endora-commerce/mod-orders/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
+import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
 import { entities as paypalEntities } from '@endora-commerce/mod-paypal/backend';
 import { entities as payuEntities } from '@endora-commerce/mod-payu/backend';
 import { entities as priceListsEntities } from '@endora-commerce/mod-price-lists/backend';
@@ -144,15 +137,6 @@ export const ALL_ENTITIES = [
   ProductValueOverride,
   ProductVariant,
   Product,
-  OrderAppliedPromotion,
-  OrderComment,
-  OrderItem,
-  OrderListSavedView,
-  OrderPlacementIntent,
-  OrderStatusTransition,
-  OrderStatus,
-  Order,
-  Payment,
   ...(addressesEntities as readonly EntityClassLike[]),
   ...(adminNotificationsEntities as readonly EntityClassLike[]),
   ...(adminRolesEntities as readonly EntityClassLike[]),
@@ -191,7 +175,9 @@ export const ALL_ENTITIES = [
   ...(mfaEntities as readonly EntityClassLike[]),
   ...(adminActionsEntities as readonly EntityClassLike[]),
   ...(newsletterEntities as readonly EntityClassLike[]),
+  ...(ordersEntities as readonly EntityClassLike[]),
   ...(paymentMethodsEntities as readonly EntityClassLike[]),
+  ...(paymentsEntities as readonly EntityClassLike[]),
   ...(paypalEntities as readonly EntityClassLike[]),
   ...(payuEntities as readonly EntityClassLike[]),
   ...(priceListsEntities as readonly EntityClassLike[]),

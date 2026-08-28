@@ -16,8 +16,8 @@ import {
   TEST_SUSPENDED_ORGANIZATION_ID,
 } from '../../helpers/seed-commerce.js';
 import { PaymentMethod } from '../../helpers/package-entities.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
+import { Order } from '../../helpers/package-entities.js';
+import { Payment } from '../../helpers/package-entities.js';
 
 /**
  * `POST /api/v1/orders/:orderId/payments/retry` — the buyer's own retry

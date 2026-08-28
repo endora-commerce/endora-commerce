@@ -17,7 +17,7 @@ import {
 import { createDeliveryProcessor } from '../../../../packages/modules/webhooks/src/backend/services/webhook-delivery-worker.js';
 import { bridgeEventHandler } from '../../../../packages/modules/webhooks/src/backend/services/event-bridge.js';
 import { BRIDGED_EVENT_TYPES } from '../../../../packages/modules/webhooks/src/backend/index.js';
-import { emitOrderStatusAfter } from '../../../src/modules/orders/events/order-status-events.js';
+import { emitOrderStatusAfter } from '../../../../packages/modules/orders/src/backend/events/order-status-events.js';
 import { WebhookDelivery, type WebhookDeliveryRow } from '../../helpers/package-entities.js';
 
 /**

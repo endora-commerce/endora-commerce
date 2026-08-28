@@ -17,15 +17,15 @@ import {
   OrderService,
   type OrderEventBus,
   type OrderServiceNeighbourPorts,
-} from '../../../src/modules/orders/services/order-service.js';
+} from '../../../../packages/modules/orders/dist/backend/services/order-service.js';
 import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
-import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
-import { PaymentPlacementApplyService } from '../../../src/modules/payments/services/payment-placement-apply-port.js';
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { builtInPaymentAdapters } from '../../../../packages/modules/payments/src/backend/adapters/built-in-adapters.js';
+import { PaymentPlacementApplyService } from '../../../../packages/modules/payments/src/backend/services/payment-placement-apply-port.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
+import { Order } from '../../helpers/package-entities.js';
+import { Payment } from '../../helpers/package-entities.js';
 
 /**
  * Feature 080, T048 — the payment row placement opens, exercised against a live

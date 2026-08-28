@@ -5,10 +5,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+import { Order, OrderItem } from '../../helpers/package-entities.js';
 
 // Feature 078, D-95: `{channel}` is rendered from the `sales_channels`
 

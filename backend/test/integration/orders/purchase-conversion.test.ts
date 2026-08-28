@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { PurchaseConversionService } from '../../../src/modules/orders/services/purchase-conversion-service.js';
+import { PurchaseConversionService } from '../../../../packages/modules/orders/src/backend/services/purchase-conversion-service.js';
 
 /**
  * Issue #277 — the order column that says a GA4 `purchase` conversion is still

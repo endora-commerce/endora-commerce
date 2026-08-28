@@ -25,7 +25,7 @@ import {
 import {
   ordersPromptTools,
   type OrdersPromptToolsDeps,
-} from '../../../src/modules/orders/prompt-tools.js';
+} from '../../../../packages/modules/orders/dist/backend/prompt-tools.js';
 
 /**
  * Issue #112, follow-up — a contributed prompt-action tool names a permission

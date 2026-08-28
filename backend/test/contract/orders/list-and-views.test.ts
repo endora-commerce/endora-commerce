@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 038 (US2) — admin orders list (filter/sort/search + counts),

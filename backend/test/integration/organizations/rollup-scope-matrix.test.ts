@@ -15,10 +15,10 @@ import {
 import { systemTenantContext } from '../../../src/tenancy/resolve-tenant-context.js';
 import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { randomUUID } from 'node:crypto';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 056 US2 — roll-up scope matrix (T015).

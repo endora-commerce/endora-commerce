@@ -11,9 +11,9 @@ import { withModuleOff } from '../../helpers/off-state.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import type { DeliveryMethodsCradle } from '../../../../packages/modules/delivery_methods/src/backend/index.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { carrierNotContactedReason } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
 import { DeliveryMethod } from '../../helpers/package-entities.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Issue #250 — the off-state test Principle XVII item 6 requires for the

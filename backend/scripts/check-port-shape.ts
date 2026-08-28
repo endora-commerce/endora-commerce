@@ -355,11 +355,12 @@ export interface UnpublishedResolutionFinding {
  * has been packaged publishes its interface, so the entry goes — that is what
  * retired `carts`, `invoices`, `inventory` and `custom_fields`, whose consumers
  * had already been converted to name the subpath and whose entries only this
- * check could not see were spent. Three of the entries left have packaged
- * owners and stand anyway, because their `ports/` declarations name the
- * container in **prose** rather than in the marker line `portDocOf` reads
- * (`creditLimitService`, `promotionUsageFinalizer`,
- * `personalOrganizationProvisionApi`). That is an omission rather than a
+ * check could not see were spent. The mutual `orders` <-> `payments` pair went with T040b
+ * packaging both of them, which is the second half D-171.1 predicted. The three
+ * entries left all have packaged owners and stand anyway, because their
+ * `ports/` declarations name the container in **prose** rather than in the
+ * marker line `portDocOf` reads (`creditLimitService`,
+ * `promotionUsageFinalizer`, `personalOrganizationProvisionApi`). That is an omission rather than a
  * decision, and it is recorded rather than repaired here: adding a marker
  * publishes a name, which is signal 2's subject and the owner's call.
  */
@@ -388,43 +389,6 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
     'is `promotions`\' own interface, kept out of `@endora-commerce/contracts` because ' +
     '`finalizeUsage` takes the placement transaction, and held there by ' +
     '`promotion_usages_order_fk`. Retired by F4 package entry points.',
-  // Feature 080's T048, and the same shape twice more: an owner's own
-  // `EntityManager`-taking interface, kept out of `@endora-commerce/contracts`
-  // because FR-034 keeps a MikroORM type out of a package `admin` and
-  // `storefront` both compile, and held co-transactional by a foreign key
-  // rather than by a convention. Each replaces a reach into that owner's
-  // **entity class**, which D-168 leaves a packaged module no supported
-  // spelling for — so the entries are not new debt, they are the same seam
-  // spelled in the shape D-169 mandates, and each is a `permanent: true` entry
-  // in its consumer's cross-module-imports shard.
-  //
-  // **This family opened with five and is down to two, and the three that went
-  // are what D-171.1's widening measures.** `carts`, `invoices` and `inventory`
-  // are packages now, so their interfaces sit on a declared `./ports` subpath,
-  // their consumers name that subpath, and the names are published in exactly
-  // the sense this check means — the seams were repaired and only this check
-  // could not see it. The two below are the mutual pair, whose owners are still
-  // in the application tree: there `ports/` is a directory with no supported
-  // name, so the entries stand until T040b packages them.
-  'orders:paymentPlacementApplyPort':
-    'T048 / D-169 / D-179 — the last of the family, and the mirror of the entry below: ' +
-    "`PaymentPlacementApplyPort` is `payments`' own interface, kept out of " +
-    '`@endora-commerce/contracts` because both methods take the placement transaction ' +
-    '(FR-034), and held there by `payments_order_fk` (`on delete restrict`) — the payment ' +
-    'row cannot exist before the order does, and the order does not commit until placement ' +
-    'returns. It replaces the `Payment` entity import `orders` held, which was the last ' +
-    "cross-module entity-class reach in the tree, and is a `permanent: true` entry in " +
-    "`orders`' cross-module-imports shard. This name and the one below are the same two " +
-    'modules seen from either end, so the pair retires together, with F4 package entry ' +
-    'points.',
-  'payments:orderPaymentStatusApplyPort':
-    'T048 / D-169 — the same shape walked the other way: `OrderPaymentStatusApplyPort` is ' +
-    "`orders`' own interface, kept out of `@endora-commerce/contracts` because " +
-    '`applyPaymentStatus` takes the settlement transaction, and held there by ' +
-    '`payments_order_fk` (`on delete restrict`) — the payment row and the order`s ' +
-    '`payment_status` land together or not at all. It replaces the `Order` entity import ' +
-    "`payments` held, and is a `permanent: true` entry in `payments`' " +
-    'cross-module-imports shard. Retired by F4 package entry points.',
   // D-178's seam, and the same shape once more: an interface the owner declares
   // beside its implementation, kept out of `@endora-commerce/contracts` because
   // its signature carries the caller's `EntityManager`, held co-transactional by

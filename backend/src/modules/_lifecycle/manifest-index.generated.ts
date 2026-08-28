@@ -75,10 +75,10 @@ import { manifest as manifest37 } from '@endora-commerce/mod-megamenu';
 import { manifest as manifest38 } from '@endora-commerce/mod-meta-ads';
 import { manifest as manifest39 } from '@endora-commerce/mod-mfa';
 import { manifest as manifest40 } from '@endora-commerce/mod-newsletter';
-import { manifest as manifest41 } from '../orders/manifest.js';
+import { manifest as manifest41 } from '@endora-commerce/mod-orders';
 import { manifest as manifest42 } from '@endora-commerce/mod-organizations';
 import { manifest as manifest43 } from '@endora-commerce/mod-payment-methods';
-import { manifest as manifest44 } from '../payments/manifest.js';
+import { manifest as manifest44 } from '@endora-commerce/mod-payments';
 import { manifest as manifest45 } from '@endora-commerce/mod-paypal';
 import { manifest as manifest46 } from '@endora-commerce/mod-payu';
 import { manifest as manifest47 } from '@endora-commerce/mod-pim-ergonode';
@@ -160,10 +160,10 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'meta_ads', manifest: manifest38, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-meta-ads') },
   { id: 'mfa', manifest: manifest39, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-mfa') },
   { id: 'newsletter', manifest: manifest40, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-newsletter') },
-  { id: 'orders', manifest: manifest41, manifestPath: resolveManifestPath(import.meta.url, '../orders/manifest.js') },
+  { id: 'orders', manifest: manifest41, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-orders') },
   { id: 'organizations', manifest: manifest42, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-organizations') },
   { id: 'payment_methods', manifest: manifest43, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-payment-methods') },
-  { id: 'payments', manifest: manifest44, manifestPath: resolveManifestPath(import.meta.url, '../payments/manifest.js') },
+  { id: 'payments', manifest: manifest44, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-payments') },
   { id: 'paypal', manifest: manifest45, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-paypal') },
   { id: 'payu', manifest: manifest46, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-payu') },
   { id: 'pim_ergonode', manifest: manifest47, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-pim-ergonode') },

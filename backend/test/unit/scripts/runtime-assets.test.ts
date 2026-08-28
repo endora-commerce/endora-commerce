@@ -151,24 +151,38 @@ describe('auditBuiltBundles — a registered module whose bundles are not in the
 
   it('goes red when one registered module’s bundle directory is removed', () => {
     const modules = registeredBundleModules();
-    const victim = modules.find((module) => module.moduleId === 'orders');
-    expect(victim).toBeDefined();
-    const removed = join(builtRoot, 'modules', 'orders', victim!.bundlesDir);
+    // The victim is **derived, never named**. This assertion read
+    // `moduleId === 'orders'` until T040b packaged that module, at which point
+    // the built tree the copier produces from `src/` holds no directory for it
+    // and the proof failed on its own fixture rather than on the audit. A module
+    // id written into a test is a fact about a layout that moves; what the proof
+    // actually needs is *any* module the copier really emitted.
+    const victim = modules.find((module) =>
+      existsSync(join(builtRoot, 'modules', module.moduleId, module.bundlesDir)),
+    );
+    expect(
+      victim,
+      'the copier emitted no module bundle directory at all, so there is nothing to remove',
+    ).toBeDefined();
+    const removed = join(builtRoot, 'modules', victim!.moduleId, victim!.bundlesDir);
     expect(existsSync(removed)).toBe(true);
     rmSync(removed, { recursive: true });
 
     const findings = auditBuiltBundles(modules, SRC_ROOT, builtRoot);
     expect(findings).toEqual([
-      { kind: 'missing-directory', moduleId: 'orders', expected: removed },
+      { kind: 'missing-directory', moduleId: victim!.moduleId, expected: removed },
     ]);
     expect(describeBundleFinding(findings[0]!)).toContain('installed=0 failed=0');
 
-    // Restored, because the copied tree is shared with the cases above.
+    // Restored, because the copied tree is shared with the cases above — and
+    // restored for the module the victim search actually chose, not for a module
+    // id written down here. The two must agree: a restore naming a different
+    // module leaves the removal in place and reds the *next* case instead.
     copyRuntimeAssets(
       SRC_ROOT,
       builtRoot,
       collectRuntimeAssets(SRC_ROOT).assets.filter((path) =>
-        path.startsWith('modules/orders/'),
+        path.startsWith(`modules/${victim!.moduleId}/`),
       ),
     );
     expect(auditBuiltBundles(modules, SRC_ROOT, builtRoot)).toEqual([]);

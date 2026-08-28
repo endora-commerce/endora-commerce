@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import {
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
@@ -12,6 +10,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { Order, OrderItem } from '../../helpers/package-entities.js';
 
 describe('Feature 032 — DELETE /admin/catalog/products/:id', () => {
   let h: BackendServerHandle;

@@ -560,7 +560,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // a package's and `Order` is the application tree's — so a walk that lost
     // one of them leaves a parent named and unresolved rather than reporting
     // clean over the half it kept.
-    sites: 637,
+    //
+    // **Re-recorded upwards by T040b packaging `orders` and `payments`**, which
+    // is the rise the paragraph above predicts rather than an exception to it:
+    // both modules were under `backend/src/modules`, contributing no reach at
+    // all, and packaging them turned every test import of either into one. 637
+    // -> 963. Re-record it, never widen the band — the floor is what would catch
+    // the walk losing the package tree.
+    sites: 963,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
   },
   'backend/scripts/i18n-hardcoded-strings.ts': {

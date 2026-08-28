@@ -18,7 +18,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   orderEmailNotSent,
   sendOrderTransactionalEmail,
-} from '../../../src/modules/orders/services/transactional-email-helper.js';
+} from '../../../../packages/modules/orders/src/backend/services/transactional-email-helper.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 
 const ORDER_ID = 'dddddddd-0000-4000-8000-000000000001';

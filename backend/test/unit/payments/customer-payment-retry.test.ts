@@ -11,9 +11,9 @@ import {
   type StartPaymentResult,
 } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { PaymentRetryService } from '../../../src/modules/payments/services/payment-retry-service.js';
-import type { PaymentService } from '../../../src/modules/payments/services/payment-service.js';
-import type { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
+import { PaymentRetryService } from '../../../../packages/modules/payments/src/backend/services/payment-retry-service.js';
+import type { PaymentService } from '../../../../packages/modules/payments/src/backend/services/payment-service.js';
+import type { Payment } from '../../helpers/package-entities.js';
 
 /**
  * A buyer paying an order of theirs again (issue #264).

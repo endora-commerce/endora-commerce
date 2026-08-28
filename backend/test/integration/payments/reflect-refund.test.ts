@@ -9,10 +9,10 @@ import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/s
 import {
   ReceivePaymentHandler,
   type SettlementLogger,
-} from '../../../src/modules/payments/services/receive-payment-handler.js';
-import type { OrderPaymentStatusApplyPort } from '../../../src/modules/orders/ports/index.js';
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+} from '../../../../packages/modules/payments/src/backend/services/receive-payment-handler.js';
+import type { OrderPaymentStatusApplyPort } from '../../../../packages/modules/orders/src/ports/index.js';
+import { Order } from '../../helpers/package-entities.js';
+import { Payment } from '../../helpers/package-entities.js';
 
 /**
  * Gateway refunds (Dashboard- or platform-initiated, delivered via

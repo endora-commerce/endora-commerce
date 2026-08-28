@@ -6,13 +6,12 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { OrderComment } from '../../../src/modules/orders/entities/order-comment.entity.js';
-import { OrderCommentService } from '../../../src/modules/orders/services/order-comment-service.js';
+import { OrderCommentService } from '../../../../packages/modules/orders/dist/backend/services/order-comment-service.js';
 import { ordersNeighbourPorts } from '../../helpers/orders-neighbour-ports.js';
-import { OrderStatusGraphService } from '../../../src/modules/orders/services/order-status-graph-service.js';
+import { OrderStatusGraphService } from '../../../../packages/modules/orders/dist/backend/services/order-status-graph-service.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
+import { Order, OrderComment } from '../../helpers/package-entities.js';
 
 /**
  * Feature 038 (US5) — order comments: visibility + notify rules, terminal

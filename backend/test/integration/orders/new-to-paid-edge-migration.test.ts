@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Migration20260820T100201OrdersNewToPaidTransition } from '../../../src/modules/orders/migrations/20260820T100201_orders_new_to_paid_transition.js';
+import { Migration20260820T100201OrdersNewToPaidTransition } from '../../../../packages/modules/orders/src/migrations/20260820T100201_orders_new_to_paid_transition.js';
 
 /**
  * Feature 085 (Phase A) — the `new -> paid` edge, and the migration that gives

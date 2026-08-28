@@ -37,6 +37,8 @@ import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/back
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
+import { entities as ordersEntities } from '@endora-commerce/mod-orders/backend';
+import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
 import type { Session as SessionRow } from '../../../packages/modules/auth/src/backend/entities/session.entity.js';
 import type { Address as AddressRow } from '../../../packages/modules/addresses/src/backend/entities/address.entity.js';
 import type { AnalyticsEvent as AnalyticsEventRow } from '../../../packages/modules/analytics/src/backend/entities/analytics-event.entity.js';
@@ -153,6 +155,12 @@ import type { PriceList as PriceListRow } from '../../../packages/modules/price_
 import type { PriceListProduct as PriceListProductRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-product.entity.js';
 import type { PriceListPriceBracket as PriceListPriceBracketRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-price-bracket.entity.js';
 import type { PriceDisplayModeOverride as PriceDisplayModeOverrideRow } from '../../../packages/modules/price_lists/src/backend/entities/price-display-mode-override.entity.js';
+import type { Order as OrderRow } from '../../../packages/modules/orders/src/backend/entities/order.entity.js';
+import type { OrderItem as OrderItemRow } from '../../../packages/modules/orders/src/backend/entities/order-item.entity.js';
+import type { OrderComment as OrderCommentRow } from '../../../packages/modules/orders/src/backend/entities/order-comment.entity.js';
+import type { OrderAppliedPromotion as OrderAppliedPromotionRow } from '../../../packages/modules/orders/src/backend/entities/order-applied-promotion.entity.js';
+import type { OrderPlacementIntent as OrderPlacementIntentRow } from '../../../packages/modules/orders/src/backend/entities/order-placement-intent.entity.js';
+import type { Payment as PaymentRow } from '../../../packages/modules/payments/src/backend/entities/payment.entity.js';
 
 /**
  * How a test names a **module package's** entity class (D-168).
@@ -220,6 +228,37 @@ export const CreditLimitReservation = classNamed<CreditLimitReservationRow>(
 export const Promotion = classNamed<PromotionRow>(promotionsEntities, 'Promotion');
 
 export const Address = classNamed<AddressRow>(addressesEntities, 'Address');
+
+/**
+ * `orders`' entity classes, taken off the package's own `entities` array.
+ *
+ * **`Order` is the one entity in this file where a second copy is not the
+ * silent-empty failure D-160.6.1 describes.** It is a `@TransitivelyScoped`
+ * chain parent — `invoices`' `Invoice` names it **by class name** — so two
+ * `Order` classes in one process raise `UnresolvableTenantParentError` at ORM
+ * init, inside `setupBackendServer`, which fails every file in the fork and
+ * attributes the failure to whichever file happened to boot first. That is why
+ * the fifty-two tests that used to name `order.entity.ts` by path come through
+ * here instead.
+ */
+export const Order = classNamed<OrderRow>(ordersEntities, 'Order');
+
+export const Payment = classNamed<PaymentRow>(paymentsEntities, 'Payment');
+
+export const OrderItem = classNamed<OrderItemRow>(ordersEntities, 'OrderItem');
+
+export const OrderComment = classNamed<OrderCommentRow>(ordersEntities, 'OrderComment');
+
+export const OrderAppliedPromotion = classNamed<OrderAppliedPromotionRow>(
+  ordersEntities,
+  'OrderAppliedPromotion',
+);
+
+export const OrderPlacementIntent = classNamed<OrderPlacementIntentRow>(
+  ordersEntities,
+  'OrderPlacementIntent',
+);
+
 
 export const Currency = classNamed<CurrencyRow>(currenciesEntities, 'Currency');
 
@@ -673,3 +712,9 @@ export type StockAllocation = StockAllocationRow;
 export type StockLevel = StockLevelRow;
 export type WarehouseChannelAssignment = WarehouseChannelAssignmentRow;
 export type Warehouse = WarehouseRow;
+export type Order = OrderRow;
+export type OrderItem = OrderItemRow;
+export type OrderComment = OrderCommentRow;
+export type OrderAppliedPromotion = OrderAppliedPromotionRow;
+export type OrderPlacementIntent = OrderPlacementIntentRow;
+export type Payment = PaymentRow;

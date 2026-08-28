@@ -15,15 +15,14 @@ import {
 
 
 
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 
-import { OrderComment } from '../../../src/modules/orders/entities/order-comment.entity.js';
 
 import { CustomerAccount } from '../../helpers/package-entities.js';
 
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { Order, OrderComment } from '../../helpers/package-entities.js';
 
 
 /**

@@ -15,7 +15,7 @@ import {
 // Feature 075, Phase C — `invoices` reads orders over `orders`' published port,
 // so a hand-built service in a test takes the same implementation the container
 // registers under `orderReadPort`.
-import { OrderReadService } from '../../../src/modules/orders/services/order-read-port.js';
+import { OrderReadService } from '../../../../packages/modules/orders/dist/backend/services/order-read-port.js';
 
 /**
  * **The `invoices` services below are imported from the package's `dist`, not from
