@@ -174,6 +174,30 @@ export const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-seeded-sales-rep-session': {
     adminUserId: '00000000-0000-4000-8000-0000000000d9',
   },
+  // `payment_methods` owns its codes — the four roles that prove it. Its own
+  // stub set rather than a reuse of the three above: those are created by the
+  // `payments` file, and two files sharing an admin user id would make each
+  // one's fixtures depend on whether the other had booted first.
+  //
+  // A catalogue editor must be refused the payment-method configuration it
+  // could read and rewrite before; a viewer holding only `payment_methods:read`
+  // must read it and be refused every write; an editor holding the pair must
+  // complete the write, so the pair is shown to be *sufficient* and not merely
+  // newly required; and the fourth carries the seeded `sales_representative`
+  // permission list verbatim. All four roles and users are created by
+  // `test/contract/payment_methods/permission-authority.test.ts`.
+  'stub-pm-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000da',
+  },
+  'stub-payment-methods-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000db',
+  },
+  'stub-payment-methods-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000dc',
+  },
+  'stub-pm-seeded-sales-rep-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000dd',
+  },
 };
 
 declare module 'fastify' {

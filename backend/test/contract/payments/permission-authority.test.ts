@@ -7,10 +7,20 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { AdminRole, AdminUser, PaymentMethod } from '../../helpers/package-entities.js';
+// `Order` and `Payment` through the package-entity helper, like `PaymentMethod`
+// beside them: this file landed on a branch cut before `orders` and `payments`
+// became packages, so its two direct `src/modules/...` imports named files that
+// no longer exist by the time it merged. `tsc` saw it; `test:unit:fast` does
+// not read this tree, and the targeted run resolves the classes off the
+// container regardless, so the type error was the only signal.
+import {
+  AdminRole,
+  AdminUser,
+  Order,
+  Payment,
+  PaymentMethod,
+} from '../../helpers/package-entities.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 import { SALES_REPRESENTATIVE_PERMISSIONS } from '../../../src/seeds/seeded-role-permissions.js';
 
 /**

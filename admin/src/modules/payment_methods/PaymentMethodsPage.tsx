@@ -58,7 +58,25 @@ export function PaymentMethodsPage(): ReactNode {
   const [editing, setEditing] = useState<AdminPaymentMethod | null>(null);
   const [formNonce, setFormNonce] = useState(0);
 
+  /**
+   * The screen's own gate (2026-08-28), on the code its routes now enforce.
+   *
+   * `payment_methods` used to borrow `catalog:read`, so this page had no
+   * permission of its own to check and the sidebar entry beside it carried the
+   * catalogue's. Both moved together; hiding the screen rather than letting it
+   * 403 is the treatment the sidebar, the palette and the dashboard already
+   * apply to a denied destination, and `AppShell.tsx`'s `PALETTE_ITEMS` comment
+   * argues it at length. The fetch is skipped as well as the render — a page
+   * that renders nothing has no reason to ask the API three questions it will
+   * be refused.
+   */
+  const canRead = hasPermission('payment_methods:read');
+
   const refresh = useCallback(async (): Promise<void> => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -75,7 +93,7 @@ export function PaymentMethodsPage(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canRead]);
 
   useEffect(() => {
     void refresh();
@@ -164,6 +182,14 @@ export function PaymentMethodsPage(): ReactNode {
     // Bring the form (top of page) into view for a clear edit affordance.
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  if (!canRead) {
+    return (
+      <Alert>
+        <AlertDescription>{t('legacyMethods.payment.noPermission')}</AlertDescription>
+      </Alert>
+    );
+  }
 
   const showStripe = hasPermission('stripe:read');
   const showTpay = hasPermission('tpay:read');
