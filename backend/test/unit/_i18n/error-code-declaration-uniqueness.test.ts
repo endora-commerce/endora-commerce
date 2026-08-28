@@ -4,7 +4,7 @@ import {
   describeErrorCodeCollisions,
   type ErrorCodeDeclarationSource,
 } from '@endora-commerce/mod-i18n/backend';
-import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * Feature 090 — `contracts/error-code-declaration.md` §3.1 rule 5:
