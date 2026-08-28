@@ -52,6 +52,7 @@
 import { initOrm, closeOrm } from '../db/index.js';
 import { mustBeNonProduction } from './dev-seed-guard.js';
 import { SEED_SCOPE_REASON } from './seed-scope.js';
+import { SALES_REPRESENTATIVE_PERMISSIONS } from './seeded-role-permissions.js';
 import { enterSystemScope } from '../kernel/scope.js';
 import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
 import type { Product as ProductRow } from '../../../packages/modules/catalog/dist/backend/entities/product.entity.js';
@@ -905,16 +906,7 @@ async function main(): Promise<void> {
   const salesRepRole = em.create(AdminRole, {
     code: 'sales_representative',
     name: 'Sales representative',
-    permissions: [
-      'rfqs:handle',
-      'organizations:read.assigned',
-      'catalog:read',
-      // D-173 — the RFQ create screen prefills the agreed unit price from
-      // `GET /admin/products/:id/resolved-price`, which is `price_lists`' own
-      // endpoint and is gated on `price_lists:read` rather than on
-      // `rfqs:handle`. Without this code the prefill answers 403.
-      'price_lists:read',
-    ],
+    permissions: [...SALES_REPRESENTATIVE_PERMISSIONS],
   });
   await em.persistAndFlush(salesRepRole);
 

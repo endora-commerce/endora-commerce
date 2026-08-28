@@ -87,6 +87,60 @@ describe('payments receive route', () => {
     expect(payments[0]!.status).toBe('paid');
   });
 
+  /**
+   * `providerDetails` is a third operator-supplied write path into
+   * `payments.provider_details`, and until it was bounded the route persisted
+   * whatever JSON document arrived, verbatim, into a column
+   * `GET /admin/orders/:id/payments` echoes back in full. What we persist there
+   * has to be bounded by our schema rather than by the caller's: the route body
+   * takes a flat map of scalars, which is what an operator settling an offline
+   * payment by hand actually records.
+   *
+   * The bound is on the **route body** and not on `ReceivePayment` itself,
+   * because the gateway modules build that type in code with their own key
+   * vocabulary — `paymentIntentId`, `payuRegisterOneClickAlias`, a nested
+   * status envelope — and those paths are a different repair with a different
+   * owner.
+   */
+  it('accepts a flat scalar providerDetails from an operator', async () => {
+    const { paymentId } = await seed();
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/payments/receive',
+      ...admin,
+      payload: {
+        paymentId,
+        outcome: 'success',
+        externalReference: 'tx-flat',
+        providerDetails: { bankStatementLine: '2026-08-28/17', settledManually: true, amount: 12.3 },
+      },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('refuses a nested providerDetails document', async () => {
+    const { paymentId } = await seed();
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/payments/receive',
+      ...admin,
+      payload: {
+        paymentId,
+        outcome: 'success',
+        externalReference: 'tx-nested',
+        providerDetails: { raw: { anything: ['at', 'all'] } },
+      },
+    });
+    expect(res.statusCode).toBe(400);
+
+    // And nothing was written: a refusal that settles the payment anyway is not
+    // a refusal.
+    const payment = await h.em().findOne(Payment, { id: paymentId });
+    expect(payment!.status).not.toBe('paid');
+  });
+
   it('rejects a malformed payload (no reference)', async () => {
     const res = await h.app.inject({
       method: 'POST',

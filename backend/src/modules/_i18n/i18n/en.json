@@ -73,6 +73,8 @@
   "adminRoles.permission.orders:write": "Edit orders / change status",
   "adminRoles.permission.organizations:assign-sales-rep": "Assign sales representatives to organizations",
   "adminRoles.permission.organizations:rollup": "Act across organization descendants",
+  "adminRoles.permission.payments:read": "View payments",
+  "adminRoles.permission.payments:write": "Record and retry payments",
   "adminRoles.permission.payu:read": "View PayU configuration",
   "adminRoles.permission.payu:write": "Manage PayU configuration and payment methods",
   "adminRoles.permission.paypal:read": "View PayPal configuration",

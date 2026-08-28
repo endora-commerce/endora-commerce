@@ -104,11 +104,18 @@ describe('Admin child-aggregate routes honour the sales-rep assignment scope', (
     // cannot use a code of its own. Another file in the run may have created it
     // already with a narrower grant set — widen that one rather than creating a
     // second row the unique index would refuse.
+    // Every code the routes under test enforce, so a refusal here is the
+    // *scope's* answer and never the permission gate's. The two payment routes
+    // moved from `catalog:*` to `payments:*` when `payments` took ownership of
+    // its own authority; the file is about tenant scope, so it grants whatever
+    // the gates ask for.
     const grants = [
       'orders:read',
       'orders:write',
       'catalog:read',
       'catalog:write',
+      'payments:read',
+      'payments:write',
       'returns:read',
       'returns:write',
     ];

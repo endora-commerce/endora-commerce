@@ -73,6 +73,8 @@
   "adminRoles.permission.orders:write": "Edycja zamówień / zmiana statusu",
   "adminRoles.permission.organizations:assign-sales-rep": "Przypisywanie opiekunów handlowych do organizacji",
   "adminRoles.permission.organizations:rollup": "Działanie w obrębie organizacji podrzędnych",
+  "adminRoles.permission.payments:read": "Podgląd płatności",
+  "adminRoles.permission.payments:write": "Rejestrowanie i ponawianie płatności",
   "adminRoles.permission.payu:read": "Podgląd konfiguracji PayU",
   "adminRoles.permission.payu:write": "Zarządzanie konfiguracją PayU i metodami płatności",
   "adminRoles.permission.paypal:read": "Podgląd konfiguracji PayPal",
