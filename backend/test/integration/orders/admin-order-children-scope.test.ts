@@ -7,10 +7,10 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 import { ReturnCase, ReturnCaseComment, ReturnShipment, Shipment } from '../../helpers/package-entities.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
+import { Order } from '../../helpers/package-entities.js';
+import { Payment } from '../../helpers/package-entities.js';
 
 /**
  * The children of an `@OrgScoped` aggregate, read through the assignment

@@ -6,10 +6,10 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { EventBus } from '../../../src/events/bus.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { OrderStatusGraphService } from '../../../src/modules/orders/services/order-status-graph-service.js';
-import { OrderTransitionService } from '../../../src/modules/orders/services/order-transition-service.js';
-import { OrderTransitionVetoError } from '../../../src/modules/orders/events/order-status-events.js';
+import { OrderStatusGraphService } from '../../../../packages/modules/orders/dist/backend/services/order-status-graph-service.js';
+import { OrderTransitionService } from '../../../../packages/modules/orders/dist/backend/services/order-transition-service.js';
+import { OrderTransitionVetoError } from '../../../../packages/modules/orders/dist/backend/events/order-status-events.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 038 (US1) — configurable lifecycle wired to the DB.

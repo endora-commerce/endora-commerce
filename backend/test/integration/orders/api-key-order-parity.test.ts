@@ -24,9 +24,9 @@ import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.e
 
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
 
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
+import { Payment } from '../../helpers/package-entities.js';
 
 
 /**

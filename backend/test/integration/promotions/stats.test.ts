@@ -9,7 +9,7 @@ import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import { PromotionStatsService } from '../../../../packages/modules/promotions/src/backend/services/promotion-stats-service.js';
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { Order } from '../../helpers/package-entities.js';
 
 
 /**

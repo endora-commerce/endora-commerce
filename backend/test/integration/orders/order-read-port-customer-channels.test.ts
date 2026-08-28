@@ -12,8 +12,8 @@ import {
 } from '../../helpers/seed-commerce.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { OrderReadService } from '../../../src/modules/orders/services/order-read-port.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { OrderReadService } from '../../../../packages/modules/orders/dist/backend/services/order-read-port.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 080, T048 (D-169) — `OrderReadPort.salesChannelIdsForCustomer`.

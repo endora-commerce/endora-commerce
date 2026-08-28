@@ -285,12 +285,18 @@ importers:
       '@endora-commerce/mod-newsletter':
         specifier: workspace:*
         version: link:../packages/modules/newsletter
+      '@endora-commerce/mod-orders':
+        specifier: workspace:*
+        version: link:../packages/modules/orders
       '@endora-commerce/mod-organizations':
         specifier: workspace:*
         version: link:../packages/modules/organizations
       '@endora-commerce/mod-payment-methods':
         specifier: workspace:*
         version: link:../packages/modules/payment_methods
+      '@endora-commerce/mod-payments':
+        specifier: workspace:*
+        version: link:../packages/modules/payments
       '@endora-commerce/mod-paypal':
         specifier: workspace:*
         version: link:../packages/modules/paypal
@@ -1897,6 +1903,57 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
+  packages/modules/orders:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:*
+        version: link:../../email-components
+      '@endora-commerce/mod-carts':
+        specifier: workspace:*
+        version: link:../carts
+      '@endora-commerce/mod-credit-limits':
+        specifier: workspace:*
+        version: link:../credit_limits
+      '@endora-commerce/mod-inventory':
+        specifier: workspace:*
+        version: link:../inventory
+      '@endora-commerce/mod-invoices':
+        specifier: workspace:*
+        version: link:../invoices
+      '@endora-commerce/mod-promotions':
+        specifier: workspace:*
+        version: link:../promotions
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
   packages/modules/organizations:
     devDependencies:
       '@endora-commerce/contracts':
@@ -1947,6 +2004,36 @@ importers:
       '@mikro-orm/migrations':
         specifier: ^6.6.13
         version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/modules/payments:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:*
+        version: link:../../email-components
+      '@endora-commerce/mod-orders':
+        specifier: workspace:*
+        version: link:../orders
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
       '@mikro-orm/postgresql':
         specifier: ^6.6.13
         version: 6.6.13(@mikro-orm/core@6.6.13)

@@ -7,9 +7,9 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { CreditLimit, CreditLimitReservation, PaymentMethod } from '../../helpers/package-entities.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * D-179.3's disclosed defect: `orders` asked `credit_limits` about every order.

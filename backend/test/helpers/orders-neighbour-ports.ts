@@ -32,8 +32,8 @@ import { CartReadService } from '../../../packages/modules/carts/src/backend/ser
 // instance the composed platform holds, so there is one class and the assertions
 // below are about the entity the ORM knows.
 import { InvoicePlacementApplyService } from '../../../packages/modules/invoices/dist/backend/services/invoice-placement-apply-port.js';
-import { PaymentPlacementApplyService } from '../../src/modules/payments/services/payment-placement-apply-port.js';
-import type { OrderServiceNeighbourPorts } from '../../src/modules/orders/services/order-service.js';
+import { PaymentPlacementApplyService } from '../../../packages/modules/payments/src/backend/services/payment-placement-apply-port.js';
+import type { OrderServiceNeighbourPorts } from '../../../packages/modules/orders/src/backend/services/order-service.js';
 import type { BackendServerHandle } from './test-server.js';
 
 /**

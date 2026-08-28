@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { PaymentEmailRendererPort, ShippingEmailRendererPort } from '@endora-commerce/contracts';
-import { buildOrderConfirmationEmail } from '../../../src/modules/orders/email-templates/order-confirmation.js';
+import { buildOrderConfirmationEmail } from '../../../../packages/modules/orders/src/backend/email-templates/order-confirmation.js';
 import {
   noCarrierShippingLineRenderer,
   noGatewayPaymentLineRenderer,
-} from '../../../src/modules/orders/email-templates/adapter-line-baselines.js';
+} from '../../../../packages/modules/orders/src/backend/email-templates/adapter-line-baselines.js';
 import {
   registerShippingEmailRenderer,
   resolveShippingEmailRenderer,

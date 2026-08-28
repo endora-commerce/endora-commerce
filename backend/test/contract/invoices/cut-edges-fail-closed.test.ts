@@ -7,7 +7,7 @@ import {
 import { withModuleOff } from '../../helpers/off-state.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder } from '../../integration/invoices/helpers.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 080, T048 (D-169) — `invoices`' last reach into `orders`' table.

@@ -9,8 +9,8 @@ import {
 } from '../../helpers/test-server.js';
 import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
 import { CreditLimit, CreditLimitReservation } from '../../helpers/package-entities.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { EventBus } from '../../../src/events/bus.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * `releaseByOrder` reports the credit its own transaction has just freed

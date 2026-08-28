@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 import { PaymentMethod } from '../../helpers/package-entities.js';
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
+import { Payment } from '../../helpers/package-entities.js';
 
 /**
  * T024 (US2) — placeOrder dispatches via the adapter framework: the order

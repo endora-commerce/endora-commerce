@@ -4,7 +4,6 @@ import { ERROR_CODES, type SalesChannelAttributionRegistryPort } from '@endora-c
 import { EventBus } from '../../../src/events/bus.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { salesChannelsServiceFor } from '../../helpers/sales-channels-service.js';
@@ -13,6 +12,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * FR-006's delete guard, on a composed platform (feature 075, D-87 drain).

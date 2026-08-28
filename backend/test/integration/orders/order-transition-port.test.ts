@@ -7,9 +7,16 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import type { OrderTransitionService } from '../../../src/modules/orders/services/order-transition-service.js';
-import { OrderTransitionVetoError } from '../../../src/modules/orders/events/order-status-events.js';
+import type { OrderTransitionService } from '../../../../packages/modules/orders/src/backend/services/order-transition-service.js';
+// `dist`, not `src`, and it is load-bearing rather than tidy: this file
+// *constructs* the veto below and `order-transition-service.ts` compares it
+// with `instanceof`. The composed platform holds the package's `dist` copy, so
+// a `src` specifier here builds a different class with the same name, the
+// comparison is false, and the veto is re-thrown as an unexpected error
+// instead of being honoured — a **silent** fail-open, which is batch three's
+// `KsefUnavailableError` finding in its third occurrence.
+import { OrderTransitionVetoError } from '../../../../packages/modules/orders/dist/backend/events/order-status-events.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 085 (Phase B) — the published `orderTransitionPort`.

@@ -17,9 +17,7 @@ import { withModuleOff } from '../../helpers/off-state.js';
 
 import { CreditLimit, Refund, ReturnCase } from '../../helpers/package-entities.js';
 
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 
-import { gatewayRefundRegistry } from '../../../src/modules/payments/services/registry-singleton.js';
 
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
 
@@ -30,6 +28,8 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { TranslationBundle } from '../../../src/modules/_i18n/entities/translation-bundle.entity.js';
 
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { Order } from '../../helpers/package-entities.js';
+import { gatewayRefundRegistryOf } from '../../helpers/package-singletons.js';
 
 
 const I18N_MODULE_PATH = resolve(
@@ -181,8 +181,8 @@ describe('returns — settlement (US5)', () => {
     it('has the stripe handler contributed, so the assertions below are about presence', () => {
       // Without this the provider would take the no-integration branch and
       // every refusal below would be measuring an adapter nobody registered.
-      expect(gatewayRefundRegistry.ownerOf('stripe')).toBe('stripe');
-      expect(gatewayRefundRegistry.list()).toContain('stripe');
+      expect(gatewayRefundRegistryOf(h.container).ownerOf('stripe')).toBe('stripe');
+      expect(gatewayRefundRegistryOf(h.container).list()).toContain('stripe');
     });
 
     it('refuses while the operator has the gateway switched off, and settles nothing', async () => {

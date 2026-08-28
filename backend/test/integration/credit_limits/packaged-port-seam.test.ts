@@ -9,8 +9,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { CreditLimit, CreditLimitReservation } from '../../helpers/package-entities.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * The co-transactional seam, measured **across a package boundary** (feature

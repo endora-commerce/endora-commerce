@@ -18,7 +18,7 @@ import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';
 import { WarehouseChannelAssignment } from '../../helpers/package-entities.js';
 import { StockLevel } from '../../helpers/package-entities.js';
 import { StockAllocation } from '../../helpers/package-entities.js';
-import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
+import { OrderItem } from '../../helpers/package-entities.js';
 
 /**
  * Issue #62 — the seven per-channel settings `orders` reads at placement.

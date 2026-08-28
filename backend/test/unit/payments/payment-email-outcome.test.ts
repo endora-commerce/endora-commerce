@@ -21,7 +21,7 @@ import type {
 import {
   PaymentEmailNotifier,
   type PaymentEmailNotifierDeps,
-} from '../../../src/modules/payments/services/payment-email-notifier.js';
+} from '../../../../packages/modules/payments/src/backend/services/payment-email-notifier.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 
 const ORDER_ID = 'aaaaaaaa-0000-4000-8000-000000000001';

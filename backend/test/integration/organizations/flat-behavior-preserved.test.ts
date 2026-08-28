@@ -21,10 +21,10 @@ import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
 } from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 056 — flat-behavior preservation lock (T028, FR-001/FR-013).

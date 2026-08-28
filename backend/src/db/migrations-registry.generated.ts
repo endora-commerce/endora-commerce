@@ -189,19 +189,19 @@ import { Migration20260611T140409MfaInit } from '@endora-commerce/mod-mfa/migrat
 import { Migration20260629T200954NewsletterInit } from '@endora-commerce/mod-newsletter/migrations';
 
 // ── orders ──────────────────────────────────────────────────────────────────
-import { Migration20260611T140355OrdersBusinessId } from '../modules/orders/migrations/20260611T140355_orders_business_id.js';
-import { Migration20260611T140356OrdersStatusModel } from '../modules/orders/migrations/20260611T140356_orders_status_model.js';
-import { Migration20260611T140357OrdersOrderCommentsAndSavedViews } from '../modules/orders/migrations/20260611T140357_orders_order_comments_and_saved_views.js';
-import { Migration20260611T140401OrdersOrderStatusDefaultName } from '../modules/orders/migrations/20260611T140401_orders_order_status_default_name.js';
-import { Migration20260611T140405OrdersOrderStatusColor } from '../modules/orders/migrations/20260611T140405_orders_order_status_color.js';
-import { Migration20260611T140406OrdersOrderSavedViewColumns } from '../modules/orders/migrations/20260611T140406_orders_order_saved_view_columns.js';
-import { Migration20260611T140414OrdersOrderItemPackaging } from '../modules/orders/migrations/20260611T140414_orders_order_item_packaging.js';
-import { Migration20260618T130459OrdersOrderAppliedPromotions } from '../modules/orders/migrations/20260618T130459_orders_order_applied_promotions.js';
-import { Migration20260718T200339OrdersOrderCustomFieldValues } from '../modules/orders/migrations/20260718T200339_orders_order_custom_field_values.js';
-import { Migration20260724T193611OrdersOrderPlacementIntents } from '../modules/orders/migrations/20260724T193611_orders_order_placement_intents.js';
-import { Migration20260820T100201OrdersNewToPaidTransition } from '../modules/orders/migrations/20260820T100201_orders_new_to_paid_transition.js';
-import { Migration20260821T131145OrdersPurchaseConversionMarker } from '../modules/orders/migrations/20260821T131145_orders_purchase_conversion_marker.js';
-import { Migration20260824T080000OrdersDeliveryPointSnapshot } from '../modules/orders/migrations/20260824T080000_orders_delivery_point_snapshot.js';
+import { Migration20260611T140355OrdersBusinessId } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260611T140356OrdersStatusModel } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260611T140357OrdersOrderCommentsAndSavedViews } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260611T140401OrdersOrderStatusDefaultName } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260611T140405OrdersOrderStatusColor } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260611T140406OrdersOrderSavedViewColumns } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260611T140414OrdersOrderItemPackaging } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260618T130459OrdersOrderAppliedPromotions } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260718T200339OrdersOrderCustomFieldValues } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260724T193611OrdersOrderPlacementIntents } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260820T100201OrdersNewToPaidTransition } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260821T131145OrdersPurchaseConversionMarker } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260824T080000OrdersDeliveryPointSnapshot } from '@endora-commerce/mod-orders/migrations';
 
 // ── organizations ───────────────────────────────────────────────────────────
 import { Migration20260424T205317OrganizationsInit } from '@endora-commerce/mod-organizations/migrations';

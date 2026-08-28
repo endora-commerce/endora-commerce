@@ -6,8 +6,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { PaymentMethod } from '../../helpers/package-entities.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
+import { Order } from '../../helpers/package-entities.js';
+import { Payment } from '../../helpers/package-entities.js';
 
 /**
  * T017b (US1) — delete-guard (FR-003). A payment method referenced by at least

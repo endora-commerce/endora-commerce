@@ -12,10 +12,10 @@ import {
   MissingTenantContextError,
 } from '../../../src/tenancy/tenant-context.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
 import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 056 (T032) — customer-side roll-up.

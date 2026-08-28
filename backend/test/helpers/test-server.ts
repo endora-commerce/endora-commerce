@@ -1134,7 +1134,7 @@ export async function setupBackendServer(
     | null = null;
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
   let orderServiceForOneClick:
-    | import('../../src/modules/orders/services/order-service.js').OrderService
+    | import('../../../packages/modules/orders/src/backend/services/order-service.js').OrderService
     | null = null;
   // Feature 040 — late-bound OrderListService for the customers module.
   // Feature 026 US4 / 056 — which organizations a sales-rep admin may see.

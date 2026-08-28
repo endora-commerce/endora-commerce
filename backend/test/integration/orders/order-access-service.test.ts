@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { OrderAccessService } from '../../../src/modules/orders/services/order-access-service.js';
+import { OrderAccessService } from '../../../../packages/modules/orders/src/backend/services/order-access-service.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { ordersNeighbourPorts } from '../../helpers/orders-neighbour-ports.js';
 

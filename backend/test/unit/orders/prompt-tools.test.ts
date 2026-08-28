@@ -3,8 +3,8 @@ import type { CustomerAccountReadPort, OrganizationDetailsPort } from '@endora-c
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { PromptActionToolRegistry } from '../../../../packages/modules/prompt_actions/src/backend/services/tool-registry.js';
-import { ordersPromptTools } from '../../../src/modules/orders/prompt-tools.js';
-import type { OrderTransitionService } from '../../../src/modules/orders/services/order-transition-service.js';
+import { ordersPromptTools } from '../../../../packages/modules/orders/src/backend/prompt-tools.js';
+import type { OrderTransitionService } from '../../../../packages/modules/orders/src/backend/services/order-transition-service.js';
 
 /**
  * Per-module tool-contribution contract (feature 043): the orders module
