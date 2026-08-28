@@ -205,7 +205,7 @@ const NAV: NavSection[] = [
       { to: '/price-lists', labelKey: 'appShell.nav.priceLists', icon: CircleDollarSign, requiredPermission: 'price_lists:read', module: 'price_lists' },
       { to: '/promotions', labelKey: 'appShell.nav.promotions', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
       { to: '/promotion-rules', labelKey: 'appShell.nav.promotionRules', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
-      { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt, requiredPermission: 'catalog:write', module: 'taxes' },
+      { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt, requiredPermission: 'taxes:read', module: 'taxes' },
       { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck, requiredPermission: 'delivery_methods:read', module: 'delivery_methods' },
       { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard, requiredPermission: 'payment_methods:read', module: 'payment_methods' },
       // Stripe settings are no longer a top-level sidebar entry — they are

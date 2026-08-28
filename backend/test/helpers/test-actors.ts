@@ -230,6 +230,32 @@ export const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-pm-delivery-viewer-session': {
     adminUserId: '00000000-0000-4000-8000-0000000000e2',
   },
+  // `taxes` owns its codes — the four roles that prove it, on the same terms as
+  // the two method sets above and with ids of its own for the same reason: two
+  // files sharing an admin user id would make each one's fixtures depend on
+  // whether the other had booted first.
+  //
+  // The catalogue editor holds the code all four tax routes used to enforce —
+  // `catalog:write`, the reads included — and must now be refused the whole
+  // surface; a viewer holding only `taxes:read` must read the table and the
+  // preview and be refused every write, which is a capability that did not
+  // exist before this change; an editor holding the pair must complete the
+  // write, so the pair is shown to be *sufficient* and not merely newly
+  // required; and the fourth carries the seeded `sales_representative`
+  // permission list verbatim. All four roles and users are created by
+  // `test/contract/taxes/permission-authority.test.ts`.
+  'stub-tax-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e3',
+  },
+  'stub-taxes-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e4',
+  },
+  'stub-taxes-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e5',
+  },
+  'stub-tax-seeded-sales-rep-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e6',
+  },
 };
 
 declare module 'fastify' {
