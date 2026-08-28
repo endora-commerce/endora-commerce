@@ -759,11 +759,34 @@ export function renderModulePackageManifests(
  * ```
  *
  * pnpm **warns and does not fail**, loses the ordering and runs the pair
- * concurrently; re-running the consumer's build immediately afterwards succeeds.
- * So it is not a breakage, it is a race — a fresh CI checkout red or green by
- * scheduling, reported as a TypeScript resolution error that names nothing about
- * the cycle that caused it. That is the worst failure mode available, and it is
- * why this is a refusal at generation time and not a note.
+ * concurrently, reporting a TypeScript resolution error that names nothing about
+ * the cycle that caused it.
+ *
+ * **How bad that is depends on how many directions carry a real reach, and the
+ * paragraph that stood here measured only the easier of the two.** In the spike
+ * above the devDependency was mutual and the *import* was not — `credit_limits`
+ * reached nothing — so it compiled, emitted its `dist/ports/index.d.ts`, and an
+ * immediate re-run of `returns` went green. A race: a fresh CI checkout red or
+ * green by scheduling.
+ *
+ * Re-measured for the shape this refusal was written against, where **both**
+ * directions carry a real `import type` (`orders` ↔ `payments`, T040b), it is
+ * not a race at all. Every package build sets `noEmitOnError: true`, so the side
+ * that loses the race emits nothing and the side that would have won never gets
+ * the `.d.ts` it is waiting for. Seven runs on this tree, seven reds, the same
+ * TS2307 every time — four cold and concurrent, two warm, and one cold at
+ * `--workspace-concurrency=1`. **There is no build order**: a cycle of real
+ * mutual type reaches has no serialisation that works, which is why
+ * `build:packages` cannot be taught one and why a two-phase build (every
+ * package's `./ports` first, then everything else) is the only ordering answer
+ * — 66 packages changed to serve two.
+ *
+ * The distinction is what the message has to carry, because a race invites a
+ * retry and a deadlock does not. `pnpm -r run` also aborts on the first failure,
+ * so even the one-sided case only self-heals when the owner's build happens to
+ * finish before the consumer's fails: measured three cold runs with an immediate
+ * re-run each, in the direction where the consumer finishes first, and none of
+ * the six went green.
  *
  * There is no cycle in this tree today, and there is a pair one packaging merge
  * request away: T048 (!1052) converted `orders`' reach into `payments`' `Payment`
@@ -799,8 +822,12 @@ function refuseModulePackageDevDependencyCycle(
         `${name} and ${other} would each devDepend on the other. pnpm's workspace graph ` +
           `includes devDependencies, so a cycle makes it warn, lose the build ordering and ` +
           `run the pair concurrently — the consumer's \`tsc\` then fails with TS2307 on the ` +
-          `owner's not-yet-emitted \`.d.ts\` and succeeds on a re-run, which is a CI red that ` +
-          `depends on scheduling. Two exits, both of which this tree already demonstrates: ` +
+          `owner's not-yet-emitted \`.d.ts\`. Where both directions carry a real reach there ` +
+          `is no build order at all, concurrent or serial: every package build sets ` +
+          `noEmitOnError, so the side that loses emits nothing and the side that would have ` +
+          `won never gets its \`.d.ts\` — measured red seven times out of seven, so re-running ` +
+          `\`build:packages\` is not a way past this. Two exits, both of which this tree ` +
+          `already demonstrates: ` +
           `publish the interface on ONE side only and let the other keep resolving by ` +
           `container name (its manifest's \`acknowledgedDependencies\` / ` +
           `\`nonBindingDependencies\` is where that edge is recorded), or move the interface ` +
