@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { LANGUAGE_FALLBACK, ERROR_CODES, type ErrorCode, type ErrorEnvelope, type SupportedLanguage } from '@endora-commerce/contracts';
+import { LANGUAGE_FALLBACK, ERROR_CODES, type ErrorCode, type ErrorEnvelope, type ModuleErrorCode, type SupportedLanguage } from '@endora-commerce/contracts';
 import { ZodError, type core as zodCore } from 'zod';
 import { hasZodFastifySchemaValidationErrors } from '@fastify/type-provider-zod';
 
@@ -11,7 +11,14 @@ import { hasZodFastifySchemaValidationErrors } from '@fastify/type-provider-zod'
 
 export class HttpError extends Error {
   readonly statusCode: number;
-  readonly code: ErrorCode;
+  /**
+   * The platform's own enumeration, or a code a module declared (feature 090,
+   * D-182). `ModuleErrorCode` is branded and is produced only by
+   * `defineModuleErrorCodes`, so a bare `'ACME_TYPO'` here is a compile error
+   * rather than a code that travels the whole path and renders raw to an
+   * operator with nothing reporting it.
+   */
+  readonly code: ErrorCode | ModuleErrorCode;
   // The legacy shape (an array of {path, issue}) is preserved for Zod-style
   // validation failures. Feature 022 introduced bulk-operation errors that
   // need a free-form object (e.g. `{ maxBatchSize: 200, attribute: "brand" }`).
@@ -32,7 +39,7 @@ export class HttpError extends Error {
 
   constructor(
     statusCode: number,
-    code: ErrorCode,
+    code: ErrorCode | ModuleErrorCode,
     message: string,
     details?: Array<{ path: string; issue: string }> | Record<string, unknown>,
     headers?: Readonly<Record<string, string>>,

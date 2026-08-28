@@ -211,6 +211,11 @@ export const entities = [
  *   * `ERROR_TRANSLATION_KEYS` / `ErrorTranslationTarget` — the routing table
  *     both composition roots inject into the error envelope (D-54), and the
  *     table `check:error-translations` reads as code.
+ *   * `buildErrorTranslationTargets` and its shapes — the same answer derived
+ *     from the modules' own `errorCodes` declarations instead (feature 090,
+ *     D-182), together with the collisions that derivation refuses to resolve.
+ *     Published for the same reason the table is: the composition roots inject
+ *     it, and the in-repository collision refusal reads it as code.
  *   * `I18nService` — the resolver the reconciler, the CLI commands and the
  *     acceptance probe construct over an `EntityManager` of their own.
  *   * `MissingKeyLogger` — the resolver's collaborator, constructed the same way.
@@ -223,7 +228,13 @@ export const entities = [
  */
 export {
   ERROR_TRANSLATION_KEYS,
+  buildErrorTranslationTargets,
+  describeErrorCodeCollisions,
+  type ErrorCodeClaim,
+  type ErrorCodeCollision,
+  type ErrorCodeDeclarationSource,
   type ErrorTranslationTarget,
+  type ErrorTranslationTargets,
 } from './services/error-translation.js';
 export { I18nService } from './services/i18n-service.js';
 export { MissingKeyLogger } from './services/missing-key-logger.js';

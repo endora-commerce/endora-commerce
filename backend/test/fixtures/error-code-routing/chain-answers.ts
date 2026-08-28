@@ -1,0 +1,369 @@
+/**
+ * The prefix chain's routing answer for every error code, frozen.
+ *
+ * `specs/090-module-owned-error-codes/contracts/error-code-declaration.md` §6.3:
+ * *"The assertion's reference side is written **before** the chain is deleted
+ * and survives as a frozen fixture afterwards."* This is that reference side.
+ *
+ * **What it is.** One entry per member of `ERROR_CODES`, mapping the code to the
+ * module id `moduleIdForErrorCode` answers for it — the private function inside
+ * `packages/modules/_i18n/src/backend/services/error-translation.ts` that
+ * `ERROR_TRANSLATION_KEYS` is built from. It is grouped by module and sorted, so
+ * a migration merge request that moves a family shows the family moving.
+ *
+ * **Why it is committed rather than computed.** While the chain exists, a
+ * reference computed from the chain and compared to the chain is a tautology:
+ * it agrees with whatever the chain says, including with a chain somebody has
+ * just broken. Freezing the answer makes the comparison say something — and it
+ * is the only form of the assertion that survives feature 090's Phase 3, where
+ * the chain is deleted and the declarations become the candidate side with
+ * nothing left to compute a reference from.
+ *
+ * **How it was produced.** Once, mechanically, at `49f3c6817`:
+ *
+ * ```
+ * node --input-type=module -e "
+ *   import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
+ *   for (const [code, t] of Object.entries(ERROR_TRANSLATION_KEYS))
+ *     console.log(code, t.moduleId);
+ * "
+ * ```
+ *
+ * It is **not** regenerated. `test/unit/_i18n/error-code-routing-equality.test.ts`
+ * reconciles it against the live chain on every run, so a hand edit that
+ * disagrees with the chain fails, and a chain edit that disagrees with this file
+ * fails — which is the point. A migration that deliberately re-routes a code is
+ * a change to this file **and** an argument in its merge request, never a
+ * regeneration.
+ *
+ * `core` is a routing answer and not a module directory: the platform-wide
+ * bundle is `_i18n`'s own. Feature 090 FR-042 replaces the fall-through that
+ * produces most of this block with an explicit declaration; until then the
+ * answer is recorded as the chain gives it.
+ */
+export const CHAIN_ROUTING_ANSWERS: Readonly<Record<string, string>> = {
+  // assets_library (15)
+  ASSET_ACCESS_DENIED: 'assets_library',
+  ASSET_FILE_MISSING: 'assets_library',
+  ASSET_FOLDER_CYCLE: 'assets_library',
+  ASSET_FOLDER_NAME_CONFLICT: 'assets_library',
+  ASSET_FOLDER_NOT_EMPTY: 'assets_library',
+  ASSET_FOLDER_NOT_FOUND: 'assets_library',
+  ASSET_GONE: 'assets_library',
+  ASSET_LEGACY_LOCATOR_CANNOT_HARDEN: 'assets_library',
+  ASSET_NOT_FOUND: 'assets_library',
+  ASSET_REFERENCED: 'assets_library',
+  ASSET_STORAGE_MISCONFIGURED: 'assets_library',
+  ASSET_STORAGE_UNAVAILABLE: 'assets_library',
+  ASSET_UPLOAD_NO_FILE: 'assets_library',
+  ASSET_UPLOAD_TOO_LARGE: 'assets_library',
+  ASSET_UPLOAD_TYPE_NOT_ALLOWED: 'assets_library',
+
+  // blog (19)
+  BLOG_ASSET_KIND_MISMATCH: 'blog',
+  BLOG_CATEGORY_CYCLE: 'blog',
+  BLOG_CATEGORY_HAS_CHILDREN: 'blog',
+  BLOG_CATEGORY_IN_USE: 'blog',
+  BLOG_CATEGORY_NOT_FOUND: 'blog',
+  BLOG_CATEGORY_NO_CHANNEL: 'blog',
+  BLOG_CATEGORY_PROTECTED: 'blog',
+  BLOG_DISABLED: 'blog',
+  BLOG_POST_NOT_FOUND: 'blog',
+  BLOG_POST_NO_CHANNEL: 'blog',
+  BLOG_POST_NO_LANGUAGE: 'blog',
+  BLOG_RELATED_POST_SELF_REFERENCE: 'blog',
+  BLOG_SLUG_INVALID: 'blog',
+  BLOG_SLUG_TAKEN: 'blog',
+  BLOG_TAG_CODE_TAKEN: 'blog',
+  BLOG_TAG_IN_USE: 'blog',
+  BLOG_TAG_NOT_FOUND: 'blog',
+  BLOG_URL_PREFIX_INVALID: 'blog',
+  BLOG_URL_PREFIX_RESERVED: 'blog',
+
+  // carts (3)
+  CART_COUPON_REJECTED: 'carts',
+  CART_EMPTY: 'carts',
+  CART_LINE_CAP_EXCEEDED: 'carts',
+
+  // catalog (47)
+  ASSET_KIND_NOT_SUPPORTED: 'catalog',
+  ATTACHMENT_NOT_FOUND: 'catalog',
+  ATTACHMENT_TYPE_CODE_TAKEN: 'catalog',
+  ATTACHMENT_TYPE_IN_USE: 'catalog',
+  ATTACHMENT_TYPE_NOT_FOUND: 'catalog',
+  ATTRIBUTE_NOT_FOUND: 'catalog',
+  ATTRIBUTE_NOT_MASS_EDITABLE: 'catalog',
+  ATTRIBUTE_SET_CODE_TAKEN: 'catalog',
+  ATTRIBUTE_SET_IN_USE: 'catalog',
+  ATTRIBUTE_SET_NOT_FOUND: 'catalog',
+  ATTRIBUTE_VALUE_REJECTED: 'catalog',
+  BUNDLE_SLOT_NOT_FOUND: 'catalog',
+  BUNDLE_SLOT_OPTION_NOT_FOUND: 'catalog',
+  FIELD_IMMUTABLE: 'catalog',
+  FILTER_NOT_ALLOWED: 'catalog',
+  GALLERY_ITEM_NOT_FOUND: 'catalog',
+  GALLERY_LABEL_ALREADY_TAKEN: 'catalog',
+  GALLERY_LABEL_LIMIT_EXCEEDED: 'catalog',
+  GROUPED_ITEM_NOT_FOUND: 'catalog',
+  INVALID_QUANTITY_RANGE: 'catalog',
+  LINK_ALREADY_EXISTS: 'catalog',
+  MAX_EXCEEDED: 'catalog',
+  MIN_NOT_MET: 'catalog',
+  NESTED_COMPOSITE_NOT_ALLOWED: 'catalog',
+  OPTION_ALREADY_EXISTS: 'catalog',
+  PRICE_ORDERING_UNAVAILABLE: 'catalog',
+  PRICE_RANGE_INVALID: 'catalog',
+  PRODUCT_ARCHIVED: 'catalog',
+  PRODUCT_DELETE_BLOCKED: 'catalog',
+  PRODUCT_FEED_CONFIRMATION_REQUIRED: 'catalog',
+  PRODUCT_FEED_DISABLED: 'catalog',
+  PRODUCT_FEED_TAXONOMY_CONFLICT: 'catalog',
+  PRODUCT_FEED_TEMPLATE_CONFLICT: 'catalog',
+  PRODUCT_FEED_TEMPLATE_UNBOUND: 'catalog',
+  PRODUCT_IN_STOCK: 'catalog',
+  PRODUCT_LINK_NOT_FOUND: 'catalog',
+  PRODUCT_NOT_FOUND: 'catalog',
+  PRODUCT_NOT_IN_COMPARISON: 'catalog',
+  PRODUCT_TYPE_MISMATCH: 'catalog',
+  PRODUCT_UNMANAGED_STOCK: 'catalog',
+  SELF_LINK_NOT_ALLOWED: 'catalog',
+  SKU_ALREADY_EXISTS: 'catalog',
+  SKU_NOT_IN_ASSORTMENT: 'catalog',
+  TARGET_PRODUCT_NOT_FOUND: 'catalog',
+  UNKNOWN_OPTION: 'catalog',
+  VARIANT_AXIS_MISSING: 'catalog',
+  VARIANT_COMBINATION_EXISTS: 'catalog',
+
+  // cms (10)
+  CMS_BLOCK_NOT_FOUND: 'cms',
+  CMS_CODE_CONFLICT: 'cms',
+  CMS_HOOK_NOT_FOUND: 'cms',
+  CMS_HOOK_SYSTEM_PROTECTED: 'cms',
+  CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE: 'cms',
+  CMS_PAGE_NOT_FOUND: 'cms',
+  CMS_REFERENCED: 'cms',
+  CMS_SCHEMA_UPGRADE_FAILED: 'cms',
+  CMS_SLUG_CONFLICT: 'cms',
+  CMS_TEMPLATE_NOT_FOUND: 'cms',
+
+  // comparisons (4)
+  COMPARISON_EMPTY: 'comparisons',
+  COMPARISON_FULL: 'comparisons',
+  COMPARISON_NOT_FOUND: 'comparisons',
+  PDF_GENERATION_FAILED: 'comparisons',
+
+  // core (100)
+  ACCOUNT_BLOCKED: 'core',
+  ACTIVE_RESERVATIONS_EXIST: 'core',
+  ADDRESS_IN_USE: 'core',
+  ADDRESS_NOT_OWNED: 'core',
+  ADJUSTMENT_BELOW_ACTIVE: 'core',
+  ADMIN_ROLE_CODE_TAKEN: 'core',
+  ADMIN_ROLE_IN_USE: 'core',
+  ADMIN_ROLE_PROTECTED: 'core',
+  ALREADY_SUBSCRIBED: 'core',
+  API_KEY_CHANNEL_MISMATCH: 'core',
+  API_KEY_NOT_BOUND: 'core',
+  API_KEY_OUT_OF_SCOPE: 'core',
+  ASSISTANT_DISABLED: 'core',
+  ASSISTANT_NOT_CONFIGURED: 'core',
+  BULK_TOO_LARGE: 'core',
+  CANNOT_DEMOTE_LAST_ADMIN: 'core',
+  CANNOT_REMOVE_LAST_ADMIN: 'core',
+  CANNOT_REVOKE_LAST_ADMIN_INVITE: 'core',
+  CREDIT_LIMIT_ALREADY_GRANTED: 'core',
+  CREDIT_LIMIT_NOT_GRANTED: 'core',
+  CURRENCY_MISMATCH: 'core',
+  CURRENT_PASSWORD_INVALID: 'core',
+  CUSTOMER_ADDRESS_NOT_FOUND: 'core',
+  CUSTOMER_ALREADY_DELETED: 'core',
+  CUSTOMER_NOT_DELETED: 'core',
+  CUSTOMER_NOT_FOUND: 'core',
+  CUSTOMER_RESTORE_WINDOW_ELAPSED: 'core',
+  CUSTOM_FIELD_DEFINITION_INVALID: 'core',
+  CUSTOM_FIELD_HOST_MANAGED: 'core',
+  CUSTOM_FIELD_KEY_CONFLICT: 'core',
+  CUSTOM_FIELD_NOT_FOUND: 'core',
+  CUSTOM_FIELD_VALUE_INVALID: 'core',
+  EMAIL_ALREADY_IN_ORGANIZATION: 'core',
+  EMAIL_ALREADY_REGISTERED: 'core',
+  EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION: 'core',
+  FORBIDDEN: 'core',
+  IDEMPOTENCY_KEY_REQUIRED: 'core',
+  IDEMPOTENCY_KEY_REUSED: 'core',
+  INTERNAL: 'core',
+  INVALID_CREDENTIALS: 'core',
+  INVALID_TRANSITION: 'core',
+  KSEF_ALREADY_SUBMITTED: 'core',
+  KSEF_CREDENTIAL_EXISTS: 'core',
+  KSEF_CREDENTIAL_INVALID: 'core',
+  KSEF_ENROLLMENT_REJECTED: 'core',
+  KSEF_NOT_CONFIGURED: 'core',
+  KSEF_NOT_SUBMITTABLE: 'core',
+  KSEF_UNAVAILABLE: 'core',
+  LIMIT_INSUFFICIENT: 'core',
+  MODULE_ACTIVATION_PROTECTED: 'core',
+  MODULE_DEPENDENCIES_ABSENT: 'core',
+  MODULE_DEPENDENTS_PRESENT: 'core',
+  MODULE_DISABLED: 'core',
+  MODULE_NOT_DEACTIVATABLE: 'core',
+  MODULE_NOT_FOUND: 'core',
+  MODULE_SETTING_READ_ONLY: 'core',
+  NOT_FOUND: 'core',
+  ORGANIZATION_HAS_CHILDREN: 'core',
+  ORGANIZATION_SUSPENDED: 'core',
+  ORGANIZATION_TAX_ID_EXISTS: 'core',
+  ORGANIZATION_TREE_INVALID: 'core',
+  ORG_OWNER_DEPLETION: 'core',
+  PACKAGING_UNIT_NAME_CONFLICT: 'core',
+  PACKAGING_UNIT_NOT_FOUND: 'core',
+  PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE: 'core',
+  PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE: 'core',
+  PIM_ERGONODE_BINDING_EXISTS: 'core',
+  PIM_ERGONODE_CONNECTION_DISABLED: 'core',
+  PIM_ERGONODE_CONNECTION_EXISTS: 'core',
+  PIM_ERGONODE_CURRENCY_INACTIVE: 'core',
+  PIM_ERGONODE_FIELD_PATH_INVALID: 'core',
+  PIM_ERGONODE_IMPORT_ALREADY_RUNNING: 'core',
+  PIM_ERGONODE_NOT_CONFIGURED: 'core',
+  PIM_ERGONODE_SCHEDULE_INVALID: 'core',
+  PIM_ERGONODE_TARGET_ALREADY_MAPPED: 'core',
+  PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND: 'core',
+  PIM_ERGONODE_TREE_REQUIRED: 'core',
+  PIM_ERGONODE_TYPE_INCOMPATIBLE: 'core',
+  PRICE_LIST_NOT_FOUND: 'core',
+  PRICE_UNAVAILABLE: 'core',
+  PROMOTION_INVALID: 'core',
+  PROMPT_PERMISSION_REVOKED: 'core',
+  PROMPT_PLAN_EXPIRED: 'core',
+  PROMPT_REQUEST_INVALID_STATE: 'core',
+  PROMPT_REQUEST_IN_FLIGHT: 'core',
+  RATE_LIMITED: 'core',
+  REGISTRATION_REQUIRES_ORGANIZATION: 'core',
+  SELECTION_TOO_LARGE: 'core',
+  SHOPPING_LIST_CANNOT_DELETE_DEFAULT: 'core',
+  SHOPPING_LIST_CANNOT_DELETE_LAST: 'core',
+  SYSTEM_ATTRIBUTE_SET_IMMUTABLE: 'core',
+  TERMS_VERSION_STALE: 'core',
+  TOKEN_INVALID_OR_EXPIRED: 'core',
+  TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE: 'core',
+  TWO_FACTOR_REQUIRED: 'core',
+  TWO_FACTOR_REQUIRED_BY_ROLE: 'core',
+  UNAUTHORIZED: 'core',
+  VALIDATION_FAILED: 'core',
+  VERSION_CONFLICT: 'core',
+  WEBHOOK_DELIVERY_NOT_REPLAYABLE: 'core',
+
+  // credentials (6)
+  CREDENTIAL_CODE_TAKEN: 'credentials',
+  CREDENTIAL_IN_USE: 'credentials',
+  CREDENTIAL_NOT_FOUND: 'credentials',
+  CREDENTIAL_TYPE_IMMUTABLE: 'credentials',
+  CREDENTIAL_TYPE_UNKNOWN: 'credentials',
+  CREDENTIAL_VALIDATION_FAILED: 'credentials',
+
+  // dictionaries (8)
+  DICTIONARY_CODE_IMMUTABLE: 'dictionaries',
+  DICTIONARY_DEFAULT_CANNOT_BE_DEACTIVATED: 'dictionaries',
+  DICTIONARY_ENTRY_HAS_DEPENDENTS: 'dictionaries',
+  DICTIONARY_ENTRY_INACTIVE: 'dictionaries',
+  DICTIONARY_ENTRY_NOT_FOUND: 'dictionaries',
+  DICTIONARY_FALLBACK_CYCLE: 'dictionaries',
+  DICTIONARY_LAST_ACTIVE_ENTRY: 'dictionaries',
+  DICTIONARY_TRANSLATION_LANGUAGE_INACTIVE: 'dictionaries',
+
+  // inventory (13)
+  AVAILABILITY_NOTIFICATION_NOT_FOUND: 'inventory',
+  CHANNEL_NO_WAREHOUSES: 'inventory',
+  CHANNEL_WAREHOUSE_NOT_FOUND: 'inventory',
+  STOCK_IMPORT_INVALID_FILE: 'inventory',
+  STOCK_LEVEL_NOT_FOUND: 'inventory',
+  STOCK_UNAVAILABLE: 'inventory',
+  THRESHOLDS_INVALID: 'inventory',
+  WAREHOUSE_CANNOT_DELETE_DEFAULT: 'inventory',
+  WAREHOUSE_CODE_TAKEN: 'inventory',
+  WAREHOUSE_HAS_STOCK: 'inventory',
+  WAREHOUSE_INVALID_CODE: 'inventory',
+  WAREHOUSE_IS_DEFAULT_FOR_CHANNELS: 'inventory',
+  WAREHOUSE_NOT_FOUND: 'inventory',
+
+  // invoices (3)
+  INVOICE_NOT_READY: 'invoices',
+  INVOICE_NUMBER_ALREADY_ISSUED: 'invoices',
+  INVOICE_NUMBER_PATTERN_COLLIDES: 'invoices',
+
+  // megamenu (10)
+  MEGAMENU_ASSET_KIND_MISMATCH: 'megamenu',
+  MEGAMENU_BINDING_ALREADY_EXISTS: 'megamenu',
+  MEGAMENU_BINDING_NOT_FOUND: 'megamenu',
+  MEGAMENU_DEPTH_EXCEEDED: 'megamenu',
+  MEGAMENU_EMPTY_TREE: 'megamenu',
+  MEGAMENU_HAS_ACTIVE_BINDINGS: 'megamenu',
+  MEGAMENU_LANGUAGE_NOT_IN_CHANNEL_SCOPE: 'megamenu',
+  MEGAMENU_NOT_FOUND: 'megamenu',
+  MEGAMENU_REFERENCED: 'megamenu',
+  MEGAMENU_TARGET_OUT_OF_SCOPE: 'megamenu',
+
+  // mfa (10)
+  MFA_ALREADY_ENROLLED: 'mfa',
+  MFA_INVALID_CHALLENGE: 'mfa',
+  MFA_INVALID_CODE: 'mfa',
+  MFA_NOT_ENABLED: 'mfa',
+  MFA_NO_ACTIVE_ENROLMENT: 'mfa',
+  MFA_NO_PENDING_ENROLMENT: 'mfa',
+  MFA_REAUTH_REQUIRED: 'mfa',
+  MFA_SOCIAL_LAST_CREDENTIAL: 'mfa',
+  MFA_TOO_MANY_ATTEMPTS: 'mfa',
+  MFA_WRONG_SURFACE: 'mfa',
+
+  // orders (2)
+  ORDER_NOT_CANCELLABLE: 'orders',
+  ORDER_NOT_FOUND: 'orders',
+
+  // quote_requests (9)
+  QUOTE_INCOMPLETE: 'quote_requests',
+  QUOTE_VALIDITY_ENDED: 'quote_requests',
+  RFQ_ALREADY_CLAIMED: 'quote_requests',
+  RFQ_EMPTY: 'quote_requests',
+  RFQ_EXPIRED: 'quote_requests',
+  RFQ_NOT_ACCEPTED: 'quote_requests',
+  RFQ_NOT_DRAFT: 'quote_requests',
+  RFQ_NOT_NEW: 'quote_requests',
+  RFQ_NOT_QUOTED: 'quote_requests',
+
+  // sales_channels (12)
+  CANNOT_MODIFY_SYSTEM_DEFAULT: 'sales_channels',
+  DUPLICATE_SALES_CHANNEL_CODE: 'sales_channels',
+  ENTITY_WOULD_HAVE_ZERO_CHANNELS: 'sales_channels',
+  INACTIVE_SALES_CHANNEL: 'sales_channels',
+  MISSING_SALES_CHANNEL_CONTEXT: 'sales_channels',
+  SALES_CHANNEL_ATTRIBUTION_IMMUTABLE: 'sales_channels',
+  SALES_CHANNEL_CODE_IMMUTABLE: 'sales_channels',
+  SALES_CHANNEL_HAS_ATTRIBUTIONS: 'sales_channels',
+  STALE_SALES_CHANNEL_WRITE: 'sales_channels',
+  UNKNOWN_CURRENCY_CODE: 'sales_channels',
+  UNKNOWN_LANGUAGE_CODE: 'sales_channels',
+  UNKNOWN_SALES_CHANNEL: 'sales_channels',
+
+  // search (8)
+  LIMIT_OUT_OF_RANGE: 'search',
+  LLM_CONFIG_INCOMPLETE: 'search',
+  PHRASE_REQUIRED: 'search',
+  PHRASE_TOO_LONG: 'search',
+  QUERY_TOO_LONG: 'search',
+  QUERY_TOO_SHORT: 'search',
+  RESULT_COUNT_INVALID: 'search',
+  SEARCH_BACKEND_UNAVAILABLE: 'search',
+
+  // settings (10)
+  SETTING_BREAKING_CHANGE_REJECTED: 'settings',
+  SETTING_CODE_CONFLICT: 'settings',
+  SETTING_EMPTY_SUBSET: 'settings',
+  SETTING_GROUP_CODE_CONFLICT: 'settings',
+  SETTING_GROUP_NOT_FOUND: 'settings',
+  SETTING_GROUP_PROTECTED: 'settings',
+  SETTING_NOT_REGISTERED: 'settings',
+  SETTING_OUT_OF_SCOPE_FOR_CHANNEL: 'settings',
+  SETTING_SECRET_KEY_MISSING: 'settings',
+  SETTING_VALUE_SHAPE_MISMATCH: 'settings',
+};
