@@ -185,10 +185,9 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readSizeRefusal, reportReadSize, type ReadCoverage } from './lib/read-size.js';
 import {
-  expandWorkspaceGlob,
+  classifyWorkspaceMembers,
   nodeWorkspaceFs,
   workspaceGlobs,
-  workspaceMembers,
   type WorkspaceFs,
 } from './lib/workspace-packages.js';
 
@@ -374,36 +373,23 @@ export function readReleaseIntent(
     };
   }
 
-  const members = workspaceMembers(repoRoot, fs);
+  // The family/application split is `lib/workspace-packages.ts`' derivation and
+  // no longer this check's own: `test/unit/packages/package-dist-build.test.ts`
+  // asks the same question of the same members — *"is this a library we publish
+  // or an application we deploy?"* — and a second answer to it is two answers
+  // waiting to disagree about the package that arrives next.
+  const { members, globCoverage } = classifyWorkspaceMembers(repoRoot, fs);
   if (members.length === 0) {
     return { reason: 'the workspace globs matched no package at all' };
   }
 
-  const globCoverage = new Map<string, number>();
-  const matchedGlobs = new Map<string, string[]>();
-  for (const glob of globs) {
-    const dirs = new Set(expandWorkspaceGlob(repoRoot, glob, fs));
-    let covered = 0;
-    for (const member of members) {
-      if (!dirs.has(member.dir)) continue;
-      covered += 1;
-      const list = matchedGlobs.get(member.dir) ?? [];
-      list.push(glob);
-      matchedGlobs.set(member.dir, list);
-    }
-    globCoverage.set(glob, covered);
-  }
-
-  const classified: ClassifiedMember[] = members.map((member) => {
-    const own = matchedGlobs.get(member.dir) ?? [];
-    return {
-      name: member.name,
-      dir: member.dir.startsWith(repoRoot) ? member.dir.slice(repoRoot.length + 1) : member.dir,
-      isPrivate: member.manifest['private'] === true,
-      family: own.some((glob) => glob.includes('*')),
-      globs: own,
-    };
-  });
+  const classified: ClassifiedMember[] = members.map((member) => ({
+    name: member.name,
+    dir: member.dir.startsWith(repoRoot) ? member.dir.slice(repoRoot.length + 1) : member.dir,
+    isPrivate: member.manifest['private'] === true,
+    family: member.family,
+    globs: member.globs,
+  }));
 
   const changesetDir = join(repoRoot, '.changeset');
   const entries = listChangesets(changesetDir);

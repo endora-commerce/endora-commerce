@@ -211,6 +211,80 @@ export function workspaceMembers(repoRoot: string, fs: WorkspaceFs): readonly Wo
 }
 
 /**
+ * A workspace member, plus which workspace entries produced it.
+ *
+ * The classification is one sentence and it is the workspace file's own: **an
+ * entry containing a glob character enumerates a library *family* — a set whose
+ * membership is decided by what is on disk — and a literal entry names one
+ * deployable.** Today that reads `packages/*` and `packages/modules/*` as the
+ * family and `backend`, `storefront`, `admin`, `docs` as applications, which is
+ * the split `AGENTS.md` states in prose, and it costs nothing when the family
+ * grows: module packages a directory deeper arrive through a glob and are
+ * family by construction.
+ *
+ * A member matched by both a literal and a glob counts as **family**, which is
+ * the failing-safe direction for both readers: a family member is versionable
+ * (it must carry a changeset) and it ships a `dist` (it must pass the
+ * distribution gate). Being wrong that way asks for more, never less.
+ */
+export interface ClassifiedWorkspaceMember extends WorkspaceMember {
+  /**
+   * True when a *glob* workspace entry produced it — a library family. False
+   * when every entry that produced it is a literal directory — an application.
+   */
+  readonly family: boolean;
+  /** The workspace entries that matched it, for a message that can name one. */
+  readonly globs: readonly string[];
+}
+
+/** Every member, classified, with what each workspace entry produced. */
+export interface WorkspaceClassification {
+  readonly members: readonly ClassifiedWorkspaceMember[];
+  /** Non-negated workspace entries, and how many members each produced. */
+  readonly globCoverage: ReadonlyMap<string, number>;
+}
+
+/**
+ * {@link workspaceMembers}, with the family/application split its callers used
+ * to derive for themselves.
+ *
+ * Two readers need it and they are asking the same question at two distances:
+ * `check-release-intent.ts` asks *"must a change here carry a changeset?"* and
+ * `test/unit/packages/package-dist-build.test.ts` asks *"must this package ship
+ * a compiled `dist` a stranger can consume?"* Both are *"is this a library we
+ * publish or an application we deploy?"*, and a second answer to it is two
+ * answers waiting to disagree.
+ */
+export function classifyWorkspaceMembers(
+  repoRoot: string,
+  fs: WorkspaceFs,
+): WorkspaceClassification {
+  const globs = workspaceGlobs(repoRoot, fs).filter((glob) => !glob.startsWith('!'));
+  const members = workspaceMembers(repoRoot, fs);
+  const globCoverage = new Map<string, number>();
+  const matchedGlobs = new Map<string, string[]>();
+  for (const glob of globs) {
+    const dirs = new Set(expandWorkspaceGlob(repoRoot, glob, fs));
+    let covered = 0;
+    for (const member of members) {
+      if (!dirs.has(member.dir)) continue;
+      covered += 1;
+      const list = matchedGlobs.get(member.dir) ?? [];
+      list.push(glob);
+      matchedGlobs.set(member.dir, list);
+    }
+    globCoverage.set(glob, covered);
+  }
+  return {
+    members: members.map((member) => {
+      const own = matchedGlobs.get(member.dir) ?? [];
+      return { ...member, family: own.some((glob) => glob.includes('*')), globs: own };
+    }),
+    globCoverage,
+  };
+}
+
+/**
  * The npm scopes those members are published under, sorted, each with its
  * trailing slash — `['@endora-commerce/']` today.
  *

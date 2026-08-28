@@ -460,6 +460,163 @@ function majorOf(range: string): string | null {
   return match?.[1] ?? null;
 }
 
+// --- what survives into the emitted declarations (D-181) -------------------
+
+/**
+ * The bare specifiers a package's **emitted declarations** name, with how many
+ * `.d.ts` files were opened to find them.
+ *
+ * D-181's rule is *"if a specifier survives into a package's emitted `.d.ts`,
+ * that package declares it as a real dependency"*, and its whole force is that
+ * the predicate is a question about the **artefact** rather than about an
+ * author's intent: `tsc` copies an import into the declarations it emits
+ * verbatim, so a consumer type-checking the package has to resolve it. An
+ * `import type` is erased from the emitted JavaScript — which is what D-171
+ * reasoned from — and is *not* erased from the emitted declarations whenever
+ * the type it names appears in an exported signature. Measured: with
+ * `mod-custom-fields` absent, `mod-catalog`'s exported
+ * `CatalogCradle.customFieldDefinitionService` becomes `any`, and under
+ * `skipLibCheck: true` — what `tsc --init` writes — with no diagnostic at all.
+ *
+ * `null` when the emit directory holds no declaration file, which is the state
+ * of a package that has never been built. The caller decides what to do with
+ * that; this function does not guess.
+ */
+export interface EmittedDeclarations {
+  /** Package name → every specifier the declarations wrote for it, sorted. */
+  readonly names: ReadonlyMap<string, readonly string[]>;
+  /** Declaration files opened, for the `read:` line. */
+  readonly files: number;
+}
+
+export function emittedDeclarationSpecifiers(
+  packageDir: string,
+  outDir: string,
+  fs: ManifestFs,
+): EmittedDeclarations | null {
+  const root = outDir === '' ? packageDir : join(packageDir, outDir);
+  const names = new Map<string, Set<string>>();
+  let files = 0;
+
+  const walk = (dir: string): void => {
+    for (const name of fs.listFiles(dir)) {
+      if (!name.endsWith('.d.ts')) continue;
+      const text = fs.readText(join(dir, name));
+      if (text === null) continue;
+      files += 1;
+      for (const ref of ts.preProcessFile(text, true, true).importedFiles) {
+        const packageName = packageNameOf(ref.fileName);
+        if (packageName === null) continue;
+        const written = names.get(packageName) ?? new Set<string>();
+        written.add(ref.fileName);
+        names.set(packageName, written);
+      }
+    }
+    for (const child of [...fs.listDirectories(dir)].sort()) walk(join(dir, child));
+  };
+  walk(root);
+
+  if (files === 0) return null;
+  return {
+    names: new Map([...names].map(([name, written]) => [name, [...written].sort()])),
+    files,
+  };
+}
+
+/**
+ * Whether a `@types/*` package is one the **consumer** supplies rather than one
+ * we must declare (D-181).
+ *
+ * D-181 splits the `@types/*` question on *"can the consumer obtain these types
+ * any other way?"*, and refuses a list of package names as the answer. The
+ * derivable form of that question is what a duplicate copy would do to the
+ * consumer's program: **a types package that contributes global declarations
+ * exists exactly once in a program by construction**, so forcing ours on a
+ * consumer who already has their own is a duplicate-identifier error the
+ * application author cannot fix by any import — which is the hazard D-181
+ * names for `@types/react`. A types package that declares only *modules* nests
+ * harmlessly, and a consumer who does not write the library's specifier
+ * themselves has no reason to have it at all, so it is ours to declare.
+ *
+ * A global declaration is either a `.d.ts` in global scope — no top-level
+ * import or export, so everything in it is ambient — or an explicit
+ * `declare global` block. Measured over the packages this repository installs:
+ * `@types/react` ships 2 global-scope files of 13, `@types/react-dom` 2
+ * `declare global` blocks of 14 and `@types/node` 62 global files of 70, while
+ * `@types/pdfmake`, `@types/nodemailer`, `@types/web-push`,
+ * `@types/ssh2-sftp-client` and `@types/leaflet` ship none.
+ *
+ * `null` when the package could not be found or holds no declaration at all: a
+ * types package this cannot read must never become an answer in either
+ * direction, so the caller refuses rather than guessing (issue #113).
+ */
+export function typesPackageIsConsumerSupplied(
+  typesDir: string,
+  fs: ManifestFs,
+): boolean | null {
+  let read = 0;
+  let global = false;
+
+  const walk = (dir: string): void => {
+    for (const name of fs.listFiles(dir)) {
+      if (!name.endsWith('.d.ts')) continue;
+      const text = fs.readText(join(dir, name));
+      if (text === null) continue;
+      read += 1;
+      const source = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true);
+      const isModule = source.statements.some(
+        (statement) =>
+          ts.isImportDeclaration(statement) ||
+          ts.isExportDeclaration(statement) ||
+          ts.isExportAssignment(statement) ||
+          ts.canHaveModifiers(statement) &&
+            (ts.getModifiers(statement) ?? []).some(
+              (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+            ),
+      );
+      if (!isModule) global = true;
+      for (const statement of source.statements) {
+        if (
+          ts.isModuleDeclaration(statement) &&
+          statement.name.kind === ts.SyntaxKind.Identifier &&
+          statement.name.text === 'global'
+        ) {
+          global = true;
+        }
+      }
+    }
+    for (const child of [...fs.listDirectories(dir)].sort()) walk(join(dir, child));
+  };
+  walk(typesDir);
+
+  return read === 0 ? null : global;
+}
+
+/**
+ * Where an installed `@types/*` package is: the application's `node_modules`,
+ * then the workspace root's.
+ *
+ * The companion is always one the **application** declares — that is the only
+ * way {@link renderManifest} learns of it at all — so it is installed under
+ * `backend/node_modules` whenever anything in this repository has been
+ * installed. `null` is therefore a tree with no install, which the caller
+ * refuses.
+ */
+export function findTypesPackage(
+  repoRoot: string,
+  typesName: string,
+  fs: ManifestFs,
+): string | null {
+  const candidates = [
+    join(repoRoot, 'backend', 'node_modules', typesName),
+    join(repoRoot, 'node_modules', typesName),
+  ];
+  for (const candidate of candidates) {
+    if (fs.readText(join(candidate, 'package.json')) !== null) return candidate;
+  }
+  return null;
+}
+
 // --- rendering -------------------------------------------------------------
 
 /** The fields §2 marks HAND-WRITTEN: read from the existing file, never rewritten. */
@@ -510,6 +667,16 @@ export interface ManifestRenderRun {
    * by bare specifier is a module package that must have been rendered here.
    */
   readonly registeredPackageNames: readonly string[];
+  /**
+   * The packages whose D-181 answer was a guess rather than a measurement:
+   * they have no emitted declarations, so every reach was taken to survive.
+   *
+   * `manifests:generate` renders them anyway — a package's manifest has to be
+   * writable before the package can be built at all — and `--check` refuses
+   * them, because a drift verdict against a fail-closed fallback compares the
+   * tree to a render nobody will reproduce once the package is built.
+   */
+  readonly unbuiltPackages: readonly string[];
 }
 
 /** Every module package a `pnpm-workspace.yaml` glob reaches, by directory. */
@@ -663,6 +830,31 @@ export function renderModulePackageManifests(
     surfaceReaderOver(fs),
   );
 
+  // D-181's `@types/*` split, memoised across the run: the answer is a property
+  // of the types package, not of the module asking about it, and reading
+  // `@types/node`'s seventy declaration files once per module package would be
+  // most of this command's work.
+  const unbuilt: string[] = [];
+  const typesAnswers = new Map<string, boolean>();
+  const consumerSuppliesTypes = (typesName: string): boolean => {
+    const cached = typesAnswers.get(typesName);
+    if (cached !== undefined) return cached;
+    const typesDir = findTypesPackage(repoRoot, typesName, countingFs);
+    const answer =
+      typesDir === null ? null : typesPackageIsConsumerSupplied(typesDir, countingFs);
+    if (answer === null) {
+      throw new ModulePackageManifestError(
+        `'${typesName}' is declared by backend/package.json and could not be read from any ` +
+          `node_modules above it. D-181 makes a types package whose types reach a consumer a ` +
+          `real dependency unless the consumer supplies it themselves, and that split is ` +
+          `derived from the package's own declarations — a types package this cannot read ` +
+          `must never become an answer in either direction (issue #113). Run \`pnpm install\`.`,
+      );
+    }
+    typesAnswers.set(typesName, answer);
+    return answer;
+  };
+
   const rendered = identities.map((identity) => {
     const layers = layerInventoryOf(identity.dir, countingFs);
     const emit = readEmitLayout(identity.dir, identity.name, countingFs);
@@ -696,6 +888,12 @@ export function renderModulePackageManifests(
     const existing = existingManifest(identity.dir, countingFs);
     assertEndoraAgreement(identity.dir, identity.moduleId, identity.name, existing);
 
+    // D-181's population: what this package's own build publishes. Counted on
+    // this run's `read:` line like everything else it opens, and remembered as
+    // an answer-or-a-guess so `--check` can refuse the guess.
+    const emitted = emittedDeclarationSpecifiers(identity.dir, emit.outDir, countingFs);
+    if (emitted === null) unbuilt.push(identity.name);
+
     const content = renderManifest({
       packageName: identity.name,
       moduleId: identity.moduleId,
@@ -703,6 +901,8 @@ export function renderModulePackageManifests(
       emit,
       imported,
       surfaces,
+      emitted,
+      consumerSuppliesTypes,
       selfName: identity.name,
       modulePackageNames,
       workspaceNames,
@@ -738,6 +938,7 @@ export function renderModulePackageManifests(
     specifierSites,
     registeredPackageNames:
       indexSource === null ? [] : registeredPackageNamesIn(indexSource),
+    unbuiltPackages: [...unbuilt].sort(byAscii),
   };
 }
 
@@ -965,7 +1166,7 @@ function assertEndoraAgreement(
  * fine. The CLI turns it into exit 2 with its own message, which already names
  * the remedy (`pnpm run build:packages`).
  */
-function firstNonContractReach(
+export function firstNonContractReach(
   name: string,
   reaches: readonly PackageReach[],
   surfaces: ModulePackageSurfaces,
@@ -1003,6 +1204,24 @@ interface RenderInput {
   readonly imported: ReadonlyMap<string, readonly PackageReach[]>;
   /** Answers whether a module package's subpath is contract surface (D-171). */
   readonly surfaces: ModulePackageSurfaces;
+  /**
+   * The specifiers this package's **own** emitted declarations name (D-181), or
+   * `null` when it has never been built.
+   *
+   * `null` is the bootstrap state — a module directory that has just been
+   * `git mv`d into place has no `package.json`, so it cannot be built, so its
+   * manifest is rendered before its `dist` exists. It fails **closed**: every
+   * reach is treated as surviving, which over-declares rather than publishing
+   * the `any` D-181 refuses, and regenerating after the first build narrows it.
+   * The `--check` mode refuses a package that answered that way, so a drift
+   * verdict is never taken against a render nobody will reproduce.
+   */
+  readonly emitted: EmittedDeclarations | null;
+  /**
+   * Whether a `@types/*` companion is the consumer's to supply (D-181).
+   * Refuses — it does not guess — when the types package cannot be read.
+   */
+  readonly consumerSuppliesTypes: (typesName: string) => boolean;
   readonly selfName: string;
   readonly modulePackageNames: ReadonlySet<string>;
   readonly workspaceNames: ReadonlySet<string>;
@@ -1019,6 +1238,19 @@ interface RenderInput {
    * build script that resolves to nothing.
    */
   readonly repoRootPrefix: string;
+}
+
+/**
+ * Whether a specifier into `name` survives into what this package publishes
+ * (D-181).
+ *
+ * A package with no emitted declarations answers **yes** for everything, which
+ * is the fail-closed direction: it over-declares a dependency that may not have
+ * needed declaring, where the other direction is the silent `any` D-181 exists
+ * to refuse.
+ */
+function survivesIntoDeclarations(input: RenderInput, name: string): boolean {
+  return input.emitted === null || input.emitted.names.has(name);
 }
 
 /** `src/backend/index.ts` → `./dist/backend/index.js`, per the build declaration. */
@@ -1077,6 +1309,19 @@ export function renderManifest(input: RenderInput): string {
       // which would assert an install-time requirement the module manifest's
       // `acknowledgedDependencies` / `nonBindingDependencies` classification
       // explicitly denies for four of today's reaches.
+      //
+      // **Unless the reach survives into what this package publishes** (D-181).
+      // `tsc` copies an `import type` into the emitted `.d.ts` verbatim whenever
+      // the type it names appears in an exported signature, and a consumer
+      // type-checking the package must then resolve it: with the owner absent
+      // the type silently becomes `any`, with no diagnostic under the
+      // `skipLibCheck: true` a third-party author actually has. So the reach is
+      // a real dependency and the peer is what says so — not an *optional*
+      // peer, which documents the defect instead of removing it, and not a
+      // `devDependency`, which a consumer never installs. It stays out of
+      // `dependencies`, which is R4's own word and the field this generator
+      // preserves for a package author.
+      if (survivesIntoDeclarations(input, name)) peers.set(name, 'workspace:*');
       devs.set(name, 'workspace:*');
       continue;
     }
@@ -1120,9 +1365,32 @@ export function renderManifest(input: RenderInput): string {
     // `backend/package.json` rather than something to invent here. It goes in
     // `devDependencies` only: a type-only package is a build input, not
     // something a consumer resolves.
+    //
+    // **And it is a real dependency when its types reach a consumer** (D-181):
+    // a companion whose library's specifier survives into this package's
+    // emitted declarations is one the consumer needs to type-check what we
+    // publish, and cannot obtain any other way. The exception is a companion
+    // that contributes *global* declarations — `@types/react`, `@types/node` —
+    // which exists once in a program by construction, so forcing ours is a
+    // conflict the application author cannot fix and the types are theirs to
+    // supply. That split is derived from the types package itself
+    // ({@link typesPackageIsConsumerSupplied}) and is never a list of names.
     const types = typesPackageFor(name);
     const typesDeclared = input.versions.get(types);
-    if (typesDeclared !== undefined) devs.set(types, typesDeclared);
+    if (typesDeclared !== undefined) {
+      devs.set(types, typesDeclared);
+      if (survivesIntoDeclarations(input, name) && !input.consumerSuppliesTypes(types)) {
+        const typesMajor = majorOf(typesDeclared);
+        if (typesMajor === null) {
+          throw new ModulePackageManifestError(
+            `${input.packageName}: the application declares '${types}' as '${typesDeclared}', ` +
+              `which has no readable major version, so the peer range D-181 requires of it ` +
+              `cannot be derived from it.`,
+          );
+        }
+        peers.set(types, `^${typesMajor}`);
+      }
+    }
   }
   // The toolchain the generated `scripts` themselves need: `tsc` for `build`
   // and `typecheck`, and the ambient Node types every backend module compiles

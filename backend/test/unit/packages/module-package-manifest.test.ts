@@ -112,9 +112,30 @@ function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, s
       devDependencies: {
         '@types/node': '^22.9.0',
         '@types/nodemailer': '^7.0.4',
+        '@types/react': '^19.2.14',
+        react: '^19.2.5',
         typescript: '^5.9.3',
       },
     }),
+    // The installed `@types/*` packages D-181's split reads, in the two shapes it
+    // distinguishes. `@types/nodemailer` declares only modules — a consumer has no other
+    // way to obtain those types, so a package whose declarations need them declares it.
+    // `@types/react` ships a global-scope declaration file, so it exists once in a
+    // consumer's program by construction and forcing ours is a conflict the application
+    // author cannot fix; those types are theirs to supply. Real files, so the predicate
+    // enters at the top rather than being handed a verdict (issue #130).
+    [`${ROOT}/backend/node_modules/@types/nodemailer/package.json`]: JSON.stringify({
+      name: '@types/nodemailer',
+    }),
+    [`${ROOT}/backend/node_modules/@types/nodemailer/index.d.ts`]:
+      'export declare function createTransport(): unknown;\n',
+    [`${ROOT}/backend/node_modules/@types/react/package.json`]: JSON.stringify({
+      name: '@types/react',
+    }),
+    [`${ROOT}/backend/node_modules/@types/react/index.d.ts`]:
+      'export declare function createElement(): unknown;\n',
+    [`${ROOT}/backend/node_modules/@types/react/global.d.ts`]:
+      'declare namespace JSX { interface Element {} }\n',
     [`${ROOT}/backend/src/index.generated.ts`]:
       "import { manifest as m1 } from '@endora-commerce/mod-widgets';\n" +
       "  { id: 'widgets', manifest: m1, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-widgets') },\n",
@@ -136,6 +157,11 @@ function packageFiles(
       endora: { type: 'module', id },
     }),
     [`${dir}/tsconfig.build.json`]: BASE_TSCONFIG_BUILD,
+    // What the build emitted, which is the population D-181's question is asked of: does
+    // this specifier survive into the package's own `.d.ts`? A package with none answers
+    // by the generator's fail-closed guess instead, so every fixture ships one and the
+    // proofs that are *about* survival write their own.
+    [`${dir}/dist/manifest.d.ts`]: 'export declare const manifest: unknown;\n',
     [`${dir}/src/manifest.ts`]:
       "import { defineModuleManifest } from '@endora-commerce/contracts';\n" +
       `export const manifest = defineModuleManifest({ id: '${id}', name: 'X', description: 'Y' });\n`,
@@ -316,8 +342,86 @@ describe('module package manifests are generated (feature 080, T041)', () => {
         nodemailer: '^7.0.13',
         '@types/nodemailer': '^7.0.4',
       });
-      // It is a build-time declaration, not something a consumer resolves.
+      // A build-time declaration and nothing more, because `nodemailer` appears nowhere in
+      // what this package publishes: the emitted declarations name it, or they do not, and
+      // here they do not. That is the live split in this repository — `email` and
+      // `newsletter` import `nodemailer` inside function bodies, `invoices` and
+      // `comparisons` put `pdfmake/interfaces.js` in an exported signature.
       expect(manifest['peerDependencies']).not.toHaveProperty('@types/nodemailer');
+    });
+
+    /**
+     * D-181, the `@types/*` half: a companion whose types reach a consumer.
+     *
+     * `tsc` copies the import into the emitted `.d.ts`, so a consumer type-checking this
+     * package resolves `nodemailer` — and its *types* come from a package nobody imports
+     * by name. A `devDependency` is not installed for a consumer, so those types are
+     * simply absent and every signature through them becomes `any`, with no diagnostic at
+     * all under the `skipLibCheck: true` that `tsc --init` writes.
+     */
+    it('declares the companion for real when its library reaches the published declarations', () => {
+      const manifest = manifestOf(
+        widgets(
+          {
+            ...BACKEND_ONLY,
+            'src/backend/mail.ts':
+              "import type { Transport } from 'nodemailer';\nexport type T = Transport;\n",
+          },
+          {
+            [`${ROOT}/packages/modules/widgets/dist/backend/index.d.ts`]:
+              "import type { Transport } from 'nodemailer';\nexport declare const t: Transport;\n",
+          },
+        ),
+      );
+      expect(manifest['peerDependencies']).toMatchObject({ '@types/nodemailer': '^7' });
+      expect(manifest['devDependencies']).toMatchObject({ '@types/nodemailer': '^7.0.4' });
+    });
+
+    /**
+     * The other side of D-181's split, and the reason it is a question rather than a list.
+     *
+     * `@types/react` ships a global-scope declaration file, so it exists exactly once in a
+     * consumer's program: forcing our copy on an application that already has its own is a
+     * duplicate-identifier error its author cannot fix by any import. Those types are the
+     * consumer's to supply, and the discriminator is read off the types package itself —
+     * so the fifth such package is answered without anybody adding it anywhere.
+     */
+    it('leaves a globally-declaring companion to the consumer, reached or not', () => {
+      const manifest = manifestOf(
+        widgets(
+          {
+            ...BACKEND_ONLY,
+            'src/backend/ui.ts':
+              "import type { ReactNode } from 'react';\nexport type N = ReactNode;\n",
+          },
+          {
+            [`${ROOT}/packages/modules/widgets/dist/backend/index.d.ts`]:
+              "import type { ReactNode } from 'react';\nexport declare const n: ReactNode;\n",
+          },
+        ),
+      );
+      expect(manifest['peerDependencies']).toMatchObject({ react: '^19' });
+      expect(manifest['peerDependencies']).not.toHaveProperty('@types/react');
+      expect(manifest['devDependencies']).toMatchObject({ '@types/react': '^19.2.14' });
+    });
+
+    it('refuses a companion it cannot read rather than guessing which side it is', () => {
+      // A types package this cannot open must never become an answer in either direction
+      // (issue #113): it would silently be treated as consumer-supplied, which is the
+      // fail-open of the two.
+      const files = widgets(
+        {
+          ...BACKEND_ONLY,
+          'src/backend/mail.ts':
+            "import type { Transport } from 'nodemailer';\nexport type T = Transport;\n",
+        },
+        {
+          [`${ROOT}/packages/modules/widgets/dist/backend/index.d.ts`]:
+            "import type { Transport } from 'nodemailer';\nexport declare const t: Transport;\n",
+        },
+      );
+      delete files[`${ROOT}/backend/node_modules/@types/nodemailer/package.json`];
+      expect(() => render(files)).toThrow(/@types\/nodemailer/);
     });
 
     it('names no companion @types package the application does not declare', () => {
@@ -453,6 +557,62 @@ describe('module package manifests are generated (feature 080, T041)', () => {
         '@endora-commerce/mod-gadgets',
       );
       expect(manifest).not.toHaveProperty('dependencies');
+    });
+
+    /**
+     * D-181 — the same reach, once it survives into what this package publishes.
+     *
+     * D-171 reasoned that an `import type` is erased and so *"npm need not know about
+     * it"*. That is true of the emitted **JavaScript** and false of the emitted
+     * **declarations**: `tsc` copies the import into the `.d.ts` verbatim whenever the
+     * type appears in an exported signature, and a consumer type-checking the package must
+     * resolve it. Measured on the real tree with `mod-custom-fields` not installed:
+     * `mod-catalog`'s exported `CatalogCradle.customFieldDefinitionService` became `any`,
+     * with no diagnostic at all under `skipLibCheck: true`.
+     *
+     * So the peer, and deliberately not an *optional* peer — that documents the defect
+     * rather than removing it — and deliberately not `dependencies`, which is R4's own
+     * word and the field a package author owns.
+     */
+    it('declares it for real once the reach survives into the declarations (D-181)', () => {
+      const manifest = manifestOf({
+        ...widgets(
+          { ...BACKEND_ONLY, 'src/backend/reach.ts': `${TYPE_ONLY_PORTS}\n` },
+          {
+            [`${ROOT}/packages/modules/widgets/dist/backend/index.d.ts`]:
+              "import type { GadgetPort } from '@endora-commerce/mod-gadgets/ports';\n" +
+              'export declare const p: GadgetPort;\n',
+          },
+        ),
+        ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+      });
+      expect(manifest['peerDependencies']).toMatchObject({
+        '@endora-commerce/mod-gadgets': 'workspace:*',
+      });
+      expect(manifest['devDependencies']).toMatchObject({
+        '@endora-commerce/mod-gadgets': 'workspace:*',
+      });
+      expect(manifest).not.toHaveProperty('dependencies');
+    });
+
+    it('fails closed for a package with no emitted declarations at all', () => {
+      // The bootstrap state — a module directory just `git mv`d into place has no
+      // `package.json`, so it cannot be built, so its manifest is rendered before its
+      // `dist` exists. There is no artefact to ask, and the two ways of being wrong are
+      // not equal: over-declaring costs a dependency nobody needed, under-declaring is
+      // D-181's silent `any`. So every reach is taken to survive, and the run reports the
+      // package so `--check` can refuse a verdict taken against the guess.
+      const files = {
+        ...widgets({ ...BACKEND_ONLY, 'src/backend/reach.ts': `${TYPE_ONLY_PORTS}\n` }),
+        ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+      };
+      delete files[`${ROOT}/packages/modules/widgets/dist/manifest.d.ts`];
+      const run = render(files);
+      expect(run.unbuiltPackages).toContain('@endora-commerce/mod-widgets');
+      const manifest = JSON.parse(
+        run.rendered.find((entry) => entry.moduleId === 'widgets')!.content,
+      ) as Record<string, unknown>;
+      expect(manifest['peerDependencies']).toHaveProperty('@endora-commerce/mod-gadgets');
     });
 
     it('refuses it when the subpath emits a const — the exemption fails closed', () => {
