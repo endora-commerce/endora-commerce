@@ -15,7 +15,7 @@
  */
 import { SUPPORTED_LANGUAGES, type SupportedAdminLanguage } from '@endora-commerce/contracts';
 import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
-import { lazyPort, type ModuleContext } from '../../../kernel/index.js';
+import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
 import type { I18nService } from '../services/i18n-service.js';
 
 interface ParsedArgs {

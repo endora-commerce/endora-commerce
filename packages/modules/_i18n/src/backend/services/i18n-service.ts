@@ -9,7 +9,7 @@ import {
   type TranslationBundleEntries,
 } from '@endora-commerce/contracts';
 import { TranslationBundle } from '../entities/translation-bundle.entity.js';
-import { loadModuleBundles, BundleLoadError } from './bundle-loader.js';
+import { loadModuleBundles } from './bundle-loader.js';
 import { MissingKeyLogger } from './missing-key-logger.js';
 
 /**
@@ -315,8 +315,17 @@ export class I18nService {
 
 }
 
-// Allowed: list of supported languages re-exported for tests / consumers.
-export { SUPPORTED_LANGUAGES, BundleLoadError };
+// `SUPPORTED_LANGUAGES` and `BundleLoadError` were re-exported here "for tests /
+// consumers", and the line went with T040b's packaging. Neither had a consumer:
+// `SUPPORTED_LANGUAGES` is `@endora-commerce/contracts`', which every caller
+// already imports from there, and `BundleLoadError` is published by this
+// package's own `./backend` barrel beside `loadModuleBundles`. What made the
+// line a defect rather than dead weight is that it is a bare `export { … }`
+// over two *imported* bindings, so `readBackendSurface` — which follows the
+// barrel's re-exports to decide whether a package publishes an entity class by
+// name (D-168) — reached a specifier it cannot resolve and reported
+// `unresolvable-reexport`. That verdict is right: a re-export it cannot read is
+// the one case where a silent pass would mean "not looking".
 
 /** Manifest id of the platform-internal i18n module (= the chrome bundle owner). */
 const I18N_CHROME_MODULE_ID = '_i18n';

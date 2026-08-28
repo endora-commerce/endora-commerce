@@ -15,7 +15,7 @@ import { dirname, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DISCOVERED_MANIFESTS } from '../../src/modules/_lifecycle/manifest-index.generated.js';
-import { ERROR_TRANSLATION_KEYS } from '../../src/modules/_i18n/services/error-translation.js';
+import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
 import { discoverModulePackages } from '../../scripts/lib/module-packages.js';
 
 /**
@@ -94,20 +94,26 @@ const RESIDUE_ROOTS: readonly string[] = [
  */
 export const KEPT_MODULE = '_lifecycle';
 
-/** Single files of other modules a spawned check imports as code. */
-const KEPT_MODULE_FILES: readonly string[] = [
-  // `admin_roles/permission-inventory.ts` stood here until batch five packaged
-  // that module. `check-action-route-permissions` now imports the gate-argument
-  // resolver through `@endora-commerce/mod-admin-roles/backend`, which resolves
-  // through the `node_modules` this fixture borrows — so the file it needs
-  // arrives with the package rather than with a copy of one module's source.
-  //
-  // `check-error-translations` imports the routing table as *code*; without it
-  // that spawn dies at module resolution and its proof would pass for the wrong
-  // reason. The table is also what its floor is derived from, so a fixture
-  // without it could not stage the shortfall at all.
-  '_i18n/services/error-translation.ts',
-];
+/**
+ * Single files of other modules a spawned check imports as code.
+ *
+ * **Empty, and it drained rather than being emptied.** Two entries stood here.
+ * `admin_roles/permission-inventory.ts` went when batch five packaged that
+ * module: `check-action-route-permissions` reaches the gate-argument resolver
+ * through `@endora-commerce/mod-admin-roles/backend`, which resolves through the
+ * `node_modules` this fixture borrows, so the file arrives with the package
+ * rather than with a copy of one module's source.
+ * `_i18n/services/error-translation.ts` went the same way when T040b packaged
+ * `_i18n` — `check-error-translations` imports the routing table as *code* from
+ * `@endora-commerce/mod-i18n/backend` now.
+ *
+ * The list stays because the property it encodes has not changed: a spawned
+ * check that imports one application-tree module's file as code needs that file
+ * copied in, and copying a whole module would stop the fixture being the hard
+ * case. `_lifecycle` is the only module left in the application tree, and its
+ * own files are copied above by name.
+ */
+const KEPT_MODULE_FILES: readonly string[] = [];
 
 /**
  * The one i18n bundle the fixture keeps, and the reason it keeps exactly one.
@@ -119,32 +125,52 @@ const KEPT_MODULE_FILES: readonly string[] = [
  * floor T010 added. With one routed module's bundle present, the old guard is
  * green (keys were written, findings can be computed) while seventeen of the
  * eighteen routed modules contributed nothing, which is the residue only a
- * per-module floor sees. It has to be a **routed** module — its bundle carries
- * the `errors.*` keys — and it has to still live in the application's own tree,
- * so it is derived rather than named: this constant read `'blog'` until that
- * module became a package (feature 080, T040b), at which point the `cpSync`
- * below threw ENOENT and took all 73 proofs in `moved-module-tree.test.ts` with
- * it. A fixture that names a module has an expiry date, and there are 64 more
- * moves to come.
+ * per-module floor sees. It has to be a **routed** module, because its bundle
+ * is what carries the `errors.*` keys.
+ *
+ * **Where that module's bundle lives is no longer part of the question, and
+ * that is this function's second correction.** It read `'blog'` until batch one
+ * packaged that module and the `cpSync` below threw ENOENT, taking all 73
+ * proofs in `moved-module-tree.test.ts` with it. The repair then was to derive
+ * the id — but it derived it by asking which routed module still kept a bundle
+ * **under `backend/src/modules`**, which is a property the T040b sweep is in the
+ * business of removing from every module in turn. `orders` was the last one,
+ * and this file went red on `master` the day it moved: not "the fixture needs a
+ * different module" but "the fixture cannot be built at all", every proof in
+ * the file failing at import. So the derivation now asks only what it needs —
+ * *which routed module ships a bundle* — and reads it from the module's **own
+ * directory**, `dirname(manifestPath)`, which is what the boot reconciler joins
+ * `bundlesDir` to and is therefore correct for an application module and a
+ * package alike. The fixture writes it to `backend/src/modules/<id>/i18n`,
+ * because that is where the fixture's own layout puts a module.
  */
-function firstRoutedModuleWithABundleInTheApplicationTree(): string {
+interface KeptBundle {
+  readonly moduleId: string;
+  /** The real directory the bundle is copied *from*, wherever the module lives. */
+  readonly sourceDirectory: string;
+}
+
+function routedModuleShippingABundle(): KeptBundle {
   const routed = [
     ...new Set(Object.values(ERROR_TRANSLATION_KEYS).map((target) => target.moduleId)),
   ].sort();
   for (const moduleId of routed) {
-    if (existsSync(join(BACKEND_ROOT, 'src', 'modules', moduleId, 'i18n', 'en.json'))) {
-      return moduleId;
+    const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === moduleId);
+    if (entry === undefined) continue;
+    const directory = join(dirname(entry.manifestPath), 'i18n');
+    if (existsSync(join(directory, 'en.json'))) {
+      return { moduleId, sourceDirectory: directory };
     }
   }
   throw new Error(
     '[moved-module-tree-fixture] no module that `ERROR_TRANSLATION_KEYS` routes a code to ' +
-      'still keeps an i18n bundle under backend/src/modules. The fixture needs one to stage ' +
-      "check-error-translations' per-module shortfall; with none, its proof would pass on " +
-      'the pre-existing empty-walk guard instead.',
+      'ships an i18n bundle anywhere the manifest index can find one. The fixture needs one ' +
+      "to stage check-error-translations' per-module shortfall; with none, its proof would " +
+      'pass on the pre-existing empty-walk guard instead.',
   );
 }
 
-const KEPT_BUNDLE_MODULE = firstRoutedModuleWithABundleInTheApplicationTree();
+const KEPT_BUNDLE = routedModuleShippingABundle();
 
 // ---------------------------------------------------------------------------
 // Which modules a split fixture relocates — the selection, not the choice
@@ -430,8 +456,8 @@ export function createMovedModuleTreeFixture(
     cpSync(join(BACKEND_ROOT, 'src', 'modules', file), join(backend, 'src', 'modules', file));
   }
   cpSync(
-    join(BACKEND_ROOT, 'src', 'modules', KEPT_BUNDLE_MODULE, 'i18n'),
-    join(backend, 'src', 'modules', KEPT_BUNDLE_MODULE, 'i18n'),
+    KEPT_BUNDLE.sourceDirectory,
+    join(backend, 'src', 'modules', KEPT_BUNDLE.moduleId, 'i18n'),
     { recursive: true },
   );
   writeFileSync(

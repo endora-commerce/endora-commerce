@@ -11,7 +11,7 @@ import {
   type TranslationInput,
 } from '../../../scripts/check-error-translations.js';
 import { vacuousModulePopulation } from '../../../scripts/lib/module-population.js';
-import { ERROR_TRANSLATION_KEYS } from '../../../src/modules/_i18n/services/error-translation.js';
+import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
 
 /**
  * The error-translation rule's own test (issue #113).

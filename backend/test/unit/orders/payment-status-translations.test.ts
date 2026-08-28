@@ -21,7 +21,7 @@ import { paymentStatusSchema } from '@endora-commerce/contracts';
 
 const I18N_DIR = join(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../src/modules/_i18n/i18n',
+  '../../../../packages/modules/_i18n/i18n',
 );
 
 function bundle(language: string): Record<string, string> {

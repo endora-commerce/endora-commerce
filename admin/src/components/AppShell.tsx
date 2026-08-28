@@ -1265,7 +1265,7 @@ export function AppShell(): ReactNode {
             // Feature 019 / 021 — section labels go through useTranslation('core').
             // The empty-labelKey "main" cluster keeps no label; every other
             // group resolves its declared `labelKey`. Polish strings live
-            // in backend/src/modules/_i18n/i18n/pl.json under the same key.
+            // in packages/modules/_i18n/i18n/pl.json under the same key.
             const translatedLabel = section.labelKey ? t(section.labelKey) : '';
             // In rail mode the section reduces to one icon (the first
             // visible item's icon). Hover or click reveals a popover

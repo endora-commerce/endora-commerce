@@ -11,7 +11,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 
-import { ERROR_TRANSLATION_KEYS } from '../../../src/modules/_i18n/services/error-translation.js';
+import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
 
 import { RFQ_SHIPPED_ORDER_ID, seedShippedOrder } from '../../helpers/seed-commerce.js';
 

@@ -150,10 +150,9 @@ import { loadOverlayModuleEntries } from './overlay/overlay-runtime.js';
 // Feature 080 — installed extension packages, discovered at runtime (D-155).
 import { loadPackageModuleEntries } from './packages/package-runtime.js';
 import { configuredMigrations } from './db/configured-migrations.js';
-import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 // D-54 — the error envelope takes this map by injection: `src/http` is a
 // kernel-obeying platform peer and may not name a module (D-52). A root may.
-import { ERROR_TRANSLATION_KEYS } from './modules/_i18n/services/error-translation.js';
+import { ERROR_TRANSLATION_KEYS, type AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 import type { CatalogQueryService } from '@endora-commerce/mod-catalog/backend';
 import type { ModuleSettingsManifest } from '@endora-commerce/contracts';
 import type { ShoppingListService } from '@endora-commerce/mod-shopping-lists/backend';

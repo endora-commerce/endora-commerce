@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BundleLoadError,
   loadModuleBundles,
-} from '../../../src/modules/_i18n/services/bundle-loader.js';
+} from '@endora-commerce/mod-i18n/backend';
 import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
 
 /**

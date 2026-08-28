@@ -74,7 +74,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { ERROR_TRANSLATION_KEYS } from '../src/modules/_i18n/services/error-translation.js';
+import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
 import {
   loadRegisteredModuleIds,
   refuseVacuousModulePopulation,

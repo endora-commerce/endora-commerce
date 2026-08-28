@@ -16,6 +16,7 @@ import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-li
 import { entities as currenciesEntities } from '@endora-commerce/mod-currencies/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
 import { entities as languagesEntities } from '@endora-commerce/mod-languages/backend';
+import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as promotionsEntities } from '@endora-commerce/mod-promotions/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
@@ -60,6 +61,7 @@ import type { CreditLimitReservation as CreditLimitReservationRow } from '../../
 import type { Currency as CurrencyRow } from '../../../packages/modules/currencies/src/backend/entities/currency.entity.js';
 import type { GaCustomEvent as GaCustomEventRow } from '../../../packages/modules/google_analytics/src/backend/entities/ga-custom-event.entity.js';
 import type { Language as LanguageRow } from '../../../packages/modules/languages/src/backend/entities/language.entity.js';
+import type { TranslationBundle as TranslationBundleRow } from '../../../packages/modules/_i18n/src/backend/entities/translation-bundle.entity.js';
 import type { PaymentMethod as PaymentMethodRow } from '../../../packages/modules/payment_methods/src/backend/entities/payment-method.entity.js';
 import type { Promotion as PromotionRow } from '../../../packages/modules/promotions/src/backend/entities/promotion.entity.js';
 import type { QuoteRequest as QuoteRequestRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request.entity.js';
@@ -276,6 +278,21 @@ export const OrderPlacementIntent = classNamed<OrderPlacementIntentRow>(
 export const Currency = classNamed<CurrencyRow>(currenciesEntities, 'Currency');
 
 export const Language = classNamed<LanguageRow>(languagesEntities, 'Language');
+
+/**
+ * `_i18n`'s one entity — the table every module's translation bundles land in.
+ *
+ * Six live-ORM files persist or query a row of it while asserting on a
+ * translated sentence, and each of them reached the entity relatively before
+ * the module became a package. `check:singleton-identity` is what refuses that
+ * spelling now, and D-160.6.1 is why: the ORM registered whichever class the
+ * package's `entities` array carries, so a second copy read out of `src` is a
+ * class it never discovered.
+ */
+export const TranslationBundle = classNamed<TranslationBundleRow>(
+  i18nEntities,
+  'TranslationBundle',
+);
 
 export const AnalyticsEvent = classNamed<AnalyticsEventRow>(analyticsEntities, 'AnalyticsEvent');
 

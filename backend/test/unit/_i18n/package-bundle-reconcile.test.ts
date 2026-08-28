@@ -5,8 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   reconcileBundles,
   type I18nReconcileEntry,
-} from '../../../src/modules/_i18n/services/bundle-reconciler.js';
-import type { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
+} from '@endora-commerce/mod-i18n/backend';
+import type { I18nService } from '@endora-commerce/mod-i18n/backend';
 
 /**
  * An installed package's bundles, through the platform's OWN reconciler
@@ -74,7 +74,7 @@ function recordingService(): {
       // the fixture enters at the top of the analysis rather than as a
       // pre-classified verdict handed to the last function (issue #130).
       const { loadModuleBundles } = await import(
-        '../../../src/modules/_i18n/services/bundle-loader.js'
+        '@endora-commerce/mod-i18n/backend'
       );
       const loaded = loadModuleBundles(moduleId, modulePath, bundlesDir);
       return { installed: [...loaded.byLanguage.keys()] };

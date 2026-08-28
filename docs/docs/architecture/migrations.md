@@ -80,7 +80,7 @@ Segment normalization has exactly two special cases:
 | Owning directory | `<SEGMENT>` | Registry `moduleId` |
 |------------------|-------------|---------------------|
 | `backend/src/modules/orders/migrations/` | `orders` | `'orders'` |
-| `backend/src/modules/_i18n/migrations/` | `i18n` | `'_i18n'` |
+| `packages/modules/_i18n/src/migrations/` | `i18n` | `'_i18n'` |
 | `backend/src/modules/_lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
 | `backend/src/db/migrations/` | `core` | `'core'` |
 

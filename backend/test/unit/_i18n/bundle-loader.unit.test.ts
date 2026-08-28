@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BundleLoadError,
   loadModuleBundles,
-} from '../../../src/modules/_i18n/services/bundle-loader.js';
+} from '@endora-commerce/mod-i18n/backend';
 
 /**
  * T039 / FR-008 / FR-016 — `loadModuleBundles` is the gatekeeper for

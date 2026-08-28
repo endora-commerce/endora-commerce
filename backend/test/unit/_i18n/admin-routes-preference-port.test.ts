@@ -5,7 +5,7 @@ import type { AdminUserPreferencePort, AdminUserRecord } from '@endora-commerce/
 import {
   registerI18nAdminRoutes,
   type I18nAdminDeps,
-} from '../../../src/modules/_i18n/routes.admin.js';
+} from '@endora-commerce/mod-i18n/backend';
 
 /**
  * Feature 075, Phase C — `_i18n` writes the admin's language choice over

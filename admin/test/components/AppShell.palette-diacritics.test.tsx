@@ -128,7 +128,7 @@ const coreBundle = {
       'appShell.palette.group.navigate',
       'appShell.palette.group.actions',
     ]).core,
-    // Verbatim from `backend/src/modules/_i18n/i18n/pl.json`.
+    // Verbatim from `packages/modules/_i18n/i18n/pl.json`.
     'appShell.nav.orders': 'Zamówienia',
     'appShell.palette.sub.openOrders': 'Otwarte i ostatnie zamówienia',
     'appShell.nav.paymentMethods': 'Metody płatności',

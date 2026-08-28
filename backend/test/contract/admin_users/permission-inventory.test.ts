@@ -28,7 +28,9 @@ import { listAssignablePermissionCodes } from '../../../../packages/modules/admi
  * `DEPLOYMENT=<name>` checks that deployment and a bare-core run checks core.
  */
 
-const I18N_DIR = fileURLToPath(new URL('../../../src/modules/_i18n/i18n/', import.meta.url));
+const I18N_DIR = fileURLToPath(
+  new URL('../../../../packages/modules/_i18n/i18n/', import.meta.url),
+);
 const SHIPPED_LANGUAGES = ['en', 'pl'] as const;
 
 function bundleFor(language: string): Record<string, string> {

@@ -330,13 +330,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `megamenu` reference resolvers to. Contributing those is a root's job —
   // which modules a deployment ships is not this module's business — so that
   // one stays.
-  // `_i18n` (wave 1, T089). `composition.ts` imports the cradle type and, since
-  // D-54, the `ERROR_TRANSLATION_KEYS` map it injects into the error envelope.
-  // That map used to be imported by `src/http/error-envelope.ts` itself, which
-  // made a kernel-obeying platform peer name a module (D-52) and put the cycle
+  // `_i18n`'s entry (wave 1, T089) was deleted here by T040b, which packaged the
+  // module: `composition.ts` still imports the cradle type and the
+  // `ERROR_TRANSLATION_KEYS` map D-54 makes it inject into the error envelope,
+  // and both now arrive by bare specifier — which is not a reference into
+  // `backend/src/modules/`, the same reason every other packaged module's entry
+  // went. What the entry recorded is unchanged and still true: that map used to
+  // be imported by `src/http/error-envelope.ts` itself, which made a
+  // kernel-obeying platform peer name a module (D-52) and put the cycle
   // `kernel → http → mod-i18n → kernel` in F4's package graph. A root naming a
   // module is ordinary; a peer doing it is the defect.
-  _i18n: ['src/composition.ts'],
   // `megamenu` (wave 2, T107). The dev seed type-imports three rows.
   //
   // `src/composition.ts` was here and was **stale on `master`**, the third of

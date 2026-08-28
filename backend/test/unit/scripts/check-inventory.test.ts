@@ -507,7 +507,6 @@ function staleClaims(source: string, kind: 'stale-lock-claim' | 'stale-switchabl
 }
 
 const MODULE_FILE = join(BACKEND_ROOT, 'src/modules/blog/backend.ts');
-const SEARCH_ENTITY = join(BACKEND_ROOT, 'src/modules/search/entities/search-phrase-record.entity.ts');
 /**
  * The platform's own source root, and a synthetic file inside it. Rule B is
  * scoped by the root it is given since the relocation — a `/src/kernel/`
@@ -534,6 +533,20 @@ const CROSS_MODULE_RELATION = [
   `  target!: ${RELATION_TARGET.name};`,
   '}',
 ].join('\n');
+
+/**
+ * The importing file for the proof below — inside the **fixture** tree, because
+ * the specifier above is relative and rule A resolves it against this path.
+ *
+ * It replaces a `SEARCH_ENTITY` constant that spelled
+ * `backend/src/modules/search/entities/…`, a path the application tree stopped
+ * holding when batch two packaged `search`. Nothing noticed, because rule A only
+ * ever resolves the *target*; the importing path is read for its owner and never
+ * opened.
+ */
+const RELATION_TARGET_SOURCE = RELATION_TARGET.sourceFile(
+  'search/entities/search-phrase-record.entity.ts',
+);
 
 /**
  * A published port introduced the way every port in the tree is, naming
@@ -3022,7 +3035,7 @@ const CHECKS: readonly CheckEntry[] = [
     residueGuard: 'derived-population',
     red: {
       'rule-a-cross-module-relation': top(() =>
-        relationViolations(CROSS_MODULE_RELATION, SEARCH_ENTITY),
+        relationViolations(CROSS_MODULE_RELATION, RELATION_TARGET_SOURCE),
       ),
       'rule-b-platform-import': top(
         () =>

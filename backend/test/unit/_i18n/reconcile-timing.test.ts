@@ -11,7 +11,7 @@ import {
 import { type ModuleContext } from '../../../src/kernel/index.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { registerModule } from '../../../src/modules/_i18n/backend.js';
+import { registerModule } from '@endora-commerce/mod-i18n/backend';
 
 /**
  * Feature 072 wave 1 (T089) — `_i18n` reconciles on plugin attach, not on boot.

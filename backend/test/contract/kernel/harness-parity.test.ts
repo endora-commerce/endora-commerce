@@ -651,16 +651,16 @@ interface RootModuleImport {
  * hide the last two names of a three-name import.
  */
 const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
-  '_i18n:ERROR_TRANSLATION_KEYS': {
-    owner: '_i18n',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'D-54 moved this map out of `src/http` and into both roots on purpose: a platform peer ' +
-      'may not name a module, a root may. It drains when the error-code→translation-key ' +
-      'mapping is declared beside the codes in `@endora-commerce/contracts`, which is where the codes ' +
-      'already live, rather than in the module that renders them.',
-  },
+  // `_i18n:ERROR_TRANSLATION_KEYS` stood here in both roots and drained with
+  // T040b, which packaged the module: each root writes
+  // `@endora-commerce/mod-i18n/backend` now, and a bare specifier into a package
+  // is not an import from `src/modules/**`. The read itself is unchanged and
+  // still right for the reason the entry gave — D-54 moved the map out of
+  // `src/http` because a platform peer may not name a module and a root may —
+  // and the drain the entry predicted, declaring the code→key mapping beside
+  // the codes in `@endora-commerce/contracts`, is still available and still
+  // worth doing. What this ledger measures is the *root's* reach into the
+  // application's module tree, and that reach is gone.
   '_lifecycle:REGISTERED_MANIFESTS': {
     owner: '_lifecycle',
     roots: ['harness'],
@@ -828,10 +828,18 @@ const ROOT_MODULE_IMPORT_CEILING: Readonly<Record<RootName, number>> = {
   // because what it compared against was two of those entities' password
   // columns.
   // 5 → 4 (T040b, `auth`): `promoteAdminActor` is the same declaration, now
-  // written as a bare specifier into `@endora-commerce/mod-auth/backend`. What
-  // is left is the two infrastructure modules — `_i18n` and `_lifecycle` — plus
-  // `catalog` and `orders`, i.e. no module this sweep has already converted.
-  production: 4,
+  // written as a bare specifier into `@endora-commerce/mod-auth/backend`.
+  //
+  // 4 → 3 (T040b, `_i18n`): the cradle type and `ERROR_TRANSLATION_KEYS` were one
+  // declaration, now `@endora-commerce/mod-i18n/backend`. **Every remaining
+  // declaration in this root belongs to `_lifecycle`** — `lifecycleModuleFromStaticEntries`,
+  // `loadModulePresence`, and the pair off `registered-manifests.js` — so this
+  // number is now a statement about the one module left in the application
+  // tree, and the sweep's last move is what drains it rather than any
+  // decoupling work. The clause naming `catalog` and `orders` went with it: it
+  // was written before batch six and the `orders`/`payments` pair, and both had
+  // been packaged for some time when this was measured.
+  production: 3,
   // 5 → 3 (T040b): the same collector and roll-up derivation. The third
   // declaration this root lost is `product_feeds:FeedDeliveryError`, which was
   // `permanent` and therefore never counted here — so the raw count fell by
@@ -848,7 +856,10 @@ const ROOT_MODULE_IMPORT_CEILING: Readonly<Record<RootName, number>> = {
   // the way the deployment does instead of contributing `() => undefined`. The
   // number went up and the divergence went down, and where those two disagree
   // the divergence is the one that matters.
-  harness: 3,
+  //
+  // 3 → 2 (T040b, `_i18n`): the same declaration, on the same terms as
+  // production's. Both of this root's remaining declarations are `_lifecycle`'s.
+  harness: 2,
 };
 
 /**

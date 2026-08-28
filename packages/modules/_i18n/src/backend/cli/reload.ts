@@ -30,7 +30,7 @@
  * and every installed package (feature 080, T032).
  */
 import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
-import { lazyPort, type ModuleContext } from '../../../kernel/index.js';
+import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
 import {
   reconcileBundles,
   type I18nReconcileEntry,
