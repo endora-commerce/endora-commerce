@@ -4249,6 +4249,95 @@ const CHECKS: readonly CheckEntry[] = [
         }).unpublishedResolutions;
         return findings.length === 1 && findings[0]?.line === 2 ? 1 : 0;
       }),
+      // D-171.1 — the condition. `payments` registers `orders`' interface with
+      // an explicitly typed `providePort<T>` and names it at no `implements`
+      // clause, so nothing in the language relates the two types: that is
+      // D-77's rejected alternative, and it is what the amendment refuses.
+      // Source text on both sides, so the declaration has to be found in the
+      // module's own `ports/` and the registration in its `backend.ts`.
+      'declared-elsewhere-without-implements': top(
+        () =>
+          checkPortShape({
+            contracts: new Map([['contracts/orders.ts', PORT_DOC('orderReadPort')]]),
+            modules: new Map([
+              [
+                'modules/payments/backend.ts',
+                "ctx.di.providePort<PaymentPlacementApplyPort>('paymentPlacementApplyPort', " +
+                  'ctx.asFunction(f).singleton());',
+              ],
+              [
+                'modules/payments/services/payment-placement-apply-port.ts',
+                [
+                  'export class PaymentPlacementApplyService {',
+                  '  openForOrder(em: EntityManager): Promise<void> {}',
+                  '}',
+                ].join('\n'),
+              ],
+            ]),
+            modulePorts: new Map([
+              [
+                'modules/orders/ports/index.ts',
+                [
+                  '/**',
+                  ' * Container name: `paymentPlacementApplyPort`. Owner: `payments`.',
+                  ' */',
+                  'export interface PaymentPlacementApplyPort {',
+                  '  openForOrder(em: EntityManager): Promise<void>;',
+                  '}',
+                ].join('\n'),
+              ],
+            ]),
+            unregisteredLedger: {},
+            unpublishedResolutionLedger: {},
+          }).declaredElsewhere.filter((f) => f.kind === 'declared-elsewhere-without-implements')
+            .length,
+      ),
+      // The discrimination, counted as a finding so it can go red on its own:
+      // the same declaration and the same registration, with the `implements`
+      // clause present, must be silent. A signal that reported every
+      // cross-module registration would fire here; one that had stopped reading
+      // module ports at all would report 0 above and 0 here, and only this
+      // pair tells the two apart.
+      'declared-elsewhere-discrimination': top(() => {
+        const declaration = new Map([
+          [
+            'modules/orders/ports/index.ts',
+            [
+              '/**',
+              ' * Container name: `paymentPlacementApplyPort`. Owner: `payments`.',
+              ' */',
+              'export interface PaymentPlacementApplyPort {',
+              '  openForOrder(em: EntityManager): Promise<void>;',
+              '}',
+            ].join('\n'),
+          ],
+        ]);
+        const registration =
+          "ctx.di.providePort<PaymentPlacementApplyPort>('paymentPlacementApplyPort', " +
+          'ctx.asFunction(f).singleton());';
+        const implementing = [
+          'export class PaymentPlacementApplyService implements PaymentPlacementApplyPort {',
+          '  openForOrder(em: EntityManager): Promise<void> {}',
+          '}',
+        ].join('\n');
+        const run = (service: string): number =>
+          checkPortShape({
+            contracts: new Map([['contracts/orders.ts', PORT_DOC('orderReadPort')]]),
+            modules: new Map([
+              ['modules/payments/backend.ts', registration],
+              ['modules/payments/services/payment-placement-apply-port.ts', service],
+            ]),
+            modulePorts: declaration,
+            unregisteredLedger: {},
+            unpublishedResolutionLedger: {},
+          }).declaredElsewhere.length;
+        const withoutClause = [
+          'export class PaymentPlacementApplyService {',
+          '  openForOrder(em: EntityManager): Promise<void> {}',
+          '}',
+        ].join('\n');
+        return run(implementing) === 0 && run(withoutClause) === 1 ? 1 : 0;
+      }),
       'stale-unpublished-resolution': top(
         () =>
           checkPortShape({
@@ -6006,7 +6095,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // findings, so neither would ever be noticed as a defect — an author would
       // read the extra finding as real and widen the barrel to clear it.
       'backend/scripts/check-platform-surface.ts': 9,
-      'backend/scripts/check-port-shape.ts': 8,
+      // Plus D-171.1's two: the condition consumer-side declaration is
+      // licensed against, and the discrimination that keeps it from firing on
+      // the correct case. The second is a proof of its own because a signal
+      // that reported every provider — or none — reads identically green on the
+      // tree, which today declares four module ports and refuses none of them.
+      'backend/scripts/check-port-shape.ts': 10,
       // Eight findings, plus the two refusals that are decisions rather than
       // printing: the short walk (issue #215 over a workspace, where losing the
       // library glob leaves four application manifests answering every

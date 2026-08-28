@@ -421,12 +421,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // is every tree since !910 — `expected: 0` is itself a refusal.
     sources: ['manifest-index', 'platform-barrels', 'host-dependents'],
   },
+  // Re-recorded by D-171.1, which widened the published-port population from
+  // `packages/contracts/src` alone to include a module package's declared
+  // `./ports` subpath. Both numbers move for the same reason and neither is
+  // slack absorbed: `files` gains the ports sources themselves, `sites` gains
+  // the ports they declare. `ports-subpaths` is the second source that arrived
+  // with it — a package's `exports` map declares `./ports` because the
+  // generator saw the file, so a walk that stopped finding them disagrees with
+  // the manifests in the same run. It grows with every module package that
+  // publishes a port, which is a legitimate re-record and not a band to widen.
   'backend/scripts/check-port-shape.ts': {
     prefix: '[port-shape]',
     run: { kind: 'tsx', path: 'scripts/check-port-shape.ts', args: [] },
-    files: 1502,
-    sites: 581,
-    sources: ['manifest-index'],
+    files: 1600,
+    sites: 615,
+    sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
   // `.changeset/config.json`, `pnpm-workspace.yaml`, one manifest per member

@@ -683,3 +683,235 @@ describe('the resolution ledger the tree ships', () => {
     }
   });
 });
+
+/**
+ * **Signal 4 (D-171.1)** — the condition consumer-side declaration is licensed
+ * against, and the widening of the published population that gives it a
+ * subject.
+ *
+ * D-171 §4 refused consumer-side declaration outright, on the ground that
+ * `lazyPort<T>` is an unchecked cast. It is — and that is about the wrong seam:
+ * conformance is checked on the **provider**, at its `implements` clause and at
+ * its explicitly typed `providePort<T>`, both of which resolve the interface
+ * wherever it was declared. So the amendment licenses the placement against the
+ * provider naming the interface at both, and this signal is the half a check
+ * can see.
+ *
+ * The discriminations carry more of the rule than the finding does. A signal
+ * that reported every cross-module registration would be turned off within a
+ * week, and one that had stopped reading module ports at all reports the same
+ * clean zero — which is why the tree's own four module-declared ports are
+ * asserted as a population rather than assumed.
+ */
+const ORDERS_PORTS = 'modules/orders/ports/index.ts';
+const DECLARED_ELSEWHERE = [
+  '/**',
+  ' * Container name: `paymentPlacementApplyPort`. Owner: `payments`.',
+  ' *',
+  ' * Declared here and implemented by `payments`: the reaches are mutual, and',
+  ' * `payments.dependencies` contains `orders` (D-171.1).',
+  ' */',
+  'export interface PaymentPlacementApplyPort {',
+  '  openForOrder(em: EntityManager, orderId: string): Promise<void>;',
+  '}',
+].join('\n');
+const PAYMENTS_REGISTRATION = [
+  'export function registerModule(ctx: ModuleContext): void {',
+  "  ctx.di.providePort<PaymentPlacementApplyPort>('paymentPlacementApplyPort',",
+  '    ctx.asFunction(() => new PaymentPlacementApplyService()).singleton());',
+  '}',
+].join('\n');
+
+function mutualPair(service: string): PortShapeInput {
+  return {
+    contracts: new Map([[PORT_FILE, PUBLISHED_PORT]]),
+    modules: new Map([
+      [REGISTRATION_FILE, GATED_REGISTRATION],
+      ['modules/payments/backend.ts', PAYMENTS_REGISTRATION],
+      ['modules/payments/services/payment-placement-apply-port.ts', service],
+    ]),
+    modulePorts: new Map([[ORDERS_PORTS, DECLARED_ELSEWHERE]]),
+    unregisteredLedger: {},
+    unpublishedResolutionLedger: {},
+  };
+}
+
+const IMPLEMENTING = [
+  'export class PaymentPlacementApplyService implements PaymentPlacementApplyPort {',
+  '  async openForOrder(em: EntityManager, orderId: string): Promise<void> {}',
+  '}',
+].join('\n');
+const NOT_IMPLEMENTING = [
+  'export class PaymentPlacementApplyService {',
+  '  async openForOrder(em: EntityManager, orderId: string): Promise<void> {}',
+  '}',
+].join('\n');
+
+describe('check:port-shape — the D-171.1 condition', () => {
+  it('refuses an interface declared by one module and implemented by no class in the provider', () => {
+    const result = checkPortShape(mutualPair(NOT_IMPLEMENTING));
+    expect(result.declaredElsewhere).toHaveLength(1);
+    expect(result.declaredElsewhere[0]).toMatchObject({
+      portName: 'PaymentPlacementApplyPort',
+      declaringModule: 'orders',
+      providingModule: 'payments',
+      container: 'paymentPlacementApplyPort',
+      kind: 'declared-elsewhere-without-implements',
+    });
+  });
+
+  it('is silent when the provider names it at an `implements` clause', () => {
+    // The whole of the amendment: the placement is legal, the condition is the
+    // provider's. A signal that reported this would refuse D-171.1 itself.
+    expect(checkPortShape(mutualPair(IMPLEMENTING)).declaredElsewhere).toHaveLength(0);
+  });
+
+  it('is silent when the declaring module is the provider — the ordinary case', () => {
+    // D-171 §4's unamended half. Nothing about a single reach changes, so a
+    // module declaring and registering its own port is outside the population
+    // whether or not it writes an `implements` clause.
+    const result = checkPortShape({
+      contracts: new Map([[PORT_FILE, PUBLISHED_PORT]]),
+      modules: new Map([['modules/orders/backend.ts', PAYMENTS_REGISTRATION]]),
+      modulePorts: new Map([[ORDERS_PORTS, DECLARED_ELSEWHERE]]),
+      unregisteredLedger: {},
+      unpublishedResolutionLedger: {},
+    });
+    expect(result.declaredElsewhere).toHaveLength(0);
+  });
+
+  it('is silent for a port in the contracts package, which belongs to no module', () => {
+    // "Declared elsewhere" has no meaning for a contract: it is nobody's
+    // module, so there is no other side for the declaration to be on.
+    const result = checkPortShape({
+      contracts: new Map([
+        [PORT_FILE, PUBLISHED_PORT],
+        ['contracts/payments.ts', DECLARED_ELSEWHERE],
+      ]),
+      modules: new Map([
+        [REGISTRATION_FILE, GATED_REGISTRATION],
+        ['modules/payments/backend.ts', PAYMENTS_REGISTRATION],
+        ['modules/payments/services/payment-placement-apply-port.ts', NOT_IMPLEMENTING],
+      ]),
+      unregisteredLedger: {},
+      unpublishedResolutionLedger: {},
+    });
+    expect(result.declaredElsewhere).toHaveLength(0);
+  });
+
+  it('does not see an untyped registration, so its port lands in the unregistered ledger instead', () => {
+    // The complementary direction, which needs no code of its own: dropping the
+    // explicit type argument stops the call being a registration this check can
+    // attribute, so the interface reads as provided by nothing. That is what
+    // makes the explicit argument part of the condition rather than a style
+    // note — an inferred `T` compares nothing, here or in `tsc`.
+    const result = checkPortShape({
+      contracts: new Map([[PORT_FILE, PUBLISHED_PORT]]),
+      modules: new Map([
+        [REGISTRATION_FILE, GATED_REGISTRATION],
+        [
+          'modules/payments/backend.ts',
+          "ctx.di.providePort('somethingElse', ctx.asFunction(f).singleton());",
+        ],
+      ]),
+      modulePorts: new Map([[ORDERS_PORTS, DECLARED_ELSEWHERE]]),
+      unregisteredLedger: {},
+      unpublishedResolutionLedger: {},
+    });
+    expect(result.declaredElsewhere).toHaveLength(0);
+    expect(
+      result.nameFindings.filter((f) => f.kind === 'container-name-unregistered'),
+    ).toHaveLength(1);
+  });
+});
+
+describe('check:port-shape — the widened published population (D-171.1)', () => {
+  it('publishes a name declared on a module port, so a consumer resolving it is not a finding', () => {
+    // The half of the widening that retires the resolution ledger: before it,
+    // the container name below was published by nothing and the consumer's
+    // `lazyPort` was `resolution-of-unpublished-name`.
+    const consumer = new Map([
+      [REGISTRATION_FILE, GATED_REGISTRATION],
+      ['modules/payments/backend.ts', PAYMENTS_REGISTRATION],
+      ['modules/payments/services/payment-placement-apply-port.ts', IMPLEMENTING],
+      [
+        'modules/orders/services/order-service.ts',
+        "const pay = lazyPort<PaymentPlacementApplyPort>(ctx, 'paymentPlacementApplyPort');",
+      ],
+    ]);
+    const base = {
+      contracts: new Map([[PORT_FILE, PUBLISHED_PORT]]),
+      modules: consumer,
+      unregisteredLedger: {},
+      unpublishedResolutionLedger: {},
+    };
+    expect(checkPortShape(base).unpublishedResolutions).toHaveLength(1);
+    expect(
+      checkPortShape({ ...base, modulePorts: new Map([[ORDERS_PORTS, DECLARED_ELSEWHERE]]) })
+        .unpublishedResolutions,
+    ).toHaveLength(0);
+  });
+
+  it('counts the module ports it read, so a walk that produced none is distinguishable', () => {
+    // The CLI turns this zero into exit 2. Without it a walk that stopped
+    // producing ports would report the resolution ledger's retired entries as
+    // stale, and the obvious repair — deleting them — records a repair that
+    // never happened (issue #113).
+    expect(checkPortShape(mutualPair(IMPLEMENTING)).modulePortCount).toBe(1);
+    expect(
+      checkPortShape({ ...mutualPair(IMPLEMENTING), modulePorts: new Map() }).modulePortCount,
+    ).toBe(0);
+  });
+
+  it('applies the optional-method rule to a module-declared port too', () => {
+    // Signal 1 over the widened population: an optional method is the same
+    // hazard whichever side of the boundary declared the interface, because
+    // `lazyPort`'s proxy answers every property with a function either way.
+    const result = checkPortShape({
+      contracts: new Map([[PORT_FILE, PUBLISHED_PORT]]),
+      modules: new Map([[REGISTRATION_FILE, GATED_REGISTRATION]]),
+      modulePorts: new Map([
+        [
+          ORDERS_PORTS,
+          [
+            '/** Container name: `paymentPlacementApplyPort`. */',
+            'export interface PaymentPlacementApplyPort {',
+            '  openForOrder(em: EntityManager): Promise<void>;',
+            '  markDeferred?(em: EntityManager): Promise<void>;',
+            '}',
+          ].join('\n'),
+        ],
+      ]),
+      unregisteredLedger: {},
+      unpublishedResolutionLedger: {},
+    });
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]).toMatchObject({
+      member: 'markDeferred',
+      kind: 'optional-method-on-port',
+    });
+  });
+
+  it('reports a port once when the same file arrives in both halves of the walk', () => {
+    // A real run walks a package's ports file twice — it is a module source and
+    // it is a port declaration — so signal 1 scans the union keyed by file. The
+    // concatenation would report one optional method as two.
+    const withOptional = [
+      '/** Container name: `paymentPlacementApplyPort`. */',
+      'export interface PaymentPlacementApplyPort {',
+      '  markDeferred?(em: EntityManager): Promise<void>;',
+      '}',
+    ].join('\n');
+    const result = checkPortShape({
+      contracts: new Map([[PORT_FILE, PUBLISHED_PORT]]),
+      modules: new Map([
+        [REGISTRATION_FILE, GATED_REGISTRATION],
+        [ORDERS_PORTS, withOptional],
+      ]),
+      modulePorts: new Map([[ORDERS_PORTS, withOptional]]),
+      unregisteredLedger: {},
+      unpublishedResolutionLedger: {},
+    });
+    expect(result.findings).toHaveLength(1);
+  });
+});
