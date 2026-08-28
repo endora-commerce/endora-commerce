@@ -76,6 +76,21 @@ async function main(): Promise<void> {
   );
 
   const check = process.argv.includes('--check');
+  // D-181's predicate is a question about the built artefact — does this
+  // specifier survive into the emitted `.d.ts`? — so a package that has never
+  // been built has no answer, only this generator's fail-closed guess. Writing
+  // that guess is right, because a package cannot be built before its manifest
+  // exists; holding the tree to it is not, because it is not what the next run
+  // after a build will render.
+  if (check && run.unbuiltPackages.length > 0) {
+    process.stderr.write(
+      `${PREFIX} ${run.unbuiltPackages.length} package(s) have no emitted declarations, so ` +
+        `D-181's derivation had nothing to read and every reach was taken to survive: ` +
+        `${run.unbuiltPackages.join(', ')}\n` +
+        `  Build them first: pnpm run build:packages\n`,
+    );
+    process.exit(2);
+  }
   let stale = false;
   for (const artefact of run.rendered) {
     const onDisk = existsSync(artefact.outputPath)
@@ -119,6 +134,15 @@ async function main(): Promise<void> {
         source: 'manifest-index',
         expected: run.registeredPackageNames.length,
         covered: run.registeredPackageNames.filter((name) => renderedNames.has(name)).length,
+      },
+      // D-181's own population, reconciled against the same set: a package
+      // whose emitted declarations this run could not read answered the
+      // survival question by guessing, and a run that guessed for all of them
+      // is one that read no artefact at all.
+      {
+        source: 'emitted-declarations',
+        expected: run.rendered.length,
+        covered: run.rendered.length - run.unbuiltPackages.length,
       },
     ],
   });
