@@ -16,9 +16,18 @@ import { assertWorkspacePackagesAreLocal } from './scripts/workspace-resolution.
 // from the manifest and never looks at the link.
 //
 // This is the one file every workspace's vitest config merges, so the guard
-// runs once per invocation in backend, admin and storefront alike — before a
-// test file is collected, and without anybody having to remember it. See
-// `scripts/workspace-resolution.ts` for what it can and cannot see.
+// runs once per invocation — before a test file is collected, and without
+// anybody having to remember it. See `scripts/workspace-resolution.ts` for what
+// it can and cannot see.
+//
+// **A run that does not import this file does not ask the question**, which is
+// the one way the arrangement fails and did: five packages under `packages/`
+// had no vitest configuration at all and ran on vitest's defaults, green,
+// printing no `[workspace-resolution] read:` line and giving a reader nothing
+// to notice. Coverage is therefore derived rather than assumed —
+// `backend/test/unit/harness/workspace-resolution.test.ts` fails a workspace
+// member that invokes vitest with no configuration, and one whose configuration
+// does not import this file.
 assertWorkspacePackagesAreLocal();
 
 export default defineConfig({

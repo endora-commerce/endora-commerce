@@ -242,7 +242,19 @@ the checkout it would borrow from.
 
 Getting it wrong no longer produces a wrong measurement: `vitest.config.base.ts` — the one
 file every workspace's vitest config merges — refuses the run, naming each foreign link and
-its target. It covers `backend`, `admin` and `storefront` in one place; `tsc` is covered
+its target. **Which runs it covers is derived, not listed.** The guard classifies every
+declared consumer→package link in the checkout, whichever workspace invoked it — the count
+is in the line it prints — but it is evaluated only where `vitest.config.base.ts` is
+**imported**, so coverage is exactly the workspaces whose vitest configuration merges it, and
+a run declares its own membership by printing
+`[workspace-resolution] read: links=… sources=workspace-packages:…`. A test run that prints
+no such line is outside the guard, whatever its colour. This sentence read *“it covers
+`backend`, `admin` and `storefront` in one place”* until 2026-08-28: true when written, still
+true the day it was replaced, and exactly why nobody learned that five packages under
+`packages/` ran on vitest's defaults with no configuration at all. So the derivation is
+enforced rather than restated — `backend/test/unit/harness/workspace-resolution.test.ts`
+fails a workspace member that invokes vitest with no configuration, and a configuration that
+does not import the base. `tsc` is covered
 instead by `paths` in `tsconfig.base.json` being complete, which
 `backend/test/unit/harness/workspace-resolution.test.ts` keeps true for every package the
 workspace globs produce — **however deep** they nest it (feature 080, T040a) — with the
