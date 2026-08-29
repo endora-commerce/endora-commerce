@@ -71,9 +71,23 @@ import {
 } from '../../../scripts/check-kernel-boundary.js';
 import { inTreeRelationTarget } from '../../helpers/in-tree-relation-target.js';
 import {
+  checkAdminRegistrations,
+  vacuousReason as adminRegistrationsVacuousReason,
+  type AdminRegistrationFinding,
+} from '../../../scripts/check-admin-registrations.js';
+import type {
+  AdminNavDeclaration,
+  AdminRouteDeclaration,
+  AdminSurfaceLayout,
+} from '../../../scripts/lib/admin-surfaces.js';
+import type { AdminRegistrationCounts } from '../../../scripts/ledgers/admin-registrations.js';
+import {
+  adminPopulationLost,
   analyzeSource as moduleBoundaryAnalyze,
   checkModuleBoundary,
   findCrossModuleSql,
+  type AdminBoundarySurfaces,
+  type CrossModuleImport,
   type CrossModuleImportKind,
 } from '../../../scripts/check-module-boundary.js';
 import {
@@ -1617,12 +1631,107 @@ const ORDERS_READS_A_PRODUCT_TWICE = [
 ].join('\n');
 const CROSS_MODULE_KEY = `${ORDER_SERVICE_FILE}:catalog/entities/product.entity`;
 
+// --- check-admin-registrations (feature 091, FR-018) -------------------------
+//
+// The fixture is a route table and a nav, as declarations, plus the import map
+// that says which surface directory a component comes from. That is where the
+// attribution happens and therefore where the proof has to enter: a fixture
+// handing in a ready-made owner would exercise the subtraction and leave the
+// two attributions — the one that reads `App.tsx`'s imports and the one that
+// reads `AppShell.tsx`'s `module` field — unrun (issue #130).
+function adminRegistrationFindings(
+  baseline: Readonly<Record<string, AdminRegistrationCounts>>,
+  blog: AdminRegistrationCounts | null,
+): readonly AdminRegistrationFinding[] {
+  const routes: AdminRouteDeclaration[] = [];
+  const nav: AdminNavDeclaration[] = [];
+  if (blog !== null) {
+    for (let at = 0; at < blog.routes; at += 1) {
+      routes.push({ path: `/blog/${at}`, component: 'BlogPage', line: at + 1 });
+    }
+    for (let at = 0; at < blog.nav; at += 1) {
+      nav.push({ to: `/blog/${at}`, module: 'blog', line: at + 1 });
+    }
+  }
+  return checkAdminRegistrations(
+    {
+      routes,
+      nav,
+      componentDirectories: new Map([['BlogPage', 'blog']]),
+      moduleOfDirectory: new Map([['blog', 'blog']]),
+      registered: new Set(['blog']),
+    },
+    baseline,
+  ).findings;
+}
+
+/** 1 when the record refuses the run, 0 when it does not. */
+function adminRegistrationsVacuous(record: {
+  readonly admin?: AdminSurfaceLayout | null;
+  readonly routes: number;
+  readonly nav: number;
+  readonly baselineEntries: number;
+}): number {
+  const admin =
+    record.admin === undefined
+      ? ({ sourceRoot: 'admin/src' } as AdminSurfaceLayout)
+      : record.admin;
+  return adminRegistrationsVacuousReason({ ...record, admin }) === null ? 0 : 1;
+}
+
 function moduleBoundaryTree(source: string): Map<string, string> {
   return new Map([
     ['modules/orders/backend.ts', 'export function registerModule(ctx) {}'],
     ['modules/catalog/backend.ts', 'export function registerModule(ctx) {}'],
     [ORDER_SERVICE_FILE, source],
   ]);
+}
+
+// --- the admin population (feature 091, FR-017) ------------------------------
+//
+// The fixture is the **layout**, not a resolved attribution: which module owns
+// an admin surface directory is exactly the thing that goes wrong, and a proof
+// handed a ready-made owner would leave the alias expansion and the
+// directory→module join — the two halves the defect lives in — unexercised
+// (issue #130). `warehouses` is `inventory`'s here because `AppShell.tsx`
+// attributes `/warehouses` to `module: 'inventory'` in the real tree, and
+// `_shared` is nobody's for the same reason: no nav entry claims it.
+const ADMIN_SURFACES: AdminBoundarySurfaces = {
+  sourceRoot: 'admin/src',
+  moduleRoot: 'admin/src/modules',
+  aliasPrefix: '@/',
+  moduleOfDirectory: new Map([
+    ['catalog', 'catalog'],
+    ['inventory', 'inventory'],
+    ['warehouses', 'inventory'],
+    ['assets_library', 'assets_library'],
+  ]),
+};
+
+function adminReaches(source: string, file: string): readonly CrossModuleImport[] {
+  return moduleBoundaryAnalyze(
+    source,
+    file,
+    undefined,
+    undefined,
+    undefined,
+    ADMIN_SURFACES,
+  );
+}
+
+function adminTargets(source: string, file: string, target: string): number {
+  return adminReaches(source, file).filter((finding) => finding.target === target).length;
+}
+
+/**
+ * A reach the analysis must see, carried in every discrimination below so a
+ * proof cannot go green off seeing nothing.
+ */
+const ADMIN_CONTROL = "import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';";
+
+function adminOnlyTheControl(source: string, file: string): number {
+  const found = adminReaches(source, file);
+  return found.length === 1 && found[0]?.target === 'assets_library' ? 1 : 0;
 }
 
 /**
@@ -2306,6 +2415,79 @@ const REACHES_THE_SERVICE =
   "'../../../packages/modules/billing/src/backend/services/document-corrections.js';\n";
 
 const CHECKS: readonly CheckEntry[] = [
+  {
+    // Feature 091's FR-018. Four findings, and the two count drifts are the
+    // ones the ratchet exists for — a batch that moves a module's admin
+    // directory does not touch either host file, so the number it leaves
+    // behind describes a registration that is now declared twice. Every
+    // fixture enters as route and nav **declarations** plus the import map,
+    // because the attribution — a route by the directory its component comes
+    // from, a nav entry by the `module` field it carries — is where the defect
+    // lives; a proof handed a ready-made owner would count the arithmetic and
+    // nothing above it (issue #130).
+    script: 'backend/scripts/check-admin-registrations.ts',
+    npmScript: 'check:admin-registrations',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-admin-registrations.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is the admin's two host registries, which a moved backend
+    // module tree does not touch. What it *does* follow is the admin module
+    // root, derived from the source alias — and losing that is exit 2 through
+    // its own first vacuous reason, proven below.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'unrecorded-module': top(
+        () =>
+          adminRegistrationFindings({}, { routes: 1, nav: 1 }).filter(
+            (finding) => finding.kind === 'unrecorded-module',
+          ).length,
+      ),
+      'stale-baseline-entry': top(
+        () =>
+          adminRegistrationFindings({ blog: { routes: 3, nav: 1 } }, null).filter(
+            (finding) => finding.kind === 'stale-baseline-entry' && finding.owner === 'blog',
+          ).length,
+      ),
+      // The direction Story 3 produces: the screens moved into the package and
+      // the `<Route>` stayed, so the admin declares it twice.
+      'route-count-drift-above': top(
+        () =>
+          adminRegistrationFindings({ blog: { routes: 3, nav: 1 } }, { routes: 1, nav: 1 }).filter(
+            (finding) => finding.kind === 'route-count-drift',
+          ).length,
+      ),
+      // The other direction: a module grew a hand-written registration, which
+      // after Phase 2 is no longer how an admin screen is added.
+      'route-count-drift-below': top(
+        () =>
+          adminRegistrationFindings({ blog: { routes: 0, nav: 1 } }, { routes: 1, nav: 1 }).filter(
+            (finding) => finding.kind === 'route-count-drift',
+          ).length,
+      ),
+      'nav-count-drift': top(
+        () =>
+          adminRegistrationFindings({ blog: { routes: 1, nav: 4 } }, { routes: 1, nav: 1 }).filter(
+            (finding) => finding.kind === 'nav-count-drift',
+          ).length,
+      ),
+      // The four vacuous reasons, each entered on the record a real run builds.
+      // Without them a tree whose admin had moved would compare an empty walk
+      // against an empty baseline and report a cheerful zero.
+      'no-admin-layout-refuses': top(() =>
+        adminRegistrationsVacuous({ admin: null, routes: 0, nav: 0, baselineEntries: 1 }),
+      ),
+      'no-routes-refuses': top(() =>
+        adminRegistrationsVacuous({ routes: 0, nav: 1, baselineEntries: 1 }),
+      ),
+      'no-nav-refuses': top(() =>
+        adminRegistrationsVacuous({ routes: 1, nav: 0, baselineEntries: 1 }),
+      ),
+      'empty-baseline-refuses': top(() =>
+        adminRegistrationsVacuous({ routes: 1, nav: 1, baselineEntries: 0 }),
+      ),
+    },
+  },
   {
     // Four signals in the header, so four proofs — signal 4 carries both of the
     // positions it was widened to see (D-48), which is the pair signal 3 could
@@ -3489,6 +3671,119 @@ const CHECKS: readonly CheckEntry[] = [
           `${KNEX_BINDING}\n${BUILDER_CONTROL}\n` +
             "if (!effectiveState.isPresent('assets')) return;\nconst label = translate('cms_blocks');",
         ),
+      ),
+
+      // --- the admin population (feature 091, FR-017) ----------------------
+      //
+      // 72 cross-module reaches stand inside `admin/src/modules` and every one
+      // of them was outside every boundary instrument in this repository:
+      // `moduleWalkRoots` does not include `admin/`. The cost is not that they
+      // went unjudged — it is what happens when a directory moves into its
+      // module's package, which is the shape
+      // `specs/084-small-f4-package-layout/contracts/module-package-layout.md`
+      // §0 measured on the backend: the specifier is rewritten, the reach
+      // leaves the walk, and the two-way ledger calls the entry describing it
+      // stale. Seven proofs, four positive and three discriminations, all
+      // entering as source text and a path with the layout as the only
+      // pre-computed input.
+      'admin-alias-reach': top(() =>
+        adminTargets(
+          "import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';",
+          'admin/src/modules/catalog/ProductEditor.tsx',
+          'assets_library',
+        ),
+      ),
+      // 27 of the 94 are written relatively rather than through the alias, and
+      // an alias-only resolver would report them as third-party imports it
+      // cleared.
+      'admin-relative-reach': top(() =>
+        adminTargets(
+          "import { CountryPicker } from '../assets_library/components/CountryPicker.js';",
+          'admin/src/modules/catalog/ProductEditor.tsx',
+          'assets_library',
+        ),
+      ),
+      // The directory name is not the module id. `AppShell.tsx` attributes
+      // `/warehouses` to `module: 'inventory'`, so a `basename` attribution
+      // files this reach under a module that does not exist — an orphan shard,
+      // which reads as a ledger defect rather than as a mis-attribution.
+      'admin-directory-that-is-not-a-module-id': top(() =>
+        adminTargets(
+          ADMIN_CONTROL,
+          'admin/src/modules/warehouses/WarehouseEditor.tsx',
+          'assets_library',
+        ) === 1 &&
+        adminReaches(ADMIN_CONTROL, 'admin/src/modules/warehouses/WarehouseEditor.tsx')[0]
+          ?.moduleId === 'inventory'
+          ? 1
+          : 0,
+      ),
+      // A `.tsx` under the module root whose directory no route attributes is
+      // the admin application's own, and its reaches are not a module's debt.
+      // The control is in the same fixture, one directory over, so the proof
+      // cannot pass by seeing nothing.
+      'admin-host-owned-directory-is-not-a-module': top(() =>
+        adminReaches(ADMIN_CONTROL, 'admin/src/modules/_shared/email-builder/Editor.tsx')
+          .length === 0 &&
+        adminReaches(ADMIN_CONTROL, 'admin/src/modules/catalog/ProductEditor.tsx').length === 1
+          ? 1
+          : 0,
+      ),
+      // The other direction of the same rule: a reach *into* a host-owned
+      // directory is not a cross-module reach either, because there is no
+      // module on the far side to ask for a port.
+      'admin-reach-into-a-host-owned-directory-is-not-a-finding': top(() =>
+        adminOnlyTheControl(
+          `${ADMIN_CONTROL}\nimport { EmailBuilder } from '@/modules/_shared/email-builder';`,
+          'admin/src/modules/catalog/ProductEditor.tsx',
+        ),
+      ),
+      // In the backend the *directory* is the identity, so an overlay `catalog`
+      // reaching the core `catalog` is the cross-tree edge it is. In the admin
+      // one module owns two surface directories, and comparing directories
+      // reports `inventory -> inventory` as a violation nobody can ledger.
+      'admin-two-directories-of-one-module-is-not-a-finding': top(() =>
+        adminOnlyTheControl(
+          `${ADMIN_CONTROL}\nimport { Panel } from '@/modules/warehouses/ChannelMembershipPanel';`,
+          'admin/src/modules/inventory/InventoryPage.tsx',
+        ),
+      ),
+      // Issue #215 one frontend over, and the direction the coverage floor
+      // cannot see: the floor is derived from the admin layout, so a layout
+      // that resolved to nothing turns the floor off while every other number
+      // holds. The ledger is the independent author — a `.tsx` key was written
+      // by the merge request that recorded the reach — so its keys standing
+      // against an absent layout is exit 2 rather than 72 stale entries.
+      'admin-population-lost-refuses': top(() =>
+        adminPopulationLost(
+          null,
+          ['admin/src/modules/catalog/ProductEditor.tsx:assets_library/components/AssetPicker'],
+          () => true,
+        ) === null
+          ? 0
+          : 1,
+      ),
+      // Its discrimination, in the same shape: a backend ledger key must not
+      // trip the refusal, or every fixture tree in `test/helpers` would exit 2
+      // for a reason that has nothing to do with the admin.
+      'admin-population-lost-ignores-a-backend-key': top(() =>
+        adminPopulationLost(null, [CROSS_MODULE_KEY], () => true) === null ? 1 : 0,
+      ),
+      // The second half of the anchor's question, and the one the split-tree
+      // fixture found: it asks whether the *derivation* broke while the tree it
+      // derives from stayed. A checkout with no `admin/` at all has genuinely
+      // stale entries and the two-way ledger says so in its own words — so a
+      // key whose file is gone must not turn that into exit 2, or every
+      // synthetic backend copying the real ledger shards refuses for a reason
+      // that has nothing to do with the module tree.
+      'admin-population-lost-ignores-a-key-whose-file-is-gone': top(() =>
+        adminPopulationLost(
+          null,
+          ['admin/src/modules/catalog/ProductEditor.tsx:assets_library/components/AssetPicker'],
+          () => false,
+        ) === null
+          ? 1
+          : 0,
       ),
     },
   },
@@ -5974,6 +6269,9 @@ describe('every red proof enters at the top of the analysis', () => {
       CHECKS.map((check) => [check.script, Object.keys(check.red).length]),
     );
     expect(shapes).toEqual({
+      // Four findings and the four vacuous reasons, plus both directions of the
+      // route count — the ratchet's whole claim is that it fails either way.
+      'backend/scripts/check-admin-registrations.ts': 9,
       // Two directions of a wrong code, three ways a target cannot be resolved,
       // and the ledger's stale direction.
       'backend/scripts/check-action-route-permissions.ts': 6,
@@ -6070,7 +6368,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // emitted module cannot be read is refused rather than exempted — the one
       // direction in which issue #113's silence grants standing instead of
       // withholding it.
-      'backend/scripts/check-module-boundary.ts': 41,
+      'backend/scripts/check-module-boundary.ts': 50,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue

@@ -3,9 +3,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  adminSurfacesOf,
   analyzeSource,
   CANONICAL_SHARD_ENTRY_TYPE,
   checkModuleBoundary,
+  collectAdminFiles,
   collectModuleFiles,
   collectSchemaFiles,
   schemaKeyOf,
@@ -1409,12 +1411,30 @@ describe('the tree itself', () => {
   it('has every cross-module reach ledgered, in its own shard', async () => {
     const layout = await resolveModuleLayout();
     const shards = await loadLedgerShards(ledgerDirectory());
-    const sources = sourcesOf(collectModuleFiles(layout.moduleWalkRoots), layout.keyOf);
+    // The admin population joins here for the same reason it joins in the CLI
+    // (feature 091, FR-017): a walk without it reports every admin ledger entry
+    // as stale, which is the two-way ledger doing its job over a half-read
+    // tree. Both halves come off the same functions the CLI calls, so the two
+    // cannot come to disagree about the scan scope.
+    const admin = await adminSurfacesOf(layout);
+    expect(admin, 'no admin surfaces resolved — a vacuous pass').not.toBeNull();
+    const adminFiles = collectAdminFiles(admin, layout.repoRoot);
+    expect(adminFiles.length, 'no admin sources found — a vacuous pass').toBeGreaterThan(100);
+    const moduleFiles = collectModuleFiles(layout.moduleWalkRoots);
+    const sources = sourcesOf([...moduleFiles, ...adminFiles], layout.keyOf);
     const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), schemaKeyOf(layout));
     expect(sources.size, 'no module sources found — a vacuous pass').toBeGreaterThan(1000);
-    expect(schema.size, 'no schema sources found — a vacuous pass').toBeGreaterThan(sources.size);
+    // The schema walk is the wider of the two over the **backend**, which is
+    // what this floor has always said: five of the tables it resolves are the
+    // kernel's and 21 more are declared only by DDL under `src/db/migrations`,
+    // which no module walk reaches. It is compared with the module half rather
+    // than with `sources.size`, because the admin half joined the second and
+    // the schema walk does not read `admin/` at all.
+    expect(schema.size, 'no schema sources found — a vacuous pass').toBeGreaterThan(
+      moduleFiles.length,
+    );
 
-    const result = checkModuleBoundary({ sources, schema }, shards);
+    const result = checkModuleBoundary({ sources, schema, adminSurfaces: admin }, shards);
     expect(result.tableOwners.entityTables, 'entity pass resolved nothing').toBeGreaterThan(100);
     expect(result.tableOwners.migrationOnlyTables, 'migration pass added nothing').toBeGreaterThan(
       0,

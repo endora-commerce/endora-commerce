@@ -1,0 +1,22 @@
+{
+  // Emit configuration — the only configuration in this package allowed to
+  // write files.
+  //
+  // `paths` is cleared, so `@endora-commerce/contracts` resolves through its
+  // own `exports` map to its built `.d.ts`; `pnpm run build:packages` builds
+  // `contracts` before this package, which is what makes that resolution real.
+  // `rootDir` with an active `paths` block is the TS6059 trap: `tsc` reports the
+  // sibling's source as outside `rootDir`, exits 2, and emits that sibling's
+  // `.js`/`.d.ts` beside its source anyway.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "./src",
+    "noEmit": false,
+    // A compile that failed must ship nothing (feature 080, R11). Without this
+    // a diagnostic is not a stop — the artefacts are written before the exit
+    // code is, and `dist/` is git-ignored, so nothing else would notice.
+    "noEmitOnError": true
+  },
+  "include": ["src/**/*"]
+}

@@ -36,6 +36,15 @@
  * on — a SQL reach compiles and runs from a package exactly as it does from the tree, so
  * what it costs the boundary is never a build failure, only a column rename that breaks a
  * stranger in silence.
+ *
+ * **Since feature 091's Phase 0 this shard also holds admin surface reaches**, keyed on a
+ * repository-relative path under the admin's module root. They were recorded before any admin
+ * directory moves into its module's package, because `module-package-layout.md` §0 measured that
+ * rewriting a ledgered relative import as a package specifier *deletes* the reach from the walk
+ * and makes the entry describing it read stale. What retires one is never the move and never a
+ * rewritten specifier: it is the owner publishing what this consumer needs — into
+ * `@endora-commerce/admin-kit` where the piece is generic, or as an admin contribution zone where
+ * it is the owner's own screen.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
@@ -165,4 +174,213 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     '`specs/080-f4-real-scope/contracts/host-package.md` §1. That is a kernel decision ' +
     'about the sanctioned bridge accessors (Constitution XII) and it is the host owner\'s ' +
     'to take, not a call-site rewrite.',
+  'admin/src/modules/catalog/CategoriesTree.tsx:price_lists/DisplayModeOverrideRow':
+    'Admin surface reach: `catalog/CategoriesTree.tsx` imports `DisplayModeOverrideRow` ' +
+    'from `../price_lists/DisplayModeOverrideRow`, which `price_lists` owns.\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach mounts the owner\'s own screen fragment inside this module\'s ' +
+    'screen, which is the case FR-007 exists for. What retires it is the owner ' +
+    'declaring an **admin contribution zone**: the host screen publishes the zone name ' +
+    'and the owner contributes into it, so the dependency reverses and neither module ' +
+    'names the other. Moving the file, or rewriting the specifier as the owner\'s ' +
+    'package subpath, retires nothing — it is the same coupling under a supported name, ' +
+    'which is what recording this entry before the move exists to prevent.',
+  'admin/src/modules/catalog/CategoriesTree.tsx:assets_library/components/AssetPicker':
+    'Admin surface reach: `catalog/CategoriesTree.tsx` imports `AssetPicker` from ' +
+    '`@/modules/assets_library/components/AssetPicker`, which `assets_library` owns.\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach is a **generic picker**: it renders a chooser over data the ' +
+    'owner holds and knows nothing about this consumer. What retires it is the ' +
+    'component moving into the admin\'s own shared components and the kit publishing it ' +
+    'on `@endora-commerce/admin-kit/components` in the same merge request — the order ' +
+    '`specs/091-module-owned-admin-surfaces/contracts/admin-kit-surface.md` R5 states, ' +
+    'so the kit never holds a component the admin application does not use. Six pickers ' +
+    'are already published there and this one is not, which is the whole of the debt.',
+  'admin/src/modules/catalog/ProductAttributesTab.tsx:pim_ergonode/components/FieldProtectionToggle':
+    'Admin surface reach: `catalog/ProductAttributesTab.tsx` imports ' +
+    '`ErgonodeAttributeValueProtection` from ' +
+    '`../pim_ergonode/components/FieldProtectionToggle`, which `pim_ergonode` owns.\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach mounts the owner\'s own screen fragment inside this module\'s ' +
+    'screen, which is the case FR-007 exists for. What retires it is the owner ' +
+    'declaring an **admin contribution zone**: the host screen publishes the zone name ' +
+    'and the owner contributes into it, so the dependency reverses and neither module ' +
+    'names the other. Moving the file, or rewriting the specifier as the owner\'s ' +
+    'package subpath, retires nothing — it is the same coupling under a supported name, ' +
+    'which is what recording this entry before the move exists to prevent.',
+  'admin/src/modules/catalog/ProductEditor.tsx:assets_library/components/AssetPicker':
+    'Admin surface reach: `catalog/ProductEditor.tsx` imports `AssetPicker` from ' +
+    '`@/modules/assets_library/components/AssetPicker`, which `assets_library` owns.\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach is a **generic picker**: it renders a chooser over data the ' +
+    'owner holds and knows nothing about this consumer. What retires it is the ' +
+    'component moving into the admin\'s own shared components and the kit publishing it ' +
+    'on `@endora-commerce/admin-kit/components` in the same merge request — the order ' +
+    '`specs/091-module-owned-admin-surfaces/contracts/admin-kit-surface.md` R5 states, ' +
+    'so the kit never holds a component the admin application does not use. Six pickers ' +
+    'are already published there and this one is not, which is the whole of the debt.',
+  'admin/src/modules/catalog/ProductEditor.tsx:assets_library/lib/asset-url':
+    'Admin surface reach: `catalog/ProductEditor.tsx` imports `toAbsoluteAssetUrl` from ' +
+    '`@/modules/assets_library/lib/asset-url`, which `assets_library` owns.\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach is a **helper** rather than a screen: a pure function or a ' +
+    'small module of the owner\'s that this consumer re-uses. What retires it is ' +
+    'whichever of two answers its owner takes — the helper is generic and moves into ' +
+    'the kit (`admin-kit-surface.md` R5), or it encodes the owner\'s domain and this ' +
+    'consumer asks for the rendered result through a zone contribution (FR-007) instead ' +
+    'of recomputing it.',
+  'admin/src/modules/catalog/ProductEditor.tsx:assets_library/api/assets-library-client':
+    'Admin surface reach: `catalog/ProductEditor.tsx` imports `AssetSummary`, ' +
+    '`AssetDetail` from `@/modules/assets_library/api/assets-library-client`, which ' +
+    '`assets_library` owns. A type-only import is a real edge here as everywhere: types ' +
+    'resolve at build time (FR-003).\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach is the **client module**, not the HTTP call — the request ' +
+    'and response shapes are already in `@endora-commerce/contracts`, which both sides ' +
+    'compile. The Phase 4 batch that moves this consumer\'s admin surface into its ' +
+    'package has to take one of two exits rather than rewrite the specifier: the caller ' +
+    'builds the request from the published `apiClient` and the contract\'s own types, or ' +
+    'the owner publishes the client on a surface a stranger can name. A bare specifier ' +
+    'into the owner\'s `./admin` subpath is neither — that subpath exports the ' +
+    'contributions object and nothing else ' +
+    '(`specs/091-module-owned-admin-surfaces/contracts/admin-contribution.md` R2), so ' +
+    'it cannot carry a client and a reach through it would still be counted here.',
+  'admin/src/modules/catalog/ProductEditor.tsx:sales_channels/components/EntityChannelMembership':
+    'Admin surface reach: `catalog/ProductEditor.tsx` imports `EntityChannelMembership` ' +
+    'from `../sales_channels/components/EntityChannelMembership`, which ' +
+    '`sales_channels` owns.\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach mounts the owner\'s own screen fragment inside this module\'s ' +
+    'screen, which is the case FR-007 exists for. What retires it is the owner ' +
+    'declaring an **admin contribution zone**: the host screen publishes the zone name ' +
+    'and the owner contributes into it, so the dependency reverses and neither module ' +
+    'names the other. Moving the file, or rewriting the specifier as the owner\'s ' +
+    'package subpath, retires nothing — it is the same coupling under a supported name, ' +
+    'which is what recording this entry before the move exists to prevent.',
+  'admin/src/modules/catalog/ProductEditor.tsx:pim_ergonode/components/FieldProtectionToggle':
+    'Admin surface reach: `catalog/ProductEditor.tsx` imports ' +
+    '`ErgonodePriceProtectionPanel`, `FieldProtectionSummary`, `FieldProtectionToggle` ' +
+    'from `../pim_ergonode/components/FieldProtectionToggle`, which `pim_ergonode` owns.\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach mounts the owner\'s own screen fragment inside this module\'s ' +
+    'screen, which is the case FR-007 exists for. What retires it is the owner ' +
+    'declaring an **admin contribution zone**: the host screen publishes the zone name ' +
+    'and the owner contributes into it, so the dependency reverses and neither module ' +
+    'names the other. Moving the file, or rewriting the specifier as the owner\'s ' +
+    'package subpath, retires nothing — it is the same coupling under a supported name, ' +
+    'which is what recording this entry before the move exists to prevent.',
+  'admin/src/modules/catalog/ProductEditor.tsx:price_lists/LinkedPriceListsPanel':
+    'Admin surface reach: `catalog/ProductEditor.tsx` imports `LinkedPriceListsPanel` ' +
+    'from `../price_lists/LinkedPriceListsPanel`, which `price_lists` owns.\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach mounts the owner\'s own screen fragment inside this module\'s ' +
+    'screen, which is the case FR-007 exists for. What retires it is the owner ' +
+    'declaring an **admin contribution zone**: the host screen publishes the zone name ' +
+    'and the owner contributes into it, so the dependency reverses and neither module ' +
+    'names the other. Moving the file, or rewriting the specifier as the owner\'s ' +
+    'package subpath, retires nothing — it is the same coupling under a supported name, ' +
+    'which is what recording this entry before the move exists to prevent.',
+  'admin/src/modules/catalog/ProductInventoryTab.tsx:inventory/components/FulfilmentStrategyPicker':
+    'Admin surface reach: `catalog/ProductInventoryTab.tsx` imports ' +
+    '`FulfilmentStrategyPicker`, `FulfilmentStrategyValue` from ' +
+    '`@/modules/inventory/components/FulfilmentStrategyPicker`, which `inventory` owns.\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach is a **generic picker**: it renders a chooser over data the ' +
+    'owner holds and knows nothing about this consumer. What retires it is the ' +
+    'component moving into the admin\'s own shared components and the kit publishing it ' +
+    'on `@endora-commerce/admin-kit/components` in the same merge request — the order ' +
+    '`specs/091-module-owned-admin-surfaces/contracts/admin-kit-surface.md` R5 states, ' +
+    'so the kit never holds a component the admin application does not use. Six pickers ' +
+    'are already published there and this one is not, which is the whole of the debt.',
+  'admin/src/modules/catalog/ProductInventoryTab.tsx:settings/api/settings-client':
+    'Admin surface reach: `catalog/ProductInventoryTab.tsx` imports `settingsClient` ' +
+    'from `@/modules/settings/api/settings-client`, which `settings` owns.\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach is the **client module**, not the HTTP call — the request ' +
+    'and response shapes are already in `@endora-commerce/contracts`, which both sides ' +
+    'compile. The Phase 4 batch that moves this consumer\'s admin surface into its ' +
+    'package has to take one of two exits rather than rewrite the specifier: the caller ' +
+    'builds the request from the published `apiClient` and the contract\'s own types, or ' +
+    'the owner publishes the client on a surface a stranger can name. A bare specifier ' +
+    'into the owner\'s `./admin` subpath is neither — that subpath exports the ' +
+    'contributions object and nothing else ' +
+    '(`specs/091-module-owned-admin-surfaces/contracts/admin-contribution.md` R2), so ' +
+    'it cannot carry a client and a reach through it would still be counted here.',
 };

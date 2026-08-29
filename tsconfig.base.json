@@ -37,6 +37,8 @@
       "@endora-commerce/contracts/*": ["./packages/contracts/src/*"],
       "@endora-commerce/cli": ["./packages/cli/src/index.ts"],
       "@endora-commerce/cli/*": ["./packages/cli/src/*"],
+      "@endora-commerce/admin-kit": ["./packages/admin-kit/src/index.ts"],
+      "@endora-commerce/admin-kit/*": ["./packages/admin-kit/src/*"],
       "@endora-commerce/api-client": ["./packages/api-client/src/index.ts"],
       "@endora-commerce/api-client/*": ["./packages/api-client/src/*"],
       "@endora-commerce/cms-components": ["./packages/cms-components/src/index.ts"],

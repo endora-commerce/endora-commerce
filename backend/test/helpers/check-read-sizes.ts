@@ -291,10 +291,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     sites: 10,
     sources: ['manifest-index', 'contracts-barrel'],
   },
+  'backend/scripts/check-admin-registrations.ts': {
+    prefix: '[admin-registrations]',
+    run: { kind: 'tsx', path: 'scripts/check-admin-registrations.ts', args: [] },
+    // Two, and it is the honest number rather than a rounding of one: this
+    // check's subject is exactly the admin's two hand-written registries.
+    // `sites` is what moves — 149 routes plus 100 nav entries today, shrinking
+    // with every Story 3 batch.
+    files: 2,
+    sites: 249,
+    // `AppShell.tsx` writes the `module` strings and the generated index is
+    // rendered from the manifests, so the reconciliation has two authors.
+    sources: ['manifest-index'],
+  },
   'backend/scripts/check-module-boundary.ts': {
     prefix: '[module-boundary]',
     run: { kind: 'tsx', path: 'scripts/check-module-boundary.ts', args: [] },
-    files: 3009,
+    files: 3529,
     sites: null,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
@@ -302,7 +315,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walking directories. It is printed only while there is at least one such
     // package — `expected=0` is a refusal in this grammar, and no module package
     // was the whole tree until !910.
-    sources: ['manifest-index', 'module-packages'],
+    //
+    // `admin-surfaces` joined with feature 091's FR-017, and it moved `files`
+    // by the 327 `.ts`/`.tsx` files under the admin module root: the check's
+    // population is now module-owned admin code as well, recorded before any
+    // admin directory moves into its module's package. Its expectation is the
+    // surface directories the route table and the nav attribute to a module —
+    // an independent derivation, and not the walk counting itself.
+    sources: ['manifest-index', 'module-packages', 'admin-surfaces'],
   },
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',

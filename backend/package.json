@@ -55,6 +55,7 @@
     "i18n:hardcoded": "tsx scripts/i18n-hardcoded-strings.ts",
     "channel:resolution": "tsx scripts/check-channel-resolution.ts",
     "check:kernel-boundary": "tsx scripts/check-kernel-boundary.ts",
+    "check:admin-registrations": "tsx scripts/check-admin-registrations.ts",
     "check:module-boundary": "tsx scripts/check-module-boundary.ts",
     "check:doc-snippets": "tsx scripts/check-doc-snippets.ts",
     "check:entry-scope": "tsx scripts/check-entry-scope.ts",

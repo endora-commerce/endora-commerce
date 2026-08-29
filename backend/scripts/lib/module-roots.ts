@@ -75,6 +75,7 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
+import type { AdminSurfaceLayout } from './admin-surfaces.js';
 import {
   declaredModuleId,
   nodeWorkspaceFs,
@@ -240,6 +241,30 @@ export interface ModuleTreeLayout {
    * which case every attributor answers exactly as it did before this existed.
    */
   readonly hostResidentModules: ReadonlyMap<string, string>;
+  /**
+   * The admin application's module surfaces, or `null` when this workspace has
+   * no member declaring the source alias (feature 091, FR-017).
+   *
+   * It is a field of its own and deliberately **not** a member of
+   * {@link ModuleTreeLayout.moduleWalkRoots}: fifteen checks read that list and
+   * every one of them would acquire a population of `.ts`/`.tsx` files under
+   * `admin/` that it was never written to judge. `check:module-boundary` is the
+   * one check FR-017 names, and it is the one that calls this.
+   *
+   * **A function, and awaited, because the derivation parses TypeScript.**
+   * `admin-surfaces.ts` imports the compiler — the route table and the nav are
+   * read as AST nodes, not as text — and every consumer of this layout would
+   * otherwise load it. `test/helpers/lock-claims-check-fixture.ts` builds a
+   * spawnable tree out of a named list of libs and no `node_modules`, so an
+   * eager import there is `ERR_MODULE_NOT_FOUND` for `typescript` and every
+   * proof in that file fails for a reason that has nothing to do with a lock
+   * claim — measured, six of them.
+   *
+   * `null` is the tree with no frontend, and it is the behaviour that shipped.
+   * It is not a silent floor: `check:module-boundary` refuses a run whose
+   * ledger holds admin keys and whose layout answered `null` here.
+   */
+  readonly adminSurfaces: () => Promise<AdminSurfaceLayout | null>;
 }
 
 function isUnder(child: string, parent: string): boolean {
@@ -497,6 +522,25 @@ export async function resolveModuleLayout(
     .map((root) => root.directory);
   const platformRoot = platformSourceRootOf(members);
   const platformPackageName = platformPackageNameOf(members);
+  // A workspace with no frontend answers `null` rather than throwing: every
+  // fixture tree in `backend/test/helpers/` is one, and a throw here would take
+  // out every check that resolves the layout for a reason that has nothing to
+  // do with the module tree. The refusal belongs to the one check whose
+  // population this is, where it can be reconciled against the ledger.
+  let admin: AdminSurfaceLayout | null | undefined;
+  const adminSurfaces = async (): Promise<AdminSurfaceLayout | null> => {
+    if (admin !== undefined) return admin;
+    const { AdminLayoutUnresolvableError, resolveAdminSurfaces } = await import(
+      './admin-surfaces.js'
+    );
+    try {
+      admin = resolveAdminSurfaces(members, registered);
+    } catch (error: unknown) {
+      if (!(error instanceof AdminLayoutUnresolvableError)) throw error;
+      admin = null;
+    }
+    return admin;
+  };
 
   const keyOf = (absolutePath: string): string => {
     const path = resolve(absolutePath);
@@ -559,6 +603,7 @@ export async function resolveModuleLayout(
     moduleDirectories,
     moduleDirectoryOf,
     modulePackageNames,
+    adminSurfaces,
     hostResidentModules: new Map(
       moduleRoots
         .filter((root) => root.origin === 'host-resident' && root.moduleId !== null)
