@@ -49,8 +49,12 @@
  *     (`lib/specifiers.ts`), so one written in a doc comment is out of the
  *     population by construction — all three shipped packages quote their own
  *     package name in a comment, and a text scan calls that a self-dependency.
- *   * **the ranges** — from the application that composes the modules
- *     (`backend/package.json`). A peer takes the major (`^6.6.13` → `^6`), a
+ *   * **the ranges** — from the **applications** that compose the modules: the
+ *     workspace members a *literal* entry produces (`backend`, `admin`, …),
+ *     never a library family. A module has two composing applications since
+ *     feature 091 — `backend` for `src/backend/`, `admin` for `src/admin/` —
+ *     and `react` is declared by the second and by no other member.
+ *     A peer takes the major (`^6.6.13` → `^6`), a
  *     `devDependency` takes the range as declared, and a workspace member takes
  *     `workspace:*` (R5). A specifier the application declares nowhere is
  *     refused: inventing a range is how a package ships one nothing resolves.
@@ -82,9 +86,11 @@ import {
   type ModulePackageSurfaces,
   type SubpathSurface,
 } from './module-package-subpaths.js';
+import { findAliasMember } from './admin-surfaces.js';
 import { readEmitLayout, type EmitLayout } from './module-packages.js';
 import { namedSpecifiers, type SpecifierKind } from './specifiers.js';
 import {
+  classifyWorkspaceMembers,
   expandWorkspaceGlob,
   nodeWorkspaceFs,
   workspaceGlobs,
@@ -149,6 +155,9 @@ export interface PackageLayer {
  * **not** here is a layer no subpath covers, which is refused rather than
  * skipped.
  */
+/** The layer that compiles under `tsconfig.ui.json` rather than the backend build. */
+const ADMIN_LAYER_DIRECTORY = 'admin';
+
 const LAYER_SUBPATHS: ReadonlyArray<readonly [directory: string, subpath: string]> = [
   ['backend', './backend'],
   ['migrations', './migrations'],
@@ -648,22 +657,34 @@ export function typesPackageIsConsumerSupplied(
 }
 
 /**
- * Where an installed `@types/*` package is: the application's `node_modules`,
- * then the workspace root's.
+ * Where an installed `@types/*` package is: **every** application's
+ * `node_modules`, then the workspace root's.
  *
- * The companion is always one the **application** declares — that is the only
+ * The companion is always one an **application** declares — that is the only
  * way {@link renderManifest} learns of it at all — so it is installed under
- * `backend/node_modules` whenever anything in this repository has been
- * installed. `null` is therefore a tree with no install, which the caller
+ * that application's `node_modules` whenever anything in this repository has
+ * been installed. `null` is therefore a tree with no install, which the caller
  * refuses.
+ *
+ * *Every* application since feature 091, and not `backend/` alone: pnpm links a
+ * dependency into the `node_modules` of the workspace member that declares it,
+ * and `@types/react` is `admin`'s. Looking only under `backend/` made the
+ * generator refuse a real, installed checkout with "run `pnpm install`" — a
+ * message about the world, produced by a walk that was looking in one place.
+ * Applications are derived, never listed: a *literal* workspace entry names one
+ * deployable, a glob enumerates a library family.
  */
 export function findTypesPackage(
   repoRoot: string,
   typesName: string,
   fs: ManifestFs,
 ): string | null {
+  const applications = classifyWorkspaceMembers(repoRoot, fs)
+    .members.filter((member) => !member.family)
+    .map((member) => member.dir)
+    .sort();
   const candidates = [
-    join(repoRoot, 'backend', 'node_modules', typesName),
+    ...applications.map((dir) => join(dir, 'node_modules', typesName)),
     join(repoRoot, 'node_modules', typesName),
   ];
   for (const candidate of candidates) {
@@ -696,7 +717,12 @@ const GENERATED_FIELDS: readonly string[] = [
 /** One package's rendered manifest. */
 export interface RenderedPackageManifest {
   readonly packageName: string;
-  readonly moduleId: string;
+  /**
+   * The module this manifest belongs to, or `null` for an **application**
+   * manifest this run reconciles rather than renders (feature 091: the admin's
+   * dependency on the modules it composes).
+   */
+  readonly moduleId: string | null;
   /** Absolute path of the `package.json` this content belongs at. */
   readonly outputPath: string;
   readonly content: string;
@@ -705,6 +731,19 @@ export interface RenderedPackageManifest {
 /** What one run rendered, and what it read to do it. */
 export interface ManifestRenderRun {
   readonly rendered: readonly RenderedPackageManifest[];
+  /**
+   * Application manifests this run **reconciled** — today exactly one, the
+   * admin's dependency on the module packages whose `./admin` layer the
+   * generated registry imports by bare specifier.
+   *
+   * Kept apart from {@link ManifestRenderRun.rendered} because every floor and
+   * every coverage number on that array is a statement about *module packages*:
+   * `emitted-declarations` counts the ones with a `dist`, `manifest-index`
+   * reconciles them against the registered set. An application is neither, and
+   * folding it in would shift both by one for a reason neither derivation
+   * knows about.
+   */
+  readonly applicationRendered: readonly RenderedPackageManifest[];
   /**
    * Files opened — sources, manifests and build configurations alike, plus the
    * owner manifests and emitted modules the D-171 surfaces predicate reads. A
@@ -916,7 +955,7 @@ export function renderModulePackageManifests(
       typesDir === null ? null : typesPackageIsConsumerSupplied(typesDir, countingFs);
     if (answer === null) {
       throw new ModulePackageManifestError(
-        `'${typesName}' is declared by backend/package.json and could not be read from any ` +
+        `'${typesName}' is declared by an application manifest and could not be read from any ` +
           `node_modules above it. D-181 makes a types package whose types reach a consumer a ` +
           `real dependency unless the consumer supplies it themselves, and that split is ` +
           `derived from the package's own declarations — a types package this cannot read ` +
@@ -927,8 +966,16 @@ export function renderModulePackageManifests(
     return answer;
   };
 
+  // The modules whose `./admin` layer the generated admin registry names by
+  // bare specifier, collected from the same inventory the `exports` map is
+  // rendered from rather than by a second walk — two walks are two answers
+  // waiting to disagree, and this one decides whether the specifier resolves.
+  const contributingPackageNames = new Set<string>();
   const rendered = identities.map((identity) => {
     const layers = layerInventoryOf(identity.dir, countingFs);
+    if (layers.layers.some((layer) => layer.directory === ADMIN_LAYER_DIRECTORY)) {
+      contributingPackageNames.add(identity.name);
+    }
     const emit = readEmitLayout(identity.dir, identity.name, countingFs);
     if (emit === null) {
       throw new ModulePackageManifestError(
@@ -1005,8 +1052,23 @@ export function renderModulePackageManifests(
     );
   }
 
+  // The admin's dependency on the modules whose `./admin` layer the generated
+  // registry names by bare specifier. Derived from the same layer inventory the
+  // `exports` maps above came from, so a module that grows or drops the layer
+  // moves both artefacts in one regeneration and neither can go stale under the
+  // other.
+  const applicationRendered = [
+    renderAdminApplicationManifest({
+      repoRoot,
+      fs: countingFs,
+      modulePackageNames,
+      contributingPackageNames,
+    }),
+  ];
+
   return {
     rendered,
+    applicationRendered,
     filesRead: filesRead + surfaces.filesRead(),
     specifierSites,
     registeredPackageNames:
@@ -1411,8 +1473,9 @@ export function renderManifest(input: RenderInput): string {
       throw new ModulePackageManifestError(
         `${input.packageName} imports '${name}', which the application declares nowhere. The ` +
           `peer range is the major of the version this repository actually runs; inventing ` +
-          `one ships a package whose peer nothing resolves. Add it to backend/package.json ` +
-          `first, with the justification Constitution IV requires.`,
+          `one ships a package whose peer nothing resolves. Add it to the package.json of ` +
+          `the application that composes this layer — backend/ for src/backend/, admin/ for ` +
+          `src/admin/ — with the justification Constitution IV requires.`,
       );
     }
     const major = majorOf(declared);
@@ -1511,14 +1574,29 @@ export function renderManifest(input: RenderInput): string {
   // the same input (D-165). The `--src`/`--out` pair is this package's own
   // emit layout, the same derivation the `exports` targets take.
   const emitFlags = `--src ${input.emit.rootDir || '.'} --out ${input.emit.outDir || '.'}`;
+  // The admin layer compiles under its **own** emit configuration (feature 091,
+  // `contracts/admin-contribution.md` R12): `jsx: "react-jsx"` and the `DOM`
+  // lib are what a React screen needs and what a service file must not have —
+  // one config for both lets a backend file reference `document` and compile
+  // clean, in the layer where that is a production crash. Whether the second
+  // invocation is emitted is read off the layer inventory, never declared by an
+  // author, so a package that grows `src/admin/` grows the build step in the
+  // same regeneration.
+  const uiBuild = input.layers.layers.some((layer) => layer.directory === ADMIN_LAYER_DIRECTORY)
+    ? ' && tsc -p tsconfig.ui.json'
+    : '';
   const build =
-    input.layers.assets.length === 0
+    (input.layers.assets.length === 0
       ? 'tsc -p tsconfig.build.json'
       : `tsc -p tsconfig.build.json && node ${input.repoRootPrefix}/scripts/copy-package-assets.mjs ` +
-        emitFlags;
+        emitFlags) + uiBuild;
   const scripts: Record<string, string> = {
     build,
-    typecheck: 'tsc -p tsconfig.json',
+    // The UI program is type-checked by the same configuration that emits it,
+    // with `--noEmit` on top: a second type-check-only config would be a third
+    // place the `jsx`/`lib` pair is declared, and two declarations of a
+    // compiler guarantee are two answers waiting to disagree.
+    typecheck: uiBuild === '' ? 'tsc -p tsconfig.json' : 'tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit',
     lint: input.layers.hasTests ? 'eslint src test' : 'eslint src',
   };
   // Bare `vitest run`, never `--passWithNoTests` (feature 089, Phase 1). The
@@ -1591,31 +1669,185 @@ function sortedByAscii(entries: ReadonlyMap<string, string>): Array<[string, str
   return [...entries.entries()].sort((left, right) => byAscii(left[0], right[0]));
 }
 
-/** Every version the application declares, `dependencies` and `devDependencies`. */
+
+// --- the admin application's dependency on the modules it composes ----------
+
+/**
+ * `workspace:*`, the range R5 gives every workspace edge: `pnpm pack` rewrites
+ * it to the exact version, so this needs no change when versions become real.
+ */
+const MODULE_DEPENDENCY_RANGE = 'workspace:*';
+
+/**
+ * The admin application's `package.json`, with its module-package dependencies
+ * reconciled against the layer inventory (feature 091, Phase 2).
+ *
+ * ## Why this file writes it
+ *
+ * `admin/src/modules.generated.ts` imports each contributing module by a **bare
+ * specifier** derived from that module's own `exports` map (D-149). A bare
+ * specifier resolves through `node_modules`, and pnpm links a workspace member
+ * there only for a package that **declares** it. So a module that ships
+ * `src/admin/` and is not a dependency of the admin is a registry entry Vite
+ * cannot resolve — the build fails, which is at least loud, but it fails in a
+ * file no author wrote and names a package they did not know they had to add.
+ *
+ * The alternative was a refusal telling the author to run `pnpm add`. It was
+ * rejected because it re-creates exactly what this feature removes: a shared
+ * file every module author edits by hand. `spec.md` §1.1 measures four of
+ * those; adding a fifth while converting two is not a remedy.
+ *
+ * ## What it is allowed to touch, and what it is not
+ *
+ * **Only this repository's own module packages, inside `dependencies`.** Every
+ * other key, and the order of every other key, is the file's own: a module the
+ * inventory says contributes is inserted at its ASCII position among the keys
+ * already there, a module that has dropped its admin layer is removed, and
+ * nothing else moves. That is the narrowest edit that keeps the artefact true,
+ * and it is deliberately not "rewrite the manifest from a derivation" — the
+ * admin's React, Radix and Tailwind ranges are a human's, with Constitution
+ * IV's justification behind them, and a generator that owned them would be
+ * asserting an authority it does not have.
+ *
+ * Ours is answered from the identities this run derived, never from a `mod-`
+ * prefix test: the prefix is a naming convention (§6), and a third-party
+ * package that happened to follow it would be silently deleted here.
+ *
+ * ## Which application, and how it is found
+ *
+ * The member declaring the `"@/*"` tsconfig alias — the same derivation
+ * `check:admin-registrations`, `check:admin-surface` and the registry generator
+ * use, and for the same reason: that alias is what `tsc` and Vite both resolve
+ * the admin's own imports through, so it is a live declaration rather than a
+ * convention. Zero or two members declaring it is a refusal.
+ */
+export function renderAdminApplicationManifest(input: {
+  readonly repoRoot: string;
+  readonly fs: ManifestFs;
+  /** Every module package this run derived, by npm name. */
+  readonly modulePackageNames: ReadonlySet<string>;
+  /** The subset that ships `src/admin/` and therefore has to be resolvable. */
+  readonly contributingPackageNames: ReadonlySet<string>;
+}): RenderedPackageManifest {
+  const members = workspaceMembers(input.repoRoot, input.fs);
+  const memberNames = new Set(members.map((member) => member.name));
+  const { member } = findAliasMember(members, (path) => input.fs.readText(path));
+  const manifestPath = join(member.dir, 'package.json');
+  const text = input.fs.readText(manifestPath);
+  if (text === null) {
+    throw new ModulePackageManifestError(
+      `${manifestPath} could not be read. It is the manifest whose dependencies make the ` +
+        `bare specifiers in the generated admin registry resolvable; without it a module's ` +
+        `admin layer is registered and unreachable.`,
+    );
+  }
+  const manifest = JSON.parse(text) as Record<string, unknown>;
+  const declared = manifest['dependencies'];
+  if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) {
+    throw new ModulePackageManifestError(
+      `${manifestPath} declares no \`dependencies\` object. The admin registry's entries are ` +
+        `resolved through it, so there is nowhere to record the modules this application ` +
+        `composes.`,
+    );
+  }
+  const kept = Object.entries(declared as Record<string, unknown>).filter(
+    ([name, range]) => {
+      if (input.contributingPackageNames.has(name)) return true;
+      if (input.modulePackageNames.has(name)) return false;
+      // A `workspace:` range naming no current member is an edge to a package
+      // that has **gone** — a module deleted, renamed or moved out of the
+      // globs. It is ours to remove and it is not a stranger's: a package from
+      // a registry carries a semver range, never the workspace protocol, so
+      // this discriminates without a `mod-` prefix test and without a list. It
+      // has to exist, because the "is it one of ours" question above is
+      // answered from the packages this run **found**, and a deleted one is
+      // exactly the package it cannot find.
+      return !(typeof range === 'string' && range.startsWith('workspace:') && !memberNames.has(name));
+    },
+  );
+  const present = new Set(kept.map(([name]) => name));
+  const missing = [...input.contributingPackageNames]
+    .filter((name) => !present.has(name))
+    .sort(byAscii);
+
+  const reconciled: Array<[string, unknown]> = [];
+  let cursor = 0;
+  for (const [name, range] of kept) {
+    while (cursor < missing.length && byAscii(missing[cursor]!, name) < 0) {
+      reconciled.push([missing[cursor]!, MODULE_DEPENDENCY_RANGE]);
+      cursor += 1;
+    }
+    reconciled.push([name, range]);
+  }
+  for (; cursor < missing.length; cursor += 1) {
+    reconciled.push([missing[cursor]!, MODULE_DEPENDENCY_RANGE]);
+  }
+
+  manifest['dependencies'] = Object.fromEntries(reconciled);
+  return {
+    packageName: typeof manifest['name'] === 'string' ? manifest['name'] : member.name,
+    moduleId: null,
+    outputPath: manifestPath,
+    content: `${JSON.stringify(manifest, null, 2)}\n`,
+  };
+}
+
+/**
+ * Every version **the applications** declare, `dependencies` and
+ * `devDependencies`, first declaration winning.
+ *
+ * A module package's peer range is the major of the version this repository
+ * actually runs; inventing one ships a package whose peer nothing resolves. So
+ * the source is the application that composes the layer — and since feature 091
+ * a module has **two** composing applications, not one. `backend` composes
+ * `src/backend/`; `admin` composes `src/admin/`, and it is the only member that
+ * declares `react`, `react-dom` and `lucide-react`. Reading `backend` alone
+ * refused every admin layer at its first `import { useState } from 'react'`,
+ * with a message telling the author to add React to the backend.
+ *
+ * **Which members are applications is derived, not listed**: a workspace entry
+ * that is a *literal* directory names one deployable, a *glob* enumerates a
+ * library family ({@link classifyWorkspaceMembers}, shared with
+ * `check:release-intent` and the distribution gate). So a fifth application
+ * joins this derivation by being declared, and a library never does — a
+ * library's own dependency ranges are not what a module runs against.
+ *
+ * **Order is the workspace's own and first declaration wins**, which is what
+ * makes the widening additive: every name a manifest resolves today is one
+ * `backend` declares, `backend` is the workspace's first entry, so no rendered
+ * manifest moves. A name two applications declare at two ranges takes the
+ * earlier application's, deterministically, rather than whichever the
+ * filesystem happened to hand back first.
+ */
 export function applicationVersions(
   repoRoot: string,
   fs: ManifestFs,
 ): ReadonlyMap<string, string> {
-  const path = join(repoRoot, 'backend', 'package.json');
-  const text = fs.readText(path);
-  if (text === null) {
+  const applications = classifyWorkspaceMembers(repoRoot, fs).members.filter(
+    (member) => !member.family,
+  );
+  if (applications.length === 0) {
     throw new ModulePackageManifestError(
-      `${path} could not be read. It is where the version of every framework a module can ` +
-        `peer on is declared, so without it every peer range would have to be invented.`,
+      `${join(repoRoot, 'pnpm-workspace.yaml')} declares no application member — every entry ` +
+        `is a glob, so it enumerates library families and nothing that composes a module. ` +
+        `The peer range of every module package is the major of the version an application ` +
+        `runs, and there is nothing here to read one from.`,
     );
   }
-  const manifest = JSON.parse(text) as Record<string, unknown>;
   const found = new Map<string, string>();
-  for (const block of ['dependencies', 'devDependencies']) {
-    const declared = manifest[block];
-    if (typeof declared !== 'object' || declared === null) continue;
-    for (const [name, range] of Object.entries(declared as Record<string, unknown>)) {
-      if (typeof range === 'string' && !found.has(name)) found.set(name, range);
+  for (const application of applications) {
+    for (const block of ['dependencies', 'devDependencies']) {
+      const declared = application.manifest[block];
+      if (typeof declared !== 'object' || declared === null) continue;
+      for (const [name, range] of Object.entries(declared as Record<string, unknown>)) {
+        if (typeof range === 'string' && !found.has(name)) found.set(name, range);
+      }
     }
   }
   if (found.size === 0) {
     throw new ModulePackageManifestError(
-      `${path} declares no dependency at all, so no peer range could be derived from it.`,
+      `${applications.map((member) => member.name).join(', ')} declare no dependency at all, ` +
+        `so no peer range could be derived from them.`,
     );
   }
   return found;

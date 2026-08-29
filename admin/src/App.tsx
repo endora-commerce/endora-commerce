@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
@@ -11,6 +11,12 @@ import { appBootstrapCopy } from './i18n/preauth-login-copy.js';
 import { AdminActionsProvider } from './lib/admin-actions/AdminActionsProvider.js';
 import { ModulePresenceProvider } from './lib/module-presence';
 import { AppLanguageContext } from './i18n/app-language-context.js';
+import { registryRoutes } from './lib/module-registry/index.js';
+import {
+  useSurfaceVisibility,
+  type GatedSurface,
+  type PermissionRequirement,
+} from './lib/surface-visibility.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
 import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
 import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
@@ -21,7 +27,6 @@ import { ConversionMappingsListPage } from './modules/linkedin_ads/pages/Convers
 import { ConversionMappingEditPage } from './modules/linkedin_ads/pages/ConversionMappingEditPage.js';
 import { CustomEventMappingsListPage as MetaEventsListPage } from './modules/meta_ads/pages/CustomEventMappingsListPage.js';
 import { CustomEventMappingEditPage as MetaEventEditPage } from './modules/meta_ads/pages/CustomEventMappingEditPage.js';
-import { ImportExportPage } from './modules/import_export/ImportExportPage.js';
 import { SeoPage } from './modules/seo/SeoPage.js';
 import { DictionaryPage } from './modules/dictionaries/DictionaryPage.js';
 import { DictionaryAuditPage } from './modules/dictionaries/AuditPage.js';
@@ -151,6 +156,62 @@ function NotFoundPage(): ReactNode {
       {t('app.notFound')}
     </div>
   );
+}
+
+/**
+ * One module-contributed route, gated and lazily loaded (feature 091, FR-011).
+ *
+ * **The gate is here and not in the module**, which is the whole reason a
+ * contribution is a declaration rather than a component. `useSurfaceVisibility`
+ * is the one predicate the sidebar, the palette and the dashboard already share
+ * (issue #230 — three surfaces answering the visibility question three ways),
+ * and it reads the server's effective enabled-set, so an operator switching a
+ * module off withdraws its screens without a rebuild. A module that gated its
+ * own screen would be a fourth answer, in a package, where nothing could see it
+ * drift.
+ *
+ * A hidden route renders the admin's own not-found treatment rather than a
+ * blank frame: an operator following a stale deep-link into a module their role
+ * cannot open, or into one that is switched off, gets the same answer as any
+ * other unknown path — which is what the surface is already telling them by not
+ * listing it.
+ */
+function ModuleRoute({
+  module,
+  requiredPermission,
+  load,
+}: {
+  module: string;
+  requiredPermission: PermissionRequirement | undefined;
+  load: () => Promise<{ readonly default: unknown }>;
+}): ReactNode {
+  const isVisible = useSurfaceVisibility();
+  // `lazy` is memoised per mounted route: calling it on every render would
+  // build a new component type each time and remount the screen underneath the
+  // operator, losing their form state.
+  const Screen = useMemo(
+    () => lazy(async () => ({ default: (await load()).default as ComponentType })),
+    [load],
+  );
+  // `exactOptionalPropertyTypes` is on, so an absent requirement is an absent
+  // property rather than an explicit `undefined` — the distinction the flag
+  // exists for, and the reason this is a spread and not a field.
+  const surface: GatedSurface = {
+    module,
+    ...(requiredPermission === undefined ? {} : { requiredPermission }),
+  };
+  if (!isVisible(surface)) return <NotFoundPage />;
+  return (
+    <Suspense fallback={<ModuleScreenFallback />}>
+      <Screen />
+    </Suspense>
+  );
+}
+
+/** The frame shown while a module's chunk is in flight. */
+function ModuleScreenFallback(): ReactNode {
+  const t = useTranslation('core');
+  return <p className="text-sm text-muted-foreground">{t('app.moduleScreenLoading')}</p>;
 }
 
 export function App(): ReactNode {
@@ -328,7 +389,6 @@ export function App(): ReactNode {
         <Route path="/meta-ads" element={<MetaEventsListPage />} />
         <Route path="/meta-ads/new" element={<MetaEventEditPage />} />
         <Route path="/meta-ads/:id" element={<MetaEventEditPage />} />
-        <Route path="/import-export" element={<ImportExportPage />} />
         <Route path="/seo" element={<SeoPage />} />
         <Route path="/dictionary" element={<DictionaryPage />} />
         <Route path="/dictionaries/audit" element={<DictionaryAuditPage />} />
@@ -362,6 +422,22 @@ export function App(): ReactNode {
         <Route path="/sales-channels/new" element={<SalesChannelEditPage />} />
         <Route path="/sales-channels/:code" element={<SalesChannelEditPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        {/* Every module-owned screen, from the generated registry. `App.tsx`
+            declares the host's own routes and nothing else; a module adds one
+            by shipping `src/admin/` and regenerating (feature 091, FR-010). */}
+        {registryRoutes().map((route) => (
+          <Route
+            key={route.path}
+            path={route.path}
+            element={
+              <ModuleRoute
+                module={route.module}
+                requiredPermission={route.requiredPermission}
+                load={route.component}
+              />
+            }
+          />
+        ))}
         <Route
           path="*"
           element={<NotFoundPage />}

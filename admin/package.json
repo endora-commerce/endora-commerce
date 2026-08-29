@@ -21,6 +21,7 @@
     "@endora-commerce/cms-components": "workspace:^",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/email-components": "workspace:^",
+    "@endora-commerce/mod-import-export": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:^",
     "@measured/puck": "^0.20.2",
     "@radix-ui/react-checkbox": "^1.3.3",

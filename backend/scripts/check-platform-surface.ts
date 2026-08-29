@@ -723,7 +723,15 @@ function walk(dir: string, out: string[] = []): string[] {
     if (statSync(full).isDirectory()) {
       if (name === 'node_modules' || name === 'dist') continue;
       walk(full, out);
-    } else if (name.endsWith('.ts') && !name.endsWith('.test.ts') && !name.endsWith('.d.ts')) {
+    } else if (
+      // `.tsx` since feature 091: a module package's `./admin` layer is React
+      // components, and a walk that cannot see them reports every relative
+      // reach into one as `unresolvable-reach` — a finding about the walk.
+      (name.endsWith('.ts') || name.endsWith('.tsx')) &&
+      !name.endsWith('.test.ts') &&
+      !name.endsWith('.test.tsx') &&
+      !name.endsWith('.d.ts')
+    ) {
       out.push(full);
     }
   }

@@ -18,6 +18,11 @@ import {
   renderEntitiesRegistry,
   type SourceTree,
 } from '../../../scripts/generate-composer.js';
+import { findAliasMember } from '../../../scripts/lib/admin-surfaces.js';
+import {
+  nodeWorkspaceFs,
+  workspaceMembers,
+} from '../../../scripts/lib/workspace-packages.js';
 import { deploymentsOnDisk } from '../../../src/overlay/overlay-roots.js';
 
 /**
@@ -78,6 +83,22 @@ describe('compareArtifact', () => {
 
 describe('coveredArtifactPaths', () => {
   const srcRoot = resolve(fileURLToPath(new URL('../../../src', import.meta.url)));
+  /**
+   * The **admin's** source root, resolved the way every admin instrument
+   * resolves it: the workspace member declaring the `"@/*"` tsconfig alias.
+   *
+   * The sweep below used to walk `backend/src` alone, which stopped being the
+   * whole population when feature 091's fifth artefact landed in the admin. It
+   * is derived here rather than spelled for `lib/admin-surfaces.ts`' reason —
+   * the alias is what `tsc` and Vite both resolve the admin's own imports
+   * through, and zero or two members declaring it is a refusal rather than a
+   * walk quietly narrowed to whichever sorted first.
+   */
+  const adminSourceRoot = ((): string => {
+    const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
+    const { member, target } = findAliasMember(workspaceMembers(repoRoot, nodeWorkspaceFs()));
+    return resolve(member.dir, target);
+  })();
 
   function generatedFilesUnder(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
@@ -99,7 +120,11 @@ describe('coveredArtifactPaths', () => {
     // every deployment's rather than only the one `DEPLOYMENT` selects; before
     // that, `example`'s was uncommitted and its line read `missing` on every run
     // that set the variable and did not exist on every run that did not.
-    expect(generatedFilesUnder(srcRoot).sort()).toEqual([...coveredArtifactPaths()].sort());
+    const onDisk = [
+      ...generatedFilesUnder(srcRoot),
+      ...generatedFilesUnder(adminSourceRoot),
+    ].sort();
+    expect(onDisk).toEqual([...coveredArtifactPaths()].sort());
   });
 
   it('names one override manifest per deployment on disk, plus bare core', () => {

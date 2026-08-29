@@ -302,13 +302,26 @@ export function resolveHostSpecifier(
     : { kind: 'published-subpath', subpath, target };
 }
 
-/** Every candidate file a relative specifier could name, most specific first. */
+/**
+ * Every candidate file a relative specifier could name, most specific first.
+ *
+ * `.tsx` is here beside `.ts` because a module's sources are no longer only
+ * Node code: a module package's `./admin` layer (feature 091) is React
+ * components, and a `./pages/Screen.js` specifier inside one resolves to a
+ * `.tsx` file or to nothing. Nothing is the fail-closed answer this check gives
+ * an unresolvable reach — correct as a default, and wrong here, where the file
+ * is there and the candidate list had never heard of its extension.
+ */
 export function resolutionCandidates(joined: string): readonly string[] {
+  const stem = joined.endsWith('.js') ? joined.slice(0, -'.js'.length) : null;
   const candidates = [
-    joined.endsWith('.js') ? `${joined.slice(0, -'.js'.length)}.ts` : null,
-    joined.endsWith('.ts') ? joined : null,
+    stem === null ? null : `${stem}.ts`,
+    stem === null ? null : `${stem}.tsx`,
+    joined.endsWith('.ts') || joined.endsWith('.tsx') ? joined : null,
     `${joined}.ts`,
+    `${joined}.tsx`,
     posix.join(joined, 'index.ts'),
+    posix.join(joined, 'index.tsx'),
   ];
   return candidates.filter((candidate): candidate is string => candidate !== null);
 }

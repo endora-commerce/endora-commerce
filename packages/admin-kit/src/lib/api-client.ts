@@ -1,9 +1,22 @@
 import { ApiError, createApiClient, type ApiClient } from '@endora-commerce/api-client';
 
-const baseUrl =
+/**
+ * The API origin this admin talks to, and the **one** place the environment
+ * variable behind it is read.
+ *
+ * Published (feature 091) because a screen that builds a URL the fetch client
+ * cannot make for it — a `<a download>` href, a form action — needs the same
+ * origin, and a module package cannot read `import.meta.env` for itself
+ * without acquiring `vite/client` types and a second copy of this fallback.
+ * Vite replaces the expression `import.meta.env.VITE_API_BASE_URL` at build
+ * time, so it is written **verbatim** here: a cast or an indirection is a
+ * chance for that replacement to stop happening in a way no type-check can
+ * see.
+ */
+export const apiBaseUrl: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
 
-const inner = createApiClient({ baseUrl });
+const inner = createApiClient({ baseUrl: apiBaseUrl });
 
 type Listener = () => void;
 const unauthorizedListeners = new Set<Listener>();

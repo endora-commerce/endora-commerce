@@ -17,11 +17,21 @@
  * silently taking the first match.
  *
  * The numbers below were measured on 2026-08-29 against a tree in which **no**
- * admin directory has moved: 149 routes and 100 nav entries, of which 145 and
+ * admin directory has moved: 150 routes and 100 nav entries, of which 146 and
  * 97 belong to a module. They shrink with every Story 3 batch, and when the
  * last module entry goes the check has nothing to ratchet and is deleted with
  * this file — `expected=0` is exit 2 in the `read:` grammar, and an instrument
  * with an empty population is the done signal that says nothing.
+ *
+ * **`import_export` is the first entry to go, and its going is the evidence**
+ * (feature 091, Phase 2). Its one route and one sidebar entry now live in
+ * `packages/modules/import_export/src/admin/index.ts`, so the walk finds none
+ * and the entry that described them is stale — which is what this ratchet is
+ * for. The run before the conversion read
+ * `routes=150 nav=100 module-owned (routes=146 nav=97) over 52 modules`; the
+ * run after it reads
+ * `routes=149 nav=99 module-owned (routes=145 nav=96) over 51 modules`. Never
+ * raise a number to make the build pass; this one fell.
  *
  * Two attributions, deliberately different, because the tree disagrees about
  * one screen: a **route** belongs to the module whose surface directory
@@ -70,7 +80,6 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   dhl_parcel: { routes: 1, nav: 0 },
   dictionaries: { routes: 3, nav: 4 },
   google_analytics: { routes: 3, nav: 1 },
-  import_export: { routes: 1, nav: 1 },
   // Arrived with the InPost integration (!1103), which landed between this
   // baseline being written and the check that reads it. Same shape as
   // `dhl_parcel` above: a carrier settings route the host registers and no nav

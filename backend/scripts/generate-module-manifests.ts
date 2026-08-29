@@ -1,7 +1,8 @@
 #!/usr/bin/env tsx
 /**
  * Writes every module package's `package.json` from its layer inventory
- * (feature 080, T041).
+ * (feature 080, T041), and the admin application's dependency on the module
+ * packages whose `./admin` layer the generated registry imports (feature 091).
  *
  *   pnpm --filter backend run manifests:generate     # write
  *   pnpm --filter backend run manifests:check        # refuse drift, write nothing
@@ -53,6 +54,7 @@ import {
   nodeManifestFs,
   renderModulePackageManifests,
 } from './lib/module-package-manifest.js';
+import { AdminLayoutUnresolvableError } from './lib/admin-surfaces.js';
 import { UnreadableSubpathError } from './lib/module-package-subpaths.js';
 import { findManifestIndex, findRepoRoot } from './lib/module-roots.js';
 
@@ -92,7 +94,12 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   let stale = false;
-  for (const artefact of run.rendered) {
+  // The admin application's manifest is reconciled beside the module packages'
+  // (feature 091): the generated admin registry names each contributing module
+  // by bare specifier, and a bare specifier resolves only through a declared
+  // dependency. It is written by the same command and refused by the same
+  // `--check` so the two cannot land apart.
+  for (const artefact of [...run.rendered, ...run.applicationRendered]) {
     const onDisk = existsSync(artefact.outputPath)
       ? readFileSync(artefact.outputPath, 'utf8')
       : null;
@@ -178,7 +185,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     // never dress the second up as the first (D-171, issue #113).
     if (
       error instanceof ModulePackageManifestError ||
-      error instanceof UnreadableSubpathError
+      error instanceof UnreadableSubpathError ||
+      // A third: the admin application could not be located, so the manifest
+      // whose dependencies make the generated registry resolvable has no
+      // subject. Ambiguity is refused there rather than resolved, for the
+      // reason `lib/admin-surfaces.ts` gives — picking one of two members
+      // narrows every admin derivation to it without saying so.
+      error instanceof AdminLayoutUnresolvableError
     ) {
       process.stderr.write(`${PREFIX} ${error.message}\n`);
       process.exit(2);

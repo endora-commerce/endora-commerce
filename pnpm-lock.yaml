@@ -47,6 +47,9 @@ importers:
       '@endora-commerce/email-components':
         specifier: workspace:^
         version: link:../packages/email-components
+      '@endora-commerce/mod-import-export':
+        specifier: workspace:*
+        version: link:../packages/modules/import_export
       '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../packages/page-builder-core
@@ -1684,6 +1687,9 @@ importers:
 
   packages/modules/import_export:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1693,9 +1699,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

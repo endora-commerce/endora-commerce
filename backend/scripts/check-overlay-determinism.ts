@@ -82,7 +82,7 @@ import {
   overrideManifestOutputPath,
   renderOverrideManifest,
 } from './generate-override-manifest.js';
-import { GENERATED_ARTIFACT_PATHS, renderAll } from './generate-composer.js';
+import { generatedArtifactPaths, renderAll } from './generate-composer.js';
 import { reportReadSize } from './lib/read-size.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 
@@ -524,7 +524,7 @@ function overrideManifestRegenerateHint(deployment: string | null): string {
  */
 export function coveredArtifactPaths(): readonly string[] {
   return [
-    ...GENERATED_ARTIFACT_PATHS,
+    ...generatedArtifactPaths(),
     ...overrideManifestTargets().map(overrideManifestOutputPath),
   ];
 }
