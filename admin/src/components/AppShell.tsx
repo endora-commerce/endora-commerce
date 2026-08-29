@@ -46,7 +46,6 @@ import {
   Sparkles,
   TrendingDown,
   Truck,
-  Upload,
   Users,
   Warehouse as WarehouseIcon,
   Webhook,
@@ -55,6 +54,9 @@ import {
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useTranslationContext } from '@/i18n/TranslationProvider';
+import { MODULE_ADMIN_CONTRIBUTIONS } from '@/modules.generated';
+import { registryNavFor } from '@/lib/module-registry';
 import { LanguagePicker } from './LanguagePicker.js';
 import { useViewportTier } from './hooks/useViewportTier.js';
 import { NotificationBell } from './notifications';
@@ -79,6 +81,17 @@ interface NavItem extends GatedSurface {
    * the label flips when the admin changes preferred language.
    */
   labelKey: string;
+  /**
+   * The i18n scope `labelKey` resolves in. Absent means `'core'`, the shared
+   * bundle every host entry's key lives in.
+   *
+   * A module-contributed entry (feature 091) carries its own module id here:
+   * its `labelKey` is module-relative (`nav.importExport.label`) and its
+   * translations ship in the module's own `i18n/` directory, which is what
+   * takes a new module's sidebar label out of the shared `_i18n` bundle — one
+   * of the four shared files 11 of the last 12 module additions had to edit.
+   */
+  labelScope?: string;
   icon: LucideIcon;
   /**
    * The permission code (or any-of set) that gates the entry's visibility, read
@@ -430,7 +443,6 @@ const NAV: NavSection[] = [
         requiredPermission: 'credentials:read',
         module: 'credentials',
       },
-      { to: '/import-export', labelKey: 'appShell.nav.importExport', icon: Upload, requiredPermission: 'catalog:write', module: 'import_export' },
       {
         to: '/settings',
         labelKey: 'appShell.nav.settings',
@@ -532,8 +544,20 @@ function persistCollapsed(value: Set<string>): void {
  * leaves that aren't represented in the side navigation.
  */
 type Crumb =
-  | { labelKey: string; literal?: undefined; href: string | null }
-  | { labelKey?: undefined; literal: string; href: string | null };
+  | {
+      labelKey: string;
+      /**
+       * The i18n scope `labelKey` resolves in; absent means `'core'`.
+       *
+       * A module-contributed crumb (feature 091) carries the module id, so its
+       * label comes out of the module's own bundle — the same split
+       * {@link NavItem.labelScope} makes for the sidebar entry it mirrors.
+       */
+      labelScope?: string;
+      literal?: undefined;
+      href: string | null;
+    }
+  | { labelKey?: undefined; labelScope?: undefined; literal: string; href: string | null };
 
 const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] }> = [
   { test: /^\/$/, build: () => [{ labelKey: 'appShell.nav.home', href: null }] },
@@ -901,10 +925,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.analytics', href: null },
   ] },
-  { test: /^\/import-export\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.importExport', href: null },
-  ] },
   { test: /^\/platform\/modules\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.platformModules', href: null },
@@ -949,11 +969,45 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   ] },
 ];
 
+/**
+ * The trail for a screen a **module** contributes, derived from the composed
+ * sidebar (feature 091).
+ *
+ * `CRUMB_DICT` is a third host registry naming module routes by hand — this
+ * feature converts `App.tsx`'s and `AppShell.tsx`'s, and the plan does not
+ * cover this one. Deriving the leaf instead of adding an entry per module is
+ * what keeps a converted module's breadcrumb from being a fifth shared file to
+ * edit: the label and the section are already declared in the module's nav
+ * contribution, and the parent link is the section's own first host entry —
+ * exactly what every hand-written trail in this table uses.
+ *
+ * Returns `null` for a path no module claims, so `CRUMB_DICT` keeps precedence
+ * and the URL-segment fallback keeps the last word.
+ */
+function registryCrumbs(pathname: string): Crumb[] | null {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  for (const section of COMPOSED_NAV) {
+    for (const item of section.items) {
+      if (item.labelScope === undefined || item.to !== path) continue;
+      const parent = section.items.find((other) => other.labelScope === undefined);
+      const trail: Crumb[] = [];
+      if (section.labelKey) {
+        trail.push({ labelKey: section.labelKey, href: parent?.to ?? null });
+      }
+      trail.push({ labelKey: item.labelKey, labelScope: item.labelScope, href: null });
+      return trail;
+    }
+  }
+  return null;
+}
+
 function buildCrumbs(pathname: string): Crumb[] {
   for (const entry of CRUMB_DICT) {
     const match = pathname.match(entry.test);
     if (match) return entry.build(match);
   }
+  const contributed = registryCrumbs(pathname);
+  if (contributed !== null) return contributed;
   // Keep real path segments in hrefs; only humanize the visible label.
   const segments = pathname.split('/').filter(Boolean);
   return segments.map((segment, idx) => ({
@@ -1130,6 +1184,79 @@ const PALETTE_ITEMS: PaletteItem[] = [
   // catalog and import_export module manifests respectively.
 ];
 
+
+/**
+ * `[...hostNav, ...registryNav]`, per section (feature 091, FR-010;
+ * `contracts/admin-registry.md` R11).
+ *
+ * Built once at module scope because the registry is a static import: a
+ * contribution set cannot change without a rebuild, and recomputing it per
+ * render would allocate a new array on every keystroke in the palette input.
+ *
+ * **A module's entries append to their section**, ordered among themselves by
+ * `weight` then module id. R11 describes the end state — the whole section
+ * weight-ordered — which needs a weight on all 97 host entries and is Story 3's
+ * to deliver as it drains them; inventing one per host entry now would be a
+ * hundred numbers nothing derives. The consequence is visible and worth
+ * stating: `/import-export` used to sit between Credentials and Settings in the
+ * System group and now sits at that group's end.
+ *
+ * **A module may not invent a section** (D-23): `AdminNavSectionNameSchema` is
+ * closed, and a contribution naming a section this shell does not declare
+ * renders nowhere — so the composition refuses it here rather than dropping it
+ * silently.
+ */
+function composeNav(sections: readonly NavSection[]): NavSection[] {
+  const declared = new Set(sections.map((section) => section.key));
+  for (const entry of MODULE_ADMIN_CONTRIBUTIONS) {
+    for (const item of entry.contributions.nav ?? []) {
+      if (declared.has(item.section)) continue;
+      throw new Error(
+        `Module '${entry.moduleId}' contributes a sidebar entry in section '${item.section}', ` +
+          `which this shell does not declare. An entry in a section nobody renders is a ` +
+          `surface that silently appears nowhere.`,
+      );
+    }
+  }
+  return sections.map((section) => ({
+    ...section,
+    items: [
+      ...section.items,
+      ...registryNavFor(section.key).map(
+        (item): NavItem => ({
+          to: item.to,
+          labelKey: item.labelKey,
+          labelScope: item.module,
+          icon: resolveIcon(item.icon),
+          // `exactOptionalPropertyTypes` — an ungated entry has no property,
+          // not a property holding `undefined`.
+          ...(item.requiredPermission === undefined
+            ? {}
+            : { requiredPermission: item.requiredPermission }),
+          module: item.module,
+        }),
+      ),
+    ],
+  }));
+}
+
+const COMPOSED_NAV: NavSection[] = composeNav(NAV);
+
+/**
+ * `t` for a nav entry's label, in whichever scope the entry declares.
+ *
+ * The host's entries resolve in `core` and a module's in its own namespace, and
+ * both go through the one translation context — a second resolver would be the
+ * drift issue #230 removed from the visibility question, in the label.
+ */
+function useNavLabel(): (item: NavItem) => string {
+  const { t } = useTranslationContext();
+  return useCallback(
+    (item: NavItem): string => t(item.labelScope ?? 'core', item.labelKey),
+    [t],
+  );
+}
+
 export function AppShell(): ReactNode {
   const { me, logout, hasPermission } = useAuth();
   // Feature 073 — the effective enabled-set. A module that is off contributes
@@ -1156,6 +1283,10 @@ export function AppShell(): ReactNode {
     });
   }, []);
   const t = useTranslation('core');
+  const navLabel = useNavLabel();
+  // The raw, scope-taking resolver, for the breadcrumb: a crumb a module
+  // contributed resolves its label in that module's own namespace.
+  const { t: tScoped } = useTranslationContext();
 
   const fullName = me ? `${me.adminUser.firstName} ${me.adminUser.lastName}`.trim() : '';
   const role = me?.role?.name ?? 'Admin';
@@ -1267,7 +1398,7 @@ export function AppShell(): ReactNode {
         </div>
 
         <nav className="b2b-sidebar__nav">
-          {NAV.map((section) => {
+          {COMPOSED_NAV.map((section) => {
             const isOpen = !collapsed.has(section.key);
             // Permission-gate every entry, then presence-gate it (feature 073 /
             // FR-031). Sections with no remaining visible items fold away
@@ -1343,7 +1474,7 @@ export function AppShell(): ReactNode {
                         }
                       >
                         <Icon size={16} />
-                        <span style={{ flex: 1 }}>{t(item.labelKey)}</span>
+                        <span style={{ flex: 1 }}>{navLabel(item)}</span>
                       </NavLink>
                     );
                   })}
@@ -1435,11 +1566,11 @@ export function AppShell(): ReactNode {
                     className="crumb-link"
                     style={{ color: 'inherit', textDecoration: 'none' }}
                   >
-                    {c.labelKey !== undefined ? t(c.labelKey) : c.literal}
+                    {c.labelKey !== undefined ? tScoped(c.labelScope ?? 'core', c.labelKey) : c.literal}
                   </NavLink>
                 ) : (
                   <span className="crumb-cur">
-                    {c.labelKey !== undefined ? t(c.labelKey) : c.literal}
+                    {c.labelKey !== undefined ? tScoped(c.labelScope ?? 'core', c.labelKey) : c.literal}
                   </span>
                 )}
               </span>
@@ -1533,7 +1664,7 @@ interface RailSectionProps {
 
 function RailSection(props: RailSectionProps): ReactNode {
   const { section, visibleItems, translatedLabel } = props;
-  const t = useTranslation('core');
+  const navLabel = useNavLabel();
   const [hover, setHover] = useState(false);
   const [sticky, setSticky] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -1581,14 +1712,14 @@ function RailSection(props: RailSectionProps): ReactNode {
   const railSource = visibleItems[0] ?? section.items[0];
   if (!railSource) return null;
   const RailIcon = railSource.icon;
-  const headerLabel = translatedLabel || (visibleItems[0]?.labelKey ? t(visibleItems[0]!.labelKey) : '');
+  const headerLabel = translatedLabel || (visibleItems[0] ? navLabel(visibleItems[0]) : '');
 
   // Single-item section: render a plain link with no popover. The
   // hover area is the link itself; tooltip carries the label.
   if (visibleItems.length === 1) {
     const only = visibleItems[0]!;
     const Icon = only.icon;
-    const onlyLabel = t(only.labelKey);
+    const onlyLabel = navLabel(only);
     return (
       <div className="b2b-sidebar__rail-row">
         <NavLink
@@ -1658,7 +1789,7 @@ function RailSection(props: RailSectionProps): ReactNode {
                 }}
               >
                 <Icon size={14} />
-                <span>{t(item.labelKey)}</span>
+                <span>{navLabel(item)}</span>
               </NavLink>
             );
           })}

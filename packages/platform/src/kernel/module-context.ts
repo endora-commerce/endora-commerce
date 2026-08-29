@@ -19,10 +19,9 @@ import {
   defineModuleWorker,
   subscribeForModule,
   type DefineModuleWorkerOptions,
-  type WorkerLogger,
 } from './lifecycle/plugin-helpers.js';
 import type { KernelContainer, KernelCradle } from './container.js';
-import { moduleLogger } from './logging.js';
+import { moduleLogger, type PlatformLogger } from './logging.js';
 import { registerPort } from './ports/provide.js';
 
 /**
@@ -38,9 +37,6 @@ import { registerPort } from './ports/provide.js';
  * Modules never import `awilix`; `scripts/check-container-imports.ts` enforces
  * it, so the container stays swappable behind this seam.
  */
-
-/** Structured logger a module gets for composition-time messages. */
-export type ModuleLifecycleLogger = WorkerLogger;
 
 /**
  * What `ctx.asClass` / `ctx.asFunction` / `ctx.asValue` produce.
@@ -678,7 +674,7 @@ export interface ModuleContext {
    * life of the process, and both the destination and the request correlation
    * are read per line rather than captured.
    */
-  readonly log: ModuleLifecycleLogger;
+  readonly log: PlatformLogger;
 }
 
 /**
@@ -714,7 +710,7 @@ export interface ModuleContextOptions {
   readonly container: KernelContainer;
   readonly eventBus: EventBus;
   readonly sink: ModuleRegistrationSink;
-  readonly log: ModuleLifecycleLogger;
+  readonly log: PlatformLogger;
   /** Absent in composition roots that mount no interceptor surface (unit tests). */
   readonly interceptorRegistry?: ApiInterceptorRegistry;
   /**

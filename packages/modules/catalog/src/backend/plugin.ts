@@ -19,7 +19,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { StorefrontRevalidator } from '@endora-commerce/platform/http';
-import type { WorkerLogger } from '@endora-commerce/platform/kernel';
+import type { PlatformLogger } from '@endora-commerce/platform/kernel';
 import {
   createBulkOperationQueue,
   createBulkOperationWorker,
@@ -205,7 +205,7 @@ export interface CatalogModuleOptions {
    * `check:subscribe-seam` closed by relative path. Taking the seam as an
    * argument is the same gate reached the sanctioned way.
    */
-  registerWorker: (worker: Worker, options?: { logger?: WorkerLogger }) => void;
+  registerWorker: (worker: Worker, options?: { logger?: PlatformLogger }) => void;
   /**
    * Runs a full Meilisearch reindex (the `search:reindex` CLI equivalent).
    * When provided, flipping an attribute's `searchable` flag enqueues a
