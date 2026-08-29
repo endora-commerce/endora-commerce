@@ -105,6 +105,11 @@ export interface PlaceOrderPayload {
     label?: string;
     address?: string;
   };
+  /**
+   * Feature 068 — adapter-specific shipping payload persisted on the order.
+   * InPost locker: `{ targetPoint: string }` from the Geowidget selection.
+   */
+  shippingAdapterData?: Record<string, unknown>;
 }
 
 /** Server-computed order-total preview (feature 049) — pricing stays server-side. */

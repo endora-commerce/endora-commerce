@@ -1574,6 +1574,9 @@ export class OrderService {
         total: total.toFixed(2),
         currency,
         ...(req.customerNote ? { customerNote: req.customerNote } : {}),
+        ...(req.shippingAdapterData
+          ? { shippingAdapterData: req.shippingAdapterData }
+          : {}),
         ...(ctx.impersonatorAdminUserId
           ? { placedOnBehalfByAdminUserId: ctx.impersonatorAdminUserId }
           : {}),
@@ -1775,6 +1778,10 @@ export class OrderService {
           deliveryMethodId: deliveryMethod.id,
           salesChannelId: order.salesChannelId,
           organizationId: ctx.organizationId,
+          shippingAdapterData: order.shippingAdapterData ?? null,
+          deliveryPhone:
+            order.deliveryAddress.phone ?? order.billingAddress.phone ?? null,
+          customerEmail: placer?.email ?? null,
         });
       }
 

@@ -126,6 +126,7 @@ const sidebars = {
         'modules/autopay',
         'modules/paypal',
         'modules/dhl_parcel',
+        'modules/inpost',
         'modules/price_lists',
         { type: 'doc', id: 'modules/pim_ergonode', label: 'Ergonode PIM' },
         { type: 'doc', id: 'modules/product_feeds', label: 'Product Feeds' },

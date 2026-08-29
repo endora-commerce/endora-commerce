@@ -1314,6 +1314,8 @@ agent reads that path directly. Update it in place; never fork a second copy.
      Treat it as an append-only log; prune it when it stops being useful. -->
 
 ## Active Technologies
+- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17; Fastify + MikroORM + Zod + ioredis + BullMQ (existing); no new runtime deps. (068-inpost-shipping)
+- PostgreSQL via MikroORM — orders.shipping_adapter_data JSONB; Settings for inpost.* credentials. (068-inpost-shipping)
 - TypeScript 5.x `strict`, Node.js ≥ 22.17 (backend + admin), ESM. (067-product-feed)
 - PostgreSQL for feed configuration, taxonomy reference data, run history and issue records; (067-product-feed)
 - TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ — **no new runtime (068-ergonode-pim-sync)
@@ -1332,7 +1334,6 @@ agent reads that path directly. Update it in place; never fork a second copy.
 See "Repo map" above.
 
 ## Recent Changes
+- 068-inpost-shipping: InPost ShipX PL module (`inpost`) — dual shipping adapters, Geowidget v5, BullMQ poll, PDF labels; orders `shipping_adapter_data`.
 - 072-module-kernel-di: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ. **One new runtime dependency: `awilix`** — see Complexity Tracking
 - 073-lifecycle-gating-completion: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15 App Router + React 19 (storefront). **No new runtime dependency** (Constitution IV, FR-062)
-- 068-ergonode-pim-sync: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ — **no new runtime
-

@@ -116,6 +116,7 @@
     "@endora-commerce/mod-health-checks": "workspace:*",
     "@endora-commerce/mod-i18n": "workspace:*",
     "@endora-commerce/mod-import-export": "workspace:*",
+    "@endora-commerce/mod-inpost": "workspace:*",
     "@endora-commerce/mod-inventory": "workspace:*",
     "@endora-commerce/mod-invoices": "workspace:*",
     "@endora-commerce/mod-ksef": "workspace:*",

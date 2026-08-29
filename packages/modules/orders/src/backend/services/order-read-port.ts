@@ -89,6 +89,7 @@ export function toOrderRecord(order: Order): OrderRecord {
     deliveryAddress: order.deliveryAddress,
     billingAddress: order.billingAddress,
     deliveryPointSnapshot: order.deliveryPointSnapshot ?? null,
+    shippingAdapterData: order.shippingAdapterData ?? null,
     deliveryMethodId: order.deliveryMethodId,
     deliveryMethodSnapshot: order.deliveryMethodSnapshot,
     paymentMethodId: order.paymentMethodId,

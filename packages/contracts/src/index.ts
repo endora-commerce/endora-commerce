@@ -33,6 +33,7 @@ export * from './payu.js';
 export * from './autopay.js';
 export * from './paypal.js';
 export * from './dhl-parcel.js';
+export * from './inpost.js';
 export * from './shipping-methods.js';
 export * from './admin.js';
 export * from './credit-limits.js';

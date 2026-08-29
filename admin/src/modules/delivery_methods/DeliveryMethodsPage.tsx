@@ -60,6 +60,7 @@ export function DeliveryMethodsPage(): ReactNode {
     module: 'delivery_methods',
     requiredPermission: 'delivery_methods:read',
   });
+  const showInpost = isVisible({ module: 'inpost', requiredPermission: 'inpost:manage' });
   const [rows, setRows] = useState<AdminDeliveryMethod[]>([]);
   const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -176,7 +177,7 @@ export function DeliveryMethodsPage(): ReactNode {
         </Alert>
       ) : null}
 
-      {showDhlParcel ? (
+      {showDhlParcel || showInpost ? (
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>{t('legacyMethods.integrations.title')}</CardTitle>
@@ -185,20 +186,40 @@ export function DeliveryMethodsPage(): ReactNode {
             <p className="mb-4 text-sm text-muted-foreground">
               {t('legacyMethods.integrations.shippingDescription')}
             </p>
-            <div className="flex items-center justify-between gap-4 rounded-md border p-4">
-              <div>
-                <div className="font-medium">{t('legacyMethods.integrations.dhlParcel.name')}</div>
-                <div className="text-sm text-muted-foreground">
-                  {t('legacyMethods.integrations.dhlParcel.description')}
+            {showDhlParcel ? (
+              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+                <div>
+                  <div className="font-medium">
+                    {t('legacyMethods.integrations.dhlParcel.name')}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {t('legacyMethods.integrations.dhlParcel.description')}
+                  </div>
                 </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/delivery-methods/dhl-parcel">
+                    {t('legacyMethods.integrations.configure')}
+                    <ArrowRight />
+                  </Link>
+                </Button>
               </div>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/delivery-methods/dhl-parcel">
-                  {t('legacyMethods.integrations.configure')}
-                  <ArrowRight />
-                </Link>
-              </Button>
-            </div>
+            ) : null}
+            {showInpost ? (
+              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+                <div>
+                  <div className="font-medium">{t('legacyMethods.integrations.inpost.name')}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {t('legacyMethods.integrations.inpost.description')}
+                  </div>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/settings/inpost">
+                    {t('legacyMethods.integrations.configure')}
+                    <ArrowRight />
+                  </Link>
+                </Button>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

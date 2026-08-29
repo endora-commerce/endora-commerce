@@ -32,6 +32,7 @@ import { Migration20260611T140414OrdersOrderItemPackaging } from './20260611T140
 import { Migration20260618T130459OrdersOrderAppliedPromotions } from './20260618T130459_orders_order_applied_promotions.js';
 import { Migration20260718T200339OrdersOrderCustomFieldValues } from './20260718T200339_orders_order_custom_field_values.js';
 import { Migration20260724T193611OrdersOrderPlacementIntents } from './20260724T193611_orders_order_placement_intents.js';
+import { Migration20260804T114814OrdersShippingAdapterData } from './20260804T114814_orders_shipping_adapter_data.js';
 import { Migration20260820T100201OrdersNewToPaidTransition } from './20260820T100201_orders_new_to_paid_transition.js';
 import { Migration20260821T131145OrdersPurchaseConversionMarker } from './20260821T131145_orders_purchase_conversion_marker.js';
 import { Migration20260824T080000OrdersDeliveryPointSnapshot } from './20260824T080000_orders_delivery_point_snapshot.js';
@@ -47,6 +48,7 @@ export const migrations = [
   Migration20260618T130459OrdersOrderAppliedPromotions,
   Migration20260718T200339OrdersOrderCustomFieldValues,
   Migration20260724T193611OrdersOrderPlacementIntents,
+  Migration20260804T114814OrdersShippingAdapterData,
   Migration20260820T100201OrdersNewToPaidTransition,
   Migration20260821T131145OrdersPurchaseConversionMarker,
   Migration20260824T080000OrdersDeliveryPointSnapshot,
@@ -63,6 +65,7 @@ export {
   Migration20260618T130459OrdersOrderAppliedPromotions,
   Migration20260718T200339OrdersOrderCustomFieldValues,
   Migration20260724T193611OrdersOrderPlacementIntents,
+  Migration20260804T114814OrdersShippingAdapterData,
   Migration20260820T100201OrdersNewToPaidTransition,
   Migration20260821T131145OrdersPurchaseConversionMarker,
   Migration20260824T080000OrdersDeliveryPointSnapshot,
