@@ -81,6 +81,73 @@ export const manifest = defineModuleManifest({
     'auth',
   ],
   settings,
+  /**
+   * The operator-visible error codes this module owns — feature 090, Phase 3
+   * (`specs/090-module-owned-error-codes/migration-runbook.md`).
+   *
+   * The list is the incumbent prefix chain's *answer* for `comparisons`, copied
+   * from the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts`
+   * (`grep -oE "^  [A-Z0-9_]+: 'comparisons'," …`). It is a transcription, not a
+   * judgement: the migration is answer-preserving over all 289 codes and
+   * re-routing is out of scope (§6.2, §6.5).
+   *
+   * **Trap T1 does not bite here, and that was measured rather than assumed.**
+   * The chain answers `comparisons` from one prefix and one identity —
+   * `code.startsWith('COMPARISON_') || code === ERROR_CODES.PDF_GENERATION_FAILED`.
+   * Three enumeration members carry the prefix and all three survive to this
+   * rule; no earlier rule names `PDF_GENERATION_FAILED`. So reading the chain's
+   * source would have given the same four as reading its answer. `inventory` and
+   * `assets_library` are where it does bite; this is another module where the two
+   * agree, which is worth recording so the next reader knows the question was
+   * asked.
+   *
+   * **One code a reader will look for here and not find: `PRODUCT_NOT_IN_COMPARISON`.**
+   * It names this module's own noun, it is raised in this package and nowhere
+   * else — `routes.public.ts`' `translate()` converts
+   * `ProductNotInComparisonError` into a 404 with it — and it is `catalog`'s,
+   * declared there in !1117. The chain never reaches the `COMPARISON_` rule with
+   * it, because the `PRODUCT_` prefix runs first and wins; the runbook's trap T2
+   * names this exact code as a routing decision an earlier feature made
+   * deliberately. Do not move it here.
+   *
+   * **The inverse: this package raises four codes it does not own.** All four are
+   * in `routes.public.ts` — `PRODUCT_NOT_IN_COMPARISON` and `PRODUCT_NOT_FOUND`
+   * are `catalog`'s (both from `translate()`), and `INTERNAL` and
+   * `VALIDATION_FAILED` are the platform's. That is D-95.2 from the thrower's
+   * side: routing follows the domain noun, and "the product does not exist" stays
+   * a catalogue noun however it is reached. None is declared here.
+   *
+   * **No code is raised by nothing.** All four have a live raise site in this
+   * package, on routes mounted unconditionally: `COMPARISON_EMPTY` and
+   * `PDF_GENERATION_FAILED` in the `GET /api/v1/comparisons/me/pdf` handler
+   * (`index.ts` always supplies a real `ComparisonPdfRenderer`, so the `if
+   * (pdfRenderer)` guard around them is not a closed door), `COMPARISON_FULL`
+   * from `translate()` over `ComparisonFullError`, and `COMPARISON_NOT_FOUND`
+   * three times — the `notFoundComparison()` / `notFound()` factories in
+   * `routes.public.ts` and `routes.share.ts`, and an inline throw in
+   * `routes.admin.ts`. So this module contributes nothing to the deferred-defect
+   * register's entry on codes no client can receive.
+   *
+   * Both spellings were searched, which trap T12 asks for: `ERROR_CODES.<CODE>`
+   * and the bare quoted literal, over `packages` and `backend/src`. This package
+   * writes no bare-literal `new HttpError(<status>, '<CODE>', …)` at all.
+   *
+   * No `tokens`, derived rather than assumed. `refusalToken`
+   * (`packages/platform/src/http/error-envelope.ts`) reads `details.code` and
+   * nothing else; every raise site above was read and not one passes a fourth
+   * argument, so no `details.code` can exist. The runbook's §5 raise-site scan
+   * attributes the tree's ten token-carrying codes over 41 sites to `core`,
+   * `invoices` and `carts` and names none of these; in the other direction the
+   * module's bundles hold exactly four `errors.<CODE>` sentences in each language
+   * and no `errors.<CODE>.<token>` key, so there is no dead sentence either.
+   */
+  errorCodes: [
+    { code: 'COMPARISON_EMPTY' },
+    { code: 'COMPARISON_FULL' },
+    { code: 'COMPARISON_NOT_FOUND' },
+    { code: 'PDF_GENERATION_FAILED' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: 'comparisons:read', label: 'View product comparisons' }],
   activation: { settingCode: 'comparisons.enabled', default: true },
