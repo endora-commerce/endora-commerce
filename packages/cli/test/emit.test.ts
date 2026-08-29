@@ -19,6 +19,18 @@ import { buildScaffoldSpec, type ScaffoldInput } from '../src/new-module/spec.js
 
 const NOW = new Date(Date.UTC(2026, 8, 1, 12, 0, 0));
 
+/**
+ * An emitted file with its comments removed.
+ *
+ * Several assertions below are about what the emitted **code** does not do, and
+ * the emitted comments name those same things in order to say why — an
+ * assertion over the raw text would fail on the file's own instruction. This is
+ * the existing `defineModuleRoutes` idiom made reusable rather than a new one.
+ */
+function codeOf(content: string): string {
+  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 function emit(extra: Partial<ScaffoldInput> = {}): Map<string, string> {
   const spec = buildScaffoldSpec({
     id: 'demo_widgets',
@@ -38,13 +50,19 @@ const FULL: Partial<ScaffoldInput> = {
   worker: true,
   subscriber: true,
   dependencies: ['settings'],
+  admin: 'catalog',
 };
+
+/** Every layer but the admin one — a module with no admin surface is real. */
+const HEADLESS: Partial<ScaffoldInput> = { ...FULL, admin: undefined };
 
 describe('the file set', () => {
   it('is the layout the platform composes, for a module with every layer', () => {
     expect([...emit(FULL).keys()].sort()).toEqual([
       'i18n/en.json',
       'i18n/pl.json',
+      'src/admin/index.ts',
+      'src/admin/pages/DemoWidgetsPage.tsx',
       'src/backend/entities/demo-widgets-item.entity.ts',
       'src/backend/index.ts',
       'src/backend/routes.admin.ts',
@@ -54,9 +72,11 @@ describe('the file set', () => {
       'src/migrations/20260901T120000_demo_widgets_init.ts',
       'src/migrations/index.ts',
       'src/ports/index.ts',
+      'test/unit/admin-contributions.test.ts',
       'test/unit/manifest.test.ts',
       'tsconfig.build.json',
       'tsconfig.json',
+      'tsconfig.ui.json',
       'vitest.config.ts',
     ]);
   });
@@ -69,6 +89,8 @@ describe('the file set', () => {
     expect(minimal).not.toContain('src/backend/routes.admin.ts');
     expect(minimal.some((path) => path.startsWith('src/backend/workers/'))).toBe(false);
     expect(minimal.some((path) => path.startsWith('src/backend/entities/'))).toBe(false);
+    expect(minimal.some((path) => path.startsWith('src/admin/'))).toBe(false);
+    expect(minimal).not.toContain('tsconfig.ui.json');
   });
 });
 
@@ -87,10 +109,13 @@ describe('never emits', () => {
     expect(paths.some((path) => path.startsWith('src/contracts/'))).toBe(false);
   });
 
-  it('an admin or storefront layer, or a docs fragment', () => {
-    expect(paths.some((path) => path.startsWith('src/admin/'))).toBe(false);
+  it('a storefront layer or a docs fragment', () => {
+    // `src/admin/` used to be on this list and is now `--admin`'s: the layer
+    // is emitted when a section names where it belongs, and never otherwise.
+    // A module with no admin surface is a real case — `mfa` is one.
     expect(paths.some((path) => path.startsWith('src/storefront/'))).toBe(false);
     expect(paths.some((path) => path.startsWith('docs/'))).toBe(false);
+    expect([...emit(HEADLESS).keys()].some((path) => path.startsWith('src/admin/'))).toBe(false);
   });
 
   it('an off-state test — it needs a booted platform and an unpublished harness', () => {
@@ -212,6 +237,124 @@ describe('the checklists each flag makes applicable', () => {
   });
 });
 
+describe('the admin layer', () => {
+  const files = emit(FULL);
+  const index = files.get('src/admin/index.ts')!;
+  const page = files.get('src/admin/pages/DemoWidgetsPage.tsx')!;
+
+  it('exports the contributions object and nothing else', () => {
+    // R2. A subpath is contract surface exactly while its module emits no
+    // runtime binding, and `./admin` deliberately is not — it exports an
+    // object. A component exported beside it would turn another module's reach
+    // into this layer into a supported pattern instead of a counted one.
+    const exported = [
+      ...codeOf(index).matchAll(/^export (?:const|function|class|interface|type) (\w+)/gm),
+    ];
+
+    expect(exported.map((match) => match[1])).toEqual(['contributions']);
+    expect(codeOf(index)).not.toMatch(/^export \*/m);
+  });
+
+  it('declares the screen as a dynamic-import factory', () => {
+    // R6. A static import defeats per-module chunking and makes the registry
+    // evaluate React in order to be enumerated.
+    expect(index).toContain("component: () => import('./pages/DemoWidgetsPage.js')");
+    expect(codeOf(index)).not.toMatch(/^import \{?\s*DemoWidgetsPage/m);
+  });
+
+  it('gates route and nav on the code its own server route enforces', () => {
+    // R7, and the same value `check:action-route-permissions` reconstructs.
+    expect(codeOf(index).match(/requiredPermission: 'demo_widgets:read'/g)).toHaveLength(2);
+    expect(index).toContain("const ROUTE_PATH = '/demo-widgets'");
+    expect(files.get('src/backend/routes.admin.ts')).toContain(
+      "'/api/v1/admin/demo-widgets'",
+    );
+  });
+
+  it('joins the section the author named, and invents none', () => {
+    expect(index).toContain("section: 'catalog'");
+    expect(emit({ ...FULL, admin: 'system' }).get('src/admin/index.ts')).toContain(
+      "section: 'system'",
+    );
+  });
+
+  it('names its label key module-relative', () => {
+    // R8. `nav.demoWidgets.label`, resolved in this module's own namespace —
+    // a key prefixed with the module id resolves to nothing and renders raw.
+    expect(index).toContain("labelKey: 'nav.demoWidgets.label'");
+    expect(codeOf(index)).not.toContain('demo_widgets.nav.');
+  });
+
+  it('imports the design system by bare specifier and never by the admin alias', () => {
+    // R4 / `aliased-reach`. `@/…` is the admin application's tsconfig and Vite
+    // alias; it resolves for nothing an installed package runs under.
+    expect(page).toContain("from '@endora-commerce/admin-kit/ui'");
+    expect(page).toContain("from '@endora-commerce/admin-kit/i18n'");
+    expect(page).toContain("from '@endora-commerce/admin-kit/lib'");
+    expect(codeOf(page)).not.toMatch(/from '@\//);
+  });
+
+  it('reaches no backend layer from the browser bundle', () => {
+    // R4's third refusal: a service class reached from here drags MikroORM,
+    // Fastify and ioredis into Vite's graph. The two layers share types
+    // through `@endora-commerce/contracts`.
+    for (const [path, content] of files) {
+      if (!path.startsWith('src/admin/')) continue;
+      expect(codeOf(content), path).not.toMatch(/from '\.\.\/backend|from '\.\.\/\.\.\/backend/);
+      expect(codeOf(content), path).not.toMatch(/@mikro-orm|'fastify'|'ioredis'|'bullmq'/);
+    }
+  });
+
+  it('takes the API origin from the kit rather than reading the environment', () => {
+    // `import.meta.env` is a fourth thing a screen reaches for, and a package
+    // that read it would acquire `vite/client` types and a second copy of the
+    // kit's fallback. The screen talks to its server through `apiClient`, which
+    // already carries the origin; a screen that has to build a URL itself takes
+    // the published `apiBaseUrl`.
+    expect(codeOf(page)).not.toMatch(/import\.meta\.env|vite\/client|process\.env/);
+    expect(page).toContain('apiClient.get<');
+  });
+});
+
+describe('the admin layer\u2019s own compilation', () => {
+  const files = emit(FULL);
+
+  it('emits under a second configuration that replaces the inherited exclude', () => {
+    // R12. The inherited `exclude` names `src/admin/**/*` — that is what keeps
+    // the backend program off this layer — so inheriting it here is TS18003
+    // over the one directory this program exists to compile.
+    const ui = files.get('tsconfig.ui.json')!;
+
+    expect(ui).toContain('"include": ["src/admin/**/*"]');
+    expect(ui).toMatch(/"exclude": \[[^\]]*\]/);
+    expect(ui).not.toMatch(/"exclude": \[[^\]]*"src\/admin/);
+    expect(ui).toContain('"jsx": "react-jsx"');
+    expect(ui).toContain('"lib": ["ES2022", "DOM", "DOM.Iterable"]');
+    expect(ui).toContain('"types": []');
+  });
+
+  it('shares one dist with the backend build, so the exports target is derived once', () => {
+    const ui = files.get('tsconfig.ui.json')!;
+    const build = files.get('tsconfig.build.json')!;
+
+    expect(ui).toContain('"rootDir": "./src"');
+    expect(build).toContain('"rootDir": "./src"');
+    expect(ui).toContain('"paths": {}');
+    expect(ui).toContain('"noEmitOnError": true');
+  });
+
+  it('keeps the backend program off the admin layer', () => {
+    // The reason for two configs rather than one widened: a service file that
+    // referenced `document` would otherwise compile clean, in the layer that
+    // runs in Node.
+    const typecheck = files.get('tsconfig.json')!;
+
+    expect(typecheck).toContain('"src/admin/**/*"');
+    expect(typecheck).not.toContain('"jsx"');
+    expect(emit(HEADLESS).get('tsconfig.json')).not.toContain('"src/admin/**/*"');
+  });
+});
+
 describe('i18n', () => {
   it('ships flat maps in both languages, carrying the same keys', () => {
     const files = emit(FULL);
@@ -230,6 +373,29 @@ describe('i18n', () => {
     expect(en).toHaveProperty('adminRoles.permission.demo_widgets:read');
     expect(en).not.toHaveProperty('demo_widgets.actions.openDemoWidgets.label');
   });
+
+  it('carries the nav label and every screen string the admin layer resolves', () => {
+    const en = JSON.parse(emit(FULL).get('i18n/en.json')!) as Record<string, unknown>;
+    const pl = JSON.parse(emit(FULL).get('i18n/pl.json')!) as Record<string, unknown>;
+
+    expect(en).toHaveProperty('nav.demoWidgets.label');
+    expect(en).toHaveProperty('admin.title');
+    expect(en).toHaveProperty('admin.description');
+    expect(Object.keys(pl)).toEqual(Object.keys(en));
+    // Every `t('…')` the emitted screen calls has a key in the bundle. A
+    // missing one renders the raw key and nothing reports it.
+    const page = emit(FULL).get('src/admin/pages/DemoWidgetsPage.tsx')!;
+    for (const [, key] of page.matchAll(/\bt\('([^']+)'\)/g)) {
+      expect(en, key).toHaveProperty(key);
+    }
+  });
+
+  it('adds none of those keys to a module with no admin layer', () => {
+    const en = JSON.parse(emit(HEADLESS).get('i18n/en.json')!) as Record<string, unknown>;
+
+    expect(Object.keys(en).some((key) => key.startsWith('nav.'))).toBe(false);
+    expect(Object.keys(en).some((key) => key.startsWith('admin.'))).toBe(false);
+  });
 });
 
 describe('the package-owned test run', () => {
@@ -244,6 +410,11 @@ describe('the package-owned test run', () => {
     // why the flag is absent.
     expect(files.get('vitest.config.ts')).not.toMatch(/passWithNoTests\s*:/);
     expect(files.has('test/unit/manifest.test.ts')).toBe(true);
+    // R16: a package that ships a UI layer must not ship test files no runner
+    // collects. The admin test is a `.ts` under the configured include, and it
+    // never evaluates the screen — the route component is a lazy factory.
+    expect(files.has('test/unit/admin-contributions.test.ts')).toBe(true);
+    expect(emit(HEADLESS).has('test/unit/admin-contributions.test.ts')).toBe(false);
   });
 
   it('reaches the repository root from the depth it was told about', () => {

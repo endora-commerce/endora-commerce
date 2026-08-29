@@ -15,10 +15,13 @@
 import {
   adminApiPathFor,
   adminRoutesOf,
+  adminScreenRouteOf,
   camelOf,
   camelOfActionId,
   gatingPermissionOf,
   manifestObjectFor,
+  navLabelKeyOf,
+  pageComponentOf,
   pascalOf,
   segmentOf,
   slugOf,
@@ -43,13 +46,18 @@ export interface EmittedFile {
  */
 export function emitModuleFiles(spec: ModuleScaffoldSpec, depth: number): readonly EmittedFile[] {
   const files: EmittedFile[] = [
-    { path: 'tsconfig.json', content: typecheckConfig(depth) },
+    { path: 'tsconfig.json', content: typecheckConfig(spec, depth) },
     { path: 'tsconfig.build.json', content: buildConfig() },
+  ];
+  if (spec.layers.admin !== null) {
+    files.push({ path: 'tsconfig.ui.json', content: uiConfig() });
+  }
+  files.push(
     { path: 'vitest.config.ts', content: vitestConfig(spec, depth) },
     { path: 'src/manifest.ts', content: moduleManifest(spec) },
     { path: 'src/backend/index.ts', content: backendIndex(spec) },
     { path: `src/backend/services/${slugOf(spec.id)}.service.ts`, content: service(spec) },
-  ];
+  );
   if (spec.permissions.length > 0) {
     files.push({ path: 'src/backend/routes.admin.ts', content: adminRoutes(spec) });
   }
@@ -64,9 +72,16 @@ export function emitModuleFiles(spec: ModuleScaffoldSpec, depth: number): readon
   if (spec.layers.ports) {
     files.push({ path: 'src/ports/index.ts', content: ports(spec) });
   }
+  if (spec.layers.admin !== null) {
+    files.push({ path: 'src/admin/index.ts', content: adminIndex(spec) });
+    files.push({ path: `src/admin/pages/${pageComponentOf(spec)}.tsx`, content: adminPage(spec) });
+  }
   files.push({ path: 'i18n/en.json', content: bundle(spec) });
   files.push({ path: 'i18n/pl.json', content: bundle(spec) });
   files.push({ path: 'test/unit/manifest.test.ts', content: manifestTest(spec) });
+  if (spec.layers.admin !== null) {
+    files.push({ path: 'test/unit/admin-contributions.test.ts', content: adminTest(spec) });
+  }
   return files;
 }
 
@@ -116,7 +131,20 @@ export function portNameOf(spec: ModuleScaffoldSpec): string {
 
 // --- the two build configurations, a constant of the layout ----------------
 
-function typecheckConfig(depth: number): string {
+function typecheckConfig(spec: ModuleScaffoldSpec, depth: number): string {
+  const hasAdmin = spec.layers.admin !== null;
+  const excluded = hasAdmin
+    ? ['src/admin/**/*', 'src/**/*.test.ts', 'src/**/*.spec.ts']
+    : ['src/**/*.test.ts', 'src/**/*.spec.ts'];
+  const adminExclusionComment = hasAdmin
+    ? `
+  //
+  // \`src/admin/\` is compiled by \`tsconfig.ui.json\` and by nothing else. It is
+  // excluded here rather than merged in because this configuration — and
+  // \`tsconfig.build.json\`, which extends it — is the one that must **not**
+  // carry \`jsx\` or the \`DOM\` lib: a service file that referenced \`document\`
+  // would otherwise compile clean, in the layer that runs in Node.`
+    : '';
   return `{
   // Type-check configuration, and the two-config split every package under
   // \`packages/\` uses. \`tsconfig.base.json\`'s \`paths\` block is active here, so
@@ -146,8 +174,8 @@ function typecheckConfig(depth: number): string {
   // install. That is this exclusion's whole job, and it is an *emit* concern —
   // \`tsconfig.build.json\` extends this file, which is how it gets there. It
   // does not stop those tests running: \`vitest\` reads its own \`include\` and
-  // transpiles what it collects.
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+  // transpiles what it collects.${adminExclusionComment}
+  "exclude": [${excluded.map((pattern) => `"${pattern}"`).join(', ')}]
 }
 `;
 }
@@ -178,6 +206,51 @@ function buildConfig(): string {
     // a stop — the artefacts are written before the exit code is.
     "noEmitOnError": true
   }
+}
+`;
+}
+
+function uiConfig(): string {
+  return `{
+  // Emit configuration for this package's **admin** layer.
+  //
+  // A second configuration, and not a widening of the first one, because the
+  // two layers run in two runtimes: \`jsx: "react-jsx"\` and the \`DOM\` lib are
+  // what a React screen needs and what a service file must not have. One config
+  // for both lets a file under \`src/backend/\` reference \`document\` and compile
+  // clean, in the layer that runs in Node — the compiler prevents that class of
+  // defect for free, and "we will be careful" is not a mechanism.
+  //
+  // \`paths\` is cleared for \`tsconfig.build.json\`'s reason: \`rootDir\` with an
+  // active \`paths\` block is TS6059, which exits 2 and emits the sibling
+  // package's output beside that sibling's source. So
+  // \`@endora-commerce/admin-kit/*\` resolves through its own \`exports\` map at
+  // its built \`.d.ts\`, which is the resolution the admin's Vite build gets too.
+  //
+  // \`rootDir\` and \`outDir\` are \`tsconfig.build.json\`'s, deliberately: the
+  // package publishes one \`dist\`, and the manifest generator derives the
+  // \`"./admin"\` target from that single emit layout. Two layouts would be two
+  // answers to "where does src/admin/index.ts end up".
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "./src",
+    "noEmit": false,
+    "noEmitOnError": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // No ambient \`node\` types: this layer is a browser bundle, and a screen
+    // that reaches for \`process.env\` should not compile.
+    "types": []
+  },
+  "include": ["src/admin/**/*"],
+  // The inherited \`exclude\` names \`src/admin/**/*\` — that is what keeps the
+  // backend program off this layer — so it has to be **replaced** here rather
+  // than inherited, or \`tsc\` reports TS18003 over the one directory this
+  // program exists to compile. The test patterns are kept for the sibling
+  // config's reason: a co-located test compiled into \`dist\` imports \`vitest\`,
+  // an unresolvable specifier in every consumer's install.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx"]
 }
 `;
 }
@@ -893,6 +966,352 @@ export interface ${portInterfaceOf(spec)} {
 ${shape}`;
 }
 
+// --- src/admin/ ------------------------------------------------------------
+
+/**
+ * `src/admin/index.ts` — the module's admin contributions, and **only** the
+ * contributions object.
+ *
+ * `check:module-boundary`'s D-171 rule designates a subpath as contract surface
+ * exactly while the module it resolves to emits no runtime binding. `./admin`
+ * deliberately does not qualify — it exports an object — so a consumer reaching
+ * into another module's `./admin` stays a counted boundary reach, which is the
+ * correct answer. That is what a component, a hook or a service exported from
+ * here would quietly turn into a supported pattern.
+ */
+function adminIndex(spec: ModuleScaffoldSpec): string {
+  const gate = gatingPermissionOf(spec);
+  const route = adminScreenRouteOf(spec);
+  const section = spec.layers.admin;
+  if (gate === null || route === null || section === null) {
+    throw new Error('adminIndex emitted without a gated route to mount the screen on');
+  }
+  const lines: string[] = [];
+  lines.push(
+    `import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';`,
+  );
+  lines.push('');
+  lines.push('/**');
+  lines.push(` * ${spec.name} — the module's admin surface.`);
+  lines.push(' *');
+  lines.push(' * The admin renders `[...host, ...registry]`: the generated registry');
+  lines.push(' * `admin/src/modules.generated.ts` imports this object by the bare specifier');
+  lines.push(' * this package\'s own `exports` map declares, so a screen arrives by the module');
+  lines.push(' * existing. Nothing here is registered in a file the module does not own —');
+  lines.push(' * `admin/src/App.tsx` and `admin/src/components/AppShell.tsx` are the two');
+  lines.push(' * registries this replaces.');
+  lines.push(' *');
+  lines.push(' * **This file exports data and nothing else.** A component, a hook or a');
+  lines.push(' * service exported here would make another module\'s reach into this layer a');
+  lines.push(' * supported pattern rather than the counted boundary reach it is.');
+  lines.push(' *');
+  lines.push(' * **The component is a dynamic-import factory, and it is the only');
+  lines.push(' * function-valued field.** A static import would make the registry evaluate');
+  lines.push(' * React to be enumerated, and would ship this screen\'s code to an operator');
+  lines.push(' * whose role cannot open it; the factory is what makes the bundler emit one');
+  lines.push(' * chunk per module by construction.');
+  lines.push(' */');
+  lines.push('');
+  lines.push("/** The one route this module mounts, and the palette action's target. */");
+  lines.push(`const ROUTE_PATH = ${quote(route)};`);
+  lines.push('');
+  lines.push('export const contributions: AdminContributions = {');
+  lines.push('  routes: [');
+  lines.push('    {');
+  lines.push('      path: ROUTE_PATH,');
+  lines.push(`      component: () => import('./pages/${pageComponentOf(spec)}.js'),`);
+  lines.push('      // The code this module\'s own admin routes are gated by, read from the');
+  lines.push('      // route rather than copied from a neighbour: `requireAdmin` enforces it');
+  lines.push('      // on `/api/v1/admin` + this path, and');
+  lines.push('      // `check:action-route-permissions` compares the two.');
+  lines.push(`      requiredPermission: ${quote(gate.code)},`);
+  lines.push('      index: true,');
+  lines.push('    },');
+  lines.push('  ],');
+  lines.push('  nav: [');
+  lines.push('    {');
+  lines.push('      to: ROUTE_PATH,');
+  lines.push('      // Module-relative, resolved in this module\'s own i18n namespace out of');
+  lines.push('      // `i18n/en.json` and `i18n/pl.json`. A key written as a nested object');
+  lines.push('      // fails the bundle schema, the boot reconciler logs and skips it, and');
+  lines.push('      // the sidebar renders the raw key with no error anywhere.');
+  lines.push(`      labelKey: ${quote(navLabelKeyOf(spec))},`);
+  lines.push(`      icon: ${quote(spec.icon)},`);
+  lines.push('      // A module may not invent a section: an invented heading is one no other');
+  lines.push('      // module can join, so two features that belong together become two');
+  lines.push('      // headings of one each.');
+  lines.push(`      section: ${quote(section)},`);
+  lines.push('      // Order within the section. Ties break by module id, so it is stable.');
+  lines.push('      weight: 100,');
+  lines.push('      // The same code the route is gated by, so the sidebar never advertises a');
+  lines.push('      // screen the operator would be refused.');
+  lines.push(`      requiredPermission: ${quote(gate.code)},`);
+  lines.push('    },');
+  lines.push('  ],');
+  lines.push('};');
+  lines.push('');
+  return lines.join('\n');
+}
+
+/**
+ * The screen itself — small enough to read, and real enough to prove the wiring.
+ *
+ * It renders through the published design system, resolves every string in this
+ * module's own namespace, and reads this module's own admin endpoint through
+ * the published client. That is four separate seams, each of which fails
+ * differently when it is wrong, and none of which is asserted by the module
+ * type-checking.
+ */
+function adminPage(spec: ModuleScaffoldSpec): string {
+  const pascal = pascalOf(spec.id);
+  const route = adminScreenRouteOf(spec);
+  if (route === null) throw new Error('adminPage emitted without a route to read');
+  const component = pageComponentOf(spec);
+  const lines: string[] = [];
+
+  lines.push(`import { useCallback, useEffect, useState, type ReactNode } from 'react';`);
+  lines.push(`import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';`);
+  lines.push('import {');
+  lines.push('  Alert,');
+  lines.push('  AlertDescription,');
+  lines.push('  Card,');
+  lines.push('  CardContent,');
+  lines.push('  PageHeader,');
+  if (spec.layers.entities) {
+    lines.push('  Table,');
+    lines.push('  TableBody,');
+    lines.push('  TableCell,');
+    lines.push('  TableHead,');
+    lines.push('  TableHeader,');
+    lines.push('  TableRow,');
+  }
+  lines.push(`} from '@endora-commerce/admin-kit/ui';`);
+  lines.push(`import { useTranslation } from '@endora-commerce/admin-kit/i18n';`);
+  lines.push('');
+  lines.push('/**');
+  lines.push(` * ${spec.name} — the module's own admin screen.`);
+  lines.push(' *');
+  lines.push(' * Every specifier above is a **bare** one. `@/…` is the admin application\'s');
+  lines.push(' * own tsconfig and Vite alias: it resolves for a file under `admin/src` and');
+  lines.push(' * for nothing an installed package runs under, which is why');
+  lines.push(' * `check:admin-surface` reports one from here as an `aliased-reach`.');
+  lines.push(' *');
+  lines.push(' * The server is reached only through `apiClient`, which already carries the');
+  lines.push(' * admin\'s API origin. A screen that has to build a URL itself — an');
+  lines.push(' * `<a download>` href, a form action — takes `apiBaseUrl` from');
+  lines.push(' * `@endora-commerce/admin-kit/lib` and never `import.meta.env`: reading the');
+  lines.push(' * environment here would mean a second copy of that fallback plus a');
+  lines.push(' * `vite/client` type dependency this package must not acquire.');
+  lines.push(' *');
+  lines.push(' * Every string resolves in this module\'s own i18n namespace out of');
+  lines.push(' * `i18n/en.json` and `i18n/pl.json`, which the platform\'s boot reconciler');
+  lines.push(' * installs. A module writes into no shared bundle.');
+  lines.push(' */');
+  lines.push('');
+
+  if (spec.layers.entities) {
+    lines.push(`/** One row, as \`GET ${adminApiPathFor(route)}\` answers. */`);
+    lines.push(`interface ${pascal}Row {`);
+    lines.push('  readonly id: string;');
+    lines.push('  readonly label: string;');
+    lines.push('  readonly createdAt: string;');
+    lines.push('}');
+  } else {
+    lines.push(`/** What \`GET ${adminApiPathFor(route)}\` answers. */`);
+    lines.push(`interface ${pascal}Status {`);
+    lines.push('  readonly module: string;');
+    lines.push('  readonly name: string;');
+    lines.push('}');
+  }
+  lines.push('');
+  lines.push(`export default function ${component}(): ReactNode {`);
+  lines.push(`  const t = useTranslation(${quote(spec.id)});`);
+  if (spec.layers.entities) {
+    lines.push(`  const [rows, setRows] = useState<readonly ${pascal}Row[]>([]);`);
+  } else {
+    lines.push(`  const [status, setStatus] = useState<${pascal}Status | null>(null);`);
+  }
+  lines.push('  const [loading, setLoading] = useState(true);');
+  lines.push('  const [error, setError] = useState<string | null>(null);');
+  lines.push('');
+  lines.push('  const load = useCallback(async (): Promise<void> => {');
+  lines.push('    setLoading(true);');
+  lines.push('    setError(null);');
+  lines.push('    try {');
+  if (spec.layers.entities) {
+    lines.push(`      const res = await apiClient.get<{ data: ${pascal}Row[] }>(`);
+    lines.push(`        ${quote(adminApiPathFor(route))},`);
+    lines.push('      );');
+    lines.push('      setRows(res.data);');
+  } else {
+    lines.push(`      const res = await apiClient.get<{ data: ${pascal}Status }>(`);
+    lines.push(`        ${quote(adminApiPathFor(route))},`);
+    lines.push('      );');
+    lines.push('      setStatus(res.data);');
+  }
+  lines.push('    } catch (err) {');
+  lines.push('      // The envelope carries a translated, operator-facing sentence; the');
+  lines.push('      // module\'s own key is the fallback for a failure that produced none.');
+  lines.push("      setError(err instanceof ApiError ? err.envelope.error.message : t('admin.error'));");
+  lines.push('    } finally {');
+  lines.push('      setLoading(false);');
+  lines.push('    }');
+  lines.push('  }, [t]);');
+  lines.push('');
+  lines.push('  useEffect(() => {');
+  lines.push('    void load();');
+  lines.push('  }, [load]);');
+  lines.push('');
+  lines.push('  let body: ReactNode = (');
+  lines.push("    <p className=\"text-sm text-muted-foreground\">{t('admin.loading')}</p>");
+  lines.push('  );');
+  if (spec.layers.entities) {
+    lines.push('  if (!loading) {');
+    lines.push('    body = (');
+    lines.push('      <Table>');
+    lines.push('        <TableHeader>');
+    lines.push('          <TableRow>');
+    lines.push("            <TableHead>{t('admin.column.label')}</TableHead>");
+    lines.push("            <TableHead>{t('admin.column.createdAt')}</TableHead>");
+    lines.push('          </TableRow>');
+    lines.push('        </TableHeader>');
+    lines.push('        <TableBody>');
+    lines.push('          {rows.length === 0 ? (');
+    lines.push('            <TableRow>');
+    lines.push('              <TableCell colSpan={2} className="text-sm text-muted-foreground">');
+    lines.push("                {t('admin.empty')}");
+    lines.push('              </TableCell>');
+    lines.push('            </TableRow>');
+    lines.push('          ) : (');
+    lines.push('            rows.map((row) => (');
+    lines.push('              <TableRow key={row.id}>');
+    lines.push('                <TableCell>{row.label}</TableCell>');
+    lines.push('                <TableCell>{new Date(row.createdAt).toLocaleString()}</TableCell>');
+    lines.push('              </TableRow>');
+    lines.push('            ))');
+    lines.push('          )}');
+    lines.push('        </TableBody>');
+    lines.push('      </Table>');
+    lines.push('    );');
+    lines.push('  }');
+  } else {
+    lines.push('  if (!loading && status !== null) {');
+    lines.push('    body = (');
+    lines.push('      <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">');
+    lines.push("        <dt className=\"text-muted-foreground\">{t('admin.field.module')}</dt>");
+    lines.push('        <dd>{status.module}</dd>');
+    lines.push("        <dt className=\"text-muted-foreground\">{t('admin.field.name')}</dt>");
+    lines.push('        <dd>{status.name}</dd>');
+    lines.push('      </dl>');
+    lines.push('    );');
+    lines.push('  }');
+  }
+  lines.push('');
+  lines.push('  return (');
+  lines.push('    <div className="space-y-6">');
+  lines.push("      <PageHeader title={t('admin.title')} description={t('admin.description')} />");
+  lines.push('      {error === null ? null : (');
+  lines.push('        <Alert variant="destructive">');
+  lines.push('          <AlertDescription>{error}</AlertDescription>');
+  lines.push('        </Alert>');
+  lines.push('      )}');
+  lines.push('      <Card>');
+  lines.push('        <CardContent className="pt-6">{body}</CardContent>');
+  lines.push('      </Card>');
+  lines.push('    </div>');
+  lines.push('  );');
+  lines.push('}');
+  lines.push('');
+  return lines.join('\n');
+}
+
+// --- test/unit/admin-contributions.test.ts ---------------------------------
+
+/**
+ * What an admin contribution can be wrong about without anything else noticing.
+ *
+ * The type-check proves the declaration's *shape*; none of these is a shape. A
+ * nav entry pointing at a path no route declares renders a blank screen, a
+ * `labelKey` missing from one language renders the raw key in that language
+ * only, and a `requiredPermission` the manifest does not declare is a sidebar
+ * row nobody can ever be granted. The layer's own build says nothing about any
+ * of them.
+ */
+function adminTest(spec: ModuleScaffoldSpec): string {
+  return `import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  AdminNavDeclarationSchema,
+  AdminRouteDeclarationSchema,
+} from '@endora-commerce/contracts';
+import * as adminLayer from '../../src/admin/index.js';
+import { manifest } from '../../src/manifest.js';
+
+const packageDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+
+function readBundle(language: string): Record<string, unknown> {
+  return JSON.parse(
+    readFileSync(\`\${packageDir}/i18n/\${language}.json\`, 'utf8'),
+  ) as Record<string, unknown>;
+}
+
+const bundles = { en: readBundle('en'), pl: readBundle('pl') };
+const { contributions } = adminLayer;
+
+describe('${spec.id} admin contributions', () => {
+  it('exports the contributions object and nothing else', () => {
+    // A subpath is contract surface exactly while its module emits no runtime
+    // binding, and \`./admin\` deliberately is not — it exports an object. A
+    // component or a hook exported beside it would turn another module's reach
+    // into this layer from a counted boundary reach into a supported pattern.
+    expect(Object.keys(adminLayer)).toEqual(['contributions']);
+  });
+
+  it('declares every route as a dynamic-import factory', () => {
+    for (const route of contributions.routes ?? []) {
+      const { component, ...data } = route;
+
+      expect(AdminRouteDeclarationSchema.safeParse(data).success, data.path).toBe(true);
+      expect(typeof component, data.path).toBe('function');
+      expect(component.length, data.path).toBe(0);
+    }
+  });
+
+  it('points every nav entry at a route this module declares', () => {
+    const paths = new Set((contributions.routes ?? []).map((route) => route.path));
+
+    for (const item of contributions.nav ?? []) {
+      expect(AdminNavDeclarationSchema.safeParse(item).success, item.to).toBe(true);
+      expect(paths.has(item.to), item.to).toBe(true);
+    }
+  });
+
+  it('resolves every nav label in both shipped languages', () => {
+    for (const item of contributions.nav ?? []) {
+      for (const [language, entries] of Object.entries(bundles)) {
+        expect(entries[item.labelKey], \`\${language}:\${item.to}\`).toEqual(expect.any(String));
+      }
+    }
+  });
+
+  it('gates every surface on a permission this module declares', () => {
+    const declared = new Set((manifest.permissions ?? []).map((entry) => entry.code));
+    const required = [...(contributions.routes ?? []), ...(contributions.nav ?? [])].flatMap(
+      (surface) =>
+        surface.requiredPermission === undefined
+          ? []
+          : [surface.requiredPermission].flat(),
+    );
+
+    expect(required.length).toBeGreaterThan(0);
+    for (const code of required) expect(declared.has(code), code).toBe(true);
+  });
+});
+`;
+}
+
 // --- i18n/{en,pl}.json -----------------------------------------------------
 
 /** `open-widgets` → `Open widgets`, the mechanical default label for an action. */
@@ -911,6 +1330,11 @@ function titleOfActionId(actionId: string): string {
  * write into the platform's `_i18n` bundle at all. The split is invisible from
  * the file, which is why it is stated here.
  *
+ * `nav.*` and `admin.*` are module-relative too, and arrive with the admin
+ * layer: the sidebar resolves a contributed entry's `labelKey` in the
+ * contributing module's namespace, so a module writes into no shared bundle to
+ * be named in the shell.
+ *
  * Both languages carry the same keys. The Polish values are the author's own
  * English text: a translation is a human judgement and this command does not
  * invent one — it names `i18n/pl.json` in its next steps instead.
@@ -924,6 +1348,21 @@ export function bundleEntries(spec: ModuleScaffoldSpec): readonly (readonly [str
     const key = camelOfActionId(action.id);
     entries.push([`actions.${key}.label`, titleOfActionId(action.id)]);
     entries.push([`actions.${key}.description`, spec.description]);
+  }
+  if (spec.layers.admin !== null) {
+    entries.push([navLabelKeyOf(spec), spec.name]);
+    entries.push(['admin.title', spec.name]);
+    entries.push(['admin.description', spec.description]);
+    entries.push(['admin.loading', 'Loading…']);
+    entries.push(['admin.error', `Could not load ${spec.name}.`]);
+    if (spec.layers.entities) {
+      entries.push(['admin.column.label', 'Label']);
+      entries.push(['admin.column.createdAt', 'Created']);
+      entries.push(['admin.empty', `No ${spec.name} yet.`]);
+    } else {
+      entries.push(['admin.field.module', 'Module']);
+      entries.push(['admin.field.name', 'Name']);
+    }
   }
   return entries;
 }

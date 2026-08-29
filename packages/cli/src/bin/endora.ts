@@ -44,6 +44,10 @@ Options for \`new module\`:
   --permission <code>=<label>   a permission code and its operator-facing label (repeatable)
   --action <id>=<route>         a command-palette action and the admin route it opens (repeatable)
   --icon <KnownIconName>        the icon for the emitted actions (default: Boxes)
+  --admin <navSection>          emit the ./admin layer: a gated screen and the sidebar entry
+                                that opens it, in the named section (main, sales, catalog,
+                                inventory, pricing, customers, channels, content, messaging,
+                                newsletter, analyticsAds, system). Needs a --permission
   --entities                    own a table: an entity, a migration and the ./migrations subpath
   --tenant-scope <scope>        org-scoped | customer-scoped | global (default: org-scoped)
   --ports                       publish a type-only ./ports subpath other modules resolve
@@ -80,6 +84,7 @@ function parse(argv: readonly string[]): Parsed {
       permission: { type: 'string', multiple: true },
       action: { type: 'string', multiple: true },
       icon: { type: 'string' },
+      admin: { type: 'string' },
       entities: { type: 'boolean' },
       ports: { type: 'boolean' },
       worker: { type: 'boolean' },
@@ -177,6 +182,9 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
       ...(asString(parsed.values['icon']) === undefined
         ? {}
         : { icon: asString(parsed.values['icon']) }),
+      ...(asString(parsed.values['admin']) === undefined
+        ? {}
+        : { admin: asString(parsed.values['admin']) }),
       entities: asFlag(parsed.values['entities']),
       ports: asFlag(parsed.values['ports']),
       worker: asFlag(parsed.values['worker']),
