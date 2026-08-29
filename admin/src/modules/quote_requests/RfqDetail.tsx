@@ -1,6 +1,16 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { Check, ClipboardList, Copy, FileText, History, PencilLine, XCircle } from 'lucide-react';
+import {
+  CalendarClock,
+  CalendarX,
+  Check,
+  ClipboardList,
+  Copy,
+  FileText,
+  History,
+  PencilLine,
+  XCircle,
+} from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -24,6 +34,7 @@ import {
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
 import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
+import { deadlineForDays, isValidityDaysInvalid, rfqValidity } from './validity';
 
 /**
  * Admin Quote Request detail (feature 008 / T043). Restructured to mirror the
@@ -117,6 +128,15 @@ interface AdminRfqDetail {
 
 const TERMINAL: RfqStatus[] = ['Approved', 'Completed', 'Canceled', 'Expired'];
 
+/**
+ * The statuses on which the operator's validity deadline still decides
+ * something: the two the customer can still accept a revision from, and the
+ * one they can still convert to an order. On a Canceled, Completed or
+ * (worker-)Expired request the deadline decides nothing, so saying it lapsed
+ * would be crying wolf over a record that is closed for another reason.
+ */
+const VALIDITY_MATTERS_ON: RfqStatus[] = ['Pending', 'Created from admin', 'Approved'];
+
 const STATUS_VARIANT: Record<
   RfqStatus,
   'default' | 'secondary' | 'success' | 'warning' | 'destructive'
@@ -140,6 +160,10 @@ export function RfqDetail(): ReactNode {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<RfqTab>('overview');
+  // Bumped when the operator takes the "set a new deadline" shortcut out of the
+  // lapsed banner, so the Modify tab opens with the deadline field focused
+  // rather than at the top of a form the operator then has to scan.
+  const [validityFocusNonce, setValidityFocusNonce] = useState(0);
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!id) return;
@@ -259,8 +283,29 @@ export function RfqDetail(): ReactNode {
   const taxTotal = total !== null ? total * taxRate : null;
   const grossTotal = total !== null && taxTotal !== null ? total + taxTotal : null;
 
+  // The operator's validity deadline, read once per render against the same
+  // clock every branch below uses.
+  const validity = rfqValidity(rfq.expiresAt, new Date());
+  const validityLapsed = validity.kind === 'lapsed' && VALIDITY_MATTERS_ON.includes(rfq.status);
+  // `modify` is the only operation that writes `expiresAt`, and it refuses any
+  // status but these two — so on an Approved request the deadline can no
+  // longer be moved at all, and the banner says so instead of pointing at a
+  // tab that is not rendered.
+  const validityReDatable = rfq.status === 'Pending' || rfq.status === 'Created from admin';
+
+  const openValidityEditor = (): void => {
+    setTab('modify');
+    setValidityFocusNonce((n) => n + 1);
+  };
+
   // Action buttons live in the PageHeader's top-right slot — mirroring the
   // Order detail view — rather than in an in-body status row.
+  //
+  // Both are disabled past the deadline, because both can now only answer 410:
+  // convert-to-order is refused outright, and approving moves a lapsed request
+  // into `Approved`, which `modify` refuses — so the deadline could never be
+  // moved afterwards and the quote would be unusable by either party. The
+  // banner below carries the reason and the remedy; a disabled button cannot.
   const headerActions: ReactNode[] = [];
   if (rfq.status === 'Pending') {
     headerActions.push(
@@ -270,7 +315,7 @@ export function RfqDetail(): ReactNode {
         size="sm"
         className="bg-card"
         onClick={(): void => void approve()}
-        disabled={busy}
+        disabled={busy || validityLapsed}
       >
         <Check />
         {t('rfq.detail.approve')}
@@ -285,7 +330,7 @@ export function RfqDetail(): ReactNode {
         size="sm"
         className="bg-card"
         onClick={(): void => void convert()}
-        disabled={busy}
+        disabled={busy || validityLapsed}
       >
         <FileText />
         {t('rfq.detail.convert.placeOrder')}
@@ -331,6 +376,12 @@ export function RfqDetail(): ReactNode {
                 {t('rfq.detail.badge.awaitingRevision')}
               </Badge>
             ) : null}
+            {validityLapsed ? (
+              <Badge variant="destructive" className="gap-1 text-xs font-medium">
+                <CalendarX className="size-3" aria-hidden="true" />
+                {t('rfq.detail.badge.validityEnded')}
+              </Badge>
+            ) : null}
           </>
         }
         description={
@@ -339,11 +390,17 @@ export function RfqDetail(): ReactNode {
             {rfq.submittedAt
               ? ` · ${t('rfq.detail.meta.submitted', { date: formatDateTime(rfq.submittedAt) })}`
               : ''}
+            {/* Three different sentences about three different dates: the
+                status the expiry worker set, a deadline still ahead, and one
+                already behind. The last used to render as "expires <date>",
+                which reads as a promise the platform is no longer keeping. */}
             {rfq.expiredAt
               ? ` · ${t('rfq.detail.meta.expired', { date: formatDateTime(rfq.expiredAt) })}`
-              : rfq.expiresAt
-                ? ` · ${t('rfq.detail.meta.expires', { date: formatDateTime(rfq.expiresAt) })}`
-                : ''}{' '}
+              : validity.kind === 'active'
+                ? ` · ${t('rfq.detail.meta.expires', { date: formatDateTime(validity.expiresAt) })}`
+                : validity.kind === 'lapsed'
+                  ? ` · ${t('rfq.detail.meta.validityEnded', { date: formatDateTime(validity.expiresAt) })}`
+                  : ''}{' '}
             <code className="font-mono text-xs">({rfq.id})</code>
           </span>
         }
@@ -365,6 +422,38 @@ export function RfqDetail(): ReactNode {
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>
             {t('rfq.detail.badge.cancelReason', { reason: rfq.cancellationReason })}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {/* The lapsed deadline states its own consequence and its own remedy,
+          because the two buttons it disables cannot: a disabled control is
+          removed from the tab order and announces no reason. */}
+      {validityLapsed && validity.kind === 'lapsed' ? (
+        <Alert variant="warning" className="mb-4">
+          <CalendarX className="size-4" aria-hidden="true" />
+          <AlertDescription>
+            <p className="font-medium">
+              {t('rfq.detail.validity.lapsed.headline', {
+                date: formatDateTime(validity.expiresAt),
+              })}
+            </p>
+            <p className="mt-1">
+              {validityReDatable
+                ? t('rfq.detail.validity.lapsed.remedyEditable')
+                : t('rfq.detail.validity.lapsed.remedyLocked')}
+            </p>
+            {validityReDatable ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 bg-card"
+                onClick={openValidityEditor}
+              >
+                <CalendarClock />
+                {t('rfq.detail.validity.lapsed.setNewDeadline')}
+              </Button>
+            ) : null}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -557,7 +646,13 @@ export function RfqDetail(): ReactNode {
           ) : null}
 
           {tab === 'modify' && !isTerminal ? (
-            <ModifyCard rfq={rfq} onSaved={refresh} setError={setError} setInfo={setInfo} />
+            <ModifyCard
+              rfq={rfq}
+              onSaved={refresh}
+              setError={setError}
+              setInfo={setInfo}
+              focusValidityNonce={validityFocusNonce}
+            />
           ) : null}
 
           {tab === 'history' ? (
@@ -701,14 +796,24 @@ function ModifyCard({
   onSaved,
   setError,
   setInfo,
+  focusValidityNonce,
 }: {
   rfq: AdminRfqDetail;
   onSaved: () => Promise<void>;
   setError: (msg: string | null) => void;
   setInfo: (msg: string | null) => void;
+  /** Changes when the operator asked for the deadline field from elsewhere. */
+  focusValidityNonce: number;
 }): ReactNode {
   const t = useTranslation('core');
   const [headerNote, setHeaderNote] = useState(rfq.headerNote ?? '');
+  // Blank means "leave the deadline where it is" — that is `expiresInDays`
+  // being absent from the PATCH, which is what the contract reads as "do not
+  // touch it". It is never prefilled: `expiresInDays` counts from *now*, so
+  // any number put here on the operator's behalf would be this screen choosing
+  // a date the customer is then held to.
+  const [expiresInDays, setExpiresInDays] = useState('');
+  const validityInputRef = useRef<HTMLInputElement>(null);
   const [lines, setLines] = useState<ModifyLineDraft[]>(
     rfq.items.map((it) => {
       // Open on the request's current state: start the agreed price from the
@@ -754,6 +859,13 @@ function ModifyCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Land the caret on the deadline field when the operator arrived here from
+  // the lapsed banner: the remedy they asked for is the one control they
+  // should not have to hunt for in this form (Fitts's Law).
+  useEffect(() => {
+    if (focusValidityNonce > 0) validityInputRef.current?.focus();
+  }, [focusValidityNonce]);
+
   const save = async (): Promise<void> => {
     setBusy(true);
     setError(null);
@@ -773,9 +885,26 @@ function ModifyCard({
         setBusy(false);
         return;
       }
+      // A deadline the contract would refuse is refused here rather than
+      // dropped from the payload: an operator who typed a number and got no
+      // deadline would have been told nothing.
+      const typedDays = expiresInDays.trim();
+      if (isValidityDaysInvalid(typedDays, new Date())) {
+        setError(t('rfq.detail.validity.error.days'));
+        setBusy(false);
+        validityInputRef.current?.focus();
+        return;
+      }
       await apiClient.patch(
         `/api/v1/admin/quote-requests/${rfq.id}`,
-        { headerNote: headerNote.trim().length > 0 ? headerNote.trim() : null, items },
+        {
+          headerNote: headerNote.trim().length > 0 ? headerNote.trim() : null,
+          items,
+          // Absent means "leave the deadline as it is" — the same shape
+          // `RfqCreatePage` sends, and what `adminPatchQuoteRequestSchema`
+          // reads as untouched.
+          ...(typedDays !== '' ? { expiresInDays: Number(typedDays) } : {}),
+        },
         { headers: { 'If-Match': `"${rfq.version}"` } },
       );
       setInfo(t('rfq.detail.modify.info.saved'));
@@ -806,6 +935,32 @@ function ModifyCard({
   // stacks so the trailing actions column can't overflow and break the layout.
   const gridCols = 'md:grid-cols-[minmax(200px,1fr)_96px_140px_130px_140px_auto]';
 
+  // The deadline field's answers, all about the same date: what saving would
+  // set, or — while the field is blank — what leaving it blank keeps. "Blank"
+  // and "no deadline" are two of those answers and must not read as one.
+  const now = new Date();
+  const currentValidity = rfqValidity(rfq.expiresAt, now);
+  const typedDays = expiresInDays.trim();
+  const previewDeadline = deadlineForDays(expiresInDays, now);
+  const daysInvalid = isValidityDaysInvalid(expiresInDays, now);
+  const validityHelp = daysInvalid
+    ? t('rfq.detail.validity.error.days')
+    : previewDeadline !== null
+      ? t(
+          Number(typedDays) === 0
+            ? 'rfq.detail.validity.help.previewImmediate'
+            : 'rfq.detail.validity.help.preview',
+          { date: formatDateTime(previewDeadline.toISOString()) },
+        )
+      : currentValidity.kind === 'none'
+        ? t('rfq.detail.validity.help.keepNone')
+        : t(
+            currentValidity.kind === 'active'
+              ? 'rfq.detail.validity.help.keepActive'
+              : 'rfq.detail.validity.help.keepLapsed',
+            { date: formatDateTime(currentValidity.expiresAt) },
+          );
+
   return (
     <Section title={t('rfq.detail.modify.title')}>
       <div className="space-y-3">
@@ -817,6 +972,36 @@ function ModifyCard({
             onChange={(e): void => setHeaderNote(e.target.value)}
             rows={2}
           />
+        </div>
+        {/* The validity deadline sits with the header note because both are
+            properties of the request rather than of a line, and both are saved
+            by the one "Save revision" button below — re-dating is part of
+            re-quoting, not a second thing to remember. */}
+        <div className="space-y-1.5">
+          <Label htmlFor="modify-expires-in-days" className="flex items-center gap-1.5">
+            <CalendarClock className="size-3.5 opacity-70" aria-hidden="true" />
+            {t('rfq.detail.validity.field')}
+          </Label>
+          <Input
+            id="modify-expires-in-days"
+            ref={validityInputRef}
+            type="number"
+            min={0}
+            step={1}
+            inputMode="numeric"
+            className="w-40 tabular-nums"
+            value={expiresInDays}
+            placeholder={t('rfq.detail.validity.placeholder')}
+            aria-describedby="modify-expires-in-days-help"
+            aria-invalid={daysInvalid || undefined}
+            onChange={(e): void => setExpiresInDays(e.target.value)}
+          />
+          <p
+            id="modify-expires-in-days-help"
+            className={cn('text-xs', daysInvalid ? 'text-destructive' : 'text-muted-foreground')}
+          >
+            {validityHelp}
+          </p>
         </div>
         <div className="space-y-2">
           <div
