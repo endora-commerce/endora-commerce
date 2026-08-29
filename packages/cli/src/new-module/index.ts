@@ -102,7 +102,7 @@ export async function runNewModule(options: NewModuleOptions): Promise<NewModule
       files,
       renderedManifests: [],
       dryRun: true,
-      nextSteps: nextStepsFor(host, packageName, packageDir),
+      nextSteps: nextStepsFor(host, packageName, packageDir, spec.layers.admin !== null),
     };
   }
 
@@ -129,7 +129,7 @@ export async function runNewModule(options: NewModuleOptions): Promise<NewModule
     files,
     renderedManifests: render.wrote,
     dryRun: false,
-    nextSteps: nextStepsFor(host, packageName, packageDir),
+    nextSteps: nextStepsFor(host, packageName, packageDir, spec.layers.admin !== null),
   };
 }
 
@@ -215,20 +215,33 @@ function nextStepsFor(
   host: ScaffoldHost,
   packageName: string,
   packageDir: string,
+  hasAdminLayer: boolean,
 ): readonly string[] {
   const where = relative(host.repoRoot, packageDir);
+  const composerNote = hasAdminLayer
+    ? `pnpm --filter backend run composer:generate && git add every artefact it wrote — an ` +
+      `unregistered migration does not run, an unregistered manifest is a module the platform ` +
+      `does not compose, and an unregistered admin contribution is a screen that exists and is ` +
+      `reachable from nowhere.`
+    : `pnpm --filter backend run composer:generate && git add every artefact it wrote — an ` +
+      `unregistered migration does not run and an unregistered manifest is a module the ` +
+      `platform does not compose.`;
   return [
-    `declare "${packageName}": "workspace:*" in the application's own package.json — the ` +
-      `generated manifest index imports a packaged module by **bare specifier**, so an ` +
-      `application that does not depend on it gets no node_modules link and every tool that ` +
-      `loads that index dies with ERR_MODULE_NOT_FOUND.`,
+    `declare "${packageName}": "workspace:*" in backend/package.json — the generated manifest ` +
+      `index imports a packaged module by **bare specifier**, so an application that does not ` +
+      `depend on it gets no node_modules link and every tool that loads that index dies with ` +
+      `ERR_MODULE_NOT_FOUND.${
+        hasAdminLayer
+          ? ' The admin\'s own dependency on this package is not yours to add: the manifest ' +
+            'generator reconciles it from the same layer inventory it renders `exports` from, ' +
+            'so a module that grows or drops `src/admin/` moves both in one run.'
+          : ''
+      }`,
     `pnpm install, then commit pnpm-lock.yaml — a new workspace member changes what the ` +
       `workspace declares, and \`pnpm install --frozen-lockfile\` is the first thing every CI ` +
       `job does.`,
     `pnpm --filter ${packageName} run build — a module package resolves at its \`dist\`.`,
-    `pnpm --filter backend run composer:generate && git add the four generated artefacts — ` +
-      `an unregistered migration does not run and an unregistered manifest is a module the ` +
-      `platform does not compose.`,
+    composerNote,
     `pnpm --filter backend run manifests:check — confirms the manifest this command produced ` +
       `is the one the generator renders.`,
     `translate ${join(where, 'i18n/pl.json')} — both shipped languages carry the same keys, ` +

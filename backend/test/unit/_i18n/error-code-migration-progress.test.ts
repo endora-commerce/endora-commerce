@@ -39,10 +39,12 @@ import {
  */
 const MIGRATED_MODULES: readonly string[] = [
   'assets_library',
+  'blog',
   'carts',
   'catalog',
   'inventory',
   'invoices',
+  'sales_channels',
 ];
 
 describe('feature 090 Phase 3 — each migrated module declares exactly what it owns', () => {

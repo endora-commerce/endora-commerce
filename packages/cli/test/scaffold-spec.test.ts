@@ -10,12 +10,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  adminScreenRouteOf,
   BASELINE_THROUGH,
   buildScaffoldSpec,
   camelOfActionId,
   formatStamp,
   manifestObjectFor,
   migrationStampFor,
+  navLabelKeyOf,
   npmNameFor,
   pascalOf,
   ScaffoldInputError,
@@ -159,6 +161,60 @@ describe('refusals', () => {
     expect(() =>
       buildScaffoldSpec({ ...MINIMAL, activationSetting: 'Demo Widgets Enabled' }),
     ).toThrow(/legal setting code/);
+  });
+});
+
+describe('the admin layer', () => {
+  it('refuses a section outside the set the shell renders', () => {
+    // A module may not invent a section: an invented heading is one no other
+    // module can join, so an entry declaring one renders nowhere at all.
+    expect(() =>
+      buildScaffoldSpec({
+        ...MINIMAL,
+        permissions: ['demo_widgets:read=View demo widgets'],
+        admin: 'widgets',
+      }),
+    ).toThrow(ScaffoldInputError);
+  });
+
+  it('refuses an admin layer with no permission to gate it', () => {
+    // The nav entry's `requiredPermission` is the code enforced on its own
+    // destination, and the destination is this module's admin route — which is
+    // emitted only when there is a permission to gate it with. There is no code
+    // for the scaffold to invent.
+    expect(() => buildScaffoldSpec({ ...MINIMAL, admin: 'system' })).toThrow(
+      /--admin needs a --permission/,
+    );
+  });
+
+  it('is absent unless the flag asked for it', () => {
+    expect(buildScaffoldSpec(MINIMAL).layers.admin).toBeNull();
+    expect(adminScreenRouteOf(buildScaffoldSpec(MINIMAL))).toBeNull();
+  });
+
+  it('mounts the screen on the route the palette action already names', () => {
+    // One value, read three times: the action's `targetRoute`, the SPA route,
+    // and the server route `/api/v1/admin` + it that the gate is on.
+    const spec = buildScaffoldSpec({
+      ...MINIMAL,
+      permissions: ['demo_widgets:read=View demo widgets'],
+      actions: ['open-demo-widgets=/demo-widgets'],
+      admin: 'catalog',
+    });
+
+    expect(spec.layers.admin).toBe('catalog');
+    expect(adminScreenRouteOf(spec)).toBe('/demo-widgets');
+    expect(navLabelKeyOf(spec)).toBe('nav.demoWidgets.label');
+  });
+
+  it('falls back to the module slug when no action names a route', () => {
+    const spec = buildScaffoldSpec({
+      ...MINIMAL,
+      permissions: ['demo_widgets:read=View demo widgets'],
+      admin: 'system',
+    });
+
+    expect(adminScreenRouteOf(spec)).toBe('/demo-widgets');
   });
 });
 

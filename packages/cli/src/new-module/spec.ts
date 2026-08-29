@@ -17,11 +17,13 @@
  * exists to prevent.
  */
 import {
+  AdminNavSectionNameSchema,
   KnownIconNameSchema,
   PERMISSION_CATALOGUE,
   defineModuleManifest,
   moduleIdRe,
   settingCodeRe,
+  type AdminNavSectionName,
   type KnownIconName,
 } from '@endora-commerce/contracts';
 
@@ -67,6 +69,18 @@ export interface ScaffoldLayers {
   readonly ports: boolean;
   readonly worker: boolean;
   readonly subscriber: boolean;
+  /**
+   * The sidebar section the emitted `src/admin/` layer joins, or `null` for a
+   * module with no admin surface at all.
+   *
+   * The section **is** the layer's presence, one field rather than a flag plus
+   * a nullable enum, because there is nothing the scaffold could default it to.
+   * A module may not invent a section (D-23: an invented heading is one nobody
+   * else can join), and where a screen belongs in an operator's sidebar is a
+   * product judgement the tool does not hold — so the flag that turns the layer
+   * on is the flag that carries the answer.
+   */
+  readonly admin: AdminNavSectionName | null;
 }
 
 export interface ModuleScaffoldSpec {
@@ -176,6 +190,34 @@ export function adminRoutesOf(spec: ModuleScaffoldSpec): readonly string[] {
 }
 
 /**
+ * The SPA route the emitted admin screen is mounted at, or `null` when there is
+ * no admin layer.
+ *
+ * It is the **first** route {@link adminRoutesOf} produces, which is what makes
+ * the three declarations agree without any of them restating the others: the
+ * palette action's `targetRoute`, the SPA route the screen is mounted at, and
+ * the server route `/api/v1/admin` + it that the screen reads and
+ * {@link gatingPermissionOf} gates. `check:action-route-permissions`
+ * reconstructs an action's entry route as exactly that concatenation, so an
+ * emitted module answers it with one value rather than with three that happen
+ * to match.
+ */
+export function adminScreenRouteOf(spec: ModuleScaffoldSpec): string | null {
+  if (spec.layers.admin === null) return null;
+  return adminRoutesOf(spec)[0] ?? null;
+}
+
+/** `nav.quoteRequests.label` — the module-relative key the sidebar entry resolves. */
+export function navLabelKeyOf(spec: ModuleScaffoldSpec): string {
+  return `nav.${camelOf(spec.id)}.label`;
+}
+
+/** `QuoteRequestsPage` — the emitted screen's component and file name. */
+export function pageComponentOf(spec: ModuleScaffoldSpec): string {
+  return `${pascalOf(spec.id)}Page`;
+}
+
+/**
  * The permission every emitted admin route is gated by.
  *
  * The first one declared, and the scaffold says so rather than inventing a
@@ -203,6 +245,7 @@ export interface ScaffoldInput {
   readonly ports?: boolean | undefined;
   readonly worker?: boolean | undefined;
   readonly subscriber?: boolean | undefined;
+  readonly admin?: string | undefined;
   readonly tenantScope?: string | undefined;
   readonly activationSetting?: string | undefined;
   readonly nonDeactivatable?: string | undefined;
@@ -304,6 +347,7 @@ export function buildScaffoldSpec(input: ScaffoldInput): ModuleScaffoldSpec {
       ports: input.ports === true,
       worker: input.worker === true,
       subscriber: input.subscriber === true,
+      admin: parseAdminSection(input.admin, permissions),
     },
     tenantScope,
     activation,
@@ -431,6 +475,49 @@ function parseIcon(icon: string | undefined): KnownIconName {
       `--icon "${icon}" is not in KnownIconNameSchema. The admin maps those names to ` +
         `components in admin/src/lib/admin-actions/icon-map.ts, so a name outside the schema ` +
         `renders nothing.`,
+    );
+  }
+  return parsed.data;
+}
+
+/**
+ * The sidebar section the admin layer joins, or `null` when the author asked
+ * for no admin layer.
+ *
+ * Two refusals, and both are about something the emitted layer could not
+ * otherwise be right about:
+ *
+ *   * **a section outside the published set.** `AdminNavSectionNameSchema` is
+ *     closed and the admin's sidebar renders exactly its members, so an
+ *     invented name is an entry that renders nowhere — worse than one that
+ *     fails, which is why the contribution contract refuses both directions.
+ *   * **no `--permission`.** A nav entry's `requiredPermission` must be the
+ *     code enforced on its own destination, and the destination is this
+ *     module's own admin route — which the scaffold emits only when it has a
+ *     permission to gate it with. A layer emitted without one would be an
+ *     ungated screen advertised in every operator's sidebar, and there is no
+ *     code to invent for it.
+ */
+function parseAdminSection(
+  value: string | undefined,
+  permissions: readonly ScaffoldPermission[],
+): AdminNavSectionName | null {
+  if (value === undefined) return null;
+  const parsed = AdminNavSectionNameSchema.safeParse(value.trim());
+  if (!parsed.success) {
+    throw new ScaffoldInputError(
+      `--admin "${value}" is not a sidebar section. It is one of ` +
+        `${AdminNavSectionNameSchema.options.join(', ')} — the set the admin's shell renders. ` +
+        `A module may not invent a section: an invented heading is one no other module can ` +
+        `join, so two features that belong together end up as two headings of one each.`,
+    );
+  }
+  if (permissions.length === 0) {
+    throw new ScaffoldInputError(
+      '--admin needs a --permission: a nav entry\'s `requiredPermission` is the code enforced ' +
+        'on its own destination, and the destination is this module\'s admin route, which is ' +
+        'emitted only when there is a permission to gate it with. Without one the emitted ' +
+        'screen would be advertised in every operator\'s sidebar and gated by nothing.',
     );
   }
   return parsed.data;
