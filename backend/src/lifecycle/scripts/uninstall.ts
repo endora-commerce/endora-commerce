@@ -2,6 +2,14 @@ import { z } from 'zod';
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { initOrm, closeOrm } from '../../db/index.js';
+// A platform command composes nothing (D-157.2), so the merged ownership a
+// composition root builds is not available to it: it answers for the committed
+// core registry and for nothing else, and a hard uninstall of a package module
+// is refused from the terminal rather than reverting core's rows and leaving the
+// package's behind. The orchestrator used to apply this default itself, which
+// made it reach out of the platform into `src/db` (D-160.11); the choice is the
+// same, made where it belongs.
+import { coreMigrationOwnership } from '../../db/configured-migrations.js';
 import { AuditLogService } from '../../kernel/audit/audit-log-service.js';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../services/orchestrator.js';
 import { buildStaticRegistry } from '../services/static-registry.js';
@@ -130,6 +138,7 @@ async function main(): Promise<number> {
     em,
     auditLog,
     registry,
+    migrationOwnership: coreMigrationOwnership(),
   });
 
   try {

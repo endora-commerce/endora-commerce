@@ -81,7 +81,7 @@ Segment normalization has exactly two special cases:
 |------------------|-------------|---------------------|
 | `backend/src/modules/orders/migrations/` | `orders` | `'orders'` |
 | `packages/modules/_i18n/src/migrations/` | `i18n` | `'_i18n'` |
-| `backend/src/lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
+| `packages/platform/src/lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
 | `backend/src/db/migrations/` | `core` | `'core'` |
 
 **The class-name tail must begin with the module's segment**, and that is a rule now,

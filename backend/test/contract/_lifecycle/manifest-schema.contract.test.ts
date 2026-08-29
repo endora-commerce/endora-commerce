@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ModuleManifestSchema } from '@endora-commerce/contracts';
-import { manifest as lifecycleManifest } from '../../../src/lifecycle/manifest.js';
+import { manifest as lifecycleManifest } from '../../../../packages/platform/src/lifecycle/manifest.js';
 import { manifest as settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 import { manifest as salesChannelsManifest } from '../../../../packages/modules/sales_channels/src/manifest.js';
 import { manifest as searchManifest } from '../../../../packages/modules/search/src/manifest.js';

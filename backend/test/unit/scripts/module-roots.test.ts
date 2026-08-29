@@ -73,6 +73,18 @@ function indexSource(
 /** A module's manifest, inert — the derivations here read ids, never behaviour. */
 const manifestSource = (id: string): string => `export const manifest = { id: '${id}' };\n`;
 
+/**
+ * The same, in the **lifecycle shape** — the marker core discovery reads.
+ *
+ * The platform-resident derivation cannot go through the index's `manifestPath`
+ * (a module inside the platform is imported at that package's built file, so
+ * the field names `dist/`), so it reads the id out of the manifest itself. That
+ * is the shape it reads.
+ */
+const definedManifestSource = (id: string): string =>
+  `import { defineModuleManifest } from '@endora-commerce/contracts';\n` +
+  `export const manifest = defineModuleManifest({ id: '${id}', name: '${id}' });\n`;
+
 const WORKSPACE = 'packages:\n  - backend\n  - packages/*\n  - packages/modules/*\n';
 
 /** A checkout with `blog` in the application tree and `shop` in a package. */
@@ -252,6 +264,63 @@ describe('the roots themselves', () => {
     // kernel file as a module's.
     expect(layout.moduleIdOfPath(join(root, 'backend/src/kernel/index.ts'))).toBeNull();
     expect(layout.moduleWalkRoots).not.toContain(join(root, 'backend/src'));
+  });
+
+  it('places a module inside the platform package, by the manifest it declares', async () => {
+    // D-160.11's second half. `_lifecycle` merged into `@endora-commerce/platform`,
+    // which declares `endora.type: "platform"` — so `declaredModuleId` answers
+    // `null` for it and the package half of the derivation never sees the module
+    // inside. Without this root the one registered module living there produces
+    // no file for any module walk and the #215 floor refuses all sixteen checks.
+    //
+    // The location is **not** read off `manifestPath`: the real index names the
+    // package's built file, and mapping `dist` back to `src` would be a
+    // convention written into a derivation (D-100). The marker is the manifest.
+    const root = tree({
+      'pnpm-workspace.yaml': WORKSPACE,
+      'package.json': '{ "name": "root", "type": "module", "private": true }\n',
+      'backend/package.json': '{ "name": "backend", "type": "module", "private": true }\n',
+      'backend/src/manifest-index.generated.ts': indexSource([
+        {
+          id: '_lifecycle',
+          from: '../../packages/platform/dist/lifecycle/manifest.js',
+          manifestPath: 'packages/platform/dist/lifecycle/manifest.js',
+        },
+        { id: 'blog', from: './modules/blog/manifest.js' },
+      ]),
+      'backend/src/modules/blog/manifest.ts': manifestSource('blog'),
+      'backend/src/modules/blog/backend.ts': 'export const a = 1;\n',
+      'packages/platform/package.json':
+        '{ "name": "@endora-commerce/platform", "type": "module", "endora": { "type": "platform" } }\n',
+      'packages/platform/src/kernel/index.ts': 'export const k = 1;\n',
+      'packages/platform/src/lifecycle/manifest.ts': definedManifestSource('_lifecycle'),
+      'packages/platform/src/lifecycle/services/lock.ts': 'export const l = 1;\n',
+      // The index imports the package's *built* manifest, which is the shape
+      // the real generator emits — so the fixture has to hold one for the index
+      // to import at all.
+      'packages/platform/dist/lifecycle/manifest.js': manifestSource('_lifecycle'),
+    });
+    const layout = await resolveModuleLayout(join(root, 'backend'));
+
+    expect(layout.moduleWalkRoots).toEqual([
+      join(root, 'backend/src/modules'),
+      join(root, 'packages/platform/src/lifecycle'),
+      join(root, 'backend/src/apps'),
+    ]);
+    expect(
+      layout.moduleIdOfPath(join(root, 'packages/platform/src/lifecycle/services/lock.ts')),
+    ).toBe('_lifecycle');
+    expect(layout.moduleDirectoryOf('_lifecycle')).toBe(
+      join(root, 'packages/platform/src/lifecycle'),
+    );
+    // Keyed by the tail `moduleIdOf` compares against — it cuts at the last
+    // `/src/`, so this key is what makes a check that attributes inside its own
+    // analysis answer for the module.
+    expect([...layout.hostResidentModules]).toEqual([['lifecycle', '_lifecycle']]);
+    // The rest of the platform is nobody's, and a directory named `lifecycle`
+    // one level in — `kernel/lifecycle/` in the real tree — is not the module.
+    expect(layout.moduleIdOfPath(join(root, 'packages/platform/src/kernel/index.ts'))).toBeNull();
+    expect(layout.moduleWalkRoots).not.toContain(join(root, 'packages/platform/src'));
   });
 
   it('keeps the application spelling and answers repo-relative for a package', async () => {

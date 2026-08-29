@@ -292,130 +292,35 @@ export interface LedgeredReach {
  * the contract paragraph that classified it and the event that retires it — an
  * entry is debt with a due date, not a permission.
  *
- * **What is left after T051's sweep, because the shape of the remainder is the
- * point.** Every remaining key is `_lifecycle`'s or a deployment's own files;
- * both are already routed and neither retires by editing an import — D-160.11
- * merges `_lifecycle` into the host package (it *is* the platform's operator
- * half wearing a module's directory layout, and it reaches twelve distinct
- * unpublished targets for that reason), and a per-deployment file under
- * `src/apps/` is never packaged (D-104). **No ordinary module is blocked by
- * this check any more**, which is new: the ledger carried two entries that were
- * questions rather than repairs, and both are answered. `REGISTRY_CACHE` went
- * with D-174 — `admin_actions` registers an `InProcessCacheLayer` and the
- * platform's own state-changed subscriber drops it, so the module names no
- * channel and no new symbol was published. The TOTP shim entry went by **deletion**:
- * its premise turned out to be false (§8's one-hop rule is scoped to *port*
- * methods, and the barrel applies it that way in both directions — five
- * parameter and return types of published *free* functions sit off it
- * deliberately), the two backup-code functions had zero call sites and zero
- * tests, and the shim itself had zero importers. Nothing was published.
- * That is why the group headers below are worth reading before adding an entry:
- * a new one that is neither `_lifecycle`'s nor a deliberate question is a
- * module the F4 sweep cannot convert.
- */
-/**
- * §1.4f — the host cannot export the ORM bootstrap, and this is the hardest
- * constraint in the contract. `db/index.ts` imports `mikro-orm.config.js` →
- * `configured-entities.js` → `entities-registry.generated.ts`, which carries 219
- * references into `src/modules/`: publishing it would make the host package
- * import every module package, which is a dependency cycle at the package
- * manager and unresolvable at install time.
+ * **What is left is four files, and none of them is a module's.** The ledger
+ * held 33 keys; 29 of them were `_lifecycle`'s, under five reasons that each
+ * said the same thing in a different register — the ORM bootstrap a
+ * container-less CLI has no other way to reach, the `ModulePlugin` type, the
+ * worker-pause pair, the twelve unpublished targets it was the only consumer
+ * of. All 29 retired together, and **not one of them by editing an import**,
+ * which is what every one of those reasons predicted: D-160.11's second half
+ * moved `_lifecycle`'s platform-safe files into the host package, where the
+ * same specifier crosses no boundary
+ * ({@link PlatformSurfaceInput.platformSourceRoot}), and left its host half —
+ * the manifest registry, the reduced-deployment reader and the five `module:*`
+ * commands — outside the module walk, where it is host code like `src/db` and
+ * `src/overlay` and was never this check's subject.
  *
- * Every consumer is a container-less CLI entry point — the `scripts/` residue
- * §1.5 routes to **Q1** — and **D-160.9 has since drained the ordinary ones**:
- * `admin_users`, `audit_logs`, `carts`, `search`, `settings` and `_i18n` now
- * declare their commands in their manifests and the host runs them with the
- * container already built. What is left is `_lifecycle`'s own `module:*`
- * scripts, which are the platform's operator half and retire with D-160.11's
- * merge rather than with a conversion, and one un-converted backfill.
- */
-const ORM_BOOTSTRAP =
-  '§1.4f — `db/index.ts` reaches the ORM config and through it 219 module-owned entity ' +
-  'references, so the host package cannot export it. A container-less CLI entry point has no ' +
-  'other way to boot; D-160.9 drained the ordinary ones, and these retire with D-160.11 or ' +
-  'with their own conversion.';
-
-/**
- * §1.5 and D-160.11 — `_lifecycle` is not on the same axis as the other
- * fourteen non-clean modules. It is the platform's operator half wearing a
- * module's directory layout: it owns the manifest index the whole check estate
- * derives its population from, and it reaches twelve distinct unpublished
- * targets because it is the only consumer of each. As a package like the other
- * 65, the host would have to publish those twelve for it alone — a public API
- * with one consumer forever. It merges into the host instead, and every entry
- * under this reason retires with that merge.
- */
-const LIFECYCLE_HOST_HALF =
-  '§1.5, D-160.11 — `_lifecycle` merges into the host package: it owns the manifest index ' +
-  'and is the only consumer of each target, so publishing them would be a public API with ' +
-  'one consumer forever. Retires with the merge, not by editing the import.';
-
-/**
- * §1.4g and D-103 — a composed module ships `backend.ts` and registers routes
- * through `ctx.routes`; `ModulePlugin` is not published and a module still
- * carrying a `plugin.ts` converts before it can be packaged.
+ * So no module is blocked by this check, and none is ledgered by it. The three
+ * entries that were questions rather than repairs are all answered:
+ * `REGISTRY_CACHE` went with D-174 — `admin_actions` registers an
+ * `InProcessCacheLayer` and the platform's own state-changed subscriber drops
+ * it, so the module names no channel and no new symbol was published — and the
+ * TOTP shim entry went by **deletion**: its premise turned out to be false (§8's
+ * one-hop rule is scoped to *port* methods, and the barrel applies it that way
+ * in both directions), the two backup-code functions had zero call sites and
+ * zero tests, and the shim itself had zero importers. Nothing was published for
+ * any of them.
  *
- * **Eight of the nine drained in T051, and the retiring condition the entry
- * used to name was not the one that retired them.** It read *"retires when this
- * module's `plugin.ts` is gone"*, which conflated the reach with the file: what
- * a packaged module cannot do is **name an unpublished symbol**, and the attach
- * function's type is `(app: FastifyInstance) => Promise<void>` whether or not
- * the body still lives in a `plugin.ts`. The already-packaged `quote_requests`
- * ships one and types it exactly that way (`src/backend/plugin.ts:124`), which
- * is the precedent the eight followed. Converting the file is a separate and
- * larger piece of work; it was never what this reach was waiting for.
- *
- * The survivor is `_lifecycle`'s, which retires with D-160.11's merge like its
- * eleven siblings.
+ * A new entry is therefore a real finding, not a queue position: it is a module
+ * the F4 sweep cannot convert, and the group header it needs has to be written
+ * before it is added.
  */
-const MODULE_PLUGIN =
-  '§1.4g, D-103 — a composed module ships `backend.ts` and uses `ctx.routes`; `ModulePlugin` ' +
-  'is not published, and the attach function types on `fastify`\'s own `FastifyInstance` ' +
-  'instead. This one is `_lifecycle`\'s and retires with D-160.11.';
-
-/**
- * §1.4b, §8 step 4 and D-160.9 — a CLI entry point that deliberately composes
- * no container, so `new AuditLogService(em)` is the only construction available
- * and "take the port" is not.
- *
- * D-160.9 took the six that could be converted. The five that remain are
- * `_lifecycle`'s `module:*` scripts, and they are the case the conversion
- * cannot reach: they are what *runs* the lifecycle, so a manifest-declared
- * command the host collects would be the orchestrator asking itself to
- * orchestrate. They retire with D-160.11.
- */
-const CONTAINERLESS_CLI =
-  '§1.4b, §8 step 4 — a CLI entry point that deliberately composes no container, so the ' +
-  'construction is the only one available and taking the port is not. D-160.9 converted the ' +
-  'six that could be; these run the lifecycle itself and retire with D-160.11.';
-
-/**
- * §1.4c — the **A** half of `plugin-helpers`' by-symbol split. A composed module
- * uses `ctx.worker` / `ctx.subscribe`; publishing the wrappers directly would
- * re-open by bare specifier the seam `check:subscribe-seam` closed by relative
- * path.
- *
- * **Nine of the ten drained in T051, in two shapes.** Where the worker is
- * constructed by a factory the module composition calls (`product_feeds`'s
- * four, `pim_ergonode`'s two, `ksef`'s one), the factory returns the plain
- * `Worker` and the module's `backend.ts` hands it to `ctx.worker`. Where it is
- * constructed inside the attach function because it needs `app.log` or an
- * awaited settings read (`newsletter`'s three, `catalog`'s one), the module
- * takes `ctx.worker` as a `registerWorker` option — the same gate, reached
- * through the seam a composed module is meant to use, from a file that has no
- * `ModuleContext` in scope. `ksef`'s two `subscribeForModule` calls moved to
- * `ctx.subscribe` in the same way, the handler staying in the module's service
- * graph and the registration living in `backend.ts` (issue #107).
- *
- * The survivor is `_lifecycle`'s `pauseWorkersFor` / `resumeWorkersFor` pair,
- * which is the orchestrator's own and retires with D-160.11.
- */
-const WORKER_WRAPPERS =
-  '§1.4c — the A half of `plugin-helpers`\' by-symbol split: a composed module uses ' +
-  '`ctx.worker` / `ctx.subscribe`, and publishing the wrappers would re-open by bare ' +
-  'specifier the seam `check:subscribe-seam` closed. This pair is the orchestrator\'s own ' +
-  'and retires with D-160.11.';
-
 /**
  * Not a module's file at all.
  *
@@ -436,51 +341,12 @@ const DEPLOYMENT_FILE =
   'module file the attribution loses cannot hide among them.';
 
 export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach>> = {
-  // === CONTAINERLESS_CLI (5) ===
-  'backend/src/lifecycle/scripts/disable.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/lifecycle/scripts/enable.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/lifecycle/scripts/install.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/lifecycle/scripts/status.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-  'backend/src/lifecycle/scripts/uninstall.ts|packages/platform/src/kernel/audit/audit-log-service.ts': { symbols: ['AuditLogService'], reason: CONTAINERLESS_CLI },
-
   // === DEPLOYMENT_FILE (4) ===
   'backend/src/apps/acceptance/override-manifest.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/acceptance/reduced-deployment.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/example/override-manifest.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/example/reduced-deployment.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
 
-  // === LIFECYCLE_HOST_HALF (16) ===
-  'backend/src/lifecycle/backend.ts|packages/platform/src/http/interceptors/index.ts': { symbols: ['ApiInterceptorRegistry'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/commands/activation.commands.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/plugin.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['ModuleRegistryCache', 'registryCache'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/registered-manifests.ts|backend/src/manifest-index.generated.ts': { symbols: ['DISCOVERED_MANIFESTS', 'DiscoveredManifestEntry'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/registered-manifests.ts|backend/src/overlay/overlay-runtime.ts': { symbols: ['discoverOverlayModuleManifests'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/registered-manifests.ts|backend/src/packages/module-id-claims.ts': { symbols: ['ModuleIdClaim', 'ModuleIdClaimOrigin', 'assertNoPackageModuleIdCollisions'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/registered-manifests.ts|backend/src/packages/package-runtime.ts': { symbols: ['discoverPackageModuleManifests'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/routes.admin.ts|packages/platform/src/http/interceptors/index.ts': { symbols: ['ApiInterceptorRegistry'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/services/orchestrator.ts|backend/src/db/configured-migrations.ts': { symbols: ['MigrationOwnership', 'coreMigrationOwnership'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/services/orchestrator.ts|backend/src/db/migration-order.ts': { symbols: ['findModuleCycles'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': { symbols: ['ModuleRegistration'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['publishStateChanged', 'registryCache'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/kernel/settings/manifest-reconciler.ts': { symbols: ['ManifestReconciler'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/activation-resolver.ts': { symbols: ['activationDeclarationsFrom'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': { symbols: ['ModuleRegistration'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/services/presence-load.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': { symbols: ['registryCache'], reason: LIFECYCLE_HOST_HALF },
-  'backend/src/lifecycle/services/reduced-deployment.ts|backend/src/overlay/overlay-roots.ts': { symbols: ['selectedDeployment'], reason: LIFECYCLE_HOST_HALF },
-
-  // === MODULE_PLUGIN (1) ===
-  'backend/src/lifecycle/plugin.ts|packages/platform/src/http/server.ts': { symbols: ['ModulePlugin'], reason: MODULE_PLUGIN },
-
-  // === ORM_BOOTSTRAP (5) ===
-  'backend/src/lifecycle/scripts/disable.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
-  'backend/src/lifecycle/scripts/enable.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
-  'backend/src/lifecycle/scripts/install.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
-  'backend/src/lifecycle/scripts/status.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
-  'backend/src/lifecycle/scripts/uninstall.ts|backend/src/db/index.ts': { symbols: ['closeOrm', 'initOrm'], reason: ORM_BOOTSTRAP },
-
-
-  // === WORKER_WRAPPERS (1) ===
-  'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': { symbols: ['pauseWorkersFor', 'resumeWorkersFor'], reason: WORKER_WRAPPERS },
 };
 
 export interface PlatformSurfaceInput {
@@ -525,6 +391,33 @@ export interface PlatformSurfaceInput {
    * and `main` exits 2 when it cannot find one.
    */
   readonly host?: HostPackage | null;
+  /**
+   * The platform's own source root, repo-relative — so a module whose sources
+   * live **inside** the host package is not judged for reaching it (feature
+   * 080, D-160.11).
+   *
+   * `_lifecycle` merged into `@endora-commerce/platform`, and its files go on
+   * naming `../../kernel/lifecycle/registry-cache.js` exactly as they did in
+   * `backend/src/lifecycle/`. The specifier is unchanged and its meaning is
+   * not: it is now a reach from one directory of a package into another
+   * directory of the *same* package, which crosses no boundary and which no
+   * `exports` map is asked about. This check's whole subject is the reach a
+   * packaged module could not write — D-160.8, and the reason the sixteen
+   * `LIFECYCLE_HOST_HALF` entries said they would *"retire with the merge, not
+   * by editing the import"*. Judging them here would publish twelve kernel and
+   * `http` symbols for one consumer forever, which is what D-160.11 refused.
+   *
+   * It exempts the **reaches**, never the file: the walk still opens it, still
+   * counts it in `read: files=`, and still reports it as `unattributed-source`
+   * if no module owns it — so a module file inside the platform that stopped
+   * resolving to its id is a finding rather than a silence (#215 one layer in).
+   * Every other file in the platform is outside this check's population
+   * already, for the same reason: none of them is a module's.
+   *
+   * `null` — the default — is "this workspace has no platform", which is true
+   * of every fixture and of nothing else; `main` exits 2 before it gets here.
+   */
+  readonly platformSourceRoot?: string | null;
 }
 
 /** One module package's answer to "does your manifest declare the host?". */
@@ -618,6 +511,10 @@ export function scanPlatformSurface(input: PlatformSurfaceInput): PlatformSurfac
   const attribute = input.moduleIdOf ?? moduleIdOf;
   const canonical = input.canonicalTargetOf ?? ((key: string): string => key);
   const host = input.host ?? null;
+  const platformSourceRoot = input.platformSourceRoot ?? null;
+  const withinPlatform = (key: string): boolean =>
+    platformSourceRoot !== null &&
+    (key === platformSourceRoot || key.startsWith(`${platformSourceRoot}/`));
   const findings: PlatformSurfaceFinding[] = [];
   const hostReachModules = new Set<string>();
   let reaches = 0;
@@ -639,6 +536,9 @@ export function scanPlatformSurface(input: PlatformSurfaceInput): PlatformSurfac
       });
       continue;
     }
+    // Attributed, and then exempt: a module inside the host package reaches the
+    // platform by relative path within one package — see `platformSourceRoot`.
+    if (withinPlatform(file)) continue;
 
     for (const specifier of namedSpecifiers(text, file)) {
       // A bare specifier into the host package is the same reach a module in
@@ -990,6 +890,7 @@ async function main(): Promise<void> {
     moduleIdOf: attribute,
     canonicalTargetOf,
     host,
+    platformSourceRoot: repoKeyOf(platformRoot),
   });
 
   // The floor that follows the sweep. Every module package's manifest is

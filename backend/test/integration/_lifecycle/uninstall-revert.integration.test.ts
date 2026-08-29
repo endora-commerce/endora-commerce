@@ -12,7 +12,10 @@ import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registr
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
-import { migrationOwnershipOf } from '../../../src/db/configured-migrations.js';
+import {
+  coreMigrationOwnership,
+  migrationOwnershipOf,
+} from '../../../src/db/configured-migrations.js';
 
 /**
  * Hard uninstall must revert the target module's migrations.
@@ -122,6 +125,11 @@ describe('Module uninstall — migration revert resolves from the registry (inte
       em: () => db.em(),
       auditLog: new AuditLogService(() => db.em()),
       registry,
+      // The committed core registry, which is what these assertions are about:
+      // which of *core's* migrations a hard uninstall reverts. It was the
+      // orchestrator's own default until D-160.11 — a reach out of the platform
+      // into `src/db` — so the choice is made here now, where the subject is.
+      migrationOwnership: coreMigrationOwnership(),
       migratorFor: async () => migrator,
       log: { info: () => {}, warn: () => {}, error: () => {} },
     });

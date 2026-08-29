@@ -39,8 +39,12 @@
 // can be written. The composition seam is where the guarantee becomes
 // structural for *any* entry source rather than a property of one loader.
 
-/** Where a claim on a module id came from. */
-export type ModuleIdClaimOrigin = 'core' | 'overlay' | 'package';
+// Where a claim came from is the **platform's** vocabulary since D-160.11: the presence
+// load types `ShippedModuleEntry.origin` on it and narrows the first-boot insert with it,
+// and both of those moved into `@endora-commerce/platform`. Re-exported here because this
+// file is where a *claim* is built, and a claim carries an origin.
+export type { ModuleIdClaimOrigin } from '../lifecycle/services/module-origin.js';
+import type { ModuleIdClaimOrigin } from '../lifecycle/services/module-origin.js';
 
 export interface ModuleIdClaim {
   readonly id: string;

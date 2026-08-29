@@ -1,11 +1,12 @@
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, sep } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   auditBuiltBundles,
   bundleModulesUnder,
+  builtBundlesPathOf,
   collectRuntimeAssets,
   copyRuntimeAssets,
   describeBundleFinding,
@@ -88,13 +89,21 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
     // written down, so a module that starts or stops shipping translations moves
     // both sides of this together.
     //
-    // `bundleModulesUnder` is the narrowing, and it is the audit's own — a
-    // module package's bundles sit beside its `dist` and travel with it, so this
-    // copier neither reads nor ships them. Without it the two sides disagreed by
-    // exactly the packaged modules (90 against 88, when `blog` moved), which
-    // reads as a dropped bundle and is not one.
+    // `bundleModulesUnder` is the narrowing, and it is the **copier's** — a
+    // module package's bundles sit in its own directory and travel with it, so
+    // this copier neither reads nor ships them. Without it the two sides
+    // disagreed by exactly the packaged modules (90 against 88, when `blog`
+    // moved), which reads as a dropped bundle and is not one.
+    //
+    // **It is zero today, and that is the state this assertion had to learn to
+    // express** (feature 080, D-160.11's second half): `_lifecycle` was the last
+    // module whose sources sat under `backend/src`, and it is in the host
+    // package now. So the equality is what is asserted, not a floor under it —
+    // a floor would have to be `> 0`, which is a claim about where the modules
+    // live rather than about the copier. What guards against a vacuous green is
+    // the audit's own population below, which is every registered module and
+    // cannot go to zero while the platform has modules at all.
     const compiled = bundleModulesUnder(registeredBundleModules(), SRC_ROOT);
-    expect(compiled.length).toBeGreaterThan(0);
     expect(bundles).toHaveLength(compiled.length * 2);
 
     // **`.txt` used to be asserted here by name and no longer is**, and the
@@ -164,7 +173,7 @@ describe('auditBuiltBundles — a registered module whose bundles are not in the
     // directory relative to `src/`, so the proof follows a module wherever the
     // application keeps it.
     const builtBundlesOf = (module: RegisteredBundleModule): string =>
-      join(builtRoot, relative(SRC_ROOT, module.moduleDir), module.bundlesDir);
+      builtBundlesPathOf(module, SRC_ROOT, builtRoot);
     const victim = modules.find((module) => existsSync(builtBundlesOf(module)));
     expect(
       victim,
@@ -172,6 +181,17 @@ describe('auditBuiltBundles — a registered module whose bundles are not in the
     ).toBeDefined();
     const removed = builtBundlesOf(victim!);
     expect(existsSync(removed)).toBe(true);
+    // Copied aside first: the victim may be a package's own `i18n/`, which is
+    // source rather than a copy, so a removal with no restore would leave the
+    // repository short two files.
+    const keep = temporaryRootNamed('runtime-assets-victim-');
+    const saved: Record<string, string> = {};
+    for (const language of ['en', 'pl']) {
+      const from = join(removed, `${language}.json`);
+      if (!existsSync(from)) continue;
+      saved[language] = join(keep, `${language}.json`);
+      writeFileSync(saved[language]!, readFileSync(from, 'utf8'));
+    }
     rmSync(removed, { recursive: true });
 
     const findings = auditBuiltBundles(modules, SRC_ROOT, builtRoot);
@@ -180,17 +200,18 @@ describe('auditBuiltBundles — a registered module whose bundles are not in the
     ]);
     expect(describeBundleFinding(findings[0]!)).toContain('installed=0 failed=0');
 
-    // Restored, because the copied tree is shared with the cases above — and
-    // restored for the module the victim search actually chose, not for a module
-    // id written down here. The two must agree: a restore naming a different
-    // module leaves the removal in place and reds the *next* case instead.
-    copyRuntimeAssets(
-      SRC_ROOT,
-      builtRoot,
-      collectRuntimeAssets(SRC_ROOT).assets.filter((path) =>
-        path.startsWith(`${relative(SRC_ROOT, victim!.moduleDir).split(sep).join('/')}/`),
-      ),
-    );
+    // Restored, because the tree is shared with the cases above — and restored
+    // for the module the victim search actually chose, not for a module id
+    // written down here. The two must agree: a restore naming a different module
+    // leaves the removal in place and reds the *next* case instead.
+    //
+    // The victim is now a **package's own** directory rather than a copy of one:
+    // no module compiles into the built tree any more, so `copyRuntimeAssets`
+    // has nothing to put back and the files are written where they were.
+    for (const language of ['en', 'pl']) {
+      mkdirSync(removed, { recursive: true });
+      writeFileSync(join(removed, `${language}.json`), readFileSync(saved[language]!, 'utf8'));
+    }
     expect(auditBuiltBundles(modules, SRC_ROOT, builtRoot)).toEqual([]);
   });
 
@@ -214,18 +235,35 @@ describe('auditBuiltBundles — a registered module whose bundles are not in the
     ]);
   });
 
-  it('says nothing about a module this build does not ship', () => {
-    // An installed package's bundles are read from its own package directory at
-    // runtime; a built backend tree is not where they would be.
+  it('judges a module outside the built tree at its own directory', () => {
+    // A package's bundles are read from its own directory at runtime, so that
+    // is where the audit looks — it does **not** leave the module out.
+    //
+    // It did until D-160.11's second half, on the reading that a package's
+    // artefact is none of this build's business. The reading was fine and the
+    // consequence was not: with the last compiled module gone, the population it
+    // narrowed to is empty, so the whole audit passed over nothing. The
+    // population is the committed manifest index, which never holds an installed
+    // package (D-119/D-155), so every member is a module this repository builds
+    // and the directory asked about is exactly the one `dirname(manifestPath)`
+    // resolves to at runtime.
+    const absent = join(temporaryRootNamed('runtime-assets-package-'), 'mod-thing');
+    mkdirSync(absent, { recursive: true });
     expect(
       auditBuiltBundles(
-        [
-          {
-            moduleId: 'vendor_thing',
-            moduleDir: '/somewhere/node_modules/@vendor/mod-thing',
-            bundlesDir: 'i18n',
-          },
-        ],
+        [{ moduleId: 'vendor_thing', moduleDir: absent, bundlesDir: 'i18n' }],
+        SRC_ROOT,
+        builtRoot,
+      ),
+    ).toEqual([
+      { kind: 'missing-directory', moduleId: 'vendor_thing', expected: join(absent, 'i18n') },
+    ]);
+
+    mkdirSync(join(absent, 'i18n'), { recursive: true });
+    writeFileSync(join(absent, 'i18n', FALLBACK_BUNDLE_FILE), '{}');
+    expect(
+      auditBuiltBundles(
+        [{ moduleId: 'vendor_thing', moduleDir: absent, bundlesDir: 'i18n' }],
         SRC_ROOT,
         builtRoot,
       ),

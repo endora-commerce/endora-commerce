@@ -108,14 +108,24 @@ function shuffle<T>(items: readonly T[], random: () => number): T[] {
 }
 
 describe('migration-order module purity', () => {
-  it('imports nothing but @mikro-orm/core types', () => {
+  it('imports nothing but @mikro-orm/core types and the platform graph walk', () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const source = readFileSync(resolve(here, '../../../src/db/migration-order.ts'), 'utf8');
     const imports = [...source.matchAll(/^import\s+(?:type\s+)?[\s\S]*?from\s+'([^']+)';$/gm)].map(
       (match) => match[1]!,
     );
 
-    expect(imports).toEqual(['@mikro-orm/core']);
+    // The second import is the strongly-connected-components walk, and it is
+    // not a loosening of this rule (feature 080, D-160.11). The property this
+    // file has to keep is *purity* — no I/O, no clock, no environment, no module
+    // — and the walk is a pure function over a `Map<string, string[]>`. What
+    // changed is who owns it: the lifecycle orchestrator refuses an install
+    // whose arrival closes a cycle, and it lives in
+    // `@endora-commerce/platform`, which may not name a file this application
+    // owns (D-52/D-53). One implementation is what makes the member list an
+    // operator reads in a refused install the member list this order reports;
+    // two would be free to disagree.
+    expect(imports).toEqual(['@mikro-orm/core', '../lifecycle/services/dep-graph.js']);
     expect(source).not.toContain("from '../modules/");
     expect(source).not.toContain('mikro-orm.config');
   });
