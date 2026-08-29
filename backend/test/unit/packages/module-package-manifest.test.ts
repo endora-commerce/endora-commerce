@@ -87,7 +87,26 @@ const BASE_TSCONFIG_BUILD = JSON.stringify({
 function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, string> {
   return {
     [`${ROOT}/pnpm-workspace.yaml`]:
-      'packages:\n  - backend\n  - packages/*\n  - packages/modules/*\n',
+      'packages:\n  - backend\n  - admin\n  - packages/*\n  - packages/modules/*\n',
+    // The admin application. Two things need it since feature 091 and both are
+    // derivations rather than paths: `applicationVersions` reads the range of
+    // every framework a module's **admin** layer can peer on out of it (`react`
+    // and `lucide-react` are declared by no other member), and
+    // `renderAdminApplicationManifest` reconciles its dependency on the module
+    // packages whose `./admin` layer the generated registry imports. It is
+    // found by the `"@/*"` tsconfig alias, the same live declaration every
+    // admin instrument resolves through.
+    [`${ROOT}/admin/package.json`]: JSON.stringify({
+      name: 'admin',
+      dependencies: {
+        '@endora-commerce/contracts': 'workspace:*',
+        'lucide-react': '^1.11.0',
+        react: '^19.2.5',
+      },
+    }),
+    [`${ROOT}/admin/tsconfig.json`]: JSON.stringify({
+      compilerOptions: { paths: { '@/*': ['./src/*'] } },
+    }),
     [`${ROOT}/packages/contracts/package.json`]: JSON.stringify({
       name: '@endora-commerce/contracts',
     }),
@@ -975,6 +994,149 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       const files = widgets(BACKEND_ONLY);
       delete files[`${ROOT}/packages/modules/widgets/tsconfig.build.json`];
       expect(() => render(files)).toThrow(/tsconfig\.build\.json/);
+    });
+  });
+
+  describe('the admin application declares the modules it composes (feature 091)', () => {
+    /** The admin manifest this run reconciled, parsed. */
+    function adminManifestOf(files: Record<string, string>): Record<string, unknown> {
+      const run = render(files);
+      const found = run.applicationRendered.find((entry) => entry.packageName === 'admin');
+      expect(found, 'no admin manifest rendered').toBeDefined();
+      return JSON.parse(found!.content) as Record<string, unknown>;
+    }
+
+    const WITH_ADMIN_LAYER = {
+      ...BACKEND_ONLY,
+      'src/admin/index.ts': "export const contributions = { routes: [] };\n",
+    };
+
+    it('adds a module that ships an admin layer, at its sorted position', () => {
+      // The generated registry names it by bare specifier, and a bare specifier
+      // resolves only through a declared dependency. Without this the module's
+      // screens are registered and unresolvable.
+      const deps = adminManifestOf(widgets(WITH_ADMIN_LAYER))['dependencies'] as Record<
+        string,
+        string
+      >;
+      expect(deps['@endora-commerce/mod-widgets']).toBe('workspace:*');
+      expect(Object.keys(deps)).toEqual([
+        '@endora-commerce/contracts',
+        '@endora-commerce/mod-widgets',
+        'lucide-react',
+        'react',
+      ]);
+    });
+
+    it('adds nothing for a module with no admin layer', () => {
+      // R3 — the layer is optional and its absence is silent. A backend-only
+      // module is not something the admin resolves.
+      const deps = adminManifestOf(widgets(BACKEND_ONLY))['dependencies'] as Record<
+        string,
+        string
+      >;
+      expect(Object.keys(deps)).not.toContain('@endora-commerce/mod-widgets');
+    });
+
+    it('removes a module that has dropped its admin layer', () => {
+      // The stale direction. A dependency on a package the registry no longer
+      // names is an edge nothing declares and nothing removes.
+      const files = widgets(BACKEND_ONLY);
+      files[`${ROOT}/admin/package.json`] = JSON.stringify({
+        name: 'admin',
+        dependencies: {
+          '@endora-commerce/contracts': 'workspace:*',
+          '@endora-commerce/mod-widgets': 'workspace:*',
+          react: '^19.2.5',
+        },
+      });
+      const deps = adminManifestOf(files)['dependencies'] as Record<string, string>;
+      expect(Object.keys(deps)).not.toContain('@endora-commerce/mod-widgets');
+    });
+
+    it('leaves every other dependency, and its order, exactly where it was', () => {
+      // The admin's React, Radix and Tailwind ranges are a human's, with
+      // Constitution IV's justification behind them. This reconciliation owns
+      // one thing and must be seen not to own the rest.
+      const files = widgets(WITH_ADMIN_LAYER);
+      files[`${ROOT}/admin/package.json`] = JSON.stringify(
+        {
+          name: 'admin',
+          private: true,
+          dependencies: { zod: '^4.2.0', '@endora-commerce/contracts': 'workspace:*' },
+          devDependencies: { typescript: '^5.9.3' },
+        },
+        null,
+        2,
+      );
+      const manifest = adminManifestOf(files);
+      expect(Object.keys(manifest)).toEqual([
+        'name',
+        'private',
+        'dependencies',
+        'devDependencies',
+      ]);
+      expect(Object.keys(manifest['dependencies'] as object)).toEqual([
+        '@endora-commerce/mod-widgets',
+        'zod',
+        '@endora-commerce/contracts',
+      ]);
+      expect(manifest['devDependencies']).toEqual({ typescript: '^5.9.3' });
+    });
+
+    it('removes an edge to a workspace member that has gone', () => {
+      // The case the "is it one of ours" question above cannot answer, because
+      // it is answered from the packages this run **found**: a module that has
+      // been deleted, renamed or moved out of the globs is exactly the one it
+      // cannot find. A `workspace:` range naming no current member is the
+      // discriminator, and it is not a stranger's — a registry package carries
+      // a semver range, never the workspace protocol.
+      const files = widgets(BACKEND_ONLY);
+      files[`${ROOT}/admin/package.json`] = JSON.stringify({
+        name: 'admin',
+        dependencies: {
+          '@endora-commerce/mod-departed': 'workspace:*',
+          react: '^19.2.5',
+        },
+      });
+      const deps = adminManifestOf(files)['dependencies'] as Record<string, string>;
+      expect(Object.keys(deps)).not.toContain('@endora-commerce/mod-departed');
+      expect(deps['react']).toBe('^19.2.5');
+    });
+
+    it('never touches a third-party package that merely looks like one of ours', () => {
+      // Ours is answered from the identities this run derived, never from a
+      // `mod-` prefix test: the prefix is a naming convention (§6), and a
+      // stranger's package following it would be silently deleted.
+      const files = widgets(BACKEND_ONLY);
+      files[`${ROOT}/admin/package.json`] = JSON.stringify({
+        name: 'admin',
+        dependencies: { '@endora-commerce/mod-widgets-theme': '^1.0.0', react: '^19.2.5' },
+      });
+      const deps = adminManifestOf(files)['dependencies'] as Record<string, string>;
+      expect(deps['@endora-commerce/mod-widgets-theme']).toBe('^1.0.0');
+    });
+
+    it('is idempotent — a second render over its own output changes nothing', () => {
+      const files = widgets(WITH_ADMIN_LAYER);
+      const first = render(files).applicationRendered[0]!;
+      files[first.outputPath] = first.content;
+      expect(render(files).applicationRendered[0]!.content).toBe(first.content);
+    });
+
+    it('refuses an admin application with no dependencies block', () => {
+      const files = widgets(WITH_ADMIN_LAYER);
+      files[`${ROOT}/admin/package.json`] = JSON.stringify({ name: 'admin' });
+      expect(() => render(files)).toThrow(/dependencies/);
+    });
+
+    it('refuses a checkout where no member declares the admin source alias', () => {
+      // Zero or two is a refusal rather than a walk narrowed to whichever
+      // sorted first — `lib/admin-surfaces.ts`' rule, applied here because this
+      // reconciliation has to know which manifest it is reconciling.
+      const files = widgets(WITH_ADMIN_LAYER);
+      delete files[`${ROOT}/admin/tsconfig.json`];
+      expect(() => render(files)).toThrow(/@\/\*/);
     });
   });
 

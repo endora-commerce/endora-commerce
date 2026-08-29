@@ -18,7 +18,7 @@
  * structural comparison, which a second React context would pass.
  */
 export { resolveIcon } from './admin-actions/icon-map.js';
-export { ApiError, apiClient, onUnauthorized } from './api-client.js';
+export { ApiError, apiBaseUrl, apiClient, onUnauthorized } from './api-client.js';
 export { formatDateTime } from './format.js';
 export { formatMoney, localeForCurrency } from './money.js';
 export { PAGE_SIZE_OPTIONS } from './page-size-options.js';

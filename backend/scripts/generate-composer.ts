@@ -16,6 +16,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
  *     class list MikroORM discovers through.
  *   - `backend/src/db/migrations-registry.generated.ts` — every migration in
  *     the repository, with the module that owns it.
+ *   - `admin/src/modules.generated.ts` — the admin contribution registry: the
+ *     `./admin` layer of every module package that ships one (feature 091,
+ *     Phase 2). The fifth artefact, and the one that converts the last two
+ *     hand-written registries a module author had to edit, `admin/src/App.tsx`
+ *     and `admin/src/components/AppShell.tsx`.
  *
  * Why generate them (feature 072, FR-030..FR-040): adding a module was three
  * edits in files it does not own, and removing one was an archaeology exercise.
@@ -65,6 +70,8 @@ import {
   PlatformRootUnresolvableError,
 } from './lib/platform-root.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
+import { findAliasMember } from './lib/admin-surfaces.js';
+import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const srcRoot = resolve(here, '../src');
@@ -114,13 +121,22 @@ const manifestLocationsSpecifier = ((): string => {
  * against the `*.generated.ts` files actually on disk — a generated file no
  * determinism gate looks at is a file that drifts unnoticed, which is the
  * defect this generator was consolidated to end.
+ *
+ * A **function** rather than a constant since feature 091's fifth artefact:
+ * the admin registry's location is derived from the workspace member declaring
+ * the `"@/*"` alias, which is filesystem work, and a module-level constant
+ * would do it at *import* time — so a tree with no such member would throw
+ * before any caller had a chance to say what it was doing.
  */
-export const GENERATED_ARTIFACT_PATHS: readonly string[] = [
-  composerOutputPath,
-  manifestIndexOutputPath,
-  entitiesRegistryOutputPath,
-  migrationsRegistryOutputPath,
-];
+export function generatedArtifactPaths(): readonly string[] {
+  return [
+    composerOutputPath,
+    manifestIndexOutputPath,
+    entitiesRegistryOutputPath,
+    migrationsRegistryOutputPath,
+    adminRegistryOutputPath(),
+  ];
+}
 
 /**
  * The one ordering constraint that is a **construction** dependency rather than
@@ -1448,6 +1464,142 @@ export function renderMigrationsRegistry(sources: SourceTree = readSourceTree())
   };
 }
 
+
+// ── the admin contribution registry ─────────────────────────────────────────
+//
+// The fifth artefact (feature 091, Phase 2). Its three siblings under
+// `backend/src` plus the manifest index come out of the same command; this one
+// is written into the **admin** application, because that is the program that
+// consumes it, and its location is derived from the `"@/*"` alias exactly as
+// `check:admin-registrations` and `check:admin-surface` derive theirs.
+
+/** The layer directory a module package publishes its admin contributions from. */
+const ADMIN_LAYER_ENTRY = 'src/admin/index.ts';
+
+/** One module package's admin contribution, as the artefact names it. */
+export interface AdminContributionEntry {
+  /** `endora.id`, the identity of record (D-142). */
+  readonly moduleId: string;
+  /** The bare specifier, derived from the package's own `exports` map (D-149). */
+  readonly specifier: string;
+}
+
+/**
+ * Every module package that ships an admin layer, sorted by module id.
+ *
+ * **Discovery is the package's own statement about itself** (R2): the `endora`
+ * block says it is a module, and the presence of `src/admin/index.ts` says it
+ * contributes. Nothing keys on a directory name and `packages/modules` is
+ * spelled nowhere (D-100).
+ *
+ * **A module with the layer and no `./admin` subpath is refused, not skipped**
+ * (R4). `packageSpecifierFor` raises `ModulePackageError` naming the file and
+ * the declared subpaths, because a skip is how a whole layer goes missing
+ * without a word — the same reason a packaged migration covered by no declared
+ * subpath is refused rather than dropped.
+ */
+export function collectAdminContributions(
+  packages: readonly ModulePackage[],
+  exists: (path: string) => boolean = existsSync,
+): readonly AdminContributionEntry[] {
+  const found: AdminContributionEntry[] = [];
+  for (const pkg of packages) {
+    if (!exists(absolutePathInPackage(pkg, ADMIN_LAYER_ENTRY))) continue;
+    found.push({ moduleId: pkg.moduleId, specifier: packageSpecifierFor(pkg, ADMIN_LAYER_ENTRY) });
+  }
+  return found.sort((a, b) => a.moduleId.localeCompare(b.moduleId));
+}
+
+/** A JS identifier for one entry's import binding — `import_export` → `contributions0`. */
+function adminBindingOf(index: number): string {
+  return `contributions${index}`;
+}
+
+/** Pure render of the admin registry, exported so a test can drive it. */
+export function emitAdminRegistry(entries: readonly AdminContributionEntry[]): string {
+  const imports = entries
+    .map(
+      (entry, index) =>
+        `import { contributions as ${adminBindingOf(index)} } from '${entry.specifier}';`,
+    )
+    .join('\n');
+  const body = entries
+    .map(
+      (entry, index) =>
+        `  { moduleId: '${entry.moduleId}', contributions: ${adminBindingOf(index)} },`,
+    )
+    .join('\n');
+
+  return `${HEADER('generate-composer.ts')}//
+// The admin contribution registry — every module package's \`./admin\` layer,
+// named by the bare specifier its own \`exports\` map declares (feature 091,
+// \`contracts/admin-registry.md\`).
+//
+// It exists because \`admin/src/App.tsx\` and \`admin/src/components/AppShell.tsx\`
+// were the last two registries a module author had to hand-edit. Measured over
+// the twelve most recently added modules, 11 of 12 edited each of them, while
+// every backend registration point they also used to edit — the composition,
+// the two \`db/\` registries, the manifest index, the permission inventory — had
+// already been converted to a generator or a derivation. This is that remedy,
+// applied to the two that were left.
+//
+// **Enumerable without being executed.** Every route and zone component in a
+// contribution is a \`() => import('…')\` factory, so importing this file costs
+// the declarations and none of the screens: Vite splits one chunk per module
+// and an operator downloads only what their role can reach.
+//
+// **The registry answers "what could be here", never "what is here now".**
+// Presence and permission are applied at render by \`isSurfaceVisible\`, the one
+// predicate the sidebar, the palette and the dashboard already share — an
+// operator's activation flip must take effect without a rebuild (Principle XVII
+// item 5), and a registry that filtered would make it a restart.
+//
+// **Bare core under every value of \`DEPLOYMENT\`** (D-104), like the manifest
+// index: a deployment's overlay modules are discovered at runtime and
+// contribute to no committed artefact.
+
+import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
+
+${imports}
+
+/** One module's contribution set, keyed by the module id that shipped it. */
+export interface AdminRegistryEntry {
+  readonly moduleId: string;
+  readonly contributions: AdminContributions;
+}
+
+export const MODULE_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
+${body}
+];
+`;
+}
+
+/**
+ * Where the registry lands: the source root of the workspace member declaring
+ * the `"@/*"` alias.
+ *
+ * Derived rather than spelled, for the reason `lib/admin-surfaces.ts` gives at
+ * length: that alias is what `tsc` and Vite both resolve the admin's own
+ * imports through, so it is a live declaration, and zero or two members
+ * declaring it is a refusal rather than a walk narrowed to whichever sorted
+ * first.
+ */
+function adminRegistryOutputPath(): string {
+  const members = workspaceMembers(repoRoot, nodeWorkspaceFs());
+  const { member, target } = findAliasMember(members);
+  return join(resolve(member.dir, target), 'modules.generated.ts');
+}
+
+/** Pure render — the target path + expected content of the admin registry. */
+export function renderAdminRegistry(
+  packages: readonly ModulePackage[] = modulePackages(),
+): { outputPath: string; content: string } {
+  return {
+    outputPath: adminRegistryOutputPath(),
+    content: emitAdminRegistry(collectAdminContributions(packages)),
+  };
+}
+
 /** Every committed artefact, rendered from one read of the tree. */
 export async function renderAll(): Promise<
   ReadonlyArray<{ label: string; outputPath: string; content: string }>
@@ -1460,6 +1612,7 @@ export async function renderAll(): Promise<
     { label: 'manifest-index', ...renderManifestIndex(packages) },
     { label: 'entities-registry', ...renderEntitiesRegistry(sources) },
     { label: 'migrations-registry', ...renderMigrationsRegistry(sources) },
+    { label: 'admin-registry', ...renderAdminRegistry(packages) },
   ];
 }
 

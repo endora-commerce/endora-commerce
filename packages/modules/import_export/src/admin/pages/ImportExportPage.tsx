@@ -1,19 +1,40 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Download, Upload } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader } from '@/components/ui/page-header';
+import { ApiError, apiBaseUrl, apiClient } from '@endora-commerce/admin-kit/lib';
 import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  PageHeader,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
+} from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+
+/**
+ * The import/export centre — the first admin screen that lives in the module
+ * that owns it (feature 091, Phase 2).
+ *
+ * Two things about it are the point of this file existing here rather than in
+ * `admin/src/modules/import_export/`:
+ *
+ *   * every specifier above is a **bare** one. `@/…` is a tsconfig and Vite
+ *     alias of the admin application; a package resolves it to nothing, which
+ *     is why `check:admin-surface` reports one as an `aliased-reach`
+ *     (`contracts/admin-contribution.md` R4).
+ *   * the strings resolve in **this module's** i18n namespace, out of
+ *     `packages/modules/import_export/i18n/`, which the platform's own boot
+ *     reconciler installs. They were in the shared `_i18n` `core` bundle, one
+ *     of the four shared files §1.1 measures 11 of the last 12 modules editing.
+ */
 
 /**
  * One entity the server offers, as `GET /admin/import-export/entities` answers.
@@ -31,11 +52,8 @@ interface EntityConfig {
   importHeader: string[] | null;
 }
 
-const apiBaseUrl =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
-
-export function ImportExportPage(): ReactNode {
-  const t = useTranslation('core');
+export default function ImportExportPage(): ReactNode {
+  const t = useTranslation('import_export');
   const [entities, setEntities] = useState<EntityConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -50,7 +68,7 @@ export function ImportExportPage(): ReactNode {
       setEntities(res.data.entities);
     } catch (err) {
       setLoadError(
-        err instanceof ApiError ? err.envelope.error.message : t('importExport.error.load'),
+        err instanceof ApiError ? err.envelope.error.message : t('error.load'),
       );
     } finally {
       setLoading(false);
@@ -64,8 +82,8 @@ export function ImportExportPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title={t('importExport.page.title')}
-        description={t('importExport.page.description')}
+        title={t('page.title')}
+        description={t('page.description')}
       />
       {loadError ? (
         <Alert variant="destructive">
@@ -73,10 +91,10 @@ export function ImportExportPage(): ReactNode {
         </Alert>
       ) : null}
       {loading ? (
-        <p className="text-sm text-muted-foreground">{t('importExport.loading')}</p>
+        <p className="text-sm text-muted-foreground">{t('loading')}</p>
       ) : null}
       {!loading && !loadError && entities.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('importExport.empty')}</p>
+        <p className="text-sm text-muted-foreground">{t('empty')}</p>
       ) : null}
       <div className="space-y-4">
         {entities.map((entity) => (
@@ -88,7 +106,7 @@ export function ImportExportPage(): ReactNode {
 }
 
 function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
-  const t = useTranslation('core');
+  const t = useTranslation('import_export');
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<Array<{ rowNumber: number; reason: string }>>(
@@ -114,13 +132,13 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
           headers: { 'Content-Type': 'text/csv' },
         });
         if (res.data.errors.length === 0) {
-          setImportMessage(t('importExport.imported', { count: res.data.imported }));
+          setImportMessage(t('imported', { count: res.data.imported }));
         } else {
-          setImportMessage(t('importExport.rolledBack', { count: res.data.errors.length }));
+          setImportMessage(t('rolledBack', { count: res.data.errors.length }));
           setImportErrors(res.data.errors);
         }
       } catch (err) {
-        setImportError(err instanceof ApiError ? err.envelope.error.message : t('importExport.error.import'));
+        setImportError(err instanceof ApiError ? err.envelope.error.message : t('error.import'));
       } finally {
         setImporting(false);
       }
@@ -135,14 +153,14 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
       <CardHeader>
         {/* The label is a translation of the slug the server named; an entity
             with no key of its own renders the raw key rather than disappearing. */}
-        <CardTitle>{t(`importExport.entity.${entity.name}`)}</CardTitle>
+        <CardTitle>{t(`entity.${entity.name}`)}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild variant="outline" size="sm">
             <a href={exportHref} download>
               <Download />
-              {t('importExport.exportCsv')}
+              {t('exportCsv')}
             </a>
           </Button>
           {entity.importHeader ? (
@@ -154,7 +172,7 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
             >
               <label className="relative">
                 <Upload />
-                {importing ? t('importExport.uploading') : t('importExport.importCsv')}
+                {importing ? t('uploading') : t('importCsv')}
                 <input
                   type="file"
                   accept=".csv,text/csv"
@@ -168,14 +186,14 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
             </Button>
           ) : (
             <span className="text-xs text-muted-foreground">
-              {t('importExport.importNotSupported')}
+              {t('importNotSupported')}
             </span>
           )}
         </div>
 
         {entity.importHeader ? (
           <p className="text-xs text-muted-foreground">
-            {t('importExport.requiredHeader')}{' '}
+            {t('requiredHeader')}{' '}
             {/* The columns the server requires, not a copy of them kept here. */}
             <code className="rounded bg-muted px-1 font-mono">
               {entity.importHeader.join(', ')}
@@ -197,8 +215,8 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('importExport.column.rowNumber')}</TableHead>
-                <TableHead>{t('importExport.column.reason')}</TableHead>
+                <TableHead>{t('column.rowNumber')}</TableHead>
+                <TableHead>{t('column.reason')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderAll } from '../../scripts/generate-composer.js';
+import { generatedArtifactPaths, renderAll } from '../../scripts/generate-composer.js';
 import { coveredArtifactPaths } from '../../scripts/check-overlay-determinism.js';
 
 /**
@@ -40,9 +40,14 @@ describe('T-E — the generated artefacts are environment-independent', () => {
 
     const bareCore = (await renderAll()).map(({ label, content }) => ({ label, content }));
 
-    // Non-vacuity: four artefacts, and a render that found nothing would
-    // compare two empty strings equal.
-    expect(bareCore).toHaveLength(4);
+    // Non-vacuity: one artefact per committed output path, and a render that
+    // found nothing would compare two empty strings equal. The count is
+    // **derived** rather than written down (D-100) — feature 091's admin
+    // registry made a literal `4` here stale in the merge request that added
+    // a fifth artefact, and `generatedArtifactPaths()` is the same generator's
+    // own answer to "what does this command write".
+    expect(bareCore.length).toBeGreaterThan(0);
+    expect(bareCore).toHaveLength(generatedArtifactPaths().length);
     for (const artefact of bareCore) expect(artefact.content.length).toBeGreaterThan(0);
 
     expect(withDeployment).toEqual(bareCore);
