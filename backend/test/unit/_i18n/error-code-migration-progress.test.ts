@@ -38,6 +38,7 @@ import {
  * roster is filled in by.
  */
 const MIGRATED_MODULES: readonly string[] = [
+  'assets_library',
   'blog',
   'carts',
   'catalog',
