@@ -64,27 +64,16 @@ export interface RegisteredMigration {
 }
 
 /**
- * Which module owns which migration, and — the part that has to be a separate
- * question — whether this registry is in a position to answer at all.
+ * Re-exported, declared in `@endora-commerce/platform`.
  *
- * `null` from {@link MigrationOwnership.migrationNamesFor} means *"I cannot
- * answer for that module"*, and an empty array means *"that module owns no
- * migration"*. Collapsing the two is the fail-open the lifecycle orchestrator
- * shipped: a package whose entries the orchestrator could not see
- * hard-uninstalled to a **warning** and left its table in the database
- * (D-155.3(c)). The return type is where the distinction lives, in the idiom
- * `allowedIdsFor(): Promise<string[] | null>` already uses in this tree —
- * a caller cannot forget to ask, because `null` is not a list of names.
+ * The orchestrator is the one caller that *asks* the question, and it lives in
+ * the platform, which may not name a file this application owns (D-52/D-53).
+ * So the shape is declared there and the **answer** — the merge of the
+ * committed core registry with whatever packages this instance installed — is
+ * built here, where the discovery is. One name for it either way.
  */
-export interface MigrationOwnership {
-  /**
-   * Migration class names owned by `moduleId`, ascending by class name, or
-   * `null` when this registry covers no module of that name.
-   */
-  migrationNamesFor(moduleId: string): readonly string[] | null;
-  /** The modules this registry can answer for. Named in the refusal message. */
-  readonly coveredModuleIds: ReadonlySet<string>;
-}
+export type { MigrationOwnership } from '../lifecycle/services/migration-ownership.js';
+import type { MigrationOwnership } from '../lifecycle/services/migration-ownership.js';
 
 /** The result of merging every producer's migrations into one execution order. */
 export interface ConfiguredMigrations {

@@ -336,15 +336,38 @@ expect_finding() {
 }
 
 if [ "$WITH_NEGATIVES" = yes ]; then
-  # Exactly the tree a build without `copy-runtime-assets` produces: `tsc`
+  # Exactly the tree a build without its asset-copy step produces: `tsc`
   # compiles `.ts` and emits `.js`, `.d.ts` and `.map`, so removing every `.json`
-  # and `.txt` from the built tree removes the assets and nothing else. A
+  # and `.txt` from the built trees removes the assets and nothing else. A
   # coarser breakage was tried first — `find -type d -name i18n -exec rm -rf` —
   # and it took `dist/kernel/i18n/`, a *code* directory of that name, with it:
   # the container then died on `ERR_MODULE_NOT_FOUND`, which is a loud failure
   # and therefore not the silence this case exists to reproduce.
-  expect_finding drop-bundles unaccounted-modules \
-    "RUN find /app/backend/dist \\( -name '*.json' -o -name '*.txt' \\) -delete"
+  #
+  # **The deletion moved out of `backend/dist`, and it had to** (feature 080,
+  # D-160.11's second half). Every module is a package now, and a package's
+  # bundles are in its own directory — `_lifecycle` was the last one whose
+  # bundles the backend build copied, and it moved into
+  # `@endora-commerce/platform`. So a deletion aimed at `backend/dist` removed
+  # nothing any module reads, every module installed its translations, and this
+  # case reported a cheerful green over an image that was not broken at all.
+  #
+  # **There are two cases because there are two assertions, and the wide one
+  # cannot prove the narrow one's.** Dropping the *platform package's* assets is
+  # exactly the tree a platform build without `copy-package-assets` produces: one
+  # module loses its bundles, installs nothing, throws nothing, and lands in
+  # none of the reconciler's three counts — which only the **arithmetic**
+  # assertion can see, and which `installed > 0` reports as a cheerful non-zero.
+  # Dropping every package's assets is the other end: nothing installs at all,
+  # and the `installed == 0` branch is what fires. Run only the wide case and
+  # the arithmetic goes unproven, which is the assertion this gate exists for.
+  #
+  # `package.json` is spared by name: deleting one breaks module *resolution*,
+  # which is a loud crash and not the silence these cases are about.
+  expect_finding drop-platform-bundles unaccounted-modules \
+    "RUN find /app/packages/platform/dist \\( -name '*.json' -o -name '*.txt' \\) -delete"
+  expect_finding drop-every-bundle no-translations-installed \
+    "RUN find /app/backend/dist /app/packages \\( -name '*.json' -o -name '*.txt' \\) -not -name 'package.json' -delete"
   expect_finding drop-overlays overlay-missing \
     "RUN rm -rf /app/backend/dist/apps"
 fi

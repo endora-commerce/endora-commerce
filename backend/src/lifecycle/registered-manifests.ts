@@ -18,15 +18,10 @@ import { discoverOverlayModuleManifests } from '../overlay/overlay-runtime.js';
 import {
   assertNoPackageModuleIdCollisions,
   type ModuleIdClaim,
-  type ModuleIdClaimOrigin,
 } from '../packages/module-id-claims.js';
-/**
- * Re-exported for this module's own files. `presence-load.ts` types
- * `ShippedModuleEntry.origin` on it, and reaching the host directly for a
- * second copy of the same type is a second unpublished-surface edge for
- * `check:platform-surface` to ledger — one seam is enough, and this file
- * already owns it.
- */
+import type { ModuleIdClaimOrigin } from './services/module-origin.js';
+import { provideDefaultGatingManifests } from './services/gating-graph.js';
+/** Re-exported so a caller that already reads this registry has one import. */
 export type { ModuleIdClaimOrigin };
 import { discoverPackageModuleManifests } from '../packages/package-runtime.js';
 import {
@@ -118,34 +113,15 @@ export interface RegisteredManifestEntry {
  */
 
 /**
- * The entries **this build ships**: core plus the deployment's overlay modules,
- * never an installed package.
+ * Re-exported, declared in `@endora-commerce/platform` (D-160.11).
  *
- * The single spelling of D-157.6(b)'s split, because it now has two readers and
- * a derived fact written down twice is two answers waiting to disagree (D-100).
- * Both readers converge state at boot for a module nobody ran a command for, and
- * both must stop at the same line:
- *
- *   - `firstBootInsertPopulation` — the `module_registrations` insert. A package
- *     converged here is a package `module:install` will answer
- *     `already-installed` about, having applied none of its migrations.
- *   - the **boot settings reconcile** (`composition.ts`, and the harness beside
- *     it). An overlay module has no `install` at all, so boot is the only author
- *     its activation Setting can have; a package has exactly one author,
- *     `install`, which reconciles its settings inside the operation that also
- *     runs its migrations. Reconciling a package's manifest at boot would let a
- *     `SettingCodeConflict` in something an operator merely `pnpm add`ed abort
- *     the platform's start.
- *
- * Generic over the entry, so a caller keeps whatever fields it had: the presence
- * load hands it `{ manifest, filePath }` and a composition root hands it whole
- * {@link RegisteredManifestEntry} values.
+ * The origin split has two readers and a derived fact written down twice is two
+ * answers waiting to disagree (D-100): the boot settings reconcile is a
+ * composition root's, and `firstBootInsertPopulation` is the presence load's,
+ * which is the platform's. So the function lives beside the second reader and
+ * both roots keep naming it here, where the registry is.
  */
-export function deploymentShippedEntries<E extends { readonly origin: ModuleIdClaimOrigin }>(
-  entries: readonly E[],
-): E[] {
-  return entries.filter((entry) => entry.origin !== 'package');
-}
+export { deploymentShippedEntries } from './services/module-origin.js';
 
 /**
  * A hook key is set only when the module exports one: with
@@ -227,6 +203,17 @@ export function coreManifestEntries(
 
 export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> =
   coreManifestEntries(DISCOVERED_MANIFESTS);
+
+// The activation refusals' fallback graph, from the registry that knows which
+// modules exist (D-160.11). `gating-graph.ts` used to read `REGISTERED_MANIFESTS`
+// itself; it is in `@endora-commerce/platform` now, which may not name a file this
+// application owns (D-52/D-53), and an empty default would be a refusal that never
+// fires — the fall-open feature 073 removed. So the host supplies it, here, where
+// the registry is: a process that can answer "which modules exist" has loaded this
+// file, and one that has not is refused by `gatingGraph()` rather than answered.
+// A composed process never reaches the fallback — the presence load installs the
+// deployment's real set, overlay modules and installed packages included.
+provideDefaultGatingManifests(() => REGISTERED_MANIFESTS.map((entry) => entry.manifest));
 
 /**
  * The **instance-resolved** manifest set = the core registry, PLUS every

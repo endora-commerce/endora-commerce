@@ -171,20 +171,24 @@ describe('a module’s location is answered, or refused — never guessed (T041a
     //
     // The module is taken from the tree rather than named, and so is **where**
     // it sits: this read `blog` until that module became a package (feature
-    // 080, T040b), then `modules/<id>/`, which outlived it by one merge request
-    // — with `_i18n` packaged and `_lifecycle` host-owned at `src/lifecycle/`
-    // (D-160.11), no registered module is under `modules/` at all. What the
-    // control needs is a registered module the application's own tree still
-    // holds, wherever it holds it, and the index records that in `filePath`.
-    // The bare shape is exercised in the test below, over a real package.
+    // 080, T040b), then `modules/<id>/`, then "under `backend/src`" — each one
+    // a fact about the layout that the layout then changed. With D-160.11's
+    // second half no registered module is under the application's source root
+    // at all: `_lifecycle` merged into the platform package, and the index
+    // imports its manifest by a **relative** specifier at that package's built
+    // file, which is the shape this control is about. So the module is the one
+    // the index names relatively — `filePath` ending at a manifest file rather
+    // than at a `package.json` — and the specifier is computed to wherever that
+    // is. The bare shape is exercised in the test below, over a real package.
     const indexUrl = pathToFileURL(join(BACKEND_SRC, 'manifest-index.generated.ts')).href;
     const inTheTree = REGISTERED_MANIFESTS.find((entry) =>
-      entry.filePath.startsWith(`${BACKEND_SRC}${sep}`),
+      /[\\/]manifest\.(ts|js)$/.test(entry.filePath),
     );
-    expect(inTheTree, 'no registered module is in the application tree').toBeDefined();
+    expect(inTheTree, 'no registered module is named by a relative specifier').toBeDefined();
 
     const directory = dirname(inTheTree!.filePath);
-    const specifier = `./${relative(BACKEND_SRC, directory).split(sep).join('/')}/manifest.js`;
+    const within = relative(BACKEND_SRC, directory).split(sep).join('/');
+    const specifier = `${within.startsWith('.') ? within : `./${within}`}/manifest.js`;
     const resolved = resolveManifestPath(indexUrl, specifier);
 
     expect(existsSync(resolved)).toBe(true);

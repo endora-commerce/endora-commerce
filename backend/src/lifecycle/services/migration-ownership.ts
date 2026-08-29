@@ -17,4 +17,4 @@
  * D-160.11 refused. That is the debt made visible, exactly as the five
  * platform directories' shims make theirs.
  */
-export * from '../../../../packages/platform/dist/lifecycle/services/deactivation-ledger.js';
+export * from '../../../../packages/platform/dist/lifecycle/services/migration-ownership.js';

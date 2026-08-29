@@ -14,6 +14,8 @@ import {
   type MigrationRegistryEntry,
 } from '../../../src/db/migration-order.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
+import { platformResidentModuleRoots } from '../../../scripts/lib/module-roots.js';
+import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
 import {
   REGISTERED_MANIFESTS,
   type RegisteredManifestEntry,
@@ -427,12 +429,46 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // **`src/db/configured-migrations.ts` left with T040b's last move**, and it
   // left without anything in that file changing: the reference it held was the
   // *manifest index*, which is now host-owned under `backend/src/` (D-160.3)
-  // rather than a file of this module's. The module's own sources moved with it
-  // — `src/lifecycle/` since D-160.11 — so the two entries that remain are
-  // named against that directory. What did **not** change is the count of real
-  // references: three files still import this subsystem, and one of them now
-  // imports an artefact that is nobody's module.
-  _lifecycle: ['src/cli.ts', 'src/composition.ts'],
+  // rather than a file of this module's.
+  //
+  // **The whole entry was rewritten by D-160.11's second half, and what it
+  // records is a different kind of reference.** The module's sources moved into
+  // `@endora-commerce/platform`; what stayed at `backend/src/lifecycle/` is the
+  // host half the ruling names — the manifest registry, the reduced-deployment
+  // reader, the five `module:*` commands — plus twelve **re-export shims**, one
+  // per moved file that something in `backend/` still names at its old path.
+  // Those shims are the bridge, and they are the only files in this application
+  // that reach the module's directory: `src/cli.ts` and `src/composition.ts`
+  // reach a shim, which is a sibling of theirs and not this module's file, so
+  // they left the ledger without a line of either changing.
+  //
+  // Each shim is a real dangling reference — delete the module's directory and
+  // its forwarding target goes with the next build — and the entry is therefore
+  // the honest count of what the bridge costs. It drains as consumers stop
+  // naming the old paths, shim by shim, and not before: a shim with no importer
+  // is a shim to delete.
+  //
+  // The scan very nearly reported this entry as **drained**, which is worth
+  // recording because it is the failure mode this ledger has: `ownDirectoryOf`
+  // read the module's location off the index's `manifestPath`, that field now
+  // names the package's *built* manifest, the containment test failed, and the
+  // fallback returned a `src/modules/_lifecycle/` nothing has ever imported.
+  // Twelve real references would have read as zero, in the file whose subject
+  // is references that survive a move.
+  _lifecycle: [
+    'src/lifecycle/plugin.ts',
+    'src/lifecycle/routes.admin.ts',
+    'src/lifecycle/services/deactivation-ledger.ts',
+    'src/lifecycle/services/dep-graph.ts',
+    'src/lifecycle/services/gating-graph.ts',
+    'src/lifecycle/services/lock.ts',
+    'src/lifecycle/services/manifest-loader.ts',
+    'src/lifecycle/services/migration-ownership.ts',
+    'src/lifecycle/services/module-origin.ts',
+    'src/lifecycle/services/orchestrator.ts',
+    'src/lifecycle/services/presence-load.ts',
+    'src/lifecycle/services/static-registry.ts',
+  ],
   // `price_lists` needs no entry and gets none, since T040b's fifth batch — this
   // module is now **absent** from the ledger.
   //
@@ -502,12 +538,30 @@ function importSpecifiers(source: string): string[] {
  */
 function residueFor(moduleId: string): string[] {
   const own = ownDirectoryOf(moduleId);
-  // The address the module keeps *outside* this application — `modules/<id>/`,
-  // which is where a packaged module's own directory sits too. `null` for a
-  // host-resident module: it exists nowhere but here, so a specifier that
-  // leaves `src/` cannot be reaching it.
-  const elsewhere =
-    own === join(srcRoot, 'modules', moduleId) ? `modules/${moduleId}/` : null;
+  // The addresses the module keeps *outside* this application, as text — a
+  // specifier that leaves `src/` cannot be resolved against the filesystem the
+  // way one that stays inside it is, because a bare specifier goes through an
+  // `exports` map.
+  //
+  // `modules/<id>/` is where a packaged module's own directory sits. A module
+  // inside the platform package has **two**: its source directory, and the
+  // built directory the index's own `manifestPath` names — which is the one
+  // `backend/src/lifecycle/`'s re-export shims reach, and therefore the one
+  // that makes them residue. Both are read off artefacts rather than derived
+  // from each other; a `src`→`dist` rewrite here would be a convention this
+  // file invented about somebody else's build.
+  const elsewhere: string[] = [];
+  if (own === join(srcRoot, 'modules', moduleId)) {
+    elsewhere.push(`modules/${moduleId}/`);
+  } else if (!own.startsWith(`${srcRoot}${sep}`)) {
+    const repoRoot = resolve(srcRoot, '../..');
+    elsewhere.push(`${relative(repoRoot, own).split(sep).join('/')}/`);
+    const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === moduleId);
+    if (entry !== undefined) {
+      const built = relative(repoRoot, dirname(entry.manifestPath)).split(sep).join('/');
+      if (!built.startsWith('..')) elsewhere.push(`${built}/`);
+    }
+  }
   const offenders = new Set<string>();
   for (const file of walk(srcRoot)) {
     if (file.startsWith(`${own}${sep}`)) continue;
@@ -521,16 +575,40 @@ function residueFor(moduleId: string): string[] {
 }
 
 /**
+ * Every module whose sources sit inside the platform package, by id.
+ *
+ * There is one — `_lifecycle`, which merged into `@endora-commerce/platform`
+ * with D-160.11's second half — and it cannot be found through the index's
+ * `manifestPath`, because a module inside the platform is imported at that
+ * package's **built** file. The layout's own derivation finds it by the marker
+ * core discovery uses, which is the same answer every check gets.
+ */
+const PLATFORM_RESIDENT_DIRECTORIES: ReadonlyMap<string, string> = new Map(
+  platformResidentModuleRoots(
+    platformSourceRootAt(resolve(srcRoot, '../..')),
+    [],
+    new Set(DISCOVERED_MANIFESTS.map((entry) => entry.id)),
+  ).map((root) => [root.moduleId!, root.directory] as const),
+);
+
+/**
  * The module's own directory, which is no longer always `src/modules/<id>`.
  *
- * `_lifecycle` sits at `src/lifecycle/` since feature 080's T040b: D-160.11
- * keeps the lifecycle subsystem out of the package sweep, so it is the one
- * registered module whose sources the host itself owns. The location is read
- * off the index's `manifestPath`, the field that answers it for all three
- * origins; a module that has become a package answers outside `src/`, and for
- * those the name below is the address a relative specifier would still use.
+ * Three answers now. A module the application's own tree holds is read off the
+ * index's `manifestPath`; a module inside the platform package comes from the
+ * map above; and a module package answers outside `src/`, for which the name
+ * below is the address a relative specifier would still use.
+ *
+ * **The platform case may not go through `manifestPath`**, and that is what
+ * this function got wrong for one run: the field names `packages/platform/dist/
+ * lifecycle/manifest.js`, so the containment test failed, the fallback returned
+ * a `src/modules/_lifecycle/` that does not exist, and the scan reported the
+ * whole entry drained. A residue ledger that empties because the scanner lost
+ * the module is the exact silence this file exists to refuse.
  */
 function ownDirectoryOf(moduleId: string): string {
+  const resident = PLATFORM_RESIDENT_DIRECTORIES.get(moduleId);
+  if (resident !== undefined) return resident;
   const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === moduleId);
   const directory = entry === undefined ? null : dirname(entry.manifestPath);
   return directory !== null && directory.startsWith(`${srcRoot}${sep}`)
@@ -555,7 +633,7 @@ function reaches(
   specifier: string,
   file: string,
   own: string,
-  elsewhere: string | null,
+  elsewhere: readonly string[],
 ): boolean {
   if (specifier.startsWith('.')) {
     const resolved = resolve(dirname(file), specifier);
@@ -563,7 +641,7 @@ function reaches(
       return resolved === own || resolved.startsWith(`${own}${sep}`);
     }
   }
-  return elsewhere !== null && specifier.includes(elsewhere);
+  return elsewhere.some((address) => specifier.includes(address));
 }
 
 describe('T055 — deleting the module directory leaves no dangling reference', () => {

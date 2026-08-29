@@ -274,25 +274,64 @@ module_root_module_directories() {
           ;;
       esac
     done
-  # The second pass: a module whose sources the **host application** owns
-  # (feature 080, T040b). `_lifecycle` is one — D-160.11 keeps the lifecycle
-  # subsystem out of the package sweep — and its directory is deliberately not
-  # named after its module id, because a directory named after a registered id
-  # directly under the source root would make the source root itself a module
-  # root and every file under it a module's. So the id is read out of the
-  # manifest instead of off the directory, which is the same thing
-  # `scripts/lib/module-roots.ts` does from the index's own `manifestPath`.
-  for candidate in "$source_root"/*/manifest.ts; do
-    [ -f "$candidate" ] || continue
-    directory="$(dirname "$candidate")"
-    declared="$(perl -0777 -ne "print \$1 if m{defineModuleManifest\(\{[\s\S]*?\bid:\s*'([A-Za-z0-9_]+)'}" "$candidate")"
-    [ -n "$declared" ] || continue
-    printf '%s\n' "$ids" | grep -qx "$declared" || continue
-    # Already listed by the id-named pass above? Then it is an ordinary module.
-    [ "$(basename "$directory")" = "$declared" ] && continue
-    printf '%s\n' "$directory"
-  done
+  # The second pass: a module whose sources a **workspace member** owns
+  # directly, rather than a modules root or a package of its own (feature 080,
+  # T040b and D-160.11). `_lifecycle` is one, and it is the only one: it is the
+  # platform's operator half, so it never became `@endora-commerce/mod-lifecycle`
+  # the way the other 66 modules did. Its directory is deliberately not named
+  # after its module id, because a directory named after a registered id
+  # directly under a source root would make that source root itself a module
+  # root and every file beside it — `kernel`, `db`, `http` — a module's. So the
+  # id is read out of the manifest instead of off the directory, which is the
+  # same thing `scripts/lib/module-roots.ts` does.
+  #
+  # **Every member's `src/`, not only the application's.** D-160.11's second
+  # half moved `_lifecycle` from `backend/src/lifecycle/` into
+  # `packages/platform/src/lifecycle/`, and a pass rooted at the application
+  # alone stopped finding it — not loudly: the expected population fell from 67
+  # to 66 and the coverage token went on reading `66/66`, which is a module
+  # leaving every shell rule with nothing to say about it and a green tick over
+  # the remainder. That is issue #215's silence one layer in, so the root is
+  # derived from the workspace rather than from the index's own location.
+  # A member is recognised by its `package.json`, the file that makes a
+  # directory a workspace member; the `src/*/manifest.ts` shape is what keeps a
+  # module package's own `src/manifest.ts` and every fixture tree out.
+  local member
+  while IFS= read -r member; do
+    for candidate in "$member"/src/*/manifest.ts; do
+      [ -f "$candidate" ] || continue
+      directory="$(dirname "$candidate")"
+      declared="$(perl -0777 -ne "print \$1 if m{defineModuleManifest\(\{[\s\S]*?\bid:\s*'([A-Za-z0-9_]+)'}" "$candidate")"
+      [ -n "$declared" ] || continue
+      printf '%s\n' "$ids" | grep -qx "$declared" || continue
+      # Already listed by the id-named pass above? Then it is an ordinary module.
+      [ "$(basename "$directory")" = "$declared" ] && continue
+      printf '%s\n' "$directory"
+    done
+  done <<EOF
+$(module_root_workspace_members)
+EOF
   return 0
+}
+
+# Every workspace member's directory, one per line, repository-relative.
+#
+# Derived the same way `module_root_source_root` recognises the application's:
+# a `package.json` is what makes a directory a workspace member, and it is the
+# only marker that travels with the layout. `pnpm-workspace.yaml` is the other
+# candidate and was not taken — its globs need expanding, a flow-style list
+# reads as none, and this library may not assume a node toolchain.
+module_root_workspace_members() {
+  local prune=() directory
+  for directory in "${MODULE_ROOT_PRUNED_DIRECTORIES[@]}"; do
+    prune+=(-name "$directory" -o)
+  done
+  unset 'prune[${#prune[@]}-1]'
+  find . \( "${prune[@]}" \) -prune -o -type f -name 'package.json' -print 2>/dev/null |
+    sed 's|^\./||; s|/package\.json$||' |
+    grep -v '^package\.json$' |
+    module_root_drop_nested_checkouts |
+    sort -u
 }
 
 # Every directory that sits **where a module sits**, one per line.

@@ -35,8 +35,8 @@
 
 import type { ModuleEntry } from './kernel/compose.js';
 
-import * as module0 from './lifecycle/backend.js';
-import { manifest as manifest0 } from './lifecycle/manifest.js';
+import * as module0 from '../../packages/platform/dist/lifecycle/backend.js';
+import { manifest as manifest0 } from '../../packages/platform/dist/lifecycle/manifest.js';
 import * as module1 from '@endora-commerce/mod-admin-roles/backend';
 import { manifest as manifest1 } from '@endora-commerce/mod-admin-roles';
 import * as module2 from '@endora-commerce/mod-auth/backend';

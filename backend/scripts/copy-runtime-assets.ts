@@ -98,22 +98,32 @@ function main(): number {
     for (const path of unclassified) console.error(`  src/${path}`);
     return 1;
   }
-  if (assets.length === 0) {
-    console.error(
-      `[runtime-assets] no runtime asset found under ${SRC_ROOT}. Every module this ` +
-        'application compiles that declares `i18n.bundlesDir` ships two of them, and the ' +
-        'audit below asserts as much; finding none means the walk did not read what it ' +
-        'thinks it read.',
-    );
-    return 2;
-  }
-
   const bundleModules = registeredBundleModules();
   if (bundleModules.length === 0) {
     console.error(
       '[runtime-assets] the generated manifest index declares no module with an ' +
         '`i18n.bundlesDir`, so the audit below would pass over an empty population. ' +
         'Run `pnpm --filter backend run composer:generate`.',
+    );
+    return 2;
+  }
+
+  // **"No asset" is a refusal only when this build compiles a module that ships
+  // one** (feature 080, D-160.11's second half). It used to be a refusal
+  // outright, on the reading that finding none means the walk did not read what
+  // it thinks it read — which held for exactly as long as some module's sources
+  // sat under `backend/src`. `_lifecycle` was the last, and it is in the host
+  // package now, so this tree legitimately holds nothing to copy. The guard is
+  // therefore derived from the same narrowing the report prints: an empty copy
+  // beside a non-empty compiled population is the broken walk; an empty copy
+  // beside an empty one is an application that compiles no module. The audit
+  // below is unaffected either way — it answers for all 46, wherever they are.
+  const compiled = bundleModulesUnder(bundleModules, SRC_ROOT);
+  if (assets.length === 0 && compiled.length > 0) {
+    console.error(
+      `[runtime-assets] no runtime asset found under ${SRC_ROOT}, and ${compiled.length} ` +
+        'module(s) this build compiles declare `i18n.bundlesDir` — each ships two of them. ' +
+        'Finding none means the walk did not read what it thinks it read.',
     );
     return 2;
   }
@@ -130,13 +140,15 @@ function main(): number {
     return 1;
   }
 
-  // `compiled` is the half this build ships; the rest are module packages,
-  // whose bundles travel with the package (`bundleModulesUnder`). Printing both
-  // is what keeps "44 of 45" from reading as a shortfall.
-  const compiled = bundleModulesUnder(bundleModules, SRC_ROOT);
+  // `compiled` is the half this build **copies** — zero of them today, every
+  // module being a package. The audit above answered for all of them, each at
+  // the directory the running platform will read it from, which is why the two
+  // numbers below are no longer the same question: the first says how much this
+  // copy had to do, the second how much was judged.
   console.log(
     `[runtime-assets] copied: files=${copied} into ${outRoot} ` +
-      `bundles=${compiled.length}/${bundleModules.length} (manifest-index)`,
+      `bundles=${compiled.length}/${bundleModules.length} (manifest-index) ` +
+      `audited=${bundleModules.length}/${bundleModules.length}`,
   );
   return 0;
 }
