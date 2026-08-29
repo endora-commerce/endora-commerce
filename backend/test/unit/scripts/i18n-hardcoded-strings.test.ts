@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -128,11 +129,17 @@ describe('the baseline ratchet goes red in BOTH directions', () => {
 
 describe('the tree itself (what CI asserts)', () => {
   it('matches HARDCODED_STRINGS_BASELINE exactly — no new string, no stale entry', () => {
-    const adminSrc = fileURLToPath(new URL('../../../../admin/src', import.meta.url));
+    // Two roots since feature 091's Phase 1b, and the keys are
+    // repository-relative because of it: 57 of the admin's components moved
+    // into `@endora-commerce/admin-kit` and the ratchet reported the two
+    // entries that went with them as *drained* — the strings had not been
+    // translated, they had changed address.
+    const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
     const files: string[] = [];
-    collectTsxFiles(adminSrc, files);
+    collectTsxFiles(join(repoRoot, 'admin', 'src'), files);
+    collectTsxFiles(join(repoRoot, 'packages', 'admin-kit', 'src'), files);
     const findings = files.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
-    const verdict = compareToBaseline(countByFile(findings, adminSrc), HARDCODED_STRINGS_BASELINE);
+    const verdict = compareToBaseline(countByFile(findings, repoRoot), HARDCODED_STRINGS_BASELINE);
     expect(verdict.regressions).toEqual([]);
     expect(verdict.drained).toEqual([]);
   });

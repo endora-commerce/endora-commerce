@@ -304,6 +304,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],
   },
+  'backend/scripts/check-admin-surface.ts': {
+    prefix: '[admin-surface]',
+    run: { kind: 'tsx', path: 'scripts/check-admin-surface.ts', args: [] },
+    // The module-attributed admin surface directories — 308 files over 50
+    // modules when Phase 1b landed — and every `from '…'` inside them, which is
+    // the finer population the per-symbol verdict runs on. Both grow as Story 3
+    // moves directories into packages: a packaged module's `src/admin` is in the
+    // same walk, so the file count follows the surface rather than the tree.
+    files: 308,
+    sites: 2826,
+    // Two derivations, neither the walk counting itself: the generated manifest
+    // index for the modules a surface directory is attributed to, and the kit's
+    // own `exports` map against the barrels on disk — a subpath declared and not
+    // built, or built and not declared, is what makes a reach unjudgeable.
+    sources: ['manifest-index', 'admin-kit-exports'],
+  },
   'backend/scripts/check-module-boundary.ts': {
     prefix: '[module-boundary]',
     run: { kind: 'tsx', path: 'scripts/check-module-boundary.ts', args: [] },
@@ -593,7 +609,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/i18n-hardcoded-strings.ts': {
     prefix: '[i18n:hardcoded]',
     run: { kind: 'tsx', path: 'scripts/i18n-hardcoded-strings.ts', args: [] },
-    files: 325,
+    // Two roots since feature 091's Phase 1b: `admin/src` plus the admin kit,
+    // because 57 of the admin's own components moved into the package and a
+    // ratchet that stopped at the application would have read their entries as
+    // drained rather than relocated.
+    files: 362,
     sites: null,
     sources: [],
   },

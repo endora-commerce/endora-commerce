@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { useAuth } from '@/lib/auth';
-import { useModulePresence } from '@/lib/module-presence';
+import { useAuth } from './auth.js';
+import { useModulePresence } from './module-presence/index.js';
 
 /**
  * One predicate for "may this operator see this destination at all", shared by

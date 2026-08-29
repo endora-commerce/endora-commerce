@@ -1,16 +1,16 @@
 /**
- * Browser-friendly UUID v4 generator. Uses `crypto.randomUUID` when
- * available (every modern browser + every Node ≥ 19); falls back to a
- * RFC-4122-compliant Math.random implementation otherwise so the admin
- * bundle never depends on the Node `crypto` module.
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/lib` (feature 091, Phase 1b).
+ *
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
  */
-export function randomUUID(): string {
-  const cryptoApi = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
-  if (cryptoApi?.randomUUID) return cryptoApi.randomUUID();
-  // Fallback — RFC 4122 v4 via Math.random.
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
-    const r = (Math.random() * 16) | 0;
-    const v = char === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
+export { randomUUID } from '@endora-commerce/admin-kit/lib';

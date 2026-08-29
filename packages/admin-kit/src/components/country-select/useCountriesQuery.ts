@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import type { DictionaryRegistryResponse, ResolvedCountry } from '@endora-commerce/contracts';
-import { apiClient } from '@/lib/api-client';
+import { apiClient } from '../../lib/api-client.js';
 
 const cache = new Map<string, Promise<ResolvedCountry[]>>();
 

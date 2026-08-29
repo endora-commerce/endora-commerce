@@ -3,9 +3,46 @@ import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { reportReadSize } from './lib/read-size.js';
+import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 
-/** `<repo>/admin/src` — the SPA this rule is about, wherever the checkout lives. */
-const DEFAULT_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', 'admin', 'src');
+/** The checkout, whichever one this file was loaded from. */
+const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
+
+/**
+ * The two roots the admin's user-visible strings live in, and the reason there
+ * are two (feature 091, Phase 1b).
+ *
+ * The population was `admin/src` alone, and the key was relative to it. Then 57
+ * of those files moved into `@endora-commerce/admin-kit` — the admin's own
+ * design system, rendered by the same screens as before — and the ratchet
+ * reported the two entries that went with them as **drained**: the strings had
+ * not been translated, they had changed address. That is the laundering FR-017
+ * exists to refuse, one check over, and the answer is the same one: the
+ * instrument follows the code.
+ *
+ * The keys are therefore repository-relative, so the ledger names one file in
+ * one namespace whichever root it sits under. The kit's directory is not
+ * spelled here: it is the workspace member whose manifest carries the name, so
+ * a move costs no edit and a kit that is gone is exit 2 rather than a
+ * population quietly halved.
+ */
+function defaultRoots(): readonly string[] {
+  const kit = workspaceMembers(REPO_ROOT, nodeWorkspaceFs()).find(
+    (member) => member.name === ADMIN_KIT_PACKAGE,
+  );
+  if (kit === undefined) {
+    process.stderr.write(
+      `[i18n:hardcoded] no workspace member is ${ADMIN_KIT_PACKAGE} — half the admin's own ` +
+        'components would go unscanned and the ledger entries naming them would read as ' +
+        'drained; refusing to report a vacuous pass\n',
+    );
+    process.exit(2);
+  }
+  return [join(REPO_ROOT, 'admin', 'src'), join(kit.dir, 'src')];
+}
+
+/** The package the admin's design system lives in since feature 091, Phase 1b. */
+const ADMIN_KIT_PACKAGE = '@endora-commerce/admin-kit';
 
 /**
  * `pnpm --filter backend run i18n:hardcoded [-- <path>… | --strict | --list]` — feature 021.
@@ -160,53 +197,53 @@ export function analyzeSource(source: string, filePath: string): Finding[] {
 export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // Issue #193 lifted the two federated-provider labels into
   // `preauth-login-copy.ts`; the four left are the second-step MFA screen.
-  'components/LoginPage.tsx': 4,
-  'components/asset-picker/AssetFieldPicker.tsx': 1,
-  'components/rule-builder/RuleBuilder.tsx': 6,
-  'components/ui/color-picker.tsx': 1,
-  'modules/_shared/email-builder/EmailEditorPane.tsx': 9,
-  'modules/_shared/email-builder/EmailRichTextField.tsx': 1,
-  'modules/_shared/email-builder/EmailRowLayoutPicker.tsx': 2,
-  'modules/_shared/email-builder/EmailVariablesProvider.tsx': 4,
-  'modules/cms/components/AssetPickers.tsx': 5,
-  'modules/cms/components/ButtonLinkFields.tsx': 4,
-  'modules/cms/components/CatalogPickers.tsx': 13,
-  'modules/cms/components/ComponentDragHandle.tsx': 1,
-  'modules/cms/components/RowLayoutPicker.tsx': 2,
-  'modules/custom_fields/CustomFieldsPage.tsx': 4,
-  'modules/delivery_methods/DeliveryMethodsPage.tsx': 5,
-  'modules/invoices/templates/invoice-puck-config.tsx': 6,
-  'modules/linkedin_ads/pages/ConversionMappingEditPage.tsx': 1,
-  'modules/mfa/AdminSecuritySettings.tsx': 16,
-  'modules/newsletter/pages/AutomationBuilder.tsx': 6,
-  'modules/newsletter/pages/AutomationsPage.tsx': 4,
-  'modules/newsletter/pages/BlocksPage.tsx': 8,
-  'modules/newsletter/pages/CampaignEditor.tsx': 14,
-  'modules/newsletter/pages/CampaignStats.tsx': 3,
-  'modules/newsletter/pages/CampaignsPage.tsx': 4,
-  'modules/newsletter/pages/ProviderSettingsPage.tsx': 7,
-  'modules/newsletter/pages/SubscribersPage.tsx': 6,
-  'modules/newsletter/pages/TagsPage.tsx': 9,
-  'modules/organizations/panels/RestrictionsPanel.tsx': 1,
-  'modules/pim_ergonode/ErgonodeConnectionPage.tsx': 1,
-  'modules/product_feeds/components/FeedDeliveryPanel.tsx': 1,
-  'modules/promotions/CouponGeneratorForm.tsx': 2,
-  'modules/promotions/PromotionEditPage.tsx': 1,
-  'modules/promotions/PromotionStatsPage.tsx': 2,
-  'modules/returns/ReturnDeliveryMethodsPage.tsx': 5,
-  'modules/returns/ReturnDetail.tsx': 12,
-  'modules/returns/ReturnReasonsPage.tsx': 4,
-  'modules/returns/ReturnStatusesConfigPage.tsx': 4,
-  'modules/settings/PushAudienceRuleBuilder.tsx': 17,
-  'modules/settings/components/AssetIdSettingInput.tsx': 1,
-  'modules/settings/pages/PwaPage.tsx': 22,
-  'modules/stripe/StripeSettingsPage.tsx': 29,
-  'modules/transactional_emails/components/BrandingPanel.tsx': 5,
-  'modules/transactional_emails/pages/EmailBlocksPage.tsx': 3,
-  'modules/transactional_emails/pages/EmailEditor.tsx': 3,
-  'modules/transactional_emails/pages/EmailFragmentEditor.tsx': 1,
-  'modules/transactional_emails/pages/EmailTemplatesPage.tsx': 3,
-  'modules/transactional_emails/pages/EmailsList.tsx': 4,
+  'admin/src/components/LoginPage.tsx': 4,
+  'admin/src/components/asset-picker/AssetFieldPicker.tsx': 1,
+  'packages/admin-kit/src/components/rule-builder/RuleBuilder.tsx': 6,
+  'packages/admin-kit/src/ui/color-picker.tsx': 1,
+  'admin/src/modules/_shared/email-builder/EmailEditorPane.tsx': 9,
+  'admin/src/modules/_shared/email-builder/EmailRichTextField.tsx': 1,
+  'admin/src/modules/_shared/email-builder/EmailRowLayoutPicker.tsx': 2,
+  'admin/src/modules/_shared/email-builder/EmailVariablesProvider.tsx': 4,
+  'admin/src/modules/cms/components/AssetPickers.tsx': 5,
+  'admin/src/modules/cms/components/ButtonLinkFields.tsx': 4,
+  'admin/src/modules/cms/components/CatalogPickers.tsx': 13,
+  'admin/src/modules/cms/components/ComponentDragHandle.tsx': 1,
+  'admin/src/modules/cms/components/RowLayoutPicker.tsx': 2,
+  'admin/src/modules/custom_fields/CustomFieldsPage.tsx': 4,
+  'admin/src/modules/delivery_methods/DeliveryMethodsPage.tsx': 5,
+  'admin/src/modules/invoices/templates/invoice-puck-config.tsx': 6,
+  'admin/src/modules/linkedin_ads/pages/ConversionMappingEditPage.tsx': 1,
+  'admin/src/modules/mfa/AdminSecuritySettings.tsx': 16,
+  'admin/src/modules/newsletter/pages/AutomationBuilder.tsx': 6,
+  'admin/src/modules/newsletter/pages/AutomationsPage.tsx': 4,
+  'admin/src/modules/newsletter/pages/BlocksPage.tsx': 8,
+  'admin/src/modules/newsletter/pages/CampaignEditor.tsx': 14,
+  'admin/src/modules/newsletter/pages/CampaignStats.tsx': 3,
+  'admin/src/modules/newsletter/pages/CampaignsPage.tsx': 4,
+  'admin/src/modules/newsletter/pages/ProviderSettingsPage.tsx': 7,
+  'admin/src/modules/newsletter/pages/SubscribersPage.tsx': 6,
+  'admin/src/modules/newsletter/pages/TagsPage.tsx': 9,
+  'admin/src/modules/organizations/panels/RestrictionsPanel.tsx': 1,
+  'admin/src/modules/pim_ergonode/ErgonodeConnectionPage.tsx': 1,
+  'admin/src/modules/product_feeds/components/FeedDeliveryPanel.tsx': 1,
+  'admin/src/modules/promotions/CouponGeneratorForm.tsx': 2,
+  'admin/src/modules/promotions/PromotionEditPage.tsx': 1,
+  'admin/src/modules/promotions/PromotionStatsPage.tsx': 2,
+  'admin/src/modules/returns/ReturnDeliveryMethodsPage.tsx': 5,
+  'admin/src/modules/returns/ReturnDetail.tsx': 12,
+  'admin/src/modules/returns/ReturnReasonsPage.tsx': 4,
+  'admin/src/modules/returns/ReturnStatusesConfigPage.tsx': 4,
+  'admin/src/modules/settings/PushAudienceRuleBuilder.tsx': 17,
+  'admin/src/modules/settings/components/AssetIdSettingInput.tsx': 1,
+  'admin/src/modules/settings/pages/PwaPage.tsx': 22,
+  'admin/src/modules/stripe/StripeSettingsPage.tsx': 29,
+  'admin/src/modules/transactional_emails/components/BrandingPanel.tsx': 5,
+  'admin/src/modules/transactional_emails/pages/EmailBlocksPage.tsx': 3,
+  'admin/src/modules/transactional_emails/pages/EmailEditor.tsx': 3,
+  'admin/src/modules/transactional_emails/pages/EmailFragmentEditor.tsx': 1,
+  'admin/src/modules/transactional_emails/pages/EmailTemplatesPage.tsx': 3,
+  'admin/src/modules/transactional_emails/pages/EmailsList.tsx': 4,
 };
 
 /** One file's measured count against its baseline. */
@@ -280,7 +317,7 @@ function main(): void {
   // The default root is resolved against the repository, not the working
   // directory. `admin/src` was relative to `process.cwd()`, and the documented
   // invocation runs with `backend/` as the cwd, where no such directory exists.
-  const roots = positional.length > 0 ? positional : [DEFAULT_ROOT];
+  const roots = positional.length > 0 ? positional : defaultRoots();
   // The baseline is measured over the whole of `admin/src`, so it can only judge
   // a run that scanned the whole of `admin/src`. Given a path, every file the
   // ledger names but the walk never opened would read as drained — so an
@@ -334,7 +371,7 @@ function main(): void {
     return;
   }
 
-  const counts = countByFile(findings, DEFAULT_ROOT);
+  const counts = countByFile(findings, REPO_ROOT);
   const { regressions, drained } = compareToBaseline(counts);
 
   if (argv.includes('--list')) for (const f of findings) print(f);
@@ -354,7 +391,7 @@ function main(): void {
     for (const d of regressions) {
       process.stderr.write(`  - ${d.file}: ${d.actual} finding(s), baseline ${d.baseline}\n`);
       for (const f of findings.filter(
-        (x) => relative(DEFAULT_ROOT, x.filePath).split('\\').join('/') === d.file,
+        (x) => relative(REPO_ROOT, x.filePath).split('\\').join('/') === d.file,
       )) {
         print(f);
       }

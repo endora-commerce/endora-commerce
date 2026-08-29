@@ -82,6 +82,14 @@ import type {
 } from '../../../scripts/lib/admin-surfaces.js';
 import type { AdminRegistrationCounts } from '../../../scripts/ledgers/admin-registrations.js';
 import {
+  checkAdminSurface,
+  reachKey,
+  vacuousReason as adminSurfaceVacuous,
+  type AdminReachSite,
+  type AdminResolution,
+  type AdminSurfaceFindingKind,
+} from '../../../scripts/check-admin-surface.js';
+import {
   adminPopulationLost,
   analyzeSource as moduleBoundaryAnalyze,
   checkModuleBoundary,
@@ -2414,7 +2422,189 @@ const REACHES_THE_SERVICE =
   "import { DocumentCorrections } from " +
   "'../../../packages/modules/billing/src/backend/services/document-corrections.js';\n";
 
+// --- check-admin-surface (feature 091, FR-009/FR-016) ------------------------
+//
+// The fixture is a reach **site** plus the shim map and the barrels, which is
+// where the two derivations that matter live: is this target a shim, and does
+// that subpath's barrel export this symbol. A fixture handing in a resolved
+// verdict would count the bookkeeping and leave both unrun (issue #130).
+const ADMIN_KIT = '@endora-commerce/admin-kit';
+
+function adminSurfaceSite(overrides: Partial<AdminReachSite> = {}): AdminReachSite {
+  return {
+    file: 'admin/src/modules/orders/OrdersList.tsx',
+    owner: 'orders',
+    specifier: '@/components/ui/button',
+    line: 3,
+    symbols: ['Button'],
+    shape: 'named',
+    packaged: false,
+    ...overrides,
+  };
+}
+
+function adminSurfaceResolve(reach: AdminReachSite): AdminResolution {
+  if (!reach.specifier.startsWith('@/')) return { kind: 'external' };
+  const path = `admin/src/${reach.specifier.slice(2)}`;
+  if (path.startsWith('admin/src/modules/')) return { kind: 'module', path };
+  if (path.endsWith('gone')) return { kind: 'unresolvable' };
+  return { kind: 'admin', path: `${path}.tsx` };
+}
+
+type AdminSurfaceVacuousRecord = Parameters<typeof adminSurfaceVacuous>[0];
+
+/** A refusal counts as one finding, so a proof reads the same as every other. */
+function adminSurfaceRefuses(record: Partial<AdminSurfaceVacuousRecord>): number {
+  return adminSurfaceVacuous({
+    adminResolved: true,
+    kitFound: true,
+    implementationSubpaths: 4,
+    barrelsRead: 4,
+    barrelWithStar: null,
+    walkedFiles: 1,
+    shims: 1,
+    ...record,
+  }) === null
+    ? 0
+    : 1;
+}
+
+function adminSurfaceFindings(
+  sites: readonly AdminReachSite[],
+  kind: AdminSurfaceFindingKind,
+): number {
+  return checkAdminSurface(
+    {
+      sites,
+      shims: new Map([['admin/src/components/ui/button.tsx', new Set(['ui'])]]),
+      barrels: new Map([['ui', new Set(['Button'])]]),
+      kitName: ADMIN_KIT,
+      aliasPrefix: '@/',
+      resolveAdmin: adminSurfaceResolve,
+    },
+    {},
+  ).findings.filter((finding) => finding.kind === kind).length;
+}
+
 const CHECKS: readonly CheckEntry[] = [
+  {
+    // Feature 091's FR-009/FR-016 — `check:platform-surface`'s frontend twin,
+    // landed **with** the four design-system subpaths it judges and not before
+    // them: its population is symbols of the kit's barrels, and R14 makes a kit
+    // with no implementation subpath exit 2, so landing it earlier would have
+    // landed a check whose only honest answer was a refusal.
+    //
+    // Five findings, five proofs, each entering as a reach *site*. The
+    // `unpublished-symbol` proof names two symbols of which one is published,
+    // because a per-file verdict would report both and send its reader to the
+    // wrong repair.
+    script: 'backend/scripts/check-admin-surface.ts',
+    npmScript: 'check:admin-surface',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-admin-surface.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is the admin's module surface directories plus a module
+    // package's own `src/admin`, neither of which a moved *backend* module tree
+    // touches. Losing the admin layout is exit 2 through its own first vacuous
+    // reason, proven below.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'unpublished-symbol': top(() =>
+        adminSurfaceFindings(
+          [adminSurfaceSite({ symbols: ['Button', 'ButtonGroup'] })],
+          'unpublished-symbol',
+        ),
+      ),
+      // The target is host-owned and is not a shim, so there is no subpath a
+      // packaged module could name it by — the 87 reaches this feature ledgers.
+      'unpublished-target': top(() =>
+        adminSurfaceFindings(
+          [adminSurfaceSite({ specifier: '@/components/organization-picker' })],
+          'unpublished-symbol',
+        ),
+      ),
+      'whole-file-reach': top(() =>
+        adminSurfaceFindings(
+          [adminSurfaceSite({ shape: 'namespace', symbols: [] })],
+          'whole-file-reach',
+        ),
+      ),
+      'aliased-reach': top(() =>
+        adminSurfaceFindings(
+          [
+            adminSurfaceSite({
+              file: 'packages/modules/blog/src/admin/pages/BlogList.tsx',
+              owner: 'blog',
+              packaged: true,
+            }),
+          ],
+          'aliased-reach',
+        ),
+      ),
+      'unpublished-subpath': top(() =>
+        adminSurfaceFindings(
+          [adminSurfaceSite({ specifier: `${ADMIN_KIT}/forms` })],
+          'unpublished-subpath',
+        ),
+      ),
+      'unresolvable-reach': top(() =>
+        adminSurfaceFindings(
+          [adminSurfaceSite({ specifier: '@/components/gone' })],
+          'unresolvable-reach',
+        ),
+      ),
+      // Both stale directions of the two-way ledger.
+      'stale-entry': top(
+        () =>
+          checkAdminSurface(
+            {
+              sites: [adminSurfaceSite()],
+              shims: new Map([['admin/src/components/ui/button.tsx', new Set(['ui'])]]),
+              barrels: new Map([['ui', new Set(['Button'])]]),
+              kitName: ADMIN_KIT,
+              aliasPrefix: '@/',
+              resolveAdmin: adminSurfaceResolve,
+            },
+            {
+              [reachKey('admin/src/modules/orders/OrdersList.tsx', 'admin/src/lib/gone.ts')]: {
+                symbols: ['gone'],
+                reason: 'stale',
+              },
+            },
+          ).stale.length,
+      ),
+      'stale-symbol': top(
+        () =>
+          checkAdminSurface(
+            {
+              sites: [adminSurfaceSite({ specifier: '@/components/organization-picker' })],
+              shims: new Map([['admin/src/components/ui/button.tsx', new Set(['ui'])]]),
+              barrels: new Map([['ui', new Set(['Button'])]]),
+              kitName: ADMIN_KIT,
+              aliasPrefix: '@/',
+              resolveAdmin: adminSurfaceResolve,
+            },
+            {
+              [reachKey(
+                'admin/src/modules/orders/OrdersList.tsx',
+                'admin/src/components/organization-picker.tsx',
+              )]: { symbols: ['OrganizationPicker', 'Vanished'], reason: 'stale symbol' },
+            },
+          ).staleSymbols.length,
+      ),
+      // The seven vacuous reasons, each entered on the record a real run
+      // builds. Without them a tree whose admin or whose kit had gone would
+      // judge an empty walk against an empty ledger and report a cheerful zero.
+      'no-admin-layout-refuses': top(() => adminSurfaceRefuses({ adminResolved: false })),
+      'no-kit-refuses': top(() => adminSurfaceRefuses({ kitFound: false })),
+      'no-implementation-subpath-refuses': top(() => adminSurfaceRefuses({ implementationSubpaths: 0, barrelsRead: 0 })),
+      'unreadable-barrel-refuses': top(() => adminSurfaceRefuses({ barrelsRead: 3 })),
+      'export-star-barrel-refuses': top(() => adminSurfaceRefuses({ barrelWithStar: 'ui' })),
+      'empty-walk-refuses': top(() => adminSurfaceRefuses({ walkedFiles: 0 })),
+      'no-shim-refuses': top(() => adminSurfaceRefuses({ shims: 0 })),
+    },
+  },
   {
     // Feature 091's FR-018. Four findings, and the two count drifts are the
     // ones the ratchet exists for — a batch that moves a module's admin
@@ -6272,6 +6462,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // Four findings and the four vacuous reasons, plus both directions of the
       // route count — the ratchet's whole claim is that it fails either way.
       'backend/scripts/check-admin-registrations.ts': 9,
+      'backend/scripts/check-admin-surface.ts': 15,
       // Two directions of a wrong code, three ways a target cannot be resolved,
       // and the ledger's stale direction.
       'backend/scripts/check-action-route-permissions.ts': 6,

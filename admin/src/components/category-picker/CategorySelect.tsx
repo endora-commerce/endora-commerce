@@ -1,90 +1,17 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { useAppLanguage } from '@/i18n/app-language-context';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-
 /**
- * Single-select catalog-category picker.
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/components` (feature 091, Phase 1b).
  *
- * `GET /api/v1/admin/catalog/categories` returns the full tree flat (no
- * pagination), so the list is fetched once on mount and the <Combobox>
- * filters client-side. Labels are locale-aware (admin UI language, then
- * `en-US`, then any value, then slug). The committed value is the
- * category UUID.
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
  *
- * For multi-select category audiences use <CategoryTreePicker>; this is
- * the flat single-pick variant for "link to one category" fields.
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
  */
-
-interface AdminCategory {
-  id: string;
-  name: Record<string, string>;
-  slug: string;
-  parentCategoryId: string | null;
-}
-
-export interface CategorySelectProps {
-  value: string | null;
-  onChange: (categoryId: string | null) => void;
-  placeholder?: string;
-  emptyMessage?: string;
-  clearable?: boolean;
-  disabled?: boolean;
-  ariaLabel?: string;
-  id?: string;
-  className?: string;
-}
-
-export function CategorySelect(props: CategorySelectProps): ReactNode {
-  const { language } = useAppLanguage();
-  const [categories, setCategories] = useState<AdminCategory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    apiClient
-      .get<{ data: AdminCategory[] }>('/api/v1/admin/catalog/categories')
-      .then((res) => {
-        if (!alive) return;
-        setCategories(res.data);
-      })
-      .catch((err: unknown) => {
-        if (!alive) return;
-        setError(
-          err instanceof ApiError ? err.envelope.error.message : 'Failed to load categories.',
-        );
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return (): void => {
-      alive = false;
-    };
-  }, []);
-
-  const options = useMemo<ComboboxOption<string>[]>(() => {
-    const labelFor = (c: AdminCategory): string =>
-      c.name[language] ?? c.name['en-US'] ?? Object.values(c.name)[0] ?? c.slug;
-    return categories.map((c) => ({ value: c.id, label: labelFor(c), description: c.slug }));
-  }, [categories, language]);
-
-  const emptyMessage = props.emptyMessage ?? error ?? 'No categories.';
-
-  return (
-    <Combobox<string>
-      options={options}
-      value={props.value}
-      onChange={props.onChange}
-      loading={loading}
-      clearable={props.clearable ?? true}
-      disabled={props.disabled ?? false}
-      placeholder={props.placeholder ?? 'Select a category…'}
-      emptyMessage={emptyMessage}
-      ariaLabel={props.ariaLabel ?? 'Select category'}
-      id={props.id ?? ''}
-      className={props.className ?? ''}
-    />
-  );
-}
+export { CategorySelect } from '@endora-commerce/admin-kit/components';
+export type { CategorySelectProps } from '@endora-commerce/admin-kit/components';
