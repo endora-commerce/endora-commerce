@@ -173,7 +173,8 @@ describe('filter cond (reads ambient context)', () => {
   it('no context → cond throws (fail-closed)', () => {
     runWithoutTenantContext(() => {
       expect(() => orgFilterCond()).toThrow(MissingTenantContextError);
-      expect(() => customerFilterCond()).toThrow(MissingTenantContextError);
+      expect(() => customerFilterCond('absent')).toThrow(MissingTenantContextError);
+      expect(() => customerFilterCond('present')).toThrow(MissingTenantContextError);
     });
   });
 
@@ -181,27 +182,53 @@ describe('filter cond (reads ambient context)', () => {
     const ctx = resolveTenantContext({ kind: 'customer', customerAccountId: 'c', organizationId: 'org-A' });
     await runWithTenantContext(ctx, async () => {
       expect(orgFilterCond()).toEqual({ organizationId: 'org-A' });
-      expect(customerFilterCond()).toEqual({ customerAccountId: 'c' });
+      // Unchanged by feature 087, and unchanged by the entity carrying an
+      // organization column: a buyer is confined to their own rows, which is a
+      // narrower statement than their organization's.
+      expect(customerFilterCond('absent')).toEqual({ customerAccountId: 'c' });
+      expect(customerFilterCond('present')).toEqual({ customerAccountId: 'c' });
     });
   });
 
-  it('allowed-set → $in predicate; customer filter unconstrained for admin', async () => {
+  it('allowed-set → $in predicate on both classifications (feature 087, FR-001)', async () => {
     const ctx = resolveTenantContext(
       { kind: 'admin', adminUserId: 'a' },
       { allowAll: false, allowedOrganizationIds: ['org-A'] },
     );
     await runWithTenantContext(ctx, async () => {
       expect(orgFilterCond()).toEqual({ organizationId: { $in: ['org-A'] } });
-      expect(customerFilterCond()).toEqual({});
+      // This case read `toEqual({})` until feature 087 — no predicate at all,
+      // for the one actor kind the whole classification exists to restrain. An
+      // entity carrying the column gets the same predicate `@OrgScoped` gets;
+      // one that does not gets the refusal, because a row is never visible
+      // because a predicate was absent.
+      expect(customerFilterCond('present')).toEqual({ organizationId: { $in: ['org-A'] } });
+      expect(customerFilterCond('absent')).toEqual({ customerAccountId: { $in: [] } });
+    });
+  });
+
+  it('an empty allowed-set matches nothing on both classifications (FR-007)', async () => {
+    const ctx = resolveTenantContext(
+      { kind: 'admin', adminUserId: 'a' },
+      { allowAll: false, allowedOrganizationIds: [] },
+    );
+    await runWithTenantContext(ctx, async () => {
+      expect(orgFilterCond()).toEqual({ organizationId: { $in: [] } });
+      expect(customerFilterCond('present')).toEqual({ organizationId: { $in: [] } });
+      expect(customerFilterCond('absent')).toEqual({ customerAccountId: { $in: [] } });
     });
   });
 
   it('all / system → no restriction', async () => {
     await runWithTenantContext(resolveTenantContext({ kind: 'admin', adminUserId: 'a' }, { allowAll: true }), async () => {
       expect(orgFilterCond()).toEqual({});
+      expect(customerFilterCond('present')).toEqual({});
+      expect(customerFilterCond('absent')).toEqual({});
     });
     await runWithTenantContext(systemTenantContext('r'), async () => {
       expect(orgFilterCond()).toEqual({});
+      expect(customerFilterCond('present')).toEqual({});
+      expect(customerFilterCond('absent')).toEqual({});
     });
   });
 });

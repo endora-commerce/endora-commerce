@@ -6,6 +6,7 @@ import {
   type CustomerAccountReadPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -82,6 +83,35 @@ export class CustomerAddressService {
     }
   }
 
+  /**
+   * Run a `customer_addresses` statement for the account
+   * {@link CustomerAddressService.#assertCustomerInScope} has just authorised.
+   *
+   * Feature 087 gave `customerFilterCond` a real `allowed-set` arm, and this
+   * table is one of the fifteen that carry no `organization_id` yet — so the
+   * arm matches **nothing** here, which is the right floor for a guard that
+   * cannot determine the allowed set and the wrong answer for a caller who has
+   * already been shown to be inside it. Without this widening a sales
+   * representative's own customer's address book reads as empty, and the
+   * default-demotion `nativeUpdate` below silently demotes nothing, which
+   * leaves two defaults.
+   *
+   * The widening is the sanctioned crossing (feature 050, FR-005) and not a
+   * `catch`: every call is preceded, in the same method, by the
+   * `customer_accounts` read that decides whether this caller may reach this
+   * account at all — and `customer_accounts` is `@OrgScoped`, so that read is
+   * the organization check. It is also narrow by construction: every statement
+   * it covers names `customerAccountId` in its own `where`, so widening the
+   * filter widens the authority by exactly nothing. It stops being needed when
+   * feature 087 gives this table its own column.
+   */
+  #forAuthorisedCustomer<T>(customerAccountId: string, fn: () => Promise<T>): Promise<T> {
+    return withSystemScope(
+      `customers: personal addresses of customer account ${customerAccountId}, authorised by its own @OrgScoped account read`,
+      fn,
+    );
+  }
+
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
     if (this.auditLog) {
       recordAuditFromContext(this.auditLog, em, { action, objectType: 'customer_address', objectId, stateBefore, stateAfter });
@@ -96,9 +126,11 @@ export class CustomerAddressService {
     const em = this.emFactory();
     const where: Record<string, unknown> = { customerAccountId, deletedAt: null };
     if (kind) where.kind = kind;
-    return em.find(CustomerAddress, where, {
-      orderBy: { isDefault: 'desc', createdAt: 'asc' },
-    });
+    return this.#forAuthorisedCustomer(customerAccountId, () =>
+      em.find(CustomerAddress, where, {
+        orderBy: { isDefault: 'desc', createdAt: 'asc' },
+      }),
+    );
   }
 
   /** Org-shared addresses, read-only, for org-bound customers (FR-038). */
@@ -117,10 +149,12 @@ export class CustomerAddressService {
     const em = this.emFactory();
     return em.transactional(async (txEm) => {
       if (input.isDefault) {
-        await txEm.nativeUpdate(
-          CustomerAddress,
-          { customerAccountId, kind: input.kind, isDefault: true, deletedAt: null },
-          { isDefault: false },
+        await this.#forAuthorisedCustomer(customerAccountId, () =>
+          txEm.nativeUpdate(
+            CustomerAddress,
+            { customerAccountId, kind: input.kind, isDefault: true, deletedAt: null },
+            { isDefault: false },
+          ),
         );
       }
       const address = txEm.create(CustomerAddress, {
@@ -151,10 +185,12 @@ export class CustomerAddressService {
     return em.transactional(async (txEm) => {
       const address = await this.findOwned(txEm, customerAccountId, addressId);
       if (patch.isDefault === true && !address.isDefault) {
-        await txEm.nativeUpdate(
-          CustomerAddress,
-          { customerAccountId, kind: address.kind, isDefault: true, deletedAt: null },
-          { isDefault: false },
+        await this.#forAuthorisedCustomer(customerAccountId, () =>
+          txEm.nativeUpdate(
+            CustomerAddress,
+            { customerAccountId, kind: address.kind, isDefault: true, deletedAt: null },
+            { isDefault: false },
+          ),
         );
       }
       if (patch.recipientName !== undefined) address.recipientName = patch.recipientName;
@@ -197,11 +233,13 @@ export class CustomerAddressService {
     customerAccountId: string,
     addressId: string,
   ): Promise<CustomerAddress> {
-    const address = await em.findOne(CustomerAddress, {
-      id: addressId,
-      customerAccountId,
-      deletedAt: null,
-    });
+    const address = await this.#forAuthorisedCustomer(customerAccountId, () =>
+      em.findOne(CustomerAddress, {
+        id: addressId,
+        customerAccountId,
+        deletedAt: null,
+      }),
+    );
     if (!address) {
       throw new HttpError(
         404,

@@ -1,5 +1,12 @@
 import { Filter } from '@mikro-orm/core';
-import { ORG_FILTER, CUSTOMER_FILTER, orgFilterCond, customerFilterCond } from './filters.js';
+import {
+  ORG_FILTER,
+  CUSTOMER_FILTER,
+  CUSTOMER_ORGANIZATION_KEY,
+  orgFilterCond,
+  customerFilterCond,
+  type CustomerOrganizationColumn,
+} from './filters.js';
 
 /**
  * Per-entity tenant-scope classification (feature 050, FR-006).
@@ -40,30 +47,80 @@ export function tenantClassifications(): readonly ClassificationMeta[] {
   return registry;
 }
 
-function applyMikroFilter(
-  target: EntityClass,
-  name: string,
-  cond: () => Record<string, unknown>,
-): void {
+/**
+ * The `cond` shape MikroORM invokes (`EntityManager.ts`,
+ * `filter.cond(args, type, this, findOptions, entityName)`). Only the third and
+ * fifth arguments are used here, and only by `@CustomerScoped`.
+ */
+type FilterCond = (
+  args: Record<string, unknown>,
+  type: 'read' | 'update' | 'delete',
+  em: unknown,
+  options: unknown,
+  entityName?: unknown,
+) => Record<string, unknown>;
+
+function applyMikroFilter(target: EntityClass, name: string, cond: FilterCond): void {
   // MikroORM's `Filter` is a class decorator; apply it programmatically.
   // `args: false` — the cond reads the ambient context from AsyncLocalStorage at
   // query time, so no per-fork `setFilterParams` is needed (fork-independent).
-  (Filter({ name, cond: () => cond(), default: true, args: false }) as (t: EntityClass) => void)(target);
+  (Filter({ name, cond, default: true, args: false }) as (t: EntityClass) => void)(target);
+}
+
+/**
+ * Whether the entity being filtered carries {@link CUSTOMER_ORGANIZATION_KEY},
+ * read out of the ORM's **own discovered metadata** — the same source the query
+ * being filtered is built from.
+ *
+ * It is derived rather than declared for the reason a derived fact is never
+ * written down twice: a list of "the customer-scoped classes that have an
+ * organization column" would be right on the day it was written and wrong the
+ * next time one of feature 087's fifteen migrations lands, and being wrong in
+ * the *permissive* direction is a disclosure. Deriving it means the column and
+ * the predicate arrive together, in one merge request, with no third artefact
+ * to keep in step.
+ *
+ * **It answers `'absent'` for anything it cannot read**, which is the
+ * restrictive answer: an unreadable metadata store must not be the reason a
+ * scoped administrator sees every organization's rows.
+ */
+function customerOrganizationColumn(em: unknown, entityName: unknown): CustomerOrganizationColumn {
+  const metadataOf = (em as { getMetadata?: () => unknown } | undefined)?.getMetadata;
+  if (typeof metadataOf !== 'function') return 'absent';
+  const storage = metadataOf.call(em) as
+    | { find?: (name: unknown) => { properties?: Record<string, unknown> } | undefined }
+    | undefined;
+  if (typeof storage?.find !== 'function') return 'absent';
+  const meta = storage.find(entityName);
+  const properties = meta?.properties;
+  if (!properties) return 'absent';
+  return Object.prototype.hasOwnProperty.call(properties, CUSTOMER_ORGANIZATION_KEY)
+    ? 'present'
+    : 'absent';
 }
 
 /** Direct `organizationId` column. Filtered by the `org` global filter. */
 export function OrgScoped(): (target: EntityClass) => void {
   return (target) => {
     registry.push({ target, className: target.name, scope: 'org', key: 'organizationId' });
-    applyMikroFilter(target, ORG_FILTER, orgFilterCond);
+    applyMikroFilter(target, ORG_FILTER, () => orgFilterCond());
   };
 }
 
-/** Direct `customerAccountId` column, no org column. Filtered by the `customerAccount` filter. */
+/**
+ * Direct `customerAccountId` column. Filtered by the `customerAccount` filter.
+ *
+ * The filter's `allowed-set` arm also needs to know whether *this* entity
+ * carries an organization column of its own, so the `cond` forwards the ORM's
+ * `em` and `entityName` to {@link customerOrganizationColumn}. See
+ * `customerFilterCond` for what each answer means.
+ */
 export function CustomerScoped(): (target: EntityClass) => void {
   return (target) => {
     registry.push({ target, className: target.name, scope: 'customer', key: 'customerAccountId' });
-    applyMikroFilter(target, CUSTOMER_FILTER, customerFilterCond);
+    applyMikroFilter(target, CUSTOMER_FILTER, (_args, _type, em, _options, entityName) =>
+      customerFilterCond(customerOrganizationColumn(em, entityName ?? target)),
+    );
   };
 }
 
