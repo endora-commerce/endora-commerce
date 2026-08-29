@@ -72,6 +72,67 @@ export const manifest = defineModuleManifest({
   // D-87). `languages` used to ask the question itself, with a jsonb
   // containment test against `cms_pages` — this module's table.
   dependencies: ['assets_library', 'languages', 'sales_channels', 'auth', 'settings'],
+  /**
+   * Error codes this module owns — feature 090, Phase 3
+   * (`specs/090-module-owned-error-codes/`).
+   *
+   * The list is the incumbent prefix chain's **answer**, copied from the frozen
+   * capture (`backend/test/fixtures/error-code-routing/chain-answers.ts`, taken
+   * at `49f3c6817`) rather than judged: the migration is answer-preserving over
+   * all 289 codes and re-routing is out of scope (runbook §6.5). Ten codes, and
+   * this module happens to be the clean case for trap T1 — the chain's
+   * `startsWith('CMS_')` rule shadows nothing and is shadowed by nothing, so its
+   * source and its answer agree here, which is not true of the four codes T1
+   * names.
+   *
+   * **Two names a reader would attribute elsewhere, and both are ours.**
+   * `CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE` names two other modules' nouns and
+   * belongs to neither: it is raised twice in `cms-page-service.ts`, once when a
+   * page's content is written in a language the page does not carry and once
+   * when a page's declared languages are not in the union its assigned sales
+   * channels resolve. `megamenu` owns the identically shaped
+   * `MEGAMENU_LANGUAGE_NOT_IN_CHANNEL_SCOPE` on the same reading.
+   * `CMS_REFERENCED` is the cross-entity reference guard for pages, blocks and
+   * templates — not a narrowing of `assets_library`'s `ASSET_REFERENCED`, which
+   * is that module's and stays there.
+   *
+   * **And the inverse: seven raises this module makes and must not declare.**
+   * `VERSION_CONFLICT` four times (the `If-Match` guard in each of the four
+   * entity services) and `VALIDATION_FAILED` three times (the storefront
+   * route's missing-parameter refusals). Both route to `core`, because
+   * ownership follows the domain noun and never the thrower (D-95.2).
+   *
+   * **No `tokens`, and that is derived rather than assumed.** The envelope's
+   * `refusalToken` (`packages/platform/src/http/error-envelope.ts`) reads one
+   * member of `details` — `code` — as the tail of `errors.<CODE>.<token>`. All
+   * 32 raises of these ten codes were enumerated over `packages` and
+   * `backend/src` in both spellings (`ERROR_CODES.<CODE>` and the bare string
+   * literal, runbook step 2), and not one passes a fourth argument at all;
+   * neither do the seven `core`-owned raises above. The runbook §5 tree-wide
+   * scan agrees, printing the same ten codes over 41 sites it has printed since
+   * `catalog`, none of them a `CMS_` one. The bundle agrees from the other
+   * direction: ten `errors.<CODE>` keys in `en` and `pl`, no
+   * `errors.<CODE>.<token>` key in either.
+   *
+   * **One code nothing raises: `CMS_SCHEMA_UPGRADE_FAILED`** — declared anyway,
+   * because ownership follows the capture (trap T10) and deleting it would move
+   * an answer this merge request may not move. It is reported, not repaired;
+   * the finding is in the merge request and belongs to
+   * `specs/deferred-defects.md` § *Roughly 29 error codes have translated
+   * sentences no client can ever receive*.
+   */
+  errorCodes: [
+    { code: 'CMS_BLOCK_NOT_FOUND' },
+    { code: 'CMS_CODE_CONFLICT' },
+    { code: 'CMS_HOOK_NOT_FOUND' },
+    { code: 'CMS_HOOK_SYSTEM_PROTECTED' },
+    { code: 'CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE' },
+    { code: 'CMS_PAGE_NOT_FOUND' },
+    { code: 'CMS_REFERENCED' },
+    { code: 'CMS_SCHEMA_UPGRADE_FAILED' },
+    { code: 'CMS_SLUG_CONFLICT' },
+    { code: 'CMS_TEMPLATE_NOT_FOUND' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   settings,
   permissions: [
