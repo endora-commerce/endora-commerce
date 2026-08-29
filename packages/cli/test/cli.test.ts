@@ -66,6 +66,32 @@ describe('the program', () => {
     expect(result.stderr).toContain('tier');
   });
 
+  it('carries the sidebar section --admin names all the way through argv', async () => {
+    // The flag takes a value rather than being a boolean, because the one
+    // judgement the layer needs — where in the operator's sidebar this belongs
+    // — is not one the tool can default. A bare `--admin` is a parseArgs
+    // refusal, and an unknown section is a refusal with the set named.
+    const bare = await run(['new', 'module', 'scaffold_fixtures', '--admin']);
+    expect(bare.code).toBe(1);
+
+    const unknown = await run([
+      'new',
+      'module',
+      'scaffold_fixtures',
+      '--name',
+      'Scaffold Fixtures',
+      '--description',
+      'A worked example.',
+      '--permission',
+      'scaffold_fixtures:read=View them',
+      '--admin',
+      'widgets',
+    ]);
+    expect(unknown.code).toBe(1);
+    expect(unknown.stderr).toContain('is not a sidebar section');
+    expect(unknown.stderr).toContain('system');
+  });
+
   it('says why `check` is not in this build rather than pretending it ran', async () => {
     const result = await run(['check']);
 
