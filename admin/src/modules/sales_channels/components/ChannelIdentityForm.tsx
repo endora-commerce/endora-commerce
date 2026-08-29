@@ -6,7 +6,13 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import type { DictionaryCurrency, DictionaryLanguage, SalesChannelDetail } from '@endora-commerce/contracts';
+import {
+  STOREFRONT_THEME_CODES,
+  isStorefrontThemeCode,
+  type DictionaryCurrency,
+  type DictionaryLanguage,
+  type SalesChannelDetail,
+} from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -219,12 +225,29 @@ export function ChannelIdentityForm({
 
           <div className="grid gap-2">
             <Label htmlFor="sc-theme">{t('identity.theme.label')}</Label>
-            <Input
+            <Select
               id="sc-theme"
               value={themeCode}
               onChange={(e) => setThemeCode(e.target.value)}
-              placeholder={t('identity.theme.placeholder')}
-            />
+            >
+              <option value="">{t('identity.theme.none')}</option>
+              {STOREFRONT_THEME_CODES.map((theme) => (
+                <option key={theme} value={theme}>
+                  {t(`identity.theme.option.${theme}`)}
+                </option>
+              ))}
+              {/* A code the storefront no longer implements — a value saved
+                  while this was a free-text box, or a fork's own theme. Kept
+                  as a selectable option so opening the form does not silently
+                  change what the channel is set to, and labelled so the
+                  operator can see that it is not one of the shipped sets. */}
+              {themeCode !== '' && !isStorefrontThemeCode(themeCode) && (
+                <option value={themeCode}>
+                  {t('identity.theme.unknown', { code: themeCode })}
+                </option>
+              )}
+            </Select>
+            <p className="text-xs text-muted-foreground">{t('identity.theme.help')}</p>
           </div>
 
           <div className="grid gap-2 md:grid-cols-[2fr_1fr]">

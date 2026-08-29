@@ -172,6 +172,101 @@
   --b2b-spacing: 16px;
 }
 
+/*
+ * ---------------------------------------------------------------------------
+ * Per-sales-channel token themes (feature 005-sales-channels)
+ * ---------------------------------------------------------------------------
+ *
+ * `sales_channels.theme_code` has existed since 2026-04-30 and nothing read it.
+ * These blocks are what makes it true: the root layout stamps
+ * `<html data-theme="<code>">` from the channel the backend resolved for the
+ * request, server-side, so the first byte of HTML already carries the brand.
+ *
+ * They override the **Tier-1 primitives** only. Nothing here names a Tailwind
+ * utility or a Tier-2 key: `@theme inline` above maps every utility onto these
+ * variables by reference, so re-scoping them re-themes the whole page with no
+ * rebuild — the same mechanism the `.is-dark` scope already uses, and the
+ * `[data-theme]` case that block's comment anticipated.
+ *
+ * **Placement is load-bearing.** These sit above `:root.is-dark` so the dark
+ * scope still wins for the surfaces and inks it sets: a theme chooses the
+ * brand, the type and the shape of the shop, and dark mode chooses whether it
+ * is dark. Both selectors have specificity (0,2,0), so document order is what
+ * decides, and moving one below the other silently disables dark mode for every
+ * themed channel.
+ *
+ * The default theme's values are **restated** here rather than inherited from
+ * `:root`, so that every theme is one readable block and none of them is "the
+ * absence of a block". `:root` keeps them too, for a document rendered with no
+ * `data-theme` at all.
+ *
+ * Adding a theme is two edits and both are checked: a block here, and its code
+ * in `STOREFRONT_THEME_CODES` (`packages/contracts/src/sales-channels.ts`).
+ * `storefront/test/channel-theme.test.tsx` fails when either side is missing —
+ * a declared theme with no block would be an admin dropdown entry that does
+ * nothing, which is the defect this feature repairs.
+ */
+
+/* Industria — graphite/ink with an indigo accent. The reference palette. */
+:root[data-theme='industria'] {
+  --brand-50:  #eff6ff;
+  --brand-100: #dbeafe;
+  --brand-200: #bfdbfe;
+  --brand-600: #2563eb;
+  --brand-700: #1d4ed8;
+  --brand-900: #1e3a8a;
+
+  --bg:           #ffffff;
+  --surface:      #ffffff;
+  --surface-alt:  #fafafa;
+  --line:         #e5e7eb;
+  --line-strong:  #d4d4d8;
+
+  --font-sans: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+
+  --shadow-sm: 0 1px 2px rgba(24,24,27,0.04);
+  --shadow-md: 0 4px 12px rgba(24,24,27,0.06);
+  --shadow-lg: 0 12px 32px rgba(24,24,27,0.10);
+}
+
+/*
+ * Nordic — cool slate surfaces, a teal accent, softer corners and a system
+ * type stack. No second webfont on purpose: a theme that costs a render-
+ * blocking font request would trade Principle VII for a palette.
+ */
+:root[data-theme='nordic'] {
+  --brand-50:  #ecfeff;
+  --brand-100: #cffafe;
+  --brand-200: #a5f3fc;
+  --brand-600: #0891b2;
+  --brand-700: #0e7490;
+  --brand-900: #164e63;
+
+  --bg:           #f8fafc;
+  --surface:      #ffffff;
+  --surface-alt:  #f1f5f9;
+  --line:         #e2e8f0;
+  --line-strong:  #cbd5e1;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+
+  --shadow-sm: 0 1px 2px rgba(15,23,42,0.05);
+  --shadow-md: 0 6px 16px rgba(15,23,42,0.08);
+  --shadow-lg: 0 16px 40px rgba(15,23,42,0.12);
+}
+
 :root.is-dark {
   --bg: #0b0b0d;
   --surface: #131316;

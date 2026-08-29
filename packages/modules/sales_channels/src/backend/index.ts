@@ -19,6 +19,7 @@ import { SalesChannelAttributionRegistry } from './services/sales-channel-attrib
 import { SalesChannelsService } from './services/sales-channels.service.js';
 import type { AdminAuditContext } from './services/sales-channels.service.js';
 import { registerSalesChannelsAdminRoutes } from './routes.admin.js';
+import { registerSalesChannelsStorefrontRoutes } from './routes.storefront.js';
 
 /**
  * `sales_channels` — what is left after the kernel took the resolution
@@ -133,6 +134,11 @@ export function registerModule(ctx: ModuleContext): void {
       resolveAdminAuditContext: (req) =>
         ctx.cradle<SalesChannelsCradle>().adminAuditActorResolver(req),
     });
+
+    // The public read of the resolved channel. It resolves nothing itself and
+    // takes no dependency, so it is registered beside the admin surface rather
+    // than in a second `ctx.routes` call.
+    await registerSalesChannelsStorefrontRoutes(app);
   });
 }
 

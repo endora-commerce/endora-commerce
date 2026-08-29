@@ -6,6 +6,75 @@ theme needs, and to make forking trivial. The directory layout below is
 load-bearing — themes that keep it stay drop-in compatible with future
 upgrades.
 
+There are two ways to change how this storefront looks, and they are not the
+same size:
+
+1. **Per sales channel, at the token tier** — no fork, no rebuild, an operator
+   setting. This is what `sales_channels.theme_code` selects; see *Per-channel
+   token themes* below.
+2. **A fork of this directory** — everything else. What that costs today is
+   measured in `specs/storefront-composability-measure.md`, and the number that
+   matters is that it is a fork rather than a composition: this directory is not
+   a package, has no `exports` map, and is copied whole.
+
+## Per-channel token themes
+
+`app/globals.css` declares its design tokens in two tiers: Tier-1 primitives
+(`--brand-700`, `--ink-900`, `--font-sans`, `--r-md`, the shadows) in `:root`,
+and a Tier-2 `@theme inline` block that maps every Tailwind utility onto them
+**by reference**. Because the mapping is by reference, re-scoping the Tier-1
+variables re-themes every utility on the page with no rebuild.
+
+A **theme** is one such re-scoping:
+
+```css
+:root[data-theme='nordic'] {
+  --brand-700: #0e7490;
+  --font-sans: system-ui, …;
+  --r-md: 14px;
+  /* … */
+}
+```
+
+The root layout stamps `<html data-theme="…">` **server-side**, from the theme
+the request's sales channel names. That is the whole mechanism, and being
+server-side is not an optimisation: a theme applied after hydration is a flash
+of the wrong brand.
+
+The chain, end to end:
+
+| Where | What |
+| --- | --- |
+| `sales_channels.theme_code` | the operator's choice, per channel, edited on the channel's identity form |
+| `GET /api/v1/storefront/sales-channel` | the public read of the **resolved** channel |
+| `lib/api/sales-channel.ts` | fetches it, threading `X-Sales-Channel`; answers `null` rather than throwing |
+| `lib/theme/theme.ts` | maps `themeCode` → a token set, and decides the unknown case |
+| `lib/server-context.ts` | resolves it once per request, beside the locale |
+| `lib/theme/StorefrontDocument.tsx` | the `<html>` element that carries `data-theme` |
+| `app/globals.css` | the token blocks themselves |
+
+**Adding a theme is two edits, and both are checked.** A
+`:root[data-theme='<code>']` block in `app/globals.css`, and the code in
+`STOREFRONT_THEME_CODES` (`packages/contracts/src/sales-channels.ts`), which is
+what the admin's theme dropdown offers.
+`test/channel-theme.test.tsx` fails when either side is missing — a declared
+theme with no block is a dropdown entry that changes nothing, which is the
+defect this mechanism was built to repair.
+
+**An unknown theme falls back and reports; it never guesses.** A channel that
+names a code this storefront does not implement renders in the default theme
+and logs the requested code once per process. The page a buyer asked for is not
+the operator's configuration mistake to pay for — but nothing matches a prefix,
+folds a separator or picks the "nearest" theme either, so a misconfigured
+channel is visibly the reference brand rather than some third brand nobody
+chose. The reasoning is written out in `lib/theme/theme.ts`.
+
+**What a token theme does not do.** It restyles: colour, typography, spacing,
+radius, elevation, and (through `logoAssetId`) the mark. It does **not** give a
+channel a different layout or different components — that is a much larger
+question, and it is measured rather than answered in
+`specs/storefront-composability-measure.md`.
+
 ## Theme override boundary
 
 ```text
@@ -51,8 +120,21 @@ shared with the `@endora-commerce/contracts` types — themes inherit them.
 contracts are documented inline; keep them stable and a theme can ship
 its own markup, CSS, and behaviour without touching `app/` or `lib/`.
 
-**Restyle without rewriting**: replace `app/globals.css`. Class names are
-namespaced under `.b2b-*` so a CSS-only retheme works.
+> **The tree above is a sketch, not an inventory, and it has not been one since
+> the week it was written.** It named every component and every route file this
+> storefront had on 2026-04-25: 10 components, 7 route files, 7 files under
+> `lib/`, a 302-line stylesheet. Measured on 2026-08-29 the same tree holds
+> **111 components, 67 route files, 92 files under `lib/`** and a stylesheet
+> over 1300 lines. Read the listing as "these are the shapes a theme replaces",
+> never as "these are the files a theme replaces" — the second reading
+> understates the job by an order of magnitude, and
+> `specs/storefront-composability-measure.md` is where the current numbers live.
+
+**Restyle without rewriting**: for a *per-channel* restyle, use the token tier
+above — no fork at all. For a fork-wide one, replace `app/globals.css`. Note
+that the class prefix in this file is `.industria-*` for the chrome it ships;
+`.b2b-*` survives as a legacy alias layer for screens that predate it, so a
+CSS-only retheme has to cover both.
 
 ## Architectural decisions a theme inherits
 
@@ -76,9 +158,17 @@ namespaced under `.b2b-*` so a CSS-only retheme works.
 `lib/i18n/messages.ts` is the in-tree catalogue for navigation and
 button captions. The reference theme keeps its Polish strings in ASCII
 so the engineering-language gate stays clean
-([Constitution Principle VIII v1.1.1](../.specify/memory/constitution.md));
-a real theme moves them to `storefront/messages/<locale>.json`, which
-the language gate exempts as end-customer content.
+([Constitution Principle VIII](../.specify/memory/constitution.md) — this
+paragraph cited `v1.1.1`, which was current on the day it was written and is
+three major versions behind the constitution as it stands).
+
+A real theme can move them to `storefront/messages/<locale>.json`. Two
+corrections to what this paragraph used to promise about that: the directory
+does **not** exist in this tree, and the language gate does not "exempt" it. The
+gate's population is source-code comments (`*.ts`, `*.tsx`) and `docs/docs/**`
+pages, so a JSON catalogue is outside it by file type rather than by a carve-out
+somebody wrote — which is the same outcome and a different rule, and the
+difference matters the day the gate learns to read JSON.
 
 ## Backend dependency
 
