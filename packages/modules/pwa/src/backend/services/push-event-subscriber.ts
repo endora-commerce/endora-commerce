@@ -1,17 +1,18 @@
 import {
   ModuleDisabledError,
-  type WorkerLogger,
+  type PlatformLogger,
 } from '@endora-commerce/platform/kernel';
 import type { PushMessageService } from './push-message-service.js';
 
 /**
  * Where a skipped or failed auto-trigger push is written down.
  *
- * The structured-logger surface the kernel already defines for a queue
- * consumer, for the same reason: these two handlers run outside any request,
- * so `request.log` does not exist and the line has to carry its own context.
+ * The structured-logger surface the kernel already defines, for the reason it
+ * exists: these two handlers run outside any request, so `request.log` does not
+ * exist and the line has to carry its own context. The alias is kept because it
+ * names this module's role for the field; the shape is the platform's.
  */
-export type PushEventLogger = WorkerLogger;
+export type PushEventLogger = PlatformLogger;
 
 /**
  * Target resolved for an auto-triggered push. Returning null (or no customer)

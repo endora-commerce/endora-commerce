@@ -590,6 +590,17 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
 /**
  * Logger surface a hook may use. Implementations attach the module id as a
  * tag at the orchestrator level so the hook author writes plain messages.
+ *
+ * **This is not `ctx.log`.** It is the logger of the three surfaces below — the
+ * install/uninstall hook context and the two lifecycle-participant events — all
+ * of which the orchestrator calls, and it takes a message and nothing else.
+ * `ModuleContext.log`, which a module writes to from `registerModule`, is a
+ * `PlatformLogger` (`@endora-commerce/platform/kernel`) and takes a bound object
+ * first: `ctx.log.info({ orderId }, 'message')`.
+ *
+ * The two used to share this name, which is how a scaffolded module came to
+ * call `ctx.log.info('…')` with one argument against a two-argument type. Keep
+ * the shapes' names apart; they are not interchangeable in either direction.
  */
 export interface ModuleLifecycleLogger {
   info(msg: string): void;

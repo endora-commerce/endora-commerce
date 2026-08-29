@@ -90,8 +90,27 @@ export {
   ModuleDisabledError,
   rethrowIfModuleDisabled,
   requireModuleEnabled,
-  type WorkerLogger,
 } from './lifecycle/plugin-helpers.js';
+
+/**
+ * The platform's structured-logger shape: `ctx.log`, the optional worker
+ * logger, and every `log` a module is handed or holds.
+ *
+ * The **type** is published and the destination machinery around it is not —
+ * `attachPlatformLogger` and `moduleLogger` are the host's, and a module that
+ * could call the second would re-open by bare specifier the attribution seam
+ * `ModuleContext` closed. A module needs the name because it declares fields
+ * and constructor parameters of this shape; it needs none of the rest.
+ *
+ * It was published under the name `WorkerLogger` from
+ * `lifecycle/plugin-helpers.js`, an identical interface declared a second time
+ * because nothing had noticed the first. Naming a consumer rather than a shape
+ * is what made a second declaration look reasonable — `ctx.log` is not a
+ * worker's — and the two spellings then diverged into a third name, an alias
+ * called `ModuleLifecycleLogger`, colliding with the unrelated hook logger
+ * `@endora-commerce/contracts` publishes under exactly that name.
+ */
+export { type PlatformLogger } from './logging.js';
 
 /**
  * The one scope entry a module opens for itself (§1.3 row 13, 27 reaches). The
