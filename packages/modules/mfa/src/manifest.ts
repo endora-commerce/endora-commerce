@@ -130,6 +130,65 @@ export const manifest = defineModuleManifest({
   // different question from whether the module is present. Default `true` so
   // that merging this changes no deployment's state (FR-012).
   activation: { settingCode: MFA_SETTING_CODES.ACTIVATION, default: true },
+  /**
+   * The operator-visible error codes this module owns (feature 090, D-182,
+   * `specs/090-module-owned-error-codes/`).
+   *
+   * The list is answer-preserving, not a judgement (§6.2 and §6.5), and it was
+   * not written by hand: it is the verbatim output of the runbook's step-1
+   * derivation over the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts`, which records
+   * what the prefix chain in `@endora-commerce/mod-i18n` answered at
+   * `49f3c6817`. Re-routing a code to a better owner is
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
+   * deliberately not done here.
+   *
+   * **No shadow reaches this module, and that is a conclusion rather than a
+   * premise.** The chain is an ordered `if` and an earlier rule silently claims
+   * a later one's codes — it cost `inventory` two and gave `catalog` four
+   * (trap T1). Here the whole chain was read: the `MFA_` rule is second from
+   * last, no rule above it names an `MFA_`-prefixed code, and no misc set holds
+   * one, so the source reading and the answer reading coincide. The derivation
+   * was still run from the answer.
+   *
+   * **`TWO_FACTOR_REQUIRED` and `TWO_FACTOR_REQUIRED_BY_ROLE` are the codes a
+   * reader will look for here and not find** (trap T2). Both name this module's
+   * subject and neither carries the prefix, so they fall off the end of the
+   * chain to `core`, which is what the capture records. Whether that is the
+   * right owner is exactly the question §6.5 puts out of scope.
+   *
+   * **All ten are raised, and the spelling is why that had to be measured.**
+   * Nine of them are thrown as a bare string literal in the second argument of
+   * `new HttpError` — `throw new HttpError(409, 'MFA_ALREADY_ENROLLED', …)` —
+   * and only `MFA_SOCIAL_LAST_CREDENTIAL` is thrown as `ERROR_CODES.<CODE>`.
+   * Fourteen raise sites over `routes.public.ts`, `routes.self-service.ts`,
+   * `services/mfa-enrolment-service.ts` and `services/social-link-service.ts`,
+   * every code covered by at least one. A scan keyed on the `ERROR_CODES.`
+   * spelling sees one of the fourteen.
+   *
+   * No `tokens`, and it is derived rather than assumed. `refusalToken`
+   * (`packages/platform/src/http/error-envelope.ts`) reads `details.code` and
+   * nothing else, and **not one of the fourteen sites passes a fourth argument
+   * at all**, so there is nothing for it to read. The runbook's §5 raise-site
+   * scan agrees from the whole tree — it attributes the ten token-carrying
+   * codes to `core`, `invoices` and `carts` and names none of these — and so
+   * does the bundle from the other direction: ten `errors.<CODE>` keys in `en`
+   * and ten in `pl`, exactly these ten, and no `errors.<CODE>.<token>` key.
+   * There is no dead sentence in either direction and none of the ten is an
+   * `UNTRANSLATED_ERROR_CODES` entry.
+   */
+  errorCodes: [
+    { code: 'MFA_ALREADY_ENROLLED' },
+    { code: 'MFA_INVALID_CHALLENGE' },
+    { code: 'MFA_INVALID_CODE' },
+    { code: 'MFA_NOT_ENABLED' },
+    { code: 'MFA_NO_ACTIVE_ENROLMENT' },
+    { code: 'MFA_NO_PENDING_ENROLMENT' },
+    { code: 'MFA_REAUTH_REQUIRED' },
+    { code: 'MFA_SOCIAL_LAST_CREDENTIAL' },
+    { code: 'MFA_TOO_MANY_ATTEMPTS' },
+    { code: 'MFA_WRONG_SURFACE' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'mfa:reset', label: "Reset a user's 2FA" },
