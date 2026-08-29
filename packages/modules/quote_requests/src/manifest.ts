@@ -188,19 +188,34 @@ export const manifest = defineModuleManifest({
    * shadow reaches me" is a conclusion of reading the whole chain and not a
    * premise a migrating author is entitled to.
    *
-   * **Six of the nine are raised by nothing** — `QUOTE_INCOMPLETE`,
-   * `QUOTE_VALIDITY_ENDED`, `RFQ_ALREADY_CLAIMED`, `RFQ_EXPIRED`,
-   * `RFQ_NOT_ACCEPTED` and `RFQ_NOT_NEW`. Each is a member of `ERROR_CODES`
-   * with a sentence in both languages that no `throw` in `backend/src` or
-   * `packages` can produce; only `RFQ_EMPTY`, `RFQ_NOT_DRAFT` and
-   * `RFQ_NOT_QUOTED` have raise sites, ten between them. They are declared
-   * anyway, because ownership follows the capture and not the raise sites
-   * (trap T10): dropping one reds the progress test as `[undeclared]` and moves
-   * an answer this merge request is not allowed to move. Whether a code nothing
+   * **Four of the nine are raised by nothing** — `QUOTE_INCOMPLETE`,
+   * `RFQ_ALREADY_CLAIMED`, `RFQ_NOT_ACCEPTED` and `RFQ_NOT_NEW`. Each is a
+   * member of `ERROR_CODES` with a sentence in both languages that no `throw`
+   * in `backend/src` or `packages` can produce. They are declared anyway,
+   * because ownership follows the capture and not the raise sites (trap T10):
+   * dropping one reds the progress test as `[undeclared]` and moves an answer
+   * the migrating merge request was not allowed to move. Whether a code nothing
    * raises should exist is a separate question, filed in
    * `specs/deferred-defects.md` § *Roughly 29 error codes have translated
    * sentences no client can ever receive*, and measured for this module in that
    * merge request's description.
+   *
+   * **It said six until 2026-08-29, and the two it lost are the reason that
+   * register entry is worth keeping.** `RFQ_EXPIRED` and
+   * `QUOTE_VALIDITY_ENDED` were unraised because a rule had been *removed*, not
+   * because nobody ever wrote one: the feature-008 workflow rewrite
+   * (`4f24dc948`) dropped `accept()`'s live `expiresAt` check and nothing
+   * replaced it, so the per-request validity deadline an operator sets with
+   * `expiresInDays` bound nothing while both parties were shown its date. Both
+   * are raised now — `RFQ_EXPIRED` on `accept-revision`,
+   * `QUOTE_VALIDITY_ENDED` on `convert-to-order`, in
+   * `services/rfq-service.ts` — which is the split
+   * `specs/001-b2b-platform-foundation/contracts/quote_requests.contract.md`
+   * assigned them. That is T11's distinction reaching its conclusion: for these
+   * two the sentences were the last surviving evidence of the rule, and the
+   * repair was to restore the rule rather than to retire the codes. The other
+   * four have no such history, and the count here is a fact about the tree that
+   * moves with it — re-derive it, never carry it forward.
    *
    * The inverse is also true and is T2's shape: this module raises five codes it
    * does not own — `CUSTOM_FIELD_VALUE_INVALID`, `FORBIDDEN`, `NOT_FOUND` and

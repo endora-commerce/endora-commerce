@@ -612,6 +612,25 @@ export class RfqService {
     if (rfq.status !== 'Pending' && rfq.status !== 'Created from admin') {
       throw new HttpError(409, ERROR_CODES.RFQ_NOT_QUOTED, 'Quote Request is not awaiting your decision.');
     }
+    // The offer the operator dated stops being acceptable on the date both
+    // parties were shown — restored 2026-08-29, see `validityHasLapsed`.
+    //
+    // **Only the accept half.** Declining a lapsed offer consumes no price the
+    // seller committed to, and refusing it would leave the buyer no way to
+    // clear a row they have already been told is dead. Their other way forward,
+    // `resubmit`, raises a new request at current prices and copies no
+    // deadline; neither is reached by this rule.
+    //
+    // Ahead of the revision-number CAS deliberately: once the deadline has
+    // passed, answering `VERSION_CONFLICT` — "refresh and try again" — would
+    // send the buyer round a loop that has no way out.
+    if (decision === 'accept' && validityHasLapsed(rfq, Date.now())) {
+      throw new HttpError(
+        410,
+        ERROR_CODES.RFQ_EXPIRED,
+        'This quote is no longer valid — its validity period has ended.',
+      );
+    }
     if (rfq.currentRevisionNumber !== expectedRevisionNumber) {
       throw new HttpError(
         409,
@@ -699,6 +718,28 @@ export class RfqService {
 
     if (rfq.status !== 'Approved') {
       throw new HttpError(409, ERROR_CODES.RFQ_NOT_QUOTED, 'Quote Request is not approved.');
+    }
+    // The seller's price commitment is *consumed* here, not at acceptance:
+    // this is the call that seeds a cart at `agreedUnitPrice`, which `orders`
+    // then copies onto the order line without recomputing. So the deadline
+    // binds here too, and this is the site that made "expires <date>" a
+    // sentence with no consequence — an accepted quote is `Approved`, and the
+    // expiry worker sweeps only `Pending` / `Created from admin`, so nothing
+    // in the platform ever reached this row again.
+    //
+    // `QUOTE_VALIDITY_ENDED` rather than `RFQ_EXPIRED`: the buyer here already
+    // made their decision inside the window and it is the *quote* that has run
+    // out, which is a different sentence and a different remedy from an offer
+    // that lapsed undecided. The split is
+    // `specs/001-b2b-platform-foundation/contracts/quote_requests.contract.md`'s
+    // own — `410 RFQ_EXPIRED` on accept, `410 QUOTE_VALIDITY_ENDED` on
+    // convert — restored rather than invented.
+    if (validityHasLapsed(rfq, Date.now())) {
+      throw new HttpError(
+        410,
+        ERROR_CODES.QUOTE_VALIDITY_ENDED,
+        'The accepted quote is no longer valid — its validity period has ended.',
+      );
     }
 
     const items = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
@@ -944,6 +985,30 @@ export class RfqService {
 function anyLocaleValue(blob: Record<string, string>): string {
   const k = Object.keys(blob)[0];
   return k ? (blob[k] ?? '') : '';
+}
+
+/**
+ * Has the validity deadline an operator set on *this* request passed?
+ *
+ * `expiresAt` is written by `RfqAdminService.modify` / `createOnBehalf` from
+ * the operator's `expiresInDays`, is serialised into the admin's `RfqDetail`
+ * and into the storefront's types, and both parties are shown
+ * `expires <date>`. Between the feature-008 workflow rewrite (`4f24dc948`,
+ * which dropped the live check `accept()` carried) and its restoration on
+ * 2026-08-29 it was read by no rule at all.
+ *
+ * **This is not the expiry worker's concept.** `RfqExpiryWorker` sweeps
+ * `updatedAt` against a settings-wide `expiryDays` and flips `Pending` /
+ * `Created from admin` rows to `Expired`; it never reads `expiresAt` and
+ * never reaches `Approved`. The original comment called this the check that
+ * "covers the window before the expiry worker runs" — for an approved quote
+ * that window never closes, because no sweep reaches it.
+ *
+ * Absent means the operator set no deadline and answers `false`: the rule
+ * binds a date somebody chose, never a default of this module's choosing.
+ */
+function validityHasLapsed(rfq: QuoteRequest, nowMs: number): boolean {
+  return rfq.expiresAt != null && rfq.expiresAt.getTime() <= nowMs;
 }
 
 function customerDisplayName(c: CustomerAccountRecord): string {
