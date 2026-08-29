@@ -572,7 +572,16 @@ export interface SplitModuleTreeOptions {
 }
 
 /** The workspace globs the fixture declares — the authority for what a member is. */
-const SPLIT_WORKSPACE_GLOBS: readonly string[] = ['backend', 'packages/*', 'packages/modules/*'];
+const SPLIT_WORKSPACE_GLOBS: readonly string[] = [
+  'backend',
+  // The admin is a member because `check-module-boundary`'s population includes
+  // module-owned admin code (feature 091, FR-017) and the derivation that finds
+  // it walks the workspace members for the one declaring a `"@/*"` tsconfig
+  // path. See {@link copyAdminApplication}.
+  'admin',
+  'packages/*',
+  'packages/modules/*',
+];
 
 /**
  * Where a relocated module's sources land, relative to the fixture root.
@@ -685,6 +694,35 @@ function splitManifestIndex(relocated: ReadonlySet<string>): string {
   ].join('\n');
 }
 
+/**
+ * The admin application, copied whole — manifest, tsconfig and `src`
+ * (feature 091, FR-017).
+ *
+ * `check-module-boundary`'s population now includes module-owned admin code,
+ * and its ledger holds 72 entries keyed on files under `admin/src/modules`. A
+ * fixture that copies this repository's `backend/scripts` — which is where the
+ * ledger lives — and no admin therefore stages a tree in which every one of
+ * those entries describes a file the walk never opened. Measured on the split
+ * fixture before this existed: one `misfiled` entry (`warehouses` is
+ * `inventory`'s surface directory, and with no admin layout to say so the
+ * attribution falls back to the directory name) and 71 stale ones, so the check
+ * exited 1 for a reason that has nothing to do with where the *modules* are.
+ *
+ * Three files are what the derivation needs and all three are load-bearing:
+ * `tsconfig.json` declares the `"@/*"` alias the admin source root comes from,
+ * `package.json` makes the directory a workspace member the search reaches, and
+ * `src` holds the route table, the nav and the surface directories. 4.8 MB,
+ * about the same as the platform package this fixture already carries.
+ */
+function copyAdminApplication(root: string): void {
+  const source = join(REPO_ROOT, 'admin');
+  const destination = join(root, 'admin');
+  mkdirSync(destination, { recursive: true });
+  cpSync(join(source, 'package.json'), join(destination, 'package.json'));
+  cpSync(join(source, 'tsconfig.json'), join(destination, 'tsconfig.json'));
+  cpSync(join(source, 'src'), join(destination, 'src'), { recursive: true });
+}
+
 export function createSplitModuleTreeFixture(
   options: SplitModuleTreeOptions,
 ): MovedModuleTreeFixture {
@@ -727,6 +765,7 @@ export function createSplitModuleTreeFixture(
     join(root, 'packages', 'contracts', 'package.json'),
   );
   copyPlatformPackage(root);
+  copyAdminApplication(root);
 
   const relocate = (id: string, declared: boolean): void => {
     const from = join(backend, 'src', 'modules', id);

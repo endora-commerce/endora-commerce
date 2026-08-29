@@ -561,6 +561,15 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/admin-kit:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/api-client:
     dependencies:
       '@endora-commerce/contracts':

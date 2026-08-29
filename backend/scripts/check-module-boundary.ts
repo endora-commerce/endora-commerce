@@ -745,6 +745,15 @@ export interface ModuleBoundaryInput {
    * that module's shard as an orphan.
    */
   readonly hostResidentModules?: HostResidentModules;
+  /**
+   * The admin application's module surfaces (feature 091, FR-017).
+   *
+   * Absent is a workspace with no frontend — every fixture, and CI before this
+   * field existed. See {@link AdminBoundarySurfaces}: the CLI refuses a run
+   * whose ledger holds admin keys and whose admin layout came back empty, which
+   * is the one way this absence can mean something other than what it says.
+   */
+  readonly adminSurfaces?: AdminBoundarySurfaces | null;
 }
 
 /** The tree with no module package installed — every fixture, and CI before !910. */
@@ -786,17 +795,83 @@ interface ModuleLocation {
 }
 
 /**
+ * The admin application's module surfaces, as this check needs them
+ * (feature 091, FR-017).
+ *
+ * Absent is a workspace with no frontend — every fixture in the tree — and it
+ * is the behaviour that shipped before this field existed. It never means "the
+ * admin has no module surfaces": the CLI refuses a run whose ledger holds admin
+ * keys and whose admin layout came back empty, which is the one way the absence
+ * could mean something other than what it says.
+ *
+ * Every path here is spelled the way `ModuleTreeLayout.keyOf` spells it —
+ * repository-relative, because the admin has no `backend/src` to be relative
+ * to — so a ledger key, a message and a walked source are one namespace.
+ */
+export interface AdminBoundarySurfaces {
+  /** `admin/src` — what the source alias resolves to. */
+  readonly sourceRoot: string;
+  /** `admin/src/modules` — the directory holding the module surfaces. */
+  readonly moduleRoot: string;
+  /** The prefix a specifier writes {@link AdminBoundarySurfaces.sourceRoot} as, slash included. */
+  readonly aliasPrefix: string;
+  /**
+   * Directory name under {@link AdminBoundarySurfaces.moduleRoot} → the module
+   * that owns it.
+   *
+   * A directory that is absent is the admin application's own and is not
+   * judged, which is the fail-closed direction: `basename` would attribute
+   * `warehouses` to a module that does not exist, so its reaches would be
+   * ledgered under an orphan shard and a reach from `inventory`'s own screens
+   * into it would read as cross-module when it is a module reaching its own
+   * code. Derived by `scripts/lib/admin-surfaces.ts` from the route table and
+   * the nav, never from the directory name.
+   */
+  readonly moduleOfDirectory: ReadonlyMap<string, string>;
+}
+
+/** The workspace with no frontend — every fixture, and CI before feature 091. */
+const NO_ADMIN_SURFACES = null;
+
+/**
+ * The module an **admin** path belongs to, with its directory, or `null` for a
+ * path outside the admin module root or in a directory no module owns.
+ */
+function adminLocationOf(
+  path: string,
+  admin: AdminBoundarySurfaces | null,
+): ModuleLocation | null {
+  if (admin === null) return null;
+  const prefix = `${admin.moduleRoot}/`;
+  if (!path.startsWith(prefix)) return null;
+  const directory = path.slice(prefix.length).split('/')[0];
+  if (directory === undefined || directory === '') return null;
+  const id = admin.moduleOfDirectory.get(directory);
+  return id === undefined ? null : { id, dir: `${admin.moduleRoot}/${directory}` };
+}
+
+/**
  * The module a path under `src/` belongs to, with its directory.
  *
  * `moduleOf` is shared with `check-container-imports.ts` so the two checks
  * cannot disagree about what a module is; the trailing slash is what lets it
  * answer for a specifier that resolves to the module directory itself
  * (`from '../catalog'`).
+ *
+ * The admin branch is consulted **first** and cannot be reached by a backend
+ * path, because it keys on the admin module root's own prefix. It has to come
+ * first: `moduleOf`'s `/src/modules/<id>/` regex matches inside
+ * `admin/src/modules/warehouses/…` and answers `warehouses`, which is not a
+ * module.
  */
 function moduleLocationOf(
   pathUnderSrc: string,
   hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+  admin: AdminBoundarySurfaces | null = NO_ADMIN_SURFACES,
 ): ModuleLocation | null {
+  if (admin !== null && pathUnderSrc.startsWith(`${admin.moduleRoot}/`)) {
+    return adminLocationOf(pathUnderSrc, admin);
+  }
   const id = moduleOf(`/src/${pathUnderSrc}/`, hostResident);
   if (id === null) return null;
   const segments = pathUnderSrc.split('/');
@@ -869,11 +944,28 @@ function resolveModulePackage(
 /**
  * The specifier resolved against the importing file's directory, extension
  * dropped, or `null` for a bare specifier.
+ *
+ * The admin writes 67 of its 94 cross-module reaches through the `@/` alias
+ * (feature 091), so a relative-only resolver sees 27 of them and reports the
+ * rest as third-party imports it cleared. The alias is expanded against the
+ * admin source root the layout derived from the tsconfig that declares it — the
+ * same declaration `tsc` and Vite resolve it through — and never against a path
+ * written here.
  */
-function resolveSpecifier(fromFile: string, specifier: string): string | null {
+function resolveSpecifier(
+  fromFile: string,
+  specifier: string,
+  admin: AdminBoundarySurfaces | null = NO_ADMIN_SURFACES,
+): string | null {
+  if (admin !== null && specifier.startsWith(admin.aliasPrefix)) {
+    const joined = posixNormalize(
+      posixJoin(admin.sourceRoot, specifier.slice(admin.aliasPrefix.length)),
+    );
+    return joined.replace(/\.(jsx?|tsx?)$/, '');
+  }
   if (!specifier.startsWith('.')) return null;
   const joined = posixNormalize(posixJoin(posixDirname(fromFile), specifier));
-  return joined.replace(/\.(js|ts)$/, '');
+  return joined.replace(/\.(jsx?|tsx?)$/, '');
 }
 
 /**
@@ -911,9 +1003,10 @@ export function analyzeSource(
   modulePackages: ReadonlyMap<string, string> = NO_MODULE_PACKAGES,
   surfaces: ModulePackageSurfaces = EVERY_SUBPATH_IS_A_REACH,
   hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+  admin: AdminBoundarySurfaces | null = NO_ADMIN_SURFACES,
 ): CrossModuleImport[] {
   if (GENERATED_MODULE_FILES[file] !== undefined) return [];
-  const owner = moduleLocationOf(file, hostResident);
+  const owner = moduleLocationOf(file, hostResident, admin);
   if (owner === null) return [];
 
   const found: CrossModuleImport[] = [];
@@ -948,11 +1041,20 @@ export function analyzeSource(
       });
       continue;
     }
-    const resolved = resolveSpecifier(file, specifier.text);
+    const resolved = resolveSpecifier(file, specifier.text, admin);
     if (resolved === null) continue;
-    const target = moduleLocationOf(resolved, hostResident);
+    const target = moduleLocationOf(resolved, hostResident, admin);
     if (target === null) continue;
     if (target.dir === owner.dir) continue;
+    // In the backend the **directory** is the identity, so an overlay `catalog`
+    // reaching the core `catalog` is the cross-tree edge it is. In the admin it
+    // is not: one module may own two surface directories under two names —
+    // `inventory` owns `inventory/` and `warehouses/` — so a reach between them
+    // is a module reaching its own code and comparing directories would report
+    // `inventory -> inventory` as a cross-module violation.
+    if (isAdminPath(file, admin) && isAdminPath(resolved, admin) && target.id === owner.id) {
+      continue;
+    }
     const targetPath = resolved === target.dir ? '' : resolved.slice(target.dir.length + 1);
     found.push({
       predicate: 'import',
@@ -975,8 +1077,9 @@ export function findCrossModuleImports(input: ModuleBoundaryInput): CrossModuleI
   const packages = input.modulePackages ?? NO_MODULE_PACKAGES;
   const surfaces = input.modulePackageSurfaces ?? EVERY_SUBPATH_IS_A_REACH;
   const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
+  const admin = input.adminSurfaces ?? NO_ADMIN_SURFACES;
   const found = [...input.sources].flatMap(([file, text]) =>
-    analyzeSource(text, file, packages, surfaces, hostResident),
+    analyzeSource(text, file, packages, surfaces, hostResident, admin),
   );
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return found;
@@ -1151,12 +1254,13 @@ export function analyzeSqlSource(
   file: string,
   owners: ReadonlyMap<string, TableOwner>,
   hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+  admin: AdminBoundarySurfaces | null = NO_ADMIN_SURFACES,
 ): CrossModuleSqlAccess[] {
   if (GENERATED_MODULE_FILES[file] !== undefined) return [];
   // A migration naming another module's table is the execution order's problem,
   // and `fk-dependency-drift.test.ts` already owns it.
   if (file.includes('/migrations/')) return [];
-  const owner = moduleLocationOf(file, hostResident);
+  const owner = moduleLocationOf(file, hostResident, admin);
   if (owner === null) return [];
 
   const found: CrossModuleSqlAccess[] = [];
@@ -1204,7 +1308,7 @@ export function findCrossModuleSql(input: ModuleBoundaryInput): {
     hostResident,
   );
   const found = [...input.sources].flatMap(([file, text]) =>
-    analyzeSqlSource(text, file, owners, hostResident),
+    analyzeSqlSource(text, file, owners, hostResident, input.adminSurfaces ?? NO_ADMIN_SURFACES),
   );
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return { found, report };
@@ -1241,9 +1345,10 @@ export function checkModuleBoundary(
   }
 
   const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
+  const admin = input.adminSurfaces ?? NO_ADMIN_SURFACES;
   const modules = new Set<string>();
   for (const file of input.sources.keys()) {
-    const owner = moduleLocationOf(file, hostResident);
+    const owner = moduleLocationOf(file, hostResident, admin);
     if (owner !== null) modules.add(owner.id);
   }
 
@@ -1264,7 +1369,7 @@ export function checkModuleBoundary(
     if (shapeIssue !== null) shardShapeIssues.push(shapeIssue);
     for (const key of keys) {
       const file = fileOfKey(key);
-      const owner = file === null ? null : moduleLocationOf(file, hostResident);
+      const owner = file === null ? null : moduleLocationOf(file, hostResident, admin);
       // A shard accounts for its own module and nothing else, so it cannot be
       // used to make another module's violation disappear.
       if (owner === null || owner.id !== shard.moduleId) {
@@ -1327,6 +1432,30 @@ export function vacuousReason(input: {
   readonly entityTables: number;
   /** Tables the `create table` pass resolved — see {@link TableOwnerReport}. */
   readonly migrationTables: number;
+  /**
+   * Where the admin's module surfaces are, or `null` when this workspace has
+   * none (feature 091, FR-017).
+   */
+  readonly adminSurfaces?: AdminBoundarySurfaces | null;
+  /**
+   * Every ledger key in the shards, so the admin population has an anchor of
+   * its own.
+   *
+   * A ledger key naming a file under the admin module root is this
+   * repository's own statement that it *has* admin surfaces. Losing the
+   * derivation — the alias renamed, the tsconfig gone, the module root moved —
+   * would otherwise take the whole admin population out of the walk while
+   * every other number held, which is the #215 shape the coverage floor cannot
+   * see because it is derived from the very thing that went missing. Omitted
+   * is a caller with no shards, which is every fixture of this analysis.
+   */
+  readonly ledgerKeys?: readonly string[];
+  /**
+   * Whether a repository-relative path is still on disk — see
+   * {@link adminPopulationLost}. The default answers `true`, which is what a
+   * fixture handing in keys and no filesystem means.
+   */
+  readonly fileExists?: (repoRelativePath: string) => boolean;
 }): string | null {
   if (input.moduleFiles.length === 0) {
     return 'no module sources under src/ — refusing to report a vacuous pass';
@@ -1358,7 +1487,66 @@ export function vacuousReason(input: {
       'every join table and every channel bridge; refusing to report a vacuous pass'
     );
   }
+  const adminAnchor = adminPopulationLost(
+    input.adminSurfaces ?? null,
+    input.ledgerKeys ?? [],
+    input.fileExists ?? (() => true),
+  );
+  if (adminAnchor !== null) return adminAnchor;
   return null;
+}
+
+/**
+ * Why an admin population the ledger says exists is not in this walk, or
+ * `null`.
+ *
+ * The ledger is the independent author here. Its keys are `<file>:<target>`
+ * pairs, so a key whose file sits under an admin module root is a statement
+ * that this repository has admin surfaces — written by the merge request that
+ * ledgered the reach, not by the derivation being checked. When the derivation
+ * answers `null` while such keys stand, the honest verdict is "the walk did not
+ * read what it is meant to read", which is exit 2, not the 94 stale entries the
+ * comparison would otherwise report.
+ *
+ * The anchor is exhausted when the ledger is: at the end of the drain there is
+ * no admin module code left for a walk to lose, because every module's screens
+ * are in its package and are covered by the package roots.
+ */
+export function adminPopulationLost(
+  admin: AdminBoundarySurfaces | null,
+  ledgerKeys: readonly string[],
+  exists: (repoRelativePath: string) => boolean = () => true,
+): string | null {
+  if (admin !== null) return null;
+  // With the layout gone there is no module root to match a key against, so
+  // the discriminator is the **extension**: every walk this check performs over
+  // the backend collects `.ts` and every module source in the tree is one, so a
+  // ledger key naming a `.tsx` file can only have come from a frontend
+  // population. It is exact rather than heuristic — measured, zero `.tsx` files
+  // under `backend/src` and zero under any module package — and its one blind
+  // spot is stated rather than discovered: an admin ledger holding only `.ts`
+  // keys would not anchor, which is why the coverage floor above is the
+  // instrument for a walk that came back *short* and this one is for a walk
+  // that came back with no admin at all.
+  //
+  // And the file has to still **be there**. The anchor's question is "the
+  // derivation broke while the tree it derives from stayed", not "these entries
+  // are stale" — a checkout with no `admin/` at all has genuinely stale entries
+  // and the two-way ledger says so in its own words. Without this half the
+  // refusal fires on every synthetic backend that copies the real ledger
+  // shards, which is `test/helpers/moved-module-tree-fixture.ts` and which is
+  // exit 2 for a reason that has nothing to do with the module tree.
+  const adminKeys = ledgerKeys.filter(
+    (key) => /\.tsx:/.test(key) && exists(key.slice(0, key.indexOf(':'))),
+  );
+  if (adminKeys.length === 0) return null;
+  return (
+    `${adminKeys.length} ledger entries name a .ts/.tsx file under a module surface directory ` +
+    '(for example ' +
+    `${adminKeys[0]!.split(':')[0]!}), and no workspace member declares the admin source ` +
+    'alias any more — so the admin population is not in this walk and every one of those ' +
+    'entries would be reported as stale. Refusing to report a vacuous pass'
+  );
 }
 
 /** Where the shards live. Exported so the check and its test read one directory. */
@@ -1473,18 +1661,76 @@ export function modulePackageDirectories(layout: ModuleTreeLayout): ReadonlyMap<
   return directories;
 }
 
-function walk(dir: string, out: string[] = []): string[] {
+function walk(dir: string, out: string[] = [], extensions: readonly string[] = ['.ts']): string[] {
   if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir).sort()) {
     const full = join(dir, name);
     if (statSync(full).isDirectory()) {
       if (name === 'node_modules' || name === 'dist') continue;
-      walk(full, out);
-    } else if (name.endsWith('.ts') && !name.endsWith('.d.ts')) {
+      walk(full, out, extensions);
+    } else if (extensions.some((extension) => name.endsWith(extension)) && !name.endsWith('.d.ts')) {
       out.push(full);
     }
   }
   return out;
+}
+
+/**
+ * Every admin file the rule applies to (feature 091, FR-017).
+ *
+ * `.tsx` as well as `.ts`, because that is what an admin screen is written in
+ * and a `.ts`-only walk would read the 40-odd helper files and report clean
+ * over the 287 that carry the reaches. Exported so the check's own test walks
+ * the **real** tree through the same function the CLI uses.
+ */
+export function collectAdminFiles(admin: AdminBoundarySurfaces | null, repoRoot: string): string[] {
+  if (admin === null) return [];
+  return walk(join(repoRoot, admin.moduleRoot), [], ['.ts', '.tsx']);
+}
+
+/** Does this path sit under the admin module root? */
+function isAdminPath(path: string, admin: AdminBoundarySurfaces | null): boolean {
+  return admin !== null && path.startsWith(`${admin.moduleRoot}/`);
+}
+
+/**
+ * Which admin surface directories the walk actually produced a file for.
+ *
+ * The `covered` half of the admin floor, and it counts **attributed**
+ * directories only: a host-owned one (`_shared`, `home`, `platform`,
+ * `profile`) is not in the expectation, so counting it would inflate the
+ * coverage past the population and hide a shortfall.
+ */
+export function adminDirectoriesWalked(
+  admin: AdminBoundarySurfaces,
+  keys: readonly string[],
+): Set<string> {
+  const seen = new Set<string>();
+  const prefix = `${admin.moduleRoot}/`;
+  for (const key of keys) {
+    if (!key.startsWith(prefix)) continue;
+    const directory = key.slice(prefix.length).split('/')[0];
+    if (directory !== undefined && admin.moduleOfDirectory.has(directory)) seen.add(directory);
+  }
+  return seen;
+}
+
+/**
+ * The layout's admin surfaces in the shape the analysis reads them — every path
+ * spelled as `layout.keyOf` spells it, so a ledger key, a message and a walked
+ * source are one namespace.
+ */
+export async function adminSurfacesOf(
+  layout: ModuleTreeLayout,
+): Promise<AdminBoundarySurfaces | null> {
+  const admin = await layout.adminSurfaces();
+  if (admin === null) return null;
+  return {
+    sourceRoot: layout.keyOf(admin.sourceRoot),
+    moduleRoot: layout.keyOf(admin.moduleRoot),
+    aliasPrefix: admin.aliasPrefix,
+    moduleOfDirectory: admin.moduleOfDirectory,
+  };
 }
 
 /**
@@ -1664,8 +1910,20 @@ async function main(): Promise<void> {
   // owner map is built over the wider source list, for the same reason it was
   // always wider than the module walk.
   const layout = await requireModuleLayout('[module-boundary]');
+  // The admin population (feature 091, FR-017). It is merged into the same
+  // source map rather than judged by a second analysis, because the first
+  // module whose admin code imports its own backend package would otherwise be
+  // judged by neither — the recorded reason `research.md` §3.2 gives for
+  // refusing a separate `check:admin-boundary`.
+  const admin = await adminSurfacesOf(layout);
+  const adminFiles = collectAdminFiles(admin, layout.repoRoot);
+  // The two walks stay separable, because the backend floor is "one source per
+  // registered module" and an admin directory produces a file for its module
+  // too: merging them first would let `admin/src/modules/blog/` satisfy the
+  // floor for a `blog` whose backend sources had vanished, which is issue #215
+  // re-opened by the repair for FR-017.
   const files = collectModuleFiles(layout.moduleWalkRoots);
-  const sources = sourcesOf(files, layout.keyOf);
+  const sources = sourcesOf([...files, ...adminFiles], layout.keyOf);
   const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), schemaKeyOf(layout));
   // The third owner-map source (T034). It is read before the vacuous guard so
   // that a package whose schema cannot be enumerated stops the run instead of
@@ -1686,19 +1944,6 @@ async function main(): Promise<void> {
     process.exit(2);
     return;
   }
-  const vacuous = vacuousReason({
-    moduleFiles: files,
-    registeredModules,
-    moduleIdOf: layout.moduleIdOfPath,
-    ledgerDirectoryExists: existsSync(LEDGER_ROOT),
-    entityTables: owners.entityTables,
-    migrationTables: owners.migrationTables,
-  });
-  if (vacuous !== null) {
-    console.error(`[module-boundary] ${vacuous}`);
-    process.exit(2);
-  }
-
   let shards: LedgerShard[];
   try {
     shards = await loadLedgerShards(LEDGER_ROOT);
@@ -1706,6 +1951,26 @@ async function main(): Promise<void> {
     console.error(`[module-boundary] ${error instanceof Error ? error.message : String(error)}`);
     process.exit(2);
     return;
+  }
+
+  // The shards are loaded before the vacuous guard rather than after it, so
+  // that guard can use the ledger as the admin population's independent author
+  // (feature 091). Its own "ledger directory missing" answer still fires first
+  // in the failure that matters, because `loadLedgerShards` rejects on it.
+  const vacuous = vacuousReason({
+    moduleFiles: files,
+    registeredModules,
+    moduleIdOf: layout.moduleIdOfPath,
+    ledgerDirectoryExists: existsSync(LEDGER_ROOT),
+    entityTables: owners.entityTables,
+    migrationTables: owners.migrationTables,
+    adminSurfaces: admin,
+    ledgerKeys: shards.flatMap((shard) => Object.keys(shard.entries)),
+    fileExists: (path) => existsSync(join(layout.repoRoot, path)),
+  });
+  if (vacuous !== null) {
+    console.error(`[module-boundary] ${vacuous}`);
+    process.exit(2);
   }
 
   // D-171's reader, over the module packages the layout found: each package's
@@ -1723,6 +1988,7 @@ async function main(): Promise<void> {
         modulePackages: layout.modulePackageNames,
         modulePackageSurfaces: surfaces,
         hostResidentModules: layout.hostResidentModules,
+        adminSurfaces: admin,
       },
       shards,
     );
@@ -1789,7 +2055,7 @@ async function main(): Promise<void> {
   // ledgered in `test/helpers/check-read-sizes.ts`.
   const modules = modulePopulationCoverage({
     registered: registeredModules,
-    files: [...sources.keys()],
+    files: files.map(layout.keyOf),
     // The keys are `layout.keyOf`'s, not absolute paths, so the layout's own
     // resolver cannot be used here: the attribution has to happen on the key,
     // which is what `moduleOf` does for every other population in this file.
@@ -1813,6 +2079,18 @@ async function main(): Promise<void> {
       covered: layout.modulePackageNames.size,
     });
   }
+  // The admin population's own floor (feature 091, FR-017), reconciled against
+  // an independent derivation: the directories the route table and the nav
+  // attribute to a module. A directory that produced no file is a walk that
+  // came back short over exactly the population that would otherwise report
+  // `violations=0` — issue #215 one frontend over.
+  if (admin !== null) {
+    coverages.push({
+      source: 'admin-surfaces',
+      expected: admin.moduleOfDirectory.size,
+      covered: adminDirectoriesWalked(admin, adminFiles.map(layout.keyOf)).size,
+    });
+  }
   reportReadSize({
     prefix: '[module-boundary]',
     // The surfaces reader is lazy — it opens a package's manifest and its
@@ -1823,7 +2101,8 @@ async function main(): Promise<void> {
     coverage: coverages,
   });
   console.log(
-    `[module-boundary] module files=${files.length} cross-module reaches=${result.total} ` +
+    `[module-boundary] module files=${files.length} admin files=${adminFiles.length} ` +
+      `cross-module reaches=${result.total} ` +
       `(imports=${result.total - sqlFindings} sql=${sqlFindings}) ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
       `ledger-size=${ledgerSize} (sites=${ledgerSites}) shards=${shards.length} ` +

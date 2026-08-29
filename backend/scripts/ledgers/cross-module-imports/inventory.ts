@@ -21,6 +21,15 @@
  * `listAssignmentsForProducts` has answered "which categories are these products in?" since
  * D-87, and the three sites now ask it. What is left is the one reach in the shard that a
  * batch read cannot retire, because it is not a lookup at all.
+ *
+ * **Since feature 091's Phase 0 this shard also holds admin surface reaches**, keyed on a
+ * repository-relative path under the admin's module root. They were recorded before any admin
+ * directory moves into its module's package, because `module-package-layout.md` §0 measured that
+ * rewriting a ledgered relative import as a package specifier *deletes* the reach from the walk
+ * and makes the entry describing it read stale. What retires one is never the move and never a
+ * rewritten specifier: it is the owner publishing what this consumer needs — into
+ * `@endora-commerce/admin-kit` where the piece is generic, or as an admin contribution zone where
+ * it is the owner's own screen.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
@@ -95,4 +104,22 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'with a stated matching rule. The seed said "feature 086 holds that module while this ' +
     'shard is drained"; that hold has lifted — the viewer-price listing work merged — so what ' +
     'is left is the design call above and not a scheduling one.',
+  'admin/src/modules/warehouses/WarehouseEditor.tsx:dictionaries/components/CountryPicker':
+    'Admin surface reach: `warehouses/WarehouseEditor.tsx` imports `CountryPicker` from ' +
+    '`../dictionaries/components/CountryPicker`, which `dictionaries` owns.\n\n' +
+    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
+    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
+    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
+    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
+    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
+    'describing it as stale and asked the author to remove the record of a debt nobody ' +
+    'had paid. There are 72 of these, and every one would have gone that way, one ' +
+    'directory at a time, in the direction that looks like progress.\n\n' +
+    'Retired by: the reach is a **generic picker**: it renders a chooser over data the ' +
+    'owner holds and knows nothing about this consumer. What retires it is the ' +
+    'component moving into the admin\'s own shared components and the kit publishing it ' +
+    'on `@endora-commerce/admin-kit/components` in the same merge request — the order ' +
+    '`specs/091-module-owned-admin-surfaces/contracts/admin-kit-surface.md` R5 states, ' +
+    'so the kit never holds a component the admin application does not use. Six pickers ' +
+    'are already published there and this one is not, which is the whole of the debt.',
 };
