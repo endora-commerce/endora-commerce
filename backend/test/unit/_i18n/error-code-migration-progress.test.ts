@@ -44,6 +44,7 @@ const MIGRATED_MODULES: readonly string[] = [
   'catalog',
   'inventory',
   'invoices',
+  'mfa',
   'sales_channels',
 ];
 
