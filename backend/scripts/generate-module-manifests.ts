@@ -139,10 +139,24 @@ async function main(): Promise<void> {
       // whose emitted declarations this run could not read answered the
       // survival question by guessing, and a run that guessed for all of them
       // is one that read no artefact at all.
+      //
+      // **A package this run is rendering a first manifest for is out of that
+      // population**, and it has to be: nothing can build a package that is not
+      // yet a workspace member, so a module just moved into place or scaffolded
+      // has no `dist` by construction and never will until this command has run
+      // once. Counting it made the floor refuse the one run that must succeed —
+      // measured, `manifests:generate` wrote the new manifest and then exited 2
+      // on `emitted-declarations 66/67`. The exclusion is derived from the
+      // absence of the file this command writes, so it covers exactly the first
+      // run and no later one; every already-manifested package that has not been
+      // built is still a short walk and still refused.
       {
         source: 'emitted-declarations',
-        expected: run.rendered.length,
-        covered: run.rendered.length - run.unbuiltPackages.length,
+        expected: run.rendered.length - run.newPackages.length,
+        covered:
+          run.rendered.length -
+          run.newPackages.length -
+          run.unbuiltPackages.filter((name) => !run.newPackages.includes(name)).length,
       },
     ],
   });

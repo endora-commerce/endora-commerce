@@ -621,6 +621,44 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       expect(manifest['peerDependencies']).toHaveProperty('@endora-commerce/mod-gadgets');
     });
 
+    it('reports a package it is rendering a first manifest for, apart from an unbuilt one', () => {
+      // The bootstrap state again, one question further on. A module directory
+      // just `git mv`d into place — or scaffolded by `endora new module` — has
+      // no `package.json`, so it is not a workspace member, so nothing can build
+      // it, so its `dist` is absent by construction and will stay absent until
+      // this command has run once. `unbuiltPackages` alone cannot tell that
+      // apart from a checkout that skipped `pnpm run build:packages`, and the
+      // disclosure line's `emitted-declarations` floor refused the difference:
+      // measured on this repository, `manifests:generate` wrote the new
+      // manifest and then exited 2 on `emitted-declarations 66/67`, so the one
+      // run that has to succeed was the one run that could not.
+      //
+      // The fixture enters at the file — the manifest is removed from the tree,
+      // which is what a first render actually looks like — rather than at a
+      // flag the derivation normally computes.
+      const files = widgets(BACKEND_ONLY);
+      delete files[`${ROOT}/packages/modules/widgets/package.json`];
+      delete files[`${ROOT}/packages/modules/widgets/dist/manifest.d.ts`];
+
+      const run = render(files);
+
+      expect(run.newPackages).toEqual(['@endora-commerce/mod-widgets']);
+      expect(run.unbuiltPackages).toEqual(['@endora-commerce/mod-widgets']);
+    });
+
+    it('reports no first render for a package that already has a manifest', () => {
+      // The other direction, so the flag cannot be read as "unbuilt" wearing a
+      // second name: this package has a `package.json` and no `dist`, which is
+      // the checkout that skipped the build and must stay a short walk.
+      const files = widgets(BACKEND_ONLY);
+      delete files[`${ROOT}/packages/modules/widgets/dist/manifest.d.ts`];
+
+      const run = render(files);
+
+      expect(run.newPackages).toEqual([]);
+      expect(run.unbuiltPackages).toEqual(['@endora-commerce/mod-widgets']);
+    });
+
     it('refuses it when the subpath emits a const — the exemption fails closed', () => {
       // D-171 in terms: *"put a `const` on `./ports` and the exemption
       // evaporates in the same run T050's guard goes red."* Identical specifier,
@@ -1092,6 +1130,32 @@ describe('module package manifests are generated (feature 080, T041)', () => {
         ),
       );
       expect((manifest['scripts'] as Record<string, string>)['test']).toBe('vitest run');
+    });
+
+    it('declares the runner that script names, for a package whose tests are under test/', () => {
+      // The half the co-located four hid. Their `vitest` devDependency arrives
+      // through the specifier walk, which reads the test's own
+      // `import … from 'vitest'` — and that walk enters `src/` only. A package
+      // that puts its tests in `test/`, which is where the layout contract puts
+      // them, therefore got a `test` script naming a runner nothing installs:
+      // measured on a scaffolded package, `pnpm run test` answered
+      // `vitest: command not found`.
+      const manifest = manifestOf(
+        widgets(BACKEND_ONLY, {
+          [`${ROOT}/packages/modules/widgets/test/unit/thing.test.ts`]:
+            "import { it } from 'vitest';\n",
+          [`${ROOT}/packages/modules/widgets/vitest.config.ts`]: VITEST_CONFIG,
+        }),
+      );
+      expect((manifest['devDependencies'] as Record<string, string>)['vitest']).toBe('^2.1.4');
+      // A devDependency and not a peer: a consumer never runs this package's
+      // tests, and the emit excludes them, so nothing published names it.
+      expect(manifest['peerDependencies']).not.toHaveProperty('vitest');
+    });
+
+    it('names no runner for a package that declares no configuration', () => {
+      const manifest = manifestOf(widgets(BACKEND_ONLY));
+      expect(manifest['devDependencies']).not.toHaveProperty('vitest');
     });
 
     it('emits no test script for a package that ships neither', () => {
