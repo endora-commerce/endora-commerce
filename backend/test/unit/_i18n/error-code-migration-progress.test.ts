@@ -51,6 +51,7 @@ const MIGRATED_MODULES: readonly string[] = [
   'invoices',
   'megamenu',
   'mfa',
+  'orders',
   'quote_requests',
   'sales_channels',
   'search',
