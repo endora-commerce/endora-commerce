@@ -37,7 +37,7 @@ import {
  * `specs/090-module-owned-error-codes/migration-runbook.md` is the procedure the
  * roster is filled in by.
  */
-const MIGRATED_MODULES: readonly string[] = ['carts', 'inventory'];
+const MIGRATED_MODULES: readonly string[] = ['blog', 'carts', 'inventory'];
 
 describe('feature 090 Phase 3 — each migrated module declares exactly what it owns', () => {
   /**
