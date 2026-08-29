@@ -105,6 +105,14 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     // cannot use a code of its own. Another file in the run may have created
     // it already with a narrower grant set — widen that one rather than
     // creating a second row the unique index would refuse.
+    // `inventory:read` / `inventory:write` replaced the borrowed `orders:read` /
+    // `catalog:write` on the availability-notification routes in f8ffc575a
+    // ("two modules own their authority"), which landed while this file was on
+    // its branch. Without them the representative is refused at the gate — 403
+    // rather than the 200-with-no-row and the 404 the two cases assert — so the
+    // predicate they exist to exercise is never reached. The borrowed codes stay
+    // in the list: this file's other cases were written against them and a
+    // narrowing here is not this merge request's.
     const grants = [
       'comparisons:read',
       'newsletter:read',
@@ -113,6 +121,8 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
       'orders:write',
       'catalog:write',
       'carts:read',
+      'inventory:read',
+      'inventory:write',
     ];
     let role = await em.findOne(AdminRole, { code: 'sales_representative' });
     if (!role) {

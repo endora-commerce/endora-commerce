@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Bell, Search } from 'lucide-react';
+import { scopeNoticeOf, type ScopeNoticeCode } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { ScopeNotice } from '@/components/scope-notice/ScopeNotice';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -24,6 +26,11 @@ interface ListResponse {
   page: number;
   pageSize: number;
   total: number;
+  /**
+   * Feature 087 — present only when the server refused every row because these
+   * records name no organization. Read with `scopeNoticeOf`.
+   */
+  meta?: { scopeNotice?: ScopeNoticeCode };
 }
 
 /**
@@ -47,6 +54,8 @@ export function AvailabilityNotificationsPage(): ReactNode {
   const [statusFilter, setStatusFilter] = useState<'all' | 'queued' | 'notified' | 'cancelled'>('queued');
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Why the queue looks empty, when it does (feature 087).
+  const [scopeNotice, setScopeNotice] = useState<ScopeNoticeCode | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!canRead) {
@@ -63,6 +72,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
         `/api/v1/admin/inventory/availability-notifications?${search.toString()}`,
       );
       setRows(res.items);
+      setScopeNotice(scopeNoticeOf(res));
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('inventory.availability.error.load'));
     } finally {
@@ -180,10 +190,19 @@ export function AvailabilityNotificationsPage(): ReactNode {
           {loading ? (
             <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('inventory.loading')}</div>
           ) : filtered.length === 0 ? (
-            <div className="b2b-empty">
-              <div className="b2b-empty__icon"><Bell size={20} /></div>
-              <div className="b2b-empty__title">{t('inventory.availability.empty')}</div>
-            </div>
+            // The notice replaces the empty state rather than sitting beside
+            // it: "no subscriptions match the current filters" is a claim about
+            // the data, and it is the false one here.
+            scopeNotice ? (
+              <div style={{ padding: 16 }}>
+                <ScopeNotice notice={scopeNotice} />
+              </div>
+            ) : (
+              <div className="b2b-empty">
+                <div className="b2b-empty__icon"><Bell size={20} /></div>
+                <div className="b2b-empty__title">{t('inventory.availability.empty')}</div>
+              </div>
+            )
           ) : (
             <table className="b2b-tbl">
               <thead>

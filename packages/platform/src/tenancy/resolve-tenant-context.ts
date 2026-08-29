@@ -1,4 +1,4 @@
-import type { TenantContext } from './tenant-context.js';
+import type { TenantContext, TenantScopeNotices } from './tenant-context.js';
 
 /**
  * Actor → TenantContext derivation (feature 050, FR-002 / data-model §1).
@@ -70,6 +70,7 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
       return {
         mode: 'allowed-set',
         allowedOrganizationIds: [...actor.rollupSubtreeOrganizationIds],
+        notices: newScopeNotices(),
         customerAccountId: actor.customerAccountId,
         actor: { kind: 'customer', id: actor.customerAccountId },
         ...(actor.impersonatorAdminUserId
@@ -119,8 +120,21 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
   return {
     mode: 'allowed-set',
     allowedOrganizationIds: adminScope.allowedOrganizationIds ?? [],
+    notices: newScopeNotices(),
     actor: { kind: 'admin', id: actor.adminUserId },
   };
+}
+
+/**
+ * A fresh observation sink for one execution (feature 087). Attached to the two
+ * `allowed-set` branches above and to nothing else: `all` and `system` refuse
+ * nothing, and `single-org` refuses per row rather than per table, so neither
+ * has an emptiness to explain. One object per call, so a context can never
+ * carry another request's observation — `resolveTenantContext` is called once
+ * per request by the host's scope hook.
+ */
+function newScopeNotices(): TenantScopeNotices {
+  return { organizationAttributionRefused: false };
 }
 
 /** Context for platform-internal work (workers, migrations, escape hatch). */

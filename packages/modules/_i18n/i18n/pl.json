@@ -1896,6 +1896,8 @@
   "ruleBuilder.values.label": "Wartość",
   "ruleBuilder.values.placeholder": "Dowolna wartość",
   "ruleBuilder.values.search": "Szukaj wartości…",
+  "scopeNotice.organizationAttributionPending.title": "Te rekordy nie są jeszcze przypisane do organizacji",
+  "scopeNotice.organizationAttributionPending.body": "Widzisz rekordy należące do organizacji, z którymi pracujesz. Żaden z tych rekordów nie wskazuje jeszcze organizacji, więc żaden nie może się tu pojawić. Nic nie zniknęło i z Twoim kontem wszystko jest w porządku — tak są dziś zapisane te rekordy, a osoba, której dostęp nie jest ograniczony do wybranych organizacji, nadal je widzi.",
   "seo.meta.error.load": "Nie udało się załadować meta.",
   "seo.meta.error.save": "Zapis nie powiódł się.",
   "seo.meta.field.description": "Opis",

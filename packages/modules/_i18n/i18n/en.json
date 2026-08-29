@@ -1896,6 +1896,8 @@
   "ruleBuilder.values.label": "Value",
   "ruleBuilder.values.placeholder": "Any value",
   "ruleBuilder.values.search": "Search values…",
+  "scopeNotice.organizationAttributionPending.title": "These records are not assigned to an organization yet",
+  "scopeNotice.organizationAttributionPending.body": "You see records belonging to the organizations you work with. None of these records names an organization yet, so none of them can appear here. Nothing has gone missing and nothing is wrong with your account — this is how these records are stored today, and someone whose access is not limited to particular organizations can still see them.",
   "seo.meta.error.load": "Failed to load meta.",
   "seo.meta.error.save": "Save failed.",
   "seo.meta.field.description": "Description",
