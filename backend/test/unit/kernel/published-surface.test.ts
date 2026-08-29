@@ -117,8 +117,21 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
     'ModuleDisabledError',
     'rethrowIfModuleDisabled',
     'requireModuleEnabled',
-    'WorkerLogger',
   ],
+  /**
+   * The platform's structured-logger shape. It was published off
+   * `lifecycle/plugin-helpers.js` as `WorkerLogger`, a second declaration of
+   * this interface: same three methods, same signatures, and neither file knew
+   * about the other. Publishing the shape from the file that documents and
+   * produces it is what stopped the two from drifting a third time — the second
+   * drift was an alias called `ModuleLifecycleLogger`, colliding with an
+   * unrelated `@endora-commerce/contracts` export of that name.
+   *
+   * The type alone. `attachPlatformLogger`, `platformLogger`, `moduleLogger`
+   * and `currentPlatformLogger` stay below: the destination and the attribution
+   * are the host's, and `ctx.log` is the seam that gives a module the value.
+   */
+  'logging.js': ['PlatformLogger'],
   /** Row 13. */
   'scope.js': ['enterSystemScope'],
   /**
@@ -345,7 +358,6 @@ const NOT_PUBLISHED: Readonly<Record<string, string>> = {
   createRegistrationOwnership: 'composition — as above.',
   ModuleContextOptions: 'composition — the argument of `createModuleContext`.',
   ModuleRegistrationSink: 'composition — a `createModuleContext` input.',
-  ModuleLifecycleLogger: 'composition — a `createModuleContext` input.',
   RegistrationOwnership: 'composition — a `createModuleContext` input.',
   requiredModulesFrom: 'composition — `composeModules` refuses before a module registers.',
   absentRequiredModules: 'composition — as above.',
@@ -368,7 +380,6 @@ const NOT_PUBLISHED: Readonly<Record<string, string>> = {
   moduleLogger: 'seam-superseded — a module logs through `ctx.log`.',
   platformLogger: 'seam-superseded — as above.',
   currentPlatformLogger: 'seam-superseded — as above.',
-  PlatformLogger: 'seam-superseded — the type of `ctx.log`, reachable through it.',
   DuplicateRegistrationError: 'seam-superseded — raised *at* a module by `ctx.di.register`.',
   ForeignRegistrationError: 'seam-superseded — as above (issue #203).',
   EagerResolutionError: 'seam-superseded — raised at a module resolving during registration.',
