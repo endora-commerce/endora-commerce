@@ -3,6 +3,7 @@ import type {
   ComparisonAdminDetail,
   ComparisonAdminListItem,
   ComparisonAdminListQuery,
+  ScopeNoticeCode,
 } from '@endora-commerce/contracts';
 
 /**
@@ -13,7 +14,16 @@ import type {
 
 export interface ListResult {
   data: ComparisonAdminListItem[];
-  meta: { limit: number; nextCursor: string | null };
+  meta: {
+    limit: number;
+    nextCursor: string | null;
+    /**
+     * Present only when the server refused every row for want of an
+     * organization on the record (feature 087). Read it with `scopeNoticeOf`
+     * rather than by hand — the shape is the contract's, not this screen's.
+     */
+    scopeNotice?: ScopeNoticeCode;
+  };
 }
 
 export async function listComparisons(

@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
-import type { SubscriberSummary } from '@endora-commerce/contracts';
+import type { ScopeNoticeCode, SubscriberSummary } from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ScopeNotice } from '@/components/scope-notice/ScopeNotice';
 import { useAuth } from '@/lib/auth';
 import { newsletterClient } from '../api/newsletter-client';
 
@@ -13,6 +14,9 @@ export function SubscribersPage(): React.ReactElement {
   const canWrite = hasPermission('newsletter:write');
   const [items, setItems] = useState<SubscriberSummary[]>([]);
   const [total, setTotal] = useState(0);
+  // Feature 087 — an empty list is not the same statement as "there are no
+  // subscribers", and only the server knows which one it just made.
+  const [scopeNotice, setScopeNotice] = useState<ScopeNoticeCode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [tag, setTag] = useState('');
@@ -23,6 +27,7 @@ export function SubscribersPage(): React.ReactElement {
       .then((res) => {
         setItems(res.items);
         setTotal(res.total);
+        setScopeNotice(res.scopeNotice);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, [q, tag]);
@@ -110,7 +115,12 @@ export function SubscribersPage(): React.ReactElement {
               {items.length === 0 ? (
                 <tr>
                   <td className="p-3 text-muted-foreground" colSpan={canWrite ? 5 : 4}>
-                    No subscribers found.
+                    {/* The fragment keeps this screen's remaining untranslated
+                        literal where `i18n:hardcoded` can still see it: as the
+                        alternative of a ternary it is a string expression, which
+                        the check reads as translated, and the file's debt would
+                        drop by one without a key being added. */}
+                    {scopeNotice ? <ScopeNotice notice={scopeNotice} /> : <>No subscribers found.</>}
                   </td>
                 </tr>
               ) : null}

@@ -1,4 +1,8 @@
-import { getTenantContext, MissingTenantContextError } from './tenant-context.js';
+import {
+  getTenantContext,
+  MissingTenantContextError,
+  noteOrganizationAttributionRefusal,
+} from './tenant-context.js';
 
 /**
  * MikroORM global-filter definitions for the tenant guard (feature 050).
@@ -95,6 +99,15 @@ export function orgFilterCond(): Record<string, unknown> {
  * on `@CustomerScoped` alike (FR-007) — the two used to give the same actor
  * opposite answers, and the `@CustomerScoped` one was "everything".
  *
+ * **The refusal says so** (feature 087, owner decision of 2026-08-29). An empty
+ * list and "nothing exists" are the same three bytes to every layer above this
+ * one, so the refusing arm records itself on the ambient context's observation
+ * sink (`TenantScopeNotices`) and the host puts a code on the response
+ * envelope. That is derived rather than declared: no route sets a flag, no
+ * screen is remembered, and the day a table gains its column the same arm
+ * starts granting and the notice stops being emitted, in one edit that is this
+ * file's `organizationColumn` answer changing.
+ *
  * **A surface that has already established the caller's authority may still
  * read across this**, through the one sanctioned crossing (`withSystemScope`,
  * feature 050 FR-005) and never through a bare `catch`. `customers`'
@@ -115,9 +128,18 @@ export function customerFilterCond(
       return { [CUSTOMER_TENANT_KEY]: ctx.customerAccountId ?? null };
     case 'allowed-set': {
       const allowed = [...(ctx.allowedOrganizationIds ?? [])];
-      return organizationColumn === 'present'
-        ? { [CUSTOMER_ORGANIZATION_KEY]: { $in: allowed } }
-        : { [CUSTOMER_TENANT_KEY]: { $in: [] } };
+      if (organizationColumn === 'present') {
+        return { [CUSTOMER_ORGANIZATION_KEY]: { $in: allowed } };
+      }
+      // The predicate is unchanged; the line above it is a *record* that this
+      // execution was refused a whole table, which the host discloses on the
+      // response envelope (feature 087, owner decision of 2026-08-29). It is
+      // written here because this is the only place that knows the difference
+      // between "your reach excludes all of these" and "there are none", and
+      // both answers look like `[]` from every layer above. Nothing in the
+      // guard reads it back: it is an observation, not an input.
+      noteOrganizationAttributionRefusal(ctx);
+      return { [CUSTOMER_TENANT_KEY]: { $in: [] } };
     }
   }
 }

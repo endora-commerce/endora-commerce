@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import { scopeNoticeOf, type ScopeNoticeCode } from '@endora-commerce/contracts';
 import type {
   AutomationDetail,
   AutomationSummary,
@@ -30,6 +31,16 @@ import type {
 
 type Wrap<T> = { data: T };
 const unwrap = <T>(p: Promise<Wrap<T>>): Promise<T> => p.then((r) => r.data);
+
+/**
+ * A page plus the reason it might be empty (feature 087). `unwrap` throws the
+ * envelope away, and the envelope is where the server explains itself, so the
+ * subscriber listing keeps it — the notice rides beside the page rather than
+ * being fetched separately, because it is a property of *this* answer.
+ */
+export type SubscriberListPage = SubscriberListResponse & {
+  scopeNotice: ScopeNoticeCode | null;
+};
 const BASE = '/api/v1/admin/newsletter';
 
 function qs(params: Record<string, string | number | undefined>): string {
@@ -44,8 +55,10 @@ function qs(params: Record<string, string | number | undefined>): string {
 /** Typed admin client for the newsletter module (feature 048). */
 export const newsletterClient = {
   // Subscribers
-  listSubscribers: (q: Partial<SubscriberListQuery>): Promise<SubscriberListResponse> =>
-    unwrap(apiClient.get<Wrap<SubscriberListResponse>>(`${BASE}/subscribers${qs(q as Record<string, string | number | undefined>)}`)),
+  listSubscribers: (q: Partial<SubscriberListQuery>): Promise<SubscriberListPage> =>
+    apiClient
+      .get<Wrap<SubscriberListResponse>>(`${BASE}/subscribers${qs(q as Record<string, string | number | undefined>)}`)
+      .then((r) => ({ ...r.data, scopeNotice: scopeNoticeOf(r) })),
   getSubscriber: (id: string): Promise<SubscriberDetail> =>
     unwrap(apiClient.get<Wrap<SubscriberDetail>>(`${BASE}/subscribers/${id}`)),
   unsubscribe: (id: string, expectedVersion: number, reason?: string): Promise<SubscriberDetail> =>

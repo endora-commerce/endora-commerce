@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
-import type { RequestMeta } from '@endora-commerce/contracts';
-import type { TenantContext } from '../tenancy/tenant-context.js';
+import { SCOPE_NOTICE_CODES, type RequestMeta } from '@endora-commerce/contracts';
+import { getTenantContext, type TenantContext } from '../tenancy/tenant-context.js';
 import { enterPlatformScope } from './scope.js';
 
 /**
@@ -30,6 +30,17 @@ import { enterPlatformScope } from './scope.js';
  * scope's channel slot and whose refusal path writes an audit row, so it needs
  * tenancy). See the ordering note in `scope.ts` — that order is a constraint,
  * not an accident of registration.
+ *
+ * ## Disclosure
+ *
+ * It also carries the *outbound* half (feature 087, owner decision of
+ * 2026-08-29): `preSerialization` puts `meta.scopeNotice` on a successful body
+ * when the tenant filter refused a whole table for want of an organization
+ * column. It lives here, and not on each route, because that is the only place
+ * both facts are in hand at once — the context this hook opened, and the body
+ * about to go out — and because a per-route flag is a flag somebody forgets.
+ * Both composition roots register this hook, so neither can disclose less than
+ * the other.
  */
 
 export interface RequestScopeHookOptions {
@@ -76,6 +87,43 @@ export async function registerRequestScopeHook(
           (err: unknown) => done(err as Error),
         );
       });
+
+      // The disclosure (feature 087). `preSerialization` runs inside the store
+      // this hook opened — the `onRequest` callback calls `done()`
+      // synchronously inside it, so the whole lifecycle continues in that async
+      // context — which is what lets the sink written by the filter during the
+      // handler be read here.
+      inner.addHook('preSerialization', (_request, reply, payload, done) => {
+        done(null, withScopeNotice(payload, reply.statusCode));
+      });
     }),
   );
+}
+
+/**
+ * Put `meta.scopeNotice` on `payload` when this execution's tenant filter
+ * refused a whole table, and return `payload` untouched otherwise.
+ *
+ * Three things it deliberately does not do. It does not touch an **error**
+ * body: a 4xx/5xx envelope is `{ error: … }` and already says why, and a notice
+ * about emptiness on a refusal is noise. It does not touch a **non-object**
+ * body — the newsletter CSV export is a string, and a Buffer or a stream is
+ * nobody's envelope. And it does not overwrite an existing `meta`, it merges
+ * into it, because `meta` is where two of the three surfaces already keep their
+ * pagination.
+ */
+export function withScopeNotice(payload: unknown, statusCode: number): unknown {
+  if (statusCode >= 400) return payload;
+  if (!getTenantContext()?.notices?.organizationAttributionRefused) return payload;
+  if (typeof payload !== 'object' || payload === null) return payload;
+  if (Array.isArray(payload) || Buffer.isBuffer(payload)) return payload;
+  const body = payload as { meta?: unknown };
+  const existingMeta =
+    typeof body.meta === 'object' && body.meta !== null && !Array.isArray(body.meta)
+      ? (body.meta as Record<string, unknown>)
+      : {};
+  return {
+    ...body,
+    meta: { ...existingMeta, scopeNotice: SCOPE_NOTICE_CODES.ORGANIZATION_ATTRIBUTION_PENDING },
+  };
 }

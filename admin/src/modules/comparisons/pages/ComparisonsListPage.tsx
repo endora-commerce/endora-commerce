@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import type { ComparisonAdminListItem } from '@endora-commerce/contracts';
+import { scopeNoticeOf, type ComparisonAdminListItem, type ScopeNoticeCode } from '@endora-commerce/contracts';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { SalesChannelPicker } from '@/components/sales-channel-picker/SalesChannelPicker';
+import { ScopeNotice } from '@/components/scope-notice/ScopeNotice';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
@@ -36,6 +37,10 @@ export function ComparisonsListPage(): ReactNode {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  // Why the list is empty, when it is (feature 087). The server is the only
+  // party that can tell "none of these is yours" from "there are none", so the
+  // screen carries the answer rather than guessing at it.
+  const [scopeNotice, setScopeNotice] = useState<ScopeNoticeCode | null>(null);
   const [salesChannelId, setSalesChannelId] = useState('');
   const [ownerType, setOwnerType] = useState<'' | 'customer' | 'anonymous'>('');
   const [createdAfter, setCreatedAfter] = useState('');
@@ -59,6 +64,7 @@ export function ComparisonsListPage(): ReactNode {
           setRows(res.data);
         }
         setNextCursor(res.meta.nextCursor);
+        setScopeNotice(scopeNoticeOf(res));
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('error.load'));
       } finally {
@@ -137,7 +143,11 @@ export function ComparisonsListPage(): ReactNode {
           {loading && rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('list.empty')}</p>
+            scopeNotice ? (
+              <ScopeNotice notice={scopeNotice} />
+            ) : (
+              <p className="text-sm text-muted-foreground">{t('list.empty')}</p>
+            )
           ) : (
             <>
               <Table>
