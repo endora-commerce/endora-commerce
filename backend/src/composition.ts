@@ -152,7 +152,18 @@ import { loadPackageModuleEntries } from './packages/package-runtime.js';
 import { configuredMigrations } from './db/configured-migrations.js';
 // D-54 — the error envelope takes this map by injection: `src/http` is a
 // kernel-obeying platform peer and may not name a module (D-52). A root may.
-import { ERROR_TRANSLATION_KEYS, type AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
+//
+// Feature 090 Phase 2 — and the map is now *derived* rather than imported whole:
+// `composeErrorTranslationTargets` lays the modules' own `errorCodes`
+// declarations over the incumbent prefix chain. Which modules a deployment
+// resolved is a composition-root input, which is why the call is here and not
+// inside `_i18n` — the same sentence that puts `resolvedModuleRegistry` in this
+// file.
+import {
+  composeErrorTranslationTargets,
+  describeErrorCodeCollisions,
+  type AdminI18nCradle,
+} from '@endora-commerce/mod-i18n/backend';
 import type { CatalogQueryService } from '@endora-commerce/mod-catalog/backend';
 import type { ModuleSettingsManifest } from '@endora-commerce/contracts';
 import type { ShoppingListService } from '@endora-commerce/mod-shopping-lists/backend';
@@ -321,6 +332,29 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // committed registries stay bare core for D-104's reason, so this is the only
   // thing that knows a package is here.
   const packageModuleEntries = await loadPackageModuleEntries();
+
+  // Feature 090 Phase 2 — which bundle holds which error code's sentence,
+  // derived from the manifests this deployment resolved rather than from a table
+  // (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md` §4).
+  // `resolvedRegistry` is core plus this deployment's overlay modules plus every
+  // installed package, which is exactly the input the contract names, and
+  // activation is deliberately not consulted: a code owned by a switchable module
+  // is raised by other modules too, so a switched-off `carts` must not cost
+  // `orders` its checkout sentence.
+  //
+  // Reported here rather than at the injection site because a collision is a
+  // fact about the composition and an operator has to be able to read it before
+  // the first request that renders wrong — and it is `warn` rather than a
+  // refusal: §3.3's severity gradient reserves a refused boot for the
+  // irreversible, and the blast radius of a contested code is one sentence.
+  const errorTranslation = composeErrorTranslationTargets(resolvedRegistry);
+  if (errorTranslation.collisions.length > 0) {
+    platformLogger().warn(
+      { collisions: errorTranslation.collisions.length },
+      'error codes are claimed by more than one module and therefore route to none of ' +
+        `them:\n${describeErrorCodeCollisions(errorTranslation.collisions)}`,
+    );
+  }
 
   // Feature 072 (D-38) — module presence is a **composition input**, so it is
   // loaded here: before the first module registers, and therefore before any
@@ -2515,7 +2549,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     contextFor: (moduleId) => composedModules.contextFor(moduleId),
     resolvedModules: resolvedRegistry,
     errorEnvelope: {
-      errorTranslationTargets: ERROR_TRANSLATION_KEYS,
+      errorTranslationTargets: errorTranslation.targets,
       // Issue #234 — the ladder is one kernel function, and the root keeps the
       // one rung that reads a module's table (D-137). What stood here was
       // `if (request.actor.kind !== 'admin') return null`, which the envelope
