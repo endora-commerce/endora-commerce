@@ -1,6 +1,7 @@
 ---
 '@endora-commerce/platform': major
 '@endora-commerce/mod-customers': patch
+'@endora-commerce/mod-quick-order': patch
 ---
 
 **`customerFilterCond`'s `allowed-set` arm stops returning `{}`, and the function takes an
@@ -32,3 +33,8 @@ A surface that has already established the caller's authority by other means and
 `@CustomerScoped` entity with no organization column will now read nothing under a scoped
 administrator. Cross that deliberately with `withSystemScope(reason, fn)` after the check that
 establishes the authority; do not catch.
+
+`@endora-commerce/mod-quick-order`'s `registerQuickOrderAdminRoutes` takes a new required dep,
+`customerAccounts: CustomerAccountReadPort`. It is the tenant boundary of the admin build route:
+`onBehalfOf` names the customer account and organization the built Cart or Quote Request is
+written to, and it arrives in the request body, where no read filter can reach it.

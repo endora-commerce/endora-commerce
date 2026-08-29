@@ -16,6 +16,7 @@ import {
   Organization,
   OrganizationSalesRepAssignment,
 } from '../../helpers/package-entities.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
@@ -109,6 +110,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
       'newsletter:read',
       'newsletter:write',
       'orders:read',
+      'orders:write',
       'catalog:write',
       'carts:read',
     ];
@@ -375,6 +377,47 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     // scoped actor's authority (FR-011). It stops being nothing when feature
     // 087 gives the table its column — with no further edit to the filter.
     expect(ids).toEqual([]);
+  });
+
+  // ── A caller-supplied tenant identity on a write ───────────────────────
+
+  it('refuses building a quick order on behalf of a customer outside the scope, writing nothing', async () => {
+    // A second finding of a different kind, and the filter cannot reach it:
+    // MikroORM applies a global filter to SELECT, UPDATE and DELETE and **not
+    // to INSERT**, so a route that takes the tenant identity from its own
+    // request body writes wherever the body says. `onBehalfOf` is exactly that
+    // — `{ customerAccountId, organizationId }`, straight into
+    // `cartWritePort.getOrCreateForCustomer` and `rfqService.createForCustomer`.
+    //
+    // `[M]` Measured on master, and again with the filter in place and this
+    // guard absent: a representative assigned to one organization created a
+    // cart row on a customer account in another. The predicate changes what
+    // the follow-up *read* sees and not what the insert writes, so without a
+    // guard the operation half-completes and leaves the row behind.
+    const before = await h.em().count(Cart, { customerAccountId: accounts['foreign']! });
+    const res = await asRep('POST', '/api/v1/admin/quick-order/build', {
+      target: 'cart',
+      onBehalfOf: {
+        customerAccountId: accounts['foreign'],
+        organizationId: foreignOrgId,
+      },
+      items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }],
+    });
+    expect(res.statusCode).toBe(404);
+    h.em().clear();
+    expect(await h.em().count(Cart, { customerAccountId: accounts['foreign']! })).toBe(before);
+  });
+
+  it('leaves the same build working for a customer inside the scope', async () => {
+    const res = await asRep('POST', '/api/v1/admin/quick-order/build', {
+      target: 'cart',
+      onBehalfOf: {
+        customerAccountId: accounts['own'],
+        organizationId: assignedOrgId,
+      },
+      items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }],
+    });
+    expect(res.statusCode).toBe(200);
   });
 
   // ── The other direction ────────────────────────────────────────────────
