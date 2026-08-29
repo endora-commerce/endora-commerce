@@ -732,6 +732,22 @@ export interface ManifestRenderRun {
    * tree to a render nobody will reproduce once the package is built.
    */
   readonly unbuiltPackages: readonly string[];
+  /**
+   * The packages this run rendered a **first** manifest for: they had no
+   * `package.json` on disk when it started.
+   *
+   * Kept apart from {@link unbuiltPackages} because the two answer different
+   * questions about the same fact. A package that has never been built is
+   * usually a checkout that skipped `pnpm run build:packages`, which is a short
+   * walk and is refused. A package that has no manifest *yet* cannot have been
+   * built at all — nothing can build a package that is not a workspace member —
+   * so its absent `dist` is a property of the world rather than of this run, and
+   * a floor that counted it would refuse the one run that has to succeed: the
+   * first one after a module is moved into place or scaffolded. That is the
+   * chicken-and-egg this generator's own header states for `--check` and left
+   * standing in the disclosure line.
+   */
+  readonly newPackages: readonly string[];
 }
 
 /** Every module package a `pnpm-workspace.yaml` glob reaches, by directory. */
@@ -890,6 +906,7 @@ export function renderModulePackageManifests(
   // `@types/node`'s seventy declaration files once per module package would be
   // most of this command's work.
   const unbuilt: string[] = [];
+  const firstRender: string[] = [];
   const typesAnswers = new Map<string, boolean>();
   const consumerSuppliesTypes = (typesName: string): boolean => {
     const cached = typesAnswers.get(typesName);
@@ -941,6 +958,7 @@ export function renderModulePackageManifests(
     const imported = peerNamesOf(sources);
 
     const existing = existingManifest(identity.dir, countingFs);
+    if (existing === null) firstRender.push(identity.name);
     assertEndoraAgreement(identity.dir, identity.moduleId, identity.name, existing);
 
     // D-181's population: what this package's own build publishes. Counted on
@@ -994,6 +1012,7 @@ export function renderModulePackageManifests(
     registeredPackageNames:
       indexSource === null ? [] : registeredPackageNamesIn(indexSource),
     unbuiltPackages: [...unbuilt].sort(byAscii),
+    newPackages: [...firstRender].sort(byAscii),
   };
 }
 
@@ -1460,6 +1479,27 @@ export function renderManifest(input: RenderInput): string {
       );
     }
     devs.set(name, declared);
+  }
+  // And the runner the `test` script names, on the same terms and for the same
+  // reason: a script that invokes a tool the package does not declare is a
+  // script that cannot run. It arrived by accident for the four packages whose
+  // tests sit *beside* their sources — the specifier walk reads the test's own
+  // `import … from 'vitest'` — and not at all for a package whose tests live in
+  // `test/`, which the walk does not enter. Measured on a scaffolded package:
+  // `pnpm run test` answered `vitest: command not found`, which is the emitted
+  // `test` script's own failure and not the author's. A **devDependency** only:
+  // a consumer never runs this package's tests, and `tsconfig.build.json`
+  // excludes them from the emit, so nothing published names the runner.
+  if (input.layers.hasVitestConfig) {
+    const declared = input.versions.get('vitest');
+    if (declared === undefined) {
+      throw new ModulePackageManifestError(
+        `${input.packageName} declares a vitest configuration and the application declares no ` +
+          `'vitest', so the \`test\` script this generator emits would name a runner nothing ` +
+          `installs.`,
+      );
+    }
+    devs.set('vitest', declared);
   }
 
   // `tsc` copies nothing but `.ts` (measured), so a package whose `src/` holds
