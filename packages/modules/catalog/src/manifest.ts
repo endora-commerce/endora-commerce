@@ -230,6 +230,101 @@ export const manifest = defineModuleManifest({
       'Products, variants and categories. A commerce platform without a catalogue is a ' +
       'different product, not a reduced one.',
   },
+  /**
+   * The forty-seven error codes this module owns — feature 090 Phase 3
+   * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
+   * §1.1). This is where the sentence for each is looked up from:
+   * `errors.<CODE>` in this module's own `i18n/{en,pl}.json`, which holds forty
+   * of them in both languages. The other seven are already entries in
+   * `check-error-translations.ts`'s `UNTRANSLATED_ERROR_CODES` ledger and stay
+   * there — declaring a code writes no sentence (runbook §7 case 1).
+   *
+   * The list is answer-preserving, not a judgement (§6.2 and §6.5). It was not
+   * written by hand: it is the output of the runbook's step-1 derivation over
+   * the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts`, which records
+   * what the prefix chain in `@endora-commerce/mod-i18n` answered at
+   * `49f3c6817`. Re-routing a code to a better owner is
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
+   * deliberately not done here.
+   *
+   * **Four codes are here because an earlier rule in that ordered chain shadows
+   * a later one that names them.** Read from the chain's source they look like
+   * somebody else's; read from its answer — which is the only reading that
+   * matches what a client receives today — they are this module's:
+   *
+   * - `PRODUCT_UNMANAGED_STOCK` and `PRODUCT_IN_STOCK` are members of the
+   *   chain's own `INVENTORY_MISC_ERROR_CODES` set, and the `PRODUCT_` prefix
+   *   above it claims both first. `inventory` raises the second one.
+   * - `ASSET_KIND_NOT_SUPPORTED` would match `assets_library`'s `ASSET_` prefix,
+   *   and `CATALOG_MISC_ERROR_CODES` names it thirty lines earlier.
+   * - `UNKNOWN_OPTION` would match `sales_channels`' `UNKNOWN_` prefix, and the
+   *   same misc set claims it first. `catalog`'s own `bundle.service.ts` raises
+   *   it.
+   *
+   * **Ten more are counter-intuitive without any shadow** — the prefix rule is
+   * simply wider than the module that raises the code, which §6.5 leaves
+   * standing: the five `PRODUCT_FEED_*` codes (raised by `product_feeds`),
+   * `PRODUCT_NOT_IN_COMPARISON` (raised by `comparisons`),
+   * `SKU_NOT_IN_ASSORTMENT` (raised by `orders`), and
+   * `PRICE_ORDERING_UNAVAILABLE` / `PRICE_RANGE_INVALID`, which the chain names
+   * one by one rather than by a `PRICE_` prefix precisely so that the
+   * `PRICE_LIST_*` family stays with `price_lists`.
+   *
+   * No `tokens`: no code here carries a refusal discriminator. Derived from the
+   * raise sites rather than from this module's bundles, per the runbook's §5 —
+   * the nine codes in the tree that reach the envelope's `refusalToken` are
+   * `core`'s seven, `invoices`' two and `carts`' one, and none of them is here.
+   */
+  errorCodes: [
+    { code: 'ASSET_KIND_NOT_SUPPORTED' },
+    { code: 'ATTACHMENT_NOT_FOUND' },
+    { code: 'ATTACHMENT_TYPE_CODE_TAKEN' },
+    { code: 'ATTACHMENT_TYPE_IN_USE' },
+    { code: 'ATTACHMENT_TYPE_NOT_FOUND' },
+    { code: 'ATTRIBUTE_NOT_FOUND' },
+    { code: 'ATTRIBUTE_NOT_MASS_EDITABLE' },
+    { code: 'ATTRIBUTE_SET_CODE_TAKEN' },
+    { code: 'ATTRIBUTE_SET_IN_USE' },
+    { code: 'ATTRIBUTE_SET_NOT_FOUND' },
+    { code: 'ATTRIBUTE_VALUE_REJECTED' },
+    { code: 'BUNDLE_SLOT_NOT_FOUND' },
+    { code: 'BUNDLE_SLOT_OPTION_NOT_FOUND' },
+    { code: 'FIELD_IMMUTABLE' },
+    { code: 'FILTER_NOT_ALLOWED' },
+    { code: 'GALLERY_ITEM_NOT_FOUND' },
+    { code: 'GALLERY_LABEL_ALREADY_TAKEN' },
+    { code: 'GALLERY_LABEL_LIMIT_EXCEEDED' },
+    { code: 'GROUPED_ITEM_NOT_FOUND' },
+    { code: 'INVALID_QUANTITY_RANGE' },
+    { code: 'LINK_ALREADY_EXISTS' },
+    { code: 'MAX_EXCEEDED' },
+    { code: 'MIN_NOT_MET' },
+    { code: 'NESTED_COMPOSITE_NOT_ALLOWED' },
+    { code: 'OPTION_ALREADY_EXISTS' },
+    { code: 'PRICE_ORDERING_UNAVAILABLE' },
+    { code: 'PRICE_RANGE_INVALID' },
+    { code: 'PRODUCT_ARCHIVED' },
+    { code: 'PRODUCT_DELETE_BLOCKED' },
+    { code: 'PRODUCT_FEED_CONFIRMATION_REQUIRED' },
+    { code: 'PRODUCT_FEED_DISABLED' },
+    { code: 'PRODUCT_FEED_TAXONOMY_CONFLICT' },
+    { code: 'PRODUCT_FEED_TEMPLATE_CONFLICT' },
+    { code: 'PRODUCT_FEED_TEMPLATE_UNBOUND' },
+    { code: 'PRODUCT_IN_STOCK' },
+    { code: 'PRODUCT_LINK_NOT_FOUND' },
+    { code: 'PRODUCT_NOT_FOUND' },
+    { code: 'PRODUCT_NOT_IN_COMPARISON' },
+    { code: 'PRODUCT_TYPE_MISMATCH' },
+    { code: 'PRODUCT_UNMANAGED_STOCK' },
+    { code: 'SELF_LINK_NOT_ALLOWED' },
+    { code: 'SKU_ALREADY_EXISTS' },
+    { code: 'SKU_NOT_IN_ASSORTMENT' },
+    { code: 'TARGET_PRODUCT_NOT_FOUND' },
+    { code: 'UNKNOWN_OPTION' },
+    { code: 'VARIANT_AXIS_MISSING' },
+    { code: 'VARIANT_COMBINATION_EXISTS' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   actions: [
     {
