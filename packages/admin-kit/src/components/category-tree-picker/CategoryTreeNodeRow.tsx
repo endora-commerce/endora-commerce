@@ -1,9 +1,9 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { cn } from '@/lib/utils';
-import { pickCategoryDisplayName, type CategoryTreeNode } from './category-tree-utils';
+import { Button } from '../../ui/button.js';
+import { Checkbox } from '../../ui/checkbox.js';
+import { cn } from '../../lib/utils.js';
+import { pickCategoryDisplayName, type CategoryTreeNode } from './category-tree-utils.js';
 
 interface CategoryTreeNodeRowProps {
   node: CategoryTreeNode;

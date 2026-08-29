@@ -139,6 +139,16 @@ quality:
     # a registration behind declares the screen twice, with `react-router`
     # silently taking the first match.
     - pnpm --filter backend run check:admin-registrations
+    # Feature 091 (FR-009/FR-016) — a module reaching admin platform surface
+    # `@endora-commerce/admin-kit` does not publish. `check:platform-surface`
+    # asks this on the backend and had no frontend twin, because until Phase 1b
+    # the admin's design system was 74 files under `admin/src` reachable by an
+    # alias that resolves for every file in the application and for nothing an
+    # installed package runs under. A target is published iff it is a re-export
+    # shim into the kit — read from the file, never listed — so a shim that
+    # grows a local declaration makes every module reaching it a finding in the
+    # same run.
+    - pnpm --filter backend run check:admin-surface
     # Feature 072 (FR-020) — every non-HTTP entry point (CLI script, BullMQ
     # consumer, repeating-timer sweep) establishes a scope explicitly. The timer
     # class was `setInterval(` as a string until issue #128, so `search`'s

@@ -1,87 +1,17 @@
-// Thin, reusable React wrapper around Apache ECharts.
-//
-// Owns the lifecycle the way React can't: it creates the chart instance once,
-// keeps it sized to its container via a ResizeObserver, pushes new `option`
-// objects on change, and disposes on unmount. Event handlers are (re)bound
-// whenever `onEvents` changes — memoize that map in the caller to avoid churn.
-//
-// Intended as the shared charting primitive for the admin panel (status-graph
-// editor today, analytics module later), so it stays chart-type agnostic: the
-// caller supplies a full `EChartsOption`.
-//
-//   <EChart option={option} className="h-96 w-full" onEvents={events} />
-
-import { useEffect, useRef, type CSSProperties } from 'react';
-import * as echarts from 'echarts';
-import type { ECElementEvent, EChartsOption, EChartsType } from 'echarts';
-
-export type EChartEventHandler = (params: ECElementEvent) => void;
-
-export interface EChartProps {
-  /** Full ECharts option object. Replacing it re-renders the chart. */
-  option: EChartsOption;
-  /** When true (default) the option fully replaces the previous one. */
-  notMerge?: boolean;
-  /** Map of ECharts event name → handler, e.g. `{ click: fn }`. Memoize it. */
-  onEvents?: Record<string, EChartEventHandler>;
-  /** Called once with the live instance after init (for dispatchAction, etc.). */
-  onReady?: (chart: EChartsType) => void;
-  className?: string;
-  style?: CSSProperties;
-}
-
-export function EChart({
-  option,
-  notMerge = true,
-  onEvents,
-  onReady,
-  className,
-  style,
-}: EChartProps): React.ReactNode {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const chartRef = useRef<EChartsType | null>(null);
-  const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
-
-  // Create the instance once and keep it sized to the container.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const chart = echarts.init(el);
-    chartRef.current = chart;
-    onReadyRef.current?.(chart);
-
-    const observer = new ResizeObserver(() => chart.resize());
-    observer.observe(el);
-
-    // When the chart mounts inside a flex/grid child, its final width may only
-    // be known after the first layout pass — resize on the next frame so the
-    // canvas fills the full container width instead of an initial narrow guess.
-    const raf = requestAnimationFrame(() => chart.resize());
-
-    return () => {
-      cancelAnimationFrame(raf);
-      observer.disconnect();
-      chart.dispose();
-      chartRef.current = null;
-    };
-  }, []);
-
-  // Push option updates.
-  useEffect(() => {
-    chartRef.current?.setOption(option, notMerge);
-  }, [option, notMerge]);
-
-  // (Re)bind event handlers.
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart || !onEvents) return;
-    const entries = Object.entries(onEvents);
-    for (const [event, handler] of entries) chart.on(event, handler as never);
-    return () => {
-      for (const [event, handler] of entries) chart.off(event, handler as never);
-    };
-  }, [onEvents]);
-
-  return <div ref={containerRef} className={className} style={style} />;
-}
+/**
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/components` (feature 091, Phase 1b).
+ *
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
+ */
+export { EChart } from '@endora-commerce/admin-kit/components';
+export type { EChartEventHandler, EChartProps } from '@endora-commerce/admin-kit/components';

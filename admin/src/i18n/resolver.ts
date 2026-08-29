@@ -1,44 +1,17 @@
-// Pure i18n resolver — feature 019 / research §R7.
-//
-// Three-step fallback chain: requested-language entry → English entry →
-// `${scope}.${key}` placeholder. The `outcome` field lets callers
-// observe whether a fallback fired so the diagnostic surface
-// (TranslationProvider's dev-mode console.warn) can log it.
-
-import { interpolate } from './interpolate.js';
-import type { Bundle, ResolveOutcome, SupportedAdminLanguage } from './types.js';
-
-const FALLBACK_LANGUAGE: SupportedAdminLanguage = 'en';
-
-export interface ResolveArgs {
-  scope: string;
-  key: string;
-  language: SupportedAdminLanguage;
-  bundle: Bundle;
-  /** Optional EN bundle pre-fetched separately. When undefined, no
-   *  cross-language fallback is attempted (useful when the SPA already
-   *  fetched only the user's preferred bundle and is in a degraded
-   *  rendering state — see research §R7). */
-  fallbackBundle?: Bundle;
-  params?: Record<string, string | number>;
-}
-
-export interface ResolveResult {
-  value: string;
-  outcome: ResolveOutcome;
-}
-
-export function resolve(args: ResolveArgs): ResolveResult {
-  const { scope, key, language, bundle, fallbackBundle, params } = args;
-  const requested = bundle[scope]?.[key];
-  if (requested != null) {
-    return { value: interpolate(requested, params), outcome: 'requested' };
-  }
-  if (language !== FALLBACK_LANGUAGE) {
-    const englishValue = fallbackBundle?.[scope]?.[key];
-    if (englishValue != null) {
-      return { value: interpolate(englishValue, params), outcome: 'en' };
-    }
-  }
-  return { value: `${scope}.${key}`, outcome: 'placeholder' };
-}
+/**
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/i18n` (feature 091, Phase 1b).
+ *
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
+ */
+export { resolve } from '@endora-commerce/admin-kit/i18n';
+export type { ResolveArgs, ResolveResult } from '@endora-commerce/admin-kit/i18n';

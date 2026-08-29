@@ -1,21 +1,16 @@
-// Public hook — feature 019.
-//
-// Returns a scope-bound `t(key, params?)` function. Pass the calling
-// module's id as the scope so keys are looked up against the right
-// bundle (research §R3, FR-009).
-//
-//   const t = useTranslation('settings');
-//   t('actions.save');                          // → "Save" / "Zapisz"
-//   t('notifications.saved', { name: 'foo' });  // → "Saved \"foo\"."
-
-import { useCallback } from 'react';
-import { useTranslationContext } from './TranslationProvider.js';
-
-export function useTranslation(scope: string) {
-  const { t } = useTranslationContext();
-  return useCallback(
-    (key: string, params?: Record<string, string | number>): string =>
-      t(scope, key, params),
-    [t, scope],
-  );
-}
+/**
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/i18n` (feature 091, Phase 1b).
+ *
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
+ */
+export { useTranslation } from '@endora-commerce/admin-kit/i18n';

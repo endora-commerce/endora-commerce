@@ -1,8 +1,8 @@
 import { useMemo, type ReactNode } from 'react';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useAppLanguage } from '@/i18n/app-language-context';
-import { useCountriesQuery } from './useCountriesQuery';
+import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
+import { useAppLanguage } from '../../i18n/app-language-context.js';
+import { useCountriesQuery } from './useCountriesQuery.js';
 
 export interface CountrySelectProps {
   /** Selected ISO 3166-1 alpha-2 country code (e.g. "PL"), or null when empty. */

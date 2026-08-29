@@ -1141,17 +1141,24 @@ describe('check-diacritic-folds — the tree it guards', () => {
   // shared helper rather than merely to be free of a fold: a file that stopped
   // folding because it stopped searching would pass the first test and lose the
   // behaviour the fold was for.
-  const repaired = [
-    'admin/src/components/AppShell.tsx',
-    'admin/src/components/ui/combobox.tsx',
-    'admin/src/components/ui/multi-select.tsx',
-    'admin/src/modules/cms/components/PageBuilderDrawer.tsx',
+  //
+  // Two of them changed address in feature 091's Phase 1b — the admin's design
+  // system moved into `@endora-commerce/admin-kit` — so the specifier they hold
+  // is now the package's own relative one rather than the application's `@/`
+  // alias. The pairing is the point: a path and the specifier that path is
+  // expected to write, so a file that moved and stopped importing is still a
+  // failure rather than a lookup that silently found nothing.
+  const repaired: readonly (readonly [string, string])[] = [
+    ['admin/src/components/AppShell.tsx', "from '@/lib/text-normalization'"],
+    ['packages/admin-kit/src/ui/combobox.tsx', "from '../lib/text-normalization.js'"],
+    ['packages/admin-kit/src/ui/multi-select.tsx', "from '../lib/text-normalization.js'"],
+    ['admin/src/modules/cms/components/PageBuilderDrawer.tsx', "from '@/lib/text-normalization'"],
   ];
 
-  it.each(repaired)('%s imports the shared fold instead of writing its own', (path) => {
+  it.each(repaired)('%s imports the shared fold instead of writing its own', (path, specifier) => {
     const source = readFileSync(join(REPO_ROOT, path), 'utf8');
     expect(analyzeSource(source, path), `${path} folds on its own again`).toEqual([]);
-    expect(source).toContain("from '@/lib/text-normalization'");
+    expect(source).toContain(specifier);
   });
 
   it('the admin helper composes the shared fold rather than carrying a second map', () => {
@@ -1159,7 +1166,9 @@ describe('check-diacritic-folds — the tree it guards', () => {
     // passes because it imports. The map it used to carry disagreed with the
     // shared one over 19 code points, which is the shape of the defect issue
     // #240 is about — two correct-looking folds, neither knowing about the other.
-    const path = 'admin/src/lib/text-normalization.ts';
+    // It moved into the admin kit in Phase 1b; `admin/src/lib/text-normalization.ts`
+    // is now a re-export shim over this file, so this is still the one admin fold.
+    const path = 'packages/admin-kit/src/lib/text-normalization.ts';
     const source = readFileSync(join(REPO_ROOT, path), 'utf8');
     expect(analyzeSource(source, path), `${path} folds on its own again`).toEqual([]);
     expect(source).toContain("import { foldDiacritics } from '@endora-commerce/contracts'");

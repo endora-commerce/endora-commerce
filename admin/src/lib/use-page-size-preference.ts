@@ -1,12 +1,15 @@
 import { useCallback, useState } from 'react';
-import { useAuth } from './auth';
+import { PAGE_SIZE_OPTIONS, type PageSizeOption } from '@endora-commerce/admin-kit/lib';
+import { useAuth } from './auth.js';
 
 /**
- * Supported page-size options across paginated admin lists. Kept as a
- * shared constant so the dropdown and the validation match exactly.
+ * Supported page-size options across paginated admin lists. Kept as a shared
+ * constant so the dropdown and the validation match exactly — and since feature
+ * 091 the constant is the kit's, so `PaginationFooter` (published) and this hook
+ * (not published, because it reads the signed-in admin's id) read one array.
+ * Re-exported here because every existing caller names it at this path.
  */
-export const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100, 500] as const;
-export type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
+export { PAGE_SIZE_OPTIONS, type PageSizeOption };
 
 const DEFAULT_PAGE_SIZE: PageSizeOption = 20;
 

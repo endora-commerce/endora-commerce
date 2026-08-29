@@ -1,79 +1,17 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-
 /**
- * Single-select customer-group picker.
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/components` (feature 091, Phase 1b).
  *
- * The group set is small and unpaged (`GET /api/v1/admin/customer-groups`
- * returns every group), so the list is fetched once on mount and the
- * <Combobox> filters client-side. The committed value is the group UUID.
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
  */
-
-interface CustomerGroupSummary {
-  id: string;
-  code: string;
-  name: string;
-}
-
-export interface CustomerGroupPickerProps {
-  value: string | null;
-  onChange: (customerGroupId: string | null) => void;
-  placeholder?: string;
-  emptyMessage?: string;
-  clearable?: boolean;
-  disabled?: boolean;
-  ariaLabel?: string;
-  id?: string;
-  className?: string;
-}
-
-export function CustomerGroupPicker(props: CustomerGroupPickerProps): ReactNode {
-  const [groups, setGroups] = useState<CustomerGroupSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    apiClient
-      .get<{ data: CustomerGroupSummary[] }>('/api/v1/admin/customer-groups')
-      .then((res) => {
-        if (!alive) return;
-        setGroups(res.data);
-      })
-      .catch((err: unknown) => {
-        if (!alive) return;
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load groups.');
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return (): void => {
-      alive = false;
-    };
-  }, []);
-
-  const options = useMemo<ComboboxOption<string>[]>(
-    () => groups.map((g) => ({ value: g.id, label: g.name, description: g.code })),
-    [groups],
-  );
-
-  const emptyMessage = props.emptyMessage ?? error ?? 'No customer groups.';
-
-  return (
-    <Combobox<string>
-      options={options}
-      value={props.value}
-      onChange={props.onChange}
-      loading={loading}
-      clearable={props.clearable ?? true}
-      disabled={props.disabled ?? false}
-      placeholder={props.placeholder ?? 'Select a customer group…'}
-      emptyMessage={emptyMessage}
-      ariaLabel={props.ariaLabel ?? 'Select customer group'}
-      id={props.id ?? ''}
-      className={props.className ?? ''}
-    />
-  );
-}
+export { CustomerGroupPicker } from '@endora-commerce/admin-kit/components';
+export type { CustomerGroupPickerProps } from '@endora-commerce/admin-kit/components';

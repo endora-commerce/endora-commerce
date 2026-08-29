@@ -1,21 +1,16 @@
-import { forwardRef, type ComponentPropsWithoutRef, type ElementRef } from 'react';
-import * as SeparatorPrimitive from '@radix-ui/react-separator';
-import { cn } from '@/lib/utils';
-
-export const Separator = forwardRef<
-  ElementRef<typeof SeparatorPrimitive.Root>,
-  ComponentPropsWithoutRef<typeof SeparatorPrimitive.Root>
->(({ className, orientation = 'horizontal', decorative = true, ...props }, ref) => (
-  <SeparatorPrimitive.Root
-    ref={ref}
-    decorative={decorative}
-    orientation={orientation}
-    className={cn(
-      'shrink-0 bg-border',
-      orientation === 'horizontal' ? 'h-px w-full' : 'h-full w-px',
-      className,
-    )}
-    {...props}
-  />
-));
-Separator.displayName = SeparatorPrimitive.Root.displayName;
+/**
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/ui` (feature 091, Phase 1b).
+ *
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
+ */
+export { Separator } from '@endora-commerce/admin-kit/ui';
