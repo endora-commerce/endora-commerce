@@ -25,6 +25,27 @@ import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 /**
  * Inventory admin routes — feature 010 (US1 + US2).
  *
+ * **Every gate below is this module's own** (2026-08-29). All 21 used to
+ * enforce a code somebody else owns: nine reads on `orders:read` and twelve
+ * writes on `catalog:write`. Neither names the data touched, which is the
+ * discriminator `specs/080-f4-real-scope/payments-permission-ownership.md` §7.2
+ * sets and `specs/first-deployment-window.md` §2 applies per route rather than
+ * per module. A warehouse is a physical location with an address, not catalogue
+ * data; a channel↔warehouse assignment is fulfilment routing, deciding which
+ * stock a channel may sell; a stock level, a display-band threshold, a CSV
+ * import and a back-in-stock queue entry are all rows in this module's own
+ * tables. Nothing here reads or writes a product, a price or an order.
+ *
+ * The read side was the mirror of the same defect and is worth stating on its
+ * own: a merchandiser holding `catalog:read` could not see stock at all, while
+ * anyone holding `orders:read` could enumerate every warehouse and its address.
+ *
+ * `inventory:read` / `inventory:write`, and no third code. The one route that
+ * genuinely joins another module's table — the roster's `products` join in
+ * `StockLevelService` — is a *reach* and is ledgered as one; it is not an
+ * authority question, and it is refused to a catalogue editor exactly as the
+ * rest of this file now is.
+ *
  * Surfaces:
  *   - Legacy single-bucket stock-level read/write (foundation 001 backward
  *     compat — kept until callers migrate to the per-warehouse PUT below).
@@ -101,7 +122,7 @@ export async function registerInventoryAdminRoutes(
 
   app.get(
     '/api/v1/admin/inventory',
-    { preHandler: requireAdmin('orders:read') },
+    { preHandler: requireAdmin('inventory:read') },
     async () => {
       const data = await stockLevelService.listLandingKpis();
       return { data };
@@ -114,7 +135,7 @@ export async function registerInventoryAdminRoutes(
 
   app.get(
     '/api/v1/admin/inventory/levels',
-    { preHandler: requireAdmin('orders:read') },
+    { preHandler: requireAdmin('inventory:read') },
     async (request) => {
       const q = (request.query ?? {}) as Record<string, string | undefined>;
       const search = q['q']?.trim();
@@ -136,7 +157,7 @@ export async function registerInventoryAdminRoutes(
   app.put(
     '/api/v1/admin/inventory/levels',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('inventory:write'),
       schema: { body: setStockLevelRequestSchema },
     },
     async (request) => {
@@ -160,7 +181,7 @@ export async function registerInventoryAdminRoutes(
   app.put(
     '/api/v1/admin/inventory/warehouse-low-stock-thresholds',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('inventory:write'),
       schema: { body: setProductWarehouseLowStockThresholdsRequestSchema },
     },
     async (request, reply) => {
@@ -181,7 +202,7 @@ export async function registerInventoryAdminRoutes(
 
   app.get(
     '/api/v1/admin/warehouses',
-    { preHandler: requireAdmin('orders:read') },
+    { preHandler: requireAdmin('inventory:read') },
     async (request) => {
       const q = (request.query ?? {}) as Record<string, string | undefined>;
       const data = await warehouseService.list({
@@ -196,7 +217,7 @@ export async function registerInventoryAdminRoutes(
 
   app.get(
     '/api/v1/admin/warehouses/:id',
-    { preHandler: requireAdmin('orders:read') },
+    { preHandler: requireAdmin('inventory:read') },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const data = await warehouseService.getById(id, { withTotals: true });
@@ -217,7 +238,7 @@ export async function registerInventoryAdminRoutes(
   app.post(
     '/api/v1/admin/warehouses',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('inventory:write'),
       schema: { body: createWarehouseRequestSchema },
     },
     async (request, reply) => {
@@ -244,7 +265,7 @@ export async function registerInventoryAdminRoutes(
   app.patch(
     '/api/v1/admin/warehouses/:id',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('inventory:write'),
       schema: { body: updateWarehouseRequestSchema },
     },
     async (request) => {
@@ -270,7 +291,7 @@ export async function registerInventoryAdminRoutes(
 
   app.delete(
     '/api/v1/admin/warehouses/:id',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: requireAdmin('inventory:write') },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       await warehouseService.delete(id, buildAuditCtx(request, deps.resolveAdminAuditContext));
@@ -284,7 +305,7 @@ export async function registerInventoryAdminRoutes(
 
   app.get(
     '/api/v1/admin/inventory/low-stock',
-    { preHandler: requireAdmin('orders:read') },
+    { preHandler: requireAdmin('inventory:read') },
     async () => {
       const items = await lowStockAlertService.listLowStock();
       return { items };
@@ -297,7 +318,7 @@ export async function registerInventoryAdminRoutes(
 
   app.get(
     '/api/v1/admin/inventory/thresholds',
-    { preHandler: requireAdmin('orders:read') },
+    { preHandler: requireAdmin('inventory:read') },
     async () => {
       const data = await thresholdAdminService.read();
       return { data };
@@ -307,7 +328,7 @@ export async function registerInventoryAdminRoutes(
   app.patch(
     '/api/v1/admin/inventory/thresholds',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('inventory:write'),
       schema: { body: patchInventoryThresholdsRequestSchema },
     },
     async (request) => {
@@ -330,7 +351,7 @@ export async function registerInventoryAdminRoutes(
 
   app.post(
     '/api/v1/admin/inventory/import',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: requireAdmin('inventory:write') },
     async (request, reply) => {
       const q = (request.query ?? {}) as Record<string, string | undefined>;
       const body = (request.body ?? {}) as { csv?: string; warehouseId?: string };
@@ -363,7 +384,7 @@ export async function registerInventoryAdminRoutes(
 
   app.get(
     '/api/v1/admin/inventory/availability-notifications',
-    { preHandler: requireAdmin('orders:read') },
+    { preHandler: requireAdmin('inventory:read') },
     async (request) => {
       const q = (request.query ?? {}) as Record<string, string | undefined>;
       const data = await availabilityNotificationService.listForAdmin({
@@ -378,7 +399,7 @@ export async function registerInventoryAdminRoutes(
 
   app.patch(
     '/api/v1/admin/inventory/availability-notifications/:id',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: requireAdmin('inventory:write') },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const body = (request.body ?? {}) as { status?: string };
@@ -404,7 +425,7 @@ export async function registerInventoryAdminRoutes(
 
   app.get(
     '/api/v1/admin/sales-channels/:channelId/warehouses',
-    { preHandler: requireAdmin('orders:read') },
+    { preHandler: requireAdmin('inventory:read') },
     async (request) => {
       const { channelId } = request.params as { channelId: string };
       const items = await warehouseChannelService.listForChannel(channelId);
@@ -415,7 +436,7 @@ export async function registerInventoryAdminRoutes(
   app.post(
     '/api/v1/admin/sales-channels/:channelId/warehouses',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('inventory:write'),
       schema: { body: assignWarehouseToChannelRequestSchema },
     },
     async (request, reply) => {
@@ -434,7 +455,7 @@ export async function registerInventoryAdminRoutes(
   app.patch(
     '/api/v1/admin/sales-channels/:channelId/warehouses/:assignmentId',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('inventory:write'),
       schema: { body: patchWarehouseChannelAssignmentRequestSchema },
     },
     async (request) => {
@@ -453,7 +474,7 @@ export async function registerInventoryAdminRoutes(
 
   app.delete(
     '/api/v1/admin/sales-channels/:channelId/warehouses/:assignmentId',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: requireAdmin('inventory:write') },
     async (request, reply) => {
       const { channelId, assignmentId } = request.params as {
         channelId: string;
@@ -519,7 +540,7 @@ export async function registerInventoryAdminRoutes(
   app.put(
     '/api/v1/admin/inventory',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('inventory:write'),
       schema: { body: setLegacyStockLevelSchema },
     },
     async (request) => {
@@ -558,7 +579,7 @@ export async function registerInventoryAdminRoutes(
 
   app.get(
     '/api/v1/admin/inventory/legacy',
-    { preHandler: requireAdmin('orders:read') },
+    { preHandler: requireAdmin('inventory:read') },
     async (request) => {
       const q = (request.query ?? {}) as Record<string, string | undefined>;
       const where: Record<string, unknown> = {};

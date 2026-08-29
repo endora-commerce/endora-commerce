@@ -97,6 +97,10 @@ const coreBundle = passthroughBundle('core', [
   'appShell.nav.paymentMethods',
   'appShell.nav.deliveryMethods',
   'appShell.nav.taxes',
+  'appShell.section.inventory',
+  'appShell.nav.stockOverview',
+  'appShell.nav.warehouses',
+  'appShell.nav.importStock',
 ]);
 
 const { AppShell } = await import('../../src/components/AppShell');
@@ -247,6 +251,57 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
     expect(sidebarHrefs()).toContain('/taxes');
     // The read half alone opens the screen; the write half is what the screen's
     // own editing affordances are gated on, not its entry.
+  });
+
+  /**
+   * `inventory` took its own codes on 2026-08-29 — the largest of the set, 21
+   * routes, and the only one that borrowed **two** modules' codes on two halves
+   * of one surface. So there are two negatives here rather than one, and they
+   * are different roles: an orders reader, who could enumerate every warehouse
+   * and its address, and a catalogue editor, who could delete one.
+   *
+   * The read entries and the import entry are asserted separately because they
+   * moved to different codes: four to `inventory:read` and the importer to
+   * `inventory:write`, which is what its old `catalog:write` was for.
+   */
+  it('hides every inventory entry from an orders reader', async () => {
+    renderShell(['orders:read']);
+    const hrefs = sidebarHrefs();
+    expect(hrefs).not.toContain('/inventory');
+    expect(hrefs).not.toContain('/warehouses');
+    expect(hrefs).not.toContain('/inventory/low-stock');
+    expect(hrefs).not.toContain('/inventory/notifications');
+    expect(hrefs).not.toContain('/inventory/import');
+    expect(
+      (await openPaletteItems()).some((t) => t.includes('appShell.nav.stockOverview')),
+    ).toBe(false);
+  });
+
+  it('hides every inventory entry from a catalogue editor', () => {
+    renderShell(['catalog:read', 'catalog:write']);
+    const hrefs = sidebarHrefs();
+    expect(hrefs).not.toContain('/inventory');
+    expect(hrefs).not.toContain('/warehouses');
+    expect(hrefs).not.toContain('/inventory/import');
+  });
+
+  it('shows the inventory reads to a role holding inventory:read, and not the importer', async () => {
+    renderShell(['inventory:read']);
+    const hrefs = sidebarHrefs();
+    expect(hrefs).toContain('/inventory');
+    expect(hrefs).toContain('/warehouses');
+    expect(hrefs).toContain('/inventory/low-stock');
+    expect(hrefs).toContain('/inventory/notifications');
+    // The import screen is a write and says so.
+    expect(hrefs).not.toContain('/inventory/import');
+    expect(
+      (await openPaletteItems()).some((t) => t.includes('appShell.nav.stockOverview')),
+    ).toBe(true);
+  });
+
+  it('shows the importer to a role holding inventory:write', () => {
+    renderShell(['inventory:read', 'inventory:write']);
+    expect(sidebarHrefs()).toContain('/inventory/import');
   });
 
   it('leaves an ungated shell surface alone', async () => {

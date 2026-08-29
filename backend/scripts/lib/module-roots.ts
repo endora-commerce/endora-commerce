@@ -72,7 +72,7 @@
  * prefix that would be true of it. So on a tree with no module package, every
  * key this file produces is byte-for-byte the one produced before it existed.
  */
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
 import type { AdminSurfaceLayout } from './admin-surfaces.js';
@@ -123,7 +123,7 @@ export interface ModuleSourceRoot {
    * the directory holds several and attribution is read from the path.
    */
   readonly moduleId: string | null;
-  readonly origin: 'application' | 'workspace-package' | 'host-resident';
+  readonly origin: 'application' | 'workspace-package' | 'host-resident' | 'platform-resident';
 }
 
 export interface ModuleTreeLayout {
@@ -453,13 +453,100 @@ export function hostResidentModuleRoots(
   found: readonly ModuleSourceRoot[],
   manifestPaths: ReadonlyMap<string, string>,
 ): ModuleSourceRoot[] {
+  return residentModuleRoots(srcRoot, found, manifestPaths, 'host-resident');
+}
+
+/**
+ * Module roots inside the **platform package** (feature 080, D-160.11's second
+ * half).
+ *
+ * `_lifecycle` moved from `backend/src/lifecycle/` into
+ * `packages/platform/src/lifecycle/`, which is neither an application module
+ * root nor a module package: the platform declares `endora.type: "platform"`,
+ * so `declaredModuleId` answers `null` for it and the package half of the
+ * derivation never sees the module inside. Without this the one registered
+ * module living there produces no file for any module walk and the #215 floor
+ * refuses all sixteen of them — the correct failure, and not a useful one.
+ *
+ * **It cannot be derived from the index's `manifestPath` the way
+ * {@link hostResidentModuleRoots} is**, and that is a fact about the package
+ * rather than a shortcut taken here. A platform-resident module is imported by
+ * the generated index at the package's **built** file — the host publishes five
+ * subpaths and no more (D-160.7), and naming the source would evaluate the
+ * platform twice — so `manifestPath` resolves under `dist/`, which is where the
+ * module's i18n bundles are and is not where its sources are. Mapping one to
+ * the other would be a `dist`↔`src` convention written into a derivation
+ * (D-100), and the package's own emit layout is free to change it.
+ *
+ * So the module is found by the **same marker core discovery uses** — a
+ * directory holding a `manifest.ts` that declares a registered id — with the id
+ * read out of the manifest rather than off the directory name, because
+ * `_lifecycle` deliberately lives in `lifecycle/`: a directory named after a
+ * registered id makes its *parent* a module root, and `src/_lifecycle/` would
+ * make the whole platform source root one.
+ */
+export function platformResidentModuleRoots(
+  platformRoot: string | null,
+  found: readonly ModuleSourceRoot[],
+  registered: ReadonlySet<string>,
+): ModuleSourceRoot[] {
+  if (platformRoot === null) return [];
+  const roots: ModuleSourceRoot[] = [];
+  const visit = (dir: string): void => {
+    let entries: string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (PRUNED_DIRECTORIES.includes(entry)) continue;
+      const full = join(dir, entry);
+      let directory: boolean;
+      try {
+        directory = statSync(full).isDirectory();
+      } catch {
+        continue;
+      }
+      if (!directory) continue;
+      const moduleId = declaredManifestId(join(full, 'manifest.ts'));
+      if (moduleId !== null && registered.has(moduleId)) {
+        if (found.some((root) => isUnder(full, root.directory))) continue;
+        roots.push({ directory: full, moduleId, origin: 'platform-resident' });
+        continue;
+      }
+      visit(full);
+    }
+  };
+  visit(platformRoot);
+  return roots.sort((a, b) => a.directory.localeCompare(b.directory));
+}
+
+/** The id a lifecycle-shape `manifest.ts` declares about itself, or `null`. */
+function declaredManifestId(manifestPath: string): string | null {
+  if (!existsSync(manifestPath)) return null;
+  let source: string;
+  try {
+    source = readFileSync(manifestPath, 'utf8');
+  } catch {
+    return null;
+  }
+  return /defineModuleManifest\(\{[\s\S]*?\bid:\s*'([^']+)'/.exec(source)?.[1] ?? null;
+}
+
+function residentModuleRoots(
+  containingRoot: string,
+  found: readonly ModuleSourceRoot[],
+  manifestPaths: ReadonlyMap<string, string>,
+  origin: 'host-resident' | 'platform-resident',
+): ModuleSourceRoot[] {
   const roots: ModuleSourceRoot[] = [];
   for (const [moduleId, manifestPath] of manifestPaths) {
     const directory = dirname(resolve(manifestPath));
-    if (!isUnder(directory, srcRoot) || directory === srcRoot) continue;
+    if (!isUnder(directory, containingRoot) || directory === containingRoot) continue;
     if (found.some((root) => isUnder(directory, root.directory))) continue;
     if (found.some((root) => isUnder(root.directory, directory))) continue;
-    roots.push({ directory, moduleId, origin: 'host-resident' });
+    roots.push({ directory, moduleId, origin });
   }
   return roots.sort((a, b) => a.directory.localeCompare(b.directory));
 }
@@ -512,7 +599,8 @@ export async function resolveModuleLayout(
     modulePackageNames.set(member.name, declared);
   }
 
-  for (const root of hostResidentModuleRoots(srcRoot, moduleRoots, await loadManifestLocations(manifestIndexPath))) {
+  const manifestLocations = await loadManifestLocations(manifestIndexPath);
+  for (const root of hostResidentModuleRoots(srcRoot, moduleRoots, manifestLocations)) {
     moduleRoots.push(root);
   }
 
@@ -522,6 +610,10 @@ export async function resolveModuleLayout(
     .map((root) => root.directory);
   const platformRoot = platformSourceRootOf(members);
   const platformPackageName = platformPackageNameOf(members);
+  for (const root of platformResidentModuleRoots(platformRoot, moduleRoots, registered)) {
+    moduleRoots.push(root);
+  }
+
   // A workspace with no frontend answers `null` rather than throwing: every
   // fixture tree in `backend/test/helpers/` is one, and a throw here would take
   // out every check that resolves the layout for a reason that has nothing to
@@ -591,7 +683,7 @@ export async function resolveModuleLayout(
     sourceRoots: platformRoot === null ? [srcRoot, ...packageRoots] : [srcRoot, platformRoot, ...packageRoots],
     moduleWalkRoots: [
       ...moduleRoots
-        .filter((root) => root.origin === 'application' || root.origin === 'host-resident')
+        .filter((root) => root.origin !== 'workspace-package')
         .map((root) => root.directory),
       overlayRoot,
       ...packageRoots,
@@ -606,8 +698,30 @@ export async function resolveModuleLayout(
     adminSurfaces,
     hostResidentModules: new Map(
       moduleRoots
-        .filter((root) => root.origin === 'host-resident' && root.moduleId !== null)
-        .map((root) => [keyOf(root.directory), root.moduleId!] as const),
+        .filter(
+          (root) =>
+            (root.origin === 'host-resident' || root.origin === 'platform-resident') &&
+            root.moduleId !== null,
+        )
+        // Keyed relative to the source root the module sits in, which for both
+        // origins is the tail `moduleIdOf` compares against — it cuts at the
+        // **last** `/src/`, so `packages/platform/src/lifecycle/x.ts` and
+        // `backend/src/lifecycle/x.ts` both present as `lifecycle/x.ts`. That
+        // collision is the module, not an accident: `_lifecycle`'s host half
+        // (its manifest registry and the five `module:*` commands) stayed in
+        // `backend/src/lifecycle/` by D-160.11 and belongs to the same module.
+        .map(
+          (root) =>
+            [
+              relative(
+                root.origin === 'platform-resident' ? platformRoot! : srcRoot,
+                root.directory,
+              )
+                .split('\\')
+                .join('/'),
+              root.moduleId!,
+            ] as const,
+        ),
     ),
   };
 }

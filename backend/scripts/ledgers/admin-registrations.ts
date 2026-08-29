@@ -71,6 +71,11 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   dictionaries: { routes: 3, nav: 4 },
   google_analytics: { routes: 3, nav: 1 },
   import_export: { routes: 1, nav: 1 },
+  // Arrived with the InPost integration (!1103), which landed between this
+  // baseline being written and the check that reads it. Same shape as
+  // `dhl_parcel` above: a carrier settings route the host registers and no nav
+  // entry of its own, reached from the delivery-methods card.
+  inpost: { routes: 1, nav: 0 },
   inventory: { routes: 7, nav: 6 },
   invoices: { routes: 4, nav: 1 },
   ksef: { routes: 1, nav: 1 },

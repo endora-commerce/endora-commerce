@@ -205,7 +205,7 @@ export interface UngatedEntry {
  * reason has to say why that is *correct* rather than why nobody has fixed it.
  */
 export const TIMERS_WITHOUT_PRESENCE: Readonly<Record<string, string>> = {
-  'lifecycle/services/lock.ts:acquireLifecycleLock:setInterval':
+  'packages/platform/src/lifecycle/services/lock.ts:acquireLifecycleLock:setInterval':
     'The lease heartbeat belongs to an in-flight lifecycle command that already holds the ' +
     'lock, and it stops when that command releases it. `_lifecycle` is non-deactivatable, so ' +
     'there is no state in which the gate would close — and asking the subsystem that resolves ' +

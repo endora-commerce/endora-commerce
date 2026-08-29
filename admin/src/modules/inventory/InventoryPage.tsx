@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { PaginationFooter } from '@/components/PaginationFooter';
 import { usePageSizePreference } from '@/lib/use-page-size-preference';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 
 interface RosterResponse {
   items: StockLevelRow[];
@@ -37,6 +38,34 @@ interface KpiResponse {
  */
 export function InventoryPage(): ReactNode {
   const t = useTranslation('core');
+  /**
+   * The screen's own gate (2026-08-29), on the codes its routes now enforce.
+   *
+   * `inventory` used to borrow `orders:read` for every read and `catalog:write`
+   * for every write, so this page had no permission of its own to check and the
+   * sidebar entry beside it carried another module's code. Both moved together;
+   * hiding the screen rather than letting it 403 is the treatment the sidebar,
+   * the palette and the dashboard already apply to a denied destination, and
+   * `AppShell.tsx`'s `PALETTE_ITEMS` comment argues it at length. The module
+   * half is asked too, because the admin router carries no guard of its own: a
+   * module the platform is not running must contribute no surface at all
+   * (Constitution XVII item 5), and a permission gate alone leaves this screen
+   * rendering and answering 503. For this module that second axis is a real
+   * operator switch — `inventory.enabled` — and not only platform availability.
+   *
+   * `useSurfaceVisibility` is the predicate the sidebar, the palette and the
+   * dashboard already share, so the two axes are one expression rather than two
+   * that can drift.
+   */
+  const isVisible = useSurfaceVisibility();
+  const canRead = isVisible({ module: 'inventory', requiredPermission: 'inventory:read' });
+  /**
+   * The write half, which is new rather than moved: until this change there was
+   * no read-only role to have, because the import link went to a screen gated on
+   * `catalog:write` while this page was gated on `orders:read` — two codes
+   * nobody grants together on purpose.
+   */
+  const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
   const [searchParams] = useSearchParams();
   const [kpis, setKpis] = useState<InventoryLandingKpis | null>(null);
   const [rows, setRows] = useState<StockLevelRow[]>([]);
@@ -60,6 +89,12 @@ export function InventoryPage(): ReactNode {
   }, [query]);
 
   const refresh = useCallback(async (): Promise<void> => {
+    // A page that renders nothing has no reason to ask the API a question it
+    // will be refused.
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -84,7 +119,7 @@ export function InventoryPage(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedQuery, statusFilter, t]);
+  }, [canRead, page, pageSize, debouncedQuery, statusFilter, t]);
 
   useEffect(() => {
     void refresh();
@@ -99,6 +134,10 @@ export function InventoryPage(): ReactNode {
   // Filters are server-side now; rows arrive pre-filtered and pre-paginated.
   const filtered = rows;
 
+  if (!canRead) {
+    return <div className="b2b-page">{t('inventory.noPermission')}</div>;
+  }
+
   return (
     <div className="b2b-page b2b-page--wide">
       <div className="b2b-page-head">
@@ -110,13 +149,15 @@ export function InventoryPage(): ReactNode {
           </div>
         </div>
         <div className="b2b-page-head__actions">
-          <Link
-            to="/inventory/import"
-            className="b2b-btn b2b-btn--default b2b-btn--sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          >
-            <Upload size={13} /> {t('inventory.action.import')}
-          </Link>
+          {canWrite ? (
+            <Link
+              to="/inventory/import"
+              className="b2b-btn b2b-btn--default b2b-btn--sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Upload size={13} /> {t('inventory.action.import')}
+            </Link>
+          ) : null}
         </div>
       </div>
 

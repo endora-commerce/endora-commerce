@@ -352,6 +352,7 @@ export function registerModule(ctx: ModuleContext): void {
       buildService,
       requireAdmin,
       resolveImportMaxRows,
+      customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
     });
 
     await registerQuickOrderPreferenceRoutes(app, {

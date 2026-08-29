@@ -15,8 +15,15 @@ export const manifest = defineModuleManifest({
     'Storefront/admin language catalog and per-channel locale routing.',
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port the admin routes are gated by;
-  // `currencies` owns the `CurrencyService` this module's admin surface serves
-  // alongside languages. Feature 072 made both container resolutions.
+  // `currencies` owns `currencyReadPort`. Feature 072 made both container
+  // resolutions.
+  //
+  // The `currencies` edge narrowed on 2026-08-29 and did not go away: the four
+  // `/api/v1/admin/currencies*` routes this module served, and the
+  // `currencyAdminPort` behind them, moved to their owner. What still reaches
+  // across is `GET /api/v1/i18n/config`, which answers with both catalogues and
+  // both defaults in one public payload — composition rather than ownership,
+  // and one read rather than a write surface.
   dependencies: ['auth', 'currencies'],
   // Feature 074 (Constitution XVII), test C3 — platform primitive. The flag
   // used to rest on a two-hop walk of somebody else's `dependencies`

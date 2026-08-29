@@ -15,12 +15,23 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
+import { inpostAdminClient } from '@/modules/inpost/api/inpost-client';
 import { Section } from './Section';
+
+const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
 
 interface ShipmentRow {
   id: string;
   status: 'pending' | 'pending_manual' | 'success' | 'failure';
   externalReference: string | null;
+  /**
+   * The carrier envelope the adapter deposited on the attempt. Read here for
+   * one thing only: which carrier opened this row, so a per-carrier affordance
+   * (the InPost label below) can be offered on the attempt it belongs to rather
+   * than on whichever delivery-method code the order happens to carry.
+   */
+  providerDetails: Record<string, unknown> | null;
   failureReason: string | null;
   attemptNo: number;
   createdAt: string;
@@ -55,6 +66,14 @@ export function OrderShipmentsTab(props: {
   deliveryMethodCode: string;
 }): ReactNode {
   const t = useTranslation('core');
+  const tinpost = useTranslation('inpost');
+  /**
+   * Both axes at once, as `DeliveryMethodsPage` asks them: the operator's
+   * `inpost:manage` permission and `inpost`'s effective presence. A label
+   * button offered while the module is off is a 503 the operator cannot act on.
+   */
+  const isVisible = useSurfaceVisibility();
+  const showInpostLabel = isVisible({ module: 'inpost', requiredPermission: 'inpost:manage' });
   const [rows, setRows] = useState<ShipmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -131,6 +150,25 @@ export function OrderShipmentsTab(props: {
     anchor.download = filename;
     anchor.click();
   };
+
+  const downloadInpostLabel = useCallback(
+    async (shipmentId: string): Promise<void> => {
+      setActionError(null);
+      const res = await fetch(
+        `${API_BASE.replace(/\/+$/, '')}${inpostAdminClient.labelUrl(shipmentId)}`,
+        { credentials: 'include', headers: { Accept: 'application/pdf' } },
+      );
+      if (!res.ok) {
+        setActionError(tinpost('label.notReady'));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
+    [tinpost],
+  );
 
   const downloadLabel = useCallback(async () => {
     if (!latest) return;
@@ -230,6 +268,7 @@ export function OrderShipmentsTab(props: {
                   <TableHead>{t('orderDetail.shipments.columns.tracking')}</TableHead>
                   <TableHead>{t('orderDetail.shipments.columns.createdAt')}</TableHead>
                   <TableHead>{t('orderDetail.shipments.columns.failure')}</TableHead>
+                  {showInpostLabel ? <TableHead /> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -244,6 +283,20 @@ export function OrderShipmentsTab(props: {
                     <TableCell className="font-mono text-xs">{s.externalReference ?? '—'}</TableCell>
                     <TableCell>{formatDateTime(s.createdAt)}</TableCell>
                     <TableCell className="text-destructive">{s.failureReason ?? ''}</TableCell>
+                    {showInpostLabel ? (
+                      <TableCell>
+                        {s.providerDetails?.['provider'] === 'inpost' && s.status === 'success' ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() => void downloadInpostLabel(s.id)}
+                          >
+                            {tinpost('label.download')}
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>

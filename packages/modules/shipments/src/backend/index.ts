@@ -7,6 +7,7 @@ import type {
   OrderReadPort,
   OrderTransitionPort,
   ReceiveShipmentPort,
+  ShipmentReadPort,
   ShipmentStatus,
   ShipmentUsagePort,
   ShippingAdapterRegistryPort,
@@ -18,12 +19,14 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { ShipmentService } from './services/shipment-service.js';
 import { ShipmentUsageService } from './services/shipment-usage.service.js';
+import { ShipmentReadService } from './services/shipment-read.service.js';
 import { resolveShippingEmailRenderer } from './services/shipping-email-renderer.js';
 import { ReceiveShipmentHandler } from './services/receive-shipment-handler.js';
 import type { ShippingEventBus } from './services/events.js';
 import { registerShipmentsRoutes } from './routes.js';
 import { ShipmentEmailNotifier } from './services/shipment-email-notifier.js';
 import type { ShipmentEmailNotifierDeps } from './services/shipment-email-notifier.js';
+import { AutoShipmentOnPaidNotifier } from './services/auto-shipment-on-paid.js';
 import { SHIPMENT_CREATED_DEFAULT } from './email-templates/transactional-defaults.js';
 import { Shipment } from './entities/shipment.entity.js';
 
@@ -71,6 +74,7 @@ export interface ShipmentsCradle {
   /** Contribution point: absent means a shipment-created e-mail is not sent. */
   readonly shipmentEmailSender: ShipmentEmailNotifierDeps['getTransactionalEmailSender'];
   readonly shipmentEmailNotifier: ShipmentEmailNotifier;
+  readonly autoShipmentOnPaid: AutoShipmentOnPaidNotifier;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -96,6 +100,19 @@ export function registerModule(ctx: ModuleContext): void {
             getTransactionalEmailSender: () =>
               ctx.cradle<ShipmentsCradle>().shipmentEmailSender(),
           }),
+      )
+      .singleton(),
+
+    autoShipmentOnPaid: ctx
+      .asFunction(
+        ({ emFactory }: ShipmentsCradle) =>
+          new AutoShipmentOnPaidNotifier(
+            emFactory,
+            lazyPort<ShippingAdapterRegistryPort>(ctx, 'shippingAdapterRegistry'),
+            lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            lazyPort<DeliveryMethodReadPort>(ctx, 'deliveryMethodReadPort'),
+            lazyPort<ShipmentService>(ctx, 'shipmentService'),
+          ),
       )
       .singleton(),
   });
@@ -136,6 +153,22 @@ export function registerModule(ctx: ModuleContext): void {
     'shipmentUsagePort',
     ctx
       .asFunction(({ emFactory }: ShipmentsCradle) => new ShipmentUsageService(emFactory))
+      .singleton(),
+  );
+
+  /**
+   * Feature 068 — "what state is this shipment in?", asked by a carrier module.
+   *
+   * `inpost` loaded this module's `Shipment` entity for it: once to correlate an
+   * inbound ShipX webhook that names only the carrier's own id, and once for the
+   * admin label route. Both are reads of a row the caller does not write, so
+   * they are a port rather than an apply seam, and both are on this module's own
+   * `EntityManager`.
+   */
+  ctx.di.providePort<ShipmentReadPort>(
+    'shipmentReadPort',
+    ctx
+      .asFunction(({ emFactory }: ShipmentsCradle) => new ShipmentReadService(emFactory))
       .singleton(),
   );
 
@@ -196,6 +229,11 @@ export function registerModule(ctx: ModuleContext): void {
     // on it: a shipment no carrier was asked for sends no "your order has
     // shipped" (issue #250).
     await ctx.cradle<ShipmentsCradle>().shipmentEmailNotifier.notify(orderId, shipmentId, status);
+  });
+
+  ctx.subscribe('payment.received.v1', async (payload) => {
+    const { orderId } = payload as unknown as { orderId: string };
+    await ctx.cradle<ShipmentsCradle>().autoShipmentOnPaid.maybeCreate(orderId);
   });
 
   ctx.routes(async (app) => {

@@ -4,6 +4,7 @@ import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 import { normalize } from '@/lib/text-normalization';
 
 interface NotificationRow {
@@ -33,6 +34,12 @@ interface ListResponse {
  */
 export function AvailabilityNotificationsPage(): ReactNode {
   const t = useTranslation('core');
+  // The screen's own gate (2026-08-29) — see `InventoryPage` for the reasoning
+  // in full. The cancel button is the write half: it was `catalog:write` while
+  // the list beside it was `orders:read`.
+  const isVisible = useSurfaceVisibility();
+  const canRead = isVisible({ module: 'inventory', requiredPermission: 'inventory:read' });
+  const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
   const [rows, setRows] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +49,10 @@ export function AvailabilityNotificationsPage(): ReactNode {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -57,7 +68,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, t]);
+  }, [canRead, statusFilter, t]);
 
   useEffect(() => {
     void refresh();
@@ -73,6 +84,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
         normalize(r.email).includes(q),
     );
   }, [rows, query]);
+
 
   const handleCancel = async (id: string): Promise<void> => {
     if (!window.confirm(t('inventory.availability.confirmCancel'))) {
@@ -94,6 +106,10 @@ export function AvailabilityNotificationsPage(): ReactNode {
       setBusyId(null);
     }
   };
+
+  if (!canRead) {
+    return <div className="b2b-page">{t('inventory.noPermission')}</div>;
+  }
 
   return (
     <div className="b2b-page b2b-page--wide">
@@ -214,7 +230,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
                       </span>
                     </td>
                     <td className="actions">
-                      {r.status === 'queued' ? (
+                      {canWrite && r.status === 'queued' ? (
                         <button
                           type="button"
                           className="b2b-btn b2b-btn--ghost b2b-btn--sm"

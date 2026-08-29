@@ -63,10 +63,13 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     actionId: 'open-inventory',
     targetRoute: '/inventory',
     icon: 'Boxes',
-    // `orders:read` since issue #232: the stock overview's own route is
-    // `requireAdmin('orders:read')`, and the `catalog:write` this row used to
-    // pin hid the screen from operators who can open it.
-    requiredPermission: 'orders:read',
+    // `inventory:read` since 2026-08-29, when the module took its own codes:
+    // the stock overview's own route is `requireAdmin('inventory:read')`.
+    // This row has now been corrected twice and both reasons are worth keeping.
+    // Issue #232 replaced a `catalog:write` that hid the screen from operators
+    // who can open it with `orders:read`, the code the route then enforced —
+    // correct against the route, and the route's own code was the defect.
+    requiredPermission: 'inventory:read',
     weight: 230,
     labelKey: 'actions.openInventory.label',
   },

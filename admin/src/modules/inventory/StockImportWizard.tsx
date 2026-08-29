@@ -4,6 +4,7 @@ import { ArrowLeft, Upload } from 'lucide-react';
 import type { Warehouse } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 import { warehousesClient } from '../warehouses/api/warehouses-client';
 
 interface ImportError {
@@ -33,6 +34,14 @@ interface ImportResponse {
  */
 export function StockImportWizard(): ReactNode {
   const t = useTranslation('core');
+  /**
+   * The screen's own gate (2026-08-29) — see `InventoryPage` for the reasoning
+   * in full. This one asks for the **write** code, not the read: the whole
+   * screen is a write, and its sidebar entry has always carried a write code
+   * (`catalog:write` until this change).
+   */
+  const isVisible = useSurfaceVisibility();
+  const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState<string>('');
   const [csv, setCsv] = useState<string>('');
@@ -43,6 +52,7 @@ export function StockImportWizard(): ReactNode {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (!canWrite) return;
     try {
       const res = await warehousesClient.list({ activeOnly: true, withTotals: false, pageSize: 200 });
       setWarehouses(res.items);
@@ -50,7 +60,7 @@ export function StockImportWizard(): ReactNode {
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('inventory.import.error.loadWarehouses'));
     }
-  }, [warehouseId, t]);
+  }, [canWrite, warehouseId, t]);
 
   useEffect(() => {
     void refresh();
@@ -92,6 +102,10 @@ export function StockImportWizard(): ReactNode {
   };
 
   const exampleCsv = `sku,onHand\nDEMO-001,42\nDEMO-002,0\n`;
+
+  if (!canWrite) {
+    return <div className="b2b-page">{t('inventory.noPermission')}</div>;
+  }
 
   return (
     <div className="b2b-page">

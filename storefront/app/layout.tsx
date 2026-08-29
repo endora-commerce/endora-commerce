@@ -15,6 +15,7 @@ import { CheckoutHeader } from '../components/checkout/CheckoutHeader';
 import { HeaderSwitch } from '../components/HeaderSwitch';
 import { getActiveMegamenu } from '../lib/api/megamenu';
 import { getServerContext } from '../lib/server-context';
+import { StorefrontDocument } from '../lib/theme/StorefrontDocument';
 import { fetchDictionary } from '../lib/dictionary/client';
 import { DictionaryProvider } from '../lib/dictionary/DictionaryProvider';
 import { getCartItemCount } from '../lib/api/cart';
@@ -73,7 +74,7 @@ export default async function RootLayout({
 }: {
   children: ReactNode;
 }): Promise<ReactNode> {
-  const { config, locale, currency, ctx } = await getServerContext();
+  const { config, locale, currency, ctx, theme } = await getServerContext();
   const t = tForLocale(locale);
   // Handed to the <MobileTabBar> client component, which fetches the mini-cart
   // from the browser, so it must be the public, build-time-baked
@@ -127,97 +128,94 @@ export default async function RootLayout({
     getGoogleTagManagerConfig(ctx),
   ]);
   return (
-    <html lang={locale}>
-      {/* suppressHydrationWarning: browser extensions (Grammarly, password
-          managers, etc.) inject attributes onto <body> before React hydrates
-          — e.g. data-gr-ext-installed. This suppresses the warning for the
-          <body> element's own attributes only (not its descendants), so real
-          mismatches inside the tree are still reported. */}
-      <body suppressHydrationWarning>
-        <DictionaryProvider
-          initialDictionary={dictionary}
-          locale={locale}
-          channel={ctx.salesChannelCode}
-        >
-          <div className="flex min-h-screen flex-col bg-bg">
-            <HeaderSwitch
-              minimal={<CheckoutHeader />}
-              full={
-                <>
-                  <Hook code="header.top" />
-                  <Header
-                    config={config}
-                    locale={locale}
-                    {...(currency !== undefined ? { currency } : {})}
-                    cartItemCount={cartItemCount}
-                    megamenu={megamenu}
-                    user={me}
-                    {...(ctx.salesChannelCode !== undefined
-                      ? { salesChannelCode: ctx.salesChannelCode }
-                      : {})}
-                  />
-                  <Hook code="header.bottom" />
-                </>
-              }
-            />
-            <main className="flex-1">
-              {/* Feature 037 — post-login cart-merge confirmation. The
-                  component reads-and-clears its own flash cookie, so it
-                  renders to `null` on every page except the one that
-                  immediately follows a successful merge. */}
-              <CartMergeToast />
-              {/* Feature 046 — PWA install prompt + push opt-in. Both render to
-                  null unless supported and enabled (graceful degradation). */}
-              <InstallPrompt />
-              <PushOptIn />
-              <Hook code="page.top" />
-              <RouteTransition>{children}</RouteTransition>
-              <Hook code="page.bottom" />
-            </main>
-            {/* Footer is shown on every route, including checkout (the buyer
-                still needs the legal/support links). */}
-            <Hook code="footer.before" />
-            <Footer
-              top={<Hook code="footer.top" />}
-              bottom={<Hook code="footer.bottom" />}
-              copyright={<Hook code="footer.copyright" />}
-            />
-            <Hook code="footer.after" />
-            {/* Feature 044 / US1 — fixed bottom tab bar (md:hidden). Renders on
-                every route; the body reserves its height on the mobile band so
-                it never covers content (globals.css). */}
-            <MobileTabBar
-              cartItemCount={cartItemCount}
-              apiBase={apiBaseUrl}
-              labels={{
-                home: t('nav.home'),
-                quoteRequest: t('nav.quoteRequest'),
-                quickOrder: t('nav.quickOrder'),
-                cart: t('nav.cart'),
-                account: t('nav.account'),
-              }}
-            />
-          </div>
-        </DictionaryProvider>
-        <PwaRegister />
-        <SpeculationRules enabled={speculation.enabled} eagerness={speculation.eagerness} />
-        {/* Feature 049 — Google Analytics 4. Renders nothing for untracked
-            channels; page views are emitted per navigation by the provider. */}
-        <GoogleAnalytics config={gaConfig} />
-        <AnalyticsProvider config={gaConfig} />
-        <LinkedInInsightTag config={linkedInConfig} />
-        <MetaPixel config={metaConfig} />
-        {/* Feature 066 — the operator's GTM container plus the client-side
-            bootstrap for the platform's own dataLayer vocabulary. */}
-        <GoogleTagManager config={gtmConfig} />
-        <GtmProvider config={gtmConfig} />
-        {/* The prompt is owed whenever any enabled integration on the channel
-            requires consent — not only Google Analytics (FR-015). */}
-        <ConsentBanner
-          platforms={[gaConfig, linkedInConfig, metaConfig, gtmConfig]}
-          message={<CookieConsentMessage ctx={ctx} />}
-        />
-      </body>
-    </html>
+    // <html lang> + <html data-theme>. Both are server-stamped: the locale for
+    // crawlers, the theme because the channel's token set has to be in the
+    // first byte of HTML or the buyer sees the reference brand and then the
+    // channel's (feature 005-sales-channels).
+    <StorefrontDocument lang={locale} theme={theme}>
+      <DictionaryProvider
+        initialDictionary={dictionary}
+        locale={locale}
+        channel={ctx.salesChannelCode}
+      >
+        <div className="flex min-h-screen flex-col bg-bg">
+          <HeaderSwitch
+            minimal={<CheckoutHeader />}
+            full={
+              <>
+                <Hook code="header.top" />
+                <Header
+                  config={config}
+                  locale={locale}
+                  {...(currency !== undefined ? { currency } : {})}
+                  cartItemCount={cartItemCount}
+                  megamenu={megamenu}
+                  user={me}
+                  {...(ctx.salesChannelCode !== undefined
+                    ? { salesChannelCode: ctx.salesChannelCode }
+                    : {})}
+                />
+                <Hook code="header.bottom" />
+              </>
+            }
+          />
+          <main className="flex-1">
+            {/* Feature 037 — post-login cart-merge confirmation. The
+                component reads-and-clears its own flash cookie, so it
+                renders to `null` on every page except the one that
+                immediately follows a successful merge. */}
+            <CartMergeToast />
+            {/* Feature 046 — PWA install prompt + push opt-in. Both render to
+                null unless supported and enabled (graceful degradation). */}
+            <InstallPrompt />
+            <PushOptIn />
+            <Hook code="page.top" />
+            <RouteTransition>{children}</RouteTransition>
+            <Hook code="page.bottom" />
+          </main>
+          {/* Footer is shown on every route, including checkout (the buyer
+              still needs the legal/support links). */}
+          <Hook code="footer.before" />
+          <Footer
+            top={<Hook code="footer.top" />}
+            bottom={<Hook code="footer.bottom" />}
+            copyright={<Hook code="footer.copyright" />}
+          />
+          <Hook code="footer.after" />
+          {/* Feature 044 / US1 — fixed bottom tab bar (md:hidden). Renders on
+              every route; the body reserves its height on the mobile band so
+              it never covers content (globals.css). */}
+          <MobileTabBar
+            cartItemCount={cartItemCount}
+            apiBase={apiBaseUrl}
+            labels={{
+              home: t('nav.home'),
+              quoteRequest: t('nav.quoteRequest'),
+              quickOrder: t('nav.quickOrder'),
+              cart: t('nav.cart'),
+              account: t('nav.account'),
+            }}
+          />
+        </div>
+      </DictionaryProvider>
+      <PwaRegister />
+      <SpeculationRules enabled={speculation.enabled} eagerness={speculation.eagerness} />
+      {/* Feature 049 — Google Analytics 4. Renders nothing for untracked
+          channels; page views are emitted per navigation by the provider. */}
+      <GoogleAnalytics config={gaConfig} />
+      <AnalyticsProvider config={gaConfig} />
+      <LinkedInInsightTag config={linkedInConfig} />
+      <MetaPixel config={metaConfig} />
+      {/* Feature 066 — the operator's GTM container plus the client-side
+          bootstrap for the platform's own dataLayer vocabulary. */}
+      <GoogleTagManager config={gtmConfig} />
+      <GtmProvider config={gtmConfig} />
+      {/* The prompt is owed whenever any enabled integration on the channel
+          requires consent — not only Google Analytics (FR-015). */}
+      <ConsentBanner
+        platforms={[gaConfig, linkedInConfig, metaConfig, gtmConfig]}
+        message={<CookieConsentMessage ctx={ctx} />}
+      />
+    </StorefrontDocument>
   );
 }

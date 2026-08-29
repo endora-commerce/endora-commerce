@@ -27,6 +27,7 @@ import {
   StripeInlinePaymentMethods,
   type StripeInlinePrepareResult,
 } from '../../../components/checkout/StripeInlinePaymentMethods';
+import { CheckoutForm } from '../../../components/checkout/CheckoutForm';
 import { listCountries } from '../../../lib/api/dictionary';
 import { placeOrder, previewOrderTotal } from '../../../lib/api/orders';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
@@ -46,6 +47,10 @@ import { OrganizationModerationBanner } from '../../../components/OrganizationMo
 import { StorefrontApiError } from '../../../lib/api/client';
 import { getMe } from '../../../lib/api/account';
 import { BeginCheckoutTracker } from '../../../components/analytics/EcommerceTrackers';
+import {
+  shippingAdapterDataFromFormData,
+  ensureInpostTargetPointOnFormData,
+} from '../../../lib/shipping-renderers/inpost-geowidget';
 
 /**
  * Checkout (T157 / FR-046, FR-049). One page, four sections — pick a
@@ -317,7 +322,7 @@ export default async function CheckoutPage({
       />
       {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
 
-      <form action={submitAction} className="b2b-auth__form">
+      <CheckoutForm action={submitAction} className="b2b-auth__form" locale={locale}>
         <AddressSection
           deliveryAddresses={deliveryAddrs}
           billingAddresses={billingAddrs}
@@ -449,7 +454,7 @@ export default async function CheckoutPage({
             title={blockTitle(placeOrderBlockReason, tr, me?.organization?.moderationMessage ?? null)}
           />
         </div>
-      </form>
+      </CheckoutForm>
     </div>
   );
 }
@@ -503,6 +508,9 @@ async function buildPlaceOrderPayload(
   const deliveryPointLabel = field('deliveryPointLabel');
   const deliveryPointAddress = field('deliveryPointAddress');
   const selectedDeliveryMethodId = (formData.get('deliveryMethodId') as string) ?? '';
+  // Feature 068 — InPost locker (and future adapters) via shippingAdapterData.
+  ensureInpostTargetPointOnFormData(formData);
+  const shippingAdapterData = shippingAdapterDataFromFormData(formData);
   return {
     deliveryAddressId,
     billingAddressId,
@@ -525,6 +533,7 @@ async function buildPlaceOrderPayload(
           },
         }
       : {}),
+    ...(shippingAdapterData ? { shippingAdapterData } : {}),
   };
 }
 

@@ -124,6 +124,7 @@ import { PayuSettingsPage } from './modules/payu/PayuSettingsPage.js';
 import { AutopaySettingsPage } from './modules/autopay/AutopaySettingsPage.js';
 import { PaypalSettingsPage } from './modules/paypal/PaypalSettingsPage.js';
 import { DhlParcelSettingsPage } from './modules/dhl_parcel/DhlParcelSettingsPage.js';
+import { InpostSettingsPage } from './modules/inpost/InpostSettingsPage.js';
 import { CredentialsPage } from './modules/credentials/pages/CredentialsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { LowStockPage } from './modules/inventory/LowStockPage.js';
@@ -296,6 +297,7 @@ export function App(): ReactNode {
         <Route path="/settings/payu" element={<PayuSettingsPage />} />
         <Route path="/settings/autopay" element={<AutopaySettingsPage />} />
         <Route path="/settings/paypal" element={<PaypalSettingsPage />} />
+        <Route path="/settings/inpost" element={<InpostSettingsPage />} />
         <Route path="/credentials" element={<CredentialsPage />} />
         <Route path="/credentials/new" element={<CredentialsPage initialMode="new" />} />
         <Route path="/inventory" element={<InventoryPage />} />

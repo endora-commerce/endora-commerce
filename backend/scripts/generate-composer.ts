@@ -199,23 +199,81 @@ interface HostResidentModule {
   readonly id: string;
   readonly directory: string;
   readonly manifestPath: string;
+  /**
+   * How a generated artefact at the source root names a file in this module's
+   * directory — `./lifecycle/manifest.js` for a module the application's own
+   * tree holds, `../../packages/platform/dist/lifecycle/manifest.js` for one
+   * inside the platform package. See {@link residentModules}.
+   */
+  readonly specifierFor: (absolutePath: string) => string;
 }
 
 const MANIFEST_ID_RE = /defineModuleManifest\(\{[\s\S]*?\bid:\s*'([^']+)'/;
 
-function hostResidentModules(): HostResidentModule[] {
+/**
+ * Every module whose sources are neither a modules root's nor a module
+ * package's — the application's own, and the platform's.
+ *
+ * The application half is `srcRoot`'s immediate children; there are none today,
+ * and there were for the two commits between !1095 and D-160.11's second half.
+ * The platform half is `packages/platform/src`'s, and there is one: `_lifecycle`
+ * merged into the host package, which is what D-160.11 rules. Both are found by
+ * the **same marker** core discovery uses one level down — a lifecycle-shape
+ * `manifest.ts` — and the **id comes out of the manifest**, never off the
+ * directory name: `_lifecycle` lives in `lifecycle/` precisely because the two
+ * must differ, since `scripts/lib/module-roots.ts` reads a directory *named*
+ * after a registered id as a module directory and a `src/_lifecycle/` would make
+ * the whole source root one.
+ *
+ * **The platform half's specifier names the package's `dist`, not its `src`.**
+ * The host publishes five subpaths and no more (D-160.7), so there is no bare
+ * specifier that reaches inside it, and naming the *source* would evaluate the
+ * platform a second time — 59 runtime values, none shared, `instanceof
+ * HttpError` false across the boundary (host-package.md §3.5), which is exactly
+ * what `check:singleton-identity` refuses. So it names the built file, as the
+ * re-export shims in `backend/src/{kernel,http,tenancy,commands,events}` and
+ * `backend/src/lifecycle/` already do. `src` and `dist` sit at the same depth
+ * under `backend/`, so the emitted specifier is correct from `backend/src` under
+ * `tsx` and from `backend/dist` in production without being rewritten.
+ */
+function residentModules(): HostResidentModule[] {
   const found: HostResidentModule[] = [];
-  for (const name of directoriesIn(srcRoot)) {
-    const directory = join(srcRoot, name);
-    if (directory === modulesRoot) continue;
-    const manifestPath = join(directory, 'manifest.ts');
-    if (!existsSync(manifestPath)) continue;
-    const source = readFileSync(manifestPath, 'utf8');
-    const id = MANIFEST_ID_RE.exec(source)?.[1];
-    if (id === undefined) continue;
-    found.push({ id, directory, manifestPath });
-  }
+  const collect = (
+    root: string,
+    specifierFor: (absolutePath: string) => string,
+  ): void => {
+    for (const name of directoriesIn(root)) {
+      const directory = join(root, name);
+      if (directory === modulesRoot) continue;
+      const manifestPath = join(directory, 'manifest.ts');
+      if (!existsSync(manifestPath)) continue;
+      const source = readFileSync(manifestPath, 'utf8');
+      const id = MANIFEST_ID_RE.exec(source)?.[1];
+      if (id === undefined) continue;
+      found.push({ id, directory, manifestPath, specifierFor });
+    }
+  };
+  collect(srcRoot, srcSpecifier);
+  const platformRoot = platformSourceRootAt(repoRoot);
+  if (platformRoot !== null) collect(platformRoot, platformDistSpecifier(platformRoot));
   return found;
+}
+
+/**
+ * `<platform>/src/lifecycle/manifest.ts` -> `../../packages/platform/dist/lifecycle/manifest.js`,
+ * relative to the directory the generated artefacts sit in.
+ */
+function platformDistSpecifier(platformRoot: string): (absolutePath: string) => string {
+  const distRoot = join(dirname(platformRoot), 'dist');
+  return (absolutePath: string): string => {
+    const within = relative(platformRoot, absolutePath).split('\\').join('/');
+    const target = join(distRoot, within);
+    const specifier = relative(dirname(manifestIndexOutputPath), target)
+      .split('\\')
+      .join('/')
+      .replace(/\.ts$/, '.js');
+    return specifier.startsWith('.') ? specifier : `./${specifier}`;
+  };
 }
 
 /** How the emitted index, which sits at the source root, names a file under it. */
@@ -265,16 +323,15 @@ function discoverConverted(packages: readonly ModulePackage[] = modulePackages()
       manifestImportPath: `./modules/${id}/manifest.js`,
     });
   }
-  for (const host of hostResidentModules()) {
+  for (const host of residentModules()) {
     const backend = join(host.directory, 'backend.ts');
     if (!existsSync(backend)) continue;
     exposesRegisterModule(backend);
-    const dir = relative(srcRoot, host.directory).split('\\').join('/');
     byId.set(host.id, {
       id: host.id,
       manifestPath: host.manifestPath,
-      backendImportPath: `./${dir}/backend.js`,
-      manifestImportPath: `./${dir}/manifest.js`,
+      backendImportPath: host.specifierFor(backend),
+      manifestImportPath: host.specifierFor(host.manifestPath),
     });
   }
   for (const pkg of packages) {
@@ -432,7 +489,7 @@ async function discoverPresentModules(
     }
     byId.set(id, await loadManifest(manifestPath));
   }
-  for (const host of hostResidentModules()) {
+  for (const host of residentModules()) {
     byId.set(host.id, await loadManifest(host.manifestPath));
   }
   for (const pkg of packages) {
@@ -675,10 +732,14 @@ function discoverManifests(
     if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(source)) continue;
     byId.set(id, entryFrom(id, source, srcSpecifier(manifestPath)));
   }
-  for (const host of hostResidentModules()) {
+  for (const host of residentModules()) {
     byId.set(
       host.id,
-      entryFrom(host.id, readFileSync(host.manifestPath, 'utf8'), srcSpecifier(host.manifestPath)),
+      entryFrom(
+        host.id,
+        readFileSync(host.manifestPath, 'utf8'),
+        host.specifierFor(host.manifestPath),
+      ),
     );
   }
   // A packaged module's manifest is imported by the **bare** specifier its own

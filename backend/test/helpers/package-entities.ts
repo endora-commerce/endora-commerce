@@ -21,6 +21,7 @@ import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment
 import { entities as promotionsEntities } from '@endora-commerce/mod-promotions/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
 import { entities as shipmentsEntities } from '@endora-commerce/mod-shipments/backend';
+import { entities as inpostEntities } from '@endora-commerce/mod-inpost/backend';
 import { entities as comparisonsEntities } from '@endora-commerce/mod-comparisons/backend';
 import { entities as credentialsEntities } from '@endora-commerce/mod-credentials/backend';
 import { entities as dictionariesEntities } from '@endora-commerce/mod-dictionaries/backend';
@@ -67,6 +68,8 @@ import type { Promotion as PromotionRow } from '../../../packages/modules/promot
 import type { QuoteRequest as QuoteRequestRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request.entity.js';
 import type { QuoteRequestItem as QuoteRequestItemRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-item.entity.js';
 import type { QuoteRequestRevision as QuoteRequestRevisionRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-revision.entity.js';
+import type { InpostWebhookEvent as InpostWebhookEventRow } from '../../../packages/modules/inpost/src/backend/entities/inpost-webhook-event.entity.js';
+import type { InpostShipmentLink as InpostShipmentLinkRow } from '../../../packages/modules/inpost/src/backend/entities/inpost-shipment-link.entity.js';
 import type { Shipment as ShipmentRow } from '../../../packages/modules/shipments/src/backend/entities/shipment.entity.js';
 import type { AdminNotification as AdminNotificationRow } from '../../../packages/modules/admin_notifications/src/backend/entities/admin-notification.entity.js';
 import type { ApiKey as ApiKeyRow } from '../../../packages/modules/api_keys/src/backend/entities/api-key.entity.js';
@@ -297,6 +300,14 @@ export const TranslationBundle = classNamed<TranslationBundleRow>(
 export const AnalyticsEvent = classNamed<AnalyticsEventRow>(analyticsEntities, 'AnalyticsEvent');
 
 export const Shipment = classNamed<ShipmentRow>(shipmentsEntities, 'Shipment');
+export const InpostWebhookEvent = classNamed<InpostWebhookEventRow>(
+  inpostEntities,
+  'InpostWebhookEvent',
+);
+export const InpostShipmentLink = classNamed<InpostShipmentLinkRow>(
+  inpostEntities,
+  'InpostShipmentLink',
+);
 
 export const PaymentMethod = classNamed<PaymentMethodRow>(paymentMethodsEntities, 'PaymentMethod');
 
@@ -799,3 +810,6 @@ export type OrderComment = OrderCommentRow;
 export type OrderAppliedPromotion = OrderAppliedPromotionRow;
 export type OrderPlacementIntent = OrderPlacementIntentRow;
 export type Payment = PaymentRow;
+export type InpostWebhookEvent = InpostWebhookEventRow;
+export type InpostShipmentLink = InpostShipmentLinkRow;
+export type Shipment = ShipmentRow;

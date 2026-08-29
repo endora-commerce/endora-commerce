@@ -318,9 +318,15 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
     // costs the walk nothing, and this is the assertion that says so.
     expect(has('/admin_users/cli/create-admin.ts')).toBe(true);
     expect(has('/product_feeds/seeds/predefined-templates.ts')).toBe(true);
-    // The five `module:*` platform commands stay hand-built scripts, and stay
-    // in the population (D-157.2/.4 — a platform command must not compose).
-    expect(has('/_lifecycle/scripts/install.ts')).toBe(true);
+    // The five `module:*` platform commands stay hand-built scripts (D-157.2/.4
+    // — a platform command must not compose), and they left this population
+    // with D-160.11's second half: `_lifecycle` merged into the host package and
+    // its host half — the manifest registry and those five scripts — stayed
+    // behind at `backend/src/lifecycle/`, which is host code like `src/db` and
+    // `src/overlay` and is in no module walk. What *is* in the population is the
+    // module's own sources, now inside the platform package.
+    expect(has('/_lifecycle/scripts/install.ts')).toBe(false);
+    expect(has('/_lifecycle/services/orchestrator.ts')).toBe(true);
   });
 
   it('still excludes migrations, tests, declarations and the audit writer', () => {

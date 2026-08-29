@@ -33,6 +33,28 @@ vi.mock('@/lib/api-client', async () => {
   };
 });
 
+/**
+ * The tab asks `useSurfaceVisibility` for the InPost label column (feature 068),
+ * so the two hooks behind that predicate are stubbed here — `hasPermission` to
+ * `false`, which is what keeps this file measuring #250's state and nothing
+ * else. `DeliveryMethodsPage.permission-gating.test.tsx` is where the predicate
+ * itself is exercised.
+ */
+vi.mock('@/lib/auth', () => ({
+  useAuth: () => ({ hasPermission: () => false }),
+}));
+
+vi.mock('@/lib/module-presence', () => ({
+  useModulePresence: () => ({
+    modules: [],
+    isPresent: () => true,
+    presenceOf: () => undefined,
+    isLoading: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
+}));
+
 const { OrderShipmentsTab } = await import('../../../src/modules/orders/OrderShipmentsTab');
 
 const SHIPMENTS_PATH = '/api/v1/admin/orders/o1/shipments';

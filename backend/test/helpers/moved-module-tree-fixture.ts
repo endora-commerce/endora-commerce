@@ -65,6 +65,17 @@ const RESIDUE_ROOTS: readonly string[] = [
   'events',
   'http',
   'kernel',
+  // Feature 080, D-160.11's second half. `_lifecycle`'s **host half** stayed
+  // here when the module merged into the platform package: its manifest
+  // registry, its reduced-deployment reader, the five `module:*` commands, and
+  // the re-export shims every consumer of a moved file still names. Three
+  // spawned checks import one of those files as code — `check-port-dependencies`
+  // takes the gating graph and the deactivation ledger, `check-action-route-permissions`
+  // takes `resolvedManifestEntries` — so a fixture without this root dies at
+  // module resolution and every proof under it fails for a reason that has
+  // nothing to do with a moved module tree. It is host code and not a module's:
+  // the module's own sources arrive with `copyPlatformPackage`.
+  'lifecycle',
   'overlay',
   // Feature 080, T031. `_lifecycle/registered-manifests.ts` — kept by
   // `KEPT_MODULE` — imports the package discovery, so a fixture without this
@@ -172,32 +183,37 @@ function routedModuleShippingABundle(): KeptBundle {
 }
 
 /**
- * The kept module's real directory, and where the fixture stages it.
+ * Where the real index says the kept module's manifest is, relative to the
+ * repository root — the address the stub reproduces inside the fixture.
  *
- * `_lifecycle` sits at `backend/src/lifecycle/` since feature 080's T040b —
- * D-160.11 keeps the lifecycle subsystem out of the package sweep, so it is the
- * one registered module whose sources the host owns — and the fixture stages it
- * at the same place relative to `src/`, along with the manifest index, which
- * became host-owned with it (D-160.3). Both are derived rather than spelled:
- * the ledgers the spawned checks compare against are keyed on where these files
- * are, so staging them at their pre-T040b addresses made five of those ledgers
- * read stale *inside the fixture* — five checks exiting 1 on a residue they
- * exist to refuse with 2, which is a red for the wrong reason.
+ * It moved twice and both moves broke this file, which is why it is derived.
+ * T040b put `_lifecycle` at `backend/src/lifecycle/`, and D-160.11's second
+ * half put it inside `@endora-commerce/platform` — where its manifest is
+ * imported at the package's **built** file, so this path names `dist`. That is
+ * not an accident of the fixture: the real generated index names it exactly
+ * that way, because the host publishes no subpath that reaches inside it, and
+ * `dirname(manifestPath)` is what every reader joins `bundlesDir` to.
+ *
+ * `copyPlatformPackage` stages `src` and `dist` whole, so both the module's
+ * sources and this address exist in the fixture without a copy of their own.
+ * The refusal below is the fixture's own #215: a kept module the fixture does
+ * not hold makes the walk produce files for *no* registered module, which is
+ * the state every proof in this file is trying to tell apart from a moved tree.
  */
-function keptModuleDirectory(): string {
+function keptModuleManifestPath(): string {
   const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === KEPT_MODULE);
-  const directory = entry === undefined ? null : dirname(entry.manifestPath);
-  if (directory === null || !directory.startsWith(join(BACKEND_ROOT, 'src') + sep)) {
+  const path = entry?.manifestPath ?? null;
+  if (path === null || !path.startsWith(REPO_ROOT + sep)) {
     throw new Error(
-      `[moved-module-tree-fixture] '${KEPT_MODULE}' is not in the application's own source ` +
-        'tree, so the fixture cannot copy the files its spawned checks import as code. ' +
-        'Point KEPT_MODULE at a module the application still holds.',
+      `[moved-module-tree-fixture] the generated index gives '${KEPT_MODULE}' no manifest ` +
+        'inside this checkout, so the fixture cannot stage the one module whose sources it ' +
+        'holds. Point KEPT_MODULE at a module this repository ships.',
     );
   }
-  return directory;
+  return path;
 }
 
-const KEPT_MODULE_RELATIVE_DIR = relative(join(BACKEND_ROOT, 'src'), keptModuleDirectory())
+const KEPT_MODULE_MANIFEST_RELATIVE = relative(REPO_ROOT, keptModuleManifestPath())
   .split(sep)
   .join('/');
 
@@ -331,7 +347,7 @@ function stubManifestIndex(ids: readonly string[], backendRoot: string): string 
   // unable to place them and every ledger keyed on where they are reading stale.
   const pathFor = (id: string): string =>
     (id === KEPT_MODULE
-      ? join(backendRoot, 'src', KEPT_MODULE_RELATIVE_DIR, 'manifest.ts')
+      ? join(backendRoot, '..', KEPT_MODULE_MANIFEST_RELATIVE)
       : join(backendRoot, 'src', 'modules', id, 'manifest.ts')
     )
       .split('\\')
@@ -472,19 +488,6 @@ export function createMovedModuleTreeFixture(
       recursive: true,
     });
   }
-  cpSync(
-    join(keptModuleDirectory(), 'services'),
-    join(backend, 'src', KEPT_MODULE_RELATIVE_DIR, 'services'),
-    { recursive: true },
-  );
-  cpSync(
-    join(keptModuleDirectory(), 'registered-manifests.ts'),
-    join(backend, 'src', KEPT_MODULE_RELATIVE_DIR, 'registered-manifests.ts'),
-  );
-  cpSync(
-    join(keptModuleDirectory(), 'manifest.ts'),
-    join(backend, 'src', KEPT_MODULE_RELATIVE_DIR, 'manifest.ts'),
-  );
   // Same reason as the two files above: a spawned check imports one of these as
   // *code*, so without it that spawn dies at module resolution and its proof
   // would pass for the wrong reason. They are single files of single modules, so
@@ -645,13 +648,15 @@ function splitManifestIndex(relocated: ReadonlySet<string>): string {
   // these specifiers is relative to wherever it sits.
   const indexDirectory = posix.join('backend', 'src');
   const specifierOf = (id: string): string => {
+    // The kept module is neither: it lives inside the platform package and its
+    // manifest is imported at that package's built file, exactly as the real
+    // index imports it (D-160.11). The address is the real one, rebased on the
+    // fixture root by being repository-relative already.
     const target = relocated.has(id)
       ? posix.join(packagedModulePath(id).split(sep).join('/'), 'src', 'manifest.js')
-      : posix.join(
-          indexDirectory,
-          id === KEPT_MODULE ? KEPT_MODULE_RELATIVE_DIR : posix.join('modules', id),
-          'manifest.js',
-        );
+      : id === KEPT_MODULE
+        ? KEPT_MODULE_MANIFEST_RELATIVE
+        : posix.join(indexDirectory, 'modules', id, 'manifest.js');
     const specifier = posix.relative(indexDirectory, target);
     return specifier.startsWith('.') ? specifier : `./${specifier}`;
   };

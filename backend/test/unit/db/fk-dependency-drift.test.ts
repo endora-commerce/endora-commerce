@@ -9,9 +9,11 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve, sep } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { discoverModulePackages } from '../../../scripts/lib/module-packages.js';
+import { platformResidentModuleRoots } from '../../../scripts/lib/module-roots.js';
+import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
 import {
   coreModuleRoot,
   deriveFkGraph,
@@ -67,20 +69,26 @@ const graph = deriveFkGraph(backendSrc, {
       origin: 'core' as const,
       moduleId: pkg.moduleId,
     })),
-    // The third root, and there is one module in it: `_lifecycle`, whose
-    // sources the host itself owns (D-160.11) and whose directory is therefore
-    // under neither of the two above. Read off the index's `manifestPath` — the
-    // field that answers "where is this module" for all three origins — so the
-    // refusal below keeps meaning "the walk lost a module" rather than "the
-    // layout changed".
-    ...DISCOVERED_MANIFESTS.flatMap((entry) => {
-      const directory = dirname(entry.manifestPath);
-      const inApplication = directory.startsWith(backendSrc + sep);
-      const inModulesRoot = directory.startsWith(join(backendSrc, 'modules') + sep);
-      return inApplication && !inModulesRoot
-        ? [{ directory, origin: 'core' as const, moduleId: entry.id }]
-        : [];
-    }),
+    // The third root, and there is one module in it: `_lifecycle`, which merged
+    // into the host package (D-160.11) and whose directory is therefore under
+    // neither of the two above.
+    //
+    // It cannot be read off the index's `manifestPath` the way the host-resident
+    // case was: a module inside the platform is imported at that package's
+    // **built** file, so `manifestPath` names `dist/` — which is where its i18n
+    // bundles are and is not where its entities would be. The layout's own
+    // derivation is used instead, which finds it by the same marker core
+    // discovery uses, so the refusal below keeps meaning "the walk lost a
+    // module" rather than "the layout changed".
+    ...platformResidentModuleRoots(
+      platformSourceRootAt(resolve(backendSrc, '../..')),
+      [],
+      new Set(DISCOVERED_MANIFESTS.map((entry) => entry.id)),
+    ).map((root) => ({
+      directory: root.directory,
+      origin: 'core' as const,
+      moduleId: root.moduleId!,
+    })),
   ],
 });
 

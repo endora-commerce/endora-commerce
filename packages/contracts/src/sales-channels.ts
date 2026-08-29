@@ -268,6 +268,62 @@ export const PublicSalesChannelSchema = z.object({
 });
 export type PublicSalesChannel = z.infer<typeof PublicSalesChannelSchema>;
 
+/** Response envelope of `GET /api/v1/storefront/sales-channel`. */
+export const PublicSalesChannelResponseSchema = z.object({
+  data: PublicSalesChannelSchema,
+});
+export type PublicSalesChannelResponse = z.infer<typeof PublicSalesChannelResponseSchema>;
+
+/**
+ * The storefront themes that actually exist.
+ *
+ * `theme_code` shipped on 2026-04-30 and, until this list existed, nothing
+ * read it: the admin rendered a free-text input because there was no list to
+ * render, and the storefront never picked the field up at all. A field an
+ * operator edits that changes nothing is worse than a missing field — so the
+ * catalogue is declared here, where both the admin (which offers it) and the
+ * reference storefront (which implements it) name the same values.
+ *
+ * **A code in this list is a token set in `storefront/app/globals.css`** — a
+ * `:root[data-theme='<code>']` block overriding the Tier-1 primitives that the
+ * `@theme inline` tier maps every Tailwind utility onto.
+ * `storefront/test/channel-theme.test.tsx` fails when a code here has no such
+ * block, so the list cannot come to offer a value nothing implements.
+ *
+ * **It is the *reference* storefront's catalogue, and that is a real limit.**
+ * A deployment that forks `storefront/` and ships its own token sets cannot
+ * extend this list without editing the platform, so its themes are unofferable
+ * in the admin today. That is a consequence of the storefront not being a
+ * package with an `exports` map — measured in
+ * `specs/storefront-composability-measure.md` — and it is recorded rather than
+ * worked around, because the workaround is the free-text input this list
+ * replaces.
+ *
+ * The **write** schemas above deliberately stay on the `themeCodeRe` regex
+ * rather than on this enum. `specs/005-sales-channels/data-model.md` ruled theme
+ * rendering "owned by the storefront app", and a fork owns its own codes; a
+ * backend that refused them would make the field unusable for exactly the
+ * deployments a fork exists for. The storefront is where an unknown code is
+ * answered — see `storefront/lib/theme/theme.ts`.
+ */
+export const STOREFRONT_THEME_CODES = ['industria', 'nordic'] as const;
+export const StorefrontThemeCodeSchema = z.enum(STOREFRONT_THEME_CODES);
+export type StorefrontThemeCode = (typeof STOREFRONT_THEME_CODES)[number];
+
+/**
+ * The token set a channel gets when it names no theme, and the one it falls
+ * back to when it names a theme this storefront does not implement.
+ */
+export const DEFAULT_STOREFRONT_THEME_CODE: StorefrontThemeCode = 'industria';
+
+/** Narrowing predicate over {@link STOREFRONT_THEME_CODES}. */
+export function isStorefrontThemeCode(value: unknown): value is StorefrontThemeCode {
+  return (
+    typeof value === 'string' &&
+    (STOREFRONT_THEME_CODES as readonly string[]).includes(value)
+  );
+}
+
 // ---------------------------------------------------------------------------
 // (6) Audit-action constants
 // ---------------------------------------------------------------------------

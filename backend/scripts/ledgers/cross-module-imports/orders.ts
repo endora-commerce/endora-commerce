@@ -95,6 +95,22 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'contributions object and nothing else ' +
     '(`specs/091-module-owned-admin-surfaces/contracts/admin-contribution.md` R2), so ' +
     'it cannot carry a client and a reach through it would still be counted here.',
+  'admin/src/modules/orders/OrderShipmentsTab.tsx:inpost/api/inpost-client':
+    'Admin surface reach: `orders/OrderShipmentsTab.tsx` imports `inpostAdminClient` ' +
+    'from `@/modules/inpost/api/inpost-client`, which `inpost` owns.\n\n' +
+    'The twin of the `dhl_parcel` entry above, and it arrived by a route worth ' +
+    'recording: the InPost integration landed in !1103 **after** this ledger was ' +
+    'written and **before** the instrument that reads it did. Neither merge request ' +
+    'could have seen the pair — one added a reach nothing yet measured, the other a ' +
+    'measure of reaches that did not yet include it. The check found it on the first ' +
+    'run after both, which is the ordering this ledger exists to survive rather than ' +
+    'a lapse by either author.\n\n' +
+    'Retired by: exactly what retires the `dhl_parcel` reach, and by the same exits — ' +
+    'the reach is the **client module**, not the HTTP call, and the request and ' +
+    'response shapes are already in `@endora-commerce/contracts`. Both carriers are ' +
+    'one shipment tab reaching two adapters, so the Phase 4 batch that moves this ' +
+    'consumer takes both or neither; a repair naming one is a repair that has not ' +
+    'understood the shape.',
   'admin/src/modules/orders/OrderStatusConfigPage.tsx:dictionaries/client':
     'Admin surface reach: `orders/OrderStatusConfigPage.tsx` imports `dictionaryClient` ' +
     'from `@/modules/dictionaries/client`, which `dictionaries` owns.\n\n' +

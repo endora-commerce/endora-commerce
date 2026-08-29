@@ -179,6 +179,16 @@ export interface OrderCreatedContext {
   deliveryMethodId: string;
   salesChannelId: string;
   organizationId: string | null;
+  /**
+   * Adapter-specific shipping envelope from place-order (feature 068).
+   * Passed from the in-transaction Order entity — adapters must NOT re-fetch
+   * the order on a separate EntityManager (uncommitted row is invisible).
+   */
+  shippingAdapterData?: Record<string, unknown> | null;
+  /** Delivery (or billing fallback) phone from the in-transaction order snapshot. */
+  deliveryPhone?: string | null;
+  /** Placing customer's email when available (locker ShipX requires it). */
+  customerEmail?: string | null;
 }
 
 /** `shipment_created` — fired after a pending Shipment row is opened. */
@@ -190,8 +200,18 @@ export interface ShipmentCreatedContext {
 }
 
 export type StartShipmentResult =
-  | { kind: 'pending' }
-  | { kind: 'generated'; trackingNumber?: string }
+  | {
+      kind: 'pending';
+      /** Carrier reference written onto the Shipment in the same create transaction. */
+      externalReference?: string | null;
+      providerDetails?: Record<string, unknown>;
+    }
+  | {
+      kind: 'generated';
+      trackingNumber?: string;
+      externalReference?: string | null;
+      providerDetails?: Record<string, unknown>;
+    }
   | { kind: 'none' };
 
 export interface ReceiveShipmentContext {
@@ -218,6 +238,13 @@ export interface ShippingAdapter {
   onShipmentCreated(ctx: ShipmentCreatedContext): Promise<StartShipmentResult>;
   /** `receive_shipment`; map the ingress to an outcome. */
   onReceiveShipment(ctx: ReceiveShipmentContext): Promise<ShipmentOutcome>;
+
+  /**
+   * When true, the platform may call `createShipment` after `payment.received.v1`.
+   * Optional — absent / false for built-in offline adapters. Carrier modules
+   * (InPost, future DHL, …) opt in via their own Settings flag.
+   */
+  shouldAutoCreateOnPaid?(): Promise<boolean>;
 
   /** Optional renderer keys; absent ⇒ the default fallback renderer is used. */
   readonly renderers?: { storefront?: string; admin?: string; email?: string };

@@ -140,6 +140,7 @@ import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
 import { lifecycleModuleFromStaticEntries } from './lifecycle/plugin.js';
 import { loadModulePresence } from './lifecycle/services/presence-load.js';
+import { loadReducedDeploymentDeclarations } from './lifecycle/services/reduced-deployment.js';
 import {
   deploymentShippedEntries,
   resolvedManifestEntries,
@@ -375,7 +376,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // what says which entry that is. Everything else it does — both D-101
     // refusals, the gating graph, the activation declarations, the cache itself
     // — still reads the whole resolved set.
-    () => loadModulePresence({ em, entries: resolvedRegistry }),
+    // `declaredOmissions` is this root's to supply since D-160.11: the platform
+    // may not read `src/overlay/`, and which deployment this process runs as is
+    // a fact about the process rather than about the tree.
+    async () =>
+      loadModulePresence({
+        em,
+        entries: resolvedRegistry,
+        declaredOmissions: (await loadReducedDeploymentDeclarations()).map(
+          (entry) => entry.moduleId,
+        ),
+      }),
     { entryPoint: 'boot' },
   );
 

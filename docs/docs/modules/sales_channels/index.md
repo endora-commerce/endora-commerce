@@ -32,6 +32,22 @@ If a step matches a code that doesn't exist or whose channel is `active=false`, 
 
 Every response carries `X-Sales-Channel: <resolvedCode>` so HTTP caches can `Vary` on it.
 
+## Storefront theme
+
+A channel's `themeCode` selects which set of design tokens the storefront renders in — colour, typography, spacing, corner radius, elevation. It is chosen from a list on the channel's identity form, and the list holds the themes the storefront actually implements; a channel that names none renders in the default theme.
+
+The storefront reads it through the public channel endpoint:
+
+```text
+GET /api/v1/storefront/sales-channel
+```
+
+which returns the **resolved** channel for the request — code, display name, language and currency scopes, `themeCode` and `logoUrl` — and no admin-only field (`id`, `active`, `systemDefault`, `version`). The storefront applies the theme server-side, on the first render, so the first HTML a buyer's browser parses already carries the channel's brand.
+
+The theme changes how the storefront looks, not what it is made of: every channel renders the same pages with the same components. A per-channel page *template* is a larger question and is measured, not answered, in `specs/storefront-composability-measure.md`.
+
+A channel configured with a theme code the storefront does not implement renders in the default theme and logs the code it was given. The page is never refused for a buyer, and no other theme is substituted by guesswork.
+
 ## Bidirectional membership
 
 Memberships can be managed equivalently from either side:

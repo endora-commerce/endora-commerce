@@ -156,6 +156,10 @@ import { Migration20260817T070014EmailDeliveryRecord } from '@endora-commerce/mo
 // ── google_analytics ────────────────────────────────────────────────────────
 import { Migration20260715T171116GoogleAnalyticsInit } from '@endora-commerce/mod-google-analytics/migrations';
 
+// ── inpost ──────────────────────────────────────────────────────────────────
+import { Migration20260821T150748InpostWebhookEventsAndShipmentLinks } from '@endora-commerce/mod-inpost/migrations';
+import { Migration20260829T120000InpostSeedDeliveryMethods } from '@endora-commerce/mod-inpost/migrations';
+
 // ── inventory ───────────────────────────────────────────────────────────────
 import { Migration20260503T182812InventoryWorkflow } from '@endora-commerce/mod-inventory/migrations';
 import { Migration20260611T140347InventoryWarehouseDefaultLowStockThreshold } from '@endora-commerce/mod-inventory/migrations';
@@ -199,6 +203,7 @@ import { Migration20260611T140414OrdersOrderItemPackaging } from '@endora-commer
 import { Migration20260618T130459OrdersOrderAppliedPromotions } from '@endora-commerce/mod-orders/migrations';
 import { Migration20260718T200339OrdersOrderCustomFieldValues } from '@endora-commerce/mod-orders/migrations';
 import { Migration20260724T193611OrdersOrderPlacementIntents } from '@endora-commerce/mod-orders/migrations';
+import { Migration20260804T114814OrdersShippingAdapterData } from '@endora-commerce/mod-orders/migrations';
 import { Migration20260820T100201OrdersNewToPaidTransition } from '@endora-commerce/mod-orders/migrations';
 import { Migration20260821T131145OrdersPurchaseConversionMarker } from '@endora-commerce/mod-orders/migrations';
 import { Migration20260824T080000OrdersDeliveryPointSnapshot } from '@endora-commerce/mod-orders/migrations';
@@ -440,6 +445,10 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── google_analytics ────────────────────────────────────────────────────────
   migration('google_analytics', Migration20260715T171116GoogleAnalyticsInit),
 
+  // ── inpost ──────────────────────────────────────────────────────────────────
+  migration('inpost', Migration20260821T150748InpostWebhookEventsAndShipmentLinks),
+  migration('inpost', Migration20260829T120000InpostSeedDeliveryMethods),
+
   // ── inventory ───────────────────────────────────────────────────────────────
   migration('inventory', Migration20260503T182812InventoryWorkflow),
   migration('inventory', Migration20260611T140347InventoryWarehouseDefaultLowStockThreshold),
@@ -483,6 +492,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('orders', Migration20260618T130459OrdersOrderAppliedPromotions),
   migration('orders', Migration20260718T200339OrdersOrderCustomFieldValues),
   migration('orders', Migration20260724T193611OrdersOrderPlacementIntents),
+  migration('orders', Migration20260804T114814OrdersShippingAdapterData),
   migration('orders', Migration20260820T100201OrdersNewToPaidTransition),
   migration('orders', Migration20260821T131145OrdersPurchaseConversionMarker),
   migration('orders', Migration20260824T080000OrdersDeliveryPointSnapshot),

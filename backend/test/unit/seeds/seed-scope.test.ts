@@ -126,7 +126,8 @@ describe('what that scope establishes', () => {
     await runWithoutTenantContext(() =>
       inSeedScope(async () => {
         expect(orgFilterCond()).toEqual({});
-        expect(customerFilterCond()).toEqual({});
+        expect(customerFilterCond('absent')).toEqual({});
+        expect(customerFilterCond('present')).toEqual({});
       }),
     );
   });

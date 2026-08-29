@@ -1,104 +1,20 @@
-import type {
-  ModuleInstallHook,
-  ModuleLifecycleParticipant,
-  ModuleManifest,
-  ModuleRecentActivity,
-  ModuleUninstallHook,
-} from '@endora-commerce/contracts';
-import { ModuleDepGraph } from './dep-graph.js';
-import { collectLifecycleParticipants } from './manifest-loader.js';
-import type { LoadedManifestRegistry, LoadedModuleEntry } from './manifest-loader.js';
-
 /**
- * Build a `LoadedManifestRegistry` from static imports — what the
- * production composition root uses instead of filesystem discovery.
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, D-160.11: `_lifecycle` merges into the host package).
  *
- * Why a separate path? `composition.ts` already imports every module's
- * plugin via static `import` statements (so the build picks them up).
- * Asking the same code to do filesystem discovery in production would
- * require shipping the source tree alongside `dist/`, which we don't.
- * The CLI scripts (which run via `tsx` against the source tree) and
- * tests (which run via vitest, ditto) use the dynamic discovery loader.
+ * The lifecycle subsystem is the platform's operator half, so its
+ * platform-safe files moved to `packages/platform/src/lifecycle/`. What stayed
+ * behind is the host half — the manifest registry, the reduced-deployment
+ * reader and the five `module:*` commands — and everything in `backend/` that
+ * named a moved file at its old path arrives here and is forwarded.
+ *
+ * The forwarding target is the package's **build output**, which is what its
+ * `exports` map serves, so a relative specifier and a bare one land on the same
+ * file and therefore on the same module record: one `LifecycleError`, one
+ * `registryCache`, one orchestrator class. This file names the built file
+ * directly because the host publishes no subpath for it — D-160.7 keeps the
+ * `exports` map at five, and a public API with one consumer forever is what
+ * D-160.11 refused. That is the debt made visible, exactly as the five
+ * platform directories' shims make theirs.
  */
-/**
- * What {@link buildStaticRegistry} accepts.
- *
- * **Hand the resolved entries straight in; do not re-map them.** Five CLI
- * scripts, `composition.ts` and the test harness each carried a hand-written
- * identity map from `RegisteredManifestEntry` into this shape, field by field —
- * seven copies of one function, of which `status.ts` had already dropped
- * `filePath` and every one of them would have dropped the
- * `lifecycleParticipant` added in feature 080's T036a. The two types are
- * structurally compatible on purpose, so there is nothing to copy.
- *
- * Every optional field spells `| undefined` explicitly, and that is what makes
- * the compatibility hold: under `exactOptionalPropertyTypes` a bare `?:`
- * refuses a value whose own property is typed `T | undefined`, which is what
- * every carrier of these fields has.
- */
-export interface StaticRegistryEntry {
-  manifest: ModuleManifest;
-  installHook?: ModuleInstallHook | undefined;
-  uninstallHook?: ModuleUninstallHook | undefined;
-  /**
-   * This module's interest in every *other* module's install and hard
-   * uninstall (feature 080, T036a / D-159).
-   */
-  lifecycleParticipant?: ModuleLifecycleParticipant | undefined;
-  /**
-   * The module's recent-activity eligibility (feature 080, T042j / D-163.1).
-   */
-  recentActivity?: ModuleRecentActivity | undefined;
-  /** Optional source-file path for diagnostics; defaults to `'<static>'`. */
-  filePath?: string | undefined;
-}
-
-export function buildStaticRegistry(
-  entries: ReadonlyArray<StaticRegistryEntry>,
-): LoadedManifestRegistry {
-  const modules = new Map<string, LoadedModuleEntry>();
-  for (const e of entries) {
-    if (modules.has(e.manifest.id)) {
-      throw new Error(
-        `[static-registry] duplicate manifest id "${e.manifest.id}" — ` +
-          `composition root must declare each module exactly once.`,
-      );
-    }
-    modules.set(e.manifest.id, {
-      manifest: e.manifest,
-      filePath: e.filePath ?? '<static>',
-      ...(e.installHook ? { installHook: e.installHook } : {}),
-      ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
-      ...(e.lifecycleParticipant ? { lifecycleParticipant: e.lifecycleParticipant } : {}),
-      ...(e.recentActivity ? { recentActivity: e.recentActivity } : {}),
-    });
-  }
-  // Orphan deps: per research §R7, BOOT IS TOLERANT — modules whose
-  // dependencies haven't been retrofitted yet (Pass B is a separate
-  // feature) are accepted with a warning. The orchestrator's install/
-  // enable validation re-checks against the registry at command time
-  // and refuses misconfigured installs.
-  for (const e of modules.values()) {
-    for (const dep of e.manifest.dependencies) {
-      if (!modules.has(dep)) {
-         
-        console.warn(
-          `[static-registry] manifest "${e.manifest.id}" depends on ` +
-            `"${dep}" which is not in the static registry — ` +
-            `treating as always-installed (Pass B retrofit pending).`,
-        );
-      }
-    }
-  }
-  const graph = new ModuleDepGraph(
-    [...modules.values()].map((m) => m.manifest),
-  );
-  const cycle = graph.hasCycle();
-  if (cycle) {
-    throw new Error(
-      `[static-registry] cycle in module dependency graph: ` +
-        `[${cycle.cycle.join(' → ')}]`,
-    );
-  }
-  return { modules, graph, participants: collectLifecycleParticipants(modules.values()) };
-}
+export * from '../../../../packages/platform/dist/lifecycle/services/static-registry.js';
